@@ -1,0 +1,113 @@
+version: "3.9"
+
+x-common-env: &common-env
+  PLATFORM_DB_URL: postgresql+psycopg://postgres:postgres@postgres:5432/agno_platform
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: agno-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: agno_platform
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - agno-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d agno_platform"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  ts-mcp-server:
+    build:
+      context: ../MCP_PLATFORM
+      dockerfile: Dockerfile.ts-mcp
+    container_name: agno-ts-mcp
+    environment:
+      <<: *common-env
+      TS_MCP_PORT: 3001
+    env_file:
+      - .env
+    volumes:
+      - ../MCP_PLATFORM/mcp-servers/ts-mcp-server:/app:ro
+    ports:
+      - "3001:3001"
+    networks:
+      - agno-net
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3001/health', (r) => process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  py-mcp-server:
+    build:
+      context: ../MCP_PLATFORM
+      dockerfile: Dockerfile.py-mcp
+    container_name: agno-py-mcp
+    environment:
+      <<: *common-env
+      PY_MCP_PORT: 3002
+    env_file:
+      - .env
+    volumes:
+      - ../MCP_PLATFORM/mcp-servers/py-mcp-server:/app:ro
+    ports:
+      - "3002:3002"
+    networks:
+      - agno-net
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:3002/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  agentos:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agno-agentos
+    environment:
+      <<: *common-env
+      KNOWLEDGE_BASE_PATH: /app/knowledge/platform
+      TS_MCP_SERVER_URL: http://ts-mcp-server:3001
+      PY_MCP_SERVER_URL: http://py-mcp-server:3002
+    env_file:
+      - .env
+    volumes:
+      - ./knowledge:/app/knowledge:ro
+      - ./app:/app/app:ro
+      - ./agents:/app/agents:ro
+      - ./config:/app/config:ro
+      - ./scripts:/app/scripts:ro
+      - ../MCP_PLATFORM/mcp-servers:/app/mcp-servers:ro
+    ports:
+      - "8000:8000"
+    networks:
+      - agno-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ts-mcp-server:
+        condition: service_healthy
+      py-mcp-server:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  agno-net:
+    driver: bridge
