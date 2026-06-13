@@ -66,6 +66,7 @@ opentelemetry-semantic-conventions==0.63b1
 packaging==26.2
 parallel-web==0.6.0
 pgvector==0.4.2
+pymilvus>=2.5.0
 propcache==0.5.2
 psycopg==3.3.4
 psycopg-binary==3.3.4

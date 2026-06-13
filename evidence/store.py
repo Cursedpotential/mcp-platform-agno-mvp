@@ -4,11 +4,11 @@ evidence/store.py — persist normalized records + feed the knowledge engine.
 Two sinks (P2 scope):
   1. analysis.normalized_record — the relational home of every canonical record,
      carrying the bitemporal fields (occurred_at / knowledge_time / disclosure_tier).
-  2. The domain-partitioned KNOWLEDGE engine (pgvector `platform_knowledge`):
-     transcripts are re-rendered as conversation markdown and inserted with a
-     `domain` metadata tag (timeline_relationship | personal_history |
-     platform_design | legal_strategy) so agents filter to their domains
-     (native knowledge_filters — see docs/DEBT.md Agno-native audit).
+  2. The domain-partitioned KNOWLEDGE engine (Milvus collection `platform_knowledge`,
+     ADR-0027 — vectors in Milvus, contents in Postgres): transcripts are re-rendered
+     as conversation markdown and inserted with a `domain` metadata tag
+     (timeline_relationship | personal_history | platform_design | legal_strategy) so
+     agents filter to their domains (native knowledge_filters — see docs/DEBT.md).
 
 P3 extends this module with the Graphiti bitemporal episode writes; the
 relational + vector sinks here are complete for P2.
