@@ -200,6 +200,20 @@ Access: `ssh -i ~/.ssh/ovh debian@40.160.5.19`. Code volume-mounted (`.:/app`)
     NOT a Graphiti replacement — Graphiti stays for cognition; decide before P3/Phase B).
   - ⚠️ A raw local model consumes tools ONLY through an MCP-capable harness (Agno / OpenCode /
     MCP client) — never directly. Two distinct gateways: **LiteLLM = models**, **ContextForge = tools**.
+- **Universal exposure — API-first + MCP-wrapped (locked 2026-06-13; needs ADR).** EVERYTHING is
+  atomically addressable — **every tool, every agent, every workflow** exposes:
+  1. an **internal API** (FastAPI/HTTP) that in-platform ("platform-surface") consumers call directly;
+  2. an **MCP wrapper over that API** for ALL external/any-surface consumers — federated by IBM ContextForge.
+  Each unit is callable **atomically**; tools also **compose into workflows** (a workflow may declare a
+  slot for a *variable set* of tools). **Workflows are first-class** and reachable **inside or outside**
+  the platform from any surface, via the same API+MCP pattern. **Rule: everything gets an API; every API
+  gets an MCP.** (Implements the minimize-custom + serve/consume topology above; the registry + ContextForge
+  carry it. Workflow *design itself* = a future brainstorm — see HANDOFFS.)
+- **SurrealDB = store/session/Knowledge/memory layer (LOCKED 2026-06-13; needs ADR).** Consolidate
+  AgentOS sessions+state + pgvector Knowledge + memory onto **SurrealDB** (Agno-native db + vector + memory).
+  It also fits the **bitemporal evidence-record store** (native valid + transaction time). **Custom Graphiti
+  STAYS** the bitemporal *cognition* substrate (VIP — NOT replaced; different altitude). Migrate off
+  pg_duckdb/pgvector deliberately, weighed against the live ADR-0013 stack; sequence in Phase D.
 - **Use Agno's NATIVE surface — do NOT rebuild it (validated against agno docs 2026-06-13).**
   AgentOS = Runtime (FastAPI serving agents/teams/workflows) + **Control-plane UI** (manage/
   monitor/debug) + a **Chat UI** (chat with agents, run workflows; open-source Next.js "AgentUI",
@@ -325,6 +339,6 @@ Access: `ssh -i ~/.ssh/ovh debian@40.160.5.19`. Code volume-mounted (`.:/app`)
   `/examples/integrations/surrealdb`). So it could **consolidate** AgentOS db + pgvector
   Knowledge + memory into one off-the-shelf engine (fits minimize-custom). **NOT a replacement
   for custom Graphiti** (VIP — stays the bitemporal evidence substrate), and weigh against the
-  already-LIVE pg_duckdb stack (ADR-0013). **DECISION POINT: settle before building the
-  storage/Knowledge layers (P3 / Phase B+).** Does NOT block Phase A (parsers emit
-  storage-agnostic `NormalizedRecord`s).
+  already-LIVE pg_duckdb stack (ADR-0013). **DECIDED 2026-06-13 → see §5 Locked Decisions;**
+  sequence the migration in Phase D. Does NOT block Phase A (parsers emit storage-agnostic
+  `NormalizedRecord`s).
