@@ -36,6 +36,7 @@ guarantee gets an ADR. One short record. Supersede (don't edit) when a decision 
 | 0023 | Universal exposure — API-first, MCP-wrapped (every tool/agent/workflow) | Accepted (pairs with 0017) |
 | 0024 | SurrealDB = store/session/Knowledge/memory layer; Graphiti stays cognition | Accepted (supersedes-in-part 0010 Knowledge layer) |
 | 0025 | Topology: Agno core + IBM ContextForge tool gateway + LiteLLM model gateway; minimize custom | Accepted (clarifies 0015; reinforces 0017) |
+| 0026 | Self-hosted Milvus (Coolify) = shared semantic store (code + Case Bible); off managed EU Zilliz | Accepted (serves claude-context; complements 0024) |
 
 > The full vision, current stack, roadmap, access, and gotchas live in
 > [`docs/PROJECT_CANON.md`](../PROJECT_CANON.md) (the durable source of truth).
