@@ -33,6 +33,9 @@ guarantee gets an ADR. One short record. Supersede (don't edit) when a decision 
 | 0020 | Multi-domain knowledge engine — domain-separated, any-agent queryable | Accepted (extends 0010/0011) |
 | 0021 | Engineering conventions — no-stub discipline, harness-first tests | Accepted |
 | 0022 | Comprehensive living wiki — dual-purpose (AI + human), covers everything | Accepted (vision; build deferred) |
+| 0023 | Universal exposure — API-first, MCP-wrapped (every tool/agent/workflow) | Accepted (pairs with 0017) |
+| 0024 | SurrealDB = store/session/Knowledge/memory layer; Graphiti stays cognition | Accepted (supersedes-in-part 0010 Knowledge layer) |
+| 0025 | Topology: Agno core + IBM ContextForge tool gateway + LiteLLM model gateway; minimize custom | Accepted (clarifies 0015; reinforces 0017) |
 
 > The full vision, current stack, roadmap, access, and gotchas live in
 > [`docs/PROJECT_CANON.md`](../PROJECT_CANON.md) (the durable source of truth).

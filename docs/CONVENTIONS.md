@@ -30,6 +30,7 @@ The SSOT is **plain markdown + the `AGENTS.md` standard** — deliberately tool-
 ## Working rules (apply to every change)
 
 - **No silent stubs (ADR-0021).** Unavoidable stub → grep-able `# STUB: <tag>` in code **and** a row in `docs/DEBT.md`. `grep -rn "# STUB:"` must match the register exactly. Prefer *removing* an unfinished tool over shipping a silent `NotImplementedError`.
+- **Doc-debt flagging — circle back, don't block (ADR-0022).** As you code, flag anything needing documentation with a grep-able **`# DOC: <what>`** (Python) / **`// DOC: <what>`** (TS) AND a row in **`docs/DOC_DEBT.md`**. `grep -rn "# DOC:"` ↔ `docs/DOC_DEBT.md`. Standing goal (feeds the living wiki, ADR-0022): **every function, plugin, app, tool, and 3rd-party library** documented **human-readable AND LLM-readable**. Do NOT write full docs inline mid-build — flag + register, circle back in a docs pass.
 - **Harness-first tests.** `pytest` + `python -m evals` must run green; write paths (custody/HITL/normalize) aren't trusted until governance/boundary evals pass.
 - **Verify Agno against the pinned wheel/image** via the agno skill + agno docs MCP — never from memory. (Current: agno **2.6.13**.)
 - **HITL is first-class.** Every write (ingestion/normalize/evidence/config/db) pauses for recorded approval (native `@approval` + `requires_confirmation`; ADR-0002).

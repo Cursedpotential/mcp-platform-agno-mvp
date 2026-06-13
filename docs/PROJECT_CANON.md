@@ -207,8 +207,10 @@ Access: `ssh -i ~/.ssh/ovh debian@40.160.5.19`. Code volume-mounted (`.:/app`)
   Each unit is callable **atomically**; tools also **compose into workflows** (a workflow may declare a
   slot for a *variable set* of tools). **Workflows are first-class** and reachable **inside or outside**
   the platform from any surface, via the same API+MCP pattern. **Rule: everything gets an API; every API
-  gets an MCP.** (Implements the minimize-custom + serve/consume topology above; the registry + ContextForge
-  carry it. Workflow *design itself* = a future brainstorm — see HANDOFFS.)
+  gets an MCP.** Exposed **token-efficiently via progressive disclosure** — `search_tools` → `describe_tool`
+  on demand → `invoke_tool` → `get_ref` (paged); start with a search tool + name-only catalog, never dump all
+  schemas into context (dial-stack `gateway.ts` pattern; ADR-0023, Phase C). (Implements minimize-custom +
+  the serve/consume topology; registry + ContextForge carry it. Workflow *design* = a future brainstorm — see HANDOFFS.)
 - **SurrealDB = store/session/Knowledge/memory layer (LOCKED 2026-06-13; needs ADR).** Consolidate
   AgentOS sessions+state + pgvector Knowledge + memory onto **SurrealDB** (Agno-native db + vector + memory).
   It also fits the **bitemporal evidence-record store** (native valid + transaction time). **Custom Graphiti
