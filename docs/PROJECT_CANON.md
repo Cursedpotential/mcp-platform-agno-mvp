@@ -211,18 +211,21 @@ Access: `ssh -i ~/.ssh/ovh debian@40.160.5.19`. Code volume-mounted (`.:/app`)
   on demand → `invoke_tool` → `get_ref` (paged); start with a search tool + name-only catalog, never dump all
   schemas into context (dial-stack `gateway.ts` pattern; ADR-0023, Phase C). (Implements minimize-custom +
   the serve/consume topology; registry + ContextForge carry it. Workflow *design* = a future brainstorm — see HANDOFFS.)
-- **SurrealDB = store/session/Knowledge/memory layer (LOCKED 2026-06-13; needs ADR).** Consolidate
-  AgentOS sessions+state + pgvector Knowledge + memory onto **SurrealDB** (Agno-native db + vector + memory).
-  It also fits the **bitemporal evidence-record store** (native valid + transaction time). **Custom Graphiti
-  STAYS** the bitemporal *cognition* substrate (VIP — NOT replaced; different altitude). Migrate off
-  pg_duckdb/pgvector deliberately, weighed against the live ADR-0013 stack; sequence in Phase D.
-- **Self-hosted Milvus = shared semantic-search store (LOCKED 2026-06-13; ADR-0026).** `claude-context`
-  (code/knowledge index) + the **Case Bible** corpus run on **our own Milvus standalone** (Milvus+etcd+MinIO),
-  Coolify-deployed on OVH from the `milvus-coolify` repo — **off** the managed Zilliz `aws-eu-central-1`
-  cluster. Mapped (bind-mount) volumes (owner backup preference); Traefik h2c fronts gRPC 19530 so
-  `MILVUS_ADDRESS=https://<domain>`; auth on. Embedder unchanged (OpenRouter `codestral-embed-2505`, 1536-d).
-  **Distinct from SurrealDB (ADR-0024):** Milvus serves the Milvus-only `claude-context`/Case-Bible search;
-  SurrealDB is the platform store/session/Knowledge/memory layer; Graphiti stays cognition.
+- **SurrealDB = store/session/memory + bitemporal-record layer (LOCKED 2026-06-13; ADR-0024, amended by ADR-0027).**
+  Consolidate AgentOS sessions+state + memory + the **bitemporal evidence-record store** (native valid+transaction
+  time) onto **SurrealDB**. ⚠ **The vector/Knowledge role moved to Milvus (ADR-0027)** — SurrealDB is NOT the vector
+  store; semantic search lives in Milvus. **Custom Graphiti STAYS** the bitemporal *cognition* substrate (VIP — NOT
+  replaced; different altitude). Migrate off pg_duckdb deliberately vs the live ADR-0013 stack; sequence in Phase D.
+- **Milvus = the platform-wide VECTOR/ANN substrate (LOCKED 2026-06-13; ADR-0026 + ADR-0027). LIVE on ovh2.**
+  Self-hosted **Milvus 3.0 standalone (embedded etcd + local storage + WoodPecker) + Attu v3**, Coolify-deployed
+  on ovh2 from the `milvus-coolify` repo — **off** the managed Zilliz `aws-eu-central-1` cluster. **Everything
+  that needs similarity search lands in Milvus** (one collection per embedder/domain): the `claude-context` code
+  index, the **Case Bible** corpus, the **domain-partitioned Knowledge engine**, and evidence-text embeddings —
+  via **Agno's native Milvus integration** (off-the-shelf). Gains **hybrid dense+sparse/BM25** retrieval. Reachable
+  over Tailscale (`100.91.190.107`: gRPC 19530, Attu UI 3000); mapped (bind-mount) volumes at `/data/milvus/volumes/*`
+  (owner backup preference); auth on (`root:Milvus`, rotate). Embedder unchanged (OpenRouter `codestral-embed-2505`,
+  1536-d). Beta-aware: code/Case-Bible now; **Knowledge-engine migration off pgvector = Phase B/D** (accept beta or
+  pin GA then). Deploy gotchas recorded in [[milvus-coolify-decision]] memory.
 - **Use Agno's NATIVE surface — do NOT rebuild it (validated against agno docs 2026-06-13).**
   AgentOS = Runtime (FastAPI serving agents/teams/workflows) + **Control-plane UI** (manage/
   monitor/debug) + a **Chat UI** (chat with agents, run workflows; open-source Next.js "AgentUI",
