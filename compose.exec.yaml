@@ -107,7 +107,7 @@ services:
     container_name: platform-tools
     restart: unless-stopped
     ports:
-      - "${BIND_IP:-127.0.0.1}:8080:8085"   # SBV GUI — proxy-ready below
+      - "${BIND_IP:-127.0.0.1}:8085:8085"   # SBV GUI — host OFF 8080 (Coolify/Traefik collision killed the old stack) — proxy-ready below
       - "${BIND_IP:-127.0.0.1}:8090:8090"   # parsers/extractors facade — tailnet-only
     volumes:
       - /data/agno/volumes/sbv_data:/opt/sbv/data
