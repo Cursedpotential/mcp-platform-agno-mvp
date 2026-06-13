@@ -1,0 +1,30 @@
+chat:
+  quick_prompts:
+    ingestion-orchestrator:
+      - "Ingest this SMS XML export"
+      - "Process a Facebook Messenger HTML dump"
+      - "Show me the chain of custody for evidence file X"
+    analysis-orchestrator:
+      - "Run NLP analysis on the latest evidence batch"
+      - "Build a knowledge graph from ingested messages"
+      - "Find contradictions in witness statements"
+    review-gatekeeper:
+      - "What actions are pending approval?"
+      - "Approve the write to evidence storage"
+      - "Show me the audit log"
+    transcript-miner:
+      - "Mine this AI chat transcript for decisions"
+      - "Extract code artifacts from session logs"
+      - "What blockers were identified in the last session?"
+    dev-copilot:
+      - "Help me port the SMS parser to the new modular structure"
+      - "Generate a migration plan for the NLP pipeline"
+      - "Review this implementation approach"
+    project-pal:
+      - "What's the current project status?"
+      - "List active blockers and next actions"
+      - "Summarize recent decisions"
+    forensic-data-agent:
+      - "Explain the PostgreSQL schema for messages"
+      - "Run a safe query on the evidence database"
+      - "What queries have been validated for this pattern?"

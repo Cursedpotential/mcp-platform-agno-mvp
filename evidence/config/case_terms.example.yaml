@@ -1,0 +1,19 @@
+# case_terms.example.yaml — COPY to case_terms.yaml (gitignored) and fill in.
+# _Byline: Claude Code · Opus 4.8 · 2026-06-13_
+#
+# Case-specific segmentation terms merged into the segmenter's GENERIC keyword map at
+# runtime (chatminer/segmenters/segmenter_local.py :: _load_case_terms). Keeps real
+# names/places OUT of the repo. Keys MUST equal TopicTag values. Path override: env
+# CHATMINER_CASE_TERMS (default ./evidence/config/case_terms.yaml).
+relationship_history:
+  - "<partner / ex first name>"
+  - "<child first name>"
+  - "<child nickname or voice-recognition variant>"
+  - "<recurring place: hotel / street / city>"
+personal_legal:
+  - "<opposing counsel surname>"
+  - "<judge surname>"
+  - "<case / docket number>"
+evidence: []
+emotional: []
+development: []

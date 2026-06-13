@@ -1,0 +1,61 @@
+# n8n deployment — runs on the IONOS host (box 2), separate from the agno-mvp stack (ADR-0007/0009).
+# Standalone Postgres backend (isolated from the platform's evidence/analysis DB).
+# Secrets come from .env (generated on the host, never committed).
+
+services:
+  n8n-db:
+    image: postgres:16-alpine
+    container_name: n8n-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-n8n}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-n8n}
+    volumes:
+      - n8n_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-n8n} -d ${POSTGRES_DB:-n8n}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [n8n]
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=n8n-db
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=${POSTGRES_DB:-n8n}
+      - DB_POSTGRESDB_USER=${POSTGRES_USER:-n8n}
+      - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - N8N_USER_MANAGEMENT_JWT_SECRET=${N8N_USER_MANAGEMENT_JWT_SECRET}
+      - GENERIC_TIMEZONE=${TIMEZONE:-America/Detroit}
+      - TZ=${TIMEZONE:-America/Detroit}
+      - N8N_HOST=${N8N_HOST:-74.208.130.34}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=${WEBHOOK_URL:-http://74.208.130.34:5678/}
+      # Plain-HTTP over an IP: required so the login cookie isn't dropped.
+      - N8N_SECURE_COOKIE=false
+      - N8N_RUNNERS_ENABLED=true
+      - N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE=true
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      n8n-db:
+        condition: service_healthy
+    networks: [n8n]
+
+networks:
+  n8n:
+
+volumes:
+  n8n_db:
+  n8n_data:

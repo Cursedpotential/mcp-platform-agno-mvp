@@ -1,0 +1,48 @@
+# LiteLLM proxy — one OpenAI-compatible endpoint over every provider we hold keys for.
+# Keys come from the container env (compose passes them from .env). Add models freely.
+model_list:
+  - model_name: glm-5.1         # PRIMARY (Ollama Cloud — owner decision 2026-06-11;
+    litellm_params:             #  NVIDIA was rate-limiting, now embeddings/rerank/backup only)
+      model: openai/glm-5.1
+      api_base: https://ollama.com/v1
+      api_key: os.environ/OLLAMA_API_KEY
+  - model_name: nemotron        # BACKUP LLM (NVIDIA NIM)
+    litellm_params:
+      model: openai/nvidia/nemotron-3-super-120b-a12b
+      api_base: https://integrate.api.nvidia.com/v1
+      api_key: os.environ/NVIDIA_API_KEY
+  - model_name: kimi-k2.6
+    litellm_params:
+      model: openai/moonshotai/kimi-k2.6
+      api_base: https://integrate.api.nvidia.com/v1
+      api_key: os.environ/NVIDIA_API_KEY
+  - model_name: embed-text      # llama-nemotron-embed (2048-d)
+    litellm_params:
+      model: openai/nvidia/llama-nemotron-embed-vl-1b-v2
+      api_base: https://integrate.api.nvidia.com/v1
+      api_key: os.environ/NVIDIA_API_KEY
+      # NIM embedqa models REQUIRE input_type (asymmetric); inject centrally
+      # so every gateway caller (Graphiti, n8n, etc.) gets it for free
+      extra_body:
+        input_type: passage
+        truncate: NONE
+
+  - model_name: groq-llama
+    litellm_params:
+      model: groq/llama-3.3-70b-versatile
+      api_key: os.environ/GROQ_API_KEY
+  - model_name: openrouter-deepseek
+    litellm_params:
+      model: openrouter/deepseek/deepseek-chat
+      api_key: os.environ/OPENROUTER_API_KEY
+  - model_name: gemini-pro
+    litellm_params:
+      model: gemini/gemini-2.5-pro
+      api_key: os.environ/GOOGLE_API_KEY
+
+litellm_settings:
+  drop_params: true             # tolerate provider-specific params
+  num_retries: 2
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY   # set in .env

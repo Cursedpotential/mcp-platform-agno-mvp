@@ -1,0 +1,236 @@
+services:
+  agentos-db:
+    # Custom PG18 image: pg_duckdb + PostGIS + pgvector + pg_stat_statements
+    # (ADR-0013; docker/postgres/Dockerfile). Was: agnohq/pgvector:18 — same
+    # PG major, so the pgdata volume carries over.
+    build:
+      context: ./docker/postgres
+    image: agno-postgres:18-duckdb
+    container_name: agentos-db
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql
+      # init SQL runs once at first boot (empty data dir only)
+      - ./sql/0001_init_extensions.sql:/docker-entrypoint-initdb.d/01_extensions.sql:ro
+      - ./sql/0002_schema.sql:/docker-entrypoint-initdb.d/02_schema.sql:ro
+      - ./sql/0003_normalized_records.sql:/docker-entrypoint-initdb.d/03_normalized_records.sql:ro
+    environment:
+      POSTGRES_USER: ${DB_USER:-ai}
+      POSTGRES_PASSWORD: ${DB_PASS:-ai}
+      POSTGRES_DB: ${DB_DATABASE:-ai}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-ai}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - agentos
+
+  agentos-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agentos-api
+    image: ${IMAGE_NAME:-agentos}:${IMAGE_TAG:-latest}
+    # NO --reload: uvicorn reload breaks the MCP lifespan under AgentOS
+    # (handoff §4 correction #4). Restart the container to pick up code changes.
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      # R2 bucket "nexus" via rclone docker volume plugin — stack-wide blob
+      # storage (ADR-0007 landing zone). Any service can mount r2-nexus.
+      - r2-nexus:/r2
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      RUNTIME_ENV: ${RUNTIME_ENV:-dev}
+      AGNO_DEBUG: "True"
+      WAIT_FOR_DB: "True"
+      AGENTOS_URL: http://127.0.0.1:8000
+      DB_HOST: agentos-db
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-ai}
+      DB_PASS: ${DB_PASS:-ai}
+      DB_DATABASE: ${DB_DATABASE:-ai}
+      # R2 blob landing zone (ADR-0007) — S3-compatible reads via boto3/agno;
+      # set in .env when the bucket is provisioned. No FUSE mount needed.
+      R2_BUCKET_NAME: ${R2_BUCKET_NAME:-}
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
+      R2_ENDPOINT_URL: ${R2_ENDPOINT_URL:-}
+    depends_on:
+      agentos-db:
+        condition: service_healthy
+    networks:
+      - agentos
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # ---------------------------------------------------------------------------
+  # Consolidated tool containers (owner decision 2026-06-10): as few as possible.
+  # Under the "tools" profile until first build is verified:
+  #   docker compose --profile tools up -d --build
+  # ---------------------------------------------------------------------------
+  platform-tools:
+    build:
+      context: ./docker/tools
+    image: agno-platform-tools:latest
+    container_name: platform-tools
+    profiles: ["tools"]
+    restart: unless-stopped
+    ports:
+      - "8080:8085"   # SBV GUI + REST API (SBV's internal default is 8085)
+      - "8090:8090"   # parsers/extractors facade
+    volumes:
+      - sbv_data:/opt/sbv/data        # SBV uses CWD-relative ./data
+      - r2-nexus:/r2
+      # registry-backed facade: parser modules live in the evidence package
+      - ./evidence:/opt/tools/evidence:ro
+    networks:
+      - agentos
+
+  sandbox:
+    build:
+      context: ./docker/sandbox
+    image: agno-sandbox:latest
+    container_name: agent-sandbox
+    profiles: ["tools"]
+    restart: unless-stopped
+    # NO published ports, NO env secrets, NO repo mounts — agents reach it
+    # over the internal network only (http://sandbox:8070/run).
+    cpus: 2
+    mem_limit: 1g
+    volumes:
+      - agent_workspace:/workspace   # shared with the desktop (owner sees agent output)
+    networks:
+      - agentos
+
+  # Kasm browser desktop (owner decision 2026-06-11). SEPARATE from sandbox to
+  # preserve the sandbox's no-secrets isolation; shares the workspace volume so
+  # the desktop sees/edits the same files agents run code in. Opt-in profile
+  # ("desktop") because it wants ~1.5-2GB RAM — bring it up only when needed:
+  #   docker compose --profile desktop up -d
+  # Then open https://<host or tailnet ip>:6901  (user: kasm_user, pw: VNC_PW).
+  desktop:
+    image: kasmweb/desktop:1.16.0
+    container_name: kasm-desktop
+    profiles: ["desktop"]
+    restart: unless-stopped
+    ports:
+      - "6901:6901"
+    environment:
+      VNC_PW: ${KASM_VNC_PW:-changeme-desktop}
+    shm_size: "1gb"          # browsers/desktops need shared memory
+    mem_limit: 2g
+    volumes:
+      - kasm_profile:/home/kasm-user      # PERSISTENT home (settings, files, installs-in-home)
+      - agent_workspace:/workspace        # shared with sandbox
+    networks:
+      - agentos
+
+  gateway:
+    build:
+      context: ./docker/gateway
+    image: agno-gateway:latest
+    container_name: gateway
+    profiles: ["tools"]
+    restart: unless-stopped
+    ports:
+      - "4000:4000"   # LiteLLM proxy (OpenAI-compatible)
+      - "4096:4096"   # OpenCode server
+    environment:
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-changeme-dev-key}
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+    networks:
+      - agentos
+
+  # ---------------------------------------------------------------------------
+  # Temporal graph memory (ADR-0014): Neo4j + Graphiti MCP, pulled forward.
+  # Graphiti's LLM + embeddings ride the LiteLLM gateway — no extra keys.
+  # ---------------------------------------------------------------------------
+  neo4j:
+    image: neo4j:5-community
+    container_name: neo4j
+    profiles: ["graph"]
+    restart: unless-stopped
+    ports:
+      - "7474:7474"   # Neo4j Browser (visual graph exploration)
+      - "7687:7687"   # bolt
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-graphiti-dev-password}
+      # capped for the 8GB VPS (heaviest single service on the box)
+      NEO4J_server_memory_heap_initial__size: 512m
+      NEO4J_server_memory_heap_max__size: 1g
+      NEO4J_server_memory_pagecache_size: 512m
+    volumes:
+      - neo4j_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - agentos
+
+  graphiti-mcp:
+    image: zepai/knowledge-graph-mcp:latest
+    container_name: graphiti-mcp
+    profiles: ["graph"]
+    restart: unless-stopped
+    ports:
+      - "8071:8000"   # MCP (streamable-http/SSE)
+    environment:
+      CONFIG_PATH: /config/config.yaml      # our yaml: neo4j + gateway models
+      BROWSER: "0"                          # kill the embedded FalkorDB browser (unused; V2 = slim image)
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-graphiti-dev-password}
+      # LLM + embeddings via the LiteLLM gateway (OpenAI-compatible).
+      # OPENAI_API_URL feeds the config yaml (embedder path); OPENAI_BASE_URL
+      # is read natively by the openai SDK — needed because the image's LLM
+      # factory drops api_url (upstream bug, verified 2026-06-10).
+      OPENAI_API_KEY: ${LITELLM_MASTER_KEY:-changeme-dev-key}
+      OPENAI_API_URL: http://gateway:4000/v1
+      OPENAI_BASE_URL: http://gateway:4000/v1
+    volumes:
+      # mounted OVER the image's default config path — main.py's argparse
+      # default outranks the CONFIG_PATH env, so we replace the file itself
+      - ./docker/graphiti/config.yaml:/app/mcp/config/config.yaml:ro
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    networks:
+      - agentos
+
+# n8n runs on a SEPARATE server (owner decision 2026-06-10) — not in this stack.
+# It drives this platform over HTTP (/v1/... routes) from wherever it lives.
+
+networks:
+  agentos:
+
+volumes:
+  pgdata:
+  sbv_data:
+  sbv_uploads:
+  neo4j_data:
+  agent_workspace:     # shared sandbox <-> desktop
+  kasm_profile:        # persistent Kasm desktop home
+  # Cloudflare R2 bucket "nexus" mounted via the rclone volume plugin
+  # (config: /var/lib/docker-plugins/rclone/config/rclone.conf on the host).
+  r2-nexus:
+    driver: rclone
+    driver_opts:
+      remote: "r2:nexus"
+      allow_other: "true"
+      vfs_cache_mode: "writes"

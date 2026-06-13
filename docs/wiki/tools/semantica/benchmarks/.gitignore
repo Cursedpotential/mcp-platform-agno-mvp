@@ -1,0 +1,75 @@
+--- Python Standards ---
+
+pycache/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+--- Virtual Environments ---
+
+.env
+.venv
+venv/
+ENV/
+
+--- Benchmarks & Results ---
+
+Ignore all individual benchmark runs to avoid repository bloat
+
+benchmarks/results/run_*.json
+
+Ignore the .pytest_cache which can get quite large
+
+.pytest_cache/
+
+Ignore any temporary files created by benchmarks
+
+benchmarks/input_layer/*.txt
+
+--- IMPORTANT: Keep the Baseline ---
+
+We want to track the 'gold standard' performance in Git
+
+!benchmarks/results/baseline.json
+
+--- IDEs & Editors ---
+
+.idea/
+.vscode/
+*.swp
+*.swo
+.project
+.pydevproject
+.settings/
+
+--- Jupyter Notebooks ---
+
+.ipynb_checkpoints
+
+--- OS Specific ---
+
+.DS_Store
+Thumbs.db
+
+--- Project Specific ---
+
+logs/
+*.log
+semantica.log

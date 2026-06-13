@@ -1,0 +1,497 @@
+"""
+Enhanced Version Managers Module
+
+This module provides enhanced version management capabilities for both knowledge graphs
+and ontologies, with comprehensive change tracking, persistent storage, and audit trails.
+
+Key Features:
+    - Enhanced TemporalVersionManager for knowledge graphs
+    - Enhanced VersionManager for ontologies  
+    - Detailed diff algorithms for entities and relationships
+    - Structural comparison for ontology elements
+    - Integration with storage backends and metadata
+
+Main Classes:
+    - EnhancedTemporalVersionManager: Advanced KG version management
+    - EnhancedVersionManager: Advanced ontology version management
+
+Author: Semantica Contributors
+License: MIT
+"""
+
+from abc import ABC, abstractmethod
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+from .change_log import ChangeLogEntry
+from .version_storage import VersionStorage, InMemoryVersionStorage, SQLiteVersionStorage, compute_checksum, verify_checksum
+from ..utils.exceptions import ValidationError, ProcessingError
+from ..utils.logging import get_logger
+
+
+class BaseVersionManager(ABC):
+    """
+    Abstract base class for enhanced version managers.
+    
+    Provides common functionality for version management across different data types.
+    """
+    
+    def __init__(self, storage_path: Optional[str] = None):
+        """
+        Initialize base version manager.
+        
+        Args:
+            storage_path: Path to SQLite database for persistent storage.
+                         If None, uses in-memory storage.
+        """
+        self.logger = get_logger(self.__class__.__name__.lower())
+        
+        # Initialize storage backend
+        if storage_path:
+            self.storage = SQLiteVersionStorage(storage_path)
+            self.logger.info(f"Initialized with SQLite storage: {storage_path}")
+        else:
+            self.storage = InMemoryVersionStorage()
+            self.logger.info("Initialized with in-memory storage")
+    
+    @abstractmethod
+    def create_snapshot(self, data: Any, version_label: str, author: str, description: str, **options) -> Dict[str, Any]:
+        """Create a versioned snapshot of the data."""
+        pass
+    
+    @abstractmethod
+    def compare_versions(self, version1: Any, version2: Any, **options) -> Dict[str, Any]:
+        """Compare two versions and return detailed differences."""
+        pass
+    
+    def list_versions(self) -> List[Dict[str, Any]]:
+        """List all version snapshots."""
+        return self.storage.list_all()
+    
+    def get_version(self, label: str) -> Optional[Dict[str, Any]]:
+        """Retrieve specific version by label."""
+        return self.storage.get(label)
+    
+    def verify_checksum(self, snapshot: Dict[str, Any]) -> bool:
+        """Verify the integrity of a snapshot using its checksum."""
+        return verify_checksum(snapshot)
+
+
+class TemporalVersionManager(BaseVersionManager):
+    """
+    Temporal version management engine for knowledge graphs.
+    
+    Provides comprehensive version/snapshot management capabilities including
+    persistent storage, detailed change tracking, and audit trails.
+    
+    Features:
+        - Persistent snapshot storage (SQLite or in-memory)
+        - Detailed change tracking with entity-level diffs
+        - SHA-256 checksums for data integrity
+        - Standardized metadata with author attribution
+        - Version comparison with backward compatibility
+        - Input validation and security features
+    """
+    
+    def __init__(self, storage_path: Optional[str] = None, **config):
+        """
+        Initialize enhanced temporal version manager.
+        
+        Args:
+            storage_path: Path to SQLite database file for persistent storage.
+                         If None, uses in-memory storage
+            **config: Additional configuration options
+        """
+        super().__init__(storage_path)
+        self.config = config
+    
+    def create_snapshot(
+        self, 
+        graph: Dict[str, Any], 
+        version_label: str, 
+        author: str, 
+        description: str,
+        **options
+    ) -> Dict[str, Any]:
+        """
+        Create and store snapshot with checksum and metadata.
+        
+        Args:
+            graph: Knowledge graph dict with "entities" and "relationships"
+            version_label: Version string (e.g., "v1.0")
+            author: Email address of the change author
+            description: Change description (max 500 chars)
+            **options: Additional options
+            
+        Returns:
+            dict: Snapshot with metadata and checksum
+            
+        Raises:
+            ValidationError: If input validation fails
+            ProcessingError: If storage operation fails
+        """
+        # Validate inputs
+        change_entry = ChangeLogEntry(
+            timestamp=datetime.now().isoformat(),
+            author=author,
+            description=description
+        )
+        
+        # Create snapshot
+        snapshot = {
+            "label": version_label,
+            "timestamp": change_entry.timestamp,
+            "author": change_entry.author,
+            "description": change_entry.description,
+            "entities": graph.get("entities", []).copy(),
+            "relationships": graph.get("relationships", []).copy(),
+            "metadata": options.get("metadata", {})
+        }
+        
+        # Compute and add checksum
+        snapshot["checksum"] = compute_checksum(snapshot)
+        
+        # Store snapshot
+        self.storage.save(snapshot)
+        
+        self.logger.info(f"Created snapshot '{version_label}' by {author}")
+        return snapshot
+    
+    def compare_versions(
+        self,
+        v1_label_or_dict,
+        v2_label_or_dict,
+        comparison_metrics: Optional[List[str]] = None,
+        **options,
+    ) -> Dict[str, Any]:
+        """
+        Compare two graph versions with detailed entity-level differences.
+        
+        Args:
+            v1_label_or_dict: First version (label string or snapshot dict)
+            v2_label_or_dict: Second version (label string or snapshot dict)
+            comparison_metrics: List of metrics to calculate (optional, unused)
+            **options: Additional comparison options (unused)
+            
+        Returns:
+            dict: Detailed version comparison results
+        """
+        # Handle both label strings and snapshot dictionaries
+        if isinstance(v1_label_or_dict, str):
+            version1 = self.storage.get(v1_label_or_dict)
+            if not version1:
+                raise ValidationError(f"Version not found: {v1_label_or_dict}")
+        else:
+            version1 = v1_label_or_dict
+            
+        if isinstance(v2_label_or_dict, str):
+            version2 = self.storage.get(v2_label_or_dict)
+            if not version2:
+                raise ValidationError(f"Version not found: {v2_label_or_dict}")
+        else:
+            version2 = v2_label_or_dict
+        
+        # Compute detailed diff
+        detailed_diff = self._compute_detailed_diff(version1, version2)
+        
+        # Maintain backward compatibility with summary
+        summary = {
+            "entities_added": len(detailed_diff["entities_added"]),
+            "entities_removed": len(detailed_diff["entities_removed"]),
+            "entities_modified": len(detailed_diff["entities_modified"]),
+            "relationships_added": len(detailed_diff["relationships_added"]),
+            "relationships_removed": len(detailed_diff["relationships_removed"]),
+            "relationships_modified": len(detailed_diff["relationships_modified"])
+        }
+        
+        return {
+            "version1": version1.get("label", "unknown"),
+            "version2": version2.get("label", "unknown"),
+            "summary": summary,
+            **detailed_diff
+        }
+    
+    def _compute_detailed_diff(self, version1: Dict[str, Any], version2: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Compute detailed entity and relationship differences between versions.
+        
+        Args:
+            version1: First version snapshot
+            version2: Second version snapshot
+            
+        Returns:
+            Dict with detailed diff information
+        """
+        entities1 = {e.get("id", str(i)): e for i, e in enumerate(version1.get("entities", []))}
+        entities2 = {e.get("id", str(i)): e for i, e in enumerate(version2.get("entities", []))}
+        
+        relationships1 = {self._relationship_key(r): r for r in version1.get("relationships", [])}
+        relationships2 = {self._relationship_key(r): r for r in version2.get("relationships", [])}
+        
+        # Entity differences
+        entity_ids1 = set(entities1.keys())
+        entity_ids2 = set(entities2.keys())
+        
+        entities_added = [entities2[eid] for eid in entity_ids2 - entity_ids1]
+        entities_removed = [entities1[eid] for eid in entity_ids1 - entity_ids2]
+        
+        entities_modified = []
+        for eid in entity_ids1 & entity_ids2:
+            if entities1[eid] != entities2[eid]:
+                changes = self._compute_entity_changes(entities1[eid], entities2[eid])
+                entities_modified.append({
+                    "id": eid,
+                    "before": entities1[eid],
+                    "after": entities2[eid],
+                    "changes": changes
+                })
+        
+        # Relationship differences
+        rel_keys1 = set(relationships1.keys())
+        rel_keys2 = set(relationships2.keys())
+        
+        relationships_added = [relationships2[key] for key in rel_keys2 - rel_keys1]
+        relationships_removed = [relationships1[key] for key in rel_keys1 - rel_keys2]
+        
+        relationships_modified = []
+        for key in rel_keys1 & rel_keys2:
+            if relationships1[key] != relationships2[key]:
+                changes = self._compute_relationship_changes(relationships1[key], relationships2[key])
+                relationships_modified.append({
+                    "key": key,
+                    "before": relationships1[key],
+                    "after": relationships2[key],
+                    "changes": changes
+                })
+        
+        return {
+            "entities_added": entities_added,
+            "entities_removed": entities_removed,
+            "entities_modified": entities_modified,
+            "relationships_added": relationships_added,
+            "relationships_removed": relationships_removed,
+            "relationships_modified": relationships_modified
+        }
+    
+    def _relationship_key(self, relationship: Dict[str, Any]) -> str:
+        """Generate a unique key for a relationship."""
+        source = relationship.get("source", "")
+        target = relationship.get("target", "")
+        rel_type = relationship.get("type", relationship.get("relationship", ""))
+        return f"{source}|{rel_type}|{target}"
+    
+    def _compute_entity_changes(self, entity1: Dict[str, Any], entity2: Dict[str, Any]) -> Dict[str, Any]:
+        """Compute changes between two entity versions."""
+        changes = {}
+        all_keys = set(entity1.keys()) | set(entity2.keys())
+        
+        for key in all_keys:
+            val1 = entity1.get(key)
+            val2 = entity2.get(key)
+            
+            if val1 != val2:
+                changes[key] = {"from": val1, "to": val2}
+        
+        return changes
+    
+    def _compute_relationship_changes(self, rel1: Dict[str, Any], rel2: Dict[str, Any]) -> Dict[str, Any]:
+        """Compute changes between two relationship versions."""
+        changes = {}
+        all_keys = set(rel1.keys()) | set(rel2.keys())
+        
+        for key in all_keys:
+            val1 = rel1.get(key)
+            val2 = rel2.get(key)
+            
+            if val1 != val2:
+                changes[key] = {"from": val1, "to": val2}
+        
+        return changes
+
+
+class OntologyVersionManager(BaseVersionManager):
+    """
+    Version management for ontologies with structural comparison.
+    
+    Provides comprehensive version management for ontologies including
+    detailed structural analysis and change tracking.
+    
+    Features:
+        - Structural comparison of ontology elements
+        - Detailed diff for classes, properties, individuals, axioms
+        - Persistent storage with metadata
+        - Change tracking and audit trails
+    """
+    
+    def __init__(self, storage_path: Optional[str] = None, **config):
+        """
+        Initialize enhanced version manager.
+        
+        Args:
+            storage_path: Path to SQLite database file for persistent storage.
+                         If None, uses in-memory storage
+            **config: Additional configuration options
+        """
+        super().__init__(storage_path)
+        self.config = config
+        self.versions = {}  # In-memory version tracking for compatibility
+    
+    def create_snapshot(
+        self,
+        ontology_data: Dict[str, Any],
+        version_label: str,
+        author: str,
+        description: str,
+        **options
+    ) -> Dict[str, Any]:
+        """
+        Create ontology version snapshot.
+        
+        Args:
+            ontology_data: Ontology data dictionary
+            version_label: Version string (e.g., "v1.0")
+            author: Email address of the change author
+            description: Change description
+            **options: Additional options including metadata
+            
+        Returns:
+            dict: Ontology version snapshot
+        """
+        # Validate inputs
+        change_entry = ChangeLogEntry(
+            timestamp=datetime.now().isoformat(),
+            author=author,
+            description=description
+        )
+        
+        # Create snapshot
+        snapshot = {
+            "label": version_label,
+            "timestamp": change_entry.timestamp,
+            "author": change_entry.author,
+            "description": change_entry.description,
+            "ontology_iri": ontology_data.get("uri", ""),
+            "version_info": ontology_data.get("version_info", {}),
+            "structure": ontology_data.get("structure", {}),
+            "metadata": options.get("metadata", {})
+        }
+        
+        # Compute and add checksum
+        snapshot["checksum"] = compute_checksum(snapshot)
+        
+        # Store snapshot
+        self.storage.save(snapshot)
+        
+        # Also store in memory for compatibility
+        self.versions[version_label] = snapshot
+        
+        self.logger.info(f"Created ontology snapshot '{version_label}' by {author}")
+        return snapshot
+    
+    def compare_versions(self, version1: str, version2: str, **options) -> Dict[str, Any]:
+        """
+        Compare two ontology versions with detailed structural analysis.
+        
+        Args:
+            version1: First version label
+            version2: Second version label
+            **options: Additional comparison options
+            
+        Returns:
+            Detailed comparison results including structural differences
+        """
+        # Get versions from storage
+        v1_snapshot = self.storage.get(version1)
+        v2_snapshot = self.storage.get(version2)
+        
+        if not v1_snapshot:
+            raise ValidationError(f"Version not found: {version1}")
+        if not v2_snapshot:
+            raise ValidationError(f"Version not found: {version2}")
+        
+        # Basic metadata comparison
+        metadata_changes = {}
+        if v1_snapshot.get("ontology_iri") != v2_snapshot.get("ontology_iri"):
+            metadata_changes["ontology_iri"] = {
+                "from": v1_snapshot.get("ontology_iri"),
+                "to": v2_snapshot.get("ontology_iri")
+            }
+        if v1_snapshot.get("version_info") != v2_snapshot.get("version_info"):
+            metadata_changes["version_info"] = {
+                "from": v1_snapshot.get("version_info"),
+                "to": v2_snapshot.get("version_info")
+            }
+        
+        # Structural comparison
+        structural_diff = self._compare_ontology_structures(v1_snapshot, v2_snapshot)
+        
+        return {
+            "version1": version1,
+            "version2": version2,
+            "metadata_changes": metadata_changes,
+            **structural_diff
+        }
+    
+    def _compare_ontology_structures(self, v1_snapshot: Dict[str, Any], v2_snapshot: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Compare structural elements between two ontology versions.
+        
+        Args:
+            v1_snapshot: First ontology version snapshot
+            v2_snapshot: Second ontology version snapshot
+            
+        Returns:
+            Dictionary with structural differences
+        """
+        # Extract structural information
+        v1_structure = v1_snapshot.get("structure", {})
+        v2_structure = v2_snapshot.get("structure", {})
+        
+        # Compare classes
+        v1_classes = set(v1_structure.get("classes", []))
+        v2_classes = set(v2_structure.get("classes", []))
+        
+        classes_added = list(v2_classes - v1_classes)
+        classes_removed = list(v1_classes - v2_classes)
+        
+        # Compare properties
+        v1_properties = set(v1_structure.get("properties", []))
+        v2_properties = set(v2_structure.get("properties", []))
+        
+        properties_added = list(v2_properties - v1_properties)
+        properties_removed = list(v1_properties - v2_properties)
+        
+        # Compare individuals
+        v1_individuals = set(v1_structure.get("individuals", []))
+        v2_individuals = set(v2_structure.get("individuals", []))
+        
+        individuals_added = list(v2_individuals - v1_individuals)
+        individuals_removed = list(v1_individuals - v2_individuals)
+        
+        # Compare axioms/rules
+        v1_axioms = set(v1_structure.get("axioms", []))
+        v2_axioms = set(v2_structure.get("axioms", []))
+        
+        axioms_added = list(v2_axioms - v1_axioms)
+        axioms_removed = list(v1_axioms - v2_axioms)
+        
+        return {
+            "classes_added": classes_added,
+            "classes_removed": classes_removed,
+            "properties_added": properties_added,
+            "properties_removed": properties_removed,
+            "individuals_added": individuals_added,
+            "individuals_removed": individuals_removed,
+            "axioms_added": axioms_added,
+            "axioms_removed": axioms_removed,
+            "summary": {
+                "classes_added": len(classes_added),
+                "classes_removed": len(classes_removed),
+                "properties_added": len(properties_added),
+                "properties_removed": len(properties_removed),
+                "individuals_added": len(individuals_added),
+                "individuals_removed": len(individuals_removed),
+                "axioms_added": len(axioms_added),
+                "axioms_removed": len(axioms_removed)
+            }
+        }
