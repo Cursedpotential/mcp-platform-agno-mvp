@@ -1,0 +1,126 @@
+# =============================================================================
+# DATA TIER — deploy on OVH-2 (vps-ff65b4ab, tailnet 100.91.190.107), the data
+# box that already runs Milvus. Coolify "Docker Compose" app built from this
+# repo. Counterpart: compose.exec.yaml on OVH-1.  (Platform re-deploy, Phase B/C.)
+# =============================================================================
+# Mirrors the proven milvus-coolify pattern:
+#   * ports bind to ${BIND_IP} (the box's TAILNET IP) — NOT 0.0.0.0 — so nothing
+#     is published on the public interface. Set BIND_IP=100.91.190.107 in the
+#     Coolify app env (ovh2 tailnet IP). Default 127.0.0.1 = safe/loopback.
+#   * Traefik labels for HTTP surfaces are scaffolded but COMMENTED OUT ("DOMAIN
+#     PHASE") — flip on + set the *_DOMAIN env when DNS/TLS is wanted.
+#   * absolute bind volumes + absolute config/SQL FILE mounts (Coolify gotchas #4/#5).
+#
+# Cross-box wiring uses Tailscale MagicDNS hostnames via env, never raw IPs:
+#   OVH1_HOST=agentos-vps.tilapia-skilift.ts.net   # exec box (graphiti->gateway)
+#
+# HOST-PREP on OVH-2 BEFORE first deploy:
+#   sudo mkdir -p /data/agno/volumes/{pgdata,neo4j_data} /data/agno/config/{sql,graphiti}
+#   sudo chown -R 999:999   /data/agno/volumes/pgdata       # postgres uid
+#   sudo chown -R 7474:7474 /data/agno/volumes/neo4j_data   # neo4j uid
+#   # stage the real config/SQL files at the absolute paths the binds point to:
+#   #   scp sql/000*.sql                ovh2:/data/agno/config/sql/
+#   #   scp docker/graphiti/config.yaml ovh2:/data/agno/config/graphiti/
+# =============================================================================
+
+services:
+  agentos-db:
+    # Custom PG18: pg_duckdb + PostGIS + pgvector + pg_stat_statements.
+    build:
+      context: ./docker/postgres
+    image: agno-postgres:18-duckdb
+    container_name: agentos-db
+    restart: unless-stopped
+    ports:
+      # raw TCP, tailnet-only (reached by agentos-api on OVH-1); never proxied
+      - "${BIND_IP:-127.0.0.1}:5432:5432"
+    volumes:
+      - /data/agno/volumes/pgdata:/var/lib/postgresql
+      # init SQL — ABSOLUTE host binds (gotcha #5); run once on an EMPTY data dir
+      - /data/agno/config/sql/0001_init_extensions.sql:/docker-entrypoint-initdb.d/01_extensions.sql:ro
+      - /data/agno/config/sql/0002_schema.sql:/docker-entrypoint-initdb.d/02_schema.sql:ro
+      - /data/agno/config/sql/0003_normalized_records.sql:/docker-entrypoint-initdb.d/03_normalized_records.sql:ro
+    environment:
+      POSTGRES_USER: ${DB_USER:-ai}
+      POSTGRES_PASSWORD: ${DB_PASS:-ai}
+      POSTGRES_DB: ${DB_DATABASE:-ai}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-ai}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - agentos
+
+  # ---------------------------------------------------------------------------
+  # Temporal graph memory (ADR-0014): Neo4j + Graphiti MCP. Co-located here
+  # because the chatty edge is graphiti<->neo4j (every graph op); graphiti
+  # reaches the LiteLLM gateway on OVH-1 over the tailnet for LLM/embeddings.
+  # ---------------------------------------------------------------------------
+  neo4j:
+    image: neo4j:5-community
+    platform: linux/amd64
+    container_name: neo4j
+    restart: unless-stopped
+    ports:
+      - "${BIND_IP:-127.0.0.1}:7474:7474"   # Browser (HTTP) — optionally proxied below
+      - "${BIND_IP:-127.0.0.1}:7687:7687"   # bolt (raw TCP) — tailnet-only, never proxied
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-graphiti-dev-password}
+      NEO4J_server_memory_heap_initial__size: 512m
+      NEO4J_server_memory_heap_max__size: 1g
+      NEO4J_server_memory_pagecache_size: 512m
+    volumes:
+      - /data/agno/volumes/neo4j_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    # DOMAIN PHASE — Neo4j Browser (admin). Re-enable + set NEO4J_DOMAIN to expose:
+    # labels:
+    #   - traefik.enable=true
+    #   - traefik.http.routers.neo4j.rule=Host(`${NEO4J_DOMAIN}`)
+    #   - traefik.http.routers.neo4j.entryPoints=https
+    #   - traefik.http.routers.neo4j.tls=true
+    #   - traefik.http.routers.neo4j.tls.certresolver=letsencrypt
+    #   - traefik.http.routers.neo4j.service=neo4j
+    #   - traefik.http.services.neo4j.loadbalancer.server.port=7474
+    networks:
+      - agentos
+
+  graphiti-mcp:
+    image: zepai/knowledge-graph-mcp:latest
+    platform: linux/amd64
+    container_name: graphiti-mcp
+    restart: unless-stopped
+    ports:
+      - "${BIND_IP:-127.0.0.1}:8071:8000"   # MCP — tailnet/internal ONLY; external access only via ContextForge, never direct
+    environment:
+      CONFIG_PATH: /app/mcp/config/config.yaml
+      BROWSER: "0"
+      NEO4J_URI: bolt://neo4j:7687     # same box — docker network name
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-graphiti-dev-password}
+      # LLM + embeddings via the LiteLLM gateway on OVH-1, over the tailnet.
+      OPENAI_API_KEY: ${LITELLM_MASTER_KEY:-changeme-dev-key}
+      OPENAI_API_URL: http://${OVH1_HOST}:4000/v1
+      OPENAI_BASE_URL: http://${OVH1_HOST}:4000/v1
+    volumes:
+      # ABSOLUTE host bind (gotcha #5) — staged at /data/agno/config/graphiti/
+      - /data/agno/config/graphiti/config.yaml:/app/mcp/config/config.yaml:ro
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    # MCP SERVER — NO direct external access, ever. Internal/tailnet-only now
+    # (reached by agentos-api + n8n over the tailnet). When external access is
+    # required, it routes through the IBM ContextForge MCP gateway (ADR-0025,
+    # Phase D) — NEVER a direct Traefik route. Deliberately NO proxy labels.
+    networks:
+      - agentos
+
+networks:
+  agentos:
+
+# No named volumes — data tier uses absolute host binds (declared inline above).
+# Byline: Claude Code · Opus 4.8 · 2026-06-13

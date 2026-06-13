@@ -1,0 +1,188 @@
+# =============================================================================
+# EXEC TIER — deploy on OVH-1 (agentos-vps, tailnet 100.72.169.40), the
+# execution + surfaces box. Coolify "Docker Compose" app built from this repo.
+# Counterpart: compose.data.yaml on OVH-2.  (Platform re-deploy, Phase B/C.)
+# =============================================================================
+# Mirrors the proven milvus-coolify pattern:
+#   * ports bind to ${BIND_IP} (the box's TAILNET IP) — NOT 0.0.0.0. Set
+#     BIND_IP=100.72.169.40 in the Coolify app env (ovh1 tailnet IP). This is
+#     REQUIRED here, not just safety: graphiti-mcp on OVH-2 reaches the gateway
+#     at http://${OVH1_HOST}:4000, which must resolve to a tailnet-bound port.
+#   * Traefik labels for HTTP surfaces scaffolded but COMMENTED OUT (DOMAIN PHASE).
+#
+# Cross-box wiring via Tailscale MagicDNS hostnames, never raw IPs:
+#   OVH2_HOST=vps-ff65b4ab.tilapia-skilift.ts.net   # data box (db + neo4j + graphiti)
+# plus DB_*, MILVUS_*, R2_*, gateway provider keys, OPENROUTER_API_KEY.
+#
+# HOST-PREP on OVH-1 BEFORE first deploy:
+#   sudo mkdir -p /data/agno/volumes/{sbv_data,agent_workspace,kasm_profile}
+#   sudo chown -R 1000:1000 /data/agno/volumes/agent_workspace  # shared sandbox<->desktop
+# (r2-nexus stays a named volume — it uses the rclone driver, not a bind.)
+# =============================================================================
+
+services:
+  agentos-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agentos-api
+    image: ${IMAGE_NAME:-agentos}:${IMAGE_TAG:-latest}
+    # Prod: run the baked image (no live .:/app source mount). Redeploy to ship
+    # code changes. NO --reload (breaks the MCP lifespan under AgentOS).
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    restart: unless-stopped
+    ports:
+      - "${BIND_IP:-127.0.0.1}:8000:8000"   # main API/MCP surface — proxy-ready below
+    volumes:
+      # R2 bucket "nexus" via rclone docker volume plugin — stack-wide blob store.
+      - r2-nexus:/r2
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      RUNTIME_ENV: ${RUNTIME_ENV:-dev}
+      AGNO_DEBUG: "True"
+      WAIT_FOR_DB: "True"
+      AGENTOS_URL: http://127.0.0.1:8000
+      # Data tier lives on OVH-2 — reach it by tailnet hostname, not a docker name.
+      DB_HOST: ${OVH2_HOST}
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-ai}
+      DB_PASS: ${DB_PASS:-ai}
+      DB_DATABASE: ${DB_DATABASE:-ai}
+      # Milvus (ADR-0027) — vector store on OVH-2; set MILVUS_ADDRESS/TOKEN in env.
+      MILVUS_ADDRESS: ${MILVUS_ADDRESS:-}
+      MILVUS_TOKEN: ${MILVUS_TOKEN:-}
+      # Knowledge embedder via OpenRouter symmetric models (ADR-0027).
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      # R2 blob landing zone (ADR-0007) — S3-compatible reads via boto3/agno.
+      R2_BUCKET_NAME: ${R2_BUCKET_NAME:-}
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
+      R2_ENDPOINT_URL: ${R2_ENDPOINT_URL:-}
+    # No depends_on agentos-db — it's on another box. WAIT_FOR_DB handles startup.
+    # DOMAIN PHASE — main API. Re-enable + set API_DOMAIN to expose publicly:
+    # labels:
+    #   - traefik.enable=true
+    #   - traefik.http.routers.agentos-api.rule=Host(`${API_DOMAIN}`)
+    #   - traefik.http.routers.agentos-api.entryPoints=https
+    #   - traefik.http.routers.agentos-api.tls=true
+    #   - traefik.http.routers.agentos-api.tls.certresolver=letsencrypt
+    #   - traefik.http.routers.agentos-api.service=agentos-api
+    #   - traefik.http.services.agentos-api.loadbalancer.server.port=8000
+    networks:
+      - agentos
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  gateway:
+    build:
+      context: ./docker/gateway
+    image: agno-gateway:latest
+    container_name: gateway
+    restart: unless-stopped
+    ports:
+      # Tailnet-only (BIND_IP). graphiti-mcp on OVH-2 calls http://${OVH1_HOST}:4000.
+      # NOT proxied — guarded only by LITELLM_MASTER_KEY; keep off public ingress.
+      - "${BIND_IP:-127.0.0.1}:4000:4000"   # LiteLLM proxy (OpenAI-compatible)
+      - "${BIND_IP:-127.0.0.1}:4096:4096"   # OpenCode server
+    environment:
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-changeme-dev-key}
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+    networks:
+      - agentos
+
+  # ---------------------------------------------------------------------------
+  # Consolidated tool containers (owner decision 2026-06-10).
+  # ---------------------------------------------------------------------------
+  platform-tools:
+    build:
+      context: ./docker/tools
+    image: agno-platform-tools:latest
+    container_name: platform-tools
+    restart: unless-stopped
+    ports:
+      - "${BIND_IP:-127.0.0.1}:8080:8085"   # SBV GUI — proxy-ready below
+      - "${BIND_IP:-127.0.0.1}:8090:8090"   # parsers/extractors facade — tailnet-only
+    volumes:
+      - /data/agno/volumes/sbv_data:/opt/sbv/data
+      - r2-nexus:/r2
+      # registry-backed facade: parser modules live in the evidence package
+      - ./evidence:/opt/tools/evidence:ro
+    # DOMAIN PHASE — SBV GUI. Re-enable + set TOOLS_DOMAIN to expose:
+    # labels:
+    #   - traefik.enable=true
+    #   - traefik.http.routers.platform-tools.rule=Host(`${TOOLS_DOMAIN}`)
+    #   - traefik.http.routers.platform-tools.entryPoints=https
+    #   - traefik.http.routers.platform-tools.tls=true
+    #   - traefik.http.routers.platform-tools.tls.certresolver=letsencrypt
+    #   - traefik.http.routers.platform-tools.service=platform-tools
+    #   - traefik.http.services.platform-tools.loadbalancer.server.port=8085
+    networks:
+      - agentos
+
+  sandbox:
+    build:
+      context: ./docker/sandbox
+    image: agno-sandbox:latest
+    container_name: agent-sandbox
+    restart: unless-stopped
+    # NO published ports, NO env secrets, NO repo mounts — agents reach it over
+    # the internal network only (http://sandbox:8070/run).
+    cpus: 2
+    mem_limit: 1g
+    volumes:
+      - /data/agno/volumes/agent_workspace:/workspace   # shared with the desktop
+    networks:
+      - agentos
+
+  # Kasm browser desktop — opt-in (Coolify: scale to 0, or omit from the app).
+  # Separate from sandbox to preserve the sandbox's no-secrets isolation; shares
+  # the workspace volume so the desktop sees/edits the same files.
+  desktop:
+    image: kasmweb/desktop:1.16.0
+    platform: linux/amd64
+    container_name: kasm-desktop
+    restart: unless-stopped
+    ports:
+      - "${BIND_IP:-127.0.0.1}:6901:6901"   # Kasm desktop (HTTPS) — proxy-ready below
+    environment:
+      VNC_PW: ${KASM_VNC_PW:-changeme-desktop}
+    shm_size: "1gb"
+    mem_limit: 2g
+    volumes:
+      - /data/agno/volumes/kasm_profile:/home/kasm-user   # persistent home
+      - /data/agno/volumes/agent_workspace:/workspace     # shared with sandbox
+    # DOMAIN PHASE — Kasm desktop. Re-enable + set DESKTOP_DOMAIN to expose.
+    # NOTE Kasm serves HTTPS on 6901 → use a TLS passthrough/serversTransport if proxied.
+    # labels:
+    #   - traefik.enable=true
+    #   - traefik.http.routers.desktop.rule=Host(`${DESKTOP_DOMAIN}`)
+    #   - traefik.http.routers.desktop.entryPoints=https
+    #   - traefik.http.routers.desktop.tls=true
+    #   - traefik.http.routers.desktop.tls.certresolver=letsencrypt
+    #   - traefik.http.routers.desktop.service=desktop
+    #   - traefik.http.services.desktop.loadbalancer.server.port=6901
+    #   - traefik.http.services.desktop.loadbalancer.server.scheme=https
+    networks:
+      - agentos
+
+networks:
+  agentos:
+
+volumes:
+  # Cloudflare R2 bucket "nexus" via the rclone volume plugin (host config:
+  # /var/lib/docker-plugins/rclone/config/rclone.conf). Not a bind mount.
+  r2-nexus:
+    driver: rclone
+    driver_opts:
+      remote: "r2:nexus"
+      allow_other: "true"
+      vfs_cache_mode: "writes"
+
+# Byline: Claude Code · Opus 4.8 · 2026-06-13
