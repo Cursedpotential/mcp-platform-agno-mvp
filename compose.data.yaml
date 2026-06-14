@@ -1,26 +1,36 @@
 # =============================================================================
-# DATA TIER — deploy on OVH-2 (vps-ff65b4ab, tailnet 100.91.190.107), the data
-# box that already runs Milvus. Coolify "Docker Compose" app built from this
-# repo. Counterpart: compose.exec.yaml on OVH-1.  (Platform re-deploy, Phase B/C.)
+# DATA TIER — deploy on OVH-3 ("ovh3-data"; tailnet 100.119.96.29, salem private
+# 10.1.2.101, public 147.135.79.183), the data box. Coolify "Docker Compose" app
+# built from this repo. Counterpart: compose.exec.yaml on OVH-1 ("ovh1-agno").
+# Hosts: agentos-db (PG18), neo4j, graphiti-mcp, Milvus (relocated here from the
+# decommissioned OVH-2), SurrealDB.  (Platform re-deploy, Phase B/C.)
 # =============================================================================
 # Mirrors the proven milvus-coolify pattern:
 #   * ports bind to ${BIND_IP} (the box's TAILNET IP) — NOT 0.0.0.0 — so nothing
-#     is published on the public interface. Set BIND_IP=100.91.190.107 in the
-#     Coolify app env (ovh2 tailnet IP). Default 127.0.0.1 = safe/loopback.
+#     is published on the public interface. Set BIND_IP=100.119.96.29 in the
+#     Coolify app env (OVH-3 tailnet IP). Default 127.0.0.1 = safe/loopback.
 #   * Traefik labels for HTTP surfaces are scaffolded but COMMENTED OUT ("DOMAIN
 #     PHASE") — flip on + set the *_DOMAIN env when DNS/TLS is wanted.
 #   * absolute bind volumes + absolute config/SQL FILE mounts (Coolify gotchas #4/#5).
 #
-# Cross-box wiring uses Tailscale MagicDNS hostnames via env, never raw IPs:
-#   OVH1_HOST=agentos-vps.tilapia-skilift.ts.net   # exec box (graphiti->gateway)
+# Cross-box wiring: at the moment everything communicates through Tailscale, so
+# cross-box addresses DEFAULT to the tailnet IP, with the salem private IP
+# documented as the swap-later fast path. Set via env so switching is trivial:
+#   OVH1_HOST   exec box (graphiti-mcp -> gateway). Default 100.72.169.40 (tailnet);
+#               salem alt 10.1.1.122.
+#   OVH3_HOST   this data box. Default 100.119.96.29 (tailnet); salem alt 10.1.2.101.
 #
-# HOST-PREP on OVH-2 BEFORE first deploy:
-#   sudo mkdir -p /data/agno/volumes/{pgdata,neo4j_data} /data/agno/config/{sql,graphiti}
+# HOST-PREP on OVH-3 BEFORE first deploy:
+#   sudo mkdir -p /data/agno/volumes/{pgdata,neo4j_data,milvus,surrealdb} \
+#                 /data/agno/config/{sql,graphiti,milvus}
 #   sudo chown -R 999:999   /data/agno/volumes/pgdata       # postgres uid
 #   sudo chown -R 7474:7474 /data/agno/volumes/neo4j_data   # neo4j uid
+#   sudo chown -R 999:999   /data/agno/volumes/milvus       # milvus uid
+#   sudo chown -R 0:0       /data/agno/volumes/surrealdb    # surrealdb runs as root
 #   # stage the real config/SQL files at the absolute paths the binds point to:
-#   #   scp sql/000*.sql                ovh2:/data/agno/config/sql/
-#   #   scp docker/graphiti/config.yaml ovh2:/data/agno/config/graphiti/
+#   #   scp sql/000*.sql                ovh3:/data/agno/config/sql/
+#   #   scp docker/graphiti/config.yaml ovh3:/data/agno/config/graphiti/
+#   #   scp configs/embedEtcd.yaml configs/user.yaml ovh3:/data/agno/config/milvus/
 # =============================================================================
 
 services:
@@ -119,8 +129,131 @@ services:
     networks:
       - agentos
 
+  # ---------------------------------------------------------------------------
+  # Milvus 3.0 standalone (embedded etcd + local storage) — ALL vectors / ANN
+  # (ADR-0026/0027). RELOCATED here from the decommissioned OVH-2. Mirrors the
+  # proven milvus-coolify pattern: single container, embedded etcd, WoodPecker
+  # WAL pinned to local storage via user.yaml; jemalloc LD_PRELOAD fix. Reached
+  # by agentos-api on OVH-1 over the tailnet at :19530.
+  # ---------------------------------------------------------------------------
+  milvus:
+    image: milvusdb/milvus:v3.0-beta-amd64   # explicit amd64 — multi-arch v3.0-beta segfaults at jemalloc on this host
+    platform: linux/amd64
+    container_name: milvus
+    command: ["milvus", "run", "standalone"]
+    restart: unless-stopped
+    security_opt:
+      - seccomp:unconfined
+    environment:
+      ETCD_USE_EMBED: "true"
+      ETCD_DATA_DIR: /var/lib/milvus/etcd
+      ETCD_CONFIG_PATH: /milvus/configs/embedEtcd.yaml
+      COMMON_STORAGETYPE: local
+      DEPLOY_MODE: STANDALONE
+      # FIX: the image ships LD_PRELOAD=":/milvus/lib/libjemalloc.so" — the leading
+      # colon is an empty path element that makes ld.so choke loading jemalloc ->
+      # SIGSEGV at startup. Override both with clean absolute paths (no orphan colon).
+      LD_PRELOAD: /milvus/lib/libjemalloc.so
+      LD_LIBRARY_PATH: /milvus/lib
+    volumes:
+      # Absolute mapped (bind-mount) paths under the standard /data/agno tree.
+      - /data/agno/volumes/milvus:/var/lib/milvus
+      # Config files as ABSOLUTE host bind mounts (stage real files — a ./relative
+      # form makes Coolify/Docker auto-create an empty DIR → Milvus panics).
+      - /data/agno/config/milvus/embedEtcd.yaml:/milvus/configs/embedEtcd.yaml:ro
+      - /data/agno/config/milvus/user.yaml:/milvus/configs/user.yaml:ro
+    ports:
+      # tailnet-only (reached by agentos-api on OVH-1); gRPC SDK = 19530, health = 9091
+      - "${BIND_IP:-127.0.0.1}:19530:19530"
+      - "${BIND_IP:-127.0.0.1}:9091:9091"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      start_period: 90s
+      timeout: 20s
+      retries: 3
+    # DOMAIN PHASE — re-enable when DNS is ready and set MILVUS_DOMAIN (Traefik h2c → https):
+    # labels:
+    #   - traefik.enable=true
+    #   - traefik.http.routers.milvus.rule=Host(`${MILVUS_DOMAIN}`)
+    #   - traefik.http.routers.milvus.entryPoints=https
+    #   - traefik.http.routers.milvus.tls=true
+    #   - traefik.http.routers.milvus.tls.certresolver=letsencrypt
+    #   - traefik.http.routers.milvus.service=milvus
+    #   - traefik.http.services.milvus.loadbalancer.server.port=19530
+    #   - traefik.http.services.milvus.loadbalancer.server.scheme=h2c
+    networks:
+      - agentos
+
+  # ---------------------------------------------------------------------------
+  # Attu v3 — Milvus admin GUI (vector search, schema, import/export, RBAC).
+  # Internal/tailnet-only; talks to milvus over the compose network. Optional —
+  # Coolify: scale to 0 or omit from the app if not wanted.
+  # ---------------------------------------------------------------------------
+  attu:
+    image: zilliz/attu:v3.0.0-beta.6
+    platform: linux/amd64
+    container_name: attu
+    restart: unless-stopped
+    environment:
+      # Internal gRPC to Milvus on the compose network (no TLS internally).
+      MILVUS_ADDRESS: milvus:19530
+      ATTU_DB_PATH: /data/attu.db
+    volumes:
+      - /data/agno/volumes/attu:/data
+    ports:
+      - "${BIND_IP:-127.0.0.1}:3001:3000"   # Attu UI — tailnet-only (3001 host to avoid 3000 clashes)
+    depends_on:
+      milvus:
+        condition: service_healthy
+    # DOMAIN PHASE — re-enable with ATTU_DOMAIN when DNS is ready:
+    # labels:
+    #   - traefik.enable=true
+    #   - traefik.http.routers.attu.rule=Host(`${ATTU_DOMAIN}`)
+    #   - traefik.http.routers.attu.entryPoints=https
+    #   - traefik.http.routers.attu.tls=true
+    #   - traefik.http.routers.attu.tls.certresolver=letsencrypt
+    #   - traefik.http.routers.attu.service=attu
+    #   - traefik.http.services.attu.loadbalancer.server.port=3000
+    networks:
+      - agentos
+
+  # ---------------------------------------------------------------------------
+  # SurrealDB — the Agno OPERATIONAL store (sessions/memory/metrics/eval/
+  # knowledge-content/culture/traces/spans). Persistent rocksdb on an absolute
+  # host bind. Reached by agentos-api on OVH-1 over the tailnet/salem link.
+  # WS transport on /rpc; raw TCP, tailnet-only — NEVER proxied, NEVER 0.0.0.0.
+  # ---------------------------------------------------------------------------
+  surrealdb:
+    image: surrealdb/surrealdb:v3.1.4
+    platform: linux/amd64
+    container_name: surrealdb
+    restart: unless-stopped
+    user: "0:0"                      # official image is root; matches volume chown
+    command:
+      - start
+      - --bind=0.0.0.0:8000          # in-container bind; host exposure gated by ports below
+      - --user=${SURREALDB_USER:-root}
+      - --pass=${SURREALDB_PASS:-root}
+      - rocksdb:/data/surreal.db     # persistent file engine inside the bind mount
+    ports:
+      # raw TCP, tailnet-only (reached by agentos-api on OVH-1 over salem); never proxied
+      - "${BIND_IP:-127.0.0.1}:8000:8000"
+    volumes:
+      - /data/agno/volumes/surrealdb:/data
+    healthcheck:
+      # /health returns 200 when the server is up (no auth required)
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    # DOMAIN PHASE — SurrealDB has NO admin UI worth exposing; keep tailnet-only.
+    # Deliberately NO Traefik labels (raw TCP / internal service, like neo4j bolt).
+    networks:
+      - agentos
+
 networks:
   agentos:
 
 # No named volumes — data tier uses absolute host binds (declared inline above).
-# Byline: Claude Code · Opus 4.8 · 2026-06-13
+# Byline: Claude Code · Opus 4.8 · 2026-06-14

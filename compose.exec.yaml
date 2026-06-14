@@ -1,22 +1,29 @@
 # =============================================================================
-# EXEC TIER — deploy on OVH-1 (agentos-vps, tailnet 100.72.169.40), the
-# execution + surfaces box. Coolify "Docker Compose" app built from this repo.
-# Counterpart: compose.data.yaml on OVH-2.  (Platform re-deploy, Phase B/C.)
+# EXEC TIER — deploy on OVH-1 ("ovh1-agno"; tailnet 100.72.169.40, salem private
+# 10.1.1.122, public 40.160.5.19), the execution + surfaces box. Coolify
+# "Docker Compose" app built from this repo. Counterpart: compose.data.yaml on
+# OVH-3 ("ovh3-data"). Hosts: agentos-api, gateway, sandbox, platform-tools,
+# desktop, agent-ui, contextforge.  (Platform re-deploy, Phase B/C.)
 # =============================================================================
 # Mirrors the proven milvus-coolify pattern:
 #   * ports bind to ${BIND_IP} (the box's TAILNET IP) — NOT 0.0.0.0. Set
-#     BIND_IP=100.72.169.40 in the Coolify app env (ovh1 tailnet IP). This is
-#     REQUIRED here, not just safety: graphiti-mcp on OVH-2 reaches the gateway
+#     BIND_IP=100.72.169.40 in the Coolify app env (OVH-1 tailnet IP). This is
+#     REQUIRED here, not just safety: graphiti-mcp on OVH-3 reaches the gateway
 #     at http://${OVH1_HOST}:4000, which must resolve to a tailnet-bound port.
 #   * Traefik labels for HTTP surfaces scaffolded but COMMENTED OUT (DOMAIN PHASE).
 #
-# Cross-box wiring via Tailscale MagicDNS hostnames, never raw IPs:
-#   OVH2_HOST=vps-ff65b4ab.tilapia-skilift.ts.net   # data box (db + neo4j + graphiti)
-# plus DB_*, MILVUS_*, R2_*, gateway provider keys, OPENROUTER_API_KEY.
+# Cross-box wiring: at the moment everything communicates through Tailscale, so
+# cross-box addresses DEFAULT to the tailnet IP, with the salem private IP
+# documented as the swap-later fast path. Set via env so switching is trivial:
+#   OVH1_HOST   this exec box. Default 100.72.169.40 (tailnet); salem alt 10.1.1.122.
+#   OVH3_HOST   data box (db + neo4j + graphiti + milvus + surrealdb).
+#               Default 100.119.96.29 (tailnet); salem alt 10.1.2.101.
+# plus DB_*, MILVUS_*, SURREALDB_*, CF_*, R2_*, gateway provider keys, OPENROUTER_API_KEY.
 #
 # HOST-PREP on OVH-1 BEFORE first deploy:
-#   sudo mkdir -p /data/agno/volumes/{sbv_data,agent_workspace,kasm_profile}
+#   sudo mkdir -p /data/agno/volumes/{sbv_data,agent_workspace,kasm_profile,contextforge}
 #   sudo chown -R 1000:1000 /data/agno/volumes/agent_workspace  # shared sandbox<->desktop
+#   sudo chown -R 1000:1000 /data/agno/volumes/contextforge     # ContextForge SQLite db + state
 # (r2-nexus stays a named volume — it uses the rclone driver, not a bind.)
 # =============================================================================
 
@@ -44,15 +51,27 @@ services:
       AGNO_DEBUG: "True"
       WAIT_FOR_DB: "True"
       AGENTOS_URL: http://127.0.0.1:8000
-      # Data tier lives on OVH-2 — reach it by tailnet hostname, not a docker name.
-      DB_HOST: ${OVH2_HOST}
+      # Data tier lives on OVH-3 — reach it by tailnet IP (default), not a docker
+      # name. ${OVH3_HOST} default 100.119.96.29 (tailnet); salem alt 10.1.2.101.
+      DB_HOST: ${OVH3_HOST}
       DB_PORT: 5432
       DB_USER: ${DB_USER:-ai}
       DB_PASS: ${DB_PASS:-ai}
       DB_DATABASE: ${DB_DATABASE:-ai}
-      # Milvus (ADR-0027) — vector store on OVH-2; set MILVUS_ADDRESS/TOKEN in env.
-      MILVUS_ADDRESS: ${MILVUS_ADDRESS:-}
+      # Milvus (ADR-0026/0027) — vector store on OVH-3; defaults to the data box's
+      # gRPC port over the tailnet. Override MILVUS_ADDRESS/TOKEN in env if needed.
+      MILVUS_ADDRESS: ${MILVUS_ADDRESS:-http://${OVH3_HOST}:19530}
       MILVUS_TOKEN: ${MILVUS_TOKEN:-}
+      # SurrealDB (Agno operational store) on OVH-3 — WS transport, /rpc path.
+      SURREALDB_URL: ${SURREALDB_URL:-ws://${OVH3_HOST}:8000/rpc}
+      SURREALDB_USER: ${SURREALDB_USER:-root}
+      SURREALDB_PASS: ${SURREALDB_PASS:-root}
+      SURREALDB_NS: ${SURREALDB_NS:-agno}
+      SURREALDB_DB: ${SURREALDB_DB:-platform}
+      # Reach MCP servers ONLY through ContextForge, never graphiti's 8071 directly.
+      CF_GATEWAY_URL: http://contextforge:4444          # internal docker network name
+      CF_GRAPHITI_SERVER_ID: ${CF_GRAPHITI_SERVER_ID:-} # virtual server UUID from POST /servers
+      CF_GATEWAY_TOKEN: ${CF_GATEWAY_TOKEN:-}           # long-lived client JWT (mint w/ create_jwt_token)
       # Knowledge embedder via OpenRouter symmetric models (ADR-0027).
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       # R2 blob landing zone (ADR-0007) — S3-compatible reads via boto3/agno.
@@ -198,6 +217,86 @@ services:
     #   - traefik.http.routers.agent-ui.service=agent-ui
     #   - traefik.http.services.agent-ui.loadbalancer.server.port=3000
 
+  # ---------------------------------------------------------------------------
+  # ContextForge — IBM MCP Gateway (ADR-0025). The ONE controlled MCP front door.
+  # All external MCP flows through here; graphiti-mcp (DATA tier, OVH-3) and any
+  # future MCP servers register BEHIND it as federated peer "Gateways" and are
+  # never exposed directly. Public face: mcp.int.mitechconsult.com (private) +
+  # gated mcp.mitechconsult.com (public twin) — Traefik scaffold below, OFF by default.
+  #
+  # Backing store: SQLite on a bind mount (single-node, no external Postgres/Redis
+  # needed for this footprint). Listen port 4444 (house rule: NEVER publish 8080).
+  # Reaches graphiti-mcp on OVH-3 via ${GRAPHITI_MCP_URL} (default OVH3_HOST tailnet
+  # :8071; salem alt 10.1.2.101:8071) — used at bootstrap registration, not here.
+  # ---------------------------------------------------------------------------
+  contextforge:
+    image: ghcr.io/ibm/mcp-context-forge:1.0.3   # pin; do NOT use :latest
+    platform: linux/amd64
+    container_name: contextforge
+    restart: unless-stopped
+    ports:
+      # Tailnet-only (BIND_IP=ovh1 tailnet IP). Public exposure happens ONLY via the
+      # Traefik DOMAIN PHASE labels below — never bind 0.0.0.0, never publish elsewhere.
+      - "${BIND_IP:-127.0.0.1}:4444:4444"   # unified MCP + admin API/UI surface
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      HOST: "0.0.0.0"            # inside the container; the host bind is gated by BIND_IP above
+      PORT: "4444"
+      # --- persistence: SQLite on the bind mount (no external DB) ---
+      DATABASE_URL: "sqlite:////data/mcp.db"
+      CACHE_TYPE: "database"     # use the DB for cache/sessions — no Redis dependency
+      # --- upstream MCP peer (DATA tier graphiti on OVH-3); default tailnet, salem alt 10.1.2.101 ---
+      GRAPHITI_MCP_URL: ${GRAPHITI_MCP_URL:-http://${OVH3_HOST}:8071}
+      # --- auth / admin ---
+      AUTH_REQUIRED: "true"
+      JWT_SECRET_KEY: ${CF_JWT_SECRET_KEY:?set CF_JWT_SECRET_KEY}            # openssl rand -hex 32
+      AUTH_ENCRYPTION_SECRET: ${CF_AUTH_ENCRYPTION_SECRET:?set CF_AUTH_ENCRYPTION_SECRET}  # encrypts stored peer creds
+      BASIC_AUTH_USER: ${CF_BASIC_AUTH_USER:-admin}
+      BASIC_AUTH_PASSWORD: ${CF_BASIC_AUTH_PASSWORD:?set CF_BASIC_AUTH_PASSWORD}
+      PLATFORM_ADMIN_EMAIL: ${CF_ADMIN_EMAIL:-admin@mitechconsult.com}
+      PLATFORM_ADMIN_PASSWORD: ${CF_ADMIN_PASSWORD:?set CF_ADMIN_PASSWORD}
+      PLATFORM_ADMIN_FULL_NAME: "Platform Admin"
+      MCPGATEWAY_UI_ENABLED: "true"          # admin dashboard (only reachable via tailnet/proxy)
+      MCPGATEWAY_ADMIN_API_ENABLED: "true"   # admin REST API (POST /gateways, /servers)
+      SECURE_COOKIES: "false"                # HTTP on the tailnet; flip true once behind TLS proxy
+      # --- keep the worker count low: OVH-1 is a tight 7.6GB box ---
+      GUNICORN_WORKERS: "1"                   # 1–2 max; each worker is a full python process
+    volumes:
+      # SQLite db + gateway state on a host bind (owner backs up via host dirs).
+      - /data/agno/volumes/contextforge:/data
+    healthcheck:
+      # /health is unauthenticated and returns 200 when the gateway is up.
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:4444/health').status==200 else 1)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    networks:
+      - agentos
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # DOMAIN PHASE — the ONE MCP-layer service that gets a public face.
+    # Private name now (mcp.int.*), gated public twin (mcp.*) when opened.
+    # Re-enable + set MCP_DOMAIN / MCP_INT_DOMAIN to expose:
+    # labels:
+    #   - traefik.enable=true
+    #   # private internal name
+    #   - traefik.http.routers.contextforge-int.rule=Host(`${MCP_INT_DOMAIN}`)
+    #   - traefik.http.routers.contextforge-int.entryPoints=https
+    #   - traefik.http.routers.contextforge-int.tls=true
+    #   - traefik.http.routers.contextforge-int.tls.certresolver=letsencrypt
+    #   - traefik.http.routers.contextforge-int.service=contextforge
+    #   # gated public twin (add a forwardauth/IP-allowlist middleware before opening)
+    #   - traefik.http.routers.contextforge-pub.rule=Host(`${MCP_DOMAIN}`)
+    #   - traefik.http.routers.contextforge-pub.entryPoints=https
+    #   - traefik.http.routers.contextforge-pub.tls=true
+    #   - traefik.http.routers.contextforge-pub.tls.certresolver=letsencrypt
+    #   - traefik.http.routers.contextforge-pub.service=contextforge
+    #   # - traefik.http.routers.contextforge-pub.middlewares=mcp-gate@file
+    #   - traefik.http.services.contextforge.loadbalancer.server.port=4444
+
 networks:
   agentos:
 
@@ -211,4 +310,4 @@ volumes:
       allow_other: "true"
       vfs_cache_mode: "writes"
 
-# Byline: Claude Code · Opus 4.8 · 2026-06-13
+# Byline: Claude Code · Opus 4.8 · 2026-06-14
