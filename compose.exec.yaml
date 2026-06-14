@@ -172,6 +172,32 @@ services:
     networks:
       - agentos
 
+  # ---------------------------------------------------------------------------
+  # Agno Agent UI — native self-hosted chat/control surface (build docker/agent-ui).
+  # Browser talks directly to agentos-api; no DB, no secrets here. Internal
+  # surface now (chat.int.*); gated public twin (chat.*) via Traefik later.
+  # Endpoint is chosen in the UI connect dialog → point at the api hostname.
+  # ---------------------------------------------------------------------------
+  agent-ui:
+    build:
+      context: ./docker/agent-ui
+    image: agno-agent-ui:latest
+    container_name: agent-ui
+    restart: unless-stopped
+    ports:
+      - "${BIND_IP:-127.0.0.1}:3000:3000"   # chat UI — internal; proxy-ready below
+    networks:
+      - agentos
+    # DOMAIN PHASE — chat.int.* (private) now, chat.* (public twin) when opened:
+    # labels:
+    #   - traefik.enable=true
+    #   - traefik.http.routers.agent-ui.rule=Host(`${CHAT_DOMAIN}`)
+    #   - traefik.http.routers.agent-ui.entryPoints=https
+    #   - traefik.http.routers.agent-ui.tls=true
+    #   - traefik.http.routers.agent-ui.tls.certresolver=letsencrypt
+    #   - traefik.http.routers.agent-ui.service=agent-ui
+    #   - traefik.http.services.agent-ui.loadbalancer.server.port=3000
+
 networks:
   agentos:
 
