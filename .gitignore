@@ -71,3 +71,6 @@ tmp
 
 # Case-specific segmentation terms (real names/places) — keep out of git
 evidence/config/case_terms.yaml
+
+# Infra doc with real credentials — commit only the sanitized .template.md
+docs/INFRASTRUCTURE.md
