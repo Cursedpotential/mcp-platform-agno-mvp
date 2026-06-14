@@ -20,10 +20,10 @@ from dataclasses import dataclass
 
 from agno.agent import Agent
 
-from db import get_postgres_db
+from db import get_agno_db
 
 # Single eval DB instance — every case logs through it.
-eval_db = get_postgres_db()
+eval_db = get_agno_db()
 
 
 @dataclass(frozen=True)

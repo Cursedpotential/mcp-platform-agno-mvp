@@ -2,7 +2,9 @@
 Database Session
 ================
 
-``get_postgres_db()`` — agent storage (sessions/state/memory + Knowledge *contents*) on Postgres.
+``get_agno_db()``  — Agno OPERATIONAL store (sessions/memory/metrics/eval/culture/traces/spans)
+                     on **SurrealDB** (WS transport, /rpc, lazy-connect via agno.db.surrealdb).
+``get_postgres_db()`` — Postgres for Knowledge *contents* rows and pg_duckdb / evidence work.
 ``create_knowledge()`` — agent Knowledge with **vectors in Milvus** (ADR-0026/0027), the
 platform-wide vector substrate. pgvector remains in the PG image but is NO LONGER the
 Knowledge store.
@@ -16,13 +18,17 @@ collection. (NVIDIA ``NimEmbedder`` is retained in ``db/embedder.py`` as an opt-
 
 Reranking: Milvus **hybrid** search fuses dense+sparse natively (RRF) — no external reranker.
 
-Config via env: ``MILVUS_ADDRESS`` / ``MILVUS_TOKEN`` (token = ``user:pass``, e.g. ``root:Milvus``),
-``OPENROUTER_API_KEY`` (+ optional ``OPENROUTER_BASE_URL``), and the ``EMBED_*`` overrides below.
+Config via env:
+  SurrealDB (operational): ``SURREALDB_URL`` / ``SURREALDB_USER`` / ``SURREALDB_PASS`` /
+    ``SURREALDB_NS`` / ``SURREALDB_DB``.
+  Milvus (vectors): ``MILVUS_ADDRESS`` / ``MILVUS_TOKEN`` (token = ``user:pass``).
+  Embedder: ``OPENROUTER_API_KEY`` (+ optional ``OPENROUTER_BASE_URL``), ``EMBED_*`` overrides.
 """
 
 from os import getenv
 
 from agno.db.postgres import PostgresDb
+from agno.db.surrealdb import SurrealDb
 from agno.knowledge import Knowledge
 from agno.knowledge.embedder.openai import OpenAIEmbedder
 from agno.vectordb.milvus import Milvus, SearchType
@@ -30,6 +36,15 @@ from agno.vectordb.milvus import Milvus, SearchType
 from db.url import db_url
 
 DB_ID = "agentos-db"
+
+# --- SurrealDB: the Agno OPERATIONAL store (sessions/memory/metrics/eval/
+# knowledge-content/culture/traces/spans). Reached over the salem private link
+# (exec tier on OVH-1 -> data tier on OVH-3). WS transport, /rpc path. ----------
+SURREALDB_URL = getenv("SURREALDB_URL", "ws://10.1.2.101:8000/rpc")
+SURREALDB_USER = getenv("SURREALDB_USER", "root")
+SURREALDB_PASS = getenv("SURREALDB_PASS", "root")
+SURREALDB_NS = getenv("SURREALDB_NS", "agno")
+SURREALDB_DB = getenv("SURREALDB_DB", "platform")
 
 # --- Milvus: the platform-wide vector substrate (ADR-0026/0027) --------------
 # Address over the tailnet (portability: hostname, not raw IP). Token = user:pass.
@@ -106,6 +121,21 @@ def get_postgres_db(contents_table: str | None = None) -> PostgresDb:
     if contents_table is not None:
         return PostgresDb(id=DB_ID, db_url=db_url, knowledge_table=contents_table)
     return PostgresDb(id=DB_ID, db_url=db_url)
+
+
+def get_agno_db() -> SurrealDb:
+    """Agno operational store on SurrealDB (sessions/memory/metrics/eval/traces/
+    spans/culture/knowledge-content). client=None -> agno builds the WS connection
+    from db_url/db_creds/db_ns/db_db on first use (agno.db.surrealdb.utils.build_client).
+    """
+    return SurrealDb(
+        client=None,
+        db_url=SURREALDB_URL,
+        db_creds={"username": SURREALDB_USER, "password": SURREALDB_PASS},
+        db_ns=SURREALDB_NS,
+        db_db=SURREALDB_DB,
+        id=DB_ID,
+    )
 
 
 def create_knowledge(name: str, table_name: str, use_code_embedder: bool = False) -> Knowledge:

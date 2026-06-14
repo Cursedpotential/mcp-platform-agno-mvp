@@ -27,7 +27,7 @@ from agno.utils.log import log_info
 from agents.factory import build_agent_team
 from agents.providers import build_context, build_learning
 from app.settings import build_model
-from db import create_knowledge, get_postgres_db
+from db import create_knowledge, get_agno_db
 from db.url import db_url
 
 # ---------------------------------------------------------------------------
@@ -76,7 +76,7 @@ def register_knowledge_routes(app: FastAPI, knowledge) -> None:
 # ---------------------------------------------------------------------------
 def _build_app():
     model = build_model()
-    db = get_postgres_db()
+    db = get_agno_db()
     knowledge = create_knowledge("platform", "platform_knowledge")
     learning = build_learning(db, model, knowledge)
 

@@ -1,0 +1,20 @@
+# Milvus config override — mounted read-only at /milvus/configs/user.yaml
+# Byline: Claude Code · Opus 4.8 · 2026-06-13
+#
+# (1) Auth ON so the store isn't open to anyone who reaches 19530.
+#     Default credential after first boot: user "root", password "Milvus"
+#       -> client token = "root:Milvus"   (CHANGE IT on first boot — see README §Security)
+# (2) WoodPecker (Milvus 3.0 streaming WAL) pinned to LOCAL storage so this single
+#     embedded node needs no MinIO/object-store. Metadata rides the embedded etcd.
+
+common:
+  security:
+    authorizationEnabled: true
+
+woodpecker:
+  meta:
+    type: etcd
+    prefix: woodpecker
+  storage:
+    type: local
+    rootPath: /var/lib/milvus/woodpecker
