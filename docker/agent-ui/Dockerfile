@@ -17,7 +17,7 @@ RUN apk add --no-cache git
 WORKDIR /app
 RUN git clone --depth 1 https://github.com/agno-agi/agent-ui.git . \
  && corepack enable \
- && pnpm install --frozen-lockfile \
+ && pnpm install --no-frozen-lockfile \
  && pnpm build
 
 FROM node:22-alpine AS run
