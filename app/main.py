@@ -1,17 +1,20 @@
 """
-AgentOS Entrypoint — v8.1 (base_app pattern)
-============================================
+AgentOS Entrypoint — v9 (AgentOS-owned app; NO base_app)
+=======================================================
 
 The spine (handoff §8.2 / EXECUTION_PLAN Phase 6):
 
-  Context Providers -> ctx -> build_agent_team(ctx) -> AgentOS(base_app=app)
+  Context Providers -> ctx -> build_agent_team(ctx) -> AgentOS(...).get_app()
 
-Hard rules (handoff §4 corrections):
-  - AgentOS(base_app=app) + agent_os.get_app() — NEVER app.mount(...)
+Hard rules (handoff §4 + 2026-06-20 MCP fix):
+  - Do NOT pass base_app. AgentOS's base_app path double-creates the FastMCP app
+    (mounts instance #1 in __init__, lifespans instance #2 in get_app) → /mcp 500
+    "task group not initialized". Letting AgentOS own the app mounts AND lifespans
+    the SAME instance, so MCP works. Custom routes are added to get_app()'s result.
   - NO uvicorn reload — breaks the MCP lifespan under AgentOS
-  - custom routes registered on the FastAPI app BEFORE wrapping;
-    on_route_conflict="preserve_base_app" so they win on collision
   - the root Router (mode="route") is the primary entry point
+  - agno 2.6.13 quirk: its TrailingSlashMiddleware 500s the list endpoints with the
+    MCP mount at "/" — stripped from the stack after build (see _build_app).
 """
 
 from contextlib import AsyncExitStack, asynccontextmanager
@@ -124,14 +127,16 @@ def _build_app():
     if digest is not None:
         agents["document_digest"] = digest
 
-    app = FastAPI(title="MCP Platform Assistant — AgentOS")
-    register_knowledge_routes(app, knowledge)
-
     teams = [v for v in agents.values() if isinstance(v, Team)]
     solo_agents = [v for v in agents.values() if not isinstance(v, Team)]
     # Router first: it is the primary entry point (routes to Ops / Builder / Cleanup)
     teams.sort(key=lambda t: t.name != "MCP Platform Router")
 
+    # NO base_app — let AgentOS build its own FastAPI app. The base_app path
+    # double-creates the FastMCP app (mounts instance #1 in __init__, lifespans
+    # instance #2 in get_app) → /mcp 500 "task group not initialized". The standard
+    # path mounts AND lifespans the SAME instance, so MCP works. Our one custom
+    # route (knowledge reindex) is registered on the built app afterward.
     agent_os = AgentOS(
         name="AgentOS",
         id="mcp-forensic-platform",
@@ -139,8 +144,6 @@ def _build_app():
         agents=solo_agents,
         teams=teams,
         knowledge=[knowledge],
-        base_app=app,
-        on_route_conflict="preserve_base_app",
         enable_mcp_server=True,  # serve the OS (agents/teams/knowledge) as an MCP server at /mcp
         scheduler=True,
         scheduler_base_url=scheduler_base_url,
@@ -153,6 +156,9 @@ def _build_app():
         config=str(Path(__file__).parent / "config.yaml"),
     )
     built = agent_os.get_app()
+
+    # Our custom route(s), registered on the AgentOS-owned app post-build.
+    register_knowledge_routes(built, knowledge)
 
     # --- agno 2.6.13 workaround: drop the buggy TrailingSlashMiddleware -------
     # AgentOS unconditionally adds a TrailingSlashMiddleware (a Starlette
@@ -168,38 +174,6 @@ def _build_app():
         if getattr(m.cls, "__name__", "") != "TrailingSlashMiddleware"
     ]
     built.middleware_stack = built.build_middleware_stack()
-
-    # --- agno 2.6.13 workaround: run the MOUNTED MCP app's lifespan -----------
-    # In the base_app path AgentOS double-creates the FastMCP app: __init__ mounts
-    # instance #1 (app.mount("/", _mcp_app)), then get_app() overwrites _mcp_app
-    # with instance #2 and only runs #2's lifespan. So the app that actually serves
-    # /mcp (#1) never has its StreamableHTTP session-manager task group started →
-    # /mcp 500s "task group was not initialized". Fix: find the actually-mounted
-    # FastMCP sub-app and run ITS lifespan around the existing combined lifespan,
-    # so the served instance's session manager is initialised for the app lifetime.
-    from starlette.routing import Mount
-
-    mounted_mcp = None
-    for route in built.routes:
-        if isinstance(route, Mount) and type(getattr(route, "app", None)).__name__ == "StarletteWithLifespan":
-            mounted_mcp = route.app
-            break
-
-    if mounted_mcp is not None and hasattr(mounted_mcp, "lifespan"):
-        _inner_lifespan = built.router.lifespan_context
-
-        @asynccontextmanager
-        async def _lifespan_with_mounted_mcp(app):  # type: ignore[no-untyped-def]
-            async with mounted_mcp.lifespan(app):
-                if _inner_lifespan is not None:
-                    async with _inner_lifespan(app):
-                        yield
-                else:
-                    yield
-
-        built.router.lifespan_context = _lifespan_with_mounted_mcp
-        log_info("MCP fix: wired mounted FastMCP app lifespan (session manager)")
-
     return built
 
 
