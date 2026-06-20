@@ -116,7 +116,23 @@ def _build_app():
         lifespan=lifespan,
         config=str(Path(__file__).parent / "config.yaml"),
     )
-    return agent_os.get_app()
+    built = agent_os.get_app()
+
+    # --- agno 2.6.13 workaround: drop the buggy TrailingSlashMiddleware -------
+    # AgentOS unconditionally adds a TrailingSlashMiddleware (a Starlette
+    # BaseHTTPMiddleware). With the MCP app mounted at "/" (enable_mcp_server),
+    # that BaseHTTPMiddleware raises RuntimeError("No response returned.") on the
+    # list endpoints (/agents, /teams) — which 500s the os.agno.com GUI's agent
+    # and team views. We don't rely on trailing-slash normalisation, so strip it
+    # from the stack and force a rebuild. Also lets the mounted MCP (SSE/stream)
+    # app handle requests without the BaseHTTPMiddleware buffering them.
+    built.user_middleware = [
+        m
+        for m in built.user_middleware
+        if getattr(m.cls, "__name__", "") != "TrailingSlashMiddleware"
+    ]
+    built.middleware_stack = built.build_middleware_stack()
+    return built
 
 
 app = _build_app()
