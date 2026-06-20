@@ -108,6 +108,7 @@ def _build_app():
         knowledge=[knowledge],
         base_app=app,
         on_route_conflict="preserve_base_app",
+        enable_mcp_server=True,  # serve the OS (agents/teams/knowledge) as an MCP server at /mcp
         scheduler=True,
         scheduler_base_url=scheduler_base_url,
         tracing=True,
