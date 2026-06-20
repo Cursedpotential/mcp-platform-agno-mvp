@@ -168,6 +168,38 @@ def _build_app():
         if getattr(m.cls, "__name__", "") != "TrailingSlashMiddleware"
     ]
     built.middleware_stack = built.build_middleware_stack()
+
+    # --- agno 2.6.13 workaround: run the MOUNTED MCP app's lifespan -----------
+    # In the base_app path AgentOS double-creates the FastMCP app: __init__ mounts
+    # instance #1 (app.mount("/", _mcp_app)), then get_app() overwrites _mcp_app
+    # with instance #2 and only runs #2's lifespan. So the app that actually serves
+    # /mcp (#1) never has its StreamableHTTP session-manager task group started →
+    # /mcp 500s "task group was not initialized". Fix: find the actually-mounted
+    # FastMCP sub-app and run ITS lifespan around the existing combined lifespan,
+    # so the served instance's session manager is initialised for the app lifetime.
+    from starlette.routing import Mount
+
+    mounted_mcp = None
+    for route in built.routes:
+        if isinstance(route, Mount) and type(getattr(route, "app", None)).__name__ == "StarletteWithLifespan":
+            mounted_mcp = route.app
+            break
+
+    if mounted_mcp is not None and hasattr(mounted_mcp, "lifespan"):
+        _inner_lifespan = built.router.lifespan_context
+
+        @asynccontextmanager
+        async def _lifespan_with_mounted_mcp(app):  # type: ignore[no-untyped-def]
+            async with mounted_mcp.lifespan(app):
+                if _inner_lifespan is not None:
+                    async with _inner_lifespan(app):
+                        yield
+                else:
+                    yield
+
+        built.router.lifespan_context = _lifespan_with_mounted_mcp
+        log_info("MCP fix: wired mounted FastMCP app lifespan (session manager)")
+
     return built
 
 
