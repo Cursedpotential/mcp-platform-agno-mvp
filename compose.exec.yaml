@@ -74,6 +74,13 @@ services:
       CF_GATEWAY_TOKEN: ${CF_GATEWAY_TOKEN:-}           # long-lived client JWT (mint w/ create_jwt_token)
       # Knowledge embedder via OpenRouter symmetric models (ADR-0027).
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      # Chat-model providers for build_model() (ADR-0008 selection order: ollama first).
+      # Declared here so they reach agentos-api directly (not only the gateway service).
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      DEFAULT_MODEL_PROVIDER: ${DEFAULT_MODEL_PROVIDER:-}
       # R2 blob landing zone (ADR-0007) — S3-compatible reads via boto3/agno.
       R2_BUCKET_NAME: ${R2_BUCKET_NAME:-}
       R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
