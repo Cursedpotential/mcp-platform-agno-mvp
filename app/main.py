@@ -14,7 +14,7 @@ Hard rules (handoff §4 corrections):
   - the root Router (mode="route") is the primary entry point
 """
 
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from os import getenv
 from pathlib import Path
 
@@ -29,6 +29,39 @@ from agents.providers import build_context, build_learning
 from app.settings import build_model
 from db import create_knowledge, get_agno_db
 from db.url import db_url
+
+# ---------------------------------------------------------------------------
+# agno 2.6.13 lifespan-combiner fix (monkeypatch — MUST run before get_app())
+# ---------------------------------------------------------------------------
+# agno's _combine_app_lifespans nests app lifespans with async-generator
+# recursion (`async for _ in _run_nested(i): yield`). That breaks FastMCP's
+# StreamableHTTP session-manager task group: it gets started inside a nested
+# generator frame and is NOT alive when requests hit /mcp → 500
+# "FastMCP's StreamableHTTPSessionManager task group was not initialized".
+# Replace the combiner with an AsyncExitStack that enters every lifespan in the
+# SAME task and holds them open for the app's lifetime. get_app() resolves
+# `_combine_app_lifespans` from module globals at call time, so patching the
+# module attribute here takes effect. (Also stabilises the scheduler lifespan.)
+import agno.os.app as _agno_os_app  # noqa: E402
+
+
+def _combine_app_lifespans_exitstack(lifespans):
+    if not lifespans:
+        return None
+    if len(lifespans) == 1:
+        return lifespans[0]
+
+    @asynccontextmanager
+    async def _combined(app):  # type: ignore[no-untyped-def]
+        async with AsyncExitStack() as stack:
+            for _lifespan in lifespans:
+                await stack.enter_async_context(_lifespan(app))
+            yield
+
+    return _combined
+
+
+_agno_os_app._combine_app_lifespans = _combine_app_lifespans_exitstack
 
 # ---------------------------------------------------------------------------
 # Environment
