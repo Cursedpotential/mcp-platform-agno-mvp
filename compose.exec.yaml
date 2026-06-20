@@ -51,6 +51,11 @@ services:
       AGNO_DEBUG: "True"
       WAIT_FOR_DB: "True"
       AGENTOS_URL: http://127.0.0.1:8000
+      # Bearer token that gates the public endpoint (REST + GUI + MCP). This is the
+      # native AgentOS auth os.agno.com expects — set it and the control plane / MCP
+      # clients send `Authorization: Bearer <key>`. Replaces the edge basicauth (which
+      # the os.agno.com SPA cannot satisfy). Value set in Coolify env (gitignored).
+      OS_SECURITY_KEY: ${OS_SECURITY_KEY:-}
       # Data tier lives on OVH-3 — reach it by tailnet IP (default), not a docker
       # name. ${OVH3_HOST} default 100.119.96.29 (tailnet); salem alt 10.1.2.101.
       DB_HOST: ${OVH3_HOST}
@@ -89,14 +94,13 @@ services:
       R2_ENDPOINT_URL: ${R2_ENDPOINT_URL:-}
     # No depends_on agentos-db — it's on another box. WAIT_FOR_DB handles startup.
     # DOMAIN PHASE — main API exposed publicly at agentos.mitechconsult.com via the
-    # Coolify Traefik proxy. AgentOS runs authorization=False, so a Traefik basicauth
-    # middleware gates ALL paths (REST + /mcp). traefik.docker.network pins routing to
-    # the shared Coolify proxy network (the per-app UUID net the proxy also sits on).
-    # The ${BIND_IP}:8000 publish above stays — tailnet access is unaffected.
+    # Coolify Traefik proxy. Auth is AgentOS-native bearer (OS_SECURITY_KEY above), NOT
+    # an edge basicauth — the os.agno.com control-plane SPA authenticates with the
+    # security key and cannot satisfy HTTP basic, so Traefik just terminates TLS and
+    # routes; the app enforces the bearer on REST + GUI + MCP. CORS already allows
+    # https://os.agno.com (agno default). traefik.docker.network pins routing to the
+    # shared Coolify proxy network. The ${BIND_IP}:8000 publish stays (tailnet intact).
     # Cert: HTTP-01 on entrypoint http → the A record MUST be grey-cloud (DNS-only).
-    # basicauth hash is apr1 with SINGLE '$' — Coolify passes these labels to Traefik
-    # verbatim (it does NOT run docker-compose '$$'->'$' de-escaping; verified: a '$$'
-    # label reached the container as literal '$$' and broke auth). So single '$' here.
     labels:
       - traefik.enable=true
       - traefik.docker.network=rz41wqhpjfh1rj796ixvjhfs
@@ -105,8 +109,6 @@ services:
       - traefik.http.routers.agentos-api.tls=true
       - traefik.http.routers.agentos-api.tls.certresolver=letsencrypt
       - traefik.http.routers.agentos-api.service=agentos-api
-      - traefik.http.routers.agentos-api.middlewares=agentos-auth
-      - traefik.http.middlewares.agentos-auth.basicauth.users=matt:$apr1$baWBjon1$CeRCrbBEl/8SEglAHlfTu1
       - traefik.http.services.agentos-api.loadbalancer.server.port=8000
     networks:
       - agentos
@@ -303,4 +305,4 @@ volumes:
       allow_other: "true"
       vfs_cache_mode: "writes"
 
-# Byline: Claude Code · Opus 4.8 · 2026-06-20 (agentos-api exposed at agentos.mitechconsult.com via Traefik + basicauth; agent-ui still removed pending upstream pnpm fix)
+# Byline: Claude Code · Opus 4.8 · 2026-06-20 (agentos-api public at agentos.mitechconsult.com; auth switched edge-basicauth -> AgentOS-native OS_SECURITY_KEY bearer so the os.agno.com GUI works)
