@@ -205,7 +205,7 @@ services:
   # :8071; salem alt 10.1.2.101:8071) — used at bootstrap registration, not here.
   # ---------------------------------------------------------------------------
   contextforge:
-    image: ghcr.io/ibm/mcp-context-forge:1.0.3   # pin; do NOT use :latest
+    image: ghcr.io/ibm/mcp-context-forge:0.8.0   # pin; do NOT use :latest
     platform: linux/amd64
     container_name: contextforge
     restart: unless-stopped
