@@ -1,0 +1,45 @@
+# =============================================================================
+# BROWSER TIER — in-VPS Chromium (linuxserver/chromium) so os.agno.com's FREE
+# tier works against the platform. The full AgentOS CONTROL PLANE (agents/teams/
+# knowledge/sessions/memory/metrics/evals/traces/scheduler) is os.agno.com's
+# proprietary app — NOT in the open-source agent-ui. os.agno.com free only
+# connects to a LOCAL endpoint, so we run the browser ON the VPS and bridge the
+# platform to its localhost:8000 (docker/browser/init/10-agentos-bridge.sh).
+#
+# Flow: you -> https://browser.mitechconsult.com (Traefik + basic auth) -> this
+# Chromium -> os.agno.com -> http://localhost:8000 (+ OS_SECURITY_KEY) -> platform.
+#
+# Own Coolify app (isolated from exec-tier). No build — pulls the image directly.
+# HOST-PREP: sudo mkdir -p /data/agno/volumes/browser_config && sudo chown -R 1000:1000 /data/agno/volumes/browser_config
+# =============================================================================
+
+services:
+  browser:
+    image: lscr.io/linuxserver/chromium:latest
+    container_name: agno-browser
+    restart: unless-stopped
+    security_opt:
+      - seccomp:unconfined          # Chromium sandbox needs this under Docker
+    shm_size: "1gb"                  # Chromium shared memory (avoids tab crashes)
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      TZ: America/Detroit
+      CHROME_CLI: https://os.agno.com   # auto-open the control plane on launch
+    volumes:
+      - /data/agno/volumes/browser_config:/config
+      - ./docker/browser/init:/custom-cont-init.d:ro   # socat localhost bridge
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.browser.rule=Host(`browser.mitechconsult.com`)
+      - traefik.http.routers.browser.entryPoints=https
+      - traefik.http.routers.browser.tls=true
+      - traefik.http.routers.browser.tls.certresolver=letsencrypt
+      - traefik.http.routers.browser.service=browser
+      - traefik.http.routers.browser.middlewares=browser-auth
+      # basic auth gate (apr1, SINGLE '$' — Coolify passes labels verbatim).
+      # user: matt  (same cred as the retired platform edge-auth)
+      - traefik.http.middlewares.browser-auth.basicauth.users=matt:$apr1$baWBjon1$CeRCrbBEl/8SEglAHlfTu1
+      - traefik.http.services.browser.loadbalancer.server.port=3000   # KasmVNC web (http)
+
+# Byline: Claude Code · Opus 4.8 · 2026-06-20
