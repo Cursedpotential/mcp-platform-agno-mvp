@@ -146,6 +146,9 @@ def _build_app():
         scheduler_base_url=scheduler_base_url,
         tracing=True,
         authorization=False,  # local/dev; JWT when multi-user (handoff non-goal)
+        # Allow the self-hosted agent-ui origin (chat.mitechconsult.com) to call this
+        # API from the browser. Merged with agno's defaults (agno.com/os.agno.com).
+        cors_allowed_origins=["https://chat.mitechconsult.com"],
         lifespan=lifespan,
         config=str(Path(__file__).parent / "config.yaml"),
     )

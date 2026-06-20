@@ -15,6 +15,11 @@
 FROM node:22-alpine AS build
 RUN apk add --no-cache git
 WORKDIR /app
+# Build-OOM guards (OVH-1 is 7.6GB; the box now also has a 4GB swapfile). Cap the
+# Node heap and silence telemetry so `next build` completes instead of OOM-killing
+# — that build is the sole reason this service was pulled from the exec tier.
+ENV NODE_OPTIONS=--max-old-space-size=4096
+ENV NEXT_TELEMETRY_DISABLED=1
 RUN git clone --depth 1 https://github.com/agno-agi/agent-ui.git . \
  && corepack enable \
  && pnpm install --no-frozen-lockfile \
