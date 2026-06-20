@@ -94,7 +94,9 @@ services:
     # the shared Coolify proxy network (the per-app UUID net the proxy also sits on).
     # The ${BIND_IP}:8000 publish above stays — tailnet access is unaffected.
     # Cert: HTTP-01 on entrypoint http → the A record MUST be grey-cloud (DNS-only).
-    # basicauth hash is apr1; '$' doubled to '$$' so compose does not interpolate it.
+    # basicauth hash is apr1 with SINGLE '$' — Coolify passes these labels to Traefik
+    # verbatim (it does NOT run docker-compose '$$'->'$' de-escaping; verified: a '$$'
+    # label reached the container as literal '$$' and broke auth). So single '$' here.
     labels:
       - traefik.enable=true
       - traefik.docker.network=rz41wqhpjfh1rj796ixvjhfs
@@ -104,7 +106,7 @@ services:
       - traefik.http.routers.agentos-api.tls.certresolver=letsencrypt
       - traefik.http.routers.agentos-api.service=agentos-api
       - traefik.http.routers.agentos-api.middlewares=agentos-auth
-      - traefik.http.middlewares.agentos-auth.basicauth.users=matt:$$apr1$$baWBjon1$$CeRCrbBEl/8SEglAHlfTu1
+      - traefik.http.middlewares.agentos-auth.basicauth.users=matt:$apr1$baWBjon1$CeRCrbBEl/8SEglAHlfTu1
       - traefik.http.services.agentos-api.loadbalancer.server.port=8000
     networks:
       - agentos
