@@ -88,15 +88,24 @@ services:
       R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
       R2_ENDPOINT_URL: ${R2_ENDPOINT_URL:-}
     # No depends_on agentos-db — it's on another box. WAIT_FOR_DB handles startup.
-    # DOMAIN PHASE — main API. Re-enable + set API_DOMAIN to expose publicly:
-    # labels:
-    #   - traefik.enable=true
-    #   - traefik.http.routers.agentos-api.rule=Host(`${API_DOMAIN}`)
-    #   - traefik.http.routers.agentos-api.entryPoints=https
-    #   - traefik.http.routers.agentos-api.tls=true
-    #   - traefik.http.routers.agentos-api.tls.certresolver=letsencrypt
-    #   - traefik.http.routers.agentos-api.service=agentos-api
-    #   - traefik.http.services.agentos-api.loadbalancer.server.port=8000
+    # DOMAIN PHASE — main API exposed publicly at agentos.mitechconsult.com via the
+    # Coolify Traefik proxy. AgentOS runs authorization=False, so a Traefik basicauth
+    # middleware gates ALL paths (REST + /mcp). traefik.docker.network pins routing to
+    # the shared Coolify proxy network (the per-app UUID net the proxy also sits on).
+    # The ${BIND_IP}:8000 publish above stays — tailnet access is unaffected.
+    # Cert: HTTP-01 on entrypoint http → the A record MUST be grey-cloud (DNS-only).
+    # basicauth hash is apr1; '$' doubled to '$$' so compose does not interpolate it.
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=rz41wqhpjfh1rj796ixvjhfs
+      - traefik.http.routers.agentos-api.rule=Host(`agentos.mitechconsult.com`)
+      - traefik.http.routers.agentos-api.entryPoints=https
+      - traefik.http.routers.agentos-api.tls=true
+      - traefik.http.routers.agentos-api.tls.certresolver=letsencrypt
+      - traefik.http.routers.agentos-api.service=agentos-api
+      - traefik.http.routers.agentos-api.middlewares=agentos-auth
+      - traefik.http.middlewares.agentos-auth.basicauth.users=matt:$$apr1$$baWBjon1$$CeRCrbBEl/8SEglAHlfTu1
+      - traefik.http.services.agentos-api.loadbalancer.server.port=8000
     networks:
       - agentos
     extra_hosts:
@@ -292,4 +301,4 @@ volumes:
       allow_other: "true"
       vfs_cache_mode: "writes"
 
-# Byline: Claude Code · Opus 4.8 · 2026-06-19 (agent-ui service removed for deploy — upstream pnpm build fails on a 7.6GB box; re-add once fixed)
+# Byline: Claude Code · Opus 4.8 · 2026-06-20 (agentos-api exposed at agentos.mitechconsult.com via Traefik + basicauth; agent-ui still removed pending upstream pnpm fix)
