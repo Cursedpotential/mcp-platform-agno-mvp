@@ -122,8 +122,12 @@ def _build_app():
         teams=teams,
         knowledge=[knowledge],
         enable_mcp_server=True,  # serve the OS (agents/teams/knowledge) as an MCP server at /mcp
-        scheduler=True,
-        scheduler_base_url=scheduler_base_url,
+        # scheduler DISABLED (2026-06-21): the scheduler<->SurrealDB "Error claiming
+        # schedule" fires DURING lifespan startup, nested in the same task-group tree
+        # as FastMCP's StreamableHTTP session manager — prime suspect for nulling the
+        # MCP task group (/mcp 500 "task group not initialized"). It's broken+unused
+        # anyway. Re-enable once the SurrealDB scheduler store is fixed.
+        scheduler=False,
         tracing=True,
         authorization=False,  # local/dev; JWT when multi-user (handoff non-goal)
         # Allow the self-hosted agent-ui origin (chat.mitechconsult.com) to call this
