@@ -298,7 +298,7 @@ services:
   # :8071; salem alt 10.1.2.101:8071) — used at bootstrap registration, not here.
   # ---------------------------------------------------------------------------
   contextforge:
-    image: ghcr.io/ibm/mcp-context-forge:0.8.0   # pin; do NOT use :latest
+    image: ghcr.io/ibm/mcp-context-forge:1.0.3   # latest stable (was pinned 0.8.0); CSRF_ENABLED=false below dodges the 1.0.3 admin-UI CSRF bug. DB backed up at /data/backup_preupgrade_20260623/ for rollback.
     platform: linux/amd64
     container_name: contextforge
     restart: unless-stopped
