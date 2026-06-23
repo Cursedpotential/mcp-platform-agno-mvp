@@ -130,9 +130,19 @@ def _build_app():
         scheduler=False,
         tracing=True,
         authorization=False,  # local/dev; JWT when multi-user (handoff non-goal)
-        # Allow the self-hosted agent-ui origin (chat.mitechconsult.com) to call this
-        # API from the browser. Merged with agno's defaults (agno.com/os.agno.com).
-        cors_allowed_origins=["https://chat.mitechconsult.com"],
+        # Browser origins allowed to call this API directly (control plane + chat UI).
+        # NOTE: this agno build REPLACES the default origins with this list (it does
+        # NOT merge), so os.agno.com must be listed explicitly or the control plane
+        # shows "connected but not active" (browser fetch of /config is CORS-blocked).
+        cors_allowed_origins=[
+            "https://chat.mitechconsult.com",
+            "https://os.agno.com",
+            "https://app.agno.com",
+            "https://agno.com",
+            "https://www.agno.com",
+            "https://os-stg.agno.com",
+            "http://localhost:3000",
+        ],
         lifespan=lifespan,
         config=str(Path(__file__).parent / "config.yaml"),
     )
