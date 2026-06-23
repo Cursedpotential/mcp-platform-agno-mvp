@@ -328,7 +328,7 @@ services:
       PLATFORM_ADMIN_FULL_NAME: "Platform Admin"
       MCPGATEWAY_UI_ENABLED: "true"          # admin dashboard (only reachable via tailnet/proxy)
       MCPGATEWAY_ADMIN_API_ENABLED: "true"   # admin REST API (POST /gateways, /servers)
-      SECURE_COOKIES: "true"                 # behind Traefik TLS (mcp.mitechconsult.com)
+      SECURE_COOKIES: "false"                # Traefik terminates TLS -> CF sees HTTP; Secure-flag cookies wouldn't stick -> admin login failed. Edge stays HTTPS.
       # --- keep the worker count low: OVH-1 is a tight 7.6GB box ---
       GUNICORN_WORKERS: "1"                   # 1–2 max; each worker is a full python process
     volumes:
