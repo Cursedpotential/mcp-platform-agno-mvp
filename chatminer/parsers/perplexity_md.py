@@ -13,11 +13,10 @@ Usage:
 
 import logging
 import re
-import uuid
 from typing import Optional
 
 from chatminer.core.base import BaseParser
-from chatminer.core.types import ContentType, MessageRole, ParsedConversation, ParsedMessage
+from chatminer.core.types import MessageRole, ParsedConversation
 
 logger = logging.getLogger(__name__)
 

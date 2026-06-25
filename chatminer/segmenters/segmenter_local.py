@@ -13,10 +13,10 @@ Memory: ~150MB RAM + 80MB model. Fits comfortably in 2GB VRAM.
 
 Usage:
     from chatminer.segmenters import LocalSegmenter
-    
+
     segmenter = LocalSegmenter()
     segments = segmenter.segment(messages)
-    
+
     for seg in segments:
         print(f"{seg.topic_tag.value}: {seg.message_count} msgs, "
               f"confidence={seg.topic_confidence:.2f}")
@@ -45,39 +45,163 @@ logger = logging.getLogger(__name__)
 # from a gitignored config via _load_case_terms() — keeps PII out of the codebase.
 _TOPIC_KEYWORDS = {
     TopicTag.RELATIONSHIP_HISTORY: [
-        "relationship", "marriage", "married", "divorce", "separated", "custody",
-        "child", "children", "daughter", "son", "kid", "baby", "family", "parenting",
-        "visitation", "partner", "spouse", "ex", "boyfriend", "girlfriend",
-        "anniversary", "moved", "apartment", "house", "trip", "visit", "argument",
-        "fight", "apology", "promise", "incident", "timeline", "happened", "when",
+        "relationship",
+        "marriage",
+        "married",
+        "divorce",
+        "separated",
+        "custody",
+        "child",
+        "children",
+        "daughter",
+        "son",
+        "kid",
+        "baby",
+        "family",
+        "parenting",
+        "visitation",
+        "partner",
+        "spouse",
+        "ex",
+        "boyfriend",
+        "girlfriend",
+        "anniversary",
+        "moved",
+        "apartment",
+        "house",
+        "trip",
+        "visit",
+        "argument",
+        "fight",
+        "apology",
+        "promise",
+        "incident",
+        "timeline",
+        "happened",
+        "when",
     ],
     TopicTag.PERSONAL_LEGAL: [
-        "court", "legal", "attorney", "lawyer", "motion", "filing", "affidavit",
-        "deposition", "hearing", "trial", "settlement", "subpoena", "strategy",
-        "case", "litigation", "plaintiff", "defendant", "judge", "testimony",
-        "mcl", "factor", "petition", "order", "custody hearing", "foc",
+        "court",
+        "legal",
+        "attorney",
+        "lawyer",
+        "motion",
+        "filing",
+        "affidavit",
+        "deposition",
+        "hearing",
+        "trial",
+        "settlement",
+        "subpoena",
+        "strategy",
+        "case",
+        "litigation",
+        "plaintiff",
+        "defendant",
+        "judge",
+        "testimony",
+        "mcl",
+        "factor",
+        "petition",
+        "order",
+        "custody hearing",
+        "foc",
     ],
     TopicTag.DEVELOPMENT: [
-        "code", "parser", "server", "mcp", "api", "database", "schema",
-        "docker", "typescript", "python", "javascript", "react", "agno",
-        "agent", "tool", "function", "implement", "build", "deploy",
-        "repository", "github", "commit", "merge", "refactor", "debug",
-        "architecture", "component", "module", "pipeline", "ingestion",
-        "embedding", "vector", "search", "index", "chunk", "segment",
-        "test", "unit test", "integration", "coverage",
+        "code",
+        "parser",
+        "server",
+        "mcp",
+        "api",
+        "database",
+        "schema",
+        "docker",
+        "typescript",
+        "python",
+        "javascript",
+        "react",
+        "agno",
+        "agent",
+        "tool",
+        "function",
+        "implement",
+        "build",
+        "deploy",
+        "repository",
+        "github",
+        "commit",
+        "merge",
+        "refactor",
+        "debug",
+        "architecture",
+        "component",
+        "module",
+        "pipeline",
+        "ingestion",
+        "embedding",
+        "vector",
+        "search",
+        "index",
+        "chunk",
+        "segment",
+        "test",
+        "unit test",
+        "integration",
+        "coverage",
     ],
     TopicTag.EMOTIONAL: [
-        "feel", "feeling", "emotion", "hurt", "pain", "trauma",
-        "angry", "sad", "scared", "anxious", "depressed", "stressed",
-        "overwhelmed", "exhausted", "tired", "burnout", "frustrated",
-        "cry", "crying", "tears", "heart", "broken", "healing",
-        "therapy", "therapist", "counseling", "support", "help",
-        "lonely", "isolated", "betrayed", "confused", "lost",
+        "feel",
+        "feeling",
+        "emotion",
+        "hurt",
+        "pain",
+        "trauma",
+        "angry",
+        "sad",
+        "scared",
+        "anxious",
+        "depressed",
+        "stressed",
+        "overwhelmed",
+        "exhausted",
+        "tired",
+        "burnout",
+        "frustrated",
+        "cry",
+        "crying",
+        "tears",
+        "heart",
+        "broken",
+        "healing",
+        "therapy",
+        "therapist",
+        "counseling",
+        "support",
+        "help",
+        "lonely",
+        "isolated",
+        "betrayed",
+        "confused",
+        "lost",
     ],
     TopicTag.EVIDENCE: [
-        "screenshot", "photo", "picture", "video", "recording", "voicemail",
-        "text message", "email", "log", "document", "record", "metadata",
-        "hash", "chain of custody", "exhibit", "proof", "timestamp",
+        "screenshot",
+        "photo",
+        "picture",
+        "video",
+        "recording",
+        "voicemail",
+        "text message",
+        "email",
+        "log",
+        "document",
+        "record",
+        "metadata",
+        "hash",
+        "chain of custody",
+        "exhibit",
+        "proof",
+        "timestamp",
     ],
 }
 
@@ -100,6 +224,7 @@ def _load_case_terms() -> None:
     try:
         import pathlib
         import yaml  # optional dep; skip silently if missing
+
         p = pathlib.Path(path)
         if not p.exists():
             return
@@ -123,13 +248,14 @@ def _load_case_terms() -> None:
 @dataclass
 class SegmenterConfig:
     """Configuration for the local segmenter."""
+
     model_name: str = "all-MiniLM-L6-v2"  # 80MB, fits in 2GB
-    window_size: int = 3                   # Messages to compare
-    similarity_threshold: float = 0.65     # Below this = topic shift
-    min_segment_size: int = 2              # Minimum messages per segment
-    max_segment_size: int = 50             # Maximum messages per segment
-    device: str = "auto"                   # "cuda", "cpu", or "auto"
-    batch_size: int = 32                   # Embedding batch size
+    window_size: int = 3  # Messages to compare
+    similarity_threshold: float = 0.65  # Below this = topic shift
+    min_segment_size: int = 2  # Minimum messages per segment
+    max_segment_size: int = 50  # Maximum messages per segment
+    device: str = "auto"  # "cuda", "cpu", or "auto"
+    batch_size: int = 32  # Embedding batch size
 
 
 class LocalSegmenter:
@@ -157,6 +283,7 @@ class LocalSegmenter:
             device = self.config.device
             if device == "auto":
                 import torch
+
                 device = "cuda" if torch.cuda.is_available() else "cpu"
 
             logger.info(f"Loading sentence-transformer model: {self.config.model_name} on {device}")
@@ -313,6 +440,7 @@ class LocalSegmenter:
         found = [kw for kw in keywords if kw in text]
         # Return top 5 most frequent
         from collections import Counter
+
         counts = Counter(found)
         return [kw for kw, _ in counts.most_common(5)]
 

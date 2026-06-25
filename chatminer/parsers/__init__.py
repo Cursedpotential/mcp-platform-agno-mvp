@@ -13,6 +13,8 @@ To add a new parser:
 Registered parsers (checked in order):
 """
 
+from typing import TYPE_CHECKING
+
 from chatminer.parsers.chatgpt_share import ChatGptShareParser
 from chatminer.parsers.chatgpt_official import ChatGptOfficialParser
 from chatminer.parsers.gemini_chrome import GeminiChromeParser
@@ -28,18 +30,22 @@ from chatminer.parsers.generic_md import GenericMdParser
 # More specific formats first, generic fallbacks last.
 PARSER_REGISTRY: list[type] = [
     # Source-specific — high confidence detectors
-    ChatGptOfficialParser,    # ChatGPT official JSON export
-    ChatGptShareParser,       # ChatGPT "Share" markdown
-    GeminiChromeParser,       # Gemini Chrome extension
-    GeminiJsonParser,         # Gemini JSON export
-    ClaudeCodeParser,         # Claude Code JSONL
-    PerplexityGdprParser,     # Perplexity GDPR export
-    PerplexityPluginParser,   # Perplexity plugin copy-paste
-    ClaudeMdParser,           # Claude markdown copy-paste
-    PerplexityMdParser,       # Perplexity markdown (generic)
+    ChatGptOfficialParser,  # ChatGPT official JSON export
+    ChatGptShareParser,  # ChatGPT "Share" markdown
+    GeminiChromeParser,  # Gemini Chrome extension
+    GeminiJsonParser,  # Gemini JSON export
+    ClaudeCodeParser,  # Claude Code JSONL
+    PerplexityGdprParser,  # Perplexity GDPR export
+    PerplexityPluginParser,  # Perplexity plugin copy-paste
+    ClaudeMdParser,  # Claude markdown copy-paste
+    PerplexityMdParser,  # Perplexity markdown (generic)
     # Fallbacks
-    GenericMdParser,          # Any markdown with role markers
+    GenericMdParser,  # Any markdown with role markers
 ]
+
+if TYPE_CHECKING:
+    from chatminer.core.base import BaseParser
+
 
 def get_parser_for_file(path: str, content: str | None = None) -> "BaseParser | None":
     """
@@ -73,6 +79,7 @@ def get_parser_for_file(path: str, content: str | None = None) -> "BaseParser | 
             continue
 
     return best_parser
+
 
 __all__ = [
     "PARSER_REGISTRY",

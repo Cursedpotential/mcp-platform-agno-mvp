@@ -37,7 +37,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from chatminer.core.base import BaseParser, ParserConfig
+from chatminer.core.base import BaseParser
 from chatminer.core.types import (
     ContentType,
     MessageRole,

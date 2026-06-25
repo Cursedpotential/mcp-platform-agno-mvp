@@ -9,10 +9,10 @@ Three variants:
 
 Usage:
     from chatminer.segmenters import get_segmenter
-    
+
     segmenter = get_segmenter("local")  # or "colab", "configurable"
     segments = segmenter.segment(messages)
-    
+
     for seg in segments:
         print(f"{seg.topic_tag.value}: {seg.message_count} messages")
 """
@@ -26,11 +26,11 @@ __all__ = ["LocalSegmenter", "ConfigurableSegmenter", "get_segmenter"]
 def get_segmenter(method: str = "local", **kwargs):
     """
     Factory: get the right segmenter by name.
-    
+
     Args:
         method: "local" | "colab" | "configurable"
         **kwargs: Passed to segmenter constructor
-    
+
     Returns:
         Segmenter instance
     """

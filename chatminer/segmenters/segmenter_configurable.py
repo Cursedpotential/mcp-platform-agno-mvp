@@ -18,7 +18,7 @@ Configuration (config/settings.py or .env):
 
 Usage:
     from chatminer.segmenters import ConfigurableSegmenter
-    
+
     segmenter = ConfigurableSegmenter(
         provider="openai",  # or "local", "ollama", "gemini", "nvidia"
         model_name="text-embedding-3-small",
@@ -35,7 +35,7 @@ from typing import Optional
 import numpy as np
 
 from chatminer.segmenters.segmenter_local import LocalSegmenter, SegmenterConfig
-from chatminer.core.types import ParsedMessage, TopicSegment
+from chatminer.core.types import ParsedMessage
 
 logger = logging.getLogger(__name__)
 
@@ -139,7 +139,6 @@ class ConfigurableSegmenter(LocalSegmenter):
         import google.generativeai as genai
 
         genai.configure(api_key=self.api_key or os.getenv("GOOGLE_API_KEY"))
-        model = genai.GenerativeModel(self.model_name)
 
         embeddings = []
         for text in texts:

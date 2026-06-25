@@ -95,6 +95,7 @@ def apply_db_modification(statement: str, target_schema: str = "analysis") -> st
 # PLATFORM AGENTS
 # ===========================================================================
 
+
 def build_ingestion_orchestrator(model, db, knowledge, learning, source_tools: list[Any]) -> Agent:
     return Agent(
         id="ingestion-orchestrator",
@@ -184,6 +185,7 @@ def build_platform_ops_team(model, db, members: list[Agent]) -> Team:
 # BUILDER AGENTS
 # ===========================================================================
 
+
 def build_dev_copilot(model, db, knowledge, learning, code_tools: list[Any]) -> Agent:
     return Agent(
         id="dev-copilot",
@@ -217,7 +219,7 @@ def build_project_pal(model, db, learning) -> Agent:
         role="Maintain rolling memory of goals, blockers, decisions, preferences, session context.",
         model=model,
         db=db,
-        learning=learning,   # Session Context + User Memory stores do the work
+        learning=learning,  # Session Context + User Memory stores do the work
         add_history_to_context=True,
         num_history_runs=10,
         instructions=[
@@ -275,6 +277,7 @@ def build_builder_team(model, db, members: list[Agent]) -> Team:
 # the evidence platform. It returns, fully toolled, with the Drive/OneDrive
 # MCP integration (docs/DEBT.md: cloud-cleanup feature).
 
+
 def build_root_router(model, db, ops_team: Team, builder_team: Team) -> Team:
     """The missing 'routing agent'. mode='route' = pick the best-fit member and
     return its response directly (platform-operation vs platform-development).
@@ -303,21 +306,22 @@ def build_root_router(model, db, ops_team: Team, builder_team: Team) -> Team:
 # (model factory, db, knowledge, learning, and the Context Provider tool lists).
 # ---------------------------------------------------------------------------
 
+
 def build_agent_team(ctx) -> dict[str, Any]:
     """Return every agent/team keyed by stable public name (UI/tests depend on keys)."""
     m, db = ctx.model, ctx.db
 
     ingestion = build_ingestion_orchestrator(m, db, ctx.knowledge, ctx.learning, ctx.source_tools)
-    analysis  = build_analysis_orchestrator(m, db, ctx.knowledge, ctx.learning, ctx.source_tools)
+    analysis = build_analysis_orchestrator(m, db, ctx.knowledge, ctx.learning, ctx.source_tools)
     gatekeeper = build_review_gatekeeper(m, db)
-    ops_team  = build_platform_ops_team(m, db, [ingestion, analysis, gatekeeper])
+    ops_team = build_platform_ops_team(m, db, [ingestion, analysis, gatekeeper])
 
-    dev       = build_dev_copilot(m, db, ctx.knowledge, ctx.learning, ctx.code_tools)
-    pal       = build_project_pal(m, db, ctx.learning)
-    forensic  = build_forensic_data_agent(m, db, ctx.learning, ctx.readonly_db_tools)
+    dev = build_dev_copilot(m, db, ctx.knowledge, ctx.learning, ctx.code_tools)
+    pal = build_project_pal(m, db, ctx.learning)
+    forensic = build_forensic_data_agent(m, db, ctx.learning, ctx.readonly_db_tools)
     builder_team = build_builder_team(m, db, [dev, pal, forensic])
 
-    router    = build_root_router(m, db, ops_team, builder_team)
+    router = build_root_router(m, db, ops_team, builder_team)
 
     return {
         # platform
