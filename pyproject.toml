@@ -52,6 +52,8 @@ ignore_missing_imports = true
 testpaths = ["tests"]
 # Keep the first-party suite isolated from the vendored semantica tests.
 norecursedirs = ["docs", ".venv*", "evidence/tools"]
+# Integration tests are opt-in: run them with `pytest -m integration`.
+addopts = "-m 'not integration'"
 markers = [
   "integration: tests that require live services (Postgres/Neo4j/R2); not run by default",
 ]

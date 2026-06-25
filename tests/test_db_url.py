@@ -78,6 +78,13 @@ def test_password_is_url_quoted(monkeypatch):
 
 
 def test_module_level_db_url_matches_builder(clean_db_env):
-    # The module caches db_url at import time; it must equal a fresh build.
+    # db.url caches db_url at import time and db/session.py consumes that cached
+    # value — so later env changes must NOT mutate it, while build_db_url()
+    # reflects the new env.
     mod = _load_module()
-    assert mod.db_url == mod.build_db_url()
+    baseline = mod.db_url
+    assert baseline == mod.build_db_url()
+
+    clean_db_env.setenv("DB_HOST", "changed-host")
+    assert mod.db_url == baseline
+    assert mod.build_db_url() != baseline

@@ -113,6 +113,11 @@ def test_ingest_duplicate_returns_existing_without_rewrite(blob_root, sample_fil
         "blob_key": "aa/aaaa/path.txt",
         "hashed_at": datetime(2025, 6, 1, tzinfo=timezone.utc),
     }
+    # Pre-existing write-once blob: it must survive the duplicate ingest untouched.
+    existing_blob = blob_root / existing["blob_key"]
+    existing_blob.parent.mkdir(parents=True, exist_ok=True)
+    existing_blob.write_bytes(b"sentinel")
+
     fake = _FakeEngine([existing])
     monkeypatch.setattr(custody, "_get_engine", lambda: fake)
 
@@ -121,6 +126,8 @@ def test_ingest_duplicate_returns_existing_without_rewrite(blob_root, sample_fil
     assert ref.duplicate is True
     assert ref.artifact_id == "7"
     assert ref.blob_key == "aa/aaaa/path.txt"
+    # The existing blob is never rewritten on the duplicate path.
+    assert existing_blob.read_bytes() == b"sentinel"
     # No new blob should be created for the duplicate's own sha path.
     sha = hashlib.sha256(b"hello evidence").hexdigest()
     assert not (blob_root / f"{sha[:2]}/{sha}/evidence.txt").exists()
