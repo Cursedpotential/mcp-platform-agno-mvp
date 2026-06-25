@@ -8,6 +8,7 @@ are the parts most likely to break silently.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Any
 
 from chatminer.core.types import (
     ContentType,
@@ -17,14 +18,14 @@ from chatminer.core.types import (
 )
 
 
-def _msg(**kw):
-    base = dict(
-        message_id="m1",
-        source_file="f.md",
-        source_format="generic_md",
-        source_index=0,
-        content="hello",
-    )
+def _msg(**kw: Any) -> ParsedMessage:
+    base: dict[str, Any] = {
+        "message_id": "m1",
+        "source_file": "f.md",
+        "source_format": "generic_md",
+        "source_index": 0,
+        "content": "hello",
+    }
     base.update(kw)
     return ParsedMessage(**base)
 
