@@ -104,7 +104,7 @@ def _build_app():
         id="mcp-forensic-platform",
         db=db,
         agents=solo_agents,
-        teams=teams,
+        teams=teams,  # type: ignore[arg-type]  # invariant list[Team|...]; list[Team] is safe here
         knowledge=[knowledge],
         base_app=app,
         on_route_conflict="preserve_base_app",

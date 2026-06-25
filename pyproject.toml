@@ -51,7 +51,7 @@ exclude = [".venv*", "docs"]
 explicit_package_bases = true
 
 [[tool.mypy.overrides]]
-module = ["pgvector.*", "pymilvus.*", "agno.*", "httpx.*", "mcp.*", "sqlalchemy.*", "fastapi.*"]
+module = ["pgvector.*", "pymilvus.*", "agno.*", "httpx.*", "mcp.*", "sqlalchemy.*", "fastapi.*", "google.*"]
 ignore_missing_imports = true
 
 [tool.uv.pip]

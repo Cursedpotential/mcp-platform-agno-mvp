@@ -68,7 +68,9 @@ def _get_write_engine():
 _EVIDENCE_REF = re.compile(r"\bevidence\s*\.", re.IGNORECASE)
 
 
-@approval
+# agno's @approval is typed for a bare Callable; stacking it on a @tool-wrapped
+# Function is the documented HITL pattern but trips the overload checker.
+@approval  # type: ignore[call-overload]
 @tool(requires_confirmation=True)
 def apply_db_modification(statement: str, target_schema: str = "analysis") -> str:
     """Apply ONE approved SQL write to the `analysis` schema (never `evidence`).
@@ -168,7 +170,7 @@ def build_platform_ops_team(model, db, members: list[Agent]) -> Team:
         role="Operate the platform: ingestion, analysis, and human approval.",
         model=model,
         db=db,
-        members=members,
+        members=members,  # type: ignore[arg-type]  # invariant list[Agent|Team]; list[Agent] is safe here
         mode=TeamMode.coordinate,  # leader delegates + synthesizes within the family
         show_members_responses=True,
         add_history_to_context=True,
@@ -259,7 +261,7 @@ def build_builder_team(model, db, members: list[Agent]) -> Team:
         role="Help build the platform: code proposals, memory, and forensic data access.",
         model=model,
         db=db,
-        members=members,
+        members=members,  # type: ignore[arg-type]  # invariant list[Agent|Team]; list[Agent] is safe here
         mode=TeamMode.coordinate,
         show_members_responses=True,
         add_history_to_context=True,
