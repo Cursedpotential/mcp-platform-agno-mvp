@@ -41,6 +41,7 @@ class ArtifactType(Enum):
     ANALYSIS_REPORT = "analysis_report"  # Analysis output
     TIMELINE_EVENT = "timeline_event"  # Dated event mentioned
     ENTITY = "entity"  # Named person/place/org
+    EVIDENCE_REFERENCE = "evidence_reference"  # Mention of an evidence item (texts, emails, screenshots…)
 
 
 class MessageRole(Enum):

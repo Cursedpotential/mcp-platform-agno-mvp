@@ -60,7 +60,7 @@ class ConfigurableSegmenter(LocalSegmenter):
         super().__init__(config)
 
         # Provider selection
-        self.provider = (provider or os.getenv("SEGMENTER_PROVIDER", "local")).lower()
+        self.provider = (provider or os.getenv("SEGMENTER_PROVIDER") or "local").lower()
         self.model_name = model_name or os.getenv("SEGMENTER_MODEL", self.config.model_name)
         self.api_key = api_key
         self.base_url = base_url

@@ -340,7 +340,7 @@ class LocalSegmenter:
         )
         return embeddings
 
-    def _compute_similarities(self, embeddings: np.ndarray) -> list[float]:
+    def _compute_similarities(self, embeddings: np.ndarray) -> list[tuple[int, float]]:
         """
         Compute cosine similarity between consecutive sliding windows.
 
@@ -418,7 +418,7 @@ class LocalSegmenter:
         if not scores:
             return TopicTag.UNKNOWN, 0.0
 
-        best_topic = max(scores, key=scores.get)
+        best_topic = max(scores, key=lambda t: scores[t])
         best_score = scores[best_topic]
 
         # Check if it's mixed (multiple topics have significant scores)

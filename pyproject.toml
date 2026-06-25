@@ -45,6 +45,10 @@ no_implicit_optional = true
 warn_unused_configs = true
 plugins = ["pydantic.mypy"]
 exclude = [".venv*", "docs"]
+# scripts/ holds standalone scripts with no __init__.py; without this mypy maps
+# e.g. ingest_knowledge.py to both "ingest_knowledge" and "scripts.ingest_knowledge"
+# and errors with "Source file found twice under different module names".
+explicit_package_bases = true
 
 [[tool.mypy.overrides]]
 module = ["pgvector.*", "pymilvus.*", "agno.*", "httpx.*", "mcp.*", "sqlalchemy.*", "fastapi.*"]

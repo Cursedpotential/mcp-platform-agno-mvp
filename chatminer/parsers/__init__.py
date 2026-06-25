@@ -13,6 +13,8 @@ To add a new parser:
 Registered parsers (checked in order):
 """
 
+from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 from chatminer.parsers.chatgpt_share import ChatGptShareParser
@@ -28,7 +30,7 @@ from chatminer.parsers.generic_md import GenericMdParser
 
 # Registry: parsers are tried in this order for auto-detection.
 # More specific formats first, generic fallbacks last.
-PARSER_REGISTRY: list[type] = [
+PARSER_REGISTRY: list[type[BaseParser]] = [
     # Source-specific — high confidence detectors
     ChatGptOfficialParser,  # ChatGPT official JSON export
     ChatGptShareParser,  # ChatGPT "Share" markdown
