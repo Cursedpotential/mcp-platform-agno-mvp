@@ -51,7 +51,22 @@ exclude = [".venv*", "docs"]
 explicit_package_bases = true
 
 [[tool.mypy.overrides]]
-module = ["pgvector.*", "pymilvus.*", "agno.*", "httpx.*", "mcp.*", "sqlalchemy.*", "fastapi.*", "google.*"]
+# Third-party modules without type stubs / py.typed (incl. optional, heavy ML
+# deps that aren't installed in CI and are lazy-imported in the segmenters).
+module = [
+  "pgvector.*",
+  "pymilvus.*",
+  "agno.*",
+  "httpx.*",
+  "mcp.*",
+  "sqlalchemy.*",
+  "fastapi.*",
+  "google.*",
+  "sentence_transformers.*",
+  "torch.*",
+  "sklearn.*",
+  "yaml",
+]
 ignore_missing_imports = true
 
 [tool.uv.pip]
