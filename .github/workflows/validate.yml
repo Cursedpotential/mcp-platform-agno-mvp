@@ -40,3 +40,6 @@ jobs:
 
       - name: Validate (lint + type)
         run: uv run bash scripts/validate.sh
+
+      - name: Unit tests
+        run: uv run pytest -q
