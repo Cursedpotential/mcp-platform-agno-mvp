@@ -44,14 +44,15 @@ async def run(req: RunRequest):
     if req.language not in RUNNERS:
         return {"error": f"language must be one of {sorted(RUNNERS)}"}
     timeout = min(max(req.timeout, 1), MAX_TIMEOUT)
-    with tempfile.NamedTemporaryFile("w", suffix=SUFFIX[req.language],
-                                     dir="/workspace", delete=False) as f:
+    with tempfile.NamedTemporaryFile("w", suffix=SUFFIX[req.language], dir="/workspace", delete=False) as f:
         f.write(req.code)
         path = f.name
     try:
         cmd = [a.format(file=path) for a in RUNNERS[req.language]]
         proc = await asyncio.create_subprocess_exec(
-            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
             cwd="/workspace",
         )
         try:

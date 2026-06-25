@@ -37,7 +37,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from chatminer.core.base import BaseParser, ParserConfig
+from chatminer.core.base import BaseParser
 from chatminer.core.types import (
     ContentType,
     MessageRole,
@@ -178,8 +178,9 @@ class ChatGptShareParser(BaseParser):
 
         # Derive title from first user message if not set
         if not conv.title:
-            for m in conv.user_messages:
-                first_line = m.content.strip().split("\n")[0]
+            # NB: `m` is used for regex matches above; use a distinct name here.
+            for user_msg in conv.user_messages:
+                first_line = user_msg.content.strip().split("\n")[0]
                 if len(first_line) > 5:
                     conv.title = first_line[:100]
                     break

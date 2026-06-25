@@ -23,8 +23,8 @@ from pydantic import BaseModel, Field, field_validator
 
 class DisclosureTier(str, Enum):
     contemporaneous = "contemporaneous"  # knowable at the moment it happened
-    hindsight = "hindsight"              # assembled later by connecting records
-    discovered = "discovered"            # hidden fact surfaced after the fact
+    hindsight = "hindsight"  # assembled later by connecting records
+    discovered = "discovered"  # hidden fact surfaced after the fact
 
 
 class RecordType(str, Enum):
@@ -38,13 +38,13 @@ class NormalizedRecord(BaseModel):
     """Canonical record. Parsers produce these; store.py persists them."""
 
     record_type: RecordType = RecordType.message
-    source: str                                  # parser/source key e.g. 'chatgpt-export'
+    source: str  # parser/source key e.g. 'chatgpt-export'
     conversation_id: str | None = None
-    role: str | None = None                      # sender / author role
+    role: str | None = None  # sender / author role
     participants: list[str] = Field(default_factory=list)
     content: str = ""
-    occurred_at: datetime | None = None          # valid time
-    knowledge_time: datetime | None = None       # filled at normalize time if unset
+    occurred_at: datetime | None = None  # valid time
+    knowledge_time: datetime | None = None  # filled at normalize time if unset
     disclosure_tier: DisclosureTier = DisclosureTier.contemporaneous
     attrs: dict[str, Any] = Field(default_factory=dict)
 

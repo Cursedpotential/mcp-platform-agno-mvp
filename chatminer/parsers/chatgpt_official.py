@@ -35,7 +35,7 @@ import json
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Optional
 
 from chatminer.core.base import BaseParser
 from chatminer.core.types import ContentType, MessageRole, ParsedConversation, ParsedMessage
@@ -119,8 +119,7 @@ class ChatGptOfficialParser(BaseParser):
         messages: list[ParsedMessage] = []
 
         # Find root node (the one with no parent)
-        root_ids = [k for k, v in mapping.items()
-                    if not v.get("parent")]
+        root_ids = [k for k, v in mapping.items() if not v.get("parent")]
 
         for root_id in root_ids:
             self._walk_tree(mapping, root_id, messages)
@@ -191,6 +190,7 @@ class ChatGptOfficialParser(BaseParser):
         if "```" in content:
             content_type = ContentType.CODE
             import re
+
             m = re.search(r"```(\w+)", content)
             if m:
                 language = m.group(1)

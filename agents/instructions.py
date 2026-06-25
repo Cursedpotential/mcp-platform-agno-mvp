@@ -64,3 +64,29 @@ ROUTER = [
     "Cloud Drive Cleanup (reorganize Drive/OneDrive).",
     "If genuinely ambiguous, prefer Builder (it can ask clarifying questions).",
 ]
+
+
+# --- Accessor ---------------------------------------------------------------
+# Maps the agent id used in agents/*.py to its role-specific instruction block.
+# (transcript_miner is an ingestion-class agent — it parses raw transcripts.)
+_ROLE_INSTRUCTIONS: dict[str, list[str]] = {
+    "ingestion_orchestrator": INGESTION,
+    "transcript_miner": INGESTION,
+    "analysis_orchestrator": ANALYSIS,
+    "review_gatekeeper": GATEKEEPER,
+    "dev_copilot": DEV_COPILOT,
+    "project_pal": PROJECT_PAL,
+    "forensic_data_agent": FORENSIC,
+    "cleanup": CLEANUP,
+    "router": ROUTER,
+}
+
+
+def get_instructions(role: str) -> list[str]:
+    """Return the full instruction list for an agent: the cross-cutting
+    GLOBAL_GUARDRAILS followed by the role-specific block.
+
+    Unknown roles still receive the guardrails (never an empty list) so every
+    agent keeps its safety language regardless of wiring mistakes.
+    """
+    return [*GLOBAL_GUARDRAILS, *_ROLE_INSTRUCTIONS.get(role, [])]

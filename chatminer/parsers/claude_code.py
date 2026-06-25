@@ -99,6 +99,7 @@ class ClaudeCodeParser(BaseParser):
             if "```" in content_text:
                 content_type = ContentType.CODE
                 import re
+
                 m = re.search(r"```(\w+)", content_text)
                 if m:
                     language = m.group(1)

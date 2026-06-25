@@ -71,8 +71,8 @@ def build_context(model, db, knowledge, learning, db_url: str) -> PlatformContex
 
     db_provider = DatabaseContextProvider(
         id="database",
-        sql_engine=analysis_engine,        # write sub-agent -> analysis schema
-        readonly_engine=evidence_engine,   # read sub-agent  -> cannot write
+        sql_engine=analysis_engine,  # write sub-agent -> analysis schema
+        readonly_engine=evidence_engine,  # read sub-agent  -> cannot write
         model=model,
     )
     db_tools = db_provider.get_tools()
@@ -80,10 +80,10 @@ def build_context(model, db, knowledge, learning, db_url: str) -> PlatformContex
     # Strictly-read provider for the Forensic Data Agent: write tools never built.
     evidence_provider = DatabaseContextProvider(
         id="evidence",
-        sql_engine=evidence_engine,        # even the "write" slot is read-only
+        sql_engine=evidence_engine,  # even the "write" slot is read-only
         readonly_engine=evidence_engine,
         model=model,
-        write=False,                        # query_evidence only
+        write=False,  # query_evidence only
     )
     readonly_db_tools = evidence_provider.get_tools()
 
@@ -99,9 +99,11 @@ def build_context(model, db, knowledge, learning, db_url: str) -> PlatformContex
     # graph profile is up (GRAPHITI_MCP_URL set). AgentOS manages the MCP
     # lifecycle; never run uvicorn reload with this attached.
     import os
+
     graphiti_url = os.getenv("GRAPHITI_MCP_URL", "")
     if graphiti_url:
         from agno.tools.mcp import MCPTools
+
         source_tools.append(
             MCPTools(
                 url=graphiti_url,
@@ -151,8 +153,8 @@ def build_learning(db, model, knowledge):
         user_profile=UserProfileConfig(mode=LearningMode.ALWAYS),
         user_memory=UserMemoryConfig(mode=LearningMode.AGENTIC),
         session_context=SessionContextConfig(mode=LearningMode.ALWAYS, enable_planning=True),
-        entity_memory=EntityMemoryConfig(mode=LearningMode.PROPOSE),    # HITL
-        learned_knowledge=LearnedKnowledgeConfig(                       # HITL
+        entity_memory=EntityMemoryConfig(mode=LearningMode.PROPOSE),  # HITL
+        learned_knowledge=LearnedKnowledgeConfig(  # HITL
             mode=LearningMode.PROPOSE,
             knowledge=knowledge,
             namespace="platform",

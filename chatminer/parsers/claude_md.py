@@ -8,9 +8,9 @@ with "Human:" and "Assistant:" markers (or similar).
 
 Common patterns seen:
     Human: [question]
-    
+
     Assistant: [response]
-    
+
     Human: [follow-up]
 
 Or:
@@ -27,7 +27,6 @@ Usage:
 import logging
 import re
 import uuid
-from datetime import datetime
 from typing import Optional
 
 from chatminer.core.base import BaseParser

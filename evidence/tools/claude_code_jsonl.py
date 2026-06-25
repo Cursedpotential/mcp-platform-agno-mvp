@@ -27,9 +27,7 @@ def _event_text(message: Any) -> str:
     if isinstance(content, str):
         return content.strip()
     if isinstance(content, list):
-        return "\n".join(
-            b.get("text", "") for b in content if isinstance(b, dict) and b.get("type") == "text"
-        ).strip()
+        return "\n".join(b.get("text", "") for b in content if isinstance(b, dict) and b.get("type") == "text").strip()
     return ""
 
 

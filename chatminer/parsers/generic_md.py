@@ -8,13 +8,13 @@ Handles formats not covered by source-specific parsers.
 Detects patterns like:
     **User:** message
     **Assistant:** response
-    
+
     > User: message
     > Assistant: response
-    
+
     # User
     message
-    # Assistant  
+    # Assistant
     response
 
 Usage:
@@ -43,13 +43,25 @@ class GenericMdParser(BaseParser):
     _ROLE_PATTERNS = [
         # Bold markers: **User:**, **You:**, **Assistant:**, **AI:**, **Bot:**
         (re.compile(r"^\s*\*\*\s*(?:You|User|Human|Person)\s*\*\*\s*[:\-]?\s*", re.I), MessageRole.USER),
-        (re.compile(r"^\s*\*\*\s*(?:Assistant|AI|Bot|Chatbot|GPT|Claude|Gemini|Perplexity|Copilot|System)\s*\*\*\s*[:\-]?\s*", re.I), MessageRole.ASSISTANT),
+        (
+            re.compile(
+                r"^\s*\*\*\s*(?:Assistant|AI|Bot|Chatbot|GPT|Claude|Gemini|Perplexity|Copilot|System)\s*\*\*\s*[:\-]?\s*",
+                re.I,
+            ),
+            MessageRole.ASSISTANT,
+        ),
         # Plain markers: User:, Assistant:, etc.
         (re.compile(r"^\s*(?:You|User|Human)\s*[:\-]\s*", re.I), MessageRole.USER),
-        (re.compile(r"^\s*(?:Assistant|AI|Bot|GPT|Claude|Gemini|Perplexity|Copilot)\s*[:\-]\s*", re.I), MessageRole.ASSISTANT),
+        (
+            re.compile(r"^\s*(?:Assistant|AI|Bot|GPT|Claude|Gemini|Perplexity|Copilot)\s*[:\-]\s*", re.I),
+            MessageRole.ASSISTANT,
+        ),
         # Blockquote markers: > User:, > Assistant:
         (re.compile(r"^\s*>\s*(?:You|User|Human)\s*[:\-]?\s*", re.I), MessageRole.USER),
-        (re.compile(r"^\s*>\s*(?:Assistant|AI|Bot|GPT|Claude|Gemini|Perplexity)\s*[:\-]?\s*", re.I), MessageRole.ASSISTANT),
+        (
+            re.compile(r"^\s*>\s*(?:Assistant|AI|Bot|GPT|Claude|Gemini|Perplexity)\s*[:\-]?\s*", re.I),
+            MessageRole.ASSISTANT,
+        ),
         # Heading markers: # User, ## Assistant
         (re.compile(r"^\s*#{1,3}\s+(?:You|User|Human)\b", re.I), MessageRole.USER),
         (re.compile(r"^\s*#{1,3}\s+(?:Assistant|AI|Bot|GPT|Claude|Gemini|Perplexity)\b", re.I), MessageRole.ASSISTANT),

@@ -43,7 +43,7 @@ import json
 import logging
 import uuid
 from datetime import datetime
-from typing import Any, Optional
+from typing import Optional
 
 from chatminer.core.base import BaseParser
 from chatminer.core.types import ContentType, MessageRole, ParsedConversation, ParsedMessage
@@ -210,6 +210,7 @@ class PerplexityGdprParser(BaseParser):
     def _detect_language(self, content: str) -> Optional[str]:
         """Detect programming language from code fence."""
         import re
+
         m = re.search(r"```(\w+)", content)
         return m.group(1) if m else None
 
