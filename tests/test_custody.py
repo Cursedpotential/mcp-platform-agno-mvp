@@ -16,7 +16,7 @@ import pytest
 from evidence import custody
 
 
-# --- a minimal fake SQLAlchemy engine -------------------------------------
+# STUB: minimal fake SQLAlchemy engine used as a test double (no real DB) ---
 
 
 class _FakeResult:

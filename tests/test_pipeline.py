@@ -23,9 +23,11 @@ def test_package_imports_public_api():
 
 
 def _claude_jsonl(n=4):
-    return "\n".join(
-        json.dumps({"role": r, "content": f"m{i}"}) for i, r in enumerate(["user", "assistant"] * (n // 2))
-    )
+    # Alternate user/assistant over range(n) so the line count always equals n
+    # (a `["user", "assistant"] * (n // 2)` form silently drops the last message
+    # for odd n and yields nothing for n == 1).
+    roles = ("user", "assistant")
+    return "\n".join(json.dumps({"role": roles[i % 2], "content": f"m{i}"}) for i in range(n))
 
 
 def test_parse_file_autodetect(tmp_path):
@@ -51,6 +53,24 @@ def test_parse_file_source_hint(tmp_path):
     result = parse_file(f, source_hint="claude_code")
     assert not result.errors
     assert result.total_messages == 4
+
+
+def test_ambiguous_source_hint_does_not_misroute(tmp_path):
+    # "chatgpt" matches both chatgpt_official and chatgpt_share -> resolve to
+    # neither, rather than silently picking the first by registry order.
+    f = tmp_path / "share.md"
+    f.write_text(_claude_jsonl(), encoding="utf-8")
+    result = parse_file(f, source_hint="chatgpt")
+    assert result.total_conversations == 0
+    assert result.errors and result.errors[0]["error"] == "no parser matched"
+
+
+def test_odd_message_count_helper(tmp_path):
+    # Guard the fixture helper itself: n lines for odd n (regression).
+    f = tmp_path / "odd.jsonl"
+    f.write_text(_claude_jsonl(5), encoding="utf-8")
+    result = parse_file(f)
+    assert result.total_messages == 5
 
 
 def test_parse_multiple_aggregates(tmp_path):

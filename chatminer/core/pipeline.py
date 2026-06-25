@@ -22,16 +22,26 @@ from chatminer.parsers import PARSER_REGISTRY, get_parser_for_file
 
 
 def _parser_for_source_hint(source_hint: str):
-    """Return an instance of the registered parser whose SOURCE_NAME matches the
-    hint (case-insensitive, substring), or None."""
+    """Return an instance of the registered parser the hint identifies, or None.
+
+    Resolution is exact-match-first (case-insensitive on SOURCE_NAME). A
+    substring match is only accepted when it is *unambiguous* — e.g. "chatgpt"
+    matches both ``chatgpt_official`` and ``chatgpt_share``, so it resolves to
+    neither (returns None) rather than silently picking the first by registry
+    order and misrouting the file.
+    """
     from chatminer.core.base import ParserConfig
 
     hint = source_hint.lower()
-    for parser_cls in PARSER_REGISTRY:
-        source_name = getattr(parser_cls, "SOURCE_NAME", "").lower()
-        if source_name and (hint == source_name or hint in source_name):
-            return parser_cls(ParserConfig())
-    return None
+    by_name = {getattr(c, "SOURCE_NAME", "").lower(): c for c in PARSER_REGISTRY if getattr(c, "SOURCE_NAME", "")}
+
+    parser_cls = by_name.get(hint)
+    if parser_cls is None:
+        candidates = [c for name, c in by_name.items() if hint in name]
+        if len(candidates) == 1:
+            parser_cls = candidates[0]
+
+    return parser_cls(ParserConfig()) if parser_cls is not None else None
 
 
 def parse_file(path: str | Path, source_hint: str | None = None) -> ParseResult:
