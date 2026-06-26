@@ -230,7 +230,7 @@ services:
   # :8071; salem alt 10.1.2.101:8071) — used at bootstrap registration, not here.
   # ---------------------------------------------------------------------------
   contextforge:
-    image: ghcr.io/ibm/mcp-context-forge:1.0.3   # pin; do NOT use :latest
+    image: ghcr.io/ibm/mcp-context-forge:0.8.0   # pin to 0.8.0 (proven + currently live). The 1.0.x line is IBM BETA; 1.0.3 broke the gateway (DB-migration + CSRF_TOKEN_INVALID, rolled back). Do NOT use 1.0.x or :latest until a release fixes those AND it's tested on a throwaway mcp.db copy.
     platform: linux/amd64
     container_name: contextforge
     restart: unless-stopped

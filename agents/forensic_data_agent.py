@@ -1,18 +1,24 @@
-"""Forensic Data Agent — explains schemas, helps construct safe queries, runs approved queries."""
+"""agents/forensic_data_agent.py — Builder: read-only data interface agent builder.
+
+Provides ``build_forensic_data_agent()`` which delegates to the shared factory
+in ``factory.py``. This module exists for progressive disclosure discoverability.
+"""
+
+from __future__ import annotations
+
+from typing import Any
 
 from agno.agent import Agent
 
-from app.settings import default_model
-from db import get_agno_db
-from agents.instructions import get_instructions
+from agents.factory import build_forensic_data_agent as _build
 
-forensic_data_agent = Agent(
-    id="forensic-data-agent",
-    name="Forensic Data Agent",
-    model=default_model(),
-    db=get_agno_db(),
-    instructions=get_instructions("forensic_data_agent"),
-    add_history_to_context=True,
-    num_history_runs=5,
-    markdown=True,
-)
+
+def build_forensic_data_agent(
+    model: Any, db: Any, learning: Any, readonly_db_tools: list[Any]
+) -> Agent:
+    """Build the Forensic Data Agent.
+
+    See ``agents.factory.build_forensic_data_agent`` for the full docstring
+    and parameter descriptions.
+    """
+    return _build(model, db, learning, readonly_db_tools)
