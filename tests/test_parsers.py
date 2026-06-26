@@ -12,6 +12,7 @@ import json
 from datetime import timezone
 
 from chatminer.core.types import ContentType, MessageRole
+from chatminer.parsers.chatgpt_official import ChatGptOfficialParser
 from chatminer.parsers.claude_code import ClaudeCodeParser
 from chatminer.parsers.generic_md import GenericMdParser
 
@@ -80,3 +81,53 @@ def test_parsers_stamp_source_format():
     content = json.dumps({"role": "user", "content": "hi"})
     [conv] = ClaudeCodeParser().parse_content(content, source_file="c.jsonl")
     assert conv.messages[0].source_format == "claude_code"
+
+
+def test_chatgpt_official_walks_mapping_tree():
+    # Official export: a node tree under "mapping"; system + empty nodes drop out,
+    # user/assistant survive in tree order.
+    export = [
+        {
+            "title": "Custody timeline",
+            "create_time": 1_700_000_000.0,
+            "model": "gpt-4",
+            "id": "conv-123",
+            "mapping": {
+                "root": {"parent": None, "children": ["sys"], "message": None},
+                "sys": {
+                    "parent": "root",
+                    "children": ["u1"],
+                    "message": {"author": {"role": "system"}, "content": {"parts": ["be helpful"]}},
+                },
+                "u1": {
+                    "parent": "sys",
+                    "children": ["a1"],
+                    "message": {"author": {"role": "user"}, "content": {"parts": ["hi there"]}},
+                },
+                "a1": {
+                    "parent": "u1",
+                    "children": ["empty"],
+                    "message": {"author": {"role": "assistant"}, "content": {"parts": ["```python\nprint(1)\n```"]}},
+                },
+                "empty": {
+                    "parent": "a1",
+                    "children": [],
+                    "message": {"author": {"role": "user"}, "content": {"parts": []}},
+                },
+            },
+        }
+    ]
+
+    [conv] = ChatGptOfficialParser().parse_content(json.dumps(export), source_file="conversations.json")
+    assert conv.title == "Custody timeline"
+    assert conv.metadata["model"] == "gpt-4"
+    assert conv.created_at is not None
+
+    # system node skipped, empty-parts node skipped -> exactly user + assistant.
+    assert conv.message_count == 2
+    user_msg, asst_msg = conv.messages
+    assert user_msg.sender_role is MessageRole.USER
+    assert user_msg.content == "hi there"
+    assert asst_msg.sender_role is MessageRole.ASSISTANT
+    assert asst_msg.content_type is ContentType.CODE
+    assert asst_msg.language == "python"
