@@ -17,6 +17,7 @@ from chatminer.parsers.claude_code import ClaudeCodeParser
 from chatminer.parsers.claude_md import ClaudeMdParser
 from chatminer.parsers.gemini_json import GeminiJsonParser
 from chatminer.parsers.generic_md import GenericMdParser
+from chatminer.parsers.perplexity_md import PerplexityMdParser
 
 
 def test_claude_code_parses_roles_timestamps_and_code():
@@ -170,3 +171,20 @@ def test_gemini_json_maps_model_to_assistant():
     assert model_msg.sender == "Gemini"
     assert model_msg.content_type is ContentType.CODE
     assert model_msg.language == "sql"
+
+
+def test_perplexity_md_relabels_assistant_as_perplexity():
+    # perplexity_md delegates to the generic markdown parser, then restamps the
+    # source format and renames the assistant sender to "Perplexity".
+    content = (
+        "**User**: what is hearsay?\n\n"
+        "**Assistant**: Hearsay is an out-of-court statement.\n\n"
+        "**User**: thanks\n\n"
+        "**Assistant**: you're welcome"
+    )
+    [conv] = PerplexityMdParser().parse_content(content, source_file="p.md")
+    assert conv.source_format == "perplexity_md"
+    assistants = [m for m in conv.messages if m.sender_role is MessageRole.ASSISTANT]
+    assert assistants and all(m.sender == "Perplexity" for m in assistants)
+    assert all(m.source_format == "perplexity_md" for m in conv.messages)
+    assert "out-of-court statement" in " ".join(m.content for m in conv.messages)
