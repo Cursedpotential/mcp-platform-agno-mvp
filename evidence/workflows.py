@@ -12,7 +12,10 @@ Workflows registered here:
                     markdown) -> custody -> parse -> analysis.normalized_record
                     -> knowledge engine (domain-tagged). THE BOOTSTRAP VERTICAL.
 
-  (P4 adds sms-xml via SBV as Workflow A.)
+  sms-xml         : "SMS Backup & Restore" XML (sms/mms/call) -> custody ->
+                    parse.sms-xml (SBV PRIMARY, sms_xml.py FALLBACK via registry
+                    substitution) -> analysis.normalized_record -> knowledge.
+                    Workflow A (the SBV vertical). Mirrors chat-transcript.
 """
 
 from __future__ import annotations
@@ -116,9 +119,124 @@ def build_chat_transcript_workflow(
     return wf, ctx
 
 
+def build_sms_xml_workflow(
+    path: str,
+    source_meta: dict[str, Any] | None = None,
+    domain: str = "timeline_relationship",
+    knowledge=None,
+) -> tuple[Workflow, dict[str, Any]]:
+    """Workflow A — the SBV SMS-XML vertical. Same custody->parse->store->knowledge
+    spine as chat-transcript, but resolves capability `parse.sms-xml`: the
+    registry returns SBV first (messages.sms-xml-sbv) and the pure-Python parser
+    (messages.sms-xml) as the automatic fallback. If SBV is unreachable/unwired
+    or returns nothing, the executor's substitution loop moves to the fallback
+    and records every attempt — the mesh substitution mechanic in action."""
+    load_builtin_tools()
+    ctx: dict[str, Any] = {
+        "path": path,
+        "source_meta": source_meta or {},
+        "domain": domain,
+        "attempts": [],
+    }
+
+    def custody_step(step_input: StepInput) -> StepOutput:
+        artifact = ingest_artifact(ctx["path"], {**ctx["source_meta"], "workflow": "sms-xml"})
+        ctx["artifact"] = artifact
+        note = "duplicate — already in custody" if artifact.duplicate else "new artifact"
+        return StepOutput(
+            content=f"custody: {artifact.sha256[:12]} ({note}, blob={artifact.blob_key})",
+            success=True,
+        )
+
+    def parse_step(step_input: StepInput) -> StepOutput:
+        p = Path(ctx["path"])
+        candidates = registry.resolve("parse.sms-xml", media_hint=p.name.lower(), size_bytes=p.stat().st_size)
+        if not candidates:
+            return StepOutput(content=f"parse: NO tool accepts {p.name}", success=False, stop=True)
+        last_err: Exception | None = None
+        for tool in candidates:
+            try:
+                result = tool.run({"path": str(p), "source_meta": ctx["source_meta"]})
+                ctx["attempts"].append({"tool": tool.id, "ok": True})
+                ctx["raw_records"] = result["records"]
+                ctx["parse_stats"] = result.get("stats", {})
+                ctx["parser_id"] = tool.id
+                return StepOutput(
+                    content=f"parse: {tool.id} -> {len(result['records'])} records "
+                    f"(tried: {[a['tool'] for a in ctx['attempts']]})",
+                    success=True,
+                )
+            except Exception as exc:  # SBV down / wrong format -> next same-capability tool (fallback)
+                ctx["attempts"].append({"tool": tool.id, "ok": False, "error": str(exc)})
+                last_err = exc
+        return StepOutput(
+            content=f"parse: ALL candidates failed for {p.name}: {ctx['attempts']} (last: {last_err})",
+            success=False,
+            stop=True,
+        )
+
+    def store_step(step_input: StepInput) -> StepOutput:
+        artifact: ArtifactRef = ctx["artifact"]
+        if artifact.duplicate and record_counts(artifact.artifact_id)["records"] > 0:
+            ctx["stored"] = 0
+            ctx["records"] = []
+            return StepOutput(
+                content="store: duplicate artifact already has records — skipped re-store",
+                success=True,
+            )
+        records = finalize([NormalizedRecord.model_validate(r) for r in ctx["raw_records"]])
+        ctx["records"] = records
+        ctx["stored"] = store_records(records, artifact)
+        return StepOutput(content=f"store: {ctx['stored']} rows -> analysis.normalized_record", success=True)
+
+    async def knowledge_step(step_input: StepInput) -> StepOutput:
+        if knowledge is None:
+            return StepOutput(content="knowledge: no engine handle passed — skipped (CLI --no-knowledge)", success=True)
+        if not ctx.get("records"):
+            return StepOutput(content="knowledge: no new records — skipped", success=True)
+        n = await ingest_into_knowledge(knowledge, ctx["records"], ctx["artifact"], ctx["domain"])
+        return StepOutput(content=f"knowledge: {n} conversation doc(s) -> domain={ctx['domain']}", success=True)
+
+    wf = Workflow(
+        name="sms-xml",
+        description="SMS-XML ingestion (SBV primary / custom fallback): custody -> parse -> store -> knowledge",
+        steps=[
+            Step(name="custody", executor=custody_step),
+            Step(name="parse", executor=parse_step),
+            Step(name="store", executor=store_step),
+            Step(name="knowledge", executor=knowledge_step),
+        ],
+    )
+    return wf, ctx
+
+
+async def run_sms_xml(
+    path: str,
+    source_meta: dict[str, Any] | None = None,
+    domain: str = "timeline_relationship",
+    knowledge=None,
+) -> dict[str, Any]:
+    """Run the SMS-XML vertical (Workflow A) end-to-end; return a verifiable summary."""
+    wf, ctx = build_sms_xml_workflow(path, source_meta, domain, knowledge)
+    result = await wf.arun(input=f"ingest sms-xml: {path}")
+    artifact: ArtifactRef | None = ctx.get("artifact")
+    return {
+        "workflow": "sms-xml",
+        "status": str(getattr(result, "status", "unknown")),
+        "artifact_id": artifact.artifact_id if artifact else None,
+        "sha256": artifact.sha256 if artifact else None,
+        "duplicate": artifact.duplicate if artifact else None,
+        "parser": ctx.get("parser_id"),
+        "parse_attempts": ctx.get("attempts", []),
+        "parse_stats": ctx.get("parse_stats", {}),
+        "records_stored": ctx.get("stored", 0),
+        "step_log": [s.content for s in getattr(result, "step_results", []) if getattr(s, "content", None)],
+    }
+
+
 NAMED_WORKFLOWS: dict[str, str] = {
     "chat-transcript": "AI-chat exports -> custody -> parse -> analysis + knowledge (bootstrap vertical)",
-    # "sms-xml": arrives in P4 as Workflow A (SBV custody-gated vertical)
+    "sms-xml": "SMS Backup & Restore XML (SBV primary / custom fallback) -> custody -> parse -> analysis + knowledge (Workflow A)",
 }
 
 
