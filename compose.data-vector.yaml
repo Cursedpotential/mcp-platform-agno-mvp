@@ -1,0 +1,80 @@
+# =============================================================================
+# DATA TIER — VECTOR SUBSET (Milvus + Attu), split out of compose.data.yaml.
+# Reason: 2026-06-25 incident — all 6 DBs were ONE Coolify app, so a Milvus
+# crash-loop (exit 134, corrupt embedded-etcd/WAL after an unclean kill) blew
+# past Coolify max_restart and tore down the WHOLE tier (PG/Neo4j/Surreal too).
+# Isolating the flaky vector store into its own Coolify app means a Milvus crash
+# can never take the relational/graph/operational DBs down again.
+#
+# DEPLOY AS ITS OWN Coolify "Docker Compose" app on OVH-3 (server jt1tv1j5…),
+# repo Cursedpotential/mcp-platform-agno-mvp @ main, compose file
+# /compose.data-vector.yaml. Env: BIND_IP=100.119.96.29 (OVH-3 tailnet).
+# Same absolute bind mounts + config files as the original (already staged on
+# the host) — no data migration, Milvus reattaches /data/agno/volumes/milvus.
+#
+# CUTOVER (one pass, after this lands on main):
+#   1. Edit compose.data.yaml on main: DELETE the `milvus:` and `attu:` service
+#      blocks (lines ~132-219), AND fix the SurrealDB healthcheck (see note).
+#   2. Redeploy the existing `data-tier` app (uuid ipy7vrw…) → it comes back as
+#      PG + Neo4j + graphiti + SurrealDB only (their env is unchanged → zero risk).
+#   3. Create a NEW Coolify app `data-vector` from THIS file → Milvus + Attu.
+#   Reversible: revert the compose.data.yaml edit + delete the data-vector app.
+# =============================================================================
+
+services:
+  milvus:
+    image: milvusdb/milvus:v3.0-beta-amd64   # explicit amd64 — multi-arch segfaults at jemalloc here
+    platform: linux/amd64
+    container_name: milvus
+    command: ["milvus", "run", "standalone"]
+    restart: unless-stopped
+    security_opt:
+      - seccomp:unconfined
+    environment:
+      ETCD_USE_EMBED: "true"
+      ETCD_DATA_DIR: /var/lib/milvus/etcd
+      ETCD_CONFIG_PATH: /milvus/configs/embedEtcd.yaml
+      COMMON_STORAGETYPE: local
+      DEPLOY_MODE: STANDALONE
+      # FIX: image ships LD_PRELOAD=":/milvus/lib/libjemalloc.so" (leading colon → ld.so SIGSEGV). Clean paths:
+      LD_PRELOAD: /milvus/lib/libjemalloc.so
+      LD_LIBRARY_PATH: /milvus/lib
+    volumes:
+      - /data/agno/volumes/milvus:/var/lib/milvus
+      - /data/agno/config/milvus/embedEtcd.yaml:/milvus/configs/embedEtcd.yaml:ro
+      - /data/agno/config/milvus/user.yaml:/milvus/configs/user.yaml:ro
+    ports:
+      - "${BIND_IP:-127.0.0.1}:19530:19530"   # gRPC SDK — tailnet-only
+      - "${BIND_IP:-127.0.0.1}:9091:9091"     # health
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]   # milvus image HAS curl
+      interval: 30s
+      start_period: 90s
+      timeout: 20s
+      retries: 3
+    networks:
+      - vector
+
+  attu:
+    image: zilliz/attu:v3.0.0-beta.6
+    platform: linux/amd64
+    container_name: attu
+    restart: unless-stopped
+    environment:
+      MILVUS_ADDRESS: milvus:19530
+      ATTU_DB_PATH: /data/attu.db
+    volumes:
+      - /data/agno/volumes/attu:/data
+    ports:
+      - "${BIND_IP:-127.0.0.1}:3001:3000"     # Attu UI — tailnet-only
+    depends_on:
+      milvus:
+        condition: service_healthy
+    networks:
+      - vector
+
+networks:
+  vector:
+
+# No named volumes — absolute host binds (same paths as compose.data.yaml).
+# Byline: Claude Code · Opus 4.8 · 2026-06-25 (split out of compose.data.yaml for fault isolation)
