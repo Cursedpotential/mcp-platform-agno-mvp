@@ -14,6 +14,8 @@ from datetime import timezone
 from chatminer.core.types import ContentType, MessageRole
 from chatminer.parsers.chatgpt_official import ChatGptOfficialParser
 from chatminer.parsers.claude_code import ClaudeCodeParser
+from chatminer.parsers.claude_md import ClaudeMdParser
+from chatminer.parsers.gemini_json import GeminiJsonParser
 from chatminer.parsers.generic_md import GenericMdParser
 
 
@@ -131,3 +133,40 @@ def test_chatgpt_official_walks_mapping_tree():
     assert asst_msg.sender_role is MessageRole.ASSISTANT
     assert asst_msg.content_type is ContentType.CODE
     assert asst_msg.language == "python"
+
+
+def test_claude_md_parses_human_assistant_markers():
+    content = (
+        "My Claude Chat\n\n"
+        "Human: What is the custody schedule?\n\n"
+        "Assistant: The schedule alternates weekly.\n\n"
+        "Human: thanks\n\n"
+        "Assistant: you're welcome"
+    )
+    [conv] = ClaudeMdParser().parse_content(content, source_file="claude.md")
+    assert conv.message_count >= 2
+    roles = {m.sender_role for m in conv.messages}
+    assert MessageRole.USER in roles
+    assert MessageRole.ASSISTANT in roles
+    assert "alternates weekly" in " ".join(m.content for m in conv.messages)
+
+
+def test_gemini_json_maps_model_to_assistant():
+    export = {
+        "title": "Gemini Q",
+        "messages": [
+            {"author": "user", "content": "explain pgvector"},
+            {"author": "model", "content": "```sql\nCREATE EXTENSION vector;\n```"},
+            {"author": "user", "content": ""},  # empty -> skipped
+        ],
+    }
+    [conv] = GeminiJsonParser().parse_content(json.dumps(export), source_file="gemini.json")
+    assert conv.title == "Gemini Q"
+    assert conv.message_count == 2
+
+    user_msg, model_msg = conv.messages
+    assert user_msg.sender_role is MessageRole.USER and user_msg.content == "explain pgvector"
+    assert model_msg.sender_role is MessageRole.ASSISTANT  # "model" -> assistant
+    assert model_msg.sender == "Gemini"
+    assert model_msg.content_type is ContentType.CODE
+    assert model_msg.language == "sql"
