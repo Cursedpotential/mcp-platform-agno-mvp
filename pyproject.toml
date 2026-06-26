@@ -66,6 +66,13 @@ module = [
   "torch.*",
   "sklearn.*",
   "yaml",
+  # optional OCR / HTML-parsing deps used by the forensic evidence tools
+  "pypdf.*",
+  "pdfplumber.*",
+  "pytesseract.*",
+  "pdf2image.*",
+  "PIL.*",
+  "bs4.*",
 ]
 ignore_missing_imports = true
 
