@@ -1,18 +1,35 @@
-"""Transcript Miner — parses raw AI chat transcripts and extracts structured insights."""
+"""agents/transcript_miner.py — Platform Ops: transcript parsing agent builder.
+
+Provides ``build_transcript_miner()`` which delegates to the shared factory
+in ``factory.py``. This module exists for progressive disclosure discoverability.
+"""
+
+from __future__ import annotations
+
+from typing import Any
 
 from agno.agent import Agent
 
-from app.settings import default_model
-from db import get_agno_db
-from agents.instructions import get_instructions
+# The transcript_miner agent is built directly in factory.py as a thin wrapper
+# around the Ingestion Orchestrator pattern. When it needs custom logic, add it
+# here and import from factory.py.
 
-transcript_miner = Agent(
-    id="transcript-miner",
-    name="Transcript Miner",
-    model=default_model(),
-    db=get_agno_db(),
-    instructions=get_instructions("transcript_miner"),
-    add_history_to_context=True,
-    num_history_runs=10,
-    markdown=True,
-)
+
+def build_transcript_miner(
+    model: Any,
+    db: Any,
+    knowledge: Any,
+    learning: Any,
+    source_tools: list[Any],
+) -> Agent:
+    """Build the Transcript Miner agent.
+
+    Currently delegates to ``build_ingestion_orchestrator`` — transcript mining
+    uses the same custody → parse → normalize → store pipeline. This function
+    exists as the extension point when transcript-specific logic is needed.
+
+    See ``agents.factory`` for parameter descriptions.
+    """
+    from agents.factory import build_ingestion_orchestrator
+
+    return build_ingestion_orchestrator(model, db, knowledge, learning, source_tools)

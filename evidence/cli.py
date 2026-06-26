@@ -46,11 +46,11 @@ def _cmd_import(args: argparse.Namespace) -> int:
 
         knowledge = create_knowledge("platform", "platform_knowledge")
 
-    summary = asyncio.run(runner(args.path, source_meta=meta, domain=domain, knowledge=knowledge))
-    print(json.dumps(summary, indent=2, default=str))
-    return (
-        0 if summary.get("records_stored") is not None and "FAILED" not in str(summary.get("status", "")).upper() else 1
+    summary = asyncio.run(
+        runner(args.path, source_meta=meta, domain=domain, knowledge=knowledge)
     )
+    print(json.dumps(summary, indent=2, default=str))
+    return 0 if summary.get("records_stored") is not None and "FAILED" not in str(summary.get("status", "")).upper() else 1
 
 
 def _cmd_tools(_args: argparse.Namespace) -> int:
@@ -83,12 +83,9 @@ def main(argv: list[str] | None = None) -> int:
     p_imp = sub.add_parser("import", help="ingest a file through a named workflow")
     p_imp.add_argument("path")
     p_imp.add_argument("--workflow", default="chat-transcript")
-    p_imp.add_argument(
-        "--domain",
-        default=None,
-        help="knowledge domain tag (timeline_relationship|personal_history|platform_design|legal_strategy); "
-        "defaults to timeline_relationship for sms-xml, platform_design otherwise",
-    )
+    p_imp.add_argument("--domain", default=None,
+                       help="knowledge domain tag (timeline_relationship|personal_history|platform_design|legal_strategy); "
+                            "defaults to timeline_relationship for sms-xml, platform_design otherwise")
     p_imp.add_argument("--no-knowledge", action="store_true", help="skip the knowledge-engine step")
     p_imp.add_argument("--meta", nargs="*", help="source metadata k=v pairs")
     p_imp.set_defaults(fn=_cmd_import)

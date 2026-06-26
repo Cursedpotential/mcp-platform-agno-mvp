@@ -162,7 +162,7 @@ class SBVClient:
         for part in cookie.split(";"):
             part = part.strip()
             if part.startswith("session_id="):
-                return part[len("session_id=") :]
+                return part[len("session_id="):]
         return None
 
     # -- auth --------------------------------------------------------------
@@ -172,7 +172,9 @@ class SBVClient:
         not exist yet, register it (open registration), then proceed. Returns
         the session id."""
         if not self.password:
-            raise SBVError("SBV service password not set (SBV_SERVICE_PASS) — cannot authenticate")
+            raise SBVError(
+                "SBV service password not set (SBV_SERVICE_PASS) — cannot authenticate"
+            )
         # try login
         try:
             status, raw, headers = self._request(
@@ -224,14 +226,10 @@ class SBVClient:
         name = filename or os.path.basename(file_path)
         boundary = f"----sbvmcp{uuid.uuid4().hex}"
         body = (
-            (
-                f"--{boundary}\r\n"
-                f'Content-Disposition: form-data; name="file"; filename="{name}"\r\n'
-                f"Content-Type: application/octet-stream\r\n\r\n"
-            ).encode("utf-8")
-            + content
-            + f"\r\n--{boundary}--\r\n".encode("utf-8")
-        )
+            f"--{boundary}\r\n"
+            f'Content-Disposition: form-data; name="file"; filename="{name}"\r\n'
+            f"Content-Type: application/octet-stream\r\n\r\n"
+        ).encode("utf-8") + content + f"\r\n--{boundary}--\r\n".encode("utf-8")
         _, raw, _ = self._request(
             "POST",
             "/upload",

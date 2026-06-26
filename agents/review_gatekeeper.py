@@ -1,18 +1,22 @@
-"""Review Gatekeeper — translates technical actions into plain-English approval requests."""
+"""agents/review_gatekeeper.py — Platform Ops: human-approval interface agent builder.
+
+Provides ``build_review_gatekeeper()`` which delegates to the shared factory
+in ``factory.py``. This module exists for progressive disclosure discoverability.
+"""
+
+from __future__ import annotations
+
+from typing import Any
 
 from agno.agent import Agent
 
-from app.settings import default_model
-from db import get_agno_db
-from agents.instructions import get_instructions
+from agents.factory import build_review_gatekeeper as _build
 
-review_gatekeeper = Agent(
-    id="review-gatekeeper",
-    name="Review Gatekeeper",
-    model=default_model(),
-    db=get_agno_db(),
-    instructions=get_instructions("review_gatekeeper"),
-    add_history_to_context=True,
-    num_history_runs=3,
-    markdown=True,
-)
+
+def build_review_gatekeeper(model: Any, db: Any) -> Agent:
+    """Build the Review Gatekeeper agent.
+
+    See ``agents.factory.build_review_gatekeeper`` for the full docstring
+    and parameter descriptions.
+    """
+    return _build(model, db)

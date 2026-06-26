@@ -1,15 +1,28 @@
-"""
-App Settings — provider-agnostic model + embedder factories
-===========================================================
+"""app/settings.py — provider-agnostic model and embedder factory.
 
-ADR-0008: select by available credentials; no hard stale default; pin versioned IDs.
-D7 (rev): Ollama Cloud (glm-5.1) is the primary provider. NVIDIA NIM is backup.
-Most NVIDIA models ride NVIDIA's OpenAI-compatible endpoint; OpenRouter and Ollama
-Cloud are separate. Model IDs below confirmed against live catalogs.
+Selection strategy (ADR-0008):
+- No hard default. Models are selected by available credentials.
+- Per-provider env override: ``<PROVIDER>_MODEL_ID``.
+- Global override: ``DEFAULT_MODEL_ID`` / ``DEFAULT_MODEL_PROVIDER``.
 
-Every id is overridable via env: a global DEFAULT_MODEL_ID, or per-provider
-<PROVIDER>_MODEL_ID (e.g. NVIDIA_MODEL_ID, KIMI_MODEL_ID, OLLAMA_MODEL_ID).
-Embedder strategy: ADR-0010 (one collection per embedder).
+Provider priority chain (when no override):
+    Ollama → NVIDIA → Kimi → OpenRouter → Anthropic → OpenAI → Google → Groq
+
+Ollama Cloud (``glm-5.1``) is the primary provider (D7 revision).
+NVIDIA NIM is the backup — its OpenAI-compatible endpoint serves most models.
+
+Embedder strategy (ADR-0010):
+- One Milvus collection per embedder, dimension-locked at creation.
+- Text: ``bge-m3`` (1024-d) via OpenRouter.
+- Code: ``codestral-embed-2505`` (1536-d) via OpenRouter.
+
+Environment variables:
+- ``DEFAULT_MODEL_PROVIDER`` — force a specific provider.
+- ``DEFAULT_MODEL_ID`` — force a specific model ID (overrides pinned defaults).
+- ``<PROVIDER>_MODEL_ID`` — per-provider model ID override.
+- ``<PROVIDER>_API_KEY`` — API key for the provider.
+- Provider-specific: ``OLLAMA_HOST``, ``NVIDIA_BASE_URL``, ``MOONSHOT_BASE_URL``,
+  ``NVIDIA_RERANK_URL``.
 """
 
 from __future__ import annotations
@@ -35,18 +48,34 @@ _PINNED: dict[str, str] = {
 }
 
 # Selection order when DEFAULT_MODEL_PROVIDER is not set. Ollama first per D7 (rev).
-_DEFAULT_ORDER = ["ollama", "nvidia", "kimi", "openrouter", "anthropic", "openai", "google", "groq"]
+_DEFAULT_ORDER: list[str] = [
+    "ollama", "nvidia", "kimi", "openrouter", "anthropic", "openai", "google", "groq",
+]
 
-# Embedders (ADR-0010 + ADR-0011) — one collection per embedder. Dims pinned in db/session.py.
-# NOTE: db/session.py is the source of truth for embedder IDs/dims; these mirror it for reference.
-EMBEDDER_IDS: dict[str, str] = {
-    "text": "nvidia/llama-nemotron-embed-vl-1b-v2",  # docs / legal / transcripts — 2048-d
+# Embedder IDs mirror db/session.py for reference.
+# db/session.py is the source of truth for embedder IDs/dims.
+_EMBEDDER_IDS: dict[str, str] = {
+    "text": "nvidia/llama-nemotron-embed-vl-1b-v2",  # docs/legal/transcripts — 2048-d
     "code": "nvidia/nv-embedcode-7b-v1",  # code artifacts — 4096-d
 }
 
 
 def _model_id(provider: str) -> str:
-    """Resolve a model id: per-provider env > global DEFAULT_MODEL_ID > pinned default."""
+    """Resolve a model ID for *provider*.
+
+    Resolution order: ``<PROVIDER>_MODEL_ID`` env → ``DEFAULT_MODEL_ID`` env →
+    pinned default from ``_PINNED``.
+
+    Parameters
+    ----------
+    provider:
+        Provider key (e.g. ``"ollama"``, ``"nvidia"``).
+
+    Returns
+    -------
+    str
+        The resolved model ID.
+    """
     per = getenv(f"{provider.upper()}_MODEL_ID")
     if per:
         return per
@@ -54,12 +83,36 @@ def _model_id(provider: str) -> str:
 
 
 def _provider_order() -> list[str]:
+    """Return the provider selection order.
+
+    If ``DEFAULT_MODEL_PROVIDER`` is set, returns a single-element list
+    with that provider. Otherwise returns the default priority chain.
+
+    Returns
+    -------
+    list[str]
+        Ordered list of provider keys to try.
+    """
     forced = getenv("DEFAULT_MODEL_PROVIDER")
-    return [forced.strip().lower()] if forced else _DEFAULT_ORDER
+    return [forced.strip().lower()] if forced else list(_DEFAULT_ORDER)
 
 
 def _try_provider(provider: str) -> Optional[Any]:
-    """Construct an Agno model for `provider` if its credentials exist, else None."""
+    """Construct an Agno model for *provider* if its credentials exist.
+
+    Returns ``None`` when the provider has no credentials configured — the
+    caller skips to the next provider in the chain.
+
+    Parameters
+    ----------
+    provider:
+        Provider key (e.g. ``"ollama"``, ``"nvidia"``, ``"kimi"``).
+
+    Returns
+    -------
+    Any | None
+        A configured Agno model instance, or ``None``.
+    """
     nvidia_key = getenv("NVIDIA_API_KEY")
     nvidia_base = getenv("NVIDIA_BASE_URL", NVIDIA_BASE_URL_DEFAULT)
 
@@ -77,7 +130,11 @@ def _try_provider(provider: str) -> Optional[Any]:
 
         if moonshot_key:
             base = getenv("MOONSHOT_BASE_URL", "https://api.moonshot.ai/v1")
-            return OpenAILike(id=getenv("KIMI_MODEL_ID", "kimi-k2.6"), api_key=moonshot_key, base_url=base)
+            return OpenAILike(
+                id=getenv("KIMI_MODEL_ID", "kimi-k2.6"),
+                api_key=moonshot_key,
+                base_url=base,
+            )
         if nvidia_key:
             return OpenAILike(id=_model_id("kimi"), api_key=nvidia_key, base_url=nvidia_base)
         return None
@@ -88,7 +145,9 @@ def _try_provider(provider: str) -> Optional[Any]:
             return None
         from agno.models.openai.like import OpenAILike
 
-        return OpenAILike(id=_model_id("openrouter"), api_key=key, base_url="https://openrouter.ai/api/v1")
+        return OpenAILike(
+            id=_model_id("openrouter"), api_key=key, base_url="https://openrouter.ai/api/v1"
+        )
 
     if provider == "ollama":
         # Ollama Cloud: OLLAMA_API_KEY makes host default to https://ollama.com.
@@ -139,7 +198,27 @@ def _try_provider(provider: str) -> Optional[Any]:
 
 
 def build_model(provider: Optional[str] = None) -> Any:
-    """Select and construct a model by available credentials (fresh instance each call)."""
+    """Select and construct a model by available credentials.
+
+    Creates a fresh model instance on every call — do NOT cache. Each agent
+    gets its own model so provider failures are isolated.
+
+    Parameters
+    ----------
+    provider:
+        Force a specific provider. When ``None``, tries each provider in
+        priority order until one succeeds.
+
+    Returns
+    -------
+    Any
+        A configured Agno model instance.
+
+    Raises
+    ------
+    ValueError
+        If no provider in the chain has valid credentials.
+    """
     order = [provider.strip().lower()] if provider else _provider_order()
     for p in order:
         model = _try_provider(p)
@@ -153,5 +232,14 @@ def build_model(provider: Optional[str] = None) -> Any:
 
 
 def default_model() -> Any:
-    """Fresh model instance per agent."""
+    """Return a fresh model instance using the default provider chain.
+
+    This is the convenience wrapper used by agent constructors when no
+    specific provider is requested.
+
+    Returns
+    -------
+    Any
+        A configured Agno model instance.
+    """
     return build_model()

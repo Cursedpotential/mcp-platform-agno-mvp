@@ -65,6 +65,10 @@ Thumbs.db
 tmp
 .claude
 
+# Local tool state (auto-generated, machine-local) — never commit
+.memsearch/
+.planning/
+
 # Optional: local PyPI creds (uncomment if you ever create it)
 # .pypirc
 .osgrep

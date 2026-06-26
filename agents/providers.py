@@ -1,24 +1,31 @@
-"""
-agents/providers.py — Context Providers + LearningMachine -> PlatformContext
-============================================================================
+"""agents/providers.py — context providers, learning, and MCP wiring.
 
-Builds the `ctx` object that `agents.factory.build_agent_team(ctx)` consumes.
+Builds the ``PlatformContext`` runtime bundle consumed by
+``agents.factory.build_agent_team(ctx)``.
 
-Source access goes through Agno Context Providers (handoff §3.3b), not raw
-tools. The evidence read-only guarantee is INFRASTRUCTURE-LEVEL: the read
-provider's engine sets default_transaction_read_only=on, so its sub-agent
-physically cannot write (ADR-0005).
+Context-provider architecture::
 
-API verified against the agno==2.6.9 wheel (2026-06-10):
-  - WorkspaceContextProvider(root=..., id=...)
-  - DatabaseContextProvider(*, id, sql_engine: Engine, readonly_engine: Engine,
-        schema, mode, model, read, write)  — SYNC SQLAlchemy engines
-  - LearningMachine(db=, model=, knowledge=, user_profile=, user_memory=,
-        session_context=, entity_memory=, learned_knowledge=, namespace=)
+    WorkspaceContextProvider  → codebase navigation tools (read-only).
+    DatabaseContextProvider   → DB tools (split: write engine for ``analysis``,
+                                readonly engine for ``evidence``).
+    LearningMachine           → operational memory (session context, user memory,
+                                entity memory, learned knowledge).
+
+The evidence read-only guarantee is INFRASTRUCTURE-LEVEL: the readonly engine
+sets ``default_transaction_read_only=on`` at the connection level, so sub-agents
+physically cannot write to the ``evidence`` schema (ADR-0005).
+
+MCP servers (Graphiti, future tools) are wired here and appended to the
+``source_tools`` list on ``PlatformContext``.
+
+Public entry points:
+- ``build_context(model, db, knowledge, learning, db_url) -> PlatformContext``
+- ``build_learning(db, model, knowledge) -> LearningMachine``
 """
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -32,9 +39,35 @@ from agno.context.workspace import WorkspaceContextProvider
 # from agno.context.mcp import MCPContextProvider
 
 
+# ---------------------------------------------------------------------------
+# PlatformContext
+# ---------------------------------------------------------------------------
+
 @dataclass
 class PlatformContext:
-    """Runtime bundle handed to build_agent_team(ctx)."""
+    """Runtime bundle handed to ``factory.build_agent_team(ctx)``.
+
+    Attributes
+    ----------
+    model:
+        Agno model instance.
+    db:
+        Agno operational DB (SurrealDB).
+    knowledge:
+        Agno Knowledge instance (Milvus-backed).
+    learning:
+        Agno LearningMachine instance.
+    source_tools:
+        Tools available to platform agents (codebase + DB access).
+    code_tools:
+        Codebase-only tools (for Dev Copilot).
+    readonly_db_tools:
+        Read-only DB tools (for Forensic Data Agent).
+    drive_read_tools:
+        Google Drive read tools (populated when cloud-cleanup goal arrives).
+    drive_write_tools:
+        Google Drive write tools (populated when cloud-cleanup goal arrives).
+    """
 
     model: Any
     db: Any
@@ -47,19 +80,56 @@ class PlatformContext:
     drive_write_tools: list[Any] = field(default_factory=list)
 
 
-def _make_engine(url: str, readonly: bool = False):
-    """Sync SQLAlchemy engine (DatabaseContextProvider expects sync Engine).
+# ---------------------------------------------------------------------------
+# Engine factory
+# ---------------------------------------------------------------------------
 
-    readonly=True forces default_transaction_read_only=on at the connection —
-    the infrastructure-level guarantee, not a prompt instruction.
+def _make_engine(url: str, readonly: bool = False) -> Any:
+    """Create a sync SQLAlchemy engine for ``DatabaseContextProvider``.
+
+    Parameters
+    ----------
+    url:
+        Database URL (from ``db/url.py``).
+    readonly:
+        When ``True``, forces ``default_transaction_read_only=on`` at the
+        connection level — the infrastructure-level read guarantee.
     """
     connect_args = {"options": "-c default_transaction_read_only=on"} if readonly else {}
     return create_engine(url, connect_args=connect_args, pool_pre_ping=True)
 
 
-def build_context(model, db, knowledge, learning, db_url: str) -> PlatformContext:
-    """Assemble Context Providers into the ctx the factory consumes."""
+# ---------------------------------------------------------------------------
+# Context assembly
+# ---------------------------------------------------------------------------
 
+def build_context(
+    model: Any,
+    db: Any,
+    knowledge: Any,
+    learning: Any,
+    db_url: str,
+) -> PlatformContext:
+    """Assemble context providers into the ``PlatformContext`` the factory consumes.
+
+    Parameters
+    ----------
+    model:
+        Agno model instance.
+    db:
+        Agno operational DB.
+    knowledge:
+        Agno Knowledge instance.
+    learning:
+        Agno LearningMachine instance.
+    db_url:
+        PostgreSQL connection string.
+
+    Returns
+    -------
+    PlatformContext
+        Fully wired runtime bundle.
+    """
     # Live codebase — read-only navigation via a scoped sub-agent (query_workspace).
     workspace = WorkspaceContextProvider(root="/app", id="workspace", model=model)
     code_tools = workspace.get_tools()
@@ -98,8 +168,6 @@ def build_context(model, db, knowledge, learning, db_url: str) -> PlatformContex
     # Graphiti temporal graph memory (ADR-0014) — attached only when the
     # graph profile is up (GRAPHITI_MCP_URL set). AgentOS manages the MCP
     # lifecycle; never run uvicorn reload with this attached.
-    import os
-
     graphiti_url = os.getenv("GRAPHITI_MCP_URL", "")
     if graphiti_url:
         from agno.tools.mcp import MCPTools
@@ -130,11 +198,30 @@ def build_context(model, db, knowledge, learning, db_url: str) -> PlatformContex
     )
 
 
-def build_learning(db, model, knowledge):
-    """Native operational memory on the existing Postgres (ADR-0004).
+# ---------------------------------------------------------------------------
+# Learning machine
+# ---------------------------------------------------------------------------
 
-    PROPOSE = agent proposes, human confirms — HITL-native capture for the
-    high-stakes durable stores (Entity Memory, Learned Knowledge).
+def build_learning(db: Any, model: Any, knowledge: Any) -> Any:
+    """Build the native operational memory on Postgres (ADR-0004).
+
+    ``PROPOSE`` mode = agent proposes, human confirms — HITL-native capture for
+    the high-stakes durable stores (Entity Memory, Learned Knowledge).
+
+    Parameters
+    ----------
+    db:
+        Agno operational DB.
+    model:
+        Agno model instance.
+    knowledge:
+        Agno Knowledge instance.
+
+    Returns
+    -------
+    LearningMachine
+        Configured learning machine with session context, user memory,
+        entity memory, and learned knowledge stores.
     """
     from agno.learn import (
         EntityMemoryConfig,
@@ -152,7 +239,9 @@ def build_learning(db, model, knowledge):
         knowledge=knowledge,
         user_profile=UserProfileConfig(mode=LearningMode.ALWAYS),
         user_memory=UserMemoryConfig(mode=LearningMode.AGENTIC),
-        session_context=SessionContextConfig(mode=LearningMode.ALWAYS, enable_planning=True),
+        session_context=SessionContextConfig(
+            mode=LearningMode.ALWAYS, enable_planning=True
+        ),
         entity_memory=EntityMemoryConfig(mode=LearningMode.PROPOSE),  # HITL
         learned_knowledge=LearnedKnowledgeConfig(  # HITL
             mode=LearningMode.PROPOSE,
