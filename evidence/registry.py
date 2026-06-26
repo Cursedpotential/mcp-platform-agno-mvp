@@ -125,4 +125,15 @@ def load_builtin_tools() -> int:
     for mod in pkgutil.iter_modules(tools_pkg.__path__):
         if not mod.name.startswith("_"):
             importlib.import_module(f"evidence.tools.{mod.name}")
+    # General cross-domain PLATFORM tools (top-level `tools/` package) — discovered
+    # alongside the evidence parsers so a tool like `extract.text` is reachable by ANY
+    # domain/surface, not nested under evidence. Optional: absent in slim deploys.
+    try:
+        import tools as platform_tools_pkg
+
+        for mod in pkgutil.iter_modules(platform_tools_pkg.__path__):
+            if not mod.name.startswith("_"):
+                importlib.import_module(f"tools.{mod.name}")
+    except ModuleNotFoundError:
+        pass
     return len(registry.all())

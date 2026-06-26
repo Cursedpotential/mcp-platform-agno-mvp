@@ -18,11 +18,22 @@ import sys
 
 
 def _cmd_import(args: argparse.Namespace) -> int:
-    from evidence.workflows import NAMED_WORKFLOWS, run_chat_transcript
+    from evidence.workflows import NAMED_WORKFLOWS, run_chat_transcript, run_sms_xml
 
     if args.workflow not in NAMED_WORKFLOWS:
         print(f"unknown workflow {args.workflow!r}; available: {sorted(NAMED_WORKFLOWS)}", file=sys.stderr)
         return 2
+
+    # workflow name -> (runner, default domain). The CLI --domain overrides only
+    # when explicitly passed (argparse default differs per workflow below).
+    runners = {
+        "chat-transcript": run_chat_transcript,
+        "sms-xml": run_sms_xml,
+    }
+    runner = runners[args.workflow]
+    domain = args.domain
+    if domain is None:  # not passed -> sensible per-workflow default
+        domain = "timeline_relationship" if args.workflow == "sms-xml" else "platform_design"
 
     meta = {}
     for kv in args.meta or []:
@@ -35,7 +46,7 @@ def _cmd_import(args: argparse.Namespace) -> int:
 
         knowledge = create_knowledge("platform", "platform_knowledge")
 
-    summary = asyncio.run(run_chat_transcript(args.path, source_meta=meta, domain=args.domain, knowledge=knowledge))
+    summary = asyncio.run(runner(args.path, source_meta=meta, domain=domain, knowledge=knowledge))
     print(json.dumps(summary, indent=2, default=str))
     return (
         0 if summary.get("records_stored") is not None and "FAILED" not in str(summary.get("status", "")).upper() else 1
@@ -74,8 +85,9 @@ def main(argv: list[str] | None = None) -> int:
     p_imp.add_argument("--workflow", default="chat-transcript")
     p_imp.add_argument(
         "--domain",
-        default="platform_design",
-        help="knowledge domain tag (timeline_relationship|personal_history|platform_design|legal_strategy)",
+        default=None,
+        help="knowledge domain tag (timeline_relationship|personal_history|platform_design|legal_strategy); "
+        "defaults to timeline_relationship for sms-xml, platform_design otherwise",
     )
     p_imp.add_argument("--no-knowledge", action="store_true", help="skip the knowledge-engine step")
     p_imp.add_argument("--meta", nargs="*", help="source metadata k=v pairs")
