@@ -17,14 +17,10 @@ CREATE EXTENSION IF NOT EXISTS ltree;         -- hierarchical labels: MCL factor
 CREATE EXTENSION IF NOT EXISTS hstore;        -- key-value attr bags (jsonb usually preferred; here for tags)
 CREATE EXTENSION IF NOT EXISTS fuzzystrmatch; -- soundex/levenshtein/metaphone -> entity resolution (id_xref)
 
--- Multicorn2 (Python FDW framework) — PG = live federation hub. Provided by the
--- custom image (docker/postgres/Dockerfile); guarded so boot never fails on stock.
-DO $$
-BEGIN
-    CREATE EXTENSION IF NOT EXISTS multicorn;
-EXCEPTION WHEN OTHERS THEN
-    RAISE NOTICE 'multicorn not available in this image — skipped (FDW federation layer; custom PG image provides it)';
-END $$;
+-- Multicorn2 FDW removed 2026-06-26 (ADR-0032): PG is no longer a live
+-- federation hub — SurrealDB is the downstream analysis sink (ADR-0024), so
+-- cross-source reach comes from pg_duckdb + native drivers, not a custom FDW.
+-- core postgres_fdw / file_fdw remain available in-base if ever needed.
 
 -- postgis + pg_duckdb + pg_stat_statements live in the custom PG image
 -- (docker/postgres/Dockerfile). Guarded so boot never fails on a stock image.

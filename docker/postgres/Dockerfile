@@ -25,35 +25,28 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         postgresql-18-pgvector \
     && rm -rf /var/lib/apt/lists/*
 
-# --- FDW / federation layer (handoff 2026-06-14) ------------------------------
-# PG is the LIVE federation hub (data stays in source systems, PG queries across
-# them at runtime) — the complement to SurrealDB's CONSOLIDATION (copy-in) role.
-# Multicorn2 is the catch-all Python FDW framework: one toolchain powers
-# neo4j-fdw and any REST/SurrealDB wrapper, so sources without a native C FDW
-# are still reachable. (multicorn2 fork: pgsql-io/multicorn2.)
+# --- Cross-source reach: pg_duckdb, NOT a custom FDW hub (ADR-0032) ------------
+# Earlier plan (handoff 2026-06-14): PG as a LIVE federation hub via Multicorn2
+# FDW (compiled neo4j-fdw + REST wrappers). DROPPED 2026-06-26 — see ADR-0032.
 #
-# BUILD NOTE: this layer compiles against PG18 on the Docker host (Coolify on
-# OVH-3). It is NOT build-verified in-repo (no docker build in the authoring
-# session). If a step fails on the host, pin multicorn2 to a tagged release and
-# confirm postgresql-server-dev-18 headers match the pgduckdb base PG build.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        build-essential postgresql-server-dev-18 \
-        python3 python3-dev python3-pip git \
-    && git clone --depth 1 https://github.com/pgsql-io/multicorn2.git /tmp/multicorn2 \
-    && make -C /tmp/multicorn2 \
-    && make -C /tmp/multicorn2 install \
-    && pip3 install --no-cache-dir --break-system-packages /tmp/multicorn2 \
-    && pip3 install --no-cache-dir --break-system-packages neo4j-fdw \
-    && rm -rf /tmp/multicorn2 /var/lib/apt/lists/*
-
-# --- Protocol FDWs (STAGED — uncomment when the FDW set is locked) -------------
-# FerretDB (Mongo wire) and Dragonfly (Redis wire) have native C FDWs that build
-# against vendor drivers. Enable per selection:
-#   * Mongo/FerretDB -> EnterpriseDB/mongo_fdw  (needs mongo-c-driver)
-#   * Redis/Dragonfly -> pg-redis-fdw/redis_fdw (needs hiredis)
-# OMITTED on purpose: mysql_fdw (no MySQL in stack); duckdb_fdw (pg_duckdb already
-# embeds DuckDB); Milvus (vectors don't federate via SQL — use the Milvus SDK).
-# core postgres_fdw + file_fdw ship with the base image (CREATE EXTENSION only).
+# Why it's gone: that plan existed because PG was meant to be the analysis
+# TARGET, so every source had to be queryable IN PG. SurrealDB is now the
+# downstream analysis sink (ADR-0024): processed data flows PG -> Surreal and
+# analysis happens THERE. With no in-PG cross-source analysis requirement, the
+# live FDW hub was custom build glue for a capability nothing calls — and it was
+# never build-verified. Removing it deletes a brittle compile step (minimize
+# custom code; default off-the-shelf).
+#
+# Cross-source reach is now off-the-shelf, no custom compile:
+#   * files / object store / relational -> pg_duckdb (R2/S3, Parquet, CSV, JSON;
+#     ATTACH Postgres/SQLite) — already embedded in the base image.
+#   * graph (Neo4j)  -> native Cypher driver at the agent/orchestration tier
+#     (graph <-> SQL through an FDW is an impedance mismatch).
+#   * vectors (Milvus) -> Milvus SDK (vectors don't federate via SQL).
+#   * the source -> process -> Surreal pipeline -> orchestration substrate
+#     (ADR-0028/0029), not query-time federation.
+# core postgres_fdw + file_fdw still ship with the base image if a plain
+# Postgres-to-Postgres link is ever needed (CREATE EXTENSION only, no build).
 
 USER postgres
 
