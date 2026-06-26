@@ -14,7 +14,7 @@ that can be used for legal strategy or platform development."
 
 Usage:
     from chatminer.core.artifacts import extract_artifacts
-    
+
     artifacts = extract_artifacts(messages)
     for art in artifacts:
         print(f"{art.artifact_type.value}: {art.title}")
@@ -25,8 +25,6 @@ from __future__ import annotations
 import logging
 import re
 import uuid
-from datetime import datetime
-from typing import Optional
 
 from chatminer.core.types import (
     Artifact,
@@ -49,9 +47,7 @@ _FILE_REF_RE = re.compile(
 )
 
 # URL detection
-_URL_RE = re.compile(
-    r"https?://[^\s<>\"{}|\\^`[\]]+(?:\([^\s)]*\))?"
-)
+_URL_RE = re.compile(r"https?://[^\s<>\"{}|\\^`[\]]+(?:\([^\s)]*\))?")
 
 # Evidence references
 _EVIDENCE_PATTERNS = [
@@ -62,7 +58,10 @@ _EVIDENCE_PATTERNS = [
 
 # Document creation indicators
 _DOC_CREATION_PATTERNS = [
-    re.compile(r"(?:created|generated|wrote)\s+(?:a\s+)?(?:document|file)\s+(?:called|named)?\s*[\"']?([\w\-./]+\.\w+)[\"']?", re.I),
+    re.compile(
+        r"(?:created|generated|wrote)\s+(?:a\s+)?(?:document|file)\s+(?:called|named)?\s*[\"']?([\w\-./]+\.\w+)[\"']?",
+        re.I,
+    ),
     re.compile(r"(?:here's|here is)\s+(?:the\s+)?(?:document|file)\s*[\"']?([\w\-./]+\.\w+)[\"']?", re.I),
     re.compile(r"```\s*(?:markdown|md)\s*\n#\s*(.+\.(?:docx?|pdf|md))", re.I),
 ]
@@ -119,9 +118,9 @@ def _extract_code_blocks(messages: list[ParsedMessage]) -> list[Artifact]:
             if len(code.strip()) < 10:
                 continue  # Skip tiny snippets
 
-            title = f"code_snippet_{i+1}"
+            title = f"code_snippet_{i + 1}"
             if lang:
-                title = f"{lang}_snippet_{i+1}"
+                title = f"{lang}_snippet_{i + 1}"
 
             art = Artifact(
                 artifact_id=str(uuid.uuid4()),

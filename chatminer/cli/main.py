@@ -133,9 +133,7 @@ def cmd_batch(args: argparse.Namespace) -> int:
         parsed_count += 1
 
     logger.info(
-        f"Parsed {parsed_count} files, "
-        f"{result.total_conversations} conversations, "
-        f"{result.total_messages} messages"
+        f"Parsed {parsed_count} files, {result.total_conversations} conversations, {result.total_messages} messages"
     )
 
     if args.output:
@@ -278,10 +276,7 @@ def cmd_pipeline(args: argparse.Namespace) -> int:
         result.conversations.extend(file_result.conversations)
         result.errors.extend(file_result.errors)
 
-    logger.info(
-        f"Parsed {result.total_conversations} conversations, "
-        f"{result.total_messages} messages"
-    )
+    logger.info(f"Parsed {result.total_conversations} conversations, {result.total_messages} messages")
 
     # Save parsed
     parsed_file = out_dir / "01_parsed.json"

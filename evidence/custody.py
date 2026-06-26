@@ -49,12 +49,12 @@ class ArtifactRef:
     """Immutable reference to an ingested artifact."""
 
     artifact_id: str
-    sha256: str           # hex
-    source_ref: str       # original path / object key
-    blob_key: str         # where the write-once copy lives (relative to blob root)
+    sha256: str  # hex
+    source_ref: str  # original path / object key
+    blob_key: str  # where the write-once copy lives (relative to blob root)
     size_bytes: int
-    duplicate: bool       # True if this digest was already in custody
-    ingested_at: str      # ISO timestamp
+    duplicate: bool  # True if this digest was already in custody
+    ingested_at: str  # ISO timestamp
 
 
 def _sha256_file(path: Path) -> str:
@@ -86,13 +86,17 @@ def ingest_artifact(src: str | Path, source_meta: dict | None = None) -> Artifac
 
     # Dedupe: same digest == same artifact (chain-of-custody identity).
     with engine.connect() as conn:
-        row = conn.execute(
-            text(
-                "SELECT id, source_ref, blob_key, hashed_at FROM evidence.evidence_hash "
-                "WHERE digest = :d AND algo = 'sha256' LIMIT 1"
-            ),
-            {"d": digest},
-        ).mappings().first()
+        row = (
+            conn.execute(
+                text(
+                    "SELECT id, source_ref, blob_key, hashed_at FROM evidence.evidence_hash "
+                    "WHERE digest = :d AND algo = 'sha256' LIMIT 1"
+                ),
+                {"d": digest},
+            )
+            .mappings()
+            .first()
+        )
     if row is not None:
         return ArtifactRef(
             artifact_id=str(row["id"]),
@@ -115,14 +119,18 @@ def ingest_artifact(src: str | Path, source_meta: dict | None = None) -> Artifac
     import json
 
     with engine.begin() as conn:
-        new = conn.execute(
-            text(
-                "INSERT INTO evidence.evidence_hash (source_ref, algo, digest, blob_key, meta) "
-                "VALUES (:src, 'sha256', :d, :bk, CAST(:meta AS jsonb)) "
-                "RETURNING id, hashed_at"
-            ),
-            {"src": str(path), "d": digest, "bk": blob_key, "meta": json.dumps(meta)},
-        ).mappings().first()
+        new = (
+            conn.execute(
+                text(
+                    "INSERT INTO evidence.evidence_hash (source_ref, algo, digest, blob_key, meta) "
+                    "VALUES (:src, 'sha256', :d, :bk, CAST(:meta AS jsonb)) "
+                    "RETURNING id, hashed_at"
+                ),
+                {"src": str(path), "d": digest, "bk": blob_key, "meta": json.dumps(meta)},
+            )
+            .mappings()
+            .first()
+        )
 
     return ArtifactRef(
         artifact_id=str(new["id"]),
@@ -131,9 +139,7 @@ def ingest_artifact(src: str | Path, source_meta: dict | None = None) -> Artifac
         blob_key=blob_key,
         size_bytes=size,
         duplicate=False,
-        ingested_at=new["hashed_at"].isoformat()
-        if isinstance(new["hashed_at"], datetime)
-        else str(new["hashed_at"]),
+        ingested_at=new["hashed_at"].isoformat() if isinstance(new["hashed_at"], datetime) else str(new["hashed_at"]),
     )
 
 

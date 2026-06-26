@@ -8,15 +8,15 @@ distinctive formatting including Sources sections.
 
 Source Format (from copy-paste):
     # [Query Title]
-    
+
     [Answer content with markdown formatting]
-    
+
     ## Sources
     1. [Title](URL)
     2. [Title](URL)
 
     ---
-    
+
     # [Next Query]
     ...
 
@@ -32,7 +32,6 @@ Usage:
 import logging
 import re
 import uuid
-from datetime import datetime
 from typing import Optional
 
 from chatminer.core.base import BaseParser
@@ -80,7 +79,7 @@ class PerplexityPluginParser(BaseParser):
 
         return min(score, 1.0)
 
-    def parse_content(self, content: str, source_file: str = "" ) -> list[ParsedConversation]:
+    def parse_content(self, content: str, source_file: str = "") -> list[ParsedConversation]:
         """Parse Perplexity plugin export into conversations."""
         # Split by H1 headings — each H1 is a separate query/answer
         sections = self._H1_RE.split(content)

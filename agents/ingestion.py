@@ -1,6 +1,6 @@
 """Knowledge ingestion entrypoint — run inside the container:
 
-    docker exec agentos-api python -m agents.ingestion
+docker exec agentos-api python -m agents.ingestion
 """
 
 import asyncio

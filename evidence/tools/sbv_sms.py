@@ -154,7 +154,7 @@ def _sbv_enabled() -> bool:
 @register(
     id="messages.sms-xml-sbv",
     capability="parse.sms-xml",
-    description='SMS Backup & Restore XML via SBV (primary) -> normalized message + call records, with forensic call-block flags + MMS media handling',
+    description="SMS Backup & Restore XML via SBV (primary) -> normalized message + call records, with forensic call-block flags + MMS media handling",
     # Only accept .xml AND only when SBV is wired; else defer to sms_xml.py.
     accept=lambda hint, size: hint.lower().endswith(".xml") and _sbv_enabled(),
     provenance="SBV REST API wrapper (lowcarbdev/sbv) — primary SMS-XML parser; sms_xml.py is the pure-Python fallback",

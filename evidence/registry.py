@@ -22,7 +22,7 @@ class ToolPlugin(Protocol):
     """Contract every atomic tool satisfies."""
 
     id: str
-    capability: str           # e.g. 'parse.transcript', 'parse.sms-xml'
+    capability: str  # e.g. 'parse.transcript', 'parse.sms-xml'
     description: str
 
     def accepts(self, media_hint: str, size_bytes: int) -> bool: ...
@@ -38,7 +38,7 @@ class FunctionTool:
     description: str
     fn: Callable[[dict[str, Any]], dict[str, Any]]
     accept: Callable[[str, int], bool] = field(default=lambda hint, size: True)
-    provenance: str = ""      # where the implementation came from (port source)
+    provenance: str = ""  # where the implementation came from (port source)
 
     def accepts(self, media_hint: str, size_bytes: int) -> bool:
         return self.accept(media_hint, size_bytes)
@@ -68,11 +68,7 @@ class ToolRegistry:
     def resolve(self, capability: str, media_hint: str = "", size_bytes: int = 0) -> list[ToolPlugin]:
         """All tools matching a capability that accept the input, in
         registration order (first = preferred; rest = substitution candidates)."""
-        return [
-            t
-            for t in self._tools.values()
-            if t.capability == capability and t.accepts(media_hint, size_bytes)
-        ]
+        return [t for t in self._tools.values() if t.capability == capability and t.accepts(media_hint, size_bytes)]
 
     def manifest(self) -> list[dict[str, str]]:
         return [

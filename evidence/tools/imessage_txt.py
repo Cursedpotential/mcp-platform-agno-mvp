@@ -173,9 +173,7 @@ def _split_blocks(lines: list[str]) -> tuple[list[dict], list[_Block]]:
             # body until the next top-level header/announcement or EOF
             while i < n:
                 nxt = lines[i].rstrip("\n")
-                if not _is_indented(lines[i]) and (
-                    _HEADER_TS_RE.match(nxt) or _ANNOUNCEMENT_RE.match(nxt)
-                ):
+                if not _is_indented(lines[i]) and (_HEADER_TS_RE.match(nxt) or _ANNOUNCEMENT_RE.match(nxt)):
                     break
                 blk.body.append(nxt)
                 i += 1
@@ -184,9 +182,7 @@ def _split_blocks(lines: list[str]) -> tuple[list[dict], list[_Block]]:
 
         ann = _ANNOUNCEMENT_RE.match(stripped)
         if ann:
-            announcements.append(
-                {"ts": ann.group("ts"), "text": ann.group("rest").strip()}
-            )
+            announcements.append({"ts": ann.group("ts"), "text": ann.group("rest").strip()})
             i += 1
             continue
 
@@ -223,7 +219,7 @@ def _parse_body(body: list[str]) -> dict[str, Any]:
 
         if _is_indented(line):
             # Reply content (recursively rendered, every line indented).
-            reply_lines.append(line[len(REPLY_INDENT):] if line.startswith(REPLY_INDENT) else line)
+            reply_lines.append(line[len(REPLY_INDENT) :] if line.startswith(REPLY_INDENT) else line)
             idx += 1
             continue
 
@@ -283,7 +279,7 @@ def _parse_body(body: list[str]) -> dict[str, Any]:
             continue
 
         if stripped.startswith(_TRANSCRIPTION_PREFIX):
-            transcriptions.append(stripped[len(_TRANSCRIPTION_PREFIX):])
+            transcriptions.append(stripped[len(_TRANSCRIPTION_PREFIX) :])
             content_lines.append(stripped)
             idx += 1
             continue
@@ -326,7 +322,7 @@ def _parse_body(body: list[str]) -> dict[str, Any]:
 def _parse_tapback(text: str) -> dict[str, str]:
     """Parse one tapback line into {kind, who}. Tolerates the three shapes."""
     if text.startswith("Sticker from ") and text.endswith(" not found!"):
-        who = text[len("Sticker from "):-len(" not found!")]
+        who = text[len("Sticker from ") : -len(" not found!")]
         return {"kind": "sticker", "who": who, "raw": text}
     m = _TAPBACK_BY_RE.match(text)
     if m:
@@ -390,12 +386,13 @@ def parse_txt_text(text: str, conv_id: str = "") -> list[NormalizedRecord]:
 
     for blk in blocks:
         parsed = _parse_body(blk.body)
-        occurred = _parse_ts(_TS_RE.match(blk.header_line).group("ts")) if _TS_RE.match(blk.header_line) else None
+        header_match = _TS_RE.match(blk.header_line)
+        occurred = _parse_ts(header_match.group("ts")) if header_match else None
         sender = blk.sender or "Unknown"
-        is_call = any(
-            m in parsed["content"].lower()
-            for m in ("facetime", "missed call", "outgoing call", "incoming call")
-        ) and parsed["content"].lower().count("call") > 0
+        is_call = (
+            any(m in parsed["content"].lower() for m in ("facetime", "missed call", "outgoing call", "incoming call"))
+            and parsed["content"].lower().count("call") > 0
+        )
         record_type = RecordType.call if is_call else RecordType.message
 
         # read-receipt: exporter says "them" when from me, "you"/custom otherwise.
@@ -420,7 +417,7 @@ def parse_txt_text(text: str, conv_id: str = "") -> list[NormalizedRecord]:
             "platform": "imessage",
             "format": "txt",
             "direction": _direction(sender),
-            "raw_timestamp": _TS_RE.match(blk.header_line).group("ts") if _TS_RE.match(blk.header_line) else "",
+            "raw_timestamp": header_match.group("ts") if header_match else "",
             "sender_label": sender,
             "attachments": parsed["attachments"],
             "tapbacks": parsed["tapbacks"],
@@ -481,9 +478,7 @@ def parse(payload: dict[str, Any]) -> dict[str, Any]:
     path = Path(payload["path"])
     text = path.read_text(encoding="utf-8", errors="replace")
     if not looks_like_imessage_txt(text[:8192]):
-        raise ValueError(
-            "not an imessage-exporter TXT export (no timestamp header lines found)"
-        )
+        raise ValueError("not an imessage-exporter TXT export (no timestamp header lines found)")
 
     conv_id = path.stem
     records = parse_txt_text(text, conv_id=conv_id)

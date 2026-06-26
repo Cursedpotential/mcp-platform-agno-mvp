@@ -74,6 +74,7 @@ def _require_registry():
             detail=f"registry unavailable — evidence package not importable ({REGISTRY_ERROR}). "
             "Likely the ./evidence mount is empty; redeploy with the evidence package present.",
         )
+    return registry
 
 
 @app.get("/health")
@@ -84,7 +85,7 @@ async def health() -> dict[str, Any]:
         "registry_ok": REGISTRY_OK,
         "registry_error": REGISTRY_ERROR or None,
         "tool_count": TOOL_COUNT,
-        "tools": sorted(t.id for t in registry.all()) if REGISTRY_OK else [],
+        "tools": sorted(t.id for t in registry.all()) if (REGISTRY_OK and registry is not None) else [],
         "sbv": _sbv_status(),
     }
 
@@ -92,23 +93,23 @@ async def health() -> dict[str, Any]:
 @app.get("/tools")
 async def tools() -> list[dict[str, str]]:
     """Full registry manifest: id, capability, description, provenance."""
-    _require_registry()
-    return registry.manifest()
+    reg = _require_registry()
+    return reg.manifest()
 
 
 @app.get("/tools/resolve/{capability}")
 async def resolve(capability: str, hint: str = "", size: int = 0) -> list[str]:
     """Which tools would run for a capability+input (substitution candidates, in order)."""
-    _require_registry()
-    return [t.id for t in registry.resolve(capability, media_hint=hint, size_bytes=size)]
+    reg = _require_registry()
+    return [t.id for t in reg.resolve(capability, media_hint=hint, size_bytes=size)]
 
 
 @app.post("/tools/{tool_id}/run")
 async def run_tool(tool_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     """Execute one atomic tool with its contract payload (e.g. {"path": "/r2/..."})."""
-    _require_registry()
+    reg = _require_registry()
     try:
-        tool = registry.get(tool_id)
+        tool = reg.get(tool_id)
     except KeyError:
         raise HTTPException(status_code=404, detail=f"unknown tool {tool_id!r}")
     try:
@@ -280,4 +281,6 @@ async def sbv_export(payload: dict[str, Any]) -> JSONResponse:
         w = csv.DictWriter(buf, fieldnames=cols, extrasaction="ignore")
         w.writeheader()
         w.writerows(messages)
-    return JSONResponse({"format": "csv", "csv": buf.getvalue(), "message_count": len(messages), "call_count": len(calls)})
+    return JSONResponse(
+        {"format": "csv", "csv": buf.getvalue(), "message_count": len(messages), "call_count": len(calls)}
+    )

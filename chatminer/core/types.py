@@ -13,40 +13,44 @@ import json
 import uuid
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
-from enum import Enum, auto
+from enum import Enum
 from typing import Any, Optional
 
 
 class ContentType(Enum):
     """Classification of message content type."""
-    TEXT = "text"           # Plain text conversation
-    CODE = "code"           # Fenced code block (```...```)
-    FILE_REF = "file_ref"   # Reference to attached file
-    IMAGE_REF = "image_ref" # Reference to image/attachment
-    URL = "url"             # URL/link reference
-    SYSTEM = "system"       # System/instruction message
-    ERROR = "error"         # Error/debug output
+
+    TEXT = "text"  # Plain text conversation
+    CODE = "code"  # Fenced code block (```...```)
+    FILE_REF = "file_ref"  # Reference to attached file
+    IMAGE_REF = "image_ref"  # Reference to image/attachment
+    URL = "url"  # URL/link reference
+    SYSTEM = "system"  # System/instruction message
+    ERROR = "error"  # Error/debug output
 
 
 class ArtifactType(Enum):
     """Classification of extracted artifacts."""
-    CODE_SNIPPET = "code_snippet"       # Extracted code block
-    DOCUMENT = "document"               # .docx, .pdf created in chat
-    DATA_FILE = "data_file"             # .json, .csv attached
-    IMAGE = "image"                     # Image/screenshot
-    URL = "url"                         # External link
-    STRATEGY_DOC = "strategy_doc"       # Legal strategy discussed
-    ANALYSIS_REPORT = "analysis_report" # Analysis output
-    TIMELINE_EVENT = "timeline_event"   # Dated event mentioned
-    ENTITY = "entity"                   # Named person/place/org
+
+    CODE_SNIPPET = "code_snippet"  # Extracted code block
+    DOCUMENT = "document"  # .docx, .pdf created in chat
+    DATA_FILE = "data_file"  # .json, .csv attached
+    IMAGE = "image"  # Image/screenshot
+    URL = "url"  # External link
+    STRATEGY_DOC = "strategy_doc"  # Legal strategy discussed
+    ANALYSIS_REPORT = "analysis_report"  # Analysis output
+    TIMELINE_EVENT = "timeline_event"  # Dated event mentioned
+    ENTITY = "entity"  # Named person/place/org
+    EVIDENCE_REFERENCE = "evidence_reference"  # Mention of an evidence item (texts, emails, screenshots…)
 
 
 class MessageRole(Enum):
     """Role of the message sender."""
+
     USER = "user"
     ASSISTANT = "assistant"
     SYSTEM = "system"
-    TOOL = "tool"          # Tool/function call result
+    TOOL = "tool"  # Tool/function call result
     UNKNOWN = "unknown"
 
 
@@ -59,13 +63,14 @@ class TopicTag(Enum):
     legal strategy / case-handling. TopicTag is a SEPARATE metadata field, NOT a
     knowledge-engine domain. Tag at SEGMENT/TURN level; MIXED/UNKNOWN are catch-alls.
     """
+
     RELATIONSHIP_HISTORY = "relationship_history"  # Personal/relationship history — entities + timeline
-    PERSONAL_LEGAL = "personal_legal"   # Legal strategy / case-handling
-    DEVELOPMENT = "development"         # Code, architecture, platform
-    EMOTIONAL = "emotional"             # Feelings, trauma processing
-    EVIDENCE = "evidence"               # Evidence artifacts, documents
-    MIXED = "mixed"                     # Interleaved topics
-    UNKNOWN = "unknown"                 # Cannot classify
+    PERSONAL_LEGAL = "personal_legal"  # Legal strategy / case-handling
+    DEVELOPMENT = "development"  # Code, architecture, platform
+    EMOTIONAL = "emotional"  # Feelings, trauma processing
+    EVIDENCE = "evidence"  # Evidence artifacts, documents
+    MIXED = "mixed"  # Interleaved topics
+    UNKNOWN = "unknown"  # Cannot classify
 
 
 @dataclass
@@ -76,17 +81,18 @@ class ParsedMessage:
     All parsers convert their source-specific format into this
     standardized structure. This is the atom of ChatMiner.
     """
-    message_id: str                          # Stable UUID
-    source_file: str                         # Origin filename
-    source_format: str                       # e.g. "chatgpt_share", "gemini_chrome"
-    source_index: int                        # Position in original file
-    timestamp: Optional[datetime] = None     # When message was sent
-    sender: str = "unknown"                  # Display name
+
+    message_id: str  # Stable UUID
+    source_file: str  # Origin filename
+    source_format: str  # e.g. "chatgpt_share", "gemini_chrome"
+    source_index: int  # Position in original file
+    timestamp: Optional[datetime] = None  # When message was sent
+    sender: str = "unknown"  # Display name
     sender_role: MessageRole = MessageRole.UNKNOWN
-    content: str = ""                        # Verbatim content (NEVER summarized)
+    content: str = ""  # Verbatim content (NEVER summarized)
     content_type: ContentType = ContentType.TEXT
-    language: Optional[str] = None           # For code blocks: python, json, etc.
-    confidence: str = "HIGH"                 # HIGH | MEDIUM | LOW
+    language: Optional[str] = None  # For code blocks: python, json, etc.
+    confidence: str = "HIGH"  # HIGH | MEDIUM | LOW
     metadata: dict[str, Any] = field(default_factory=dict)
     # ^ source-specific extras: turn_index, model_name, citations, etc.
 
@@ -130,12 +136,13 @@ class ParsedConversation:
 
     Produced by every format parser. The standard unit of work.
     """
-    conversation_id: str                     # UUID
-    source_file: str                         # Origin file path
-    source_format: str                       # Parser that produced this
-    title: Optional[str] = None              # Conversation title
-    created_at: Optional[datetime] = None    # When conversation started
-    updated_at: Optional[datetime] = None    # When last updated
+
+    conversation_id: str  # UUID
+    source_file: str  # Origin file path
+    source_format: str  # Parser that produced this
+    title: Optional[str] = None  # Conversation title
+    created_at: Optional[datetime] = None  # When conversation started
+    updated_at: Optional[datetime] = None  # When last updated
     messages: list[ParsedMessage] = field(default_factory=list)
     # ^ Chronologically ordered messages
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -184,13 +191,14 @@ class Artifact:
     a URL shared, or a legal strategy discussed. These are the
     tangible outputs of your AI conversations.
     """
+
     artifact_id: str
     artifact_type: ArtifactType
-    source_message_id: str           # Which message produced this
-    source_conversation_id: str      # Which conversation
-    title: Optional[str] = None     # Display name
-    content: Optional[str] = None   # Code text, document text, etc.
-    file_path: Optional[str] = None # If saved to disk
+    source_message_id: str  # Which message produced this
+    source_conversation_id: str  # Which conversation
+    title: Optional[str] = None  # Display name
+    content: Optional[str] = None  # Code text, document text, etc.
+    file_path: Optional[str] = None  # If saved to disk
     language: Optional[str] = None  # For code: python, json, etc.
     metadata: dict[str, Any] = field(default_factory=dict)
     extracted_at: datetime = field(default_factory=datetime.utcnow)
@@ -210,6 +218,7 @@ class TopicSegment:
     Produced by the topic segmenter. Messages within a segment
     discuss the same topic. Segments span conversation boundaries.
     """
+
     segment_id: str
     messages: list[ParsedMessage]
     topic_tag: TopicTag
@@ -249,6 +258,7 @@ class ParseResult:
 
     Used by CLI, GUI, MCP tools, and agents.
     """
+
     conversations: list[ParsedConversation] = field(default_factory=list)
     artifacts: list[Artifact] = field(default_factory=list)
     segments: list[TopicSegment] = field(default_factory=list)

@@ -30,7 +30,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from chatminer.core.base import BaseParser, ParserConfig
+from chatminer.core.base import BaseParser
 from chatminer.core.types import ContentType, MessageRole, ParsedConversation, ParsedMessage
 
 logger = logging.getLogger(__name__)
@@ -59,12 +59,8 @@ class GeminiChromeParser(BaseParser):
     # "Total Messages: N"
     _TOTAL_MSGS_RE = re.compile(r"Total\s+Messages:\s*(\d+)", re.IGNORECASE)
     # Message separators: 🤖 Assistant (timestamp) or 👤 You (timestamp)
-    _ASSISTANT_MSG_RE = re.compile(
-        r"^\s*🤖\s+Assistant\s*(?:\(([^)]+)\))?\s*$"
-    )
-    _USER_MSG_RE = re.compile(
-        r"^\s*(?:👤|🧑)\s+(?:You|User)\s*(?:\(([^)]+)\))?\s*$"
-    )
+    _ASSISTANT_MSG_RE = re.compile(r"^\s*🤖\s+Assistant\s*(?:\(([^)]+)\))?\s*$")
+    _USER_MSG_RE = re.compile(r"^\s*(?:👤|🧑)\s+(?:You|User)\s*(?:\(([^)]+)\))?\s*$")
     # Code fence
     _CODE_FENCE_RE = re.compile(r"```(\w+)?")
 
@@ -149,9 +145,7 @@ class GeminiChromeParser(BaseParser):
 
         return [conv]
 
-    def _extract_messages(
-        self, lines: list[str], start_index: int, source_file: str
-    ) -> list[ParsedMessage]:
+    def _extract_messages(self, lines: list[str], start_index: int, source_file: str) -> list[ParsedMessage]:
         """Extract messages using emoji role markers."""
         messages: list[ParsedMessage] = []
         current_role: MessageRole = MessageRole.USER

@@ -11,9 +11,8 @@ import hashlib
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
 from chatminer.core.types import ParsedConversation, ParseResult
 
@@ -23,12 +22,11 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ParserConfig:
     """Configuration options for all parsers."""
-    encoding: str = "utf-8"           # File encoding
-    fallback_encodings: list[str] = field(
-        default_factory=lambda: ["utf-8-sig", "latin-1", "cp1252"]
-    )
-    max_file_size_mb: int = 50      # Skip files larger than this
-    compute_hash: bool = True       # SHA-256 hash of raw content
+
+    encoding: str = "utf-8"  # File encoding
+    fallback_encodings: list[str] = field(default_factory=lambda: ["utf-8-sig", "latin-1", "cp1252"])
+    max_file_size_mb: int = 50  # Skip files larger than this
+    compute_hash: bool = True  # SHA-256 hash of raw content
     preserve_line_breaks: bool = True
     extract_code_blocks: bool = True
     extract_urls: bool = True
@@ -69,9 +67,7 @@ class BaseParser(ABC):
 
         size_mb = path.stat().st_size / (1024 * 1024)
         if size_mb > self.config.max_file_size_mb:
-            raise ValueError(
-                f"File too large: {size_mb:.1f} MB (max: {self.config.max_file_size_mb} MB)"
-            )
+            raise ValueError(f"File too large: {size_mb:.1f} MB (max: {self.config.max_file_size_mb} MB)")
 
         encodings = [self.config.encoding] + self.config.fallback_encodings
         last_error = None

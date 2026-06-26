@@ -89,7 +89,7 @@ def render_conversations_markdown(records: list[NormalizedRecord]) -> dict[str, 
 
     docs: dict[str, str] = {}
     for conv_id, recs in by_conv.items():
-        recs.sort(key=lambda r: (r.occurred_at.isoformat() if r.occurred_at else ""))
+        recs.sort(key=lambda r: r.occurred_at.isoformat() if r.occurred_at else "")
         title = recs[0].attrs.get("conversation_title") or conv_id
         lines = [f"# {title}", ""]
         if recs[0].occurred_at:
@@ -139,11 +139,15 @@ async def ingest_into_knowledge(
 def record_counts(artifact_id: str) -> dict[str, Any]:
     """Quick verification helper: counts for one artifact."""
     with _get_engine().connect() as conn:
-        row = conn.execute(
-            text(
-                "SELECT count(*) AS records, count(DISTINCT conversation_id) AS conversations "
-                "FROM analysis.normalized_record WHERE artifact_id = :a"
-            ),
-            {"a": artifact_id},
-        ).mappings().first()
+        row = (
+            conn.execute(
+                text(
+                    "SELECT count(*) AS records, count(DISTINCT conversation_id) AS conversations "
+                    "FROM analysis.normalized_record WHERE artifact_id = :a"
+                ),
+                {"a": artifact_id},
+            )
+            .mappings()
+            .first()
+        )
     return dict(row) if row else {"records": 0, "conversations": 0}
