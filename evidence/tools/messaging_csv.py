@@ -166,7 +166,7 @@ def _read_rows(path: Path) -> tuple[list[str], list[dict[str, str]]]:
     except csv.Error:
         dialect = csv.excel
     reader = csv.DictReader(raw.splitlines(), dialect=dialect)
-    header = reader.fieldnames or []
+    header: list[str] = list(reader.fieldnames or [])
     rows: list[dict[str, str]] = []
     for r in reader:
         rows.append({_norm_key(k): ("" if v is None else str(v)) for k, v in r.items() if k is not None})

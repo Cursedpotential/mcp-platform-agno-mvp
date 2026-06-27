@@ -92,7 +92,7 @@ def looks_like_imessage_html(soup) -> bool:
 
 def _parse_part(part_div) -> dict[str, Any]:
     """Extract one <div class="message_part"> into text/attachments/edits."""
-    out = {"text": "", "attachments": [], "edited": [], "retracted": False}
+    out: dict[str, Any] = {"text": "", "attachments": [], "edited": [], "retracted": False}
     texts: list[str] = []
 
     for bubble in part_div.select("span.bubble"):
@@ -482,7 +482,7 @@ def parse(payload: dict[str, Any]) -> dict[str, Any]:
         #       recover via regex over the raw bytes. HARD-FAIL if bubbles are present
         #       but parsing yields 0, so we NEVER emit empty evidence (silent-drop guard).
         if looks_like_owner_imessage_html(soup) or owner_bubbles_present:
-            records = _parse_owner_format(soup, conv_id)
+            records: list[NormalizedRecord] = _parse_owner_format(soup, conv_id)
             variant = "owner-custom"
             if not records and owner_bubbles_present:
                 records = _parse_owner_format_regex(raw, conv_id)
@@ -497,13 +497,13 @@ def parse(payload: dict[str, Any]) -> dict[str, Any]:
                 messages = sum(1 for r in records if r.record_type == RecordType.message)
                 calls = sum(1 for r in records if r.record_type == RecordType.call)
                 events = sum(1 for r in records if r.record_type == RecordType.event)
-                participants = len({r.role for r in records if r.role})
+                n_participants = len({r.role for r in records if r.role})
                 return records_out(
                     records,
                     messages=messages,
                     calls=calls,
                     announcements=events,
-                    participants=participants,
+                    participants=n_participants,
                     variant=variant,
                 )
         raise ValueError(
@@ -515,7 +515,7 @@ def parse(payload: dict[str, Any]) -> dict[str, Any]:
 
     # Messages and announcements in document order.
     for el in soup.select("div.message, div.announcement"):
-        cls = el.get("class", [])
+        cls = el.get("class") or []
         if "announcement" in cls:
             records.append(_parse_announcement(el, conv_id))
         else:
