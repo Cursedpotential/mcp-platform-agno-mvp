@@ -11,11 +11,10 @@ derivation from content, hard-fail on empty-after-markers, format rejection.
 
 from __future__ import annotations
 
-import io
 import pytest
 
 from evidence.tools.messaging_transcript import parse as transcript_parse
-from evidence.tools.messaging_csv import parse as csv_parse, looks_like_messages_csv, _norm_key
+from evidence.tools.messaging_csv import parse as csv_parse, looks_like_messages_csv
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -187,6 +186,7 @@ def test_csv_participants_backfilled(tmp_path):
 # imessage_pdf — sniff + rejection (no pypdf in test env)
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 def test_imessage_pdf_import_available():
     """Parser module must be importable (no eager import of pypdf)."""
     from evidence.tools import imessage_pdf  # noqa: F401
@@ -194,7 +194,6 @@ def test_imessage_pdf_import_available():
 
 def test_imessage_pdf_rejects_without_pdf_lib(tmp_path, monkeypatch):
     """When neither pypdf nor pdfplumber are installed, parse() raises RuntimeError."""
-    import sys
     import builtins
 
     real_import = builtins.__import__
@@ -210,5 +209,6 @@ def test_imessage_pdf_rejects_without_pdf_lib(tmp_path, monkeypatch):
     p.write_bytes(b"%PDF-1.4 fake pdf content")
 
     from evidence.tools.imessage_pdf import parse
+
     with pytest.raises(RuntimeError, match="imessage-pdf needs pypdf or pdfplumber"):
         parse({"path": str(p)})
