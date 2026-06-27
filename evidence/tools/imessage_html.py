@@ -112,13 +112,16 @@ def _parse_part(part_div) -> dict[str, Any]:
         src = None
         kind = "file"
         if img is not None:
-            src = img.get("src"); kind = "image"
+            src = img.get("src")
+            kind = "image"
         elif vid is not None:
             s = vid.find("source")
-            src = (s.get("src") if s is not None else None) or vid.get("src"); kind = "video"
+            src = (s.get("src") if s is not None else None) or vid.get("src")
+            kind = "video"
         elif aud is not None:
             s = aud.find("source")
-            src = (s.get("src") if s is not None else None) or aud.get("src"); kind = "audio"
+            src = (s.get("src") if s is not None else None) or aud.get("src")
+            kind = "audio"
         else:
             a = att.find("a")
             src = a.get("href") if a is not None else _text(att)
@@ -147,9 +150,7 @@ def _parse_part(part_div) -> dict[str, Any]:
 
 
 def _parse_message(msg_div, conv_id: str) -> NormalizedRecord | None:
-    inner = msg_div.find("div", class_=lambda c: c and (
-        "sent" in c.split() or "received" in c.split()
-    ))
+    inner = msg_div.find("div", class_=lambda c: c and ("sent" in c.split() or "received" in c.split()))
     if inner is None:
         return None
     classes = inner.get("class", [])
@@ -219,8 +220,10 @@ def _parse_message(msg_div, conv_id: str) -> NormalizedRecord | None:
         elif tapbacks:
             content = tapbacks[0]["raw"]
 
-    is_call = bool(content) and "call" in content.lower() and any(
-        k in content.lower() for k in ("missed call", "facetime", "incoming call", "outgoing call")
+    is_call = (
+        bool(content)
+        and "call" in content.lower()
+        and any(k in content.lower() for k in ("missed call", "facetime", "incoming call", "outgoing call"))
     )
 
     attrs: dict[str, Any] = {
@@ -266,7 +269,7 @@ def _parse_announcement(ann_div, conv_id: str) -> NormalizedRecord:
     ts_span = ann_div.find("span", class_="timestamp")
     ts_raw = _text(ts_span) if ts_span is not None else ""
     # action text = the <p> text minus the timestamp prefix
-    action = full[len(ts_raw):].strip() if ts_raw and full.startswith(ts_raw) else full
+    action = full[len(ts_raw) :].strip() if ts_raw and full.startswith(ts_raw) else full
     role = OWNER if action.startswith(("You ", "I ")) else (action.split(" ", 1)[0] or None)
     return NormalizedRecord(
         record_type=RecordType.event,
@@ -293,8 +296,7 @@ def _parse_announcement(ann_div, conv_id: str) -> NormalizedRecord:
 # speakers Me=1064/+18108532989=854) — specs/imessage-owner-format-PROVEN-prototype.py.
 # Minute-precision timestamps => preserve DOCUMENT order (don't reorder same-minute msgs).
 _OWNER_META_RE = re.compile(r"^(?P<sender>.*?)\s*-\s*(?P<ts>\d{4}-\d{2}-\d{2}.*)$")
-_OWNER_TS_FORMATS = ("%Y-%m-%d %I:%M %p", "%Y-%m-%d %I:%M:%S %p",
-                     "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M")
+_OWNER_TS_FORMATS = ("%Y-%m-%d %I:%M %p", "%Y-%m-%d %I:%M:%S %p", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M")
 
 
 def _parse_owner_ts(raw: str) -> datetime | None:
@@ -321,9 +323,7 @@ def looks_like_owner_imessage_html(soup) -> bool:
 # 0 messages (the 8.5MB / 41,987-msg +18102689630 thread = the SILENT-EMPTY evidence
 # hazard). Recover every message via regex over the raw bytes. Grammar + the recovery
 # count (41,987, chain-verified) PROVEN by PROCESS — specs/imessage-derisk-RESULTS.md.
-_OWNER_BUBBLE_RE = re.compile(
-    r"bubble (from-me|from-them)'>(.*?)</div>\s*<div class='meta'>(.*?)</div>", re.S
-)
+_OWNER_BUBBLE_RE = re.compile(r"bubble (from-me|from-them)'>(.*?)</div>\s*<div class='meta'>(.*?)</div>", re.S)
 # Cheap presence marker (matches static-DOM AND script-embedded): if a file carries
 # owner-custom bubbles but parsing yields 0 records, we HARD-FAIL rather than emit empty.
 _OWNER_BUBBLE_PRESENT = "bubble from-"
@@ -351,8 +351,10 @@ def _parse_owner_format_regex(raw: str, conv_id: str) -> list[NormalizedRecord]:
             senders.append(role)
 
         content = text
-        is_call = bool(content) and "call" in content.lower() and any(
-            k in content.lower() for k in ("missed call", "facetime", "incoming call", "outgoing call")
+        is_call = (
+            bool(content)
+            and "call" in content.lower()
+            and any(k in content.lower() for k in ("missed call", "facetime", "incoming call", "outgoing call"))
         )
         records.append(
             NormalizedRecord(
@@ -378,10 +380,12 @@ def _parse_owner_format_regex(raw: str, conv_id: str) -> list[NormalizedRecord]:
 
     for r in records:
         r.participants = senders
-    records.sort(key=lambda r: (
-        r.occurred_at or datetime.min.replace(tzinfo=timezone.utc),
-        r.attrs.get("sequence_number", 0),
-    ))
+    records.sort(
+        key=lambda r: (
+            r.occurred_at or datetime.min.replace(tzinfo=timezone.utc),
+            r.attrs.get("sequence_number", 0),
+        )
+    )
     return records
 
 
@@ -409,8 +413,10 @@ def _parse_owner_format(soup, conv_id: str) -> list[NormalizedRecord]:
         content = text
         if not content and attachments:
             content = f"[{len(attachments)} attachment(s)]"
-        is_call = bool(content) and "call" in content.lower() and any(
-            k in content.lower() for k in ("missed call", "facetime", "incoming call", "outgoing call")
+        is_call = (
+            bool(content)
+            and "call" in content.lower()
+            and any(k in content.lower() for k in ("missed call", "facetime", "incoming call", "outgoing call"))
         )
 
         records.append(
@@ -439,10 +445,12 @@ def _parse_owner_format(soup, conv_id: str) -> list[NormalizedRecord]:
     for r in records:
         r.participants = senders
     # Minute-precision ts: keep document order within the same minute (seq tiebreak).
-    records.sort(key=lambda r: (
-        r.occurred_at or datetime.min.replace(tzinfo=timezone.utc),
-        r.attrs.get("sequence_number", 0),
-    ))
+    records.sort(
+        key=lambda r: (
+            r.occurred_at or datetime.min.replace(tzinfo=timezone.utc),
+            r.attrs.get("sequence_number", 0),
+        )
+    )
     return records
 
 
@@ -490,8 +498,14 @@ def parse(payload: dict[str, Any]) -> dict[str, Any]:
                 calls = sum(1 for r in records if r.record_type == RecordType.call)
                 events = sum(1 for r in records if r.record_type == RecordType.event)
                 participants = len({r.role for r in records if r.role})
-                return records_out(records, messages=messages, calls=calls, announcements=events,
-                                   participants=participants, variant=variant)
+                return records_out(
+                    records,
+                    messages=messages,
+                    calls=calls,
+                    announcements=events,
+                    participants=participants,
+                    variant=variant,
+                )
         raise ValueError(
             "not an imessage-exporter HTML export (neither stock div.message>div.sent/received "
             "nor owner-custom div.bubble.from-me/them) — falling back"

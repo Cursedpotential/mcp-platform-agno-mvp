@@ -90,8 +90,7 @@ def parse_transcript(cells: list[str], fallback_conv: str) -> list[NormalizedRec
             if cur is not None:
                 rows.append(cur)
             speaker = m.group(2).strip()
-            cur = {"speaker": speaker, "is_me": _is_me(speaker),
-                   "ts_raw": m.group(1).strip(), "text": ""}
+            cur = {"speaker": speaker, "is_me": _is_me(speaker), "ts_raw": m.group(1).strip(), "text": ""}
         elif cell and cur is not None:
             cur["text"] = (cur["text"] + " " + cell).strip()
     if cur is not None:
@@ -108,8 +107,10 @@ def parse_transcript(cells: list[str], fallback_conv: str) -> list[NormalizedRec
         if role != OWNER and role not in senders:
             senders.append(role)
         content = r["text"]
-        is_call = bool(content) and "call" in content.lower() and any(
-            k in content.lower() for k in ("missed call", "facetime", "incoming call", "outgoing call")
+        is_call = (
+            bool(content)
+            and "call" in content.lower()
+            and any(k in content.lower() for k in ("missed call", "facetime", "incoming call", "outgoing call"))
         )
         records.append(
             NormalizedRecord(
@@ -135,10 +136,12 @@ def parse_transcript(cells: list[str], fallback_conv: str) -> list[NormalizedRec
     for rec in records:
         rec.participants = senders
     # Minute-precision timestamps: keep document order within the same minute (seq tiebreak).
-    records.sort(key=lambda rec: (
-        rec.occurred_at or datetime.min.replace(tzinfo=timezone.utc),
-        rec.attrs.get("sequence_number", 0),
-    ))
+    records.sort(
+        key=lambda rec: (
+            rec.occurred_at or datetime.min.replace(tzinfo=timezone.utc),
+            rec.attrs.get("sequence_number", 0),
+        )
+    )
     return records
 
 
@@ -159,8 +162,7 @@ def parse(payload: dict[str, Any]) -> dict[str, Any]:
     marker_present = any(_MARKER_RE.match(c) for c in head)
     if not marker_present:
         raise ValueError(
-            "not a transcript-marker export (no '[YYYY-MM-DD HH:MM AM/PM] Speaker:' "
-            "line in the head) — falling back"
+            "not a transcript-marker export (no '[YYYY-MM-DD HH:MM AM/PM] Speaker:' line in the head) — falling back"
         )
 
     records = parse_transcript(cells, fallback_conv=path.stem)
@@ -174,5 +176,4 @@ def parse(payload: dict[str, Any]) -> dict[str, Any]:
     messages = sum(1 for r in records if r.record_type == RecordType.message)
     calls = sum(1 for r in records if r.record_type == RecordType.call)
     conv = records[0].conversation_id if records else path.stem
-    return records_out(records, messages=messages, calls=calls,
-                       source="transcript", conversation_id=conv)
+    return records_out(records, messages=messages, calls=calls, source="transcript", conversation_id=conv)

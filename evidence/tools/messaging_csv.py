@@ -35,39 +35,82 @@ from evidence.tools._common import parse_timestamp, records_out
 OWNER = "owner"
 
 # Header aliases (normalized: lowercased, whitespace-collapsed). First match wins.
-_TS_KEYS = ("message date", "date", "timestamp", "time", "datetime", "date sent",
-            "sent date", "date/time", "date time", "sent at")
+_TS_KEYS = (
+    "message date",
+    "date",
+    "timestamp",
+    "time",
+    "datetime",
+    "date sent",
+    "sent date",
+    "date/time",
+    "date time",
+    "sent at",
+)
 _TEXT_KEYS = ("text", "message", "body", "content", "message text", "msg")
-_SENDER_KEYS = ("sender name", "sender", "from", "from name", "contact",
-                "sender_name", "name", "author")
-_SENDER_ID_KEYS = ("sender id", "from number", "address", "phone", "phone number",
-                   "number", "sender_id", "handle", "handle id")
+_SENDER_KEYS = ("sender name", "sender", "from", "from name", "contact", "sender_name", "name", "author")
+_SENDER_ID_KEYS = (
+    "sender id",
+    "from number",
+    "address",
+    "phone",
+    "phone number",
+    "number",
+    "sender_id",
+    "handle",
+    "handle id",
+)
 _RECIPIENT_KEYS = ("recipient", "to", "to number", "recipient id", "recipients")
-_DIR_KEYS = ("is from me", "fromme", "type", "direction", "sent/received",
-             "kind", "message type")
+_DIR_KEYS = ("is from me", "fromme", "type", "direction", "sent/received", "kind", "message type")
 _SERVICE_KEYS = ("service", "platform", "protocol", "account")
-_CHAT_KEYS = ("chat session", "conversation", "thread", "chat", "group",
-              "chat name", "conversation id", "chat id", "group name")
+_CHAT_KEYS = (
+    "chat session",
+    "conversation",
+    "thread",
+    "chat",
+    "group",
+    "chat name",
+    "conversation id",
+    "chat id",
+    "group name",
+)
 _READ_KEYS = ("read date", "read", "date read", "read receipt")
-_ATTACH_KEYS = ("attachment", "attachments", "attachment path", "file", "media",
-                "attachment id", "attachment name")
+_ATTACH_KEYS = ("attachment", "attachments", "attachment path", "file", "media", "attachment id", "attachment name")
 
 # Direction tokens. Whole-value or whitespace-token match (so "from me" works).
 _OUTBOUND_TOKENS = {"sent", "outgoing", "outbound", "me", "from me", "true", "yes"}
 _INBOUND_TOKENS = {"received", "incoming", "inbound", "false", "no"}
 # 'is from me' boolean: 1 => me, 0 => them (only honoured for that column).
 
-_CALL_TOKENS = ("missed call", "facetime", "incoming call", "outgoing call",
-                "phone call", "call ended", "cancelled call")
+_CALL_TOKENS = (
+    "missed call",
+    "facetime",
+    "incoming call",
+    "outgoing call",
+    "phone call",
+    "call ended",
+    "cancelled call",
+)
 
 # Common textual datetime shapes (parse_timestamp already covers ISO + epoch).
 _DT_FORMATS = (
-    "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M",
-    "%m/%d/%Y %I:%M:%S %p", "%m/%d/%Y %H:%M:%S", "%m/%d/%Y %I:%M %p", "%m/%d/%Y %H:%M",
-    "%m/%d/%y %I:%M:%S %p", "%m/%d/%y %H:%M",
-    "%b %d, %Y %I:%M:%S %p", "%b %d, %Y %H:%M:%S", "%B %d, %Y %I:%M:%S %p",
-    "%d/%m/%Y %H:%M:%S", "%d-%m-%Y %H:%M:%S", "%Y/%m/%d %H:%M:%S",
-    "%m/%d/%Y", "%Y-%m-%d",
+    "%Y-%m-%d %H:%M:%S",
+    "%Y-%m-%dT%H:%M:%S",
+    "%Y-%m-%d %H:%M",
+    "%m/%d/%Y %I:%M:%S %p",
+    "%m/%d/%Y %H:%M:%S",
+    "%m/%d/%Y %I:%M %p",
+    "%m/%d/%Y %H:%M",
+    "%m/%d/%y %I:%M:%S %p",
+    "%m/%d/%y %H:%M",
+    "%b %d, %Y %I:%M:%S %p",
+    "%b %d, %Y %H:%M:%S",
+    "%B %d, %Y %I:%M:%S %p",
+    "%d/%m/%Y %H:%M:%S",
+    "%d-%m-%Y %H:%M:%S",
+    "%Y/%m/%d %H:%M:%S",
+    "%m/%d/%Y",
+    "%Y-%m-%d",
 )
 
 
