@@ -38,6 +38,8 @@ guarantee gets an ADR. One short record. Supersede (don't edit) when a decision 
 | 0025 | Topology: Agno core + IBM ContextForge tool gateway + LiteLLM model gateway; minimize custom | Accepted (clarifies 0015; reinforces 0017) |
 | 0026 | Self-hosted Milvus (Coolify) = shared semantic store (code + Case Bible); off managed EU Zilliz | Accepted (LIVE on ovh2; extended by 0027) |
 | 0027 | Milvus = platform-wide vector/ANN substrate (Knowledge engine included) | Accepted (supersedes-in-part 0024 + 0010/0011 vector storage) |
+| 0033 | Evidence-vs-Context boundary + forensic transcript data model | **Accepted** (numbered + accepted by PIPELINE per ORCHESTRATOR greenlight, TASKS 00:05; drafted by PROCESS) |
+| 0034 | Multi-level custody hashing + signed/timestamped chain of custody | **Accepted** (numbered + accepted by PIPELINE per ORCHESTRATOR greenlight, TASKS 00:05; drafted by PROCESS) |
 
 > The full vision, current stack, roadmap, access, and gotchas live in
 > [`docs/PROJECT_CANON.md`](../PROJECT_CANON.md) (the durable source of truth).
