@@ -214,7 +214,8 @@ services:
   # ---------------------------------------------------------------------------
   platform-tools:
     build:
-      context: ./docker/tools
+      context: .
+      dockerfile: docker/tools/Dockerfile
     image: agno-platform-tools:latest
     container_name: platform-tools
     restart: unless-stopped
@@ -224,8 +225,10 @@ services:
     volumes:
       - /data/agno/volumes/sbv_data:/opt/sbv/data
       - r2-nexus:/r2
-      # registry-backed facade: parser modules live in the evidence package
-      - ./evidence:/opt/tools/evidence:ro
+      # NOTE: evidence + tools packages are BAKED INTO the image (build context =
+      # repo root, see docker/tools/Dockerfile). The old `./evidence:/opt/tools/
+      # evidence:ro` bind-mount was removed — Coolify never materializes the repo
+      # tree into the app dir, so that mount was always an empty stub.
     # DOMAIN PHASE — SBV GUI. Re-enable + set TOOLS_DOMAIN to expose:
     # labels:
     #   - traefik.enable=true

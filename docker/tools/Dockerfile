@@ -24,14 +24,23 @@ COPY --from=sbv /app /opt/sbv
 COPY --from=sbv /lib/ld-musl-x86_64.so.1 /lib/ld-musl-x86_64.so.1
 COPY --from=sbv /usr/lib /opt/sbv-libs
 
-# tools facade (parsers/extractors API) — registry-backed: the evidence
-# package is volume-mounted at /opt/tools/evidence (see compose.yaml), so the
-# facade serves whatever parser modules exist in evidence/tools/.
-# pydantic = NormalizedRecord schema dep for the parser tools.
+# tools facade (parsers/extractors API) — registry-backed. The evidence + the
+# cross-domain `tools` packages are now BAKED INTO THE IMAGE (build context =
+# repo root) instead of bind-mounted: Coolify's compose deploy only materializes
+# .env + the generated compose into the app dir, never the repo tree, so the old
+# `./evidence:/opt/tools/evidence` bind-mount was always an empty stub (-> facade
+# ModuleNotFoundError, tool_count 0). Baking makes platform-tools a self-contained
+# "custom tools" container (owner: consolidate tools here, don't proliferate apps).
+# pydantic = NormalizedRecord schema; bs4/pypdf/pdfplumber = HTML/PDF parsers
+# (lazily imported by the parser tools, so they only need to resolve at run time).
 WORKDIR /opt/tools
-COPY tools/ /opt/tools/
-RUN pip install --no-cache-dir fastapi uvicorn python-multipart pydantic
+COPY docker/tools/tools/ /opt/tools/
+COPY evidence/ /opt/tools/evidence/
+COPY tools/ /opt/tools/tools/
+RUN pip install --no-cache-dir \
+        fastapi uvicorn python-multipart pydantic \
+        beautifulsoup4 pypdf pdfplumber
 
-COPY supervisord.conf /etc/supervisor/conf.d/platform-tools.conf
+COPY docker/tools/supervisord.conf /etc/supervisor/conf.d/platform-tools.conf
 EXPOSE 8080 8090
 CMD ["supervisord", "-n", "-c", "/etc/supervisor/supervisord.conf"]
