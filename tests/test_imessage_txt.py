@@ -64,6 +64,9 @@ def test_blocks_receipts_calls_and_announcements(tmp_path):
 def test_timestamps_are_tz_aware(tmp_path):
     rec = _run(tmp_path)["records"][0]
     assert rec["occurred_at"] and rec["occurred_at"].startswith("2022-05-17")
+    # Must carry a tz offset — a naive timestamp (no "+00:00"/"Z") is a regression
+    # against the normalize layer's tz-aware contract.
+    assert rec["occurred_at"].endswith("+00:00") or rec["occurred_at"].endswith("Z")
 
 
 def test_rejects_non_imessage_text(tmp_path):
