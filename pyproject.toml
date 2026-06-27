@@ -21,7 +21,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["mypy", "ruff", "pytest", "pytest-cov"]
+# beautifulsoup4: needed to exercise the HTML evidence parsers in tests
+# (the tools import it lazily at runtime; it's optional for them, required to test them).
+dev = ["mypy", "ruff", "pytest", "pytest-cov", "beautifulsoup4"]
 
 [build-system]
 requires = ["setuptools"]

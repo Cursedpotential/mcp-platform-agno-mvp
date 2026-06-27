@@ -311,8 +311,8 @@ def parse(payload: dict[str, Any]) -> dict[str, Any]:
 
     # Messages and announcements in document order.
     for el in soup.select("div.message, div.announcement"):
-        cls = el.get("class", [])
-        if "announcement" in cls:
+        cls = el.get("class")
+        if cls and "announcement" in cls:
             records.append(_parse_announcement(el, conv_id))
         else:
             rec = _parse_message(el, conv_id)
