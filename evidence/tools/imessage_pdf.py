@@ -33,7 +33,7 @@ def _extract_pdf_text(path: Path) -> str:
         from pypdf import PdfReader
 
         return "\n".join((pg.extract_text() or "") for pg in PdfReader(str(path)).pages)
-    except ImportError:
+    except Exception:
         pass
     try:
         import pdfplumber

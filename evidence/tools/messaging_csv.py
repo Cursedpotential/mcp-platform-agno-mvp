@@ -157,8 +157,8 @@ def _direction(row: dict[str, str]) -> str | None:
     return None
 
 
-def _read_rows(path: Path) -> tuple[list[str], list[dict[str, str]]]:
-    """Read the CSV with a sniffed dialect; return (orig_header, normalized-key rows)."""
+def _read_rows(path: Path) -> tuple[list[str], list[dict[str, str]], list[dict[str, str]]]:
+    """Read the CSV; return (orig_header, normalized-key rows, original-key rows)."""
     raw = path.read_text(encoding="utf-8-sig", errors="replace")
     sample = raw[:4096]
     try:
@@ -168,9 +168,11 @@ def _read_rows(path: Path) -> tuple[list[str], list[dict[str, str]]]:
     reader = csv.DictReader(raw.splitlines(), dialect=dialect)
     header: list[str] = list(reader.fieldnames or [])
     rows: list[dict[str, str]] = []
+    orig_rows: list[dict[str, str]] = []
     for r in reader:
+        orig_rows.append({(k or ""): ("" if v is None else str(v)) for k, v in r.items() if k is not None})
         rows.append({_norm_key(k): ("" if v is None else str(v)) for k, v in r.items() if k is not None})
-    return header, rows
+    return header, rows, orig_rows
 
 
 def looks_like_messages_csv(header: list[str]) -> bool:
@@ -195,12 +197,17 @@ def _detect_source(service: str) -> tuple[str, str]:
     return "messages-csv", "messages"
 
 
-def parse_csv_rows(rows: list[dict[str, str]], conv_id: str = "") -> list[NormalizedRecord]:
+def parse_csv_rows(
+    rows: list[dict[str, str]],
+    conv_id: str = "",
+    orig_rows: list[dict[str, str]] | None = None,
+) -> list[NormalizedRecord]:
     """Shared engine: map normalized-key rows onto NormalizedRecords."""
     records: list[NormalizedRecord] = []
     senders: list[str] = [OWNER]
 
-    for row in rows:
+    for i, row in enumerate(rows):
+        orig_row = orig_rows[i] if orig_rows is not None else row
         text = _pick(row, _TEXT_KEYS)
         sender = _pick(row, _SENDER_KEYS)
         sender_id = _pick(row, _SENDER_ID_KEYS)
@@ -232,7 +239,7 @@ def parse_csv_rows(rows: list[dict[str, str]], conv_id: str = "") -> list[Normal
         attrs: dict[str, Any] = {
             "platform": platform,
             "format": "csv",
-            "raw_row": row,  # forensic: keep the full original row, nothing dropped
+            "raw_row": orig_row,  # forensic: original headers verbatim, nothing normalized/dropped
         }
         if direction:
             attrs["direction"] = direction
@@ -276,14 +283,14 @@ def parse_csv_rows(rows: list[dict[str, str]], conv_id: str = "") -> list[Normal
 )
 def parse(payload: dict[str, Any]) -> dict[str, Any]:
     path = Path(payload["path"])
-    header, rows = _read_rows(path)
+    header, rows, orig_rows = _read_rows(path)
     if not looks_like_messages_csv(header):
         raise ValueError(
             "not a messaging CSV (need a timestamp + text column plus a "
             f"sender/direction/service column; saw headers: {header})"
         )
 
-    records = parse_csv_rows(rows, conv_id=path.stem)
+    records = parse_csv_rows(rows, conv_id=path.stem, orig_rows=orig_rows)
     messages = sum(1 for r in records if r.record_type == RecordType.message)
     calls = sum(1 for r in records if r.record_type == RecordType.call)
     return records_out(records, messages=messages, calls=calls, source="csv", rows=len(rows))

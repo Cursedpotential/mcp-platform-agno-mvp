@@ -396,12 +396,22 @@ def _parse_owner_format(soup, conv_id: str) -> list[NormalizedRecord]:
         cls = bubble.get("class", [])
         is_me = "from-me" in cls
         text = bubble.get_text(" ", strip=True)
-        meta = bubble.find_next_sibling("div", class_="meta")
+        # Bounded sibling scan: stop at next bubble to avoid cross-message attachment leakage
+        meta = None
+        att = None
+        for sib in bubble.next_siblings:
+            if not hasattr(sib, "name"):
+                continue
+            sib_cls = sib.get("class") or []
+            if "bubble" in sib_cls:
+                break
+            if sib.name == "div" and "meta" in sib_cls:
+                meta = sib
+            elif sib.name == "a" and "attachment-link" in sib_cls:
+                att = sib
         m = _OWNER_META_RE.match(_text(meta)) if meta is not None else None
         sender_label = (m.group("sender").strip() if m else "") or ("Me" if is_me else conv_id)
         ts_raw = m.group("ts").strip() if m else ""
-
-        att = bubble.find_next_sibling("a", class_="attachment-link")
         attachments: list[dict] = []
         if att is not None:
             attachments.append({"kind": "link", "uri": att.get("href") or "", "text": _text(att)})
@@ -487,7 +497,7 @@ def parse(payload: dict[str, Any]) -> dict[str, Any]:
             if not records and owner_bubbles_present:
                 records = _parse_owner_format_regex(raw, conv_id)
                 variant = "owner-custom-script-embedded"
-            if owner_bubbles_present and not records:
+            if looks_like_owner_imessage_html(soup) and not records:
                 raise RuntimeError(
                     f"imessage-html: {path.name} contains owner-custom bubbles "
                     f"({_OWNER_BUBBLE_PRESENT!r} present) but parsed 0 records — refusing "
@@ -511,11 +521,11 @@ def parse(payload: dict[str, Any]) -> dict[str, Any]:
             "nor owner-custom div.bubble.from-me/them) — falling back"
         )
 
-    records: list[NormalizedRecord] = []
+    records = []
 
     # Messages and announcements in document order.
     for el in soup.select("div.message, div.announcement"):
-        cls = el.get("class") or []
+        cls: list[str] = list(el.get("class") or [])
         if "announcement" in cls:
             records.append(_parse_announcement(el, conv_id))
         else:
