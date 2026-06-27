@@ -197,9 +197,15 @@ Legacy · Archive` (+ a `Quarantine` bucket, which is the separate `r2:casebible
 - **`Tools & Platform/` substructure** (owner): `AI-Platform` (agents/code) · `TraceIQ` (geo / Google-timeline) ·
   `forked-3rd-party` (the THIRD_PARTY allow-list) · `to-review` (uncertain/junk-pending). Not a flat `code/` dir.
 - **Domain is NEVER a folder** — it rides as multi-tag metadata (§6) so the DB can pivot by domain with zero re-sorting.
-- **Destination path:** full-corpus re-bucket → `new_path = <Type>/<sub>/<basename>` (+ `rel_tail` where it
-  preserves a platform package). The `_root_intake_<stamp>/` / `_root_cleanup_<stamp>/<reason>/` framing is
-  ROOT-PILE-specific (a one-off intake batch) — not the general layout.
+- **Destination path (COLLISION-SAFE — this is load-bearing, do not flatten to basename):**
+  `new_path = <Type>/<sub>/<basename>` **ONLY when that basename is UNIQUE within `(Type, sub)`**. Otherwise
+  **disambiguate**: preserve the package **`rel_tail`** (platform-relative structure), and as the
+  guaranteed-unique fallback use the **FULL raw key path** under `<Type>/<sub>/`. **Basename-only flattening =
+  SILENT EVIDENCE LOSS** — proven 2026-06-27: a basename-only run raced/overwrote 2,632 files across 563
+  collision groups (600 `manifest.json` → 1 path; **75 Facebook `message_1.json` EVIDENCE files → 2 paths**).
+  raw was intact so it was recoverable, but `evidence/sort.py` MUST NOT repeat it (see build notes:
+  assert zero `new_path` collisions before any copy). The `_root_intake_<stamp>/` / `_root_cleanup_<stamp>/`
+  framing is ROOT-PILE-specific (a one-off intake batch) — not the general layout.
 - **Package-intact:** a conversation + its attachment tail stay together. `rel_tail` keeps platform-relative
   structure: `imessage`→strip `^.*imessage exports/`; `snapchat`→strip `^.*[Ss]napchat[^/]*/`;
   `facebook`→strip `^.*(court/fb/|[Ff]acebook/)`; else basename.
@@ -296,4 +302,9 @@ Existing sorted content was UNCHANGED (additive only).
 - **Tests:** fake-filesystem unit tests for the classifier (`classify`), the dedup ranker, the `rel_tail`
   stripper, and idempotent resume — no real R2 / `D:` access in tests.
 - **Reuse, don't rebuild:** custody's sha256 hashing, the `evidence` CLI shell, and the registry/workflow spine.
+- **ASSERT ZERO `new_path` COLLISIONS before any copy (HARD REQ).** Build the full proposed copy set, then
+  fail (or auto-disambiguate per §5) if any two surviving rows map to the same `new_path`. Never let two
+  distinct sources `rclone copyto` the same dest key — that silently overwrites (a real bug in the manual run:
+  2,632 files raced, incl. evidence). Add a unit test that two same-basename inputs in one `(Type,sub)` produce
+  two distinct dests, and a test that the collision-assert fires on a crafted duplicate.
 - Open a **PR** for review; do not merge. The owner runs the tool on the Windows box (R2 mount + `D:/backup`).
