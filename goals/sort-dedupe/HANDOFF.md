@@ -59,18 +59,21 @@ if re.match(r"^f\d+\.(txt|xml|html|svg|ini)$", bn):      -> QUARANTINE/shader-ju
 # --- RESCUE: model mislabeled real content/tools as junk (basename allow-list) ---
 if bn in RESCUE:                                         -> RESCUE[bn]
 if low.startswith("copy of geocoding"):                  -> Documents/general
-if any(t in low for t in THIRD_PARTY):                   -> Tools & Platform/_third-party
+if any(t in low for t in THIRD_PARTY):                   -> Tools & Platform/forked-3rd-party
 # --- code / tools (keep case scripts even if flagged junk) ---
-if dt=="code" or ext in CODE_EXT:                        -> Tools & Platform/code
+# Tools & Platform SUBSTRUCTURE (owner): AI-Platform (agents/code) · TraceIQ (geo/Google-timeline)
+#   · forked-3rd-party · to-review/junk. Route by content: code/agents -> AI-Platform;
+#   geolocation/Google-timeline tooling -> TraceIQ; the THIRD_PARTY allow-list -> forked-3rd-party.
+if dt=="code" or ext in CODE_EXT:                        -> Tools & Platform/AI-Platform
 # --- generic flagged-junk (non-code, non-rescued) ---
 if dt=="junk" or rel=="junk":                            -> QUARANTINE/flagged-junk
 # --- knowledge (Context Corpus = NOT evidence) ---
 if dt=="ai_chat" or (isconv and plat in AI_PLATS):       -> Knowledge/ai-chats/<plat|misc>
 if dt in (research,note,documentation,technical):        -> Knowledge/<research|notes|docs|docs>
-# --- legal (distinct type) ---
-if dt in (legal_filing,court_order):                     -> Legal/filings
-if dt=="legal_reference" or rel=="legal_reference":      -> Legal/knowledge-base
-if rel=="work_product":                                  -> Legal/work-product
+# --- legal (NO "Legal" top-level — it was DROPPED from the locked taxonomy; route into Case Mgmt / Knowledge) ---
+if dt in (legal_filing,court_order):                     -> Case Management/filings
+if dt=="legal_reference" or rel=="legal_reference":      -> Knowledge/legal-reference
+if rel=="work_product":                                  -> Case Management/work-product
 # --- evidence (sub-sorted by SOURCE/platform) ---
 if dt=="message_thread" or (isconv and plat in MSG_PLATS): -> Evidence/messaging/<plat|misc>
 if dt=="screenshot":                                     -> Evidence/screenshots/<plat|misc>
@@ -99,7 +102,7 @@ THIRD_PARTY   = (fclones, deduplicator, dude-main, word-duplicate, zoplicate, ti
 # RESCUE = basename -> (bucket, sub):
 #   data.json -> Documents/general; content.zip & "content (3).zip" -> Exports & Bundles/pdf-bundle;
 #   place_id_db.json & enriched_timeline_human_readable.csv & refs_dick_summary_2024_2025.csv -> Evidence/records-data;
-#   exporter.html -> Tools & Platform/code
+#   exporter.html -> Tools & Platform/AI-Platform
 ```
 `platform(relpath, plat)` source detection: scan path+plat for chatgpt / perplex(→perplexity) / gemini /
 claude / snapchat / imessage / whatsapp / instagram; `messenger|facebook`→facebook; `sms|/sms|_sms`→sms;
@@ -129,6 +132,13 @@ Filename dup-markers (`Copy of`, ` - Copy`, `(2)`) are stripped from the DESTINA
 `rclone` is reached via `shutil.which("rclone")` (Windows fallback: the WinGet rclone path). **You should
 just assume `rclone` is on PATH** and never hard-code a path. R2 R/W creds live in the rclone config (and/or
 `CB_R2_*` env) — never in code.
+
+**KEY-DRIFT (resolve before any copy):** the enrichment index `source_path`s come from an OLDER
+`/home/ubuntu/r2raw` snapshot and have **drifted from the current `casebible-raw` keys** — so `old_path` from
+enrichment is NOT guaranteed to be a live raw object key. Before emitting a copy op, **resolve each `old_path`
+to a real current raw key**: (1) exact match against the live raw listing / the `r2_files` snapshot, else
+(2) unique-basename match. Rows that resolve to neither are **deferred** (phase-2 re-match / re-enrich), never
+copied to a guessed key. (In today's run only ~9.3k of ~15k resolved; the rest were deferred.)
 
 ---
 
@@ -164,6 +174,14 @@ the path-rank above governs which LOCATION is canonical. **Content is NEVER chan
 - Optional later "tidy": copy now-sorted originals into `raw/_moved_<stamp>/` (preserving structure) — still a
   COPY (the owner's "moved folder" pattern); do NOT remove originals.
 
+**2-LLM QUARANTINE HARD RULE (owner, REQUIRED — the classifier over-flags):** nothing is sent to
+`r2:casebible-quarantine` on a single model's call. A file the classifier marks junk goes to a HOLD, then a
+**DIFFERENT LLM** (Morph / Sonnet / Opus — **NEVER Haiku**) re-reads it to confirm it's actually junk, **then a
+human-review step** before the quarantine copy fires. Proven 2026-06-27: the 1st model flagged **522**; the 2nd
+confirmed only **10** (512 rescued). Also run a **rescue pass first** — pull real-content extensions back out of
+the quarantine candidate set before the 2nd-LLM pass. So quarantine is: classifier-flag → rescue-pass →
+2nd-LLM confirm → human review → copy. Never one-model-to-quarantine.
+
 ---
 
 ## 5. VAULT LAYOUT (TYPE-FIRST — the final, locked model)
@@ -172,11 +190,16 @@ Top level = **TYPE**, never domain. Final top-level set:
 Legacy · Archive` (+ a `Quarantine` bucket, which is the separate `r2:casebible-quarantine`).
 - **Inside `Evidence/` → sub-divide by SOURCE/platform** (sms / imessage / facebook / snapchat / phone /
   whatsapp / instagram …) and **preserve the original source folder structure** (`rel_tail`).
-- **Knowledge** = Context Corpus (AI chats, research, notes, docs) — **NOT evidence**. AI chats are
-  Knowledge/context, never the evidence schema (their canonical vector home is Milvus `casebible_ai_conversations`).
+- **Knowledge** = Context Corpus (AI chats, research, notes, docs, **legal-reference**) — **NOT evidence**. AI
+  chats are Knowledge/context, never the evidence schema (canonical vector home Milvus `casebible_ai_conversations`).
+- **NO "Legal" top-level** (dropped from the locked taxonomy): legal filings/orders + work-product →
+  `Case Management/{filings,work-product}`; legal reference material → `Knowledge/legal-reference`.
+- **`Tools & Platform/` substructure** (owner): `AI-Platform` (agents/code) · `TraceIQ` (geo / Google-timeline) ·
+  `forked-3rd-party` (the THIRD_PARTY allow-list) · `to-review` (uncertain/junk-pending). Not a flat `code/` dir.
 - **Domain is NEVER a folder** — it rides as multi-tag metadata (§6) so the DB can pivot by domain with zero re-sorting.
-- Root-pile intake → `<Type>/<sub>/_root_intake_<stamp>/<basename>`; junk → `_root_cleanup_<stamp>/<reason>/<basename>`
-  in quarantine.
+- **Destination path:** full-corpus re-bucket → `new_path = <Type>/<sub>/<basename>` (+ `rel_tail` where it
+  preserves a platform package). The `_root_intake_<stamp>/` / `_root_cleanup_<stamp>/<reason>/` framing is
+  ROOT-PILE-specific (a one-off intake batch) — not the general layout.
 - **Package-intact:** a conversation + its attachment tail stay together. `rel_tail` keeps platform-relative
   structure: `imessage`→strip `^.*imessage exports/`; `snapchat`→strip `^.*[Ss]napchat[^/]*/`;
   `facebook`→strip `^.*(court/fb/|[Ff]acebook/)`; else basename.
