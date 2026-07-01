@@ -92,7 +92,7 @@ def looks_like_imessage_html(soup) -> bool:
 
 def _parse_part(part_div) -> dict[str, Any]:
     """Extract one <div class="message_part"> into text/attachments/edits."""
-    out = {"text": "", "attachments": [], "edited": [], "retracted": False}
+    out: dict[str, Any] = {"text": "", "attachments": [], "edited": [], "retracted": False}
     texts: list[str] = []
 
     for bubble in part_div.select("span.bubble"):

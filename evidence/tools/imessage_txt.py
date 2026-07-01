@@ -386,7 +386,8 @@ def parse_txt_text(text: str, conv_id: str = "") -> list[NormalizedRecord]:
 
     for blk in blocks:
         parsed = _parse_body(blk.body)
-        occurred = _parse_ts(_TS_RE.match(blk.header_line).group("ts")) if _TS_RE.match(blk.header_line) else None
+        _ts_match = _TS_RE.match(blk.header_line)
+        occurred = _parse_ts(_ts_match.group("ts")) if _ts_match else None
         sender = blk.sender or "Unknown"
         is_call = (
             any(m in parsed["content"].lower() for m in ("facetime", "missed call", "outgoing call", "incoming call"))
@@ -416,7 +417,7 @@ def parse_txt_text(text: str, conv_id: str = "") -> list[NormalizedRecord]:
             "platform": "imessage",
             "format": "txt",
             "direction": _direction(sender),
-            "raw_timestamp": _TS_RE.match(blk.header_line).group("ts") if _TS_RE.match(blk.header_line) else "",
+            "raw_timestamp": _ts_match.group("ts") if _ts_match else "",
             "sender_label": sender,
             "attachments": parsed["attachments"],
             "tapbacks": parsed["tapbacks"],

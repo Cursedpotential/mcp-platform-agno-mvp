@@ -84,7 +84,7 @@ async def health() -> dict[str, Any]:
         "registry_ok": REGISTRY_OK,
         "registry_error": REGISTRY_ERROR or None,
         "tool_count": TOOL_COUNT,
-        "tools": sorted(t.id for t in registry.all()) if REGISTRY_OK else [],
+        "tools": sorted(t.id for t in registry.all()) if REGISTRY_OK else [],  # type: ignore[union-attr]
         "sbv": _sbv_status(),
     }
 
@@ -93,14 +93,14 @@ async def health() -> dict[str, Any]:
 async def tools() -> list[dict[str, str]]:
     """Full registry manifest: id, capability, description, provenance."""
     _require_registry()
-    return registry.manifest()
+    return registry.manifest()  # type: ignore[union-attr]
 
 
 @app.get("/tools/resolve/{capability}")
 async def resolve(capability: str, hint: str = "", size: int = 0) -> list[str]:
     """Which tools would run for a capability+input (substitution candidates, in order)."""
     _require_registry()
-    return [t.id for t in registry.resolve(capability, media_hint=hint, size_bytes=size)]
+    return [t.id for t in registry.resolve(capability, media_hint=hint, size_bytes=size)]  # type: ignore[union-attr]
 
 
 @app.post("/tools/{tool_id}/run")
@@ -108,7 +108,7 @@ async def run_tool(tool_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     """Execute one atomic tool with its contract payload (e.g. {"path": "/r2/..."})."""
     _require_registry()
     try:
-        tool = registry.get(tool_id)
+        tool = registry.get(tool_id)  # type: ignore[union-attr]
     except KeyError:
         raise HTTPException(status_code=404, detail=f"unknown tool {tool_id!r}")
     try:

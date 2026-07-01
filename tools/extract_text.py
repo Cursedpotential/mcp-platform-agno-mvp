@@ -103,7 +103,7 @@ def parse(payload: dict[str, Any]) -> dict[str, Any]:
         pages, method = _ocr_image(path)
         ocr_used = True
     else:  # PDF
-        pages, method = _native_pdf_text(path)
+        pages, method = _native_pdf_text(path)  # type: ignore[assignment]
         native_chars = sum(len(p) for p in pages) if pages else 0
         per_page = native_chars / max(len(pages or [1]), 1)
         sparse = pages is None or per_page < _SPARSE_CHARS_PER_PAGE

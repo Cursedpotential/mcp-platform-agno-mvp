@@ -70,7 +70,7 @@ def _get_write_engine() -> Any:
 _EVIDENCE_REF = re.compile(r"\bevidence\s*\.", re.IGNORECASE)
 
 
-@approval
+@approval  # type: ignore[call-overload]
 @tool(requires_confirmation=True)
 def apply_db_modification(statement: str, target_schema: str = "analysis") -> str:
     """Apply ONE approved SQL write to the ``analysis`` schema.
@@ -218,7 +218,7 @@ def build_platform_ops_team(model: Any, db: Any, members: list[Agent]) -> Team:
         role="Operate the platform: ingestion, analysis, and human approval.",
         model=model,
         db=db,
-        members=members,
+        members=members,  # type: ignore[arg-type]
         mode=TeamMode.coordinate,
         show_members_responses=True,
         add_history_to_context=True,
@@ -344,7 +344,7 @@ def build_builder_team(model: Any, db: Any, members: list[Agent]) -> Team:
         role="Help build the platform: code proposals, memory, and forensic data access.",
         model=model,
         db=db,
-        members=members,
+        members=members,  # type: ignore[arg-type]
         mode=TeamMode.coordinate,
         show_members_responses=True,
         add_history_to_context=True,

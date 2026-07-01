@@ -69,7 +69,7 @@ def _map_message(msg: dict, participants: list[str], conv_id: str, title: str) -
     content = _fix(msg.get("content"))
     mtype = msg.get("type") or "Generic"
     media = _media(msg)
-    share = msg.get("share") if isinstance(msg.get("share"), dict) else {}
+    share: dict[str, Any] = msg.get("share") if isinstance(msg.get("share"), dict) else {}  # type: ignore[assignment]
     call_duration = msg.get("call_duration")
     is_call = mtype == "Call" or call_duration is not None
 
