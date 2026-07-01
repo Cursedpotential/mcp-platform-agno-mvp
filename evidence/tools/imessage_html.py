@@ -101,7 +101,7 @@ def _parse_part(part_div) -> dict[str, Any]:
             texts.append(t)
     for inline in part_div.select('span[class*="bubble"]'):
         # catch "bubble jumbo" / "bubble medium" not already captured
-        cls = inline.get("class", [])
+        cls = inline.get_attribute_list("class")
         if "bubble" in cls and inline.get_text(strip=True) and _text(inline) not in texts:
             texts.append(_text(inline))
 
@@ -153,7 +153,7 @@ def _parse_message(msg_div, conv_id: str) -> NormalizedRecord | None:
     inner = msg_div.find("div", class_=lambda c: c and ("sent" in c.split() or "received" in c.split()))
     if inner is None:
         return None
-    classes = inner.get("class", [])
+    classes = inner.get_attribute_list("class")
     is_from_me = "sent" in classes
     service = next((c for c in classes if c not in ("sent", "received", "digital_touch_bubble")), "")
 
@@ -311,7 +311,7 @@ def parse(payload: dict[str, Any]) -> dict[str, Any]:
 
     # Messages and announcements in document order.
     for el in soup.select("div.message, div.announcement"):
-        cls = el.get("class", [])
+        cls = el.get_attribute_list("class")
         if "announcement" in cls:
             records.append(_parse_announcement(el, conv_id))
         else:
