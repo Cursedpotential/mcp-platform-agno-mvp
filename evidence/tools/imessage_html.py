@@ -284,6 +284,186 @@ def _parse_announcement(ann_div, conv_id: str) -> NormalizedRecord:
     )
 
 
+# ── Owner-CUSTOM imessage-exporter variant ───────────────────────────────────
+# The owner customized their exporter ("iMessage Exporter Fix" chat), so the real
+# vault HTML is NOT the stock div.message>div.sent/received shape — it's a flat
+# list of bubbles, each followed by a .meta line:
+#     <div class="bubble from-me|from-them">TEXT</div>
+#     <div class="meta">SENDER - YYYY-MM-DD HH:MM AM/PM</div>
+#     [<a class="attachment-link" href="…">]
+# from-me => owner; from-them => the other party (phone # in .meta + the folder
+# name). Selectors PROVEN by PROCESS on the real 325KB sample (1918 msgs,
+# speakers Me=1064/+18108532989=854) — specs/imessage-owner-format-PROVEN-prototype.py.
+# Minute-precision timestamps => preserve DOCUMENT order (don't reorder same-minute msgs).
+_OWNER_META_RE = re.compile(r"^(?P<sender>.*?)\s*-\s*(?P<ts>\d{4}-\d{2}-\d{2}.*)$")
+_OWNER_TS_FORMATS = ("%Y-%m-%d %I:%M %p", "%Y-%m-%d %I:%M:%S %p", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M")
+
+
+def _parse_owner_ts(raw: str) -> datetime | None:
+    if not raw:
+        return None
+    s = re.sub(r"\s+", " ", raw.strip())
+    for fmt in _OWNER_TS_FORMATS:
+        try:
+            return datetime.strptime(s, fmt).replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+    return None
+
+
+def looks_like_owner_imessage_html(soup) -> bool:
+    """Owner-custom shape: a bubble carrying the from-me/from-them class (which
+    neither the stock exporter nor Facebook ever emit)."""
+    return soup.select_one("div.bubble.from-me, div.bubble.from-them") is not None
+
+
+# Owner-custom SCRIPT-EMBEDDED variant: in the large threads the exporter renders
+# a JS month-view, so the SAME div.bubble/.meta markup sits INSIDE a <script> and
+# BeautifulSoup yields ZERO div.bubble nodes — a plain DOM parse silently returns
+# 0 messages (the 8.5MB / 41,987-msg +18102689630 thread = the SILENT-EMPTY evidence
+# hazard). Recover every message via regex over the raw bytes. Grammar + the recovery
+# count (41,987, chain-verified) PROVEN by PROCESS — specs/imessage-derisk-RESULTS.md.
+_OWNER_BUBBLE_RE = re.compile(r"bubble (from-me|from-them)'>(.*?)</div>\s*<div class='meta'>(.*?)</div>", re.S)
+# Cheap presence marker (matches static-DOM AND script-embedded): if a file carries
+# owner-custom bubbles but parsing yields 0 records, we HARD-FAIL rather than emit empty.
+_OWNER_BUBBLE_PRESENT = "bubble from-"
+
+
+def _strip_html(h: str) -> str:
+    return " ".join(re.sub(r"<[^>]+>", " ", h).split())
+
+
+def _parse_owner_format_regex(raw: str, conv_id: str) -> list[NormalizedRecord]:
+    """Script-embedded owner-custom variant: extract every message from the raw bytes
+    (bubbles live inside a <script>, so the DOM pass returns 0). Same .meta grammar,
+    same speaker/role/timestamp handling as the DOM path; document order preserved."""
+    records: list[NormalizedRecord] = []
+    senders: list[str] = [OWNER]
+    for seq, (cls, text_html, meta_html) in enumerate(_OWNER_BUBBLE_RE.findall(raw)):
+        is_me = cls == "from-me"
+        text = _strip_html(text_html)
+        m = _OWNER_META_RE.match(_strip_html(meta_html))
+        sender_label = (m.group("sender").strip() if m else "") or ("Me" if is_me else conv_id)
+        ts_raw = m.group("ts").strip() if m else ""
+
+        role = OWNER if is_me else (sender_label if sender_label not in ("", "Me") else conv_id)
+        if role != OWNER and role not in senders:
+            senders.append(role)
+
+        content = text
+        is_call = (
+            bool(content)
+            and "call" in content.lower()
+            and any(k in content.lower() for k in ("missed call", "facetime", "incoming call", "outgoing call"))
+        )
+        records.append(
+            NormalizedRecord(
+                record_type=RecordType.call if is_call else RecordType.message,
+                source="imessage-html",
+                conversation_id=conv_id,
+                role=role,
+                participants=[],  # backfilled below
+                content=content,
+                occurred_at=_parse_owner_ts(ts_raw),
+                disclosure_tier=DisclosureTier.contemporaneous,
+                attrs={
+                    "platform": "imessage",
+                    "format": "html",
+                    "variant": "owner-custom-script-embedded",
+                    "direction": "outbound" if is_me else "inbound",
+                    "sender_label": sender_label,
+                    "raw_timestamp": ts_raw,
+                    "sequence_number": seq,
+                },
+            )
+        )
+
+    for r in records:
+        r.participants = senders
+    records.sort(
+        key=lambda r: (
+            r.occurred_at or datetime.min.replace(tzinfo=timezone.utc),
+            r.attrs.get("sequence_number", 0),
+        )
+    )
+    return records
+
+
+def _parse_owner_format(soup, conv_id: str) -> list[NormalizedRecord]:
+    records: list[NormalizedRecord] = []
+    senders: list[str] = [OWNER]
+    for seq, bubble in enumerate(soup.select("div.bubble")):
+        cls = bubble.get("class", [])
+        is_me = "from-me" in cls
+        text = bubble.get_text(" ", strip=True)
+        # Bounded sibling scan: stop at next bubble to avoid cross-message attachment leakage
+        meta = None
+        att = None
+        for sib in bubble.next_siblings:
+            if not hasattr(sib, "name"):
+                continue
+            sib_cls = sib.get("class") or []
+            if "bubble" in sib_cls:
+                break
+            if sib.name == "div" and "meta" in sib_cls:
+                meta = sib
+            elif sib.name == "a" and "attachment-link" in sib_cls:
+                att = sib
+        m = _OWNER_META_RE.match(_text(meta)) if meta is not None else None
+        sender_label = (m.group("sender").strip() if m else "") or ("Me" if is_me else conv_id)
+        ts_raw = m.group("ts").strip() if m else ""
+        attachments: list[dict] = []
+        if att is not None:
+            attachments.append({"kind": "link", "uri": att.get("href") or "", "text": _text(att)})
+
+        role = OWNER if is_me else (sender_label if sender_label not in ("", "Me") else conv_id)
+        if role != OWNER and role not in senders:
+            senders.append(role)
+
+        content = text
+        if not content and attachments:
+            content = f"[{len(attachments)} attachment(s)]"
+        is_call = (
+            bool(content)
+            and "call" in content.lower()
+            and any(k in content.lower() for k in ("missed call", "facetime", "incoming call", "outgoing call"))
+        )
+
+        records.append(
+            NormalizedRecord(
+                record_type=RecordType.call if is_call else RecordType.message,
+                source="imessage-html",
+                conversation_id=conv_id,
+                role=role,
+                participants=[],  # backfilled below
+                content=content,
+                occurred_at=_parse_owner_ts(ts_raw),
+                disclosure_tier=DisclosureTier.contemporaneous,
+                attrs={
+                    "platform": "imessage",
+                    "format": "html",
+                    "variant": "owner-custom",
+                    "direction": "outbound" if is_me else "inbound",
+                    "sender_label": sender_label,
+                    "raw_timestamp": ts_raw,
+                    "sequence_number": seq,
+                    "attachments": attachments,
+                },
+            )
+        )
+
+    for r in records:
+        r.participants = senders
+    # Minute-precision ts: keep document order within the same minute (seq tiebreak).
+    records.sort(
+        key=lambda r: (
+            r.occurred_at or datetime.min.replace(tzinfo=timezone.utc),
+            r.attrs.get("sequence_number", 0),
+        )
+    )
+    return records
+
+
 @register(
     id="messages.imessage-html",
     capability="parse.imessage",
@@ -298,21 +478,55 @@ def parse(payload: dict[str, Any]) -> dict[str, Any]:
         raise RuntimeError("imessage-html parser requires beautifulsoup4 (bs4)") from exc
 
     path = Path(payload["path"])
-    soup = BeautifulSoup(path.read_text(encoding="utf-8", errors="replace"), "html.parser")
+    raw = path.read_text(encoding="utf-8", errors="replace")
+    soup = BeautifulSoup(raw, "html.parser")
+    conv_id = path.stem
+    owner_bubbles_present = _OWNER_BUBBLE_PRESENT in raw  # static-DOM OR script-embedded
 
     if not looks_like_imessage_html(soup):
+        # Owner-CUSTOM export variant (div.bubble.from-me/them + .meta) — the real
+        # vault format. Two sub-variants, both handled here; document order preserved:
+        #   (1) static-DOM    — bubbles live in the DOM → soup.select works.
+        #   (2) script-embedded — bubbles sit INSIDE a <script> (JS month-view) → soup
+        #       yields 0 nodes (the 8.5MB/41,987-msg thread). DOM parse returns 0 →
+        #       recover via regex over the raw bytes. HARD-FAIL if bubbles are present
+        #       but parsing yields 0, so we NEVER emit empty evidence (silent-drop guard).
+        if looks_like_owner_imessage_html(soup) or owner_bubbles_present:
+            records: list[NormalizedRecord] = _parse_owner_format(soup, conv_id)
+            variant = "owner-custom"
+            if not records and owner_bubbles_present:
+                records = _parse_owner_format_regex(raw, conv_id)
+                variant = "owner-custom-script-embedded"
+            if looks_like_owner_imessage_html(soup) and not records:
+                raise RuntimeError(
+                    f"imessage-html: {path.name} contains owner-custom bubbles "
+                    f"({_OWNER_BUBBLE_PRESENT!r} present) but parsed 0 records — refusing "
+                    "to emit empty evidence (silent-empty guard; check the bubble/.meta grammar)"
+                )
+            if records:
+                messages = sum(1 for r in records if r.record_type == RecordType.message)
+                calls = sum(1 for r in records if r.record_type == RecordType.call)
+                events = sum(1 for r in records if r.record_type == RecordType.event)
+                n_participants = len({r.role for r in records if r.role})
+                return records_out(
+                    records,
+                    messages=messages,
+                    calls=calls,
+                    announcements=events,
+                    participants=n_participants,
+                    variant=variant,
+                )
         raise ValueError(
-            "not an imessage-exporter HTML export (no div.message>div.sent/received "
-            "with timestamp/sender, nor div.announcement) — falling back"
+            "not an imessage-exporter HTML export (neither stock div.message>div.sent/received "
+            "nor owner-custom div.bubble.from-me/them) — falling back"
         )
 
-    conv_id = path.stem
-    records: list[NormalizedRecord] = []
+    records = []
 
     # Messages and announcements in document order.
     for el in soup.select("div.message, div.announcement"):
-        cls = el.get("class")
-        if cls and "announcement" in cls:
+        cls: list[str] = list(el.get("class") or [])
+        if "announcement" in cls:
             records.append(_parse_announcement(el, conv_id))
         else:
             rec = _parse_message(el, conv_id)
