@@ -1,0 +1,17 @@
+### EXTENSIONS (expect citext,fuzzystrmatch,hstore,ltree now present):
+citext, fuzzystrmatch, hstore, ltree
+### TABLE COUNTS per schema:
+analysis: 75
+evidence: 9
+public: 15
+### 0004 + new TYPES present (sample):
+category_polarity, conduct_party, confidence, cycle_phase, disclosure_horizon, geo_point, mcl_factor, sensitivity_tier, source_ref
+### entity_type values (expect base + phone/email/handle/device...):
+person,org,project,tech,location,concept,phone,email,handle,device,account,vehicle,address,court,attorney,school,doctor,institution,platform,ai_system
+### evidence.evidence_hash columns (expect blob_key,meta + new):
+id, source_ref, algo, digest, hashed_at, blob_key, meta, level, source_id, file_node_id, md5_prefilter, record_locator, member_hash_ids, canon_version, computed_by
+### VIEWS (court export):
+analysis.vw_court_export
+analysis.vw_open_tasks
+### behavior_category seeded? row count:
+0

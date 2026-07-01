@@ -1,0 +1,34 @@
+psql:<stdin>:37: NOTICE:  extension "pgcrypto" already exists, skipping
+psql:<stdin>:38: NOTICE:  extension "pg_trgm" already exists, skipping
+psql:<stdin>:39: NOTICE:  extension "btree_gin" already exists, skipping
+psql:<stdin>:40: NOTICE:  extension "btree_gist" already exists, skipping
+psql:<stdin>:41: NOTICE:  extension "unaccent" already exists, skipping
+psql:<stdin>:42: NOTICE:  extension "vector" already exists, skipping
+psql:<stdin>:48: NOTICE:  extension "postgis" already exists, skipping
+psql:<stdin>:49: NOTICE:  extension "pg_duckdb" already exists, skipping
+psql:<stdin>:65: NOTICE:  schema "evidence" already exists, skipping
+psql:<stdin>:66: NOTICE:  schema "analysis" already exists, skipping
+psql:<stdin>:331: NOTICE:  trigger "source_immutable" for relation "evidence.source" does not exist, skipping
+psql:<stdin>:358: NOTICE:  trigger "filenode_immutable" for relation "evidence.file_node" does not exist, skipping
+psql:<stdin>:423: NOTICE:  trigger "custody_event_chain" for relation "evidence.custody_event" does not exist, skipping
+psql:<stdin>:426: NOTICE:  trigger "custody_event_immutable" for relation "evidence.custody_event" does not exist, skipping
+psql:<stdin>:667: NOTICE:  trigger "tcl_append_only" for relation "analysis.tool_call_ledger" does not exist, skipping
+psql:<stdin>:711: NOTICE:  trigger "edge_append_only" for relation "analysis.lineage_edge" does not exist, skipping
+psql:<stdin>:916: NOTICE:  trigger "trg_mention_append" for relation "analysis.entity_mention" does not exist, skipping
+psql:<stdin>:919: NOTICE:  trigger "trg_resev_append" for relation "analysis.resolution_evidence" does not exist, skipping
+psql:<stdin>:922: NOTICE:  trigger "trg_merge_append" for relation "analysis.entity_merge_event" does not exist, skipping
+psql:<stdin>:971: NOTICE:  word is too long to be indexed
+DETAIL:  Words longer than 2047 characters are ignored.
+psql:<stdin>:1223: NOTICE:  trigger "geocode_audit_immutable" for relation "analysis.geocode_audit" does not exist, skipping
+psql:<stdin>:1376: NOTICE:  trigger "finding_version_immutable" for relation "analysis.finding_version" does not exist, skipping
+psql:<stdin>:1693: NOTICE:  trigger "task_snapshot" for relation "analysis.evidence_task" does not exist, skipping
+psql:<stdin>:1706: NOTICE:  trigger "task_status_log" for relation "analysis.evidence_task" does not exist, skipping
+psql:<stdin>:1709: NOTICE:  trigger "taskevent_immutable" for relation "analysis.task_event" does not exist, skipping
+psql:<stdin>:1712: NOTICE:  trigger "taskrev_immutable" for relation "analysis.task_revision" does not exist, skipping
+psql:<stdin>:1715: NOTICE:  trigger "discrev_immutable" for relation "analysis.discovery_request_revision" does not exist, skipping
+psql:<stdin>:1765: NOTICE:  trigger "rdec_append_only" for relation "analysis.review_decision" does not exist, skipping
+psql:<stdin>:1777: NOTICE:  trigger "redaction_append_only" for relation "analysis.redaction" does not exist, skipping
+psql:<stdin>:1789: NOTICE:  trigger "export_append_only" for relation "analysis.export" does not exist, skipping
+psql:<stdin>:1844: NOTICE:  trigger "sess_append_only" for relation "public.session_summaries" does not exist, skipping
+psql:<stdin>:1884: NOTICE:  trigger "clog_append_only" for relation "public.change_log" does not exist, skipping
+psql:<stdin>:1900: NOTICE:  trigger "clog_chain" for relation "public.change_log" does not exist, skipping
