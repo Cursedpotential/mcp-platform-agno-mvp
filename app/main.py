@@ -1,22 +1,29 @@
+"""app/main.py — AgentOS entrypoint (base_app pattern, v8.1).
+
+Assembly pipeline::
+
+    Context Providers -> ctx -> build_agent_team(ctx) -> AgentOS(base_app=app)
+
+Architecture:
+- FastAPI app wraps custom routes (knowledge reindex).
+- AgentOS wraps the FastAPI app (base_app pattern, NEVER app.mount).
+- Root Router (mode="route") dispatches to Platform Ops / Builder teams.
+- Gemini Document Digest agent attaches conditionally (GOOGLE_API_KEY).
+
+Hard rules:
+- AgentOS(base_app=app) + agentos.get_app() — NEVER app.mount(...)
+- NO uvicorn reload — breaks the MCP lifespan under AgentOS.
+- Custom routes registered on the FastAPI app BEFORE wrapping;
+  on_route_conflict="preserve_base_app" so they win on collision.
+- The root Router (mode="route") is the primary entry point.
 """
-AgentOS Entrypoint — v8.1 (base_app pattern)
-============================================
 
-The spine (handoff §8.2 / EXECUTION_PLAN Phase 6):
-
-  Context Providers -> ctx -> build_agent_team(ctx) -> AgentOS(base_app=app)
-
-Hard rules (handoff §4 corrections):
-  - AgentOS(base_app=app) + agent_os.get_app() — NEVER app.mount(...)
-  - NO uvicorn reload — breaks the MCP lifespan under AgentOS
-  - custom routes registered on the FastAPI app BEFORE wrapping;
-    on_route_conflict="preserve_base_app" so they win on collision
-  - the root Router (mode="route") is the primary entry point
-"""
+from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from os import getenv
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI
 
@@ -33,17 +40,19 @@ from db.url import db_url
 # ---------------------------------------------------------------------------
 # Environment
 # ---------------------------------------------------------------------------
-runtime_env = getenv("RUNTIME_ENV", "dev")
-scheduler_base_url = getenv("AGENTOS_URL", "http://127.0.0.1:8000")
+runtime_env: str = getenv("RUNTIME_ENV", "dev")
+scheduler_base_url: str = getenv("AGENTOS_URL", "http://127.0.0.1:8000")
 
 
 # ---------------------------------------------------------------------------
 # Lifespan
 # ---------------------------------------------------------------------------
+
+
 @asynccontextmanager
-async def lifespan(app):  # type: ignore[no-untyped-def]
+async def lifespan(app: Any) -> Any:
+    """AgentOS lifespan: ensure pg_duckdb R2 secret on startup, log shutdown."""
     log_info("AgentOS lifespan: startup")
-    # Ensure the pg_duckdb R2 secret exists on every boot (survives DB recreate).
     from db import ensure_duckdb_r2_secret
 
     log_info(f"pg_duckdb R2 secret ensured: {ensure_duckdb_r2_secret()}")
@@ -55,16 +64,35 @@ async def lifespan(app):  # type: ignore[no-untyped-def]
 
 # ---------------------------------------------------------------------------
 # Custom routes (registered on the base app BEFORE AgentOS wraps it)
-#
+# ---------------------------------------------------------------------------
+
 # HITL approvals are NATIVE as of agno 2.6.13: @approval tools persist a
 # pending row on pause, AgentOS auto-mounts GET/POST /approvals (+ /resolve),
 # and the run-continue endpoints are gated by require_approval_resolved.
 # The former custom approval_request table + /v1/approval-requests routes are
 # gone (superseded; see docs/DEBT.md "Agno-native audit").
-# ---------------------------------------------------------------------------
-def register_knowledge_routes(app: FastAPI, knowledge) -> None:
+
+
+def register_knowledge_routes(app: FastAPI, knowledge: Any) -> None:
+    """Register knowledge management routes on the FastAPI app.
+
+    Parameters
+    ----------
+    app:
+        The FastAPI application instance.
+    knowledge:
+        Agno Knowledge instance used for reindexing.
+    """
+
     @app.post("/v1/knowledge/reindex")
-    async def reindex_knowledge():  # type: ignore[no-untyped-def]
+    async def reindex_knowledge() -> dict[str, Any]:
+        """Trigger a full reindex of the knowledge base.
+
+        Returns
+        -------
+        dict
+            ``{"indexedDocumentCount": <int>, "status": "completed"}``
+        """
         from scripts.ingest_knowledge import ingest_all
 
         count = await ingest_all(knowledge)
@@ -74,7 +102,26 @@ def register_knowledge_routes(app: FastAPI, knowledge) -> None:
 # ---------------------------------------------------------------------------
 # Assembly
 # ---------------------------------------------------------------------------
-def _build_app():
+
+
+def _build_app() -> Any:
+    """Build and return the AgentOS-wrapped FastAPI application.
+
+    Assembly order:
+    1. Build model (provider-agnostic, credential-driven).
+    2. Build Agno DB connections (SurrealDB operational store).
+    3. Build Knowledge instance (Milvus-backed).
+    4. Build LearningMachine (operational memory).
+    5. Build context providers (workspace, database, MCP).
+    6. Build agent team (all agents + teams + router).
+    7. Conditionally attach Document Digest agent.
+    8. Wrap FastAPI app with AgentOS.
+
+    Returns
+    -------
+    Any
+        The AgentOS-wrapped ASGI application.
+    """
     model = build_model()
     db = get_agno_db()
     knowledge = create_knowledge("platform", "platform_knowledge")
@@ -83,7 +130,7 @@ def _build_app():
     ctx = build_context(model, db, knowledge, learning, db_url)
     agents = build_agent_team(ctx)
 
-    # Gemini long-context digest specialist (task 13) — present only when
+    # Gemini long-context digest specialist — present only when
     # GOOGLE_API_KEY is set; deterministic evidence ops stay in the pipeline.
     from agents.document_digest import build_document_digest
 
@@ -96,7 +143,7 @@ def _build_app():
 
     teams = [v for v in agents.values() if isinstance(v, Team)]
     solo_agents = [v for v in agents.values() if not isinstance(v, Team)]
-    # Router first: it is the primary entry point (routes to Ops / Builder / Cleanup)
+    # Router first: it is the primary entry point.
     teams.sort(key=lambda t: t.name != "MCP Platform Router")
 
     agent_os = AgentOS(
@@ -111,18 +158,21 @@ def _build_app():
         scheduler=True,
         scheduler_base_url=scheduler_base_url,
         tracing=True,
-        authorization=False,  # local/dev; JWT when multi-user (handoff non-goal)
+        authorization=False,  # local/dev; JWT when multi-user
         lifespan=lifespan,
         config=str(Path(__file__).parent / "config.yaml"),
     )
     return agent_os.get_app()
 
 
-app = _build_app()
+# ---------------------------------------------------------------------------
+# Entrypoint
+# ---------------------------------------------------------------------------
 
+app = _build_app()
 
 if __name__ == "__main__":
     import uvicorn
 
-    # reload must stay OFF: MCP lifespan breaks under reload (handoff §4 #4)
+    # reload must stay OFF: MCP lifespan breaks under reload (handoff correction #4).
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=False)

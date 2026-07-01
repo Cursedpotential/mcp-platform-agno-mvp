@@ -38,17 +38,20 @@ from db.url import db_url
 DB_ID = "agentos-db"
 
 # --- SurrealDB: the Agno OPERATIONAL store (sessions/memory/metrics/eval/
-# knowledge-content/culture/traces/spans). Reached over the salem private link
-# (exec tier on OVH-1 -> data tier on OVH-3). WS transport, /rpc path. ----------
-SURREALDB_URL = getenv("SURREALDB_URL", "ws://10.1.2.101:8000/rpc")
+# knowledge-content/culture/traces/spans). Reached from the exec tier on OVH-1 ->
+# data tier on OVH-3. Default = OVH-3 tailnet IP (matches compose OVH3_HOST);
+# salem private fast-path alt = ws://10.1.2.101:8000/rpc. WS transport, /rpc path.
+SURREALDB_URL = getenv("SURREALDB_URL", "ws://100.119.96.29:8000/rpc")
 SURREALDB_USER = getenv("SURREALDB_USER", "root")
 SURREALDB_PASS = getenv("SURREALDB_PASS", "root")
 SURREALDB_NS = getenv("SURREALDB_NS", "agno")
 SURREALDB_DB = getenv("SURREALDB_DB", "platform")
 
 # --- Milvus: the platform-wide vector substrate (ADR-0026/0027) --------------
-# Address over the tailnet (portability: hostname, not raw IP). Token = user:pass.
-MILVUS_URI = getenv("MILVUS_ADDRESS", "http://vps-ff65b4ab.tilapia-skilift.ts.net:19530")
+# Lives on the OVH-3 data tier (relocated off the decommissioned OVH-2). Default =
+# OVH-3 tailnet IP (matches compose OVH3_HOST :19530); compose passes MILVUS_ADDRESS
+# at runtime so this default only fires in a bare local run. Token = user:pass.
+MILVUS_URI = getenv("MILVUS_ADDRESS", "http://100.119.96.29:19530")
 MILVUS_TOKEN = getenv("MILVUS_TOKEN", "root:Milvus")
 
 # --- Embedder: OpenRouter, OpenAI-compatible, SYMMETRIC ----------------------

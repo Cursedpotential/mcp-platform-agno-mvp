@@ -24,8 +24,8 @@ def _cmd_import(args: argparse.Namespace) -> int:
         print(f"unknown workflow {args.workflow!r}; available: {sorted(NAMED_WORKFLOWS)}", file=sys.stderr)
         return 2
 
-    # workflow name -> (runner, default domain). The CLI --domain overrides only
-    # when explicitly passed (argparse default differs per workflow below).
+    # workflow name -> runner. --domain overrides only when explicitly passed;
+    # per-workflow defaults are applied in code below (not via argparse).
     runners = {
         "chat-transcript": run_chat_transcript,
         "sms-xml": run_sms_xml,

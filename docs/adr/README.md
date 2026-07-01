@@ -38,6 +38,11 @@ guarantee gets an ADR. One short record. Supersede (don't edit) when a decision 
 | 0025 | Topology: Agno core + IBM ContextForge tool gateway + LiteLLM model gateway; minimize custom | Accepted (clarifies 0015; reinforces 0017) |
 | 0026 | Self-hosted Milvus (Coolify) = shared semantic store (code + Case Bible); off managed EU Zilliz | Accepted (LIVE on ovh2; extended by 0027) |
 | 0027 | Milvus = platform-wide vector/ANN substrate (Knowledge engine included) | Accepted (supersedes-in-part 0024 + 0010/0011 vector storage) |
+| 0028 | Windmill = CaseBible orchestration substrate (replaces FileFlows); execution layer under Agno | Superseded by ADR-0029 (2026-06-23 — Windmill dead) |
+| 0029 | CaseBible execution substrate = a dedicated persistent resource on the Agno stack | Accepted (supersedes 0028) |
+| 0030 | Agno R2 access = pg_duckdb account-wide S3 secret (SQL) + rclone bucket mount (files); creds in Coolify | Accepted (extends 0007/0013) |
+| 0031 | CaseBible entity/temporal-graph layer = Neo4j + Graphiti, isolated by group_id | Accepted (extends 0014/0018) |
+| 0032 | Drop the PG Multicorn FDW federation hub; cross-source reach = pg_duckdb + native drivers | Accepted (supersedes 2026-06-14 federation-hub stance) |
 
 > The full vision, current stack, roadmap, access, and gotchas live in
 > [`docs/PROJECT_CANON.md`](../PROJECT_CANON.md) (the durable source of truth).

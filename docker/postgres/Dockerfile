@@ -18,10 +18,36 @@
 FROM pgduckdb/pgduckdb:18-v1.1.1
 
 USER root
+
+# --- Geospatial + vector types (proven, baked) --------------------------------
 RUN apt-get update && apt-get install -y --no-install-recommends \
         postgresql-18-postgis-3 \
         postgresql-18-pgvector \
     && rm -rf /var/lib/apt/lists/*
+
+# --- Cross-source reach: pg_duckdb, NOT a custom FDW hub (ADR-0032) ------------
+# Earlier plan (handoff 2026-06-14): PG as a LIVE federation hub via Multicorn2
+# FDW (compiled neo4j-fdw + REST wrappers). DROPPED 2026-06-26 — see ADR-0032.
+#
+# Why it's gone: that plan existed because PG was meant to be the analysis
+# TARGET, so every source had to be queryable IN PG. SurrealDB is now the
+# downstream analysis sink (ADR-0024): processed data flows PG -> Surreal and
+# analysis happens THERE. With no in-PG cross-source analysis requirement, the
+# live FDW hub was custom build glue for a capability nothing calls — and it was
+# never build-verified. Removing it deletes a brittle compile step (minimize
+# custom code; default off-the-shelf).
+#
+# Cross-source reach is now off-the-shelf, no custom compile:
+#   * files / object store / relational -> pg_duckdb (R2/S3, Parquet, CSV, JSON;
+#     ATTACH Postgres/SQLite) — already embedded in the base image.
+#   * graph (Neo4j)  -> native Cypher driver at the agent/orchestration tier
+#     (graph <-> SQL through an FDW is an impedance mismatch).
+#   * vectors (Milvus) -> Milvus SDK (vectors don't federate via SQL).
+#   * the source -> process -> Surreal pipeline -> orchestration substrate
+#     (ADR-0028/0029), not query-time federation.
+# core postgres_fdw + file_fdw still ship with the base image if a plain
+# Postgres-to-Postgres link is ever needed (CREATE EXTENSION only, no build).
+
 USER postgres
 
 # pg_stat_statements ships with core PG; it needs shared_preload_libraries.

@@ -69,7 +69,7 @@ def cmd_parse(args: argparse.Namespace) -> int:
         # Find parser by source name
         parser = None
         for parser_cls in PARSER_REGISTRY:
-            if parser_cls.SOURCE_NAME == args.source:
+            if parser_cls.SOURCE_NAME == args.source:  # type: ignore[attr-defined]
                 parser = parser_cls()
                 break
         if not parser:

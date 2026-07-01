@@ -1,18 +1,28 @@
-"""Dev Copilot — helps port tools, propose implementation changes, generate migration plans."""
+"""agents/dev_copilot.py — Builder: dev assistant agent builder.
+
+Provides ``build_dev_copilot()`` which delegates to the shared factory
+in ``factory.py``. This module exists for progressive disclosure discoverability.
+"""
+
+from __future__ import annotations
+
+from typing import Any
 
 from agno.agent import Agent
 
-from app.settings import default_model
-from db import get_agno_db
-from agents.instructions import get_instructions
+from agents.factory import build_dev_copilot as _build
 
-dev_copilot = Agent(
-    id="dev-copilot",
-    name="Dev Copilot",
-    model=default_model(),
-    db=get_agno_db(),
-    instructions=get_instructions("dev_copilot"),
-    add_history_to_context=True,
-    num_history_runs=10,
-    markdown=True,
-)
+
+def build_dev_copilot(
+    model: Any,
+    db: Any,
+    knowledge: Any,
+    learning: Any,
+    code_tools: list[Any],
+) -> Agent:
+    """Build the Dev Copilot agent.
+
+    See ``agents.factory.build_dev_copilot`` for the full docstring
+    and parameter descriptions.
+    """
+    return _build(model, db, knowledge, learning, code_tools)
