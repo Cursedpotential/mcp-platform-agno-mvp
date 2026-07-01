@@ -60,10 +60,10 @@ class ConfigurableSegmenter(LocalSegmenter):
         super().__init__(config)
 
         # Provider selection
-        self.provider = (provider or os.getenv("SEGMENTER_PROVIDER") or "local").lower()
-        # Always a str (config.model_name has a default), so downstream API
-        # clients that reject Optional[str] for `model=` are satisfied.
-        self.model_name: str = model_name or os.getenv("SEGMENTER_MODEL") or self.config.model_name
+        self.provider = (provider if provider is not None else (os.getenv("SEGMENTER_PROVIDER") or "local")).lower()
+        self.model_name = (
+            model_name if model_name is not None else (os.getenv("SEGMENTER_MODEL") or self.config.model_name)
+        )
         self.api_key = api_key
         self.base_url = base_url
 

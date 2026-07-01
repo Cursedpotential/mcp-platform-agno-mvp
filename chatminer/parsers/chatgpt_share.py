@@ -178,9 +178,8 @@ class ChatGptShareParser(BaseParser):
 
         # Derive title from first user message if not set
         if not conv.title:
-            # NB: `m` is used for regex matches above; use a distinct name here.
-            for user_msg in conv.user_messages:
-                first_line = user_msg.content.strip().split("\n")[0]
+            for um in conv.user_messages:
+                first_line = um.content.strip().split("\n")[0]
                 if len(first_line) > 5:
                     conv.title = first_line[:100]
                     break

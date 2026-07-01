@@ -418,7 +418,7 @@ class LocalSegmenter:
         if not scores:
             return TopicTag.UNKNOWN, 0.0
 
-        best_topic = max(scores, key=lambda t: scores[t])
+        best_topic = max(scores, key=lambda t: scores.get(t, 0.0))
         best_score = scores[best_topic]
 
         # Check if it's mixed (multiple topics have significant scores)
