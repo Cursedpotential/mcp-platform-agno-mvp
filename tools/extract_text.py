@@ -81,9 +81,7 @@ def _ocr_image(path: Path) -> tuple[list[str], str]:
         import pytesseract
         from PIL import Image
     except ImportError as exc:
-        raise RuntimeError(
-            "extract.text: image OCR needs pytesseract + Pillow (+ system tesseract-ocr)."
-        ) from exc
+        raise RuntimeError("extract.text: image OCR needs pytesseract + Pillow (+ system tesseract-ocr).") from exc
     return [pytesseract.image_to_string(Image.open(str(path)))], "tesseract"
 
 

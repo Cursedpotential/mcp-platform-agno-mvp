@@ -280,4 +280,6 @@ async def sbv_export(payload: dict[str, Any]) -> JSONResponse:
         w = csv.DictWriter(buf, fieldnames=cols, extrasaction="ignore")
         w.writeheader()
         w.writerows(messages)
-    return JSONResponse({"format": "csv", "csv": buf.getvalue(), "message_count": len(messages), "call_count": len(calls)})
+    return JSONResponse(
+        {"format": "csv", "csv": buf.getvalue(), "message_count": len(messages), "call_count": len(calls)}
+    )

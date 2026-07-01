@@ -13,9 +13,7 @@ from agno.agent import Agent
 from agents.factory import build_forensic_data_agent as _build
 
 
-def build_forensic_data_agent(
-    model: Any, db: Any, learning: Any, readonly_db_tools: list[Any]
-) -> Agent:
+def build_forensic_data_agent(model: Any, db: Any, learning: Any, readonly_db_tools: list[Any]) -> Agent:
     """Build the Forensic Data Agent.
 
     See ``agents.factory.build_forensic_data_agent`` for the full docstring

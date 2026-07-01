@@ -92,15 +92,9 @@ def apply_db_modification(statement: str, target_schema: str = "analysis") -> st
         Status message (``OK: ...``, ``REJECTED: ...``, or ``ERROR: ...``).
     """
     if target_schema != "analysis":
-        return (
-            f"REJECTED: target_schema must be 'analysis', got {target_schema!r}. "
-            "No write performed."
-        )
+        return f"REJECTED: target_schema must be 'analysis', got {target_schema!r}. No write performed."
     if _EVIDENCE_REF.search(statement):
-        return (
-            "REJECTED: statement references the immutable `evidence` schema. "
-            "No write performed."
-        )
+        return "REJECTED: statement references the immutable `evidence` schema. No write performed."
     try:
         with _get_write_engine().begin() as conn:
             conn.execute(text("SET LOCAL search_path TO analysis"))
@@ -114,6 +108,7 @@ def apply_db_modification(statement: str, target_schema: str = "analysis") -> st
 # ===========================================================================
 # PLATFORM OPS AGENTS
 # ===========================================================================
+
 
 def build_ingestion_orchestrator(
     model: Any,
@@ -140,10 +135,7 @@ def build_ingestion_orchestrator(
     return Agent(
         id="ingestion-orchestrator",
         name="Ingestion Orchestrator",
-        role=(
-            "Coordinate ingestion: hash, parse, normalize, route source data "
-            "via MCP tools."
-        ),
+        role=("Coordinate ingestion: hash, parse, normalize, route source data via MCP tools."),
         model=model,
         db=db,
         knowledge=knowledge,
@@ -199,10 +191,7 @@ def build_review_gatekeeper(model: Any, db: Any) -> Agent:
     return Agent(
         id="review-gatekeeper",
         name="Review Gatekeeper",
-        role=(
-            "Translate technical actions into plain-English approval requests; "
-            "record decisions."
-        ),
+        role=("Translate technical actions into plain-English approval requests; record decisions."),
         model=model,
         db=db,
         add_history_to_context=True,
@@ -212,9 +201,7 @@ def build_review_gatekeeper(model: Any, db: Any) -> Agent:
     )
 
 
-def build_platform_ops_team(
-    model: Any, db: Any, members: list[Agent]
-) -> Team:
+def build_platform_ops_team(model: Any, db: Any, members: list[Agent]) -> Team:
     """Build the Platform Ops team (coordinate mode).
 
     Parameters
@@ -247,6 +234,7 @@ def build_platform_ops_team(
 # ===========================================================================
 # BUILDER AGENTS
 # ===========================================================================
+
 
 def build_dev_copilot(
     model: Any,
@@ -298,10 +286,7 @@ def build_project_pal(model: Any, db: Any, learning: Any) -> Agent:
     return Agent(
         id="project-pal",
         name="Project PAL",
-        role=(
-            "Maintain rolling memory of goals, blockers, decisions, preferences, "
-            "session context."
-        ),
+        role=("Maintain rolling memory of goals, blockers, decisions, preferences, session context."),
         model=model,
         db=db,
         learning=learning,
@@ -312,9 +297,7 @@ def build_project_pal(model: Any, db: Any, learning: Any) -> Agent:
     )
 
 
-def build_forensic_data_agent(
-    model: Any, db: Any, learning: Any, readonly_db_tools: list[Any]
-) -> Agent:
+def build_forensic_data_agent(model: Any, db: Any, learning: Any, readonly_db_tools: list[Any]) -> Agent:
     """Build the Forensic Data Agent — read-only schema and data interface.
 
     Parameters
@@ -344,9 +327,7 @@ def build_forensic_data_agent(
     )
 
 
-def build_builder_team(
-    model: Any, db: Any, members: list[Agent]
-) -> Team:
+def build_builder_team(model: Any, db: Any, members: list[Agent]) -> Team:
     """Build the Builder team (coordinate mode).
 
     Parameters
@@ -368,9 +349,7 @@ def build_builder_team(
         show_members_responses=True,
         add_history_to_context=True,
         num_history_runs=10,
-        instructions=[
-            "Delegate development work to the right member and synthesize a single answer."
-        ],
+        instructions=["Delegate development work to the right member and synthesize a single answer."],
         markdown=True,
     )
 
@@ -379,9 +358,8 @@ def build_builder_team(
 # ROOT ROUTER
 # ===========================================================================
 
-def build_root_router(
-    model: Any, db: Any, ops_team: Team, builder_team: Team
-) -> Team:
+
+def build_root_router(model: Any, db: Any, ops_team: Team, builder_team: Team) -> Team:
     """Build the Root Router (route mode — picks ONE family, returns its answer).
 
     Parameters
@@ -413,6 +391,7 @@ def build_root_router(
 # TOP-LEVEL ASSEMBLY
 # ===========================================================================
 
+
 def build_agent_team(ctx: Any) -> dict[str, Any]:
     """Build every agent/team and return them keyed by stable public name.
 
@@ -433,12 +412,8 @@ def build_agent_team(ctx: Any) -> dict[str, Any]:
     """
     m, db = ctx.model, ctx.db
 
-    ingestion = build_ingestion_orchestrator(
-        m, db, ctx.knowledge, ctx.learning, ctx.source_tools
-    )
-    analysis = build_analysis_orchestrator(
-        m, db, ctx.knowledge, ctx.learning, ctx.source_tools
-    )
+    ingestion = build_ingestion_orchestrator(m, db, ctx.knowledge, ctx.learning, ctx.source_tools)
+    analysis = build_analysis_orchestrator(m, db, ctx.knowledge, ctx.learning, ctx.source_tools)
     gatekeeper = build_review_gatekeeper(m, db)
     ops_team = build_platform_ops_team(m, db, [ingestion, analysis, gatekeeper])
 

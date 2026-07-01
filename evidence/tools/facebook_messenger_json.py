@@ -140,7 +140,7 @@ def parse(payload: dict[str, Any]) -> dict[str, Any]:
                 participants_all.append(p)
         title = _fix(data.get("title")) or title
         conv_id = _fix(data.get("thread_path")) or _fix(data.get("title")) or ""
-        for m in (data.get("messages") or []):
+        for m in data.get("messages") or []:
             if isinstance(m, dict):
                 rec = _map_message(m, parts, conv_id, title)
                 if rec is not None:

@@ -49,7 +49,14 @@ _PINNED: dict[str, str] = {
 
 # Selection order when DEFAULT_MODEL_PROVIDER is not set. Ollama first per D7 (rev).
 _DEFAULT_ORDER: list[str] = [
-    "ollama", "nvidia", "kimi", "openrouter", "anthropic", "openai", "google", "groq",
+    "ollama",
+    "nvidia",
+    "kimi",
+    "openrouter",
+    "anthropic",
+    "openai",
+    "google",
+    "groq",
 ]
 
 # Embedder IDs mirror db/session.py for reference.
@@ -145,9 +152,7 @@ def _try_provider(provider: str) -> Optional[Any]:
             return None
         from agno.models.openai.like import OpenAILike
 
-        return OpenAILike(
-            id=_model_id("openrouter"), api_key=key, base_url="https://openrouter.ai/api/v1"
-        )
+        return OpenAILike(id=_model_id("openrouter"), api_key=key, base_url="https://openrouter.ai/api/v1")
 
     if provider == "ollama":
         # Ollama Cloud: OLLAMA_API_KEY makes host default to https://ollama.com.

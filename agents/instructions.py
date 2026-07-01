@@ -206,8 +206,5 @@ def get_instructions(key: str) -> list[str]:
         If *key* is not a registered instruction set.
     """
     if key not in _INSTRUCTIONS:
-        raise KeyError(
-            f"instructions: unknown key {key!r}. "
-            f"Registered: {sorted(_INSTRUCTIONS)}"
-        )
+        raise KeyError(f"instructions: unknown key {key!r}. Registered: {sorted(_INSTRUCTIONS)}")
     return [*GLOBAL_GUARDRAILS, *_INSTRUCTIONS[key]]

@@ -45,9 +45,7 @@ def build_document_digest(db: Any, knowledge: Any = None) -> Optional[Agent]:
     return Agent(
         id="document-digest",
         name="Document Digest",
-        role=(
-            "Read very large documents/transcripts and produce structured digests."
-        ),
+        role=("Read very large documents/transcripts and produce structured digests."),
         model=Gemini(
             id=getenv("GOOGLE_MODEL_ID", "gemini-2.5-pro"),
             api_key=api_key,

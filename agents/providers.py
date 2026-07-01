@@ -43,6 +43,7 @@ from agno.context.workspace import WorkspaceContextProvider
 # PlatformContext
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class PlatformContext:
     """Runtime bundle handed to ``factory.build_agent_team(ctx)``.
@@ -84,6 +85,7 @@ class PlatformContext:
 # Engine factory
 # ---------------------------------------------------------------------------
 
+
 def _make_engine(url: str, readonly: bool = False) -> Any:
     """Create a sync SQLAlchemy engine for ``DatabaseContextProvider``.
 
@@ -102,6 +104,7 @@ def _make_engine(url: str, readonly: bool = False) -> Any:
 # ---------------------------------------------------------------------------
 # Context assembly
 # ---------------------------------------------------------------------------
+
 
 def build_context(
     model: Any,
@@ -202,6 +205,7 @@ def build_context(
 # Learning machine
 # ---------------------------------------------------------------------------
 
+
 def build_learning(db: Any, model: Any, knowledge: Any) -> Any:
     """Build the native operational memory on Postgres (ADR-0004).
 
@@ -239,9 +243,7 @@ def build_learning(db: Any, model: Any, knowledge: Any) -> Any:
         knowledge=knowledge,
         user_profile=UserProfileConfig(mode=LearningMode.ALWAYS),
         user_memory=UserMemoryConfig(mode=LearningMode.AGENTIC),
-        session_context=SessionContextConfig(
-            mode=LearningMode.ALWAYS, enable_planning=True
-        ),
+        session_context=SessionContextConfig(mode=LearningMode.ALWAYS, enable_planning=True),
         entity_memory=EntityMemoryConfig(mode=LearningMode.PROPOSE),  # HITL
         learned_knowledge=LearnedKnowledgeConfig(  # HITL
             mode=LearningMode.PROPOSE,

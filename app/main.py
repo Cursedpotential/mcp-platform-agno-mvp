@@ -48,6 +48,7 @@ scheduler_base_url: str = getenv("AGENTOS_URL", "http://127.0.0.1:8000")
 # Lifespan
 # ---------------------------------------------------------------------------
 
+
 @asynccontextmanager
 async def lifespan(app: Any) -> Any:
     """AgentOS lifespan: ensure pg_duckdb R2 secret on startup, log shutdown."""
@@ -101,6 +102,7 @@ def register_knowledge_routes(app: FastAPI, knowledge: Any) -> None:
 # ---------------------------------------------------------------------------
 # Assembly
 # ---------------------------------------------------------------------------
+
 
 def _build_app() -> Any:
     """Build and return the AgentOS-wrapped FastAPI application.

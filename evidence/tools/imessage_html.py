@@ -112,13 +112,16 @@ def _parse_part(part_div) -> dict[str, Any]:
         src = None
         kind = "file"
         if img is not None:
-            src = img.get("src"); kind = "image"
+            src = img.get("src")
+            kind = "image"
         elif vid is not None:
             s = vid.find("source")
-            src = (s.get("src") if s is not None else None) or vid.get("src"); kind = "video"
+            src = (s.get("src") if s is not None else None) or vid.get("src")
+            kind = "video"
         elif aud is not None:
             s = aud.find("source")
-            src = (s.get("src") if s is not None else None) or aud.get("src"); kind = "audio"
+            src = (s.get("src") if s is not None else None) or aud.get("src")
+            kind = "audio"
         else:
             a = att.find("a")
             src = a.get("href") if a is not None else _text(att)
@@ -147,9 +150,7 @@ def _parse_part(part_div) -> dict[str, Any]:
 
 
 def _parse_message(msg_div, conv_id: str) -> NormalizedRecord | None:
-    inner = msg_div.find("div", class_=lambda c: c and (
-        "sent" in c.split() or "received" in c.split()
-    ))
+    inner = msg_div.find("div", class_=lambda c: c and ("sent" in c.split() or "received" in c.split()))
     if inner is None:
         return None
     classes = inner.get("class", [])
@@ -219,8 +220,10 @@ def _parse_message(msg_div, conv_id: str) -> NormalizedRecord | None:
         elif tapbacks:
             content = tapbacks[0]["raw"]
 
-    is_call = bool(content) and "call" in content.lower() and any(
-        k in content.lower() for k in ("missed call", "facetime", "incoming call", "outgoing call")
+    is_call = (
+        bool(content)
+        and "call" in content.lower()
+        and any(k in content.lower() for k in ("missed call", "facetime", "incoming call", "outgoing call"))
     )
 
     attrs: dict[str, Any] = {
@@ -266,7 +269,7 @@ def _parse_announcement(ann_div, conv_id: str) -> NormalizedRecord:
     ts_span = ann_div.find("span", class_="timestamp")
     ts_raw = _text(ts_span) if ts_span is not None else ""
     # action text = the <p> text minus the timestamp prefix
-    action = full[len(ts_raw):].strip() if ts_raw and full.startswith(ts_raw) else full
+    action = full[len(ts_raw) :].strip() if ts_raw and full.startswith(ts_raw) else full
     role = OWNER if action.startswith(("You ", "I ")) else (action.split(" ", 1)[0] or None)
     return NormalizedRecord(
         record_type=RecordType.event,

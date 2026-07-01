@@ -28,12 +28,19 @@ from evidence.tools._common import records_out
 
 # strptime patterns covering Facebook's HTML timestamp variants.
 _DATE_FORMATS = (
-    "%b %d, %Y, %I:%M %p", "%B %d, %Y, %I:%M %p",
-    "%b %d, %Y at %I:%M %p", "%B %d, %Y at %I:%M %p",
-    "%b %d, %Y %I:%M %p", "%B %d, %Y %I:%M %p",
-    "%d %b %Y, %H:%M", "%d %B %Y, %H:%M", "%d %b %Y %H:%M",
-    "%b %d, %Y, %H:%M", "%b %d, %Y %H:%M",
-    "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S",
+    "%b %d, %Y, %I:%M %p",
+    "%B %d, %Y, %I:%M %p",
+    "%b %d, %Y at %I:%M %p",
+    "%B %d, %Y at %I:%M %p",
+    "%b %d, %Y %I:%M %p",
+    "%B %d, %Y %I:%M %p",
+    "%d %b %Y, %H:%M",
+    "%d %B %Y, %H:%M",
+    "%d %b %Y %H:%M",
+    "%b %d, %Y, %H:%M",
+    "%b %d, %Y %H:%M",
+    "%Y-%m-%d %H:%M:%S",
+    "%Y-%m-%dT%H:%M:%S",
 )
 
 
@@ -56,7 +63,9 @@ def _msg_type(body: str) -> str:
         return "media"
     if any(k in low for k in ("shared a link", "sent a post", "shared a post")):
         return "share"
-    if any(k in low for k in ("created a group", "left the group", "changed the group name")) or low.startswith("added "):
+    if any(k in low for k in ("created a group", "left the group", "changed the group name")) or low.startswith(
+        "added "
+    ):
         return "system"
     return "text"
 
