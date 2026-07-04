@@ -7,6 +7,11 @@
 >
 > **Domain:** legal_strategy / behavioral analysis.
 >
+> **Supplementary source:** `coercive-control-rubric-supplement-nova.md` (Amazon Nova
+> session) captures a secondary model's take to mine for additions — notably RR/IM as
+> first-class labels and a "resolution" criterion. See its Curator's Note for extraction
+> candidates.
+>
 > **Why it lives here (cross-refs):**
 > - The **reactive-vs-malicious** distinction maps directly onto the 0006 seed's court-safety
 >   posture — `bias_caution`, symmetric application, hypothesis-not-conclusion
