@@ -71,4 +71,6 @@ def parse(payload: dict[str, Any]) -> dict[str, Any]:
             )
     if line_count == 0:
         raise ValueError("empty file — nothing to parse")
+    if not records:
+        raise ValueError("no user/assistant text events — not a Claude Code session (hard-fail, no silent-empty)")
     return records_out(records, line_count=line_count)

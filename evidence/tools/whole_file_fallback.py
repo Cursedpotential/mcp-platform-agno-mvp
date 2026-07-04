@@ -1,9 +1,15 @@
 """Atomic tool: plain .md/.txt transcript -> one whole-file NormalizedRecord.
 
 The deliberate FALLBACK unit: when no structured parser fits, the whole file
-becomes one record (the knowledge engine chunks it downstream). Registered
-LAST-resort by accepting only .md/.txt — structured formats never reach it.
+becomes one record (the knowledge engine chunks it downstream).
 Provenance: new module (deliberate design, not a port).
+
+NAMING IS LOAD-BEARING: auto-discovery imports evidence.tools modules
+alphabetically and registration order = substitution preference, so this
+module is named to sort AFTER every structured parse.transcript parser
+(was markdown_transcript.py, which sorted before the perplexity wrappers
+and would have swallowed their .md inputs — this tool never rejects a
+non-empty file, so it must be the LAST candidate tried).
 """
 
 from __future__ import annotations

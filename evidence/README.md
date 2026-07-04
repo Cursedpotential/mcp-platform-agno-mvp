@@ -18,10 +18,18 @@ evidence/
   tools/               <- Atomic parser modules (one per format).
     __init__.py        <- Auto-discovery docstring.
     _common.py         <- Shared helpers (underscore = NOT a tool).
-    chatgpt_export.py  <- ChatGPT data-export conversations.json parser.
-    claude_ai_export.py   <- claude.ai data-export parser.
-    claude_code_jsonl.py  <- Claude Code session .jsonl parser.
-    markdown_transcript.py <- Plain .md/.txt fallback parser (whole-file record).
+    _chatminer_adapter.py <- ChatMiner ParsedMessage -> NormalizedRecord bridge.
+    chatgpt_official.py   <- ChatGPT conversations.json (chatminer-backed).
+    chatgpt_share.py      <- ChatGPT "Share" markdown (chatminer-backed).
+    gemini_chrome.py / gemini_json.py <- Gemini exports (chatminer-backed).
+    claude_md.py          <- Claude markdown copy-paste (chatminer-backed).
+    claude_code.py        <- Claude Code simple role/content JSONL (chatminer-backed).
+    claude_code_jsonl.py  <- Claude Code REAL session .jsonl (type/message/sessionId events).
+    claude_ai_export.py   <- claude.ai data-export parser (chat_messages JSON).
+    perplexity_gdpr.py / perplexity_plugin.py / perplexity_md.py <- Perplexity (chatminer-backed).
+    generic_md.py         <- Generic role-marker markdown (chatminer-backed).
+    whole_file_fallback.py <- Plain .md/.txt LAST-resort whole-file record
+                              (named to sort last: registration order = substitution order).
   config/
     case_terms.example.yaml <- Case-specific segmentation terms template.
 ```

@@ -53,12 +53,12 @@ Agno (+ native chat/AgentOS UI) · **custom Graphiti** · Semantica · **IBM Con
 
 ## TRACK A — PARSER CORE (most done; storage-agnostic)
 
-### HA.1 — ChatMiner→NormalizedRecord adapter `[J]`
+### HA.1 — ChatMiner→NormalizedRecord adapter `[J]` — **DONE 2026-07-04** (`evidence/tools/_chatminer_adapter.py`)
 - **Refs:** `chatminer/core/types.py` (ParsedMessage/ParsedConversation) · `evidence/normalize.py` (NormalizedRecord).
 - **Steps:** `evidence/tools/_chatminer_adapter.py` — map ParsedMessage→NormalizedRecord (content→content, sender_role→role, timestamp→occurred_at, source_format→source, conversation_id, everything else→attrs incl. message_hash, content_type, artifacts, segment topic_tag).
 - **Accept:** unit test: a 2-message ParsedConversation → 2 NormalizedRecords with occurred_at set. **Tier J.**
 
-### HA.2 — Per-format `@register` wrappers (10 tiny units) `[S]`
+### HA.2 — Per-format `@register` wrappers (10 tiny units) `[S]` — **DONE 2026-07-04** (all 10 under `evidence/tools/`, each gated on the parser's own `can_parse` confidence + hard-fail on zero records)
 - **Skeleton** (one file per format under `evidence/tools/`, e.g. `chatgpt_official.py`):
   ```python
   from __future__ import annotations
@@ -79,8 +79,15 @@ Agno (+ native chat/AgentOS UI) · **custom Graphiti** · Semantica · **IBM Con
 ### HA.3 — Populate `evidence/config/case_terms.yaml` `[owner]`
 Copy `case_terms.example.yaml` → `case_terms.yaml`; fill real names/places/child name per `TopicTag`. **HITL:** owner-only (PII). **Tier owner.**
 
-### HA.4 — Retire 4 placeholders + registry smoke test `[S]`
-Delete `evidence/tools/{chatgpt_export,claude_ai_export,claude_code_jsonl,markdown_transcript}.py`; run a smoke that `load_builtin_tools()` count == 10 + asserts no import errors. **Tier S.**
+### HA.4 — Retire 4 placeholders + registry smoke test `[S]` — **DONE 2026-07-04 (amended)**
+Only `chatgpt_export.py` was still a duplicate (chatminer `chatgpt_official` covers the same
+mapping-tree format) — deleted. The other three had grown into REAL coverage chatminer lacks
+and are KEPT: `claude_ai_export.py` (claude.ai `chat_messages` JSON — no chatminer parser),
+`claude_code_jsonl.py` (REAL session `type`/`message`/`sessionId` events — chatminer's
+`claude_code` only parses the simple role/content lines), and the whole-file fallback
+(renamed `markdown_transcript.py` → `whole_file_fallback.py` so it registers LAST: it never
+rejects a non-empty file, and alphabetical auto-discovery order = substitution order).
+Registry smoke test: `tests/test_transcript_tools.py` (13 `parse.transcript` tools, fallback last).
 
 ### HA.5 — Deploy + VPS smoke test `[J]` (RUNBOOK below)
 Sync to VPS, rebuild image (chatminer + pyyaml + sentence-transformers deps), parse a real export end-to-end. **HITL:** deploy = owner go. **Tier J.**
