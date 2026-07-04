@@ -1,0 +1,878 @@
+{
+  "meta": {
+    "version": 1,
+    "generated": "2026-07-04",
+    "sources": [
+      "mcp-tool-platform/server/mcp/forensics/pattern-analyzer.ts (BUILT_IN_MODULES + BUILT_IN_PATTERNS)",
+      "mcp-tool-platform/server/mcp/forensics/forensics-router.ts (MCL_FACTORS)",
+      "RESEARCH_BEHAVIORAL_ANALYSIS.md (research taxonomy additions)"
+    ],
+    "note": "needs_review=true modules carry NO MCL mapping and few phrases — owner triage required"
+  },
+  "mcl_factors": [
+    {
+      "letter": "a",
+      "name": "Love, Affection, and Emotional Ties",
+      "description": "The love, affection, and other emotional ties existing between the parties involved and the child."
+    },
+    {
+      "letter": "b",
+      "name": "Capacity to Continue Education",
+      "description": "The capacity and disposition of the parties involved to give the child love, affection, and guidance and to continue the education and raising of the child in his or her religion or creed."
+    },
+    {
+      "letter": "c",
+      "name": "Capacity to Provide",
+      "description": "The capacity and disposition of the parties involved to provide the child with food, clothing, medical care or other remedial care."
+    },
+    {
+      "letter": "d",
+      "name": "Length of Time in Environment",
+      "description": "The length of time the child has lived in a stable, satisfactory environment, and the desirability of maintaining continuity."
+    },
+    {
+      "letter": "e",
+      "name": "Permanence of Family Unit",
+      "description": "The permanence, as a family unit, of the existing or proposed custodial home or homes."
+    },
+    {
+      "letter": "f",
+      "name": "Moral Fitness",
+      "description": "The moral fitness of the parties involved."
+    },
+    {
+      "letter": "g",
+      "name": "Mental and Physical Health",
+      "description": "The mental and physical health of the parties involved."
+    },
+    {
+      "letter": "h",
+      "name": "Home, School, and Community Record",
+      "description": "The home, school, and community record of the child."
+    },
+    {
+      "letter": "i",
+      "name": "Reasonable Preference of Child",
+      "description": "The reasonable preference of the child, if the court considers the child to be of sufficient age to express preference."
+    },
+    {
+      "letter": "j",
+      "name": "Domestic Violence",
+      "description": "The willingness and ability of each of the parties to facilitate and encourage a close and continuing parent-child relationship between the child and the other parent or the child and the parents. A court may not consider negatively for the purposes of this factor any reasonable action taken by a parent to protect a child or that parent from sexual assault or domestic violence by the child's other parent."
+    },
+    {
+      "letter": "k",
+      "name": "Willingness to Facilitate Relationship",
+      "description": "Domestic violence, regardless of whether the violence was directed against or witnessed by the child."
+    },
+    {
+      "letter": "l",
+      "name": "Other Factors",
+      "description": "Any other factor considered by the court to be relevant to a particular child custody dispute."
+    }
+  ],
+  "modules": [
+    {
+      "id": "gaslighting",
+      "name": "Gaslighting Detection",
+      "description": "Identifies reality-distorting statements that make the victim question their perception",
+      "polarity": "negative",
+      "subcategory": "manipulation",
+      "weight": 90,
+      "mcl_factors": [
+        "j",
+        "k",
+        "l"
+      ],
+      "provenance": "pattern-analyzer.ts BUILT_IN_MODULES",
+      "needs_review": false,
+      "phrases": [
+        "that never happened",
+        "you're imagining things",
+        "you're crazy",
+        "you're being paranoid",
+        "you're too sensitive",
+        "you're overreacting",
+        "i never said that",
+        "you're making things up",
+        "that's not what happened",
+        "you have a bad memory",
+        "no one else thinks that",
+        "everyone agrees with me",
+        "you're the only one who",
+        "you always twist things",
+        "you're delusional"
+      ],
+      "examples": [
+        "That conversation never happened, you must be imagining things.",
+        "You're being paranoid again, I never said that.",
+        "You're too sensitive, it was just a joke."
+      ]
+    },
+    {
+      "id": "blame_shifting",
+      "name": "Blame Shifting",
+      "description": "Detects patterns where responsibility is deflected onto the victim",
+      "polarity": "negative",
+      "subcategory": "manipulation",
+      "weight": 85,
+      "mcl_factors": [
+        "j",
+        "l"
+      ],
+      "provenance": "pattern-analyzer.ts BUILT_IN_MODULES",
+      "needs_review": false,
+      "phrases": [
+        "this is your fault",
+        "you made me",
+        "if you hadn't",
+        "because of you",
+        "you started it",
+        "look what you made me do",
+        "you drove me to",
+        "you pushed me to",
+        "this wouldn't happen if you",
+        "you bring out the worst",
+        "you're the reason",
+        "it's because you"
+      ],
+      "examples": [
+        "This is your fault for not listening to me.",
+        "You made me act this way with your behavior.",
+        "If you hadn't pushed me, this wouldn't have happened."
+      ]
+    },
+    {
+      "id": "minimization",
+      "name": "Minimization & Dismissal",
+      "description": "Identifies attempts to downplay concerns, feelings, or events",
+      "polarity": "negative",
+      "subcategory": "manipulation",
+      "weight": 75,
+      "mcl_factors": [
+        "f",
+        "j"
+      ],
+      "provenance": "pattern-analyzer.ts BUILT_IN_MODULES",
+      "needs_review": false,
+      "phrases": [
+        "it's not a big deal",
+        "you're blowing this out of proportion",
+        "it wasn't that bad",
+        "get over it",
+        "move on already",
+        "stop dwelling",
+        "it's in the past",
+        "let it go",
+        "you're making a mountain",
+        "calm down",
+        "relax",
+        "chill out",
+        "it's nothing",
+        "don't be dramatic"
+      ],
+      "examples": [
+        "It's not a big deal, you're blowing this out of proportion.",
+        "That was nothing, just get over it already.",
+        "Stop being so dramatic about everything."
+      ]
+    },
+    {
+      "id": "threats_intimidation",
+      "name": "Threats & Intimidation",
+      "description": "Detects explicit or implicit threats, ultimatums, and intimidating language",
+      "polarity": "negative",
+      "subcategory": "control",
+      "weight": 95,
+      "mcl_factors": [
+        "j",
+        "l"
+      ],
+      "provenance": "pattern-analyzer.ts BUILT_IN_MODULES",
+      "needs_review": false,
+      "phrases": [
+        "you'll regret",
+        "you'll be sorry",
+        "i'll make sure",
+        "you'll never see",
+        "i'll take the kids",
+        "i'll destroy",
+        "i'll ruin",
+        "you'll pay for",
+        "watch what happens",
+        "don't test me",
+        "you don't want to",
+        "i'll tell everyone",
+        "i'll expose",
+        "you'll lose everything",
+        "or else"
+      ],
+      "examples": [
+        "You'll regret this decision, I'll make sure of it.",
+        "If you leave, you'll never see the kids again.",
+        "Don't test me, you don't want to see what happens."
+      ]
+    },
+    {
+      "id": "isolation_tactics",
+      "name": "Isolation Tactics",
+      "description": "Identifies attempts to separate victim from support systems",
+      "polarity": "negative",
+      "subcategory": "control",
+      "weight": 85,
+      "mcl_factors": [
+        "j",
+        "k"
+      ],
+      "provenance": "pattern-analyzer.ts BUILT_IN_MODULES",
+      "needs_review": false,
+      "phrases": [
+        "your family is toxic",
+        "your friends don't care",
+        "they're using you",
+        "they're against us",
+        "you don't need them",
+        "i'm the only one",
+        "no one understands you like i do",
+        "they're jealous",
+        "they're trying to break us up",
+        "you spend too much time with",
+        "choose me or them",
+        "it's us against the world"
+      ],
+      "examples": [
+        "Your family is toxic, they're just trying to break us up.",
+        "I'm the only one who truly understands you.",
+        "Your friends don't really care about you like I do."
+      ]
+    },
+    {
+      "id": "financial_control",
+      "name": "Financial Control",
+      "description": "Detects financial manipulation and economic abuse patterns",
+      "polarity": "negative",
+      "subcategory": "control",
+      "weight": 80,
+      "mcl_factors": [
+        "c",
+        "j"
+      ],
+      "provenance": "pattern-analyzer.ts BUILT_IN_MODULES",
+      "needs_review": false,
+      "phrases": [],
+      "examples": []
+    },
+    {
+      "id": "emotional_blackmail",
+      "name": "Emotional Blackmail",
+      "description": "Identifies FOG tactics (Fear, Obligation, Guilt)",
+      "polarity": "negative",
+      "subcategory": "manipulation",
+      "weight": 85,
+      "mcl_factors": [
+        "f",
+        "j"
+      ],
+      "provenance": "pattern-analyzer.ts BUILT_IN_MODULES",
+      "needs_review": false,
+      "phrases": [
+        "after everything i've done",
+        "if you loved me",
+        "you owe me",
+        "i sacrificed",
+        "i gave up everything",
+        "how could you do this to me",
+        "you're hurting me",
+        "you're breaking my heart",
+        "i can't live without",
+        "i'll hurt myself",
+        "you'll destroy me",
+        "i thought you cared"
+      ],
+      "examples": [
+        "After everything I've done for you, this is how you repay me?",
+        "If you really loved me, you wouldn't do this.",
+        "I sacrificed everything for this family and you don't appreciate it."
+      ]
+    },
+    {
+      "id": "stonewalling",
+      "name": "Stonewalling & Silent Treatment",
+      "description": "Detects withdrawal, refusal to communicate, and silent treatment patterns",
+      "polarity": "negative",
+      "subcategory": "control",
+      "weight": 70,
+      "mcl_factors": [
+        "f",
+        "k"
+      ],
+      "provenance": "pattern-analyzer.ts BUILT_IN_MODULES",
+      "needs_review": false,
+      "phrases": [
+        "i'm not talking about this",
+        "conversation is over",
+        "i have nothing to say",
+        "talk to my lawyer",
+        "don't contact me",
+        "leave me alone",
+        "i'm done",
+        "whatever",
+        "fine",
+        "i don't care",
+        "do what you want"
+      ],
+      "examples": [
+        "I'm not talking about this anymore, conversation is over.",
+        "Whatever. Do what you want, I don't care.",
+        "Talk to my lawyer, I have nothing to say to you."
+      ]
+    },
+    {
+      "id": "parental_alienation",
+      "name": "Parental Alienation",
+      "description": "Identifies attempts to damage child-parent relationships",
+      "polarity": "negative",
+      "subcategory": "custody",
+      "weight": 95,
+      "mcl_factors": [
+        "i",
+        "j",
+        "k"
+      ],
+      "provenance": "pattern-analyzer.ts BUILT_IN_MODULES",
+      "needs_review": false,
+      "phrases": [
+        "your father doesn't love",
+        "your mother doesn't love",
+        "daddy doesn't care",
+        "mommy doesn't care",
+        "daddy doesn't love",
+        "mommy doesn't love",
+        "they abandoned",
+        "they chose",
+        "they don't want to see you",
+        "it's their fault",
+        "they're the bad guy",
+        "don't tell them",
+        "our little secret",
+        "they'll be mad at you",
+        "they don't understand",
+        "you're better off without"
+      ],
+      "examples": [
+        "Your father doesn't really love you, he just pretends.",
+        "Mommy chose her new boyfriend over you.",
+        "Don't tell daddy about this, it's our little secret."
+      ]
+    },
+    {
+      "id": "projection",
+      "name": "Projection",
+      "description": "Detects accusations that mirror the accuser's own behavior",
+      "polarity": "negative",
+      "subcategory": "manipulation",
+      "weight": 75,
+      "mcl_factors": [
+        "j",
+        "l"
+      ],
+      "provenance": "pattern-analyzer.ts BUILT_IN_MODULES",
+      "needs_review": false,
+      "phrases": [
+        "you're the one who",
+        "you always",
+        "you never",
+        "you're cheating",
+        "you're lying",
+        "you're manipulating",
+        "you're controlling",
+        "you're abusive",
+        "you're the narcissist",
+        "you're gaslighting me"
+      ],
+      "examples": [
+        "You're the one who's always lying, not me.",
+        "You're so controlling, you never let me do anything.",
+        "You're the narcissist here, not me."
+      ]
+    },
+    {
+      "id": "darvo",
+      "name": "DARVO (Deny, Attack, Reverse Victim/Offender)",
+      "description": "Detects the three-stage pattern of denying wrongdoing, attacking the accuser, and reversing victim/offender roles",
+      "polarity": "negative",
+      "subcategory": "manipulation",
+      "weight": 95,
+      "mcl_factors": [
+        "j",
+        "l"
+      ],
+      "provenance": "pattern-analyzer.ts BUILT_IN_MODULES",
+      "needs_review": false,
+      "phrases": [
+        "i never",
+        "i didn't",
+        "that never happened",
+        "that's not true",
+        "you're making that up",
+        "i would never",
+        "that's a lie",
+        "you're crazy",
+        "you're lying",
+        "you're the abusive one",
+        "you're manipulating",
+        "you're gaslighting me",
+        "you're toxic",
+        "you're the problem",
+        "you're unstable",
+        "you're delusional",
+        "i'm the victim here",
+        "you're attacking me",
+        "you're abusing me",
+        "i'm the one being hurt",
+        "you're hurting me",
+        "i'm scared of you",
+        "you're the aggressor",
+        "i need protection from you"
+      ],
+      "examples": [
+        "I never said that, you're crazy for thinking I did.",
+        "That's not true, you're the one who's abusive here.",
+        "I'm the victim, you're attacking me right now."
+      ]
+    },
+    {
+      "id": "overelaboration",
+      "name": "Overelaboration",
+      "description": "Detects excessive detail about location, timing, and justifications that may indicate deception",
+      "polarity": "negative",
+      "subcategory": "deception",
+      "weight": 70,
+      "mcl_factors": [
+        "l"
+      ],
+      "provenance": "pattern-analyzer.ts BUILT_IN_MODULES",
+      "needs_review": false,
+      "phrases": [
+        "i'm at",
+        "i'm still at",
+        "i'm heading to",
+        "i'll be at",
+        "i'm on my way to",
+        "i just left",
+        "i just arrived at",
+        "i left at",
+        "i'll be back by",
+        "i've been here since",
+        "i'll be done in",
+        "i'm doing this because",
+        "i had to",
+        "i needed to",
+        "the reason is",
+        "i'm just",
+        "i was just",
+        "before you ask",
+        "i know you're wondering",
+        "just so you know",
+        "for the record",
+        "to be clear"
+      ],
+      "examples": [
+        "I'm at the store, I left at 2:15pm and I'll be back by 3:30pm.",
+        "Before you ask, I'm doing this because I needed to pick up groceries.",
+        "Just so you know, I've been here since noon, for the record."
+      ]
+    },
+    {
+      "id": "medical_abuse",
+      "name": "Medical Abuse",
+      "description": "Identifies weaponization of medication, diagnoses, and mental health status for control",
+      "polarity": "negative",
+      "subcategory": "control",
+      "weight": 95,
+      "mcl_factors": [
+        "f",
+        "j"
+      ],
+      "provenance": "pattern-analyzer.ts BUILT_IN_MODULES",
+      "needs_review": false,
+      "phrases": [
+        "you need your meds",
+        "did you take your pills",
+        "you're not thinking clearly",
+        "it's the medication talking",
+        "you can't make decisions",
+        "you're not well enough",
+        "i'm holding your meds",
+        "you can't be trusted with",
+        "you're bipolar",
+        "you're borderline",
+        "you're schizophrenic",
+        "that's your condition talking",
+        "you're having an episode",
+        "you need to be hospitalized",
+        "you're unstable"
+      ],
+      "examples": [
+        "Did you take your pills? You're not thinking clearly.",
+        "I'm holding your meds because you can't be trusted.",
+        "You're having an episode, you need to be hospitalized."
+      ]
+    },
+    {
+      "id": "reproductive_coercion",
+      "name": "Reproductive Coercion",
+      "description": "Detects attempts to control reproductive choices, pregnancy as trap, contraception interference",
+      "polarity": "negative",
+      "subcategory": "control",
+      "weight": 100,
+      "mcl_factors": [
+        "j",
+        "l"
+      ],
+      "provenance": "pattern-analyzer.ts BUILT_IN_MODULES",
+      "needs_review": false,
+      "phrases": [
+        "i want you pregnant",
+        "you should get pregnant",
+        "stop taking birth control",
+        "i'll get you pregnant",
+        "you can't leave if you're pregnant",
+        "a baby will fix us",
+        "you owe me a child",
+        "i sabotaged your birth control",
+        "i'll take the baby",
+        "you'll never see the baby",
+        "i'll prove you're unfit",
+        "you're a bad mother",
+        "the baby doesn't need you"
+      ],
+      "examples": [
+        "You should get pregnant, a baby will fix our relationship.",
+        "You can't leave if you're pregnant.",
+        "I'll prove you're an unfit mother and take the baby."
+      ]
+    },
+    {
+      "id": "power_asymmetry",
+      "name": "Power Asymmetry",
+      "description": "Tracks power dynamics through victim deference vs abuser directives",
+      "polarity": "neutral",
+      "subcategory": "dynamics",
+      "weight": 60,
+      "mcl_factors": [
+        "j",
+        "l"
+      ],
+      "provenance": "pattern-analyzer.ts BUILT_IN_MODULES",
+      "needs_review": false,
+      "phrases": [
+        "if that's okay",
+        "if you don't mind",
+        "is that alright",
+        "sorry",
+        "my bad",
+        "i didn't mean to",
+        "i apologize",
+        "i hope that's fine",
+        "let me know if",
+        "where are you",
+        "what are you doing",
+        "who are you with",
+        "come here",
+        "go there",
+        "do this",
+        "stop that",
+        "tell me",
+        "show me",
+        "prove it"
+      ],
+      "examples": [
+        "Sorry, is that alright? I didn't mean to upset you.",
+        "Where are you? Who are you with? Tell me now.",
+        "Come here. Show me your phone. Prove it."
+      ]
+    },
+    {
+      "id": "love_bombing",
+      "name": "Love Bombing",
+      "description": "Identifies excessive flattery, premature declarations of love, and overwhelming affection",
+      "polarity": "positive",
+      "subcategory": "affection",
+      "weight": 80,
+      "mcl_factors": [
+        "l"
+      ],
+      "provenance": "pattern-analyzer.ts BUILT_IN_MODULES",
+      "needs_review": false,
+      "phrases": [
+        "you're perfect",
+        "you're my everything",
+        "i've never felt this way",
+        "you're my soulmate",
+        "we're meant to be",
+        "i can't live without you",
+        "you complete me",
+        "you're the best thing",
+        "i've never loved anyone like",
+        "you're amazing",
+        "you're incredible",
+        "i'm so lucky",
+        "you're too good for me"
+      ],
+      "examples": [
+        "You're absolutely perfect, I've never felt this way about anyone.",
+        "You're my soulmate, we were meant to be together.",
+        "I can't live without you, you complete me."
+      ]
+    },
+    {
+      "id": "future_faking",
+      "name": "Future Faking",
+      "description": "Detects grandiose promises about the future that may not be fulfilled",
+      "polarity": "positive",
+      "subcategory": "promises",
+      "weight": 75,
+      "mcl_factors": [
+        "l"
+      ],
+      "provenance": "pattern-analyzer.ts BUILT_IN_MODULES",
+      "needs_review": false,
+      "phrases": [
+        "when we get married",
+        "when we have kids",
+        "i'm going to buy you",
+        "we'll travel the world",
+        "i'll change",
+        "things will be different",
+        "i promise to",
+        "next time",
+        "soon we'll",
+        "one day we'll",
+        "i'll make it up to you",
+        "just wait until"
+      ],
+      "examples": [
+        "When we get married, everything will be perfect.",
+        "I promise I'll change, things will be different this time.",
+        "Soon we'll travel the world together, just wait."
+      ]
+    },
+    {
+      "id": "affirmations",
+      "name": "Positive Affirmations",
+      "description": "Tracks genuine-seeming compliments and supportive statements",
+      "polarity": "positive",
+      "subcategory": "affection",
+      "weight": 50,
+      "mcl_factors": [],
+      "provenance": "pattern-analyzer.ts BUILT_IN_MODULES",
+      "needs_review": false,
+      "phrases": [],
+      "examples": []
+    },
+    {
+      "id": "apologies",
+      "name": "Apologies & Remorse",
+      "description": "Identifies apologies and expressions of remorse (to track sincerity over time)",
+      "polarity": "positive",
+      "subcategory": "reconciliation",
+      "weight": 60,
+      "mcl_factors": [
+        "l"
+      ],
+      "provenance": "pattern-analyzer.ts BUILT_IN_MODULES",
+      "needs_review": false,
+      "phrases": [
+        "i'm sorry",
+        "i apologize",
+        "please forgive me",
+        "i was wrong",
+        "i made a mistake",
+        "i shouldn't have",
+        "i regret",
+        "i feel terrible",
+        "i'll do better",
+        "give me another chance",
+        "i didn't mean to"
+      ],
+      "examples": [
+        "I'm so sorry, I was completely wrong.",
+        "Please forgive me, I made a terrible mistake.",
+        "I regret everything, give me another chance."
+      ]
+    },
+    {
+      "id": "gift_giving",
+      "name": "Gift Giving & Generosity",
+      "description": "Tracks mentions of gifts, financial generosity, and material expressions of love",
+      "polarity": "positive",
+      "subcategory": "affection",
+      "weight": 55,
+      "mcl_factors": [
+        "c"
+      ],
+      "provenance": "pattern-analyzer.ts BUILT_IN_MODULES",
+      "needs_review": false,
+      "phrases": [],
+      "examples": []
+    },
+    {
+      "id": "scheduling",
+      "name": "Scheduling & Custody",
+      "description": "Identifies discussions about custody schedules, visitation, and parenting time",
+      "polarity": "neutral",
+      "subcategory": "logistics",
+      "weight": 40,
+      "mcl_factors": [
+        "a",
+        "b",
+        "d"
+      ],
+      "provenance": "pattern-analyzer.ts BUILT_IN_MODULES",
+      "needs_review": false,
+      "phrases": [],
+      "examples": []
+    },
+    {
+      "id": "child_wellbeing",
+      "name": "Child Wellbeing Mentions",
+      "description": "Tracks references to children's health, education, and emotional state",
+      "polarity": "neutral",
+      "subcategory": "children",
+      "weight": 50,
+      "mcl_factors": [
+        "a",
+        "b",
+        "e",
+        "g"
+      ],
+      "provenance": "pattern-analyzer.ts BUILT_IN_MODULES",
+      "needs_review": false,
+      "phrases": [],
+      "examples": []
+    },
+    {
+      "id": "guilt_trip",
+      "name": "Guilt-Tripping",
+      "description": "Inducing guilt for control",
+      "polarity": "negative",
+      "subcategory": "manipulation",
+      "weight": 50,
+      "mcl_factors": [],
+      "phrases": [
+        "after everything i've done",
+        "you don't care about me"
+      ],
+      "examples": [],
+      "provenance": "RESEARCH_BEHAVIORAL_ANALYSIS.md (taxonomy table; indicator phrases only)",
+      "needs_review": true
+    },
+    {
+      "id": "boundary_violation",
+      "name": "Boundary Violations",
+      "description": "Ignoring stated limits",
+      "polarity": "negative",
+      "subcategory": "control",
+      "weight": 50,
+      "mcl_factors": [],
+      "phrases": [],
+      "examples": [],
+      "provenance": "RESEARCH_BEHAVIORAL_ANALYSIS.md (taxonomy table; indicator phrases only)",
+      "needs_review": true
+    },
+    {
+      "id": "triangulation",
+      "name": "Triangulation",
+      "description": "Using third parties to manipulate",
+      "polarity": "negative",
+      "subcategory": "manipulation",
+      "weight": 50,
+      "mcl_factors": [],
+      "phrases": [
+        "everyone thinks you're"
+      ],
+      "examples": [],
+      "provenance": "RESEARCH_BEHAVIORAL_ANALYSIS.md (taxonomy table; indicator phrases only)",
+      "needs_review": true
+    },
+    {
+      "id": "word_salad",
+      "name": "Word Salad",
+      "description": "Circular, confusing communication to exhaust or evade",
+      "polarity": "negative",
+      "subcategory": "manipulation",
+      "weight": 50,
+      "mcl_factors": [],
+      "phrases": [],
+      "examples": [],
+      "provenance": "RESEARCH_BEHAVIORAL_ANALYSIS.md (taxonomy table; indicator phrases only)",
+      "needs_review": true
+    },
+    {
+      "id": "hoovering",
+      "name": "Hoovering",
+      "description": "Pulling the target back in after conflict or discard",
+      "polarity": "positive",
+      "subcategory": "manipulation",
+      "weight": 50,
+      "mcl_factors": [],
+      "phrases": [],
+      "examples": [],
+      "provenance": "RESEARCH_BEHAVIORAL_ANALYSIS.md (taxonomy table; indicator phrases only)",
+      "needs_review": true
+    },
+    {
+      "id": "intermittent_reinforcement",
+      "name": "Intermittent Reinforcement",
+      "description": "Unpredictable rewards amid mistreatment to keep the target off-balance",
+      "polarity": "positive",
+      "subcategory": "manipulation",
+      "weight": 50,
+      "mcl_factors": [],
+      "phrases": [],
+      "examples": [],
+      "provenance": "RESEARCH_BEHAVIORAL_ANALYSIS.md (taxonomy table; indicator phrases only)",
+      "needs_review": true
+    }
+  ],
+  "contradiction_rules": [
+    {
+      "id": "love_bomb_devalue",
+      "positive_module": "love_bombing",
+      "negative_modules": [
+        "gaslighting",
+        "blame_shifting",
+        "minimization",
+        "threats_intimidation"
+      ],
+      "description": "Idealize->devalue proximity reversal (love-bombing followed by devaluation)",
+      "provenance": "pattern-analyzer.ts detectContradictions"
+    },
+    {
+      "id": "promise_broken",
+      "positive_module": "future_faking",
+      "negative_modules": [],
+      "description": "Promise -> broken commitment (requires temporal follow-up evidence)",
+      "provenance": "RESEARCH_BEHAVIORAL_ANALYSIS.md contradiction logic"
+    },
+    {
+      "id": "apology_repeat",
+      "positive_module": "apologies",
+      "negative_modules": [],
+      "description": "Apology -> repetition of the apologized-for behavior",
+      "provenance": "RESEARCH_BEHAVIORAL_ANALYSIS.md contradiction logic"
+    },
+    {
+      "id": "affirmation_devaluation",
+      "positive_module": "affirmations",
+      "negative_modules": [
+        "gaslighting",
+        "blame_shifting",
+        "minimization"
+      ],
+      "description": "Affirmation -> devaluation reversal",
+      "provenance": "RESEARCH_BEHAVIORAL_ANALYSIS.md contradiction logic"
+    }
+  ]
+}
