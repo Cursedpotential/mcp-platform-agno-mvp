@@ -102,7 +102,7 @@ from __future__ import annotations
 from evidence.registry import register
 
 @register(
-    id="transcripts.chatgpt-export",      # unique, dotted, stable (UI/tests depend on it)
+    id="transcripts.chatgpt-official",    # unique, dotted, stable (UI/tests depend on it)
     capability="parse.transcript",         # capability-based resolution; same capability = swappable
     description="ChatGPT official JSON export → NormalizedRecords",
     accept=lambda media_hint, size: media_hint.endswith(".json"),
