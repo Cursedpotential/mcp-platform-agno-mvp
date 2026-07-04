@@ -78,3 +78,6 @@ evidence/config/case_terms.yaml
 
 # Infra doc with real credentials — commit only the sanitized .template.md
 docs/INFRASTRUCTURE.md
+
+# gateway content-addressed result store (runtime artifacts, never committed)
+data/content_store/
