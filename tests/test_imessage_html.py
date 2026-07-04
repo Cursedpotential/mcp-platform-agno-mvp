@@ -59,3 +59,36 @@ def test_rejects_non_imessage_html(tmp_path):
     html = '<html><body><div class="message"><div class="meta">X - May 1, 2022</div><p>hi</p></div></body></html>'
     with pytest.raises(ValueError, match="not an imessage-exporter HTML export"):
         _run(tmp_path, html)
+
+
+def test_owner_custom_variant_parses_bubbles_and_meta(tmp_path):
+    # The owner-CUSTOM exporter shape (div.bubble.from-me/from-them + .meta):
+    # the real vault format. Direction from the bubble class, sender + minute-
+    # precision timestamp from the .meta line, document order preserved for
+    # same-minute messages, attachment links captured.
+    html = """
+    <html><body>
+      <div class="bubble from-them">Where is she</div>
+      <div class="meta">+18105551234 - 2023-03-04 02:15 PM</div>
+      <div class="bubble from-me">At practice like the schedule says</div>
+      <div class="meta">Me - 2023-03-04 02:15 PM</div>
+      <div class="bubble from-me">See attached</div>
+      <div class="meta">Me - 2023-03-04 02:16 PM</div>
+      <a class="attachment-link" href="IMG_1.jpeg">IMG_1.jpeg</a>
+    </body></html>
+    """
+    result = _run(tmp_path, html)
+    assert result["stats"]["variant"] == "owner-custom"
+    r1, r2, r3 = result["records"]  # document order within the same minute
+
+    assert r1["role"] == "+18105551234"
+    assert r1["attrs"]["direction"] == "inbound"
+    assert r1["content"] == "Where is she"
+    assert r1["occurred_at"].startswith("2023-03-04T14:15")
+
+    assert r2["role"] == "owner"
+    assert r2["attrs"]["direction"] == "outbound"
+    assert r2["attrs"]["sequence_number"] == 1  # same minute as r1, order kept
+
+    assert r3["attrs"]["attachments"] == [{"kind": "link", "uri": "IMG_1.jpeg", "text": "IMG_1.jpeg"}]
+    assert set(r1["participants"]) == {"owner", "+18105551234"}
