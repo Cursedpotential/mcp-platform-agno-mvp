@@ -94,9 +94,18 @@ def build_chat_transcript_workflow(
                 success=True,
             )
         records = finalize([NormalizedRecord.model_validate(r) for r in ctx["raw_records"]])
+        # provenance stamp: which tool parsed, and whether an alternate (backup)
+        # parser produced it — a backup parse must never be indistinguishable
+        # from the primary
+        for rec in records:
+            rec.attrs.setdefault("parser_tool", ctx.get("parser_id"))
+            if ctx.get("alt_parse"):
+                rec.attrs["alt_parse"] = True
+                rec.attrs["alt_parse_detail"] = ctx.get("alt_parse_detail")
         ctx["records"] = records
         ctx["stored"] = store_records(records, artifact)
-        return StepOutput(content=f"store: {ctx['stored']} rows -> analysis.normalized_record", success=True)
+        note = " [ALT-PARSE — primary unavailable, see alt_parse_detail]" if ctx.get("alt_parse") else ""
+        return StepOutput(content=f"store: {ctx['stored']} rows -> analysis.normalized_record{note}", success=True)
 
     async def knowledge_step(step_input: StepInput) -> StepOutput:
         if knowledge is None:
@@ -124,19 +133,27 @@ def build_sms_xml_workflow(
     source_meta: dict[str, Any] | None = None,
     domain: str = "timeline_relationship",
     knowledge=None,
+    allow_fallback: bool = False,
 ) -> tuple[Workflow, dict[str, Any]]:
     """Workflow A — the SBV SMS-XML vertical. Same custody->parse->store->knowledge
     spine as chat-transcript, but resolves capability `parse.sms-xml`: the
     registry returns SBV first (messages.sms-xml-sbv) and the pure-Python parser
-    (messages.sms-xml) as the automatic fallback. If SBV is unreachable/unwired
-    or returns nothing, the executor's substitution loop moves to the fallback
-    and records every attempt — the mesh substitution mechanic in action."""
+    (messages.sms-xml) as fallback.
+
+    NO SILENT SUBSTITUTION (owner mandate 2026-07-02): if the PRIMARY tool fails,
+    the workflow STOPS by default and says exactly what failed. Passing
+    allow_fallback=True permits the substitution loop to continue autonomously,
+    but the run and every stored record are flagged as an ALTERNATE-PARSER parse
+    with the primary's failure recorded — a backup parse must never be
+    indistinguishable from the primary."""
     load_builtin_tools()
     ctx: dict[str, Any] = {
         "path": path,
         "source_meta": source_meta or {},
         "domain": domain,
         "attempts": [],
+        "alt_parse": False,
+        "alt_parse_detail": None,
     }
 
     def custody_step(step_input: StepInput) -> StepOutput:
@@ -153,6 +170,7 @@ def build_sms_xml_workflow(
         candidates = registry.resolve("parse.sms-xml", media_hint=p.name.lower(), size_bytes=p.stat().st_size)
         if not candidates:
             return StepOutput(content=f"parse: NO tool accepts {p.name}", success=False, stop=True)
+        primary = candidates[0]
         last_err: Exception | None = None
         for tool in candidates:
             try:
@@ -161,14 +179,51 @@ def build_sms_xml_workflow(
                 ctx["raw_records"] = result["records"]
                 ctx["parse_stats"] = result.get("stats", {})
                 ctx["parser_id"] = tool.id
+                if tool.id != primary.id:
+                    # substitution happened — only reachable with allow_fallback=True
+                    ctx["alt_parse"] = True
+                    ctx["alt_parse_detail"] = {
+                        "primary": primary.id,
+                        "primary_error": next(
+                            (a["error"] for a in ctx["attempts"] if a["tool"] == primary.id), None
+                        ),
+                        "used": tool.id,
+                    }
+                    return StepOutput(
+                        content=f"parse: ALTERNATE PARSER — primary {primary.id} unavailable "
+                        f"({ctx['alt_parse_detail']['primary_error']}); backup {tool.id} parsed "
+                        f"{len(result['records'])} records (allow_fallback=True). "
+                        f"Attempts: {ctx['attempts']}",
+                        success=True,
+                    )
                 return StepOutput(
-                    content=f"parse: {tool.id} -> {len(result['records'])} records "
-                    f"(tried: {[a['tool'] for a in ctx['attempts']]})",
+                    content=f"parse: {tool.id} (primary) -> {len(result['records'])} records",
                     success=True,
                 )
-            except Exception as exc:  # SBV down / wrong format -> next same-capability tool (fallback)
+            except Exception as exc:
                 ctx["attempts"].append({"tool": tool.id, "ok": False, "error": str(exc)})
                 last_err = exc
+                if tool.id == primary.id and not ctx.get("allow_fallback"):
+                    # PAUSE, don't fail: surface the decision with its options.
+                    # Interactive: pick an option and rerun. Autonomous lane: queue
+                    # this verbatim to APPROVALS.md and work on something else.
+                    ctx["paused_decision"] = {
+                        "reason": f"primary parser {primary.id} failed",
+                        "error": str(exc),
+                        "options": {
+                            "a": f"fix/restore the primary ({primary.id}) and rerun",
+                            "b": f"rerun with allow_fallback=True -> use {[c.id for c in candidates[1:]]} "
+                                 f"(run + records flagged alt_parse)",
+                            "c": "abort this file (leave for a later batch)",
+                        },
+                    }
+                    return StepOutput(
+                        content=f"parse: PAUSED awaiting decision — primary {primary.id} FAILED for "
+                        f"{p.name}: {exc}. Options: (a) fix primary; (b) allow_fallback=True, "
+                        f"flagged alt_parse; (c) abort. No silent substitution.",
+                        success=False,
+                        stop=True,
+                    )
         return StepOutput(
             content=f"parse: ALL candidates failed for {p.name}: {ctx['attempts']} (last: {last_err})",
             success=False,
@@ -185,9 +240,18 @@ def build_sms_xml_workflow(
                 success=True,
             )
         records = finalize([NormalizedRecord.model_validate(r) for r in ctx["raw_records"]])
+        # provenance stamp: which tool parsed, and whether an alternate (backup)
+        # parser produced it — a backup parse must never be indistinguishable
+        # from the primary
+        for rec in records:
+            rec.attrs.setdefault("parser_tool", ctx.get("parser_id"))
+            if ctx.get("alt_parse"):
+                rec.attrs["alt_parse"] = True
+                rec.attrs["alt_parse_detail"] = ctx.get("alt_parse_detail")
         ctx["records"] = records
         ctx["stored"] = store_records(records, artifact)
-        return StepOutput(content=f"store: {ctx['stored']} rows -> analysis.normalized_record", success=True)
+        note = " [ALT-PARSE — primary unavailable, see alt_parse_detail]" if ctx.get("alt_parse") else ""
+        return StepOutput(content=f"store: {ctx['stored']} rows -> analysis.normalized_record{note}", success=True)
 
     async def knowledge_step(step_input: StepInput) -> StepOutput:
         if knowledge is None:
@@ -215,9 +279,16 @@ async def run_sms_xml(
     source_meta: dict[str, Any] | None = None,
     domain: str = "timeline_relationship",
     knowledge=None,
+    allow_fallback: bool = False,
 ) -> dict[str, Any]:
-    """Run the SMS-XML vertical (Workflow A) end-to-end; return a verifiable summary."""
-    wf, ctx = build_sms_xml_workflow(path, source_meta, domain, knowledge)
+    """Run the SMS-XML vertical (Workflow A) end-to-end; return a verifiable summary.
+
+    allow_fallback=False (default): primary-parser failure PAUSES the run with
+    options (fix primary / allow fallback / abort). allow_fallback=True:
+    substitution may proceed, but the summary and every stored record carry
+    alt_parse=True + the primary's failure detail."""
+    wf, ctx = build_sms_xml_workflow(path, source_meta, domain, knowledge, allow_fallback=allow_fallback)
+    ctx["allow_fallback"] = allow_fallback
     result = await wf.arun(input=f"ingest sms-xml: {path}")
     artifact: ArtifactRef | None = ctx.get("artifact")
     return {
@@ -227,6 +298,8 @@ async def run_sms_xml(
         "sha256": artifact.sha256 if artifact else None,
         "duplicate": artifact.duplicate if artifact else None,
         "parser": ctx.get("parser_id"),
+        "alt_parse": ctx.get("alt_parse", False),
+        "alt_parse_detail": ctx.get("alt_parse_detail"),
         "parse_attempts": ctx.get("attempts", []),
         "parse_stats": ctx.get("parse_stats", {}),
         "records_stored": ctx.get("stored", 0),
