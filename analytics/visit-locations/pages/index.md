@@ -4,7 +4,9 @@ title: Visit Locations 2023
 
 Clustered visit locations for January – December 2023, Genesee County (Flint), Michigan.
 Addresses were reverse-geocoded from cluster coordinates via OpenStreetMap Nominatim.
-Click any row to drill into a location; click a group to see its members.
+Click any row to drill into a location; click a group to see its members. For the
+untouched source data, every raw column, and how each metric is computed, see
+[Data & provenance](/data).
 
 ```sql summary
 select

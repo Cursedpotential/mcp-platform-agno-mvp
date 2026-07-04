@@ -41,6 +41,43 @@ Cluster {params.cluster_id} · {location[0].group_label} · {location[0].lat}, {
     ]}
 />
 
+## Full record
+
+Every field behind this data point — the original export columns verbatim
+(timestamps shown exactly as recorded, including their original UTC offsets),
+the enrichment fields added later, and the formula behind every derived number.
+See [Data & provenance](/data) for the untouched source file.
+
+```sql full_record
+with r as (
+    select * from visits.locations
+    where cluster_id::int = try_cast('${params.cluster_id}' as int)
+)
+select 1 as ord, 'cluster_id' as field, cluster_id::int::varchar as value, 'Original export' as source, 'Cluster identifier from the clustering run' as notes from r
+union all select 2, 'lat_med', lat_med::varchar, 'Original export', 'Median latitude of the cluster''s member points' from r
+union all select 3, 'lng_med', lng_med::varchar, 'Original export', 'Median longitude of the cluster''s member points' from r
+union all select 4, 'points', visits::int::varchar, 'Original export', 'Count of raw location fixes assigned to this cluster' from r
+union all select 5, 'first_seen', strftime(first_seen, '%Y-%m-%d %H:%M:%S') || utc_offset_first, 'Original export', 'Verbatim, with original UTC offset' from r
+union all select 6, 'last_seen', strftime(last_seen, '%Y-%m-%d %H:%M:%S') || utc_offset_last, 'Original export', 'Verbatim, with original UTC offset' from r
+union all select 7, 'lat', lat::varchar, 'Original export', 'Plotted latitude (equals lat_med in this export)' from r
+union all select 8, 'lng', lng::varchar, 'Original export', 'Plotted longitude (equals lng_med in this export)' from r
+union all select 9, 'cluster', group_id::int::varchar, 'Original export', 'Group assignment; -1 = unclustered / noise' from r
+union all select 10, 'address', coalesce(address, ''), 'Enrichment', 'Reverse-geocoded from lat/lng via OSM Nominatim' from r
+union all select 11, 'group_label', group_label, 'Enrichment', 'Readable form of the cluster column' from r
+union all select 12, 'active_days', (date_diff('day', first_seen::date, last_seen::date) + 1)::varchar, 'Derived', 'last_seen date − first_seen date + 1' from r
+union all select 13, 'visits_per_week', round(visits / ((date_diff('day', first_seen::date, last_seen::date) + 1) / 7.0), 2)::varchar, 'Derived', 'points ÷ (active_days ÷ 7)' from r
+union all select 14, 'visits_per_month', round(visits / ((date_diff('day', first_seen::date, last_seen::date) + 1) / 30.44), 1)::varchar, 'Derived', 'points ÷ (active_days ÷ 30.44)' from r
+union all select 15, 'avg_days_between_visits', round((date_diff('day', first_seen::date, last_seen::date) + 1) / visits::float, 1)::varchar, 'Derived', 'active_days ÷ points' from r
+order by ord
+```
+
+<DataTable data={full_record} rows=all>
+    <Column id=field title="Field" />
+    <Column id=value title="Value" wrap=true />
+    <Column id=source title="Source" />
+    <Column id=notes title="Meaning / formula" wrap=true />
+</DataTable>
+
 ## How this location compares
 
 ```sql rank_context
