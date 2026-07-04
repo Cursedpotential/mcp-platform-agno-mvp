@@ -1,0 +1,33 @@
+##### NEO4J #####
+container=neo4j-ipy7vrw61jjsw0ktou2qr20f-050748423692 user=neo4j
+--- CALL db.labels() YIELD label RETURN label ---
+label
+"Saga"
+"Episodic"
+"Entity"
+"Community"
+--- CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType ---
+relationshipType
+"MENTIONS"
+"NEXT_EPISODE"
+"HAS_EPISODE"
+"HAS_MEMBER"
+"RELATES_TO"
+--- CALL db.propertyKeys() YIELD propertyKey RETURN propertyKey ---
+propertyKey
+"uuid"
+"group_id"
+"name"
+"created_at"
+"valid_at"
+"expired_at"
+"invalid_at"
+"summary"
+"content"
+"source"
+"fact"
+"source_description"
+"ok"
+--- MATCH (n) RETURN count(n) AS nodes ---
+nodes
+0

@@ -1,0 +1,50 @@
+### container=agentos-db-ipy7vrw61jjsw0ktou2qr20f-050748406048 user=ai db=ai
+### SCHEMAS:
+ai
+analysis
+duckdb
+evidence
+public
+### EXTENSIONS:
+btree_gin 1.3
+btree_gist 1.8
+pg_duckdb 1.1.0
+pg_stat_statements 1.12
+pg_trgm 1.6
+pgcrypto 1.4
+plpgsql 1.0
+postgis 3.6.4
+unaccent 1.1
+vector 0.8.2
+### TABLES (schema.table):
+ai.agno_approvals
+ai.agno_component_configs
+ai.agno_component_links
+ai.agno_components
+ai.agno_eval_runs
+ai.agno_learnings
+ai.agno_memories
+ai.agno_metrics
+ai.agno_schedule_runs
+ai.agno_schedules
+ai.agno_schema_versions
+ai.agno_sessions
+ai.api_keys
+ai.casebible_evidence_contents
+ai.casebible_evidence_test_contents
+ai.casebible_ingest_test2_contents
+ai.casebible_ingest_test_contents
+ai.platform_knowledge_contents
+analysis.normalized_record
+duckdb.extensions
+duckdb.tables
+evidence.evidence_hash
+public.agent_run
+public.approval_request
+public.spatial_ref_sys
+public.transcript_insight
+### TYPES (enums/domains/composite):
+ERROR:  operator is not unique: text || "char"
+LINE 1: select n.nspname||'.'||t.typname||' '||t.typtype from pg_typ...
+                                             ^
+HINT:  Could not choose a best candidate operator. You might need to add explicit type casts.
