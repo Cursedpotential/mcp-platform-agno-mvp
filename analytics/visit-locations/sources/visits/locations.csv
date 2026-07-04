@@ -1,0 +1,94 @@
+cluster_id,address,lat,lng,visits,first_seen,last_seen,utc_offset,group_id,group_label
+2,"8010, North Genesee Road, Genesee Charter Township, Genesee County, Michigan, 48458, United States",43.1209351,-83.6174741,1801,2023-01-06 22:28:00,2023-12-31 20:54:00,-05:00,-1,Unclustered
+28,"11089, Varna Drive, Vienna Charter Township, Genesee County, Michigan, 48420, United States",43.1651141,-83.7315968,1369,2023-04-09 16:31:00,2023-12-31 14:31:00,-04:00,-1,Unclustered
+14,"7277, East Wilson Road, Thetford Township, Genesee County, Michigan, 48463, United States",43.1657824,-83.5702427,266,2023-01-19 16:53:00,2023-11-27 14:04:00,-05:00,-1,Unclustered
+0,"7149, North Dort Highway, Beecher, Genesee Charter Township, Genesee County, Michigan, 48458, United States",43.10881465,-83.67587515,222,2023-01-04 02:37:00,2023-12-28 00:15:00,-05:00,-1,Unclustered
+10,"2579, East Mount Morris Road, Genesee, Genesee Charter Township, Genesee County, Michigan, 48458, United States",43.1201523,-83.6581529,137,2023-01-15 15:07:00,2023-12-29 18:15:00,-05:00,-1,Unclustered
+1,"2104, East Mount Morris Road, Genesee, Genesee Charter Township, Genesee County, Michigan, 48458, United States",43.1196965,-83.6756952,117,2023-01-06 17:47:00,2023-12-31 14:23:00,-05:00,0,Group 0
+30,"Marathon, 10156, North Saginaw Road, Pine Run, Clio, Genesee County, Michigan, 48420, United States",43.1529397,-83.695407,107,2023-04-29 15:21:00,2023-12-31 14:27:00,-04:00,-1,Unclustered
+16,"Walmart Supercenter, 11493, North Linden Road, Clio, Genesee County, Michigan, 48420, United States",43.1750093,-83.7773021,92,2023-01-31 18:40:00,2023-12-24 17:21:00,-05:00,1,Group 1
+70,"6045, Surrey Lane, Holiday Villa, Lapeer Heights, Burton, Genesee County, Michigan, 48519, United States",43.0041274,-83.59329345,88,2023-09-16 12:23:00,2023-12-31 21:18:00,-04:00,-1,Unclustered
+18,"Burger King, 4295, West Vienna Road, Clio, Genesee County, Michigan, 48420, United States",43.17691585,-83.7648994,76,2023-01-31 19:35:00,2023-12-29 13:11:00,-05:00,-1,Unclustered
+6,"O'Reilly Auto Parts, North Saginaw Street, Genesee Charter Township, Genesee County, Michigan, 48458, United States",43.1110868,-83.6937903,69,2023-01-07 17:30:00,2023-12-27 21:45:00,-05:00,-1,Unclustered
+46,"2298, West Wilson Road, Vienna Charter Township, Genesee County, Michigan, 48420, United States",43.1632453,-83.7251837,63,2023-05-22 22:33:00,2023-12-30 12:48:00,-04:00,-1,Unclustered
+12,"9367, North Dort Highway, Thetford Township, Genesee County, Michigan, 48458, United States",43.14340335,-83.68958835000001,58,2023-01-15 15:11:00,2023-12-29 18:11:00,-05:00,-1,Unclustered
+58,"5697, North Linden Road, Mount Morris Charter Township, Genesee County, Michigan, 48504, United States",43.0860039,-83.77377785,54,2023-06-30 15:56:00,2023-12-25 12:11:00,-04:00,-1,Unclustered
+34,"1948, West Wilson Road, Vienna Charter Township, Genesee County, Michigan, 48420, United States",43.1636679,-83.7142473,45,2023-05-07 17:09:00,2023-12-31 14:29:00,-04:00,-1,Unclustered
+36,"10207, Clio Road, Beecher, Vienna Charter Township, Genesee County, Michigan, 48420, United States",43.1540325,-83.7345738,43,2023-05-09 16:29:00,2023-12-30 19:28:00,-04:00,-1,Unclustered
+37,"North Saginaw Road, Pine Run, Vienna Charter Township, Genesee County, Michigan, 48420, United States",43.1636727,-83.7044253,43,2023-05-10 10:14:00,2023-12-29 12:08:00,-04:00,-1,Unclustered
+5,"Taco Bell, 7047, Lu Charles Avenue, Mount Morris, Genesee County, Michigan, 48458, United States",43.1060167,-83.6947979,41,2023-01-07 17:28:00,2023-12-24 22:19:00,-05:00,-1,Unclustered
+11,"2008, Carrier Drive, Genesee Charter Township, Genesee County, Michigan, 48458, United States",43.1274313,-83.6773047,39,2023-01-15 15:09:00,2023-12-29 12:44:00,-05:00,-1,Unclustered
+4,"Pineview Drive, Pineview Estates, Genesee Charter Township, Genesee County, Michigan, 48437, United States",43.0922254,-83.6093989,32,2023-01-07 17:08:00,2023-12-29 13:33:00,-05:00,-1,Unclustered
+3,"4495, East Frances Road, Thetford Township, Genesee County, Michigan, 48458, United States",43.1362851,-83.6212739,29,2023-01-06 22:34:00,2023-12-23 19:54:00,-05:00,2,Group 2
+9,"3832, East Frances Road, Genesee Charter Township, Genesee County, Michigan, 48420, United States",43.1353829,-83.6416595,28,2023-01-13 21:01:00,2023-12-27 14:08:00,-05:00,-1,Unclustered
+39,"Dort Financial Credit Union, 11411, North Linden Road, Clio, Genesee County, Michigan, 48420, United States",43.1745652,-83.7743131,28,2023-05-13 13:36:00,2023-12-24 16:57:00,-04:00,1,Group 1
+45,"North Saginaw Road, Pine Run, Vienna Charter Township, Genesee County, Michigan, 48420, United States",43.1614514,-83.7018259,27,2023-05-15 18:00:00,2023-12-31 20:44:00,-04:00,-1,Unclustered
+22,"3476, East Mount Morris Road, Genesee, Genesee Charter Township, Genesee County, Michigan, 48458, United States",43.1200374,-83.6412333,27,2023-02-17 16:15:00,2023-12-28 14:32:00,-05:00,-1,Unclustered
+15,"8812, North Genesee Road, Genesee Charter Township, Genesee County, Michigan, 48458, United States",43.13402985,-83.61804855,24,2023-01-11 20:15:00,2023-12-11 11:45:00,-05:00,2,Group 2
+88,"4237, South Grand Traverse Street, Burton, Flint, Genesee County, Michigan, 48507, United States",42.98561645,-83.68337835,22,2023-12-06 09:21:00,2023-12-09 11:41:00,-05:00,-1,Unclustered
+82,"8348, North Center Road, Genesee Charter Township, Genesee County, Michigan, 48458, United States",43.1311867,-83.63753,21,2023-11-05 14:06:00,2023-12-02 15:16:00,-05:00,3,Group 3
+29,"4713, West Wilson Road, Vienna Charter Township, Genesee County, Michigan, 48420, United States",43.162646800000005,-83.77285205,20,2023-04-29 14:53:00,2023-12-25 12:24:00,-04:00,-1,Unclustered
+35,"3905, West Wilson Road, Vienna Charter Township, Genesee County, Michigan, 48420, United States",43.1629549,-83.7534486,19,2023-05-07 17:11:00,2023-12-29 13:19:00,-04:00,-1,Unclustered
+24,"Clio Road, Beecher, Mount Morris Charter Township, Genesee County, Michigan, 48420, United States",43.1162339,-83.73477905,18,2023-02-18 23:46:00,2023-12-17 15:41:00,-05:00,-1,Unclustered
+43,"North Center Road, Genesee Charter Township, Genesee County, Michigan, 48458, United States",43.1297472,-83.63916904999999,18,2023-05-20 18:43:00,2023-12-27 14:50:00,-04:00,3,Group 3
+71,"5992, Richfield Road, Genesee Charter Township, Genesee County, Michigan, 48506, United States",43.055363400000005,-83.5966161,18,2023-09-16 21:38:00,2023-12-27 13:02:00,-04:00,-1,Unclustered
+52,"99, Danny Lane, North Dort Manor, Genesee Charter Township, Genesee County, Michigan, 48458, United States",43.1340833,-83.681578,17,2023-06-07 21:29:00,2023-12-28 00:17:00,-04:00,-1,Unclustered
+26,"2936, Meisner Avenue, Flint, Genesee County, Michigan, 48506, United States",43.04929775,-83.6529966,16,2023-02-23 21:48:00,2023-12-11 10:00:00,-05:00,-1,Unclustered
+62,"Walmart Supercenter, 5323, Daly Farms Drive, Belsay, Burton, Genesee County, Michigan, 48509, United States",43.0223614,-83.6009447,16,2023-07-07 18:36:00,2023-12-26 17:47:00,-04:00,-1,Unclustered
+67,"Flint River Trail, Genesee, Genesee Charter Township, Genesee County, Michigan, 48437, United States",43.10652035,-83.6102306,16,2023-09-06 21:27:00,2023-11-17 21:43:00,-04:00,-1,Unclustered
+61,"West Vienna Road, Pine Run, Vienna Charter Township, Genesee County, Michigan, 48420, United States",43.1771856,-83.7190856,15,2023-07-05 16:46:00,2023-12-28 14:08:00,-04:00,4,Group 4
+84,"8129, North Center Road, Genesee Charter Township, Genesee County, Michigan, 48458, United States",43.1232738,-83.6381429,15,2023-05-20 18:43:00,2023-12-29 14:27:00,-04:00,-1,Unclustered
+54,"4541, East Dodge Road, Thetford Township, Genesee County, Michigan, 48458, United States",43.15018255,-83.61989654999999,14,2023-05-23 20:52:00,2023-12-19 18:36:00,-04:00,-1,Unclustered
+60,"Marathon, 5015, Richfield Road, Flint, Genesee County, Michigan, 48506, United States",43.05154175,-83.61532199999999,14,2023-07-05 16:03:00,2023-12-31 21:00:00,-04:00,-1,Unclustered
+86,"1395, Conway Street, Flint Charter Township, Genesee County, Michigan, 48532, United States",43.005513,-83.7699184,14,2023-11-23 16:20:00,2023-12-16 17:32:00,-05:00,-1,Unclustered
+33,"2976, East Wilson Road, Thetford Township, Genesee County, Michigan, 48420, United States",43.1642832,-83.6599745,13,2023-04-29 21:00:00,2023-12-30 17:42:00,-04:00,-1,Unclustered
+32,"6538, East Wilson Road, Thetford Township, Genesee County, Michigan, 48463, United States",43.1657025,-83.5855587,12,2023-04-29 15:51:00,2023-11-02 16:14:00,-04:00,-1,Unclustered
+7,"Quest Diagnostics, 11515, North Saginaw Street, Mount Morris, Genesee County, Michigan, 48458, United States",43.1160641,-83.694889,12,2023-01-10 01:42:00,2023-11-30 20:45:00,-05:00,5,Group 5
+53,"Conlee Oil Company, 213, North State Road, Otisville, Genesee County, Michigan, 48463, United States",43.1678268,-83.52506825,12,2023-06-20 15:32:00,2023-11-06 15:02:00,-04:00,-1,Unclustered
+64,"Scott Road, Thetford Township, Genesee County, Michigan, 48458, United States",43.1414567,-83.5987526,11,2023-07-21 12:40:00,2023-08-25 15:19:00,-04:00,-1,Unclustered
+17,"North Linden Road, Vienna Charter Township, Genesee County, Michigan, 48420, United States",43.1718122,-83.7763349,11,2023-01-31 19:28:00,2023-10-28 12:44:00,-05:00,1,Group 1
+91,"4642, East Vienna Road, Thetford Center, Thetford Township, Genesee County, Michigan, 48420, United States",43.1794132,-83.6252352,11,2023-12-10 19:19:00,2023-12-30 17:36:00,-05:00,-1,Unclustered
+56,"East Vienna Street, Clio, Genesee County, Michigan, 48420, United States",43.1773656,-83.7314967,11,2023-06-28 14:21:00,2023-12-25 12:50:00,-04:00,-1,Unclustered
+75,"1296, South Belsay Road, Lapeer Heights, Burton, Genesee County, Michigan, 48509, United States",43.0111296,-83.5951606,11,2023-09-18 14:56:00,2023-12-16 17:49:00,-04:00,-1,Unclustered
+20,"Conlee Travel Center, 4514, West Vienna Road, Clio, Genesee County, Michigan, 48420, United States",43.1780092,-83.7731328,11,2023-02-07 19:45:00,2023-12-25 12:26:00,-05:00,1,Group 1
+48,"2998, Dodge Road, Vienna Charter Township, Genesee County, Michigan, 48420, United States",43.1481746,-83.7341765,11,2023-06-06 18:23:00,2023-12-29 14:37:00,-04:00,-1,Unclustered
+13,"2017, East Stanley Road, Genesee, Genesee Charter Township, Genesee County, Michigan, 48458, United States",43.10565115,-83.67642509999999,10,2023-01-07 18:39:00,2023-12-14 20:50:00,-05:00,-1,Unclustered
+55,"Subway, 1166, North Belsay Road, Belsay, Burton, Genesee County, Michigan, 48509, United States",43.02344935000001,-83.5948301,10,2023-06-27 22:34:00,2023-12-27 13:29:00,-04:00,-1,Unclustered
+27,"7449, North Dort Highway, Beecher, Genesee Charter Township, Genesee County, Michigan, 48458, United States",43.11574565,-83.67613754999999,10,2023-03-25 10:47:00,2023-12-27 22:44:00,-04:00,0,Group 0
+23,"4859, East Coldwater Road, Genesee Charter Township, Genesee County, Michigan, 48506, United States",43.0916903,-83.61806955,10,2023-01-09 01:07:00,2023-12-26 20:27:00,-05:00,-1,Unclustered
+25,"79, Lochloma Drive, Mt. Morris Highlands, Genesee Charter Township, Genesee County, Michigan, 48458, United States",43.1201775,-83.67044305,10,2023-02-20 16:04:00,2023-12-26 20:06:00,-05:00,0,Group 0
+8,"1310, East Stanley Road, Beecher, Genesee Charter Township, Genesee County, Michigan, 48458, United States",43.1046917,-83.683768,9,2023-01-11 19:44:00,2023-11-26 17:51:00,-05:00,-1,Unclustered
+83,"North Center Road, Genesee Charter Township, Genesee County, Michigan, 48458, United States",43.1274862,-83.6349956,9,2023-11-16 13:59:00,2023-12-11 11:19:00,-05:00,3,Group 3
+63,"3189, East Mount Morris Road, Genesee, Genesee Charter Township, Genesee County, Michigan, 48458, United States",43.1202018,-83.6501406,9,2023-07-08 19:09:00,2023-12-19 16:23:00,-04:00,-1,Unclustered
+59,"6234, North Genesee Road, Genesee, Genesee Charter Township, Genesee County, Michigan, 48506, United States",43.097954,-83.6169191,9,2023-07-05 15:56:00,2023-12-26 17:57:00,-04:00,-1,Unclustered
+42,"9537, North Dort Highway, Thetford Township, Genesee County, Michigan, 48458, United States",43.1475894,-83.6925109,9,2023-05-18 20:33:00,2023-11-05 19:56:00,-04:00,-1,Unclustered
+21,"9147, North Dort Highway, Thetford Township, Genesee County, Michigan, 48458, United States",43.1382326,-83.685608,9,2023-02-09 17:48:00,2023-11-28 16:59:00,-05:00,-1,Unclustered
+41,"11076, North Genesee Road, Thetford Township, Genesee County, Michigan, 48420, United States",43.167152400000006,-83.61942475000001,8,2023-05-13 18:38:00,2023-12-25 13:06:00,-04:00,-1,Unclustered
+81,"2320, North Belsay Road, Burton, Genesee Charter Township, Genesee County, Michigan, 48509, United States",43.0427896,-83.5958904,8,2023-09-20 21:05:00,2023-12-26 16:33:00,-04:00,-1,Unclustered
+49,"West Mount Morris Street, Mount Morris, Genesee County, Michigan, 48458, United States",43.1192539,-83.69515849999999,8,2023-01-12 20:32:00,2023-11-29 19:42:00,-05:00,5,Group 5
+72,"7997, East Richfield Road, Genesee County, Michigan, 48423, United States",43.0629239,-83.55770795000001,8,2023-09-16 21:40:00,2023-10-31 19:20:00,-04:00,-1,Unclustered
+47,"6375, Shoshoni Street, Indian Hills Manor, Genesee Charter Township, Genesee County, Michigan, 48506, United States",43.10086,-83.6100643,8,2023-06-04 19:56:00,2023-12-12 15:52:00,-04:00,-1,Unclustered
+74,"Irish Road, Millington Township, Genesee County, Michigan, 48746, United States",43.172317,-83.5578142,7,2023-09-17 15:31:00,2023-11-08 13:34:00,-04:00,-1,Unclustered
+44,"336, Melrose Lane, Mt. Morris Highlands, Genesee Charter Township, Genesee County, Michigan, 48458, United States",43.1262418,-83.66691,7,2023-05-21 17:00:00,2023-06-30 19:31:00,-04:00,-1,Unclustered
+80,"Little Caesars, Plaza Drive, Pine Run Place Townhouses, Pine Run, Vienna Charter Township, Genesee County, Michigan, 48420, United States",43.1766546,-83.7215833,7,2023-07-05 16:48:00,2023-12-25 12:55:00,-04:00,4,Group 4
+78,"5989, East Stanley Road, Genesee, Genesee Charter Township, Genesee County, Michigan, 48506, United States",43.1061425,-83.5980503,7,2023-08-12 18:03:00,2023-10-09 21:16:00,-04:00,-1,Unclustered
+76,"West Main Street, Otisville, Genesee County, Michigan, 48463, United States",43.1666114,-83.5264586,7,2023-06-20 15:30:00,2023-11-06 14:42:00,-04:00,-1,Unclustered
+73,"7598, East Mount Morris Road, Genesee, Genesee Charter Township, Genesee County, Michigan, 48463, United States",43.120783,-83.5586791,7,2023-09-16 21:45:00,2023-11-02 22:43:00,-04:00,-1,Unclustered
+40,"5228, East Wilson Road, Thetford Township, Genesee County, Michigan, 48420, United States",43.1647665,-83.6116306,7,2023-05-13 18:37:00,2023-09-30 20:24:00,-04:00,-1,Unclustered
+19,"2979, East Dodge Road, Thetford Township, Genesee County, Michigan, 48420, United States",43.1498415,-83.6590425,7,2023-02-07 18:02:00,2023-11-15 14:03:00,-05:00,-1,Unclustered
+69,"880, North Street, Mount Morris, Genesee County, Michigan, 48458, United States",43.1203177,-83.6915142,7,2023-04-29 15:32:00,2023-12-01 21:04:00,-04:00,5,Group 5
+90,"3662, Thomas Road, Thomas, Oxford Charter Township, Oakland County, Michigan, 48371, United States",42.8777858,-83.3003789,7,2023-12-06 12:04:00,2023-12-07 11:17:00,-05:00,-1,Unclustered
+66,"River Road, Deep River Township, Arenac County, Michigan, 48659, United States",44.0765562,-84.019735,7,2023-08-04 19:21:00,2023-08-06 14:13:00,-04:00,-1,Unclustered
+51,"11373, Colonial Woods Drive, Vienna Charter Township, Genesee County, Michigan, 48420, United States",43.1734475,-83.7500099,7,2023-06-17 13:08:00,2023-12-17 10:51:00,-04:00,-1,Unclustered
+57,"Hahn Intermediate School, 500, South Dayton Street, Collingwood, Davison, Genesee County, Michigan, 48423, United States",43.0258976,-83.5227593,7,2023-06-28 15:46:00,2023-12-06 13:16:00,-04:00,-1,Unclustered
+89,"116, Engelwood Drive, Orion Charter Township, Oakland County, Michigan, 48359, United States",42.7179218,-83.2434828,6,2023-12-06 10:36:00,2023-12-06 11:32:00,-05:00,-1,Unclustered
+38,"Tractor Supply Company, 4058, West Vienna Road, Clio, Genesee County, Michigan, 48420, United States",43.178448450000005,-83.75609185,6,2023-05-11 17:24:00,2023-12-29 13:09:00,-04:00,-1,Unclustered
+31,"9112, North Genesee Road, Thetford Township, Genesee County, Michigan, 48458, United States",43.13862385,-83.61836915,6,2023-04-29 15:46:00,2023-09-26 18:54:00,-04:00,2,Group 2
+87,"Target, G3515, Miller Road, Flint, Genesee County, Michigan, 48507, United States",42.98360015,-83.749297,6,2023-11-24 12:03:00,2023-12-16 12:55:00,-05:00,-1,Unclustered
+77,"Speedway, 1020, Irish Road, Davison, Genesee County, Michigan, 48423, United States",43.02058595,-83.55613685,6,2023-09-16 12:18:00,2023-10-13 17:18:00,-04:00,-1,Unclustered
+85,"Metro by T-Mobile, West Vienna Road, Vienna Charter Township, Genesee County, Michigan, 48457, United States",43.17789475,-83.7773388,6,2023-11-20 17:26:00,2023-11-27 13:36:00,-05:00,1,Group 1
+79,"Clar Eve Drive, Genesee County, Michigan, 48463, United States",43.1735619,-83.5531528,6,2023-10-27 11:42:00,2023-11-03 17:32:00,-04:00,-1,Unclustered
+68,"5199, Blue Water Court, Turtle Cove, Genesee Charter Township, Genesee County, Michigan, 48506, United States",43.090392300000005,-83.61172755,6,2023-09-07 10:06:00,2023-10-30 19:13:00,-04:00,-1,Unclustered
+50,"1925, East Mount Morris Road, Genesee Charter Township, Genesee County, Michigan, 48458, United States",43.1197523,-83.67821219999999,6,2023-01-22 20:05:00,2023-12-05 19:40:00,-05:00,0,Group 0
+65,"Aldi, West Vienna Road, Vienna Charter Township, Genesee County, Michigan, 48457, United States",43.1793494,-83.77217734999999,6,2023-07-22 13:49:00,2023-09-27 19:26:00,-04:00,1,Group 1
+92,"Electric Chair Tattoo, North Saginaw Road, Pine Run, Vienna Charter Township, Genesee County, Michigan, 48420, United States",43.17740345,-83.7151035,6,2023-02-07 19:40:00,2023-12-23 20:06:00,-05:00,4,Group 4
