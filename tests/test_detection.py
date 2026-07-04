@@ -21,16 +21,16 @@ from evidence.detection import (
 
 
 def _pat(**kw) -> Pattern:
-    base = dict(
-        id="p1",
-        pattern_set_id="set1",
-        category_id="gaslighting",
-        subcategory=None,
-        match_type="literal",
-        pattern="you're crazy",
-    )
+    base: dict[str, object] = {
+        "id": "p1",
+        "pattern_set_id": "set1",
+        "category_id": "gaslighting",
+        "subcategory": None,
+        "match_type": "literal",
+        "pattern": "you're crazy",
+    }
     base.update(kw)
-    return Pattern(**base)
+    return Pattern(**base)  # type: ignore[arg-type]
 
 
 def test_literal_scan_finds_phrase_and_keywords_case_insensitively():
