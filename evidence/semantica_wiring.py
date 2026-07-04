@@ -37,7 +37,7 @@ from evidence.milvus_forensic import EMBED_TEXT_DIM, MILVUS_TOKEN, MILVUS_URI
 
 def _milvus_host_port() -> tuple[str, int]:
     """Semantica's MilvusStore takes host/port (not a URI). Derive from ours."""
-    uri = MILVUS_URI.split("://", 1)[-1]
+    uri = MILVUS_URI.split("://", 1)[-1].split("/", 1)[0]  # drop any path/trailing slash
     host, _, port = uri.partition(":")
     return host or "100.119.96.29", int(port or "19530")
 
