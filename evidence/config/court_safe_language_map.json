@@ -1,0 +1,72 @@
+{
+  "meta": {
+    "version": 1,
+    "generated": "2026-07-04",
+    "provenance": "knowledge/legal/coercive-control-classification-rubric.md (owner-curated LLM session)",
+    "purpose": "Diagnostic->court-safe translation for the judge-friendly summary generator. Replace interpretive/clinical labels with descriptive, prejudice-resistant behavioral headings courts respond to.",
+    "guardrails": [
+      "Never output diagnostic terms (narcissistic, borderline, antisocial, Cluster B).",
+      "Never imply intent without behavioral evidence; use hedged phrasing.",
+      "Prioritize child safety and parental autonomy; do not equate self-protection or trauma reactivity with malice.",
+      "Rule-based phrasing for high-certainty findings; LLM only for fluent summarization, never inference."
+    ],
+    "hedged_intent_phrasing": [
+      "appears intended to",
+      "suggests a pattern of",
+      "consistent with efforts to"
+    ]
+  },
+  "categories": {
+    "financial_control": {
+      "court_safe_heading": "Use of Money to Influence Behavior",
+      "internal_labels": ["financial abuse", "economic control", "economic abuse"],
+      "descriptor": "restricting funds or tying financial support to compliance with demands"
+    },
+    "gaslighting_reality_distortion": {
+      "court_safe_heading": "Undermining Confidence in Memory or Judgment",
+      "internal_labels": ["gaslighting", "reality distortion"],
+      "descriptor": "denying documented events, alleging instability, or fabricating third-party (professional) opinions"
+    },
+    "love_bombing_discarding_cycle": {
+      "court_safe_heading": "Alternating Between Extreme Praise and Harsh Criticism",
+      "internal_labels": ["love bombing", "discarding", "idealization-devaluation"],
+      "descriptor": "rapid shifts between intense affection and sudden cruelty, often after boundary-setting"
+    },
+    "triangulation_isolation": {
+      "court_safe_heading": "Involving Others to Gather Information or Influence Perceptions",
+      "internal_labels": ["triangulation", "isolation"],
+      "descriptor": "enlisting family, caregivers, or professionals to spy, spread negative narratives, or restrict support"
+    },
+    "instrumental_use_of_child": {
+      "court_safe_heading": "Using the Child to Deliver Messages or Express Negative Views",
+      "internal_labels": ["parental alienation", "child weaponization", "instrumental use of child"],
+      "descriptor": "using the child as messenger, spy, or emotional lever; coaching rejection of the other parent"
+    },
+    "legal_threats_procedural_abuse": {
+      "court_safe_heading": "Repeated Use of Legal or Protective Systems Without Basis",
+      "internal_labels": ["procedural abuse", "vexatious litigation", "legal threats"],
+      "descriptor": "frivolous or repetitive filings and false protective reports used to harass, surveil, or exhaust"
+    },
+    "sexual_degradation_weaponized_intimacy": {
+      "court_safe_heading": "Using Private or Sexual Content to Pressure or Humiliate",
+      "internal_labels": ["sextortion", "sexual degradation", "weaponized intimacy"],
+      "descriptor": "threatening to expose intimate content, or using sexual humiliation to punish or control"
+    },
+    "cluster_b_traits_behavioral_indicators": {
+      "court_safe_heading": "Patterns of Avoiding Responsibility and Shifting Blame",
+      "internal_labels": ["narcissistic traits", "borderline features", "antisocial features", "Cluster B"],
+      "descriptor": "deflecting accountability, asserting false consensus, and escalating when limits are set"
+    }
+  },
+  "rendering_sections": {
+    "per_finding": [
+      "observed behavior (quote + dates/frequency)",
+      "whether it responded to any provocation",
+      "what it suggests about intent (hedged phrasing only)",
+      "impact on child / parent"
+    ],
+    "notable_absences": "no repair attempts, no accountability, escalation when limits are set",
+    "considerations_for_court": "joint decision-making capacity, child's exposure to adult conflict, burden on court resources",
+    "reactivity_note": "For reactive/normative behavior: 'No evidence of instrumental control; responses appear protective, situational, or within normative post-separation adjustment.'"
+  }
+}
