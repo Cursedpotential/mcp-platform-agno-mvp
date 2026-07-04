@@ -1,0 +1,12 @@
+analysis.normalized_record c
+evidence.evidence_hash c
+public.agent_run c
+public.approval_request c
+public.geography_columns c
+public.geometry_columns c
+public.geometry_dump c
+public.pg_stat_statements c
+public.pg_stat_statements_info c
+public.spatial_ref_sys c
+public.transcript_insight c
+public.valid_detail c

@@ -28,6 +28,64 @@ from sqlalchemy import create_engine, text
 
 _engine = None
 
+# evidence.source.source_type CHECK set (migration 0005). Anything unmapped
+# falls back to 'other' so the source INSERT never aborts on a bad enum.
+_SOURCE_TYPES = frozenset(
+    {
+        "device_dump",
+        "chat_export",
+        "screenshot",
+        "call_log",
+        "pdf",
+        "media",
+        "takeout",
+        "social_export",
+        "document",
+        "other",
+    }
+)
+# evidence.source.acquisition_method CHECK set (nullable).
+_ACQUISITION_METHODS = frozenset(
+    {
+        "forensic_image",
+        "manual_export",
+        "cloud_pull",
+        "photograph",
+        "scan",
+        "backup",
+    }
+)
+
+
+def _source_fields(path: Path, size: int, meta: dict) -> dict:
+    """Derive the evidence.source columns from the ingest source_meta.
+
+    Only sha256/byte_size/source_type/acquisition_source are NOT NULL with no
+    default; everything else is optional. source_type/acquisition_method are
+    validated against their CHECK sets and coerced to safe values so the
+    file-level source row always inserts.
+    """
+    stype = str(meta.get("source_type") or "chat_export")
+    if stype not in _SOURCE_TYPES:
+        stype = "other"
+    method = meta.get("acquisition_method")
+    if method is not None and method not in _ACQUISITION_METHODS:
+        method = None
+    md5_hex = meta.get("md5") or meta.get("md5_prefilter")
+    return {
+        "size": size,
+        "mime": meta.get("mime_type"),
+        "fname": meta.get("original_name") or path.name,
+        "stype": stype,
+        "splat": meta.get("source_platform"),
+        "acq": str(meta.get("acquisition_source") or "manual_export"),
+        "meth": method,
+        "bucket": meta.get("r2_bucket"),
+        "key": meta.get("r2_key"),
+        "lpath": str(path),
+        "md5": bytes.fromhex(md5_hex) if isinstance(md5_hex, str) and md5_hex else None,
+    }
+
 
 def _get_engine():
     global _engine
@@ -118,15 +176,46 @@ def ingest_artifact(src: str | Path, source_meta: dict | None = None) -> Artifac
 
     import json
 
+    sf = _source_fields(path, size, meta)
+
     with engine.begin() as conn:
+        # 1) File-level SOURCE row FIRST. The evidence_hash_subject_ck CHECK
+        #    (migration 0005) requires every H1/H2 hash to carry source_id (or
+        #    file_node_id); only H3 chain hashes may omit it. Dedupe on the
+        #    UNIQUE(sha256) so re-ingest reuses the same source.
+        source_id = conn.execute(
+            text(
+                "INSERT INTO evidence.source "
+                "(sha256, md5_prefilter, byte_size, mime_type, original_filename, "
+                " source_type, source_platform, acquisition_source, acquisition_method, "
+                " r2_bucket, r2_key, local_path, original_metadata) "
+                "VALUES (:sha, :md5, :size, :mime, :fname, :stype, :splat, :acq, :meth, "
+                " :bucket, :key, :lpath, CAST(:meta AS jsonb)) "
+                "ON CONFLICT (sha256) DO UPDATE SET sha256 = EXCLUDED.sha256 "
+                "RETURNING id"
+            ),
+            {"sha": digest, "meta": json.dumps(meta), **sf},
+        ).scalar()
+
+        # 2) H1 file-level custody hash, now carrying level + source_id so the
+        #    subject CHECK is satisfied. digest/blob_key/meta unchanged.
         new = (
             conn.execute(
                 text(
-                    "INSERT INTO evidence.evidence_hash (source_ref, algo, digest, blob_key, meta) "
-                    "VALUES (:src, 'sha256', :d, :bk, CAST(:meta AS jsonb)) "
+                    "INSERT INTO evidence.evidence_hash "
+                    "(source_ref, algo, digest, blob_key, meta, level, source_id, "
+                    " canon_version, computed_by) "
+                    "VALUES (:src, 'sha256', :d, :bk, CAST(:meta AS jsonb), 'H1', :sid, "
+                    " 'h1-rawbytes-v1', 'evidence.custody.ingest_artifact') "
                     "RETURNING id, hashed_at"
                 ),
-                {"src": str(path), "d": digest, "bk": blob_key, "meta": json.dumps(meta)},
+                {
+                    "src": str(path),
+                    "d": digest,
+                    "bk": blob_key,
+                    "meta": json.dumps(meta),
+                    "sid": source_id,
+                },
             )
             .mappings()
             .first()

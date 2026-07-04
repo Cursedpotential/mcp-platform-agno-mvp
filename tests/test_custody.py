@@ -29,6 +29,10 @@ class _FakeResult:
     def first(self):
         return self._row
 
+    def scalar(self):
+        # source-row INSERT ... RETURNING id path (queue a bare value for it)
+        return self._row
+
 
 class _FakeConn:
     def __init__(self, engine):
@@ -88,8 +92,9 @@ def test_ingest_missing_file_raises(blob_root):
 
 
 def test_ingest_new_artifact_writes_blob_once(blob_root, sample_file, monkeypatch):
-    # connect() lookup -> None (not seen), begin() insert -> new row.
-    fake = _FakeEngine([None, {"id": 42, "hashed_at": datetime(2026, 1, 1, tzinfo=timezone.utc)}])
+    # connect() lookup -> None (not seen), begin(): source INSERT -> id 101,
+    # then evidence_hash INSERT -> new row.
+    fake = _FakeEngine([None, 101, {"id": 42, "hashed_at": datetime(2026, 1, 1, tzinfo=timezone.utc)}])
     monkeypatch.setattr(custody, "_get_engine", lambda: fake)
 
     ref = custody.ingest_artifact(sample_file, {"case": "demo"})
