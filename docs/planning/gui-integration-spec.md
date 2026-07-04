@@ -93,6 +93,29 @@ Agent Builder, LLM-router monitor. Mapping: HITL approvals → native Agno `/app
 page); workflow *builder* stays out (HANDOFFS "NOT NOW" brainstorm); LLM-router monitor
 → LiteLLM UI embed (G2).
 
+### 4.4 Self-hosted chat surface already exists (verified 2026-07-04)
+
+`compose.exec.yaml` already ships an **`agent-ui`** service (`docker/agent-ui/Dockerfile`,
+builds open-source `agno-agi/agent-ui`, :3000 tailnet-bound, Traefik labels staged for
+`chat.int.*`). Browser → agentos-api directly; zero Agno-cloud dependency — the
+self-hosted answer to the paid os.agno.com control plane. The open-source UI covers
+chat + basic sessions; the hosted product's extra control-plane views (memory,
+knowledge, evals) ride the same AgentOS REST API, which is what the G5 pages cover.
+Shell relationship: embed `agent-ui` at `/x/chat/` as the interim chat surface; the
+CopilotKit/AG-UI shell absorbs its role in G1 and `agent-ui` then becomes a fallback.
+
+### 4.5 Embed candidates (third-party, CopilotKit/Agno-compatible)
+
+| Candidate | What it adds | Integration mode |
+|---|---|---|
+| **Evidence.dev** (already running; owner wants more detail) | SQL+markdown BI reports. Speaks **Postgres AND DuckDB natively** — with our `pg_duckdb` PG18 it can query the `analysis` schema and R2 parquet directly. "More detail" = author more report pages (offline-buildable unit) | Static build → iframe at `/x/reports/` |
+| **Claude Code history viewer** (owner-requested; exact repo TBC) | Browse Claude Code session history. Candidates: `d-kimuson/claude-code-viewer` (web, most embeddable), `InDate/claude-log-viewer`, `daaain/claude-code-log` (static HTML output). Long game: a native shell transcript-viewer over ingested NormalizedRecords covers ALL sources, not just Claude | Embed OSS viewer now (`/x/claude-history/`); native G5 page later |
+| **NeoDash** (neo4j-labs) | No-code dashboards straight over Neo4j/Graphiti: entity networks, relationship timelines, incident maps — biggest forensic-viz win | iframe `/x/neodash/` |
+| **Surrealist** | SurrealDB admin UI (parallels Attu-for-Milvus) | iframe `/x/surreal/` |
+| **CopilotKit generative UI** | Agents render live React components (charts/tables/timelines) inside chat replies — CopilotKit's core trick, rides AG-UI | In-app (G1/G5), not iframe |
+| **React Flow** | Workflow-run visualization (custody→parse→store→knowledge DAGs) | In-app component (G5) |
+| **Kepler.gl / Leaflet pattern** (per the visit-locations map, PR #7) | Geospatial analysis over PostGIS | In-app or static embed |
+
 ## 5. Target architecture
 
 ```
@@ -180,7 +203,7 @@ tool-finder for open-ended discovery.
 | Unit | What | Offline-buildable? |
 |---|---|---|
 | **G1** | Shell scaffold: CopilotKit/Next.js + AG-UI chat against agentos-api; lift `DashboardLayout` + shadcn kit from `mcp-tool-platform/client` | yes (mock AG-UI in dev) |
-| **G2** | Reverse-proxy embed layer + shell nav (SBV, Attu, Neo4j, Forge, Kasm, LiteLLM); per-tool iframe-vs-new-tab decision table | mostly (needs VPS to verify each embed) |
+| **G2** | Reverse-proxy embed layer + shell nav (SBV, Attu, Neo4j, Forge, Kasm, LiteLLM, agent-ui, Evidence.dev reports, NeoDash, Surrealist, Claude-history viewer); per-tool iframe-vs-new-tab decision table | mostly (needs VPS to verify each embed) |
 | **G3** | ContextForge virtual servers + tags per capability family; agents' MCPToolbox mounts narrowed | config on VPS |
 | **G4** | `tool-finder` meta-MCP server (5 meta-tools incl. `get_ref` paged refs, over manifest + CF catalog) | yes |
 | **G5** | First-party pages: tool catalog (port `Tools.tsx` incl. schema-driven tester), approvals (native `/approvals`), workflow runs, evidence browser + timeline | yes against fixtures |
