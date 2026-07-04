@@ -1,251 +1,280 @@
-"""evidence/patterns.py — behavioral-pattern seed: models, loader, SQL emitter.
+"""evidence/patterns.py — behavioral-ontology chain: parser, validator, cross-check.
 
-The pattern library (P2.1, port-backlog Tier 1) as DATA: 28 analysis modules
-(22 coded in the pre-Agno pattern-analyzer + 6 research-taxonomy additions),
-their indicator phrases, MCL 722.23 factor mappings, and contradiction rules.
-Canonical source: evidence/config/behavioral_patterns.json (provenance per
-module). This module validates the seed and generates the self-contained
-sql/0005_behavioral_patterns.sql migration from it.
+The ontology's single source of truth is the LIVE analysis schema, reproduced
+in git by the migration chain under
+docs/planning/forensic-db-reconciliation/migrations/:
 
-Regenerate the migration after editing the seed JSON:
-    python -m evidence.patterns
+    0006_behavior_seed.sql          base seed (G1-G9 union; applied 2026-06-30)
+    0007_behavior_seed_sweep.sql    sweep-2026-07-03 delta (applied live, captured 2026-07-04)
+    0008_*                          pattern-analyzer.ts corpus delta (committed, NOT yet applied)
 
-Owner triage: modules with needs_review=True carry NO MCL mapping and few/no
-phrases — statutory mapping is an owner decision, never inferred here.
+This module parses that chain offline (no DB), validates its invariants, and
+cross-checks it against the archived P2.1 corpus
+(evidence/config/behavioral_patterns.json — the verbatim pattern-analyzer.ts
+extraction + contradiction rules). The live smoke derives its expected counts
+from `chain_prefix_counts()`, so "live == some prefix of the committed chain"
+is the invariant that detects both data loss and uncaptured drift.
+
+The corpus JSON's contradiction_rules remain UNHOMED — the live schema has no
+contradiction table yet; that is a pending owner decision, tracked here.
+
+History: this module previously generated sql/0005_behavioral_patterns.sql
+(parallel tables superseded by the richer live 0005/0006 chain — see
+docs/planning/port-backlog.md and the PR #8/#9 reconciliation).
 """
 
 from __future__ import annotations
 
 import json
+import re
+from dataclasses import dataclass, field
 from pathlib import Path
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+_REPO = Path(__file__).parent.parent
+MIGRATIONS_DIR = _REPO / "docs" / "planning" / "forensic-db-reconciliation" / "migrations"
+CORPUS_PATH = Path(__file__).parent / "config" / "behavioral_patterns.json"
 
-SEED_PATH = Path(__file__).parent / "config" / "behavioral_patterns.json"
-MIGRATION_PATH = Path(__file__).parent.parent / "sql" / "0005_behavioral_patterns.sql"
+# chain files that carry ontology DATA, in apply order (0005 is schema-only)
+CHAIN_GLOB = "000[6-9]_*.sql"
 
-MCL_LETTERS = tuple("abcdefghijkl")
-POLARITIES = ("negative", "positive", "neutral")
-
-
-class MclFactor(BaseModel):
-    letter: str
-    name: str
-    description: str
-
-    @field_validator("letter")
-    @classmethod
-    def _letter(cls, v: str) -> str:
-        if v not in MCL_LETTERS:
-            raise ValueError(f"invalid MCL factor letter {v!r}")
-        return v
+POLARITIES = {"negative", "positive", "neutral", "linguistic_marker"}
+MCL_LETTERS = set("abcdefghijkl")
+MATCH_TYPES = {"literal", "regex"}
 
 
-class PatternModule(BaseModel):
-    id: str
-    name: str
-    description: str
+@dataclass
+class Category:
+    category_id: str
+    label: str
     polarity: str
-    subcategory: str
-    weight: int = Field(ge=0, le=100)
-    mcl_factors: list[str] = Field(default_factory=list)
-    phrases: list[str] = Field(default_factory=list)
-    examples: list[str] = Field(default_factory=list)
-    provenance: str = ""
-    needs_review: bool = False
-
-    @field_validator("polarity")
-    @classmethod
-    def _polarity(cls, v: str) -> str:
-        if v not in POLARITIES:
-            raise ValueError(f"invalid polarity {v!r}")
-        return v
-
-    @field_validator("mcl_factors")
-    @classmethod
-    def _factors(cls, v: list[str]) -> list[str]:
-        bad = [x for x in v if x not in MCL_LETTERS]
-        if bad:
-            raise ValueError(f"invalid MCL letters {bad}")
-        return v
-
-    @field_validator("phrases")
-    @classmethod
-    def _phrases(cls, v: list[str]) -> list[str]:
-        if any(not p.strip() for p in v):
-            raise ValueError("empty phrase")
-        if len(set(p.lower() for p in v)) != len(v):
-            raise ValueError("duplicate phrases within module")
-        return v
+    default_severity: int
+    mcl_factors: str  # pg array literal, e.g. '{j,k}'
+    source: str
+    migration: str
 
 
-class ContradictionRule(BaseModel):
-    id: str
-    positive_module: str
-    negative_modules: list[str] = Field(default_factory=list)
-    description: str
-    provenance: str = ""
+@dataclass
+class DetectionPattern:
+    category_id: str
+    match_type: str
+    pattern: str
+    severity: int
+    source: str
+    migration: str
 
 
-class PatternSeed(BaseModel):
-    meta: dict
-    mcl_factors: list[MclFactor]
-    modules: list[PatternModule]
-    contradiction_rules: list[ContradictionRule]
+@dataclass
+class OntologyChain:
+    files: list[str] = field(default_factory=list)
+    categories: list[Category] = field(default_factory=list)
+    patterns: list[DetectionPattern] = field(default_factory=list)
 
-    @model_validator(mode="after")
-    def _cross_check(self) -> "PatternSeed":
-        ids = [m.id for m in self.modules]
-        if len(ids) != len(set(ids)):
-            raise ValueError("duplicate module ids")
-        letters = {f.letter for f in self.mcl_factors}
-        if letters != set(MCL_LETTERS):
-            raise ValueError(f"mcl_factors must cover a-l exactly, got {sorted(letters)}")
-        known = set(ids)
-        for rule in self.contradiction_rules:
-            missing = [m for m in [rule.positive_module, *rule.negative_modules] if m not in known]
-            if missing:
-                raise ValueError(f"contradiction rule {rule.id!r} references unknown modules {missing}")
-        return self
+    def category_ids(self) -> set[str]:
+        return {c.category_id for c in self.categories}
+
+    def pattern_keys(self) -> set[tuple[str, str, str]]:
+        return {(p.category_id, p.match_type, p.pattern.lower()) for p in self.patterns}
 
 
-def load_seed(path: Path = SEED_PATH) -> PatternSeed:
-    """Load + validate the canonical seed JSON."""
-    return PatternSeed.model_validate(json.loads(path.read_text(encoding="utf-8")))
+# ---------------------------------------------------------------------------
+# SQL VALUES parsing (quote-aware: patterns contain commas/parens; '' escapes ')
+# ---------------------------------------------------------------------------
+def _split_rows(values_body: str) -> list[list[str]]:
+    """Split a VALUES body into rows of raw field strings."""
+    rows: list[list[str]] = []
+    fields: list[str] = []
+    buf: list[str] = []
+    depth = 0
+    in_str = False
+    i = 0
+    s = values_body
+    while i < len(s):
+        ch = s[i]
+        if in_str:
+            if ch == "'":
+                if i + 1 < len(s) and s[i + 1] == "'":  # escaped quote
+                    buf.append("''")
+                    i += 2
+                    continue
+                in_str = False
+            buf.append(ch)
+        elif ch == "'":
+            in_str = True
+            buf.append(ch)
+        elif ch == "(":
+            depth += 1
+            if depth == 1:  # row opens — start fresh
+                fields, buf = [], []
+            else:
+                buf.append(ch)
+        elif ch == ")":
+            depth -= 1
+            if depth == 0:  # row closes
+                fields.append("".join(buf).strip())
+                rows.append(fields)
+                fields, buf = [], []
+            else:
+                buf.append(ch)
+        elif ch == "," and depth == 1:
+            fields.append("".join(buf).strip())
+            buf = []
+        elif depth >= 1:
+            buf.append(ch)
+        i += 1
+    return rows
 
 
-def _q(s: str) -> str:
-    """SQL single-quote escape."""
-    return "'" + s.replace("'", "''") + "'"
+def _unquote(raw: str) -> str:
+    raw = raw.strip()
+    if raw.startswith("'") and raw.endswith("'"):
+        return raw[1:-1].replace("''", "'")
+    return raw
 
 
-def _arr(items: list[str]) -> str:
-    if not items:
-        return "'{}'"
-    return "ARRAY[" + ", ".join(_q(i) for i in items) + "]"
+_BLOCK_RE = re.compile(
+    r"INSERT INTO analysis\.(?P<table>behavior_category|detection_pattern)\b.*?"
+    r"\(VALUES(?P<body>.*?)\)\s*AS v\((?P<cols>[^)]*)\)",
+    re.DOTALL | re.IGNORECASE,
+)
 
 
-def emit_seed_sql(seed: PatternSeed) -> str:
-    """Render the full, idempotent migration (DDL + seed rows)."""
-    lines: list[str] = []
-    a = lines.append
-
-    a("-- 0005_behavioral_patterns.sql — behavioral pattern library as data (P2.1).")
-    a("--")
-    a("-- GENERATED from evidence/config/behavioral_patterns.json by")
-    a("-- `python -m evidence.patterns` — edit the JSON, not this file.")
-    a(
-        f"-- Seed: {len(seed.modules)} modules, "
-        f"{sum(len(m.phrases) for m in seed.modules)} phrases, "
-        f"{len(seed.mcl_factors)} MCL factors, "
-        f"{len(seed.contradiction_rules)} contradiction rules."
-    )
-    a("--")
-    a("-- Provenance: pre-Agno pattern-analyzer.ts BUILT_IN_MODULES/BUILT_IN_PATTERNS,")
-    a("-- forensics-router.ts MCL_FACTORS, RESEARCH_BEHAVIORAL_ANALYSIS.md taxonomy")
-    a("-- (see docs/planning/port-backlog.md Tier 1). needs_review rows have NO MCL")
-    a("-- mapping by design — statutory mapping is an owner decision.")
-    a("--")
-    a("-- Idempotent: re-running upserts the seed. Requires 0002 (analysis schema)")
-    a("-- and 0004 (mcl_factor enum).")
-    a("")
-    a("CREATE TABLE IF NOT EXISTS analysis.mcl_factor_ref (")
-    a("  letter mcl_factor PRIMARY KEY,")
-    a("  name TEXT NOT NULL,")
-    a("  description TEXT NOT NULL   -- MCL 722.23 statutory language")
-    a(");")
-    a("")
-    a("CREATE TABLE IF NOT EXISTS analysis.analysis_module (")
-    a("  id TEXT PRIMARY KEY,        -- stable module id, e.g. 'gaslighting'")
-    a("  name TEXT NOT NULL,")
-    a("  description TEXT NOT NULL,")
-    a("  polarity TEXT NOT NULL CHECK (polarity IN ('negative','positive','neutral')),")
-    a("  subcategory TEXT NOT NULL,")
-    a("  weight INT NOT NULL CHECK (weight BETWEEN 0 AND 100),")
-    a("  enabled BOOLEAN NOT NULL DEFAULT TRUE,")
-    a("  mcl_factors mcl_factor[] NOT NULL DEFAULT '{}',")
-    a("  needs_review BOOLEAN NOT NULL DEFAULT FALSE,  -- owner triage pending")
-    a("  provenance TEXT NOT NULL DEFAULT ''")
-    a(");")
-    a("")
-    a("CREATE TABLE IF NOT EXISTS analysis.pattern_phrase (")
-    a("  id UUID PRIMARY KEY DEFAULT uuidv7(),")
-    a("  module_id TEXT NOT NULL REFERENCES analysis.analysis_module(id) ON DELETE CASCADE,")
-    a("  phrase TEXT NOT NULL,")
-    a("  kind TEXT NOT NULL DEFAULT 'literal' CHECK (kind IN ('literal','regex')),")
-    a("  UNIQUE (module_id, phrase)")
-    a(");")
-    a("CREATE INDEX IF NOT EXISTS pattern_phrase_module_idx ON analysis.pattern_phrase (module_id);")
-    a("")
-    a("CREATE TABLE IF NOT EXISTS analysis.contradiction_rule (")
-    a("  id TEXT PRIMARY KEY,")
-    a("  positive_module TEXT NOT NULL REFERENCES analysis.analysis_module(id),")
-    a("  negative_modules TEXT[] NOT NULL DEFAULT '{}',")
-    a("  description TEXT NOT NULL,")
-    a("  provenance TEXT NOT NULL DEFAULT ''")
-    a(");")
-    a("")
-
-    a("-- ---- MCL 722.23 factor reference ----")
-    for f in seed.mcl_factors:
-        a(
-            f"INSERT INTO analysis.mcl_factor_ref (letter, name, description) VALUES "
-            f"({_q(f.letter)}, {_q(f.name)}, {_q(f.description)}) "
-            f"ON CONFLICT (letter) DO UPDATE SET name = EXCLUDED.name, description = EXCLUDED.description;"
-        )
-    a("")
-
-    a("-- ---- Analysis modules ----")
-    for m in seed.modules:
-        factors = (
-            "ARRAY[" + ", ".join(f"{_q(x)}::mcl_factor" for x in m.mcl_factors) + "]"
-            if m.mcl_factors
-            else "'{}'::mcl_factor[]"
-        )
-        a(
-            "INSERT INTO analysis.analysis_module "
-            "(id, name, description, polarity, subcategory, weight, mcl_factors, needs_review, provenance) VALUES "
-            f"({_q(m.id)}, {_q(m.name)}, {_q(m.description)}, {_q(m.polarity)}, {_q(m.subcategory)}, "
-            f"{m.weight}, {factors}, {str(m.needs_review).upper()}, {_q(m.provenance)}) "
-            "ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, description = EXCLUDED.description, "
-            "polarity = EXCLUDED.polarity, subcategory = EXCLUDED.subcategory, weight = EXCLUDED.weight, "
-            "mcl_factors = EXCLUDED.mcl_factors, needs_review = EXCLUDED.needs_review, "
-            "provenance = EXCLUDED.provenance;"
-        )
-    a("")
-
-    a("-- ---- Indicator phrases ----")
-    for m in seed.modules:
-        for p in m.phrases:
-            a(
-                "INSERT INTO analysis.pattern_phrase (module_id, phrase) VALUES "
-                f"({_q(m.id)}, {_q(p)}) ON CONFLICT (module_id, phrase) DO NOTHING;"
-            )
-    a("")
-
-    a("-- ---- Contradiction rules ----")
-    for r in seed.contradiction_rules:
-        a(
-            "INSERT INTO analysis.contradiction_rule (id, positive_module, negative_modules, description, provenance) "
-            f"VALUES ({_q(r.id)}, {_q(r.positive_module)}, {_arr(r.negative_modules)}, "
-            f"{_q(r.description)}, {_q(r.provenance)}) "
-            "ON CONFLICT (id) DO UPDATE SET positive_module = EXCLUDED.positive_module, "
-            "negative_modules = EXCLUDED.negative_modules, description = EXCLUDED.description, "
-            "provenance = EXCLUDED.provenance;"
-        )
-    a("")
-    return "\n".join(lines)
+def parse_migration(path: Path) -> tuple[list[Category], list[DetectionPattern]]:
+    """Extract category/pattern rows from one chain migration file."""
+    sql = path.read_text(encoding="utf-8")
+    cats: list[Category] = []
+    pats: list[DetectionPattern] = []
+    for m in _BLOCK_RE.finditer(sql):
+        cols = [c.strip() for c in m.group("cols").split(",")]
+        for row in _split_rows(m.group("body")):
+            if len(row) != len(cols):
+                raise ValueError(f"{path.name}: row width {len(row)} != cols {len(cols)}: {row[:3]}...")
+            d = dict(zip(cols, row))
+            if m.group("table").lower() == "behavior_category":
+                cats.append(
+                    Category(
+                        category_id=_unquote(d["category_id"]),
+                        label=_unquote(d["label"]),
+                        polarity=_unquote(d["polarity"]),
+                        default_severity=int(d["default_severity"]),
+                        mcl_factors=_unquote(d["mcl_factors"]),
+                        source=_unquote(d["source"]),
+                        migration=path.name,
+                    )
+                )
+            else:
+                # 0006's hand-written blocks vary: match_type/severity/source may
+                # be SQL constants in the SELECT instead of VALUES columns.
+                pats.append(
+                    DetectionPattern(
+                        category_id=_unquote(d["category_id"]),
+                        match_type=_unquote(d.get("match_type", "'literal'")),
+                        pattern=_unquote(d["pattern"]),
+                        severity=int(d["severity"]) if "severity" in d else 0,
+                        source=_unquote(d.get("source", "''")),
+                        migration=path.name,
+                    )
+                )
+    return cats, pats
 
 
-def main() -> None:
-    seed = load_seed()
-    MIGRATION_PATH.write_text(emit_seed_sql(seed), encoding="utf-8")
-    print(
-        f"wrote {MIGRATION_PATH.name}: {len(seed.modules)} modules, "
-        f"{sum(len(m.phrases) for m in seed.modules)} phrases, "
-        f"{len(seed.mcl_factors)} factors, {len(seed.contradiction_rules)} rules"
-    )
+def load_chain(migrations_dir: Path = MIGRATIONS_DIR) -> OntologyChain:
+    chain = OntologyChain()
+    for path in sorted(migrations_dir.glob(CHAIN_GLOB)):
+        cats, pats = parse_migration(path)
+        chain.files.append(path.name)
+        chain.categories.extend(cats)
+        chain.patterns.extend(pats)
+    return chain
+
+
+# ---------------------------------------------------------------------------
+# Validation
+# ---------------------------------------------------------------------------
+def validate_chain(chain: OntologyChain) -> list[str]:
+    """Invariant violations (empty list = healthy)."""
+    errs: list[str] = []
+    seen: dict[str, str] = {}
+    for c in chain.categories:
+        if c.category_id in seen:
+            errs.append(f"duplicate category {c.category_id!r} ({seen[c.category_id]} + {c.migration})")
+        seen[c.category_id] = c.migration
+        if c.polarity not in POLARITIES:
+            errs.append(f"{c.category_id}: invalid polarity {c.polarity!r}")
+        if not 0 <= c.default_severity <= 10:
+            errs.append(f"{c.category_id}: severity {c.default_severity} out of 0-10")
+        letters = set(c.mcl_factors.strip("{}").split(",")) - {""}
+        if not letters <= MCL_LETTERS:
+            errs.append(f"{c.category_id}: invalid MCL letters {sorted(letters - MCL_LETTERS)}")
+    ids = chain.category_ids()
+    for p in chain.patterns:
+        if p.category_id not in ids:
+            errs.append(f"pattern {p.pattern[:40]!r} references unknown category {p.category_id!r}")
+        if p.match_type not in MATCH_TYPES:
+            errs.append(f"{p.category_id}: invalid match_type {p.match_type!r}")
+        if not 0 <= p.severity <= 10:
+            errs.append(f"{p.category_id}: pattern severity {p.severity} out of 0-10")
+        if p.match_type == "regex":
+            try:
+                re.compile(p.pattern)
+            except re.error as exc:
+                errs.append(f"{p.category_id}: unusable regex {p.pattern[:40]!r} ({exc})")
+    return errs
+
+
+def chain_prefix_counts(chain: OntologyChain | None = None) -> list[dict]:
+    """Cumulative DISTINCT (categories, patterns) after each chain file — the
+    live smoke matches live counts against these prefixes to tell 'behind'
+    from 'drifted'. Distinct keys mirror the migrations' ON CONFLICT upserts
+    (a re-stated row never adds a second DB row)."""
+    chain = chain or load_chain()
+    out: list[dict] = []
+    cat_ids: set[str] = set()
+    pat_keys: set[tuple[str, str, str]] = set()
+    for f in chain.files:
+        cat_ids |= {c.category_id for c in chain.categories if c.migration == f}
+        pat_keys |= {(p.category_id, p.match_type, p.pattern.lower()) for p in chain.patterns if p.migration == f}
+        out.append({"through": f, "categories": len(cat_ids), "patterns": len(pat_keys)})
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Corpus cross-check (the archived P2.1 pattern-analyzer.ts extraction)
+# ---------------------------------------------------------------------------
+def load_corpus(path: Path = CORPUS_PATH) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def cross_check_corpus(chain: OntologyChain | None = None, corpus: dict | None = None) -> dict:
+    """What the corpus has that the committed chain does not."""
+    chain = chain or load_chain()
+    corpus = corpus or load_corpus()
+    ids = chain.category_ids()
+    chain_phrases = {p.pattern.lower() for p in chain.patterns}
+
+    missing_categories = [m["id"] for m in corpus["modules"] if m["id"] not in ids]
+    missing_phrases: dict[str, list[str]] = {}
+    for m in corpus["modules"]:
+        miss = [p for p in m["phrases"] if p.lower() not in chain_phrases]
+        if miss:
+            missing_phrases[m["id"]] = miss
+    return {
+        "missing_categories": missing_categories,
+        "missing_phrases": missing_phrases,
+        "missing_phrase_count": sum(len(v) for v in missing_phrases.values()),
+        "unhomed_contradiction_rules": [r["id"] for r in corpus.get("contradiction_rules", [])],
+    }
 
 
 if __name__ == "__main__":
-    main()
+    chain = load_chain()
+    errs = validate_chain(chain)
+    print(f"chain: {chain.files}")
+    print(f"categories: {len(chain.categories)}, patterns: {len(chain.patterns)}")
+    print(f"prefix counts: {chain_prefix_counts(chain)}")
+    print(f"validation: {'OK' if not errs else errs}")
+    report = cross_check_corpus(chain)
+    print(
+        f"corpus cross-check: {len(report['missing_categories'])} categories, "
+        f"{report['missing_phrase_count']} phrases missing; "
+        f"{len(report['unhomed_contradiction_rules'])} contradiction rules unhomed"
+    )
