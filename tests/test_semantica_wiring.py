@@ -97,6 +97,12 @@ def test_milvus_uri_to_host_port_parsing(wiring: Callable[..., ModuleType]) -> N
     m = wiring(MILVUS_ADDRESS="")
     assert m._milvus_host_port() == ("100.119.96.29", 19530)
 
+    # trailing slash / path must not poison the port (was: int("19530/") crash)
+    m = wiring(MILVUS_ADDRESS="http://milvus.internal:19530/")
+    assert m._milvus_host_port() == ("milvus.internal", 19530)
+    m = wiring(MILVUS_ADDRESS="http://milvus.internal:19530/some/path")
+    assert m._milvus_host_port() == ("milvus.internal", 19530)
+
 
 def test_milvus_token_user_pass_parsing(wiring: Callable[..., ModuleType]) -> None:
     m = wiring(MILVUS_TOKEN="alice:pw1")

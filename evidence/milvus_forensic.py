@@ -277,7 +277,9 @@ def create_forensic_collections(client=None, dry_run: bool = True) -> dict[str, 
         "dry_run": dry_run,
         "created": [],
     }
-    if dry_run or client is None:
+    if not dry_run and client is None:
+        raise ValueError("create_forensic_collections: dry_run=False requires a MilvusClient (GATED prod-infra write)")
+    if dry_run:
         plan["note"] = "DRY-RUN — no server contact. Pass a MilvusClient + dry_run=False to create (GATED)."
         return plan
     if errs:

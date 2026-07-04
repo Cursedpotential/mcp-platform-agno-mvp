@@ -169,16 +169,11 @@ def test_dry_run_plan_without_client() -> None:
     assert plan["text_dim"] == mf.EMBED_TEXT_DIM
 
 
-def test_dry_run_false_without_client_never_creates() -> None:
-    # Pinned actual behavior: dry_run=False with client=None does NOT raise —
-    # `if dry_run or client is None` short-circuits to the plan, so the GATED
-    # prod-infra write is unreachable without an explicit MilvusClient.
-    # (Note the wart: plan["dry_run"] echoes False even though nothing ran and
-    # the note still says DRY-RUN — reported, not fixed here.)
-    plan = mf.create_forensic_collections(client=None, dry_run=False)
-    assert plan["dry_run"] is False
-    assert plan["created"] == []
-    assert "DRY-RUN" in plan["note"]
+def test_dry_run_false_without_client_refuses_loudly() -> None:
+    # The GATED prod-infra write must be impossible to reach by accident:
+    # dry_run=False with no client is a caller error, not a silent plan.
+    with pytest.raises(ValueError, match="requires a MilvusClient"):
+        mf.create_forensic_collections(client=None, dry_run=False)
 
 
 class _ExistingOnlyClient:
