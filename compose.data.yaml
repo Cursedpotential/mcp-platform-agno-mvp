@@ -1,173 +1,54 @@
 # =============================================================================
-# DATA TIER — deploy on OVH-3 ("ovh3-data"; tailnet 100.119.96.29, salem private
-# 10.1.2.101, public 147.135.79.183), the data box. Coolify "Docker Compose" app
-# built from this repo. Counterpart: compose.exec.yaml on OVH-1 ("ovh1-agno").
-# Hosts: agentos-db (PG18), neo4j, graphiti-mcp, Milvus (relocated here from the
-# decommissioned OVH-2), SurrealDB.  (Platform re-deploy, Phase B/C.)
-# =============================================================================
-# Mirrors the proven milvus-coolify pattern:
-#   * ports bind to ${BIND_IP} (the box's TAILNET IP) — NOT 0.0.0.0 — so nothing
-#     is published on the public interface. Set BIND_IP=100.119.96.29 in the
-#     Coolify app env (OVH-3 tailnet IP). Default 127.0.0.1 = safe/loopback.
-#   * Traefik labels for HTTP surfaces are scaffolded but COMMENTED OUT ("DOMAIN
-#     PHASE") — flip on + set the *_DOMAIN env when DNS/TLS is wanted.
-#   * absolute bind volumes + absolute config/SQL FILE mounts (Coolify gotchas #4/#5).
+# DATA TIER — BUNDLED compose, SUPERSEDED 2026-07-05.
+# All 4 services were split out into independent Coolify apps (one DB per app)
+# so any one crashing / being updated never takes down the others. Owner
+# mandate 2026-07-05. Follows the Milvus split precedent (commit 18c42d2 /
+# compose.data-vector.yaml).
 #
-# Cross-box wiring: at the moment everything communicates through Tailscale, so
-# cross-box addresses DEFAULT to the tailnet IP, with the salem private IP
-# documented as the swap-later fast path. Set via env so switching is trivial:
-#   OVH1_HOST   exec box (graphiti-mcp -> gateway). Default 100.72.169.40 (tailnet);
-#               salem alt 10.1.1.122.
-#   OVH3_HOST   this data box. Default 100.119.96.29 (tailnet); salem alt 10.1.2.101.
+# The bundled `data-tier` Coolify app (uuid ipy7vrw61jjsw0ktou2qr20f) was
+# DELETED once all 4 services were live on their own apps and E2E-verified:
+#   * exec box (OVH-1 100.72.169.40) reached all 4 tailnet ports on OVH-3;
+#   * data-graphiti -> data-neo4j cross-app bolt (bolt://${OVH3_HOST}:7687) OK;
+#   * data-pg: pg_isready OK, full case-bible schema present (3836
+#     message_participant / 1943 normalized_record / 1918 message / 527
+#     detection_pattern / 164 behavior_category / 51 pattern_lexicon / 26
+#     evidence_hash / 24 casebible_evidence_contents + all schema-0008 tables);
+#   * data-neo4j: 38 nodes / 65 rels / 36 entities / 2 episodes (graph intact);
+#   * data-surreal: 91M rocksdb reattached at /data/agno/volumes/surrealdb,
+#     `surreal isready` OK, /rpc serving (HTTP 400 on GET = WS-only, expected).
+# Host bind volumes at /data/agno/volumes/* on OVH-3 are UNTOUCHED by the app
+# deletion (NO data migration, NO named volumes) — each split app reattaches
+# the same absolute bind.
 #
-# HOST-PREP on OVH-3 BEFORE first deploy:
-#   sudo mkdir -p /data/agno/volumes/{pgdata,neo4j_data,milvus,surrealdb} \
-#                 /data/agno/config/{sql,graphiti,milvus}
-#   sudo chown -R 999:999   /data/agno/volumes/pgdata       # postgres uid
-#   sudo chown -R 7474:7474 /data/agno/volumes/neo4j_data   # neo4j uid
-#   sudo chown -R 999:999   /data/agno/volumes/milvus       # milvus uid
-#   sudo chown -R 0:0       /data/agno/volumes/surrealdb    # surrealdb runs as root
-#   # stage the real config/SQL files at the absolute paths the binds point to:
-#   #   scp sql/000*.sql                ovh3:/data/agno/config/sql/
-#   #   scp docker/graphiti/config.yaml ovh3:/data/agno/config/graphiti/
-#   #   scp configs/embedEtcd.yaml configs/user.yaml ovh3:/data/agno/config/milvus/
+# Live apps now (each its own Coolify "Docker Compose" app on OVH-3, server
+# jt1tv1j5samqn5rglmtky0qc, repo Cursedpotential/mcp-platform-agno-mvp @ main):
+#   data-pg       /compose.data-pg.yaml       5432          PG18 + pg_duckdb/PostGIS/pgvector
+#   data-neo4j    /compose.data-neo4j.yaml     7474 + 7687   neo4j:5-community (browser + bolt)
+#   data-graphiti /compose.data-graphiti.yaml  8071 MCP      graphiti->neo4j via tailnet bolt (rewired)
+#   data-surreal  /compose.data-surreal.yaml   8000          SurrealDB v3.1.4 (operational store, rocksdb)
+#   data-vector   /compose.data-vector.yaml    19530 + 9091  Milvus + Attu (split earlier, 18c42d2)
+#
+# This file is kept as HISTORICAL documentation of the original bundled tier
+# (per the "never delete files" rule — moved to documented/empty, not removed).
+# `services:` is intentionally empty — no app deploys from this file anymore.
+# To restore the bundled tier: git revert this commit + recreate the data-tier
+# Coolify app from this compose (bind volumes intact -> zero data loss).
+# =============================================================================
+# OVH-3 host-prep + cross-box wiring notes (still apply to each split file):
+#   * ports bind to ${BIND_IP:-127.0.0.1} (OVH-3 tailnet 100.119.96.29) — never 0.0.0.0.
+#   * absolute bind volumes + config/SQL FILE mounts (Coolify gotchas #4/#5).
+#   * cross-box default tailnet IP: OVH1_HOST=100.72.169.40 (exec), OVH3_HOST=100.119.96.29 (data);
+#     salem private alts 10.1.1.122 / 10.1.2.101 (swap-later fast path).
+#   * HOST-PREP: sudo mkdir -p /data/agno/volumes/{pgdata,neo4j_data,milvus,surrealdb}
+#                       /data/agno/config/{sql,graphiti,milvus}; chown per uid (see below).
+#        chown 999:999   /data/agno/volumes/pgdata      # postgres uid
+#        chown 7474:7474 /data/agno/volumes/neo4j_data  # neo4j uid
+#        chown 0:0       /data/agno/volumes/surrealdb   # surrealdb runs as root
+#        scp sql/000*.sql ovh3:/data/agno/config/sql/
+#        scp docker/graphiti/config.yaml ovh3:/data/agno/config/graphiti/
+#        scp configs/embedEtcd.yaml configs/user.yaml ovh3:/data/agno/config/milvus/
 # =============================================================================
 
-services:
-  agentos-db:
-    # Custom PG18: pg_duckdb + PostGIS + pgvector + pg_stat_statements.
-    build:
-      context: ./docker/postgres
-    image: agno-postgres:18-duckdb
-    container_name: agentos-db
-    restart: unless-stopped
-    ports:
-      # raw TCP, tailnet-only (reached by agentos-api on OVH-1); never proxied
-      - "${BIND_IP:-127.0.0.1}:5432:5432"
-    volumes:
-      - /data/agno/volumes/pgdata:/var/lib/postgresql
-      # init SQL — ABSOLUTE host binds (gotcha #5); run once on an EMPTY data dir
-      - /data/agno/config/sql/0001_init_extensions.sql:/docker-entrypoint-initdb.d/01_extensions.sql:ro
-      - /data/agno/config/sql/0002_schema.sql:/docker-entrypoint-initdb.d/02_schema.sql:ro
-      - /data/agno/config/sql/0003_normalized_records.sql:/docker-entrypoint-initdb.d/03_normalized_records.sql:ro
-    environment:
-      POSTGRES_USER: ${DB_USER:-ai}
-      POSTGRES_PASSWORD: ${DB_PASS:-ai}
-      POSTGRES_DB: ${DB_DATABASE:-ai}
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-ai}"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    networks:
-      - agentos
+services: {}
 
-  # ---------------------------------------------------------------------------
-  # Temporal graph memory (ADR-0014): Neo4j + Graphiti MCP. Co-located here
-  # because the chatty edge is graphiti<->neo4j (every graph op); graphiti
-  # reaches the LiteLLM gateway on OVH-1 over the tailnet for LLM/embeddings.
-  # ---------------------------------------------------------------------------
-  neo4j:
-    image: neo4j:5-community
-    platform: linux/amd64
-    container_name: neo4j
-    restart: unless-stopped
-    ports:
-      - "${BIND_IP:-127.0.0.1}:7474:7474"   # Browser (HTTP) — optionally proxied below
-      - "${BIND_IP:-127.0.0.1}:7687:7687"   # bolt (raw TCP) — tailnet-only, never proxied
-    environment:
-      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-graphiti-dev-password}
-      NEO4J_server_memory_heap_initial__size: 512m
-      NEO4J_server_memory_heap_max__size: 1g
-      NEO4J_server_memory_pagecache_size: 512m
-    volumes:
-      - /data/agno/volumes/neo4j_data:/data
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 >/dev/null 2>&1 || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-    # DOMAIN PHASE — Neo4j Browser (admin). Re-enable + set NEO4J_DOMAIN to expose:
-    # labels:
-    #   - traefik.enable=true
-    #   - traefik.http.routers.neo4j.rule=Host(`${NEO4J_DOMAIN}`)
-    #   - traefik.http.routers.neo4j.entryPoints=https
-    #   - traefik.http.routers.neo4j.tls=true
-    #   - traefik.http.routers.neo4j.tls.certresolver=letsencrypt
-    #   - traefik.http.routers.neo4j.service=neo4j
-    #   - traefik.http.services.neo4j.loadbalancer.server.port=7474
-    networks:
-      - agentos
-
-  graphiti-mcp:
-    image: zepai/knowledge-graph-mcp:latest
-    platform: linux/amd64
-    container_name: graphiti-mcp
-    restart: unless-stopped
-    ports:
-      - "${BIND_IP:-127.0.0.1}:8071:8000"   # MCP — tailnet/internal ONLY; external access only via ContextForge, never direct
-    environment:
-      CONFIG_PATH: /app/mcp/config/config.yaml
-      BROWSER: "0"
-      NEO4J_URI: bolt://neo4j:7687     # same box — docker network name
-      NEO4J_USER: neo4j
-      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-graphiti-dev-password}
-      # LLM + embeddings via the LiteLLM gateway on OVH-1, over the tailnet.
-      OPENAI_API_KEY: ${LITELLM_MASTER_KEY:-changeme-dev-key}
-      OPENAI_API_URL: http://${OVH1_HOST}:4000/v1
-      OPENAI_BASE_URL: http://${OVH1_HOST}:4000/v1
-    volumes:
-      # ABSOLUTE host bind (gotcha #5) — staged at /data/agno/config/graphiti/
-      - /data/agno/config/graphiti/config.yaml:/app/mcp/config/config.yaml:ro
-    depends_on:
-      neo4j:
-        condition: service_healthy
-    # MCP SERVER — NO direct external access, ever. Internal/tailnet-only now
-    # (reached by agentos-api + n8n over the tailnet). When external access is
-    # required, it routes through the IBM ContextForge MCP gateway (ADR-0025,
-    # Phase D) — NEVER a direct Traefik route. Deliberately NO proxy labels.
-    networks:
-      - agentos
-
-  # ---------------------------------------------------------------------------
-  # SurrealDB — the Agno OPERATIONAL store (sessions/memory/metrics/eval/
-  # knowledge-content/culture/traces/spans). Persistent rocksdb on an absolute
-  # host bind. Reached by agentos-api on OVH-1 over the tailnet/salem link.
-  # WS transport on /rpc; raw TCP, tailnet-only — NEVER proxied, NEVER 0.0.0.0.
-  # ---------------------------------------------------------------------------
-  surrealdb:
-    image: surrealdb/surrealdb:v3.1.4
-    platform: linux/amd64
-    container_name: surrealdb
-    restart: unless-stopped
-    user: "0:0"                      # official image is root; matches volume chown
-    command:
-      - start
-      - --bind=0.0.0.0:8000          # in-container bind; host exposure gated by ports below
-      - --user=${SURREALDB_USER:-root}
-      - --pass=${SURREALDB_PASS:-root}
-      - rocksdb:/data/surreal.db     # persistent file engine inside the bind mount
-    ports:
-      # raw TCP, tailnet-only (reached by agentos-api on OVH-1 over salem); never proxied
-      - "${BIND_IP:-127.0.0.1}:8000:8000"
-    volumes:
-      - /data/agno/volumes/surrealdb:/data
-    healthcheck:
-      # The minimal SurrealDB image ships NO sh/curl, so the old CMD-SHELL curl
-      # check always failed (-> Docker "unhealthy" while the DB served 200 fine).
-      # Use the bundled `surreal isready` binary instead (verified exit 0 in-container).
-      test: ["CMD", "/surreal", "isready", "--endpoint", "http://localhost:8000"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 20s
-    # DOMAIN PHASE — SurrealDB has NO admin UI worth exposing; keep tailnet-only.
-    # Deliberately NO Traefik labels (raw TCP / internal service, like neo4j bolt).
-    networks:
-      - agentos
-
-networks:
-  agentos:
-
-# No named volumes — data tier uses absolute host binds (declared inline above).
-# Byline: Claude Code · Opus 4.8 · 2026-06-14
+# Byline: Claude Code · Fable 5 · 2026-07-05
