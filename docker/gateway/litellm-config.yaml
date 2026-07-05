@@ -1,5 +1,6 @@
 # LiteLLM proxy — one OpenAI-compatible endpoint over every provider we hold keys for.
 # Keys come from the container env (compose passes them from .env). Add models freely.
+# Byline: Claude Code · Fable 5 · 2026-07-04 (embed-text -> nv-embed-v1; see ADR-0015 amendment)
 model_list:
   - model_name: glm-5.1         # PRIMARY (Ollama Cloud — owner decision 2026-06-11;
     litellm_params:             #  NVIDIA was rate-limiting, now embeddings/rerank/backup only)
@@ -16,16 +17,16 @@ model_list:
       model: openai/moonshotai/kimi-k2.6
       api_base: https://integrate.api.nvidia.com/v1
       api_key: os.environ/NVIDIA_API_KEY
-  - model_name: embed-text      # llama-nemotron-embed (2048-d)
+  - model_name: embed-text      # nv-embed-v1 (4096-d, SYMMETRIC — no input_type needed)
     litellm_params:
-      model: openai/nvidia/llama-nemotron-embed-vl-1b-v2
+      model: openai/nvidia/nv-embed-v1
       api_base: https://integrate.api.nvidia.com/v1
       api_key: os.environ/NVIDIA_API_KEY
-      # NIM embedqa models REQUIRE input_type (asymmetric); inject centrally
-      # so every gateway caller (Graphiti, n8n, etc.) gets it for free
-      extra_body:
-        input_type: passage
-        truncate: NONE
+      # Switched from llama-nemotron-embed-vl (2048-d asymmetric) 2026-07-04:
+      # Graphiti can't split input_type per call, so queries embedded as 'passage'
+      # collapsed retrieval margin 0.33 -> 0.09 (measured). Symmetric nv-embed-v1
+      # scores 0.29 with no input_type. bge-m3 on NIM 500s (retest later; 1024-d,
+      # would need graph re-embed). Changing this model = re-embed the graph.
 
   - model_name: groq-llama
     litellm_params:

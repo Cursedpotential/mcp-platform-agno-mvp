@@ -1,5 +1,6 @@
 # Graphiti MCP server config (ADR-0014) — Neo4j backend, LiteLLM gateway models.
 # Mounted over the image default; selected via CONFIG_PATH.
+# Byline: Claude Code · Fable 5 · 2026-07-04 (LLM glm-5.1 → nemotron: schema-conformant JSON required)
 server:
   transport: "http"
   host: "0.0.0.0"
@@ -7,7 +8,8 @@ server:
 
 llm:
   provider: "openai"
-  model: "glm-5.1"           # PRIMARY via gateway -> Ollama Cloud (2026-06-11)
+  model: "nemotron"          # NIM guided-json; glm-5.1 cannot emit schema-conformant
+                             # structured output -> every add_memory failed (fixed 2026-07-04)
   max_tokens: 4096
   providers:
     openai:
@@ -16,8 +18,8 @@ llm:
 
 embedder:
   provider: "openai"
-  model: "embed-text"        # nvidia llama-nemotron-embed via gateway
-  dimensions: 2048
+  model: "embed-text"        # nvidia nv-embed-v1 via gateway (symmetric, 2026-07-04)
+  dimensions: 4096
   providers:
     openai:
       api_key: ${OPENAI_API_KEY}
