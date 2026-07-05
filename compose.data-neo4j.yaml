@@ -1,0 +1,71 @@
+# =============================================================================
+# DATA TIER — NEO4J SUBSET, split out of compose.data.yaml.
+# Reason: 2026-06-25 incident + owner mandate 2026-07-05 — every DB must be its
+# own Coolify app so any one crashing / being updated never takes down the
+# others. Mirrors the Milvus split (commit 18c42d2 / compose.data-vector.yaml).
+#
+# DEPLOY AS ITS OWN Coolify "Docker Compose" app `data-neo4j` on OVH-3
+# (server jt1tv1j5samqn5rglmtky0qc), repo Cursedpotential/mcp-platform-agno-mvp
+# @ main, compose file /compose.data-neo4j.yaml.
+# Env (copy from existing data-tier app):
+#   BIND_IP=100.119.96.29      (OVH-3 tailnet — ports bind here, never 0.0.0.0)
+#   NEO4J_PASSWORD             (MUST match existing — auth lives in the data dir
+#                               at /data/dbms/auth; mismatch = login fail)
+#
+# Same absolute bind mount as the original — NO data migration: neo4j reattaches
+# /data/agno/volumes/neo4j_data. Auth/credentials persist on disk; the NEO4J_AUTH
+# env is only consulted on a fresh (empty) data dir.
+#
+# CUTOVER (one pass, after this lands on main + new app created + healthy):
+#   1. Edit compose.data.yaml on main: DELETE the `neo4j:` service block.
+#   2. Redeploy the existing `data-tier` app (uuid ipy7vrw…) → shrinks by one.
+#   3. This app `data-neo4j` already serving 7474/7687 on tailnet → semantica
+#      (bolt://100.119.96.29:7687) and graphiti-mcp (bolt://${OVH3_HOST}:7687)
+#      see no interruption.
+# Reversible: revert compose.data.yaml edit + stop/delete data-neo4j; datadir intact.
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Temporal graph memory (ADR-0014): Neo4j backend. Graphiti (now in its own
+  # data-graphiti app) reaches this over the tailnet bolt port; Semantica reads
+  # over the same tailnet bolt port. LLM/embeddings for graphiti still come from
+  # the LiteLLM gateway on OVH-1 — that wiring lives in data-graphiti, not here.
+  # ---------------------------------------------------------------------------
+  neo4j:
+    image: neo4j:5-community
+    platform: linux/amd64
+    container_name: neo4j
+    restart: unless-stopped
+    ports:
+      - "${BIND_IP:-127.0.0.1}:7474:7474"   # Browser (HTTP) — optionally proxied below
+      - "${BIND_IP:-127.0.0.1}:7687:7687"   # bolt (raw TCP) — tailnet-only, never proxied
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-graphiti-dev-password}
+      NEO4J_server_memory_heap_initial__size: 512m
+      NEO4J_server_memory_heap_max__size: 1g
+      NEO4J_server_memory_pagecache_size: 512m
+    volumes:
+      - /data/agno/volumes/neo4j_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    # DOMAIN PHASE — Neo4j Browser (admin). Re-enable + set NEO4J_DOMAIN to expose:
+    # labels:
+    #   - traefik.enable=true
+    #   - traefik.http.routers.neo4j.rule=Host(`${NEO4J_DOMAIN}`)
+    #   - traefik.http.routers.neo4j.entryPoints=https
+    #   - traefik.http.routers.neo4j.tls=true
+    #   - traefik.http.routers.neo4j.tls.certresolver=letsencrypt
+    #   - traefik.http.routers.neo4j.service=neo4j
+    #   - traefik.http.services.neo4j.loadbalancer.server.port=7474
+    networks:
+      - neo4j
+
+networks:
+  neo4j:
+
+# No named volumes — absolute host binds (declared inline above).
+# Byline: Claude Code · Fable 5 · 2026-07-05

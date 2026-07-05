@@ -1,0 +1,59 @@
+# =============================================================================
+# DATA TIER — POSTGRES SUBSET, split out of compose.data.yaml.
+# Reason: 2026-06-25 incident + owner mandate 2026-07-05 — every DB must be its
+# own Coolify app so any one crashing / being updated never takes down the
+# others. Mirrors the Milvus split (commit 18c42d2 / compose.data-vector.yaml).
+#
+# DEPLOY AS ITS OWN Coolify "Docker Compose" app `data-pg` on OVH-3
+# (server jt1tv1j5samqn5rglmtky0qc), repo Cursedpotential/mcp-platform-agno-mvp
+# @ main, compose file /compose.data-pg.yaml.
+# Env (copy from existing data-tier app):
+#   BIND_IP=100.119.96.29      (OVH-3 tailnet — ports bind here, never 0.0.0.0)
+#   DB_USER / DB_PASS / DB_DATABASE   (must match existing — data on disk)
+#
+# Same absolute bind mounts as the original (already staged on host) — NO data
+# migration: agentos-db reattaches /data/agno/volumes/pgdata. Init SQL mounts
+# only fire on an EMPTY data dir; existing datadir is populated → skipped.
+#
+# CUTOVER (one pass, after this lands on main + new app created + healthy):
+#   1. Edit compose.data.yaml on main: DELETE the `agentos-db:` service block.
+#   2. Redeploy the existing `data-tier` app (uuid ipy7vrw…) → shrinks by one.
+#   3. This app `data-pg` already serving 5432 on tailnet → exec-tier sees no
+#      interruption (agentos-api reaches PG at ${OVH3_HOST}:5432, unchanged).
+# Reversible: revert compose.data.yaml edit + stop/delete data-pg; datadir intact.
+# =============================================================================
+
+services:
+  agentos-db:
+    # Custom PG18: pg_duckdb + PostGIS + pgvector + pg_stat_statements.
+    build:
+      context: ./docker/postgres
+    image: agno-postgres:18-duckdb
+    container_name: agentos-db
+    restart: unless-stopped
+    ports:
+      # raw TCP, tailnet-only (reached by agentos-api on OVH-1); never proxied
+      - "${BIND_IP:-127.0.0.1}:5432:5432"
+    volumes:
+      - /data/agno/volumes/pgdata:/var/lib/postgresql
+      # init SQL — ABSOLUTE host binds (gotcha #5); run once on an EMPTY data dir
+      - /data/agno/config/sql/0001_init_extensions.sql:/docker-entrypoint-initdb.d/01_extensions.sql:ro
+      - /data/agno/config/sql/0002_schema.sql:/docker-entrypoint-initdb.d/02_schema.sql:ro
+      - /data/agno/config/sql/0003_normalized_records.sql:/docker-entrypoint-initdb.d/03_normalized_records.sql:ro
+    environment:
+      POSTGRES_USER: ${DB_USER:-ai}
+      POSTGRES_PASSWORD: ${DB_PASS:-ai}
+      POSTGRES_DB: ${DB_DATABASE:-ai}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-ai}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - pg
+
+networks:
+  pg:
+
+# No named volumes — absolute host binds (declared inline above).
+# Byline: Claude Code · Fable 5 · 2026-07-05

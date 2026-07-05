@@ -1,0 +1,73 @@
+# =============================================================================
+# DATA TIER — GRAPHITI MCP SUBSET, split out of compose.data.yaml.
+# Reason: 2026-06-25 incident + owner mandate 2026-07-05 — every service must be
+# its own Coolify app so any one crashing / being updated never takes down the
+# others. Mirrors the Milvus split (commit 18c42d2 / compose.data-vector.yaml).
+#
+# DEPLOY AS ITS OWN Coolify "Docker Compose" app `data-graphiti` on OVH-3
+# (server jt1tv1j5samqn5rglmtky0qc), repo Cursedpotential/mcp-platform-agno-mvp
+# @ main, compose file /compose.data-graphiti.yaml.
+# Env (copy from existing data-tier app):
+#   BIND_IP=100.119.96.29      (OVH-3 tailnet — ports bind here, never 0.0.0.0)
+#   OVH3_HOST=100.119.96.29    (used for NEO4J_URI now that neo4j is cross-app)
+#   OVH1_HOST=100.72.169.40    (LiteLLM gateway on the exec box, over tailnet)
+#   NEO4J_PASSWORD             (must match data-neo4j app)
+#   LITELLM_MASTER_KEY         (gateway auth)
+#
+# Same absolute config mount as the original — NO data migration: graphiti-mcp
+# is stateless (state lives in Neo4j, which is now its own app). It reattaches
+# /data/agno/config/graphiti/config.yaml (read-only).
+#
+# REWIRING (the ONE change from the bundled version):
+#   NEO4J_URI: bolt://neo4j:7687   (docker DNS, same compose)  → REMOVED
+#   NEO4J_URI: bolt://${OVH3_HOST}:7687  (tailnet host port, cross-app)  → NEW
+#   depends_on: neo4j: condition: service_healthy  → REMOVED (cross-app can't
+#   express cross-compose depends_on; graphiti's bolt driver retries on its own,
+#   and the cutover starts data-neo4j and confirms healthy BEFORE data-graphiti).
+#
+# CUTOVER (one pass, after this lands on main + new app created + healthy):
+#   1. Edit compose.data.yaml on main: DELETE the `graphiti-mcp:` service block.
+#   2. Redeploy the existing `data-tier` app (uuid ipy7vrw…) → shrinks by one.
+#   3. This app `data-graphiti` already serving 8071 on tailnet → exec-tier /
+#      ContextForge (http://${OVH3_HOST}:8071) see no interruption.
+# Reversible: revert compose.data.yaml edit + stop/delete data-graphiti.
+# =============================================================================
+
+services:
+  graphiti-mcp:
+    image: zepai/knowledge-graph-mcp:latest
+    platform: linux/amd64
+    container_name: graphiti-mcp
+    restart: unless-stopped
+    ports:
+      - "${BIND_IP:-127.0.0.1}:8071:8000"   # MCP — tailnet/internal ONLY; external access only via ContextForge, never direct
+    environment:
+      CONFIG_PATH: /app/mcp/config/config.yaml
+      BROWSER: "0"
+      # Neo4j is now its own Coolify app (data-neo4j); reach over the tailnet
+      # bolt port instead of the docker DNS name. graphiti's bolt driver retries
+      # on startup, so cross-app depends_on is not needed — but data-neo4j must
+      # be healthy before this app starts (ordered cutover).
+      NEO4J_URI: bolt://${OVH3_HOST:-100.119.96.29}:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-graphiti-dev-password}
+      # LLM + embeddings via the LiteLLM gateway on OVH-1, over the tailnet.
+      OPENAI_API_KEY: ${LITELLM_MASTER_KEY:-changeme-dev-key}
+      OPENAI_API_URL: http://${OVH1_HOST:-100.72.169.40}:4000/v1
+      OPENAI_BASE_URL: http://${OVH1_HOST:-100.72.169.40}:4000/v1
+    volumes:
+      # ABSOLUTE host bind (gotcha #5) — staged at /data/agno/config/graphiti/
+      - /data/agno/config/graphiti/config.yaml:/app/mcp/config/config.yaml:ro
+    # No depends_on — neo4j is cross-app now. Start data-neo4j first and confirm
+    # healthy before starting data-graphiti (cutover ordering enforces this).
+    # MCP SERVER — NO direct external access, ever. Internal/tailnet-only now
+    # (reached by agentos-api + n8n over the tailnet). When external access is
+    # required, it routes through the IBM ContextForge MCP gateway (ADR-0025,
+    # Phase D) — NEVER a direct Traefik route. Deliberately NO proxy labels.
+    networks:
+      - graphiti
+
+networks:
+  graphiti:
+
+# Byline: Claude Code · Fable 5 · 2026-07-05

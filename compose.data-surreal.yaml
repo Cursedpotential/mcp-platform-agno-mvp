@@ -1,0 +1,68 @@
+# =============================================================================
+# DATA TIER — SURREALDB SUBSET, split out of compose.data.yaml.
+# Reason: 2026-06-25 incident + owner mandate 2026-07-05 — every DB must be its
+# own Coolify app so any one crashing / being updated never takes down the
+# others. Mirrors the Milvus split (commit 18c42d2 / compose.data-vector.yaml).
+#
+# DEPLOY AS ITS OWN Coolify "Docker Compose" app `data-surreal` on OVH-3
+# (server jt1tv1j5samqn5rglmtky0qc), repo Cursedpotential/mcp-platform-agno-mvp
+# @ main, compose file /compose.data-surreal.yaml.
+# Env (copy from existing data-tier app):
+#   BIND_IP=100.119.96.29      (OVH-3 tailnet — ports bind here, never 0.0.0.0)
+#   SURREALDB_USER / SURREALDB_PASS   (must match existing — auth in rocksdb)
+#   SURREALDB_NS / SURREALDB_DB        (consumed by exec-tier, unchanged)
+#
+# Same absolute bind mount as the original — NO data migration: surrealdb
+# reattaches /data/agno/volumes/surrealdb (rocksdb at /data/surreal.db).
+#
+# CUTOVER (one pass, after this lands on main + new app created + healthy):
+#   1. Edit compose.data.yaml on main: DELETE the `surrealdb:` service block.
+#   2. Redeploy the existing `data-tier` app (uuid ipy7vrw…) → shrinks by one.
+#   3. This app `data-surreal` already serving 8000 on tailnet → exec-tier
+#      (ws://${OVH3_HOST}:8000/rpc) sees no interruption.
+# Reversible: revert compose.data.yaml edit + stop/delete data-surreal; rocksdb intact.
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # SurrealDB — the Agno OPERATIONAL store (sessions/memory/metrics/eval/
+  # knowledge-content/culture/traces/spans). Persistent rocksdb on an absolute
+  # host bind. Reached by agentos-api on OVH-1 over the tailnet/salem link.
+  # WS transport on /rpc; raw TCP, tailnet-only — NEVER proxied, NEVER 0.0.0.0.
+  # ---------------------------------------------------------------------------
+  surrealdb:
+    image: surrealdb/surrealdb:v3.1.4
+    platform: linux/amd64
+    container_name: surrealdb
+    restart: unless-stopped
+    user: "0:0"                      # official image is root; matches volume chown
+    command:
+      - start
+      - --bind=0.0.0.0:8000          # in-container bind; host exposure gated by ports below
+      - --user=${SURREALDB_USER:-root}
+      - --pass=${SURREALDB_PASS:-root}
+      - rocksdb:/data/surreal.db     # persistent file engine inside the bind mount
+    ports:
+      # raw TCP, tailnet-only (reached by agentos-api on OVH-1 over salem); never proxied
+      - "${BIND_IP:-127.0.0.1}:8000:8000"
+    volumes:
+      - /data/agno/volumes/surrealdb:/data
+    healthcheck:
+      # The minimal SurrealDB image ships NO sh/curl, so the old CMD-SHELL curl
+      # check always failed (-> Docker "unhealthy" while the DB served 200 fine).
+      # Use the bundled `surreal isready` binary instead (verified exit 0 in-container).
+      test: ["CMD", "/surreal", "isready", "--endpoint", "http://localhost:8000"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    # DOMAIN PHASE — SurrealDB has NO admin UI worth exposing; keep tailnet-only.
+    # Deliberately NO Traefik labels (raw TCP / internal service, like neo4j bolt).
+    networks:
+      - surreal
+
+networks:
+  surreal:
+
+# No named volumes — absolute host binds (declared inline above).
+# Byline: Claude Code · Fable 5 · 2026-07-05
