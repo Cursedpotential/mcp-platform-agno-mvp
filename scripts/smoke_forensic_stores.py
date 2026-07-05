@@ -46,20 +46,33 @@ def smoke_pg() -> None:
     try:
         engine = create_engine(db_url, connect_args={"connect_timeout": 5})
         with engine.connect() as conn:
-            counts = {}
-            for tbl, expect in (
-                ("analysis.behavior_category", 153),
-                ("analysis.detection_pattern", 512),
-                ("analysis.pattern_lexicon", 51),
-                ("analysis.behavior_category_mcl", 225),
-            ):
-                n = conn.execute(text(f"SELECT count(*) FROM {tbl}")).scalar()
-                counts[tbl] = (n, expect)
-            bad = {t: c for t, c in counts.items() if c[0] != c[1]}
-            if bad:
-                report("PG ontology", FAIL, f"count drift vs 0006 apply log: {bad}")
+            # Expected counts derive from the COMMITTED migration chain
+            # (evidence.patterns.chain_prefix_counts): live must equal some
+            # prefix of the chain — below every prefix = data loss; above/
+            # between = uncaptured drift (rows applied live but not in git,
+            # exactly how the sweep-2026-07-03 delta was originally caught).
+            from evidence.patterns import chain_prefix_counts
+
+            prefixes = chain_prefix_counts()
+            live = (
+                conn.execute(text("SELECT count(*) FROM analysis.behavior_category")).scalar(),
+                conn.execute(text("SELECT count(*) FROM analysis.detection_pattern")).scalar(),
+            )
+            match = next(
+                (p for p in prefixes if (p["categories"], p["patterns"]) == live),
+                None,
+            )
+            if match is None:
+                report(
+                    "PG ontology",
+                    FAIL,
+                    f"live counts {live} match NO chain prefix {[(p['categories'], p['patterns']) for p in prefixes]}"
+                    " — uncaptured drift (export a new chain migration) or data loss",
+                )
             else:
-                report("PG ontology", PASS, f"seed counts match 0006: { {t: c[0] for t, c in counts.items()} }")
+                pending = [p["through"] for p in prefixes[prefixes.index(match) + 1 :]]
+                note = f"; pending (committed, not applied): {pending}" if pending else "; chain fully applied"
+                report("PG ontology", PASS, f"live {live} == chain through {match['through']}{note}")
 
             src = conn.execute(
                 text(

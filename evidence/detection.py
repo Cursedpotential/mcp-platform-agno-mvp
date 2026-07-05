@@ -200,6 +200,23 @@ def subject_type_for(record_type: Optional[str]) -> str:
 _engine = None
 
 
+def _code_ref() -> str:
+    """Replayability pin for processing_run: module path @ git HEAD (or 'unknown')."""
+    import subprocess
+
+    try:
+        sha = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            cwd=str(__file__).rsplit("evidence", 1)[0] or ".",
+        ).stdout.strip()
+    except Exception:
+        sha = ""
+    return f"evidence/detection.py@{sha or 'unknown'}"
+
+
 def _get_engine():
     global _engine
     if _engine is None:
@@ -313,25 +330,34 @@ def run(dry_run: bool = True, limit: Optional[int] = None, actor: str = "evidenc
         patterns = load_patterns(conn)
         stats.patterns_loaded = len(patterns)
 
-        # Provenance: one processing_run for this detection pass.
+        # Provenance: one processing_run for this detection pass. code_ref is
+        # required by processing_run_replayable_needs_code_ref whenever
+        # replayable=true — pin the module + git HEAD so the run is replayable.
         prov = conn.execute(
             text(
                 "INSERT INTO analysis.processing_run "
-                "(run_type, run_purpose, status, actor, tool_or_model, "
+                "(run_type, run_purpose, status, actor, tool_or_model, code_ref, "
                 " ran_local_only, cloud_exposure, human_review_requirement, "
                 " replayable, started_at) "
                 "VALUES ('pattern_analysis', :purpose, 'running', :actor, "
-                " 'evidence.detection (literal+regex)', true, false, true, true, now()) "
+                " 'evidence.detection (literal+regex)', :code_ref, true, false, true, true, now()) "
                 "RETURNING run_id"
             ),
-            {"purpose": "behavioral detection over normalized_record", "actor": actor},
+            {
+                "purpose": "behavioral detection over normalized_record",
+                "actor": actor,
+                "code_ref": _code_ref(),
+            },
         ).scalar()
 
         q = "SELECT id, record_type, content FROM analysis.normalized_record WHERE content IS NOT NULL ORDER BY id"
         if limit is not None:
             q += f" LIMIT {int(limit)}"
 
-        result = conn.execution_options(stream_results=True).execute(text(q))
+        # stream ONLY this statement — Connection.execution_options() mutates the
+        # connection in place, which would force server-side cursors onto the
+        # finding INSERTs below (DECLARE CURSOR FOR INSERT = syntax error).
+        result = conn.execute(text(q).execution_options(stream_results=True))
         while True:
             batch = result.mappings().fetchmany(FETCH_BATCH)
             if not batch:

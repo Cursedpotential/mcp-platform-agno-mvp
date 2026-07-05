@@ -1,6 +1,7 @@
 # ADR-0015: LiteLLM gateway; Ollama Cloud is the primary LLM, NVIDIA NIM = embed/rerank/backup
 - Status: Accepted
 - Date: 2026-06-11
+- Amended: 2026-07-04 — see "Amendment" below (embed-text model swap; Graphiti LLM exception)
 - Supersedes: the "NVIDIA NIM is the active provider" runtime choice in ADR-0011 (the
   embedder dimension contract and one-provider-for-embeddings parts of 0011 remain in force).
   Closes ADR-0008 D7 definitively.
@@ -28,3 +29,19 @@ Gateway models: glm-5.1 (primary), nemotron (backup), kimi-k2.6, embed-text (NIM
 ## Alternatives considered
 - Per-agent provider config — rejected: no single swap point; a rate-limit stalls the fleet.
 - Keep NVIDIA primary — rejected: it rate-limited; Ollama Cloud glm-5.1 is the owner's choice.
+
+## Amendment (2026-07-04)
+> _Byline: Claude Code · Fable 5 · 2026-07-04_
+- **`embed-text` → `nvidia/nv-embed-v1` (4096-d, SYMMETRIC).** The asymmetric
+  llama-nemotron-embed-vl required per-call `input_type`; the gateway's blanket
+  `input_type: passage` collapsed retrieval margin 0.33→0.09 (measured), and Graphiti
+  cannot split query/passage per call. The `extra_body` injection is removed. Changing
+  the embed model again requires re-embedding the graph (mixed dims hard-error).
+  bge-m3 (owner-preferred symmetric, 1024-d) was 500ing server-side on NIM 2026-07-04;
+  candidates when revisiting: NIM bge-m3, or CF Workers AI bge-m3 (~$0/mo at our volume).
+- **Graphiti's LLM = `nemotron`, an exception to glm-5.1-primary.** glm-5.1 cannot emit
+  schema-conformant structured output (fails Graphiti's entity extraction on every try;
+  the knowledge graph had been silently empty since deployment). glm-5.1 remains primary
+  for agents/chat. Do not use glm-5.1 for any JSON-schema-constrained workload.
+- kimi-k2.6 verified working via chat completions (an earlier 404 was specific to the
+  /v1/responses structured-output path).
