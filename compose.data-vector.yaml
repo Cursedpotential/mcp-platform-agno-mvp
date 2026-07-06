@@ -28,6 +28,11 @@ services:
     container_name: milvus
     command: ["milvus", "run", "standalone"]
     restart: unless-stopped
+    # Embedded etcd needs time to flush its WAL on SIGTERM. Coolify's default
+    # stop_grace_period (10s) SIGKILLs milvus before the flush completes ->
+    # corrupt WAL -> next start panics "etcdserver: leader changed". Has
+    # corrupted the volume on every cutover (2026-06-25, 06-27, 07-05).
+    stop_grace_period: 60s
     security_opt:
       - seccomp:unconfined
     environment:
