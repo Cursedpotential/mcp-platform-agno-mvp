@@ -54,6 +54,7 @@ services:
       retries: 3
     networks:
       - vector
+      - agno                # shared external net — cross-app docker DNS on OVH-3
 
   attu:
     image: zilliz/attu:v3.0.0-beta.6
@@ -72,9 +73,16 @@ services:
         condition: service_healthy
     networks:
       - vector
+      - agno                # shared external net — so other OVH-3 containers can
+                            # reach milvus:19530 via docker DNS (cross-app)
 
 networks:
   vector:
+  agno:
+    external: true          # pre-created on OVH-3 (`docker network create agno`);
 
 # No named volumes — absolute host binds (same paths as compose.data.yaml).
-# Byline: Claude Code · Opus 4.8 · 2026-06-25 (split out of compose.data.yaml for fault isolation)
+# 2026-07-05: brought into Coolify as a managed app (was standalone /opt/data-vector);
+# joined the shared external `agno` network for cross-app docker DNS on OVH-3.
+# Byline: Claude Code · Opus 4.8 · 2026-06-25 (split out of compose.data.yaml for fault isolation);
+#         Claude Code · Fable 5 · 2026-07-05 (Coolify-managed + agno shared net).
