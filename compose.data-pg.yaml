@@ -51,9 +51,12 @@ services:
       retries: 10
     networks:
       - pg
+      - agno                # shared external net — reachable as `agentos-db` by other OVH-3 apps
 
 networks:
   pg:
+  agno:
+    external: true          # pre-created on OVH-3 (`docker network create agno`)
 
 # No named volumes — absolute host binds (declared inline above).
 # Byline: Claude Code · Fable 5 · 2026-07-05

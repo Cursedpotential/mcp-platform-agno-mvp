@@ -60,9 +60,12 @@ services:
     # Deliberately NO Traefik labels (raw TCP / internal service, like neo4j bolt).
     networks:
       - surreal
+      - agno                # shared external net — reachable as `surrealdb` by other OVH-3 apps
 
 networks:
   surreal:
+  agno:
+    external: true          # pre-created on OVH-3 (`docker network create agno`)
 
 # No named volumes — absolute host binds (declared inline above).
 # Byline: Claude Code · Fable 5 · 2026-07-05

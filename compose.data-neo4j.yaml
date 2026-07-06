@@ -63,9 +63,12 @@ services:
     #   - traefik.http.services.neo4j.loadbalancer.server.port=7474
     networks:
       - neo4j
+      - agno                # shared external net — reachable as `neo4j` by other OVH-3 apps
 
 networks:
   neo4j:
+  agno:
+    external: true          # pre-created on OVH-3 (`docker network create agno`)
 
 # No named volumes — absolute host binds (declared inline above).
 # Byline: Claude Code · Fable 5 · 2026-07-05
