@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "geo_map point record",
+  "description": "One point for tools/geo_map.py (capability viz.geo_map). Columns with other names are ported via the tool's `mapping` option, e.g. {\"lat\": \"latitude\", \"weight\": \"visit_count\"}. Unknown extra columns are carried into popups verbatim.",
+  "type": "object",
+  "required": ["lat", "lng"],
+  "properties": {
+    "lat": { "type": "number", "minimum": -90, "maximum": 90, "description": "WGS84 latitude" },
+    "lng": { "type": "number", "minimum": -180, "maximum": 180, "description": "WGS84 longitude" },
+    "id": { "type": ["string", "integer"], "description": "Unique row id; defaults to row index" },
+    "label": { "type": "string", "description": "Display name / address for popups. Leave empty and pass geocode=true to fill via OSM Nominatim." },
+    "weight": { "type": "number", "description": "Numeric magnitude (e.g. visit count) — drives marker size and the min-weight filter" },
+    "group": { "type": "string", "description": "Categorical bucket — drives marker color, legend, and the group filter (first 8 groups get distinct colors)" },
+    "first_seen": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}(:\\d{2})?([+-]\\d{2}:\\d{2})?$", "description": "Earliest timestamp — enables the date-range filter" },
+    "last_seen": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}(:\\d{2})?([+-]\\d{2}:\\d{2})?$", "description": "Latest timestamp" }
+  },
+  "additionalProperties": true
+}
