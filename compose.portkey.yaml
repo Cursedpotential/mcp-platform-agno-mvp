@@ -30,8 +30,9 @@ services:
     ports:
       - "${BIND_IP:-127.0.0.1}:8787:8787"   # OpenAI-compatible /v1 — tailnet-only
     healthcheck:
-      # node-based probe — image is a bare Node runtime (no curl/wget guaranteed)
-      test: ["CMD", "node", "-e", "fetch('http://localhost:8787/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      # node-based probe — image is a bare Node runtime (no curl/wget guaranteed).
+      # Probe / (banner, 200) — /v1/health 400s without a provider header on 1.15.x.
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8787/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
       start_period: 15s
       timeout: 10s
