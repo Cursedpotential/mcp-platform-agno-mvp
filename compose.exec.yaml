@@ -230,7 +230,7 @@ services:
   # :8071; salem alt 10.1.2.101:8071) — used at bootstrap registration, not here.
   # ---------------------------------------------------------------------------
   contextforge:
-    image: ghcr.io/ibm/mcp-context-forge:0.8.0   # pin to 0.8.0 (proven + currently live). The 1.0.x line is IBM BETA; 1.0.3 broke the gateway (DB-migration + CSRF_TOKEN_INVALID, rolled back). Do NOT use 1.0.x or :latest until a release fixes those AND it's tested on a throwaway mcp.db copy.
+    image: ghcr.io/ibm/mcp-context-forge:v1.0.4   # pin to v1.0.4 (note: ghcr tag has the "v"; bare "1.0.4" does not exist). Upgraded from 0.8.0 on 2026-07-07 after a clean throwaway-mcp.db test: Alembic migration OK, /health OK, admin login OK. The two 1.0.x blockers are handled via env below: CSRF_ENABLED=false (CSRF_TOKEN_INVALID on API calls) and PASSWORD_CHANGE_ENFORCEMENT_ENABLED=false (forced admin password-change gate returned 403 on /auth/email/login). Keep testing any future bump on a throwaway mcp.db copy first.
     platform: linux/amd64
     container_name: contextforge
     restart: unless-stopped
@@ -261,6 +261,9 @@ services:
       MCPGATEWAY_UI_ENABLED: "true"          # admin dashboard (only reachable via tailnet/proxy)
       MCPGATEWAY_ADMIN_API_ENABLED: "true"   # admin REST API (POST /gateways, /servers)
       SECURE_COOKIES: "false"                # HTTP on the tailnet; flip true once behind TLS proxy
+      # --- 1.0.x knobs (both REQUIRED for v1.0.4; verified on throwaway mcp.db 2026-07-07) ---
+      CSRF_ENABLED: "false"                  # 1.0.x defaults CSRF on -> CSRF_TOKEN_INVALID for header-token API clients; tailnet-only + Bearer auth, so off
+      PASSWORD_CHANGE_ENFORCEMENT_ENABLED: "false"  # 1.0.x forces admin password change on first login (403); keep PLATFORM_ADMIN_PASSWORD env authoritative instead
       # --- keep the worker count low: OVH-1 is a tight 7.6GB box ---
       GUNICORN_WORKERS: "1"                   # 1–2 max; each worker is a full python process
     volumes:
@@ -311,3 +314,4 @@ volumes:
       vfs_cache_mode: "writes"
 
 # Byline: Claude Code · Opus 4.8 · 2026-06-14
+# Byline: Claude Code · Fable 5 · 2026-07-07 (contextforge 0.8.0 -> v1.0.4: image bump + CSRF_ENABLED=false + PASSWORD_CHANGE_ENFORCEMENT_ENABLED=false)
