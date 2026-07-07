@@ -39,14 +39,19 @@ services:
     platform: linux/amd64
     container_name: graphiti-mcp
     restart: unless-stopped
-    ports:
-      - "${BIND_IP:-127.0.0.1}:8071:8000"   # MCP — tailnet/internal ONLY; external access only via ContextForge, never direct
+    # NO host port binding — internal only. The graphiti-hostfix nginx sidecar
+    # (below) owns ${BIND_IP}:8071 and proxies here with a rewritten Host header.
     environment:
       CONFIG_PATH: /app/mcp/config/config.yaml
       BROWSER: "0"
-      # FastMCP defaults DNS-rebinding protection ON with allowed_hosts=localhost/127.0.0.1 only,
-      # so ContextForge (reaching this over the tailnet by IP) gets 421 "Invalid Host header" and
-      # discovers 0 tools. This service is tailnet-only + fronted by CF, so disable the check.
+      # STALE-AS-DOCUMENTED, kept for the record: the image's bundled MCP SDK (mcp 1.26.0)
+      # constructs FastMCP() with default host 127.0.0.1, which passes an EXPLICIT
+      # allowed_hosts=["127.0.0.1:*","localhost:*"] kwarg — so this env override is
+      # silently IGNORED upstream (wildcards are port-only; base host must be exactly
+      # localhost/127.0.0.1). Tailnet-IP requests → 421 "Invalid Host header".
+      # The real fix is the graphiti-hostfix nginx sidecar below, which rewrites
+      # Host to "localhost:8071" before proxying. Env left in place (harmless) in
+      # case a future image version honors it.
       FASTMCP_TRANSPORT_SECURITY: '{"enable_dns_rebinding_protection": false}'
       # Neo4j is now its own Coolify app (data-neo4j); reach over the tailnet
       # bolt port instead of the docker DNS name. graphiti's bolt driver retries
@@ -72,9 +77,31 @@ services:
       - graphiti
       - agno                # shared external net — reach neo4j/pg/surreal by docker DNS on OVH-3
 
+  # -----------------------------------------------------------------------
+  # Host-header-rewriting reverse proxy in front of graphiti-mcp.
+  # WHY: upstream FastMCP ctor locks DNS-rebinding allowed_hosts to
+  # localhost/127.0.0.1 (env override ignored — see comment above), so any
+  # request arriving with Host=<tailnet-ip>:8071 gets 421. This sidecar owns
+  # the host port and forwards everything with Host forced to localhost:8071.
+  # Config file MUST pre-exist on the host (Coolify gotcha): staged at
+  # /data/agno/config/graphiti/hostfix.conf.
+  # -----------------------------------------------------------------------
+  graphiti-hostfix:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "${BIND_IP:-127.0.0.1}:8071:8071"   # MCP — tailnet/internal ONLY; external access only via ContextForge, never direct
+    volumes:
+      - /data/agno/config/graphiti/hostfix.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - graphiti-mcp
+    networks:
+      - graphiti
+      - agno
+
 networks:
   graphiti:
   agno:
     external: true          # pre-created on OVH-3 (`docker network create agno`)
 
-# Byline: Claude Code · Fable 5 · 2026-07-05
+# Byline: Claude Code · Fable 5 · 2026-07-05 · Claude Code · Fable 5 · 2026-07-07 (hostfix sidecar: upstream FastMCP ctor locks allowed_hosts to localhost, env override ignored -> nginx rewrites Host)
