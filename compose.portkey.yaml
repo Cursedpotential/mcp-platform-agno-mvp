@@ -1,0 +1,42 @@
+# =============================================================================
+# PORTKEY AI GATEWAY — the platform's LLM door (phase 1: gateway up + verified).
+# OSS gateway (Portkey-AI/gateway, MIT): a small stateless Node process that
+# exposes an OpenAI-compatible /v1 API and routes to 250+ providers via request
+# headers (x-portkey-provider, x-portkey-config, x-portkey-custom-host;
+# Authorization passes the provider key through). No DB, no volumes.
+#
+# DEPLOY AS ITS OWN Coolify "Docker Compose" app `portkey` on ovh-app
+# (server fmuao9enq3nxk8qw5hqjzzce), repo Cursedpotential/mcp-platform-agno-mvp
+# @ main, compose file /compose.portkey.yaml. Env: BIND_IP=100.72.169.40
+# (ovh-app tailnet) — port is tailnet-only, never public.
+# Consumers call http://100.72.169.40:8787/v1 (OpenAI-compatible).
+#
+# PHASE 2 (owner requirements — land as portkey configs, not compose changes):
+#   - per-task model routing: classification / embedding / RAG / chat each get
+#     their own model via named x-portkey-config JSON configs
+#   - failover strategies: {"strategy":{"mode":"fallback"}, "targets":[...]}
+#   - multi-account key rotation: {"strategy":{"mode":"loadbalance"}} across
+#     multiple keys per provider to dodge rate limits
+#   Consumer migration off LiteLLM is a later task — doors policy: nothing
+#   closes until the replacement is verified.
+# =============================================================================
+
+services:
+  portkey:
+    image: portkeyai/gateway:1.15.2   # pin explicit tag (latest == 1.15.2 as of 2026-01-12)
+    platform: linux/amd64
+    container_name: portkey
+    restart: unless-stopped
+    ports:
+      - "${BIND_IP:-127.0.0.1}:8787:8787"   # OpenAI-compatible /v1 — tailnet-only
+    healthcheck:
+      # node-based probe — image is a bare Node runtime (no curl/wget guaranteed)
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8787/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      start_period: 15s
+      timeout: 10s
+      retries: 3
+
+# Default network only — no external nets needed on ovh-app (phase 1).
+# No volumes — gateway is fully stateless; keys arrive per-request in headers.
+# Byline: Claude Code · Fable 5 · 2026-07-07 (initial Portkey gateway — LLM door, phase 1)
