@@ -1,0 +1,5 @@
+# coolify-write MCP server deps — official MCP Python SDK (FastMCP), httpx, yaml.
+# Byline: Claude Code · Fable 5 · 2026-07-08
+mcp>=1.9,<2
+httpx>=0.27
+PyYAML>=6.0

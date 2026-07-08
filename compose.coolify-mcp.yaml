@@ -1,0 +1,49 @@
+# =============================================================================
+# COOLIFY-WRITE MCP SERVER — consolidated Coolify read+write MCP (14 tools:
+# 10 read mirroring the hosted read-only MCP names + 4 write:
+# create_application, upsert_application_envs, delete_application,
+# check_port_collision). Python, official MCP SDK (FastMCP), streamable-HTTP
+# at /mcp (stateless). Code lives in ./docker/coolify-mcp (patched repo copy
+# of the local stdio skill ~/.claude/skills/coolify-write/server.py).
+#
+# DEPLOY AS ITS OWN Coolify "Docker Compose" app `coolify-mcp` on ovh-app
+# (server fmuao9enq3nxk8qw5hqjzzce), repo Cursedpotential/mcp-platform-agno-mvp
+# @ main, compose file /compose.coolify-mcp.yaml. Lane C owns this file —
+# do NOT fold into compose.exec.yaml.
+#
+# Env (set in the Coolify app — real values NEVER in git):
+#   BIND_IP=100.72.169.40                          # ovh-app tailnet — tailnet-only bind
+#   COOLIFY_API=http://100.98.98.38:8000/api/v1    # ion-control Coolify API base
+#   COOLIFY_API_TOKEN=<secret>                     # WRITE-capable fleet token
+#
+# SECURITY: this token can create/delete apps across the fleet. The port is
+# bound tailnet-only and the service is reached ONLY by ContextForge on the
+# same box (registered as CF gateway `coolify-write`); CF fronts it with its
+# own JWT auth. The server itself has no auth layer — never bind public.
+# =============================================================================
+
+services:
+  coolify-mcp:
+    build: ./docker/coolify-mcp
+    container_name: coolify-mcp
+    restart: unless-stopped
+    environment:
+      MCP_TRANSPORT: http
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: "8765"
+      COOLIFY_API: ${COOLIFY_API}
+      COOLIFY_API_TOKEN: ${COOLIFY_API_TOKEN}
+    ports:
+      - "${BIND_IP:-127.0.0.1}:8765:8765"   # streamable-HTTP /mcp — tailnet-only
+    healthcheck:
+      # TCP-connect probe — /mcp only answers POSTs, so plain HTTP GET probes 4xx.
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1',8765),5).close()"]
+      interval: 30s
+      start_period: 15s
+      timeout: 10s
+      retries: 3
+
+# Default network only — talks OUT to the Coolify API over the tailnet via host
+# routing; nothing else needs to reach it except CF (via the host port bind).
+# No volumes — stateless.
+# Byline: Claude Code · Fable 5 · 2026-07-08 (coolify-write MCP → HTTP behind ContextForge)
