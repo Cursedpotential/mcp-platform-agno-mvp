@@ -16,16 +16,13 @@ model_list:
       model: openai/moonshotai/kimi-k2.6
       api_base: https://integrate.api.nvidia.com/v1
       api_key: os.environ/NVIDIA_API_KEY
-  - model_name: embed-text      # llama-nemotron-embed (2048-d)
-    litellm_params:
-      model: openai/nvidia/llama-nemotron-embed-vl-1b-v2
+  - model_name: embed-text      # nvidia/nv-embed-v1 (4096-d, SYMMETRIC — no input_type)
+    litellm_params:              # MUST stay 4096-d: the Graphiti Neo4j graph is embedded at 4096-d;
+      model: openai/nvidia/nv-embed-v1   # dim change breaks vector.similarity.cosine (re-embed required).
       api_base: https://integrate.api.nvidia.com/v1
       api_key: os.environ/NVIDIA_API_KEY
-      # NIM embedqa models REQUIRE input_type (asymmetric); inject centrally
-      # so every gateway caller (Graphiti, n8n, etc.) gets it for free
-      extra_body:
-        input_type: passage
-        truncate: NONE
+      # DO NOT revert to asymmetric embedqa models (input_type collapses retrieval ~3.5x).
+      # 2026-07-08: this branch (exec-tier deploy source) still had the pre-07-04 model; fixed.
 
   - model_name: groq-llama
     litellm_params:
