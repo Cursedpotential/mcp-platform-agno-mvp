@@ -67,6 +67,20 @@ listed here so Lane A can carry it through the repack:
   ONLY; real values never enter git (0006 court-safety rule).
 
 ## Ledger (append below; newest on top)
+- **2026-07-08 late (C):** coolify-write MCP deployed as HTTP service. NEW Lane-C files on
+  `main`: `compose.coolify-mcp.yaml` + `docker/coolify-mcp/` (server.py/requirements/Dockerfile
+  — patched repo copy of the local stdio skill; keep paths stable through the repack, same as
+  `docker/gateway`). Commits `82cd8c8` + `c6e3e66` (Host-check fix). New Coolify app
+  `coolify-mcp` (uuid `oyzznioap03u34xz125l90oq`, ovh-app, tailnet-only 100.72.169.40:8765,
+  token via app envs — never in git). CF gateway `coolify-write`
+  (`fe0789de7cdb47cc9bec10eb7a0ddfc0`, transport STREAMABLEHTTP — CF defaults to SSE and hangs
+  on streamable-http servers without the explicit field). `coolify` virtual server
+  (`d8a45fe53fa4415cadfb3982d9026d43`) re-pointed 10 read tools → 14 coolify-write tools
+  (read names mirrored, so callers keep working); verified end-to-end (initialize/tools-list/
+  list-projects with real data). Old read-only `coolify` gateway
+  (`5a2c512b6e0e43bfa62471a9461ad83f` → 100.98.98.38:8000/mcp) left registered but now
+  REDUNDANT (doors policy). ⚠️ Reminder: any push to `main` auto-redeploys exec-tier AND
+  the webhooked coolify-mcp/portkey/data-* apps.
 - **2026-07-08 (A):** SEED RECONCILIATION RESOLVED — no action needed: live (164/527) ==
   exact `0007` prefix of Lane B's committed migration chain (0006+0007+0008);
   `evidence/patterns.py` chain validator OK; corpus fully homed (0 missing); only the 4
