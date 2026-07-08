@@ -1,6 +1,6 @@
 # LiteLLM proxy — one OpenAI-compatible endpoint over every provider we hold keys for.
 # Keys come from the container env (compose passes them from .env). Add models freely.
-# Byline: Claude Code · Fable 5 · 2026-07-04 (embed-text -> nv-embed-v1; see ADR-0015 amendment)
+# Byline: Claude Code · Fable 5 · 2026-07-08 (restore embed-text -> nv-embed-v1 4096-d; drift broke graphiti search)
 model_list:
   - model_name: glm-5.1         # PRIMARY (Ollama Cloud — owner decision 2026-06-11;
     litellm_params:             #  NVIDIA was rate-limiting, now embeddings/rerank/backup only)
@@ -17,16 +17,14 @@ model_list:
       model: openai/moonshotai/kimi-k2.6
       api_base: https://integrate.api.nvidia.com/v1
       api_key: os.environ/NVIDIA_API_KEY
-  - model_name: embed-text      # nv-embed-v1 (4096-d, SYMMETRIC — no input_type needed)
-    litellm_params:
-      model: openai/nvidia/nv-embed-v1
-      api_base: https://integrate.api.nvidia.com/v1
+  - model_name: embed-text      # nvidia/nv-embed-v1 (4096-d, SYMMETRIC — no input_type)
+    litellm_params:              # MUST stay 4096-d: the Graphiti Neo4j graph is embedded
+      model: openai/nvidia/nv-embed-v1   # at 4096-d; a dim change breaks vector.similarity.cosine
+      api_base: https://integrate.api.nvidia.com/v1   # and would force a full graph re-embed.
       api_key: os.environ/NVIDIA_API_KEY
-      # Switched from llama-nemotron-embed-vl (2048-d asymmetric) 2026-07-04:
-      # Graphiti can't split input_type per call, so queries embedded as 'passage'
-      # collapsed retrieval margin 0.33 -> 0.09 (measured). Symmetric nv-embed-v1
-      # scores 0.29 with no input_type. bge-m3 on NIM 500s (retest later; 1024-d,
-      # would need graph re-embed). Changing this model = re-embed the graph.
+      # DO NOT swap in asymmetric embedqa models (input_type poisons query-vs-passage
+      # retrieval ~3.5x). 2026-07-08: reverted a drift back to llama-nemotron-embed-vl-1b-v2
+      # (2048-d asymmetric) that broke graphiti search with a Neo4j dimension mismatch.
 
   - model_name: groq-llama
     litellm_params:
