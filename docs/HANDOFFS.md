@@ -103,6 +103,64 @@ Sync to VPS, rebuild image (chatminer + pyyaml + sentence-transformers deps), pa
 - **Part 2 — Behavioral `[J]`:** wrap **Tether** (`dial-stack/utilities/apps/ml-nlp/Tether`, HF models) + ConflictAnalysisApp RuleEngine + pattern-analyzer (~25 MCL modules) as MCP services; map to mcl_factors. Deferred per owner until here.
 - **Part 3 — AI LAW FIRM build-out `[J]`:** port the owner's **Gemini Gems personas** to Agno as a third agent family — strategy / motions / filings / discovery agents — using the **MCL 722.23 ontology** + imported Michigan legal skills + the evidence/knowledge/timeline outputs. Refs: canon §2 (Part 3), `ontologies/mcl_722_23.ttl`. (Inventory the Gemini Gems personas as the first sub-unit.)
 
+## TRACK G — ONE-PLATFORM GUI + TOOL SURFACE (GUI scope only; Part-2 engines excluded)
+Source: `docs/planning/gui-integration-spec.md` + `port-backlog.md` + `gui-build-plan.html`.
+**Build order:** G1 → G4 → **[VPS window]** → G2 → G3 → G5 → G6. G1/G4/G5/G6 are offline-buildable; G2/G3 need the VPS.
+**Locked decisions (owner, 2026-07-06):** shell = `ui/` dir IN-REPO · auth = single proxy JWT for everything (fwd-compatible w/ deferred multi-user, DEBT.md) · ContextForge target = **1.0.3** (upgrade the live 0.8.0 box to match before G3) · MVP page = tool catalog first, evidence browser second · `get_ref` store = local **SQLite** on the tool-finder host (SHA-256 keyed, WAL, TTL-swept) — R2 only for deliberate durable artifacts · AgentOS UI framed as-is under `/x/agentos/` first · Kasm + OpenCode each get a nav entry.
+**Donor:** `Cursedpotential/mcp-tool-platform/client` (React 19 + Vite + shadcn/Tailwind; **do NOT port its tRPC/Node data layer** — bind FastAPI REST/OpenAPI + AG-UI). Consume only public contracts: AG-UI, agentos-api REST, platform-tools facade OpenAPI, ContextForge catalog API. Never bind parser internals (registry contract frozen).
+
+### G1 — Shell scaffold `[J]` — offline
+- **Goal:** one CopilotKit/Next.js shell (sidebar layout + chat) riding Agno AG-UI against agentos-api; the single first-class UI everything else mounts into.
+- **Refs:** donor `client/src/components/DashboardLayout.tsx` + `client/src/components/ui/*` (~60 shadcn components — lift wholesale) · gui-spec §4.2, §5 · AG-UI served natively by agentos-api (:8000) · self-hosted `agent-ui` service (`docker/agent-ui/Dockerfile`, :3000) as interim/fallback chat.
+- **Steps:** create `ui/` in-repo (Next.js + CopilotKit). Vendor `client/src/components/ui` + `DashboardLayout` into `ui/`. Wire the sidebar nav shell. Chat pane speaks AG-UI; **mock the AG-UI endpoint in dev** so G1 needs no live backend. Do NOT bring tRPC.
+- **Accept:** `ui/` runs locally; sidebar nav renders; chat pane exchanges messages with a mocked AG-UI endpoint. No tRPC in the dep tree.
+- **HITL:** none (scaffold, no writes to platform data). **Tier J** (shell architecture).
+
+### G4 — `tool-finder` meta-MCP server `[J]` — offline
+- **Goal:** port the owner's proven 4-endpoint gateway onto the Python registry so agents carry 5 meta-tools instead of 50+. (This IS port-backlog #8.)
+- **Refs:** donor `server/mcp/gateway.ts` (search/describe/invoke/get_ref; 1431 ln) + `server/mcp/store/content-store.ts` (SHA-256, 4 KB paging) · `evidence/registry.py::manifest()` (id/capability/description/provenance) · platform-tools facade `/tools/*` + `/openapi.json` · ContextForge catalog API · gui-spec §4.1, §6 Level 2 · [CF #2230].
+- **Steps:** new MCP server `evidence/tools/tool_finder/` exposing 5 meta-tools:
+  `get_tool_categories()` (distinct capabilities + counts from `manifest()` + CF catalog) ·
+  `search_tools(query, category?)` (compact cards: id/category/one-liner) ·
+  `describe_tool(id)` (full schema on demand) ·
+  `execute_tool(id, payload)` (**proxied back through ContextForge** so auth/rate-limit apply — no side-channel; large outputs return a content-addressed ref, not the payload) ·
+  `get_ref(sha, page?)` (paged read). Build the ref store as **local SQLite** on the tool-finder host: table keyed by SHA-256 (bytes/size/created_at/ttl), WAL mode, byte-offset paging, TTL sweep. Meta-tool names mirror upstream #2230 + the old gateway for later swap-out.
+- **Accept:** all 5 meta-tools answer against the live registry; a large result returns a ref; `get_ref` pages it back from SQLite by offset; TTL sweep drops an expired row.
+- **HITL:** `execute_tool` runs real tools → all invokes remain HITL-gated per platform rule. **Tier J.**
+
+### G2 — Reverse-proxy embed layer + shell nav `[J; per-embed S]` — needs VPS
+- **Goal:** every supporting tool under one origin + one nav; cohesion via nav/origin/auth, not by forcing every app into a frame.
+- **Refs:** existing Traefik labels / Caddy · gui-spec §5 (embed table), §4.4 (agent-ui), §4.5 (embed candidates) · services: SBV :8085, Attu :3001, Neo4j :7474, ContextForge Admin :4444, Kasm :6901, LiteLLM :4000, agent-ui :3000.
+- **Steps:** mount each tool under `/x/*` on one origin (`/x/sbv/`, `/x/attu/`, `/x/neo4j/`, `/x/forge/`, `/x/kasm/`, `/x/litellm/`, `/x/agentos/`, `/x/chat/`, `/x/reports/` Evidence.dev, `/x/neodash/`, `/x/surreal/`, `/x/claude-history/`). Add shell nav entries (Kasm + OpenCode each get their own). **Single proxy JWT** in front of all of it. Per tool, decide iframe vs new-tab (verify `X-Frame-Options`/path-prefix breakage on the VPS) → record in a decision table. **One embed = one sub-unit (S).**
+- **Accept:** every tool reachable under one origin/nav behind one auth; framing-refusers fall back to new-tab; decision table committed.
+- **HITL:** proxy/auth config on VPS → owner go. **Tier J** overall, **S** per embed. Ends at DEPLOY RUNBOOK.
+
+### G3 — ContextForge virtual servers + tags `[J]` — needs VPS
+- **Goal:** category disclosure (Level 1) — one virtual server per capability family; each agent mounts only what it needs.
+- **Prereq (Q5, hard):** live ContextForge is **0.8.0**; compose pins **1.0.3**. Upgrade the live box to 1.0.3 BEFORE this unit — virtual-server/tag APIs differ across versions.
+- **Refs:** gui-spec §6 Level 1 · CF `POST /servers` (`associatedTools=[...]`) + universal tags/tag-filtering · Agno `MCPToolbox` mounts · registry capabilities (`parse.*`, `extract.*`, …).
+- **Steps:** confirm CF is on 1.0.3. Create virtual servers `parsers`, `sbv`, `graph`, `knowledge`, `analysis` (via `POST /servers` or Admin UI); tag each tool with its category. Register `tool-finder` (G4) as a federated MCP server in CF and grant it CF-catalog read. Narrow each agent's `MCPToolbox` to its virtual server(s).
+- **Accept:** an agent mounted on `parsers` sees only parser tools on `tools/list`; tool-finder reachable through CF; category counts match `manifest()`.
+- **HITL:** CF config on VPS → owner go. **Tier J.** Ends at DEPLOY RUNBOOK.
+
+### G5 — First-party pages `[J; catalog port S]` — offline vs fixtures
+- **Goal:** the situation-specific pages that no off-the-shelf tool covers. **Catalog first (cheap port), evidence browser second.**
+- **Refs:** donor `client/src/pages/Tools.tsx` (search → category pills → grouped cards → detail → **schema-driven "Test Tool" form**: enum→Select, bool→Switch, number, array; live invoke + latency) · native Agno `/approvals` · gui-spec §4.2–§4.3, §7 (G5) · `registry.manifest()` + CF catalog as the data source (NOT hardcoded `CATEGORY_INFO`).
+- **Steps (sub-units):**
+  - **G5a** port `Tools.tsx` → shell tool-catalog page, sourced from manifest + CF catalog; schema-driven tester invokes through tool-finder/CF.
+  - **G5b** evidence browser + entity/contradiction timeline (new build; owner-value page).
+  - **G5c** native `/approvals` page (HITL diff-preview UX; no custom approval table — Agno-native).
+  - **G5d** workflow-runs view.
+- **Accept:** catalog renders + invokes live tools with latency; approvals/runs/evidence pages work against fixtures.
+- **HITL:** approvals page mediates real HITL gates. **Tier J** (G5a portable at **S**).
+
+### G6 — Client-config generator `[S]` — offline
+- **Goal:** one-click export of a capability family to an external MCP client. (Pairs with port-backlog #14.)
+- **Refs:** donor `client/src/pages/McpConfig.tsx` + `server/mcp/config/mcp-generator.ts` (Claude Desktop / Gemini / OpenAI adapters) · gui-spec §7 (G6) · ContextForge virtual servers (G3) as the target.
+- **Steps:** port `McpConfig.tsx` retargeted at CF virtual servers — "export the `parsers` category to Claude Desktop" emits a ready-to-paste config pointing at that virtual server (mint/scope an API key as needed).
+- **Accept:** generates valid paste-ready configs for Claude Desktop, Gemini, and OpenAI, each pointing at a CF virtual server.
+- **HITL:** key minting → owner go. **Tier S.**
+
 ## DEPLOY RUNBOOK (every Track-A/B/E unit ends here)
 ```
 # from Agno-MCP-Platform/ — sync to VPS, rebuild, restart, verify

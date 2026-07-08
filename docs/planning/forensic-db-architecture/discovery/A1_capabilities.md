@@ -47,7 +47,8 @@ Columns: Capability | Type | Purpose | When to Use | When NOT | Inputs | Outputs
 | **LanceDB** `E:/AI_Workspace/.osgrep/lancedb` (+ per-repo) | Vector idx | Existing code/embedding index (osgrep / smart-explore) | Vector code search w/o re-embedding | Stale repos | embeddings/queries | Nearest chunks | **Yes** (chunks.lance) | May lag repo edits | **P1** | live |
 | **memsearch opencode-turns.db** | SQLite | Prior AI conversation-turn search | Recovering past decisions/prompts | Fresh data needs (Jun 11) | SQL/text | Turn rows | **Yes** | DATA STALE (Jun 11); plugin enabled but unfed | **P2** | live engine / stale data |
 | **memsearch memory digests** `.memsearch/memory/*.md` | Markdown | Daily session digests | Conversation-log recall | — | — | MD digests | Yes | latest Jun 27 | **P2** | live |
-| **Claude auto-memory** `~/.claude/.../MEMORY.md` + `.claude/memories` | Markdown | Cross-session project memory index (READ ON RESUME entries) | Start of every task | — | — | MD | Yes | Keyed to working dir | **P0** | live |
+| **Claude auto-memory** `~/.claude/projects/<project>/memory/MEMORY.md` + frontmatter `.md` | Markdown | Durable cross-session facts (READ ON RESUME: owner prefs, infra, decisions) | Start of every task | — | — | MD | Yes | Keyed to project (not cwd) | **P0** | live |
+| **CNF session-recall** `.claude/memories/project_memory.json` | JSON | Realtime session capture + manual `/cnf-remember` entries | Session-level recall | — | — | JSON | Yes | Keyed to cwd; NOT the built-in auto-memory | **P1** | live (skill `cnf-recall`; separated 2026-07-05) |
 | **PostgreSQL (agentos-db)** on OVH | RDBMS | Platform-native relational store behind agno-gateway | Canonical evidence/message schema target (the actual deliverable home) | Local-only quick work | SQL | Tables | Yes | Remote; via gateway/forensic-data-agent w/ validated queries | **P0** | live (via gateway) |
 
 ### Skills / subagents / commands (forensic/legal/db/thinking relevant — summarized)
@@ -70,7 +71,7 @@ Columns: Capability | Type | Purpose | When to Use | When NOT | Inputs | Outputs
 | Plugin | settings.json | Status |
 |---|---|---|
 | claudikins-kernel | `false` | DISABLED (confirmed stale) |
-| remember | `false` | DISABLED |
+| **remember** | `true` | **NOT disabled — A1 2026-06-30 snapshot was stale.** `remember@claude-plugins-official` is enabled (re-verified 2026-07-05 against `settings.json:44`). Distinct from `recall@FlineDev` (also `true`, line 48 — the `.remember/` handoff writer per MEMORY_ARCHITECTURE.md row #3). |
 | ralph-loop | `false` | DISABLED |
 | claude-session-driver | `false` | DISABLED |
 | **memsearch** | `true` | **NOT disabled — brief was wrong.** Engine enabled; only its turn DB data is stale (Jun 11). Use read-only with awareness of staleness. |
