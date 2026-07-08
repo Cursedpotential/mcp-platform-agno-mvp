@@ -126,7 +126,33 @@ Agno-MCP-Platform/
 - `tools/` (cross-domain `extract_text`) → `server/evidence/tools/` or `server/analysis/` per
   capability — registry auto-discovery updated accordingly.
 - Imports become `server.evidence.…` etc. — mechanical rewrite, ~200+ sites, fully guarded by
-  the 182-test suite + ruff + mypy.
+  the 186-test suite + ruff + mypy.
+
+**Blast-radius map (audited 2026-07-08 — the exact touch-list for the repack RUNBOOK):**
+| Surface | Sites | Change |
+|---|---|---|
+| `uvicorn app.main:app` entrypoint | `Dockerfile:32`, `app/main.py:178`, `compose.yaml:39`, `compose.exec.yaml:39` | → `server.api.main:app` — **must move in the SAME commit** (Lane C: exec-tier auto-deploys from main; a lagging entrypoint = failed redeploy) |
+| Registry auto-discovery **string** module paths | `evidence/registry.py:127` (`f"evidence.tools.{mod.name}"`), `:136` (`f"tools.{mod.name}"`) | → `server.evidence.tools.*`; the cross-domain `tools/` merges into `server/evidence/tools/` or `server/analysis/`, so the second loop's target changes too |
+| Lazy PEP-562 export | `evidence/__init__.py:45` (`importlib.import_module`) | path-relative, moves with the package — verify |
+| `chatminer` sys.path hack | `chatminer/cli/main.py:46` (`parent.parent.parent`) | depth changes under `server/vendored/chatminer/` → `parent.parent.parent.parent` (or drop the hack, rely on package install) |
+| Dockerfile `COPY` source paths | `Dockerfile`, `docker/*/Dockerfile` | every `COPY app/ … / COPY evidence/ …` → `COPY server/ …`; **keep `docker/` config paths stable** (gateway bakes `docker/gateway/litellm-config.yaml` — do NOT move those) |
+| `pyproject.toml` packages + mypy paths | `[tool.setuptools]`/`[tool.hatch]` package globs, `[tool.mypy]` | repoint to `server/*` |
+| DEPLOY RUNBOOK tar list | `docs/HANDOFFS.md` runbook, `scripts/*` | `tar czf … chatminer evidence …` → `server` |
+| Test imports | `tests/*.py` (`from evidence…`, `from gateway…`) | rewrite; tests stay at root `tests/` |
+| `agents/`, `db/`, `app/settings.py` internal cross-imports | ~40 sites | rewrite to `server.*` |
+
+**Execution note (why NOT a long-lived branch):** every day this sits as a branch, Lane B's
+`.py` edits and Lane C's `docker/` edits diverge from it → escalating rebase pain. So the repack
+is a **single-window RUNBOOK** (below), run when B's schema brainstorm has landed and C can
+watch the redeploy — not an open PR held for a week.
+
+**Repack RUNBOOK (one sitting, ~1–2h, all-or-nothing):**
+1. Announce in `docs/COORDINATION.md`; ask B+C to pause commits for the window.
+2. `git mv` packages into `server/{api,core,agents,evidence,analysis,vendored/chatminer}` + merge `tools/` per capability.
+3. Global import rewrite (scripted: `evidence.→server.evidence.`, `app.→server.api.`, `agents.→server.agents.`, `db.→server.core.`, `tools.→server.evidence.tools.`, `chatminer→server.vendored.chatminer`), then hand-fix the registry string-path loops + chatminer sys.path depth.
+4. Update entrypoint (4 files), Dockerfiles' COPY, pyproject packages+mypy, HANDOFFS tar list.
+5. Gates: `ruff format/check`, `mypy`, `uv run python -m pytest` (186), `uv run python -m evidence…→server.…` smoke, and a **`docker build`** of the exec image locally to prove the redeploy won't fail.
+6. One commit, PR, owner+C review, merge in a watched window; C confirms exec-tier redeploy green.
 - **Blast radius (why this is one atomic PR, done in a quiet window):** pyproject packages +
   mypy paths, Dockerfiles' COPY paths, `uvicorn server.api.main:app`, compose mounts,
   tools-facade image bake list, DEPLOY RUNBOOK tar list, scripts. VPS needs a full re-sync +
