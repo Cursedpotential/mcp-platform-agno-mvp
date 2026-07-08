@@ -86,13 +86,73 @@ Agno-MCP-Platform/
 10. `gateway/` → locked G4 spec (`evidence/tools/tool_finder/` + SQLite ref store + execute-through-CF) — **inside Track G G4**, not a standalone move; tests move with it.
 11. Seed reconciliation (already queued): promote applied 0005/0006 into `sql/`, retire P2.1 tables.
 
+### Tier 3 — CODE REPACK (rev 2, owner escalation 2026-07-08)
+
+> Owner: the complaint isn't just docs/planning scatter — "the overall Agno project
+> structure" lacks the discipline of the previous iteration. Audit of that iteration
+> (`dev-resources/Archives/TheBigOne/01_MCP_Tool_Platform_Repo`) confirms what it did right:
+
+**The old design's virtues** (client/server/shared top split):
+- **ONE backend boundary** — everything server-side lives under `server/`, not N sibling packages
+- **Interface/domain separation inside it** — `server/api/` (routers) vs `server/core/` (types,
+  routing) vs `server/mcp/<domain>/` — 22 domain dirs (analysis, forensics, storage,
+  orchestration, observability, auth, hitl, prompts, stats, …), one concern each
+- **Co-located tests** (`server/tests/`), schemas in one place (`drizzle/`), `shared/` types
+
+**The current repo's failure mode:** 8 sibling Python packages at root (`app`, `agents`,
+`db`, `evidence`, `gateway`, `tools`, `chatminer`, `evals`) with no expressed hierarchy —
+`app` vs `agents` vs `db` boundaries are historical, not architectural; analysis-domain code
+(`detection`, `patterns`, `court_language`, `milvus_forensic`, `semantica_wiring`) is dumped
+inside `evidence/` (the spine) rather than owning a package; `gateway`/`tools` are strays.
+
+**Target shape — Option A (full repack, mirrors the old design; RECOMMENDED):**
+```
+Agno-MCP-Platform/
+  server/                       ONE Python backend package
+    api/                        FastAPI entrypoint + HITL/knowledge routes   (was app/)
+    core/                       settings, db session, embedder, reranker    (was db/ + app/settings.py)
+    agents/                     factory, providers, instructions             (was agents/)
+    evidence/                   THE SPINE only: custody, registry, normalize,
+                                store, workflows, cli, tools/, tool_finder/  (G4 lands here)
+    analysis/                   the BEHAVIORAL/ANALYSIS domain: detection,
+                                patterns, court_language, milvus_forensic,
+                                semantica_wiring                              (extracted from evidence/)
+    vendored/
+      chatminer/                vendored parser core (import-only)           (was chatminer/)
+  ui/                           G1 CopilotKit shell (LOCKED in-repo)
+  shared/                       cross-boundary contracts if/when needed (JSON schemas, court_safe map?)
+  sql/  docker/  compose*.yaml  evals/  tests/  scripts/  knowledge/  docs/  visualizations/
+```
+- `tools/` (cross-domain `extract_text`) → `server/evidence/tools/` or `server/analysis/` per
+  capability — registry auto-discovery updated accordingly.
+- Imports become `server.evidence.…` etc. — mechanical rewrite, ~200+ sites, fully guarded by
+  the 182-test suite + ruff + mypy.
+- **Blast radius (why this is one atomic PR, done in a quiet window):** pyproject packages +
+  mypy paths, Dockerfiles' COPY paths, `uvicorn server.api.main:app`, compose mounts,
+  tools-facade image bake list, DEPLOY RUNBOOK tar list, scripts. VPS needs a full re-sync +
+  image rebuild after merge (images rebuild on deploy anyway).
+- **Sequencing:** do this BEFORE G1 (`ui/` lands into the clean shape) and AFTER the seed
+  reconciliation (so migrations move once). One PR, all gates green, no behavior change.
+
+**Option B (lighter, if A feels too invasive):** keep top-level packages but consolidate
+8 → 5: extract `analysis/` out of `evidence/`, dissolve `gateway/` into the G4 home, fold
+`tools/` into `evidence/tools/`, move `chatminer/` under `vendored/`. No `server/` parent,
+~40 import sites instead of ~200. Captures the domain-separation virtue, not the
+one-boundary virtue.
+
 ## 4. Open questions (annotate these)
 - Q1 `visualizations/` — keep at root or move under `docs/`/future `ui/public/`?
 - Q2 `.planning/build/` — anything in there still live, or all `_stale/`?
 - Q3 Tier-1 deploy gate — do items 6–7 now and coordinate the VPS re-up, or defer them to the next VPS window (G2/G3) and do only 4–5 now?
 - Q4 Are the two dead venvs safe to hard-delete (they're regenerable artifacts), or move to `../_stale/` per the never-delete rule?
+- **Q5 Tier 3: Option A (full `server/` repack, recommended) or Option B (domain consolidation only)?**
+- **Q6 Tier 3 timing: after seed reconciliation + before G1 (recommended), or defer until after Track G?**
+- **Q7 `shared/` — create now (court_safe_language_map + JSON contracts could live there for ui/ to consume) or only when ui/ actually needs shared types?**
 
 ## 5. Non-goals
-- No `src/` layout migration (import churn across every module for aesthetics — not worth it).
-- No moving `chatminer/`/`tools/` (working packages, contract amends around them).
+- No `src/`-layout-for-its-own-sake — Tier 3 Option A is a DOMAIN repack, not cosmetic nesting.
 - No parallel-stack anything (contract §"one active build" stands).
+- No renaming the repo or the deployed images.
+- Old-design pieces we deliberately do NOT copy: its tRPC data layer (dead), `.manus/` platform
+  coupling, MySQL/drizzle schema home (ours is `sql/`), and its 22-dir granularity on day one —
+  domains earn a dir when they have >1 module.
