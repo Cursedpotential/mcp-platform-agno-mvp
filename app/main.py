@@ -154,6 +154,7 @@ def _build_app() -> Any:
         teams=teams,  # type: ignore[arg-type]  # invariant list[Team|...]; list[Team] is safe here
         knowledge=[knowledge],
         base_app=app,
+        enable_mcp_server=True,  # serve the OS as an MCP server at /mcp (extracted standalone by app/mcp_main.py — mounted /mcp 500s, see that file)
         on_route_conflict="preserve_base_app",
         scheduler=True,
         scheduler_base_url=scheduler_base_url,
