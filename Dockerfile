@@ -18,7 +18,7 @@ WORKDIR /app
 ENV PYTHONPATH=/app
 COPY requirements.txt ./
 RUN uv pip sync requirements.txt --system
-RUN uv pip install --system "pymilvus>=2.5.0"  # uv pip sync skips pymilvus transitive deps (grpcio/protobuf); install resolves them (ported from hotfix branch 2026-07-08)
+RUN uv pip install --system "pymilvus>=2.5.0" fastmcp  # fastmcp: required by AgentOS enable_mcp_server=True  # uv pip sync skips pymilvus transitive deps (grpcio/protobuf); install resolves them (ported from hotfix branch 2026-07-08)
 COPY . .
 
 # ---------------------------------------------------------------------------
