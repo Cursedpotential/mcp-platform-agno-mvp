@@ -608,6 +608,13 @@ def main() -> None:
         mcp.settings.port = int(os.environ.get("MCP_PORT", "8000"))
         mcp.settings.stateless_http = True   # no session affinity needed behind CF
         mcp.settings.json_response = True    # plain JSON responses (CF + curl friendly)
+        # SDK DNS-rebinding protection 421s any Host other than localhost by
+        # default. This service binds tailnet-only and is fronted by
+        # ContextForge's JWT auth, so disable the Host check.
+        from mcp.server.transport_security import TransportSecuritySettings
+        mcp.settings.transport_security = TransportSecuritySettings(
+            enable_dns_rebinding_protection=False
+        )
         mcp.run(transport="streamable-http")
     else:
         sys.exit(f"[coolify] unknown MCP_TRANSPORT='{transport}' (stdio|http)")
