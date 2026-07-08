@@ -1,5 +1,6 @@
 # LiteLLM proxy — one OpenAI-compatible endpoint over every provider we hold keys for.
 # Keys come from the container env (compose passes them from .env). Add models freely.
+# Byline: Claude Code · Fable 5 · 2026-07-08 (restore embed-text -> nv-embed-v1 4096-d; drift broke graphiti search)
 model_list:
   - model_name: glm-5.1         # PRIMARY (Ollama Cloud — owner decision 2026-06-11;
     litellm_params:             #  NVIDIA was rate-limiting, now embeddings/rerank/backup only)
@@ -16,16 +17,14 @@ model_list:
       model: openai/moonshotai/kimi-k2.6
       api_base: https://integrate.api.nvidia.com/v1
       api_key: os.environ/NVIDIA_API_KEY
-  - model_name: embed-text      # llama-nemotron-embed (2048-d)
-    litellm_params:
-      model: openai/nvidia/llama-nemotron-embed-vl-1b-v2
-      api_base: https://integrate.api.nvidia.com/v1
+  - model_name: embed-text      # nvidia/nv-embed-v1 (4096-d, SYMMETRIC — no input_type)
+    litellm_params:              # MUST stay 4096-d: the Graphiti Neo4j graph is embedded
+      model: openai/nvidia/nv-embed-v1   # at 4096-d; a dim change breaks vector.similarity.cosine
+      api_base: https://integrate.api.nvidia.com/v1   # and would force a full graph re-embed.
       api_key: os.environ/NVIDIA_API_KEY
-      # NIM embedqa models REQUIRE input_type (asymmetric); inject centrally
-      # so every gateway caller (Graphiti, n8n, etc.) gets it for free
-      extra_body:
-        input_type: passage
-        truncate: NONE
+      # DO NOT swap in asymmetric embedqa models (input_type poisons query-vs-passage
+      # retrieval ~3.5x). 2026-07-08: reverted a drift back to llama-nemotron-embed-vl-1b-v2
+      # (2048-d asymmetric) that broke graphiti search with a Neo4j dimension mismatch.
 
   - model_name: groq-llama
     litellm_params:
