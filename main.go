@@ -112,6 +112,10 @@ func main() {
 	protected.PUT("/settings", internal.HandleUpdateSettings)
 	protected.GET("/analytics", internal.HandleAnalytics)
 
+	// Forensic custody hashes for an import batch (H1 + H3 + count).
+	// GET /api/hashes/:importID  (importID may be a numeric id or "latest")
+	protected.GET("/hashes/:importID", internal.HandleHashes)
+
 	// Health check
 	e.GET("/api/health", func(c echo.Context) error {
 		return c.String(http.StatusOK, "OK")

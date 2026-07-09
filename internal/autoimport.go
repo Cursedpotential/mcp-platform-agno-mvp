@@ -262,8 +262,16 @@ func (s *AutoImportService) parseXMLBackup(userDB *sql.DB, filePath string, logg
 	fileSize := fileInfo.Size()
 	logger.log("File size: %d bytes", fileSize)
 
+	// H1 file-level custody hash over the RAW bytes (h1-rawbytes-v1), same as the
+	// upload path. Computed from the path so the auto-imported batch gets an
+	// imports custody row too. A hashing failure is logged but non-fatal.
+	fileHash, herr := HashFileH1(filePath)
+	if herr != nil {
+		logger.log("WARNING: failed to compute H1 file hash: %v", herr)
+	}
+
 	// Parse the XML backup using streaming parser
-	totalProcessed, totalSkipped, err := ParseSMSBackupStreaming(userDB, file, 100)
+	totalProcessed, totalSkipped, err := ParseSMSBackupStreaming(userDB, file, 100, fileHash)
 	if err != nil {
 		return fmt.Errorf("failed to parse backup: %w", err)
 	}

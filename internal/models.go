@@ -31,6 +31,10 @@ type Message struct {
 	MessageType int      `json:"message_type,omitempty"` // m_type field
 	SimSlot     int      `json:"sim_slot,omitempty"`
 	Addresses   []string `json:"addresses,omitempty"` // All phone numbers in conversation (for MMS)
+	// ContentHash is the H2 per-record custody hash: sha256 of the RAW source
+	// XML element bytes (h2-rawelement-v1), computed pre-normalization. Additive,
+	// non-breaking — omitted from JSON when empty (e.g. legacy rows).
+	ContentHash string `json:"content_hash,omitempty"`
 }
 
 type CallLog struct {
@@ -42,6 +46,9 @@ type CallLog struct {
 	Presentation   int       `json:"presentation,omitempty"` // 1 = allowed, 2 = restricted, 3 = unknown, 4 = payphone
 	SubscriptionID string    `json:"subscription_id,omitempty"`
 	ContactName    string    `json:"contact_name,omitempty"`
+	// ContentHash is the H2 per-record custody hash for the raw <call> element
+	// (h2-rawelement-v1). See Message.ContentHash.
+	ContentHash string `json:"content_hash,omitempty"`
 }
 
 type Conversation struct {
