@@ -15,8 +15,8 @@ from typing import Any, cast
 import pytest
 
 from server.evidence import custody
-from server.evidence.tools import sbv_sms
-from server.evidence.tools._sbv_client import SBVClient
+from server.tools import sbv_sms
+from server.tools._sbv_client import SBVClient
 
 
 class _DummyConn:
