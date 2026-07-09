@@ -13,7 +13,9 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  # Hardcoded lowercase: ghcr requires lowercase refs, but ${{ github.repository }}
+  # preserves the owner's capital C (Cursedpotential) and breaks the push. Our fork.
+  IMAGE_NAME: cursedpotential/sbv-forensic
 
 jobs:
   prepare:
