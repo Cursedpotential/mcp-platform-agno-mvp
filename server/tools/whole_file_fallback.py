@@ -4,7 +4,7 @@ The deliberate FALLBACK unit: when no structured parser fits, the whole file
 becomes one record (the knowledge engine chunks it downstream).
 Provenance: new module (deliberate design, not a port).
 
-NAMING IS LOAD-BEARING: auto-discovery imports evidence.tools modules
+NAMING IS LOAD-BEARING: auto-discovery imports server.tools modules
 alphabetically and registration order = substitution preference, so this
 module is named to sort AFTER every structured parse.transcript parser
 (was markdown_transcript.py, which sorted before the perplexity wrappers
@@ -18,8 +18,8 @@ from pathlib import Path
 from typing import Any
 
 from server.evidence.normalize import NormalizedRecord, RecordType
-from server.evidence.registry import register
-from server.evidence.tools._common import records_out
+from .registry import register
+from ._common import records_out
 
 
 @register(

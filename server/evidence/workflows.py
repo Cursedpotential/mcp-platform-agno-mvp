@@ -28,7 +28,7 @@ from agno.workflow.types import StepInput, StepOutput
 
 from server.evidence.custody import ArtifactRef, ingest_artifact
 from server.evidence.normalize import NormalizedRecord, finalize
-from server.evidence.registry import load_builtin_tools, registry
+from server.tools.registry import load_builtin_tools, registry
 from server.evidence.store import ingest_into_knowledge, record_counts, store_records
 
 

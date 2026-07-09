@@ -1,4 +1,4 @@
-"""Unit tests for evidence.registry — the atomic-tool registry / substitution mesh.
+"""Unit tests for server.tools.registry — the atomic-tool registry / substitution mesh.
 
 Workflows resolve steps by *capability* and fall back to same-capability tools
 when one rejects the input. That resolve/accepts/registration-order behavior is
@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import pytest
 
-from server.evidence import registry as registry_mod
-from server.evidence.registry import FunctionTool, ToolRegistry, load_builtin_tools, register
+from server.tools import registry as registry_mod
+from server.tools.registry import FunctionTool, ToolRegistry, load_builtin_tools, register
 
 
 def _tool(tool_id, capability="parse.transcript", accept=None):
@@ -99,7 +99,7 @@ def test_register_decorator_registers_into_global(monkeypatch):
 
 
 def test_load_builtin_tools_discovers_transcript_parsers():
-    # Auto-discovery imports every public evidence.tools module so each
+    # Auto-discovery imports every public server.tools module so each
     # self-registers. Must be idempotent (re-import = no-op, no duplicate-id).
     n1 = load_builtin_tools()
     n2 = load_builtin_tools()

@@ -1,4 +1,4 @@
-"""Unit tests for evidence.tools._common — helpers shared by every parser tool.
+"""Unit tests for server.tools._common — helpers shared by every parser tool.
 
 parse_timestamp and records_out sit on the hot path of all four transcript
 tools, so their edge cases (bad input, naive vs aware, JSON-safety) matter.
@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 from server.evidence.normalize import NormalizedRecord
-from server.evidence.tools._common import parse_timestamp, records_out
+from server.tools._common import parse_timestamp, records_out
 
 
 def test_parse_timestamp_epoch_seconds():

@@ -2,11 +2,21 @@
 
 Two surfaces, ONE FastAPI app (so ContextForge REST-wraps a single OpenAPI):
 
-  1. REGISTRY-BACKED parsers (/tools/...) — the evidence package is mounted at
-     /opt/tools/evidence (compose volume, read-only); every parser module
-     self-registers via load_builtin_tools(), so the inventory + execution
-     surface stay in sync with the registry. Porting a parser = adding one
-     module to evidence/tools/, nothing to edit here.
+  1. REGISTRY-BACKED parsers (/tools/...) — the cross-domain server/tools/
+     package (registry + atomic tool modules, D-026) is volume-mounted at
+     /opt/tools/server/tools (compose: `./server:/opt/tools/server:ro`);
+     every parser module self-registers via load_builtin_tools(), so the
+     inventory + execution surface stay in sync with the registry.
+     MOUNT<->IMPORT CONTRACT: the WHOLE `server/` tree mounts at
+     /opt/tools/server (not just server/tools/) because server.tools.* has
+     real transitive deps outside itself — server.evidence.normalize (the
+     NormalizedRecord schema) and server.vendored.chatminer (the parser
+     core) — both lightweight (no sqlalchemy/agno at import time), so this
+     is cheap. With /opt/tools on sys.path (below), `server` resolves as a
+     real top-level package inside the container exactly as it does
+     in-repo, so the imports below are plain `server.tools.*` — no special
+     container-only import alias needed. Porting a parser = adding one
+     module to server/tools/, nothing to edit here.
 
   2. SBV PROXY (/sbv/...) — proxies the session-authenticated SBV REST API
      (localhost:8085/api/...) so every SBV function is callable over this
@@ -18,7 +28,7 @@ import ...` at module top, so an empty/missing evidence mount crashed uvicorn
 -> supervisord FATAL-looped -> the WHOLE container's tool surface was down. Now
 the registry load is wrapped: a bad mount DEGRADES the /tools endpoints (503)
 but the app still starts and the /sbv proxy still works. We also pin
-/opt/tools onto sys.path so `import evidence.*` resolves regardless of how
+/opt/tools onto sys.path so `import server.*` resolves regardless of how
 uvicorn is launched.
 
 Payload paths must be visible to THIS container — use the shared /r2 mount
@@ -34,8 +44,9 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
 
-# Belt-and-suspenders: ensure the WORKDIR (where the evidence package is
-# mounted) is importable no matter how the process was launched.
+# Belt-and-suspenders: ensure the WORKDIR (parent of the mounted server/
+# tree, see MOUNT<->IMPORT CONTRACT above) is importable no matter how the
+# process was launched.
 _TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _TOOLS_DIR not in sys.path:
     sys.path.insert(0, _TOOLS_DIR)
@@ -56,12 +67,12 @@ TOOL_COUNT = 0
 registry = None  # set on successful load
 
 try:
-    from server.evidence.registry import load_builtin_tools, registry as _registry
+    from server.tools.registry import load_builtin_tools, registry as _registry
 
     TOOL_COUNT = load_builtin_tools()
     registry = _registry
     REGISTRY_OK = True
-except Exception as exc:  # empty/missing evidence mount, import error, etc.
+except Exception as exc:  # empty/missing server mount, import error, etc.
     REGISTRY_ERROR = f"{type(exc).__name__}: {exc}"
     # Do NOT raise — the app must still start so the SBV proxy works and
     # supervisord doesn't FATAL-loop. /tools/* will report the degradation.
@@ -71,8 +82,8 @@ def _require_registry():
     if not REGISTRY_OK or registry is None:
         raise HTTPException(
             status_code=503,
-            detail=f"registry unavailable — evidence package not importable ({REGISTRY_ERROR}). "
-            "Likely the ./evidence mount is empty; redeploy with the evidence package present.",
+            detail=f"registry unavailable — server.tools not importable ({REGISTRY_ERROR}). "
+            "Likely the ./server mount is empty; redeploy with the server/ tree present.",
         )
 
 
@@ -123,12 +134,12 @@ async def run_tool(tool_id: str, payload: dict[str, Any]) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Surface 2: SBV proxy (/sbv/...) — every SBV function over the facade
 # ---------------------------------------------------------------------------
-# Import the shared SBV client. It normally lives in the mounted evidence
-# package; if the mount is empty we degrade the SBV surface the same way.
+# Import the shared SBV client. It normally lives in the mounted server/
+# tools/ package; if the mount is empty we degrade the SBV surface the same way.
 SBV_OK = False
 SBV_IMPORT_ERROR = ""
 try:
-    from server.evidence.tools._sbv_client import SBVClient, SBVError
+    from server.tools._sbv_client import SBVClient, SBVError
 
     SBV_OK = True
 except Exception as exc:
@@ -149,7 +160,7 @@ def _get_sbv() -> "SBVClient":
     if not SBV_OK:
         raise HTTPException(
             status_code=503,
-            detail=f"SBV client unavailable ({SBV_IMPORT_ERROR}). The evidence mount is likely empty.",
+            detail=f"SBV client unavailable ({SBV_IMPORT_ERROR}). The server mount is likely empty.",
         )
     if _sbv_client_singleton is None:
         _sbv_client_singleton = SBVClient()

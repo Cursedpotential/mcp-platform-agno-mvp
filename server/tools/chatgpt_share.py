@@ -1,7 +1,7 @@
 """Atomic tool: ChatGPT 'Share' markdown export -> NormalizedRecords (chatminer-backed).
 
 One format, one module, swappable. Thin @register wrapper: parsing lives in
-the vendored chatminer parser; evidence/tools/_chatminer_adapter maps
+the vendored chatminer parser; server/tools/_chatminer_adapter maps
 ParsedMessage -> NormalizedRecord (verbatim content + message hash in attrs).
 Hard-fails when detection confidence is low or zero messages parse, so the
 registry substitution mesh moves to the next parse.transcript candidate.
@@ -12,8 +12,8 @@ from __future__ import annotations
 from typing import Any
 
 from server.vendored.chatminer.parsers.chatgpt_share import ChatGptShareParser
-from server.evidence.registry import register
-from server.evidence.tools._chatminer_adapter import run_chatminer_parser
+from .registry import register
+from ._chatminer_adapter import run_chatminer_parser
 
 
 @register(

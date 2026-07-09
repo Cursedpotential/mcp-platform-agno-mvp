@@ -21,7 +21,7 @@ from typing import Any
 from server.vendored.chatminer.core.base import BaseParser
 from server.vendored.chatminer.core.types import ParsedConversation, ParsedMessage, ParseResult
 from server.evidence.normalize import NormalizedRecord, RecordType
-from server.evidence.tools._common import records_out
+from ._common import records_out
 
 # chatminer's own auto-detection threshold (parsers/__init__.get_parser_for_file).
 DEFAULT_MIN_CONFIDENCE = 0.5

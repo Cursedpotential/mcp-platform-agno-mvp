@@ -1,4 +1,4 @@
-"""Unit tests for evidence.tools._chatminer_adapter — the ChatMiner bridge (HA.1).
+"""Unit tests for server.tools._chatminer_adapter — the ChatMiner bridge (HA.1).
 
 The adapter is the seam between the vendored chatminer parsers and the
 canonical NormalizedRecord shape. What matters forensically: verbatim content,
@@ -21,7 +21,7 @@ from server.vendored.chatminer.core.types import (
     ParseResult,
 )
 from server.evidence.normalize import RecordType
-from server.evidence.tools._chatminer_adapter import run_chatminer_parser, to_normalized_records
+from server.tools._chatminer_adapter import run_chatminer_parser, to_normalized_records
 
 
 def _msg(i: int, role: MessageRole, content: str, ts: datetime | None, **kw) -> ParsedMessage:

@@ -81,6 +81,25 @@ listed here so Lane A can carry it through the repack:
   only today; running it makes SBV tools live MCP capabilities). §5a.
 
 ## Ledger (append below; newest on top)
+- **2026-07-09 (A) — TOOLS LAYER PROMOTED (branch, not merged):** D-026 / ADR-0033 amendment on
+  `restructure/tools-layer` (off `main`, post-repack): moved the atomic-tools capability layer +
+  registry OUT of the evidence spine to a top-level `server/tools/` (cross-domain — evidence,
+  analysis, agents, workflows, and the CLI all consume it). `git mv server/evidence/tools
+  server/tools`; `git mv server/evidence/registry.py server/tools/registry.py`; registry
+  auto-discovery made package-name-agnostic + intra-package imports relativized. Also fixed a
+  LIVE mount regression: `compose.yaml`/`compose.exec.yaml` still mounted
+  `./evidence:/opt/tools/evidence:ro` for the `docker/tools` platform-tools facade — that host
+  dir stopped existing the moment the D-025 repack landed, so the facade was serving **zero**
+  parser modules. Now mounts the WHOLE `server/` tree (`./server:/opt/tools/server:ro`, not just
+  `server/tools/` — `server.tools.*` transitively needs `server.evidence.normalize` +
+  `server.vendored.chatminer`, both lightweight), with `docker/tools/tools/facade.py` importing
+  plain `server.tools.registry`/`server.tools._sbv_client`, same as the main app. Verified via an
+  isolated-Python simulation of the container's real import graph (not the repo venv, which has
+  `server` editable-installed and would mask the bug) — loads all 23 tools.
+  **⚠ ALL LANES: import paths changed AGAIN** — `server.evidence.tools.*` → `server.tools.*`,
+  `server.evidence.registry` → `server.tools.registry`; rebase before further `.py` work. Gates
+  GREEN: ruff clean, mypy clean, **pytest 186**. Branch NOT merged (merge auto-deploys exec
+  tier, D-011) — pushed to origin for review only.
 - **2026-07-09 (A) — REPACK EXECUTED (branch, not merged):** ADR-0033 `server/` repack done on
   `restructure/option-a`. Every backend package now under `server/{api,core,agents,evidence,
   analysis,vendored/chatminer}`; imports are `server.*`. 152 files, 240 import rewrites; fixed

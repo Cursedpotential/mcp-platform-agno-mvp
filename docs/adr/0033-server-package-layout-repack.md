@@ -60,3 +60,46 @@ shared/       cross-boundary contracts — created only when ui/ needs them (DEF
   separation but not the single-boundary win. Rejected — the owner wants the old design's
   one-boundary discipline.
 - **Leave as-is / `src/` layout**: rejected (drift persists / cosmetic nesting with churn).
+
+## Amendment 2026-07-09: tools + registry promoted to `server/tools/`
+
+This ADR originally landed the atomic-tools capability layer + registry *nested inside* the
+evidence spine (`server/evidence/tools/`, `server/evidence/registry.py`) — see the "Decision"
+layout above. That undersold the layer's actual shape: tools are **cross-domain**, consumed by
+evidence, analysis, agents, workflows, and the CLI alike, not evidence-owned. D-026 promotes
+them one level up to a top-level sibling of `evidence/`:
+
+```
+server/
+  evidence/   THE SPINE only: custody, normalize, store, workflows, cli, tool_finder/
+  tools/      CROSS-DOMAIN CAPABILITY LAYER: registry.py + atomic tool modules (was
+              server/evidence/tools/ + server/evidence/registry.py)
+```
+
+`git mv server/evidence/tools server/tools` + `git mv server/evidence/registry.py
+server/tools/registry.py`; import-statement-scoped rewrite of `server.evidence.tools` ->
+`server.tools` and `server.evidence.registry` -> `server.tools.registry` across the repo
+(same reuse of this ADR's rewrite approach); `server/evidence/__init__.py`'s PEP-562 `_LAZY`
+dict re-points `registry`/`ToolRegistry` at `server.tools.registry` for back-compat. The
+registry's two near-identical auto-discovery loops (one a leftover from the pre-repack
+top-level `tools/` merge) collapsed into one loop, made package-name-agnostic (`__package__`
+instead of a hardcoded dotted path — needed for the facade container below); intra-package
+imports inside `server/tools/*.py` (of `registry`, `_common`, `_chatminer_adapter`, sibling
+parser modules) converted from absolute to relative so the same source resolves under either
+import root.
+
+Also fixed, same change: `compose.yaml`/`compose.exec.yaml` still mounted
+`./evidence:/opt/tools/evidence:ro` for the `docker/tools` platform-tools facade — a host path
+that stopped existing the moment this ADR's Option A repack landed (it moved to
+`server/evidence/`), so the facade silently served **zero** parser modules. Mount + facade
+import path made consistent — but NOT with the narrowest `server/tools`-only mount first
+tried: `server.tools.*` has real transitive deps outside itself
+(`server.evidence.normalize` for the schema, `server.vendored.chatminer` for the parser core;
+both lightweight, no sqlalchemy/agno at import time), so a `server/tools`-only mount left
+`load_builtin_tools()` raising `ModuleNotFoundError: No module named 'server'` on the first
+tool module that touches either dependency — confirmed by simulating the container's actual
+(isolated, no editable install) import graph. Final fix mounts the **whole `server/` tree**:
+`./server:/opt/tools/server:ro`, with `docker/tools/tools/facade.py` importing plain
+`server.tools.registry` / `server.tools._sbv_client` — the same import path the main app uses,
+no container-only alias needed. Verified: the isolated simulation loads all 23 tools. See
+`docs/DECISION_LOG.md` D-026 and `docs/REPO_STRUCTURE.md`.

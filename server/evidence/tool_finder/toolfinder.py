@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from server.evidence.registry import load_builtin_tools, registry
+from server.tools.registry import load_builtin_tools, registry
 from server.evidence.tool_finder.content_store import ContentStore, parse_ref
 
 INLINE_THRESHOLD_BYTES = 4096

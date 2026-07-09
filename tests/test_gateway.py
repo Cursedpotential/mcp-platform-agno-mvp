@@ -13,7 +13,7 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from server.evidence.registry import FunctionTool, load_builtin_tools, registry
+from server.tools.registry import FunctionTool, load_builtin_tools, registry
 from server.evidence.tool_finder.api import build_app
 from server.evidence.tool_finder.content_store import ContentStore, parse_ref
 from server.evidence.tool_finder.toolfinder import (
@@ -113,7 +113,7 @@ def test_describe_includes_substitution_candidates():
 
 @pytest.fixture
 def fake_tools(monkeypatch):
-    from server.evidence import registry as registry_mod
+    from server.tools import registry as registry_mod
 
     fresh = registry_mod.ToolRegistry()
     fresh.register(

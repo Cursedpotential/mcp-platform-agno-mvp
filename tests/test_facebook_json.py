@@ -1,4 +1,4 @@
-"""Unit tests for evidence.tools.facebook_messenger_json.
+"""Unit tests for server.tools.facebook_messenger_json.
 
 The court-critical bits: Facebook double-encodes UTF-8 as latin-1 (mojibake),
 so text must be repaired or the evidence is garbage; non-text messages
@@ -12,7 +12,7 @@ import json
 
 import pytest
 
-from server.evidence.tools.facebook_messenger_json import parse
+from server.tools.facebook_messenger_json import parse
 
 
 def _run(tmp_path, payload_obj):

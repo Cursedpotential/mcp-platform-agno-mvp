@@ -1,5 +1,7 @@
 """
-evidence/registry.py — the atomic-tool registry (polyglot orchestration mesh).
+server/tools/registry.py — the atomic-tool registry (polyglot orchestration mesh).
+Cross-domain capability layer (D-026): consumed by evidence, analysis, agents,
+workflows, and the CLI — not owned by any single domain.
 
 A tool = ONE capability implemented by ONE library/runtime, registered with a
 contract. Workflows resolve steps by CAPABILITY, not by hard-coded function:
@@ -113,27 +115,27 @@ def register(
 
 
 def load_builtin_tools() -> int:
-    """AUTO-DISCOVER tool modules: import every public module in evidence.tools
-    so each self-registers (one parser = one swappable module — owner
-    architecture). Underscore-prefixed modules are shared helpers, not tools.
-    Idempotent: re-imports are no-ops, duplicate ids raise at import time."""
+    """AUTO-DISCOVER tool modules: import every public module in this package
+    (server.tools — the cross-domain capability layer, D-026 — used by
+    evidence/analysis/agents/workflows/CLI alike) so each self-registers (one
+    parser = one swappable module — owner architecture). Underscore-prefixed
+    modules are shared helpers, not tools. Idempotent: re-imports are no-ops,
+    duplicate ids raise at import time.
+
+    Package-name-AGNOSTIC on purpose (uses __package__, not a hardcoded
+    "server.tools"): this same module is also volume-mounted standalone into
+    the docker/tools platform-tools facade container, where it's imported as
+    the top-level `tools` package (no `server` package exists there) — see
+    docker/tools/tools/facade.py's module docstring for the mount<->import
+    contract."""
     import importlib
     import pkgutil
 
-    import server.evidence.tools as tools_pkg
+    pkg_name = __package__  # "server.tools" in-repo; "tools" in the facade container
+    assert pkg_name, "load_builtin_tools() requires registry.py to be imported as a package module"
+    tools_pkg = importlib.import_module(pkg_name)
 
     for mod in pkgutil.iter_modules(tools_pkg.__path__):
         if not mod.name.startswith("_"):
-            importlib.import_module(f"server.evidence.tools.{mod.name}")
-    # General cross-domain PLATFORM tools (top-level `tools/` package) — discovered
-    # alongside the evidence parsers so a tool like `extract.text` is reachable by ANY
-    # domain/surface, not nested under evidence. Optional: absent in slim deploys.
-    try:
-        import server.evidence.tools as platform_tools_pkg
-
-        for mod in pkgutil.iter_modules(platform_tools_pkg.__path__):
-            if not mod.name.startswith("_"):
-                importlib.import_module(f"server.evidence.tools.{mod.name}")
-    except ModuleNotFoundError:
-        pass
+            importlib.import_module(f"{pkg_name}.{mod.name}")
     return len(registry.all())
