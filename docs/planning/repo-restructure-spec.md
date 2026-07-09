@@ -166,14 +166,29 @@ watch the redeploy — not an open PR held for a week.
 ~40 import sites instead of ~200. Captures the domain-separation virtue, not the
 one-boundary virtue.
 
-## 4. Open questions (annotate these)
-- Q1 `visualizations/` — keep at root or move under `docs/`/future `ui/public/`?
-- Q2 `.planning/build/` — anything in there still live, or all `_stale/`?
-- Q3 Tier-1 deploy gate — do items 6–7 now and coordinate the VPS re-up, or defer them to the next VPS window (G2/G3) and do only 4–5 now?
-- Q4 Are the two dead venvs safe to hard-delete (they're regenerable artifacts), or move to `../_stale/` per the never-delete rule?
-- **Q5 Tier 3: Option A (full `server/` repack, recommended) or Option B (domain consolidation only)?**
-- **Q6 Tier 3 timing: after seed reconciliation + before G1 (recommended), or defer until after Track G?**
-- **Q7 `shared/` — create now (court_safe_language_map + JSON contracts could live there for ui/ to consume) or only when ui/ actually needs shared types?**
+## 4a. Already decided & DONE — do NOT annotate (recorded so nothing gets re-litigated)
+> These were open at draft; Lane A acted on them the same session. Listed here only so the
+> trail is honest — you should not have to make a call on any of them.
+- **Q2 `.planning/build/`** → these are **live architecture DIRECTIVES** (owner: "most of that
+  was good directives"), not dead notes. Moved to `docs/planning/architecture-directives/`
+  (June-14 ContextForge/SurrealDB/DNS/topology set) with an `INDEX.md` mapping each to its lane;
+  reconcile against live infra, don't discard. NOT `_stale`.
+- **Q4 dead venvs** → hard-deleted (`.venv.broken-20260626`, `.venv.stale-20260705`, ~577 MB;
+  regenerable via `uv sync`, NOT source, so the never-delete rule doesn't apply). Recall-lane
+  fragments (`.memsearch/.remember`) went to `../_stale/` instead (those aren't regenerable).
+
+## 4b. Open questions — GENUINELY not acted on (these need your call)
+- **Q1 `visualizations/`** (still at root, untouched) — keep at root, or move under `docs/` or a
+  future `ui/public/`?
+- **Q3 VPS-path moves** (held, untouched) — do the `configs/`→`docker/milvus/` +
+  `deploy/n8n/`→`docker/n8n/` moves now with a coordinated data-tier re-up, or fold into the
+  next VPS window (G2/G3)?
+- **Q5 Repack scope** — Option A (full `server/` repack, recommended) or Option B (8→5
+  consolidation, no `server/` parent)?
+- **Q6 Repack timing** — after Lane-B's schema brainstorm + before G1 (recommended), or defer
+  past Track G?
+- **Q7 `shared/`** — create now (court_safe_language_map + JSON contracts for `ui/`) or only when
+  `ui/` actually needs shared types?
 
 ## 5. Non-goals
 - No `src/`-layout-for-its-own-sake — Tier 3 Option A is a DOMAIN repack, not cosmetic nesting.

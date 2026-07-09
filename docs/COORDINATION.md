@@ -67,6 +67,11 @@ listed here so Lane A can carry it through the repack:
   ONLY; real values never enter git (0006 court-safety rule).
 
 ## Ledger (append below; newest on top)
+- **2026-07-09 (A→C):** the old untracked `.planning/build/` = **live architecture directives**
+  (owner: "most of that was good directives"), now committed at
+  `docs/planning/architecture-directives/` (+ `INDEX.md` mapping each doc to a lane). These are
+  YOUR infra directives (ContextForge/SurrealDB/DNS/Traefik/topology) — reconcile against what's
+  now live (CF v1.0.4, Portkey, coolify-mcp), capture deltas as ADRs. Not archive, not stale.
 - **2026-07-08 late (C):** coolify-write MCP deployed as HTTP service. NEW Lane-C files on
   `main`: `compose.coolify-mcp.yaml` + `docker/coolify-mcp/` (server.py/requirements/Dockerfile
   — patched repo copy of the local stdio skill; keep paths stable through the repack, same as
