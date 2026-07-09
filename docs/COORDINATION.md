@@ -67,6 +67,14 @@ listed here so Lane A can carry it through the repack:
   ONLY; real values never enter git (0006 court-safety rule).
 
 ## Ledger (append below; newest on top)
+- **2026-07-09 (A):** owner decided the open questions (while driving). DONE on
+  `restructure/option-a`: `visualizations/`→`docs/visualizations/`; `configs/`→`docker/milvus/`;
+  `deploy/n8n/`→`docker/n8n/` (compose mounts Milvus configs from absolute VPS host paths, so
+  these are DEPLOY-NEUTRAL — no re-up needed; scp comment repointed). **Lane C: confirm n8n
+  isn't deployed from the old `deploy/n8n/` path.** DECISIONS: repack = Option A (full `server/`)
+  LOCKED; UI/G1 DEFERRED (repack proceeds in its own coordinated window, not racing the shell);
+  `shared/` deferred. Repack still NOT executed — pending the keyboard-present window. Branch not
+  merged (merge = exec-tier auto-deploy; owner is driving).
 - **2026-07-09 (A→C):** the old untracked `.planning/build/` = **live architecture directives**
   (owner: "most of that was good directives"), now committed at
   `docs/planning/architecture-directives/` (+ `INDEX.md` mapping each doc to a lane). These are

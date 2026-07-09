@@ -177,18 +177,23 @@ one-boundary virtue.
   regenerable via `uv sync`, NOT source, so the never-delete rule doesn't apply). Recall-lane
   fragments (`.memsearch/.remember`) went to `../_stale/` instead (those aren't regenerable).
 
-## 4b. Open questions — GENUINELY not acted on (these need your call)
-- **Q1 `visualizations/`** (still at root, untouched) — keep at root, or move under `docs/` or a
-  future `ui/public/`?
-- **Q3 VPS-path moves** (held, untouched) — do the `configs/`→`docker/milvus/` +
-  `deploy/n8n/`→`docker/n8n/` moves now with a coordinated data-tier re-up, or fold into the
-  next VPS window (G2/G3)?
-- **Q5 Repack scope** — Option A (full `server/` repack, recommended) or Option B (8→5
-  consolidation, no `server/` parent)?
-- **Q6 Repack timing** — after Lane-B's schema brainstorm + before G1 (recommended), or defer
-  past Track G?
-- **Q7 `shared/`** — create now (court_safe_language_map + JSON contracts for `ui/`) or only when
-  `ui/` actually needs shared types?
+## 4b. DECIDED 2026-07-09 (owner, via questions while driving)
+- **Q1 `visualizations/`** → **DONE:** moved to `docs/visualizations/`.
+- **Q3 VPS-path moves** → **DONE (branch), deploy-neutral:** `configs/`→`docker/milvus/`,
+  `deploy/n8n/`→`docker/n8n/`. Finding: compose mounts Milvus configs from ABSOLUTE VPS host
+  paths (`/data/agno/config/milvus/…`), not the repo — the repo copy is only the scp SOURCE, so
+  **no re-up is actually required** (scp comment repointed in `compose.data.yaml`). ⚠ Lane C:
+  confirm nothing deploys n8n directly from the old `deploy/n8n/` path.
+- **Q5 Repack scope** → **Option A LOCKED** (full `server/` repack).
+- **Q6 Repack timing** → **repack proceeds; UI/G1 DEFERRED.** Do the repack in its coordinated
+  window (after Lane-B brainstorm, Lane-C watching the redeploy); do NOT rush `ui/`. So the
+  repack no longer sequences "before G1" — G1 is decoupled and deferred.
+- **Q7 `shared/`** → **wait** (create only when `ui/` needs shared types; consistent with
+  deferring UI).
+
+> Repack (Q5/Q6) stays a RUNBOOK, still NOT executed here — it moves ~200 import sites + the
+> uvicorn entrypoint + Dockerfile COPY, and merging auto-deploys the exec tier, so it needs the
+> keyboard-present coordinated window (§Tier 3 RUNBOOK), not a drive-by branch push.
 
 ## 5. Non-goals
 - No `src/`-layout-for-its-own-sake — Tier 3 Option A is a DOMAIN repack, not cosmetic nesting.

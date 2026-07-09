@@ -46,7 +46,7 @@
 #        chown 0:0       /data/agno/volumes/surrealdb   # surrealdb runs as root
 #        scp sql/000*.sql ovh3:/data/agno/config/sql/
 #        scp docker/graphiti/config.yaml ovh3:/data/agno/config/graphiti/
-#        scp configs/embedEtcd.yaml configs/user.yaml ovh3:/data/agno/config/milvus/
+#        scp docker/milvus/embedEtcd.yaml docker/milvus/user.yaml ovh3:/data/agno/config/milvus/
 # =============================================================================
 
 services: {}
