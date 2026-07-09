@@ -12,16 +12,16 @@ from datetime import datetime, timezone
 
 import pytest
 
-from chatminer.core.base import BaseParser
-from chatminer.core.types import (
+from server.vendored.chatminer.core.base import BaseParser
+from server.vendored.chatminer.core.types import (
     ContentType,
     MessageRole,
     ParsedConversation,
     ParsedMessage,
     ParseResult,
 )
-from evidence.normalize import RecordType
-from evidence.tools._chatminer_adapter import run_chatminer_parser, to_normalized_records
+from server.evidence.normalize import RecordType
+from server.evidence.tools._chatminer_adapter import run_chatminer_parser, to_normalized_records
 
 
 def _msg(i: int, role: MessageRole, content: str, ts: datetime | None, **kw) -> ParsedMessage:

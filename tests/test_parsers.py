@@ -11,13 +11,13 @@ from __future__ import annotations
 import json
 from datetime import timezone
 
-from chatminer.core.types import ContentType, MessageRole
-from chatminer.parsers.chatgpt_official import ChatGptOfficialParser
-from chatminer.parsers.claude_code import ClaudeCodeParser
-from chatminer.parsers.claude_md import ClaudeMdParser
-from chatminer.parsers.gemini_json import GeminiJsonParser
-from chatminer.parsers.generic_md import GenericMdParser
-from chatminer.parsers.perplexity_md import PerplexityMdParser
+from server.vendored.chatminer.core.types import ContentType, MessageRole
+from server.vendored.chatminer.parsers.chatgpt_official import ChatGptOfficialParser
+from server.vendored.chatminer.parsers.claude_code import ClaudeCodeParser
+from server.vendored.chatminer.parsers.claude_md import ClaudeMdParser
+from server.vendored.chatminer.parsers.gemini_json import GeminiJsonParser
+from server.vendored.chatminer.parsers.generic_md import GenericMdParser
+from server.vendored.chatminer.parsers.perplexity_md import PerplexityMdParser
 
 
 def test_claude_code_parses_roles_timestamps_and_code():

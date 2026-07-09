@@ -56,7 +56,7 @@ TOOL_COUNT = 0
 registry = None  # set on successful load
 
 try:
-    from evidence.registry import load_builtin_tools, registry as _registry
+    from server.evidence.registry import load_builtin_tools, registry as _registry
 
     TOOL_COUNT = load_builtin_tools()
     registry = _registry
@@ -128,7 +128,7 @@ async def run_tool(tool_id: str, payload: dict[str, Any]) -> dict[str, Any]:
 SBV_OK = False
 SBV_IMPORT_ERROR = ""
 try:
-    from evidence.tools._sbv_client import SBVClient, SBVError
+    from server.evidence.tools._sbv_client import SBVClient, SBVError
 
     SBV_OK = True
 except Exception as exc:

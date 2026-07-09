@@ -10,12 +10,12 @@ from __future__ import annotations
 
 import json
 
-from chatminer.core.pipeline import parse_directory, parse_file, parse_multiple
+import server.vendored.chatminer as chatminer
+from server.vendored.chatminer.core.pipeline import parse_directory, parse_file, parse_multiple
 
 
 def test_package_imports_public_api():
     # Regression: chatminer/__init__.py imported the missing core.pipeline.
-    import chatminer
 
     assert callable(chatminer.parse_file)
     assert callable(chatminer.parse_multiple)

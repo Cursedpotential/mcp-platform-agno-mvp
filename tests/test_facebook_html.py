@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 
-from evidence.tools.facebook_messenger_html import parse
+from server.evidence.tools.facebook_messenger_html import parse
 
 
 def _run(tmp_path, html, *, owner=None, name="thread.html"):

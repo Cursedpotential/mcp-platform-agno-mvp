@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from evidence.normalize import NormalizedRecord
-from evidence.store import render_conversations_markdown
+from server.evidence.normalize import NormalizedRecord
+from server.evidence.store import render_conversations_markdown
 
 
 def _rec(conv_id, role, content, *, when=None, title=None):

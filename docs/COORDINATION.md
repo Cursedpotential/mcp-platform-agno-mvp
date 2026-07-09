@@ -73,6 +73,16 @@ listed here so Lane A can carry it through the repack:
 - [ ] **Lane C:** confirm n8n isn't deployed from the old `deploy/n8n/` path (now `docker/n8n/`).
 
 ## Ledger (append below; newest on top)
+- **2026-07-09 (A) — REPACK EXECUTED (branch, not merged):** ADR-0033 `server/` repack done on
+  `restructure/option-a`. Every backend package now under `server/{api,core,agents,evidence,
+  analysis,vendored/chatminer}`; imports are `server.*`. 152 files, 240 import rewrites; fixed
+  path-depth (`patterns.py::_REPO`, chatminer sys.path), string-module refs (registry loops,
+  `evidence/__init__` lazy map, test monkeypatches), config split (analysis configs →
+  `server/analysis/config/`), entrypoint (`server.api.main:app` in Dockerfile+compose×3),
+  pyproject packages+mypy. Gates GREEN: ruff, mypy (106), pytest (186). **⚠ ALL LANES: import
+  paths changed — rebase onto this before further `.py` work.** `podman build` proof + merge
+  DEFERRED (owner configs podman later; merge auto-deploys exec tier → needs the watched window).
+  Reproducible via `scripts/repack_to_server_layout.py`.
 - **2026-07-09 (A):** owner decided the open questions (while driving). DONE on
   `restructure/option-a`: `visualizations/`→`docs/visualizations/`; `configs/`→`docker/milvus/`;
   `deploy/n8n/`→`docker/n8n/` (compose mounts Milvus configs from absolute VPS host paths, so

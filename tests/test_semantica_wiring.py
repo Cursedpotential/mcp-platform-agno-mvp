@@ -18,8 +18,8 @@ from typing import Callable, Iterator
 
 import pytest
 
-import evidence.milvus_forensic as mf
-import evidence.semantica_wiring as sw
+import server.analysis.milvus_forensic as mf
+import server.analysis.semantica_wiring as sw
 
 _ENV_VARS = (
     "MILVUS_ADDRESS",

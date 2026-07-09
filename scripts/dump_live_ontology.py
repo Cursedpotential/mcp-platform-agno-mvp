@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from sqlalchemy import create_engine, text  # noqa: E402
 
-from db.url import db_url  # noqa: E402
+from server.core.url import db_url  # noqa: E402
 
 TABLES = [
     "analysis.detection_pattern_set",

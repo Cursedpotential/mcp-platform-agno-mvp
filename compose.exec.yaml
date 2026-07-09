@@ -36,7 +36,7 @@ services:
     image: ${IMAGE_NAME:-agentos}:${IMAGE_TAG:-latest}
     # Prod: run the baked image (no live .:/app source mount). Redeploy to ship
     # code changes. NO --reload (breaks the MCP lifespan under AgentOS).
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    command: uvicorn server.api.main:app --host 0.0.0.0 --port 8000
     restart: unless-stopped
     ports:
       - "${BIND_IP:-127.0.0.1}:8000:8000"   # main API/MCP surface — proxy-ready below
@@ -100,7 +100,7 @@ services:
   # agentos-mcp — the MCP server run STANDALONE (NOT mounted). FastMCP's
   # StreamableHTTP session-manager task group does not survive being a mounted
   # sub-app under uvicorn → mounted /mcp 500s "task group not initialized".
-  # Served as its OWN ASGI app (app.mcp_main:mcp_app) its lifespan runs natively
+  # Served as its OWN ASGI app (server.api.mcp_main:mcp_app) its lifespan runs natively
   # and /mcp works (verified mounted=0/5 vs standalone=5/5). Same image as
   # agentos-api. Traefik routes Host(agentos.*) + PathPrefix(/mcp) HERE (higher
   # priority than the agentos-api catch-all), gated by basic auth (user matt).
@@ -111,7 +111,7 @@ services:
       dockerfile: Dockerfile
     container_name: agentos-mcp
     image: ${IMAGE_NAME:-agentos}:${IMAGE_TAG:-latest}
-    command: uvicorn app.mcp_main:mcp_app --host 0.0.0.0 --port 8001
+    command: uvicorn server.api.mcp_main:mcp_app --host 0.0.0.0 --port 8001
     restart: unless-stopped
     ports:
       - "${BIND_IP:-127.0.0.1}:8001:8001"   # MCP surface (tailnet); public via Traefik below

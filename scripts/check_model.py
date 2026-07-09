@@ -3,7 +3,7 @@
 import agno
 from agno.agent import Agent
 
-from app.settings import build_model
+from server.core.settings import build_model
 
 m = build_model()
 print(f"agno={agno.__version__} provider_class={type(m).__name__} model_id={m.id}")

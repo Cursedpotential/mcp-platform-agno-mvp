@@ -8,8 +8,8 @@ and raised AttributeError at runtime.
 
 from __future__ import annotations
 
-from chatminer.core.artifacts import extract_artifacts
-from chatminer.core.types import ArtifactType, ContentType, ParsedMessage
+from server.vendored.chatminer.core.artifacts import extract_artifacts
+from server.vendored.chatminer.core.types import ArtifactType, ContentType, ParsedMessage
 
 
 def _msg(content, *, content_type=ContentType.TEXT, mid="m1"):

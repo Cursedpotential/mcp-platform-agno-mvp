@@ -8,8 +8,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from evidence.normalize import NormalizedRecord
-from evidence.tools._common import parse_timestamp, records_out
+from server.evidence.normalize import NormalizedRecord
+from server.evidence.tools._common import parse_timestamp, records_out
 
 
 def test_parse_timestamp_epoch_seconds():

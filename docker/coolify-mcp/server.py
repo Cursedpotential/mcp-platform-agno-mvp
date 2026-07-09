@@ -26,13 +26,13 @@ The token is NEVER logged and NEVER copied into ~/.claude.json.
 > configure via mcp.settings; + direct-env override for containers):
 > Claude Code · Fable 5 · 2026-07-08
 """
+
 from __future__ import annotations
 
 import os
 import re
 import sys
 import time
-import json
 import yaml
 from typing import Any
 
@@ -77,8 +77,7 @@ _env_file = os.environ.get("COOLIFY_ENV_FILE", DEFAULT_ENV_FILE)
 _env = _load_env_file(_env_file)
 # Direct process env wins over the env file — the container deploy path
 # (Coolify app envs) passes COOLIFY_API / COOLIFY_API_TOKEN directly.
-for _k in ("COOLIFY_API", "COOLIFY_API_URL", "COOLIFY_BASE_URL",
-           "COOLIFY_API_TOKEN", "COOLIFY_VERSION"):
+for _k in ("COOLIFY_API", "COOLIFY_API_URL", "COOLIFY_BASE_URL", "COOLIFY_API_TOKEN", "COOLIFY_VERSION"):
     if os.environ.get(_k):
         _env[_k] = os.environ[_k]
 TOKEN = _env.get("COOLIFY_API_TOKEN", "")
@@ -229,6 +228,7 @@ mcp = FastMCP("coolify")
 
 # === READ CLUSTER (mirrors hosted MCP names) ===============================
 
+
 @mcp.tool()
 def get_infrastructure_overview() -> dict:
     """Coolify version, all servers, projects with resource counts, and aggregates.
@@ -267,7 +267,10 @@ def get_infrastructure_overview() -> dict:
     # keep this a single-pass overview — drill via list_applications for per-app.
     return {
         "coolify_version": VERSION,
-        "servers": [{"name": s.get("name"), "uuid": s.get("uuid"), "ip": s.get("ip"), "is_reachable": s.get("is_reachable")} for s in servers],
+        "servers": [
+            {"name": s.get("name"), "uuid": s.get("uuid"), "ip": s.get("ip"), "is_reachable": s.get("is_reachable")}
+            for s in servers
+        ],
         "projects": [{"name": p.get("name"), "uuid": p.get("uuid")} for p in projects],
         "counts": {
             "servers": len(servers),
@@ -360,6 +363,7 @@ def get_service(uuid: str) -> dict:
 
 
 # === WRITE CLUSTER =========================================================
+
 
 @mcp.tool()
 def create_application(
@@ -568,13 +572,15 @@ def check_port_collision(port: int, server_uuid: str | None = None) -> dict:
             ports = _ports_from_compose_raw(raw)
             source = "docker_compose_raw"
         if port in ports:
-            hits.append({
-                "uuid": uuid,
-                "name": a.get("name"),
-                "status": a.get("status"),
-                "ports": ports,
-                "source": source,
-            })
+            hits.append(
+                {
+                    "uuid": uuid,
+                    "name": a.get("name"),
+                    "status": a.get("status"),
+                    "ports": ports,
+                    "source": source,
+                }
+            )
     next_actions = []
     if hits:
         next_actions.append(
@@ -596,6 +602,7 @@ def check_port_collision(port: int, server_uuid: str | None = None) -> dict:
 # Transport selection
 # ---------------------------------------------------------------------------
 
+
 def main() -> None:
     transport = os.environ.get("MCP_TRANSPORT", "stdio").lower()
     if transport == "stdio":
@@ -606,15 +613,14 @@ def main() -> None:
         # third-party fastmcp 2.x signature) — configure via mcp.settings.
         mcp.settings.host = os.environ.get("MCP_HOST", "0.0.0.0")
         mcp.settings.port = int(os.environ.get("MCP_PORT", "8000"))
-        mcp.settings.stateless_http = True   # no session affinity needed behind CF
-        mcp.settings.json_response = True    # plain JSON responses (CF + curl friendly)
+        mcp.settings.stateless_http = True  # no session affinity needed behind CF
+        mcp.settings.json_response = True  # plain JSON responses (CF + curl friendly)
         # SDK DNS-rebinding protection 421s any Host other than localhost by
         # default. This service binds tailnet-only and is fronted by
         # ContextForge's JWT auth, so disable the Host check.
         from mcp.server.transport_security import TransportSecuritySettings
-        mcp.settings.transport_security = TransportSecuritySettings(
-            enable_dns_rebinding_protection=False
-        )
+
+        mcp.settings.transport_security = TransportSecuritySettings(enable_dns_rebinding_protection=False)
         mcp.run(transport="streamable-http")
     else:
         sys.exit(f"[coolify] unknown MCP_TRANSPORT='{transport}' (stdio|http)")

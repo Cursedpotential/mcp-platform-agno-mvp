@@ -17,9 +17,9 @@ from typing import Any, Callable, Iterator, NoReturn
 
 import pytest
 
-import evidence.milvus_forensic as mf
-import evidence.semantica_wiring as sw
-from evidence.milvus_forensic import BM25Function, CollectionSpec, FieldSpec
+import server.analysis.milvus_forensic as mf
+import server.analysis.semantica_wiring as sw
+from server.analysis.milvus_forensic import BM25Function, CollectionSpec, FieldSpec
 
 COLLECTION_NAMES = ["forensic_records", "forensic_findings", "forensic_patterns"]
 

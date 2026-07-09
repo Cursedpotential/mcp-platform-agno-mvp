@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import pytest
 
-from evidence import registry as registry_mod
-from evidence.registry import FunctionTool, ToolRegistry, load_builtin_tools, register
+from server.evidence import registry as registry_mod
+from server.evidence.registry import FunctionTool, ToolRegistry, load_builtin_tools, register
 
 
 def _tool(tool_id, capability="parse.transcript", accept=None):

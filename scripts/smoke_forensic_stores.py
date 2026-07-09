@@ -39,7 +39,7 @@ def smoke_pg() -> None:
     try:
         from sqlalchemy import create_engine, text
 
-        from db.url import db_url
+        from server.core.url import db_url
     except Exception as exc:
         report("PG", SKIP, f"imports unavailable ({exc})")
         return
@@ -51,7 +51,7 @@ def smoke_pg() -> None:
             # prefix of the chain — below every prefix = data loss; above/
             # between = uncaptured drift (rows applied live but not in git,
             # exactly how the sweep-2026-07-03 delta was originally caught).
-            from evidence.patterns import chain_prefix_counts
+            from server.analysis.patterns import chain_prefix_counts
 
             prefixes = chain_prefix_counts()
             live = (
@@ -89,7 +89,7 @@ def smoke_pg() -> None:
         return
 
     try:
-        from evidence.detection import run
+        from server.analysis.detection import run
 
         stats = run(dry_run=True, limit=50)
         report("PG detection dry-run", PASS, f"scanned OK (rolled back): {stats}")
@@ -103,7 +103,7 @@ def smoke_milvus() -> None:
     except ImportError:
         report("MILVUS", SKIP, "pymilvus not installed here")
         return
-    from evidence.milvus_forensic import MILVUS_TOKEN, MILVUS_URI, create_forensic_collections
+    from server.analysis.milvus_forensic import MILVUS_TOKEN, MILVUS_URI, create_forensic_collections
 
     try:
         client = MilvusClient(uri=MILVUS_URI, token=MILVUS_TOKEN, timeout=5)
@@ -129,7 +129,7 @@ def smoke_milvus() -> None:
 
 def smoke_wiring() -> None:
     try:
-        from evidence.semantica_wiring import full_wiring, secrets_referenced
+        from server.analysis.semantica_wiring import full_wiring, secrets_referenced
 
         wiring = full_wiring()
         body = json.dumps(wiring, default=str)

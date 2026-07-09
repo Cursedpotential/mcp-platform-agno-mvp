@@ -10,11 +10,11 @@ from __future__ import annotations
 
 import json
 
-from chatminer.core.types import MessageRole
-from chatminer.parsers.chatgpt_share import ChatGptShareParser
-from chatminer.parsers.gemini_chrome import GeminiChromeParser
-from chatminer.parsers.perplexity_gdpr import PerplexityGdprParser
-from chatminer.parsers.perplexity_plugin import PerplexityPluginParser
+from server.vendored.chatminer.core.types import MessageRole
+from server.vendored.chatminer.parsers.chatgpt_share import ChatGptShareParser
+from server.vendored.chatminer.parsers.gemini_chrome import GeminiChromeParser
+from server.vendored.chatminer.parsers.perplexity_gdpr import PerplexityGdprParser
+from server.vendored.chatminer.parsers.perplexity_plugin import PerplexityPluginParser
 
 
 def _roles(conv):

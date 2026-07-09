@@ -13,7 +13,7 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 
-_URL_PATH = Path(__file__).resolve().parents[1] / "db" / "url.py"
+_URL_PATH = Path(__file__).resolve().parents[1] / "server" / "core" / "url.py"
 
 
 def _load_module():

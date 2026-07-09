@@ -59,7 +59,7 @@ async def ingest_all(knowledge) -> int:
 
 
 async def main() -> None:
-    from db import create_knowledge
+    from server.core import create_knowledge
 
     knowledge = create_knowledge("platform", "platform_knowledge")
     print(f"Ingesting from {BASE_PATH} ...")

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from evidence.patterns import (
+from server.analysis.patterns import (
     _split_rows,
     chain_prefix_counts,
     cross_check_corpus,
@@ -152,7 +152,7 @@ ON CONFLICT DO NOTHING;
 """,
         encoding="utf-8",
     )
-    from evidence.patterns import OntologyChain
+    from server.analysis.patterns import OntologyChain
 
     cats, pats = parse_migration(bad)
     errs = validate_chain(OntologyChain(files=[bad.name], categories=cats, patterns=pats))

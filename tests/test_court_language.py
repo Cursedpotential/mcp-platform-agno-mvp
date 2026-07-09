@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from evidence.court_language import (
+from server.analysis.court_language import (
     MAP_PATH,
     PROMPT_PATH,
     _FORBIDDEN_IN_COURT,

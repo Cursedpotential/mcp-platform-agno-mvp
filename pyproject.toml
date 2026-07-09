@@ -30,7 +30,7 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["agents*", "app*", "db*", "evals*"]
+include = ["server*", "evals*"]
 
 [tool.ruff]
 line-length = 120
@@ -46,7 +46,7 @@ check_untyped_defs = true
 no_implicit_optional = true
 warn_unused_configs = true
 plugins = ["pydantic.mypy"]
-exclude = [".venv*", "docs"]
+exclude = [".venv*", "docs", "docker"]
 # scripts/ holds standalone scripts with no __init__.py; without this mypy maps
 # e.g. ingest_knowledge.py to both "ingest_knowledge" and "scripts.ingest_knowledge"
 # and errors with "Source file found twice under different module names".

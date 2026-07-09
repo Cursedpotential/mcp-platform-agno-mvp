@@ -12,7 +12,7 @@ import json
 
 import pytest
 
-from evidence.tools.facebook_messenger_json import parse
+from server.evidence.tools.facebook_messenger_json import parse
 
 
 def _run(tmp_path, payload_obj):

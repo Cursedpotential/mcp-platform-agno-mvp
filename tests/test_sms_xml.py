@@ -7,7 +7,7 @@ duration). Tested at the tool boundary: parse({"path": ...}) -> records_out.
 
 from __future__ import annotations
 
-from evidence.tools.sms_xml import parse
+from server.evidence.tools.sms_xml import parse
 
 
 def _run(tmp_path, name, xml):

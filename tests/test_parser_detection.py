@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 
-from chatminer.parsers import PARSER_REGISTRY, get_parser_for_file
+from server.vendored.chatminer.parsers import PARSER_REGISTRY, get_parser_for_file
 
 
 def _detect(tmp_path, name, content):

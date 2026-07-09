@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from evidence.tools.imessage_html import parse
+from server.evidence.tools.imessage_html import parse
 
 _HTML = """<html><body>
   <div class="message">

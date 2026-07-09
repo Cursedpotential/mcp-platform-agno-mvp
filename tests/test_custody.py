@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from evidence import custody
+from server.evidence import custody
 
 
 # STUB: minimal fake SQLAlchemy engine used as a test double (no real DB) ---

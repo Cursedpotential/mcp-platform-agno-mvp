@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from chatminer.core.types import (
+from server.vendored.chatminer.core.types import (
     ContentType,
     MessageRole,
     ParsedConversation,

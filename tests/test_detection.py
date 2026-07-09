@@ -9,7 +9,7 @@ hypothesis-not-conclusion fields) unchanged from the pattern.
 
 from __future__ import annotations
 
-from evidence.detection import (
+from server.analysis.detection import (
     CONTEXT_CHARS,
     MAX_HITS_PER_PATTERN,
     Match,

@@ -31,5 +31,7 @@ decisions behind changes live in [`docs/DECISION_LOG.md`](docs/DECISION_LOG.md).
 - Seed/ontology reconciliation: live == `0007` prefix of the committed migration chain
   (186 tests green, live smoke 5/5).
 
-### Pending (decided, not executed)
-- Full `server/` repack (Option A) — runbook queued for a coordinated window (auto-deploy gate).
+### Changed — `server/` repack (ADR-0033, branch, not yet merged)
+- Every backend package repacked under `server/{api,core,agents,evidence,analysis,vendored/chatminer}`;
+  imports are now `server.*`. Behavior-neutral (code move only). Gated: ruff, mypy (106), pytest (186).
+  `podman build` proof + merge pending a coordinated window.

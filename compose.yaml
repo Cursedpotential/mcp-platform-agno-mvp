@@ -36,7 +36,7 @@ services:
     image: ${IMAGE_NAME:-agentos}:${IMAGE_TAG:-latest}
     # NO --reload: uvicorn reload breaks the MCP lifespan under AgentOS
     # (handoff §4 correction #4). Restart the container to pick up code changes.
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    command: uvicorn server.api.main:app --host 0.0.0.0 --port 8000
     restart: unless-stopped
     ports:
       - "8000:8000"
