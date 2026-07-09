@@ -245,3 +245,181 @@ def verify_artifact(artifact_id: str, file_path: str | Path) -> bool:
 
 def utcnow_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+# =====================================================================================
+# SBV forensic reconciliation (Phase 4) — THIN append-only extension of the
+# ingest_artifact() pattern. SBV (the Go forensic fork) computes H1/H2/H3 over the
+# RAW source bytes and exposes them over its REST API; it holds NO DB credentials.
+# This module is still the ONLY writer of the `evidence` schema. Here we:
+#   1. re-compute H1 INDEPENDENTLY (ingest_artifact) and CROSS-CHECK it against
+#      SBV's H1 — match -> 'verified' custody_event; mismatch -> 'integrity_violation'.
+#   2. on a verified match, record SBV's per-record H2s + the H3 batch chain as
+#      evidence_hash rows (append-only), each with a custody_event.
+# The H1 canonicalization is byte-identical on both sides (plain sha256 of raw
+# bytes, h1-rawbytes-v1), so the two independently-derived H1s MUST agree for an
+# unaltered file. See vendored/sbv/CUSTODY.md for the full H1/H2/H3 spec.
+# =====================================================================================
+
+# Canonicalization tags — MUST match vendored/sbv/internal/custody.go.
+H1_CANON = "h1-rawbytes-v1"
+H2_CANON = "h2-rawelement-v1"
+H3_CANON = "h3-chain-v1"
+
+
+def _source_id_for_hash(conn, evidence_hash_id: str) -> str | None:
+    """Resolve the evidence.source id that an evidence_hash row points at."""
+    row = conn.execute(
+        text("SELECT source_id FROM evidence.evidence_hash WHERE id = :id"),
+        {"id": evidence_hash_id},
+    ).first()
+    return str(row[0]) if row is not None and row[0] is not None else None
+
+
+def record_custody_event(
+    source_id: str,
+    event_type: str,
+    actor: str,
+    detail: dict | None = None,
+    evidence_hash_id: str | None = None,
+    file_node_id: str | None = None,
+) -> str:
+    """Append one chain-of-custody event. The DB trigger (custody_event_chain)
+    computes the hash-chained event_digest; we never set it here. Append-only."""
+    import json
+
+    engine = _get_engine()
+    with engine.begin() as conn:
+        row = conn.execute(
+            text(
+                "INSERT INTO evidence.custody_event "
+                "(source_id, file_node_id, evidence_hash_id, event_type, actor, detail) "
+                "VALUES (:sid, :fnid, :ehid, :etype, :actor, CAST(:detail AS jsonb)) "
+                "RETURNING id"
+            ),
+            {
+                "sid": source_id,
+                "fnid": file_node_id,
+                "ehid": evidence_hash_id,
+                "etype": event_type,
+                "actor": actor,
+                "detail": json.dumps(detail or {}),
+            },
+        ).first()
+    return str(row[0])
+
+
+def record_evidence_hash(
+    *,
+    level: str,
+    digest_hex: str,
+    canon_version: str,
+    computed_by: str,
+    source_id: str | None = None,
+    file_node_id: str | None = None,
+    record_locator: dict | None = None,
+    meta: dict | None = None,
+) -> str:
+    """Append one H2/H3 evidence_hash row (append-only). digest_hex is a sha256
+    hex string; stored as the 32-byte BYTEA the schema's CHECK requires."""
+    import json
+
+    engine = _get_engine()
+    with engine.begin() as conn:
+        row = conn.execute(
+            text(
+                "INSERT INTO evidence.evidence_hash "
+                "(source_ref, algo, digest, level, source_id, file_node_id, "
+                " record_locator, canon_version, computed_by, meta) "
+                "VALUES (:src, 'sha256', :dig, :level, :sid, :fnid, "
+                " CAST(:rl AS jsonb), :canon, :by, CAST(:meta AS jsonb)) "
+                "RETURNING id"
+            ),
+            {
+                "src": computed_by,
+                "dig": bytes.fromhex(digest_hex),
+                "level": level,
+                "sid": source_id,
+                "fnid": file_node_id,
+                "rl": json.dumps(record_locator) if record_locator is not None else None,
+                "canon": canon_version,
+                "by": computed_by,
+                "meta": json.dumps(meta or {}),
+            },
+        ).first()
+    return str(row[0])
+
+
+def reconcile_sbv_import(
+    src: str | Path,
+    source_meta: dict | None,
+    *,
+    sbv_file_hash: str | None,
+    sbv_record_hashes: list[str] | None = None,
+    sbv_chain_hash: str | None = None,
+    actor: str = "server.evidence.tools.sbv_sms",
+) -> dict:
+    """Cross-check SBV's H1 against our own, then record H2/H3 evidence + events.
+
+    Returns a summary dict. On an H1 mismatch we emit ONLY the integrity_violation
+    event and deliberately do NOT record SBV's derived H2/H3 (they cannot be
+    trusted if the file itself disagrees).
+    """
+    ref = ingest_artifact(src, source_meta)  # our INDEPENDENT H1 (+ write-once blob)
+    our_h1 = ref.sha256
+    sbv_h1 = (sbv_file_hash or "").strip().lower()
+    verified = bool(sbv_h1) and sbv_h1 == our_h1.lower()
+
+    with _get_engine().connect() as conn:
+        source_id = _source_id_for_hash(conn, ref.artifact_id)
+
+    event_type = "verified" if verified else "integrity_violation"
+    detail = {
+        "our_h1": our_h1,
+        "sbv_h1": sbv_file_hash,
+        "canon": H1_CANON,
+        "sbv_chain_hash": sbv_chain_hash,
+        "record_count": len(sbv_record_hashes or []),
+        "artifact_id": ref.artifact_id,
+        "duplicate": ref.duplicate,
+    }
+    if source_id is not None:
+        record_custody_event(source_id, event_type, actor, detail=detail, evidence_hash_id=ref.artifact_id)
+
+    h2_ids: list[str] = []
+    h3_id: str | None = None
+    if verified and source_id is not None:
+        for i, h2 in enumerate(sbv_record_hashes or []):
+            if not h2:
+                continue
+            h2_ids.append(
+                record_evidence_hash(
+                    level="H2",
+                    digest_hex=h2,
+                    canon_version=H2_CANON,
+                    computed_by="sbv:internal.custody.HashRecordH2",
+                    source_id=source_id,
+                    record_locator={"record_index": i},
+                )
+            )
+        if sbv_chain_hash:
+            h3_id = record_evidence_hash(
+                level="H3",
+                digest_hex=sbv_chain_hash,
+                canon_version=H3_CANON,
+                computed_by="sbv:internal.custody.ChainH3",
+                source_id=source_id,
+                meta={"record_count": len(sbv_record_hashes or [])},
+            )
+
+    return {
+        "verified": verified,
+        "event": event_type,
+        "artifact_id": ref.artifact_id,
+        "our_h1": our_h1,
+        "sbv_h1": sbv_file_hash,
+        "source_id": source_id,
+        "h2_hash_ids": h2_ids,
+        "h3_hash_id": h3_id,
+        "record_count": len(sbv_record_hashes or []),
+    }

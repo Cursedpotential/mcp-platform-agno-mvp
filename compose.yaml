@@ -80,7 +80,11 @@ services:
   # ---------------------------------------------------------------------------
   platform-tools:
     build:
-      context: ./docker/tools
+      # Context is the REPO ROOT (not ./docker/tools): SBV is now built from
+      # source at vendored/sbv/ which lives outside ./docker/tools. The
+      # Dockerfile's COPYs are repo-root-relative (vendored/sbv/, docker/tools/).
+      context: .
+      dockerfile: docker/tools/Dockerfile
     image: agno-platform-tools:latest
     container_name: platform-tools
     profiles: ["tools"]
@@ -91,14 +95,9 @@ services:
     volumes:
       - sbv_data:/opt/sbv/data        # SBV uses CWD-relative ./data
       - r2-nexus:/r2
-      # registry-backed facade (D-026): parser modules live in server/tools/,
-      # which itself depends on server/evidence/normalize.py (schema) and
-      # server/vendored/chatminer/ (parser core) — both lightweight (no
-      # sqlalchemy/agno at import time) — so the WHOLE server/ tree mounts
-      # here (not just server/tools/) so `server.tools.*`'s absolute imports
-      # resolve exactly as they do in-repo. Mount<->import contract
-      # documented in docker/tools/tools/facade.py header.
-      - ./server:/opt/tools/server:ro
+      # NOTE: the `server` package is BAKED into the image (docker/tools/Dockerfile
+      # `COPY server/`), NOT mounted — Coolify ignores relative bind mounts and the
+      # image is rebuilt on every deploy, so the facade is self-contained.
     networks:
       - agentos
 

@@ -343,6 +343,16 @@ class SBVClient:
         _, raw, _ = self._request("GET", "/analytics")
         return self._json(raw)
 
+    def hashes(self, import_id: str | int = "latest") -> dict[str, Any]:
+        """GET /api/hashes/{importID} -> forensic custody hashes for one import
+        batch: {import_id, file_hash (H1), chain_hash (H3), record_count,
+        imported_at, ...canon versions}. `import_id="latest"` (default) returns
+        the most recent import — the batch a just-finished upload produced. Added
+        by the SBV forensic fork; on the stock upstream build this 404s."""
+        _, raw, _ = self._request("GET", f"/hashes/{import_id}")
+        data = self._json(raw)
+        return data if isinstance(data, dict) else {}
+
     def search(self, query: str, limit: int | None = None) -> Any:
         _, raw, _ = self._request("GET", "/search", params={"q": query, "limit": limit})
         return self._json(raw)

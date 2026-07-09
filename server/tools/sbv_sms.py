@@ -95,6 +95,10 @@ def _map_message(msg: dict[str, Any]) -> NormalizedRecord | None:
             "parser": "sbv",
             "media_type": msg.get("media_type") or "",
             "thread_id": msg.get("thread_id"),
+            # H2 per-record custody hash (sha256 of the RAW source XML element,
+            # h2-rawelement-v1) as computed by SBV BEFORE normalization. This is
+            # the evidence hash — NOT a hash of this NormalizedRecord.
+            "content_hash": msg.get("content_hash") or "",
         },
     )
 
@@ -139,7 +143,52 @@ def _map_call(call: dict[str, Any]) -> NormalizedRecord:
             "blocked": blocked,
             "forensic_flags": flags,
             "parser": "sbv",
+            # H2 per-record custody hash of the RAW <call> element (see _map_message).
+            "content_hash": call.get("content_hash") or "",
         },
+    )
+
+
+def _reconcile_custody(
+    path: Path, payload: dict[str, Any], client: SBVClient, records: list[NormalizedRecord]
+) -> dict[str, Any] | None:
+    """Forensic custody cross-check (Phase 4): pull SBV's independently-computed
+    H1/H3 for this import + the per-record H2s, and reconcile against our OWN H1
+    via the custody gate (verified vs integrity_violation, plus H2/H3 evidence
+    rows). SBV holds no DB creds — every write happens in custody.py.
+
+    Opt-in (SBV_CUSTODY_ENABLED) and defensively lazy: the slim tools-facade has
+    no sqlalchemy, so importing custody there would fail — we skip cleanly. This
+    is why the custody import is INSIDE the function, never at module top (which
+    load_builtin_tools() imports to register the parser)."""
+    if not os.getenv("SBV_CUSTODY_ENABLED"):
+        return None
+    try:
+        from server.evidence import custody  # lazy: pulls in sqlalchemy — facade lacks it
+    except Exception:
+        return None
+
+    try:
+        hashes = client.hashes("latest")
+    except SBVError:
+        return None
+    sbv_file_hash = (hashes or {}).get("file_hash")
+    sbv_chain_hash = (hashes or {}).get("chain_hash")
+    # Per-record H2s SBV computed over the raw source elements (from the records
+    # we just built). These are recorded as-is; H3 is stored from SBV, not
+    # re-derived here, so record order does not need to match the chain order.
+    sbv_record_hashes = [str(r.attrs.get("content_hash")) for r in records if r.attrs.get("content_hash")]
+
+    source_meta = dict(payload.get("source_meta") or {})
+    source_meta.setdefault("source_type", "chat_export")
+    source_meta.setdefault("source_platform", "sms-backup-restore")
+    source_meta.setdefault("acquisition_source", "sbv")
+    return custody.reconcile_sbv_import(
+        path,
+        source_meta,
+        sbv_file_hash=sbv_file_hash,
+        sbv_record_hashes=sbv_record_hashes,
+        sbv_chain_hash=sbv_chain_hash,
     )
 
 
@@ -199,7 +248,13 @@ def parse(payload: dict[str, Any]) -> dict[str, Any]:
         # workflow try the fallback rather than silently storing nothing.
         raise SBVError("SBV returned 0 records — falling back to pure-Python parser")
 
+    # Forensic custody cross-check (opt-in; no-op where custody/DB is unavailable).
+    custody_result = _reconcile_custody(path, payload, client, records)
+
     messages = sum(1 for r in records if r.record_type == RecordType.message)
     calls = sum(1 for r in records if r.record_type == RecordType.call)
     blocked = sum(1 for r in records if r.attrs.get("blocked"))
-    return records_out(records, messages=messages, calls=calls, blocked_calls=blocked, parser="sbv")
+    extra: dict[str, Any] = {"parser": "sbv"}
+    if custody_result is not None:
+        extra["custody"] = custody_result
+    return records_out(records, messages=messages, calls=calls, blocked_calls=blocked, **extra)
