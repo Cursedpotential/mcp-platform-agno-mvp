@@ -125,6 +125,10 @@ services:
       AGNO_DEBUG: "True"
       WAIT_FOR_DB: "True"
       AGENTOS_URL: http://127.0.0.1:8000
+      # fastmcp 3.x: settings.host defaults to 127.0.0.1 which AUTO-LOCKS the Host
+      # allowlist to localhost -> CF's "Host: agentos-mcp:8001" got 421 (same upstream
+      # bug as graphiti). FASTMCP_HOST=0.0.0.0 skips the auto-lock.
+      FASTMCP_HOST: 0.0.0.0
       OS_SECURITY_KEY: ${OS_SECURITY_KEY:-}
       DB_HOST: ${OVH3_HOST}
       DB_PORT: 5432
