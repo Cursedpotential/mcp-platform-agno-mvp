@@ -79,6 +79,26 @@ listed here so Lane A can carry it through the repack:
   allow-list env-configurable, reverse-proxy prefix-strip. Reverse-proxy tech (Caddy vs Traefik) = open. §5b.
 - [ ] **SBV — run the ContextForge registration** (`scripts/register_sbv_contextforge.sh` is DRY-RUN
   only today; running it makes SBV tools live MCP capabilities). §5a.
+- [ ] **restore-heic** (DEFERRED 2026-07-09): the SBV fork image (`v0.2.3-forensic`) is built with
+  the `heic` tag DROPPED because pinned `strukturag/libheif-go@20250130` no longer compiles vs
+  current Alpine libheif (CGO enum drift). HEIC attachment BYTES are still ingested + custody-hashed;
+  only in-app HEIC transcode/display is off. FIX: pin a compatible libheif + libheif-go pair in
+  `vendored/sbv/Dockerfile`, re-add `-tags "fts5 heic"`, rebuild the fork image, bump the tag in
+  `docker/tools/Dockerfile`.
+- [ ] **FACADE COLLAPSE + SEMANTICA MOVE** (the one deliberate follow-up restructure): rip the facade's
+  parser-registry endpoints (Python tools serve via Agno/agentos-mcp, not a 2nd copy); point CF at
+  agentos-mcp; G4 tool_finder optional efficiency-wall. `platform-tools` = app-runtime-host only.
+  Semantica → subtree `server/vendored/semantica/`, symlink docs+benchmarks into our tree, tests via
+  pytest testpaths, exclude `server/vendored/` from ruff/mypy, broaden ADR-0033 `vendored/` scope.
+
+## SBV build path (LOCKED 2026-07-09) — do NOT rebuild SBV from source in the exec tier
+The SBV app is built by **GitHub Actions in the fork** `Cursedpotential/sbv-forensic` (workflow
+`docker-build.yml`, publishes `ghcr.io/cursedpotential/sbv-forensic:<tag>`), because the 4CPU/8GB exec
+box can't/shouldn't compile Go+CGO+node. `docker/tools/Dockerfile` LIFTS the binary via
+`FROM ghcr.io/cursedpotential/sbv-forensic:<tag> AS sbv`. To ship SBV source changes: edit
+`vendored/sbv/**` → `git subtree split --prefix=vendored/sbv` → force-push to fork `main` + a `v*.*.*`
+tag → CI builds → bump the tag in `docker/tools/Dockerfile`. Image name MUST be lowercase (hardcoded
+`cursedpotential/sbv-forensic` in the workflow — `${{ github.repository }}`'s capital C breaks the push).
 
 ## Ledger (append below; newest on top)
 - **2026-07-09 (A) — TOOLS LAYER PROMOTED (branch, not merged):** D-026 / ADR-0033 amendment on

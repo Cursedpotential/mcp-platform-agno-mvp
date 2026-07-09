@@ -2,9 +2,9 @@
 # platform-tools — ONE container for all platform tools (owner decision 2026-06-10)
 # =============================================================================
 # Hosts, under supervisord:
-#   - SBV (SMS Backup & Restore viewer/extractor) — BUILT FROM SOURCE out of the
-#     forensic fork at vendored/sbv/ (Cursedpotential/sbv-forensic), so the binary
-#     carries our H1/H2/H3 custody hooks. REST API + GUI on :8085.
+#   - SBV (SMS Backup & Restore viewer/extractor) — binary LIFTED from the fork's
+#     CI-built image ghcr.io/cursedpotential/sbv-forensic (GitHub Actions builds it
+#     from vendored/sbv/), carrying our H1/H2/H3 custody hooks. REST API + GUI :8085.
 #   - tools-facade (FastAPI, :8090) — one HTTP/MCP surface over the ported
 #     parsers/extractors (chat exports, messaging, location, pdf/unstructured)
 # Media conversion deps (HEIC/3GP/AMR) come from ffmpeg + libheif.
@@ -17,51 +17,19 @@
 # =============================================================================
 
 # -----------------------------------------------------------------------------
-# SBV build-from-source. Stages 1-3 REPRODUCE upstream's own Dockerfile
-# (vendored/sbv/Dockerfile) verbatim — node frontend build -> golang:1.25-alpine
-# CGO build (-tags "fts5 heic") -> alpine:3 runtime — the only change being the
-# COPY source prefixes (vendored/sbv/) for the repo-root build context. The `sbv`
-# stage output is byte-for-byte the same layout the old ghcr.io/lowcarbdev/sbv
-# image had (/app/sbv + /app/frontend/dist), so the final-stage COPYs are unchanged.
+# SBV: lift the binary from the FORK'S CI-BUILT IMAGE (built by GitHub Actions
+# in Cursedpotential/sbv-forensic from vendored/sbv/, carrying our H1/H2/H3
+# custody hooks). We do NOT build SBV from source here: the exec box is 4CPU/8GB
+# and a Go/CGO/node build is too heavy for it; GH runners build it for free/fast.
+# The fork image's final stage is alpine:3 (musl) with /app/sbv + /app/frontend/
+# dist — same layout the old ghcr.io/lowcarbdev/sbv image had, so the final-stage
+# COPYs below are unchanged.
+# NOTE: this v0.2.x build has HEIC transcode DISABLED (pinned libheif-go no longer
+# compiles vs current Alpine libheif — see restore-heic TODO in docs/COORDINATION.md).
+# HEIC attachment bytes are still ingested + custody-hashed; only in-app HEIC
+# display is off. To bump SBV: build a new tag in the fork, change the tag below.
 # -----------------------------------------------------------------------------
-
-# Stage 1: Build frontend
-FROM node:22-alpine AS sbv-frontend
-WORKDIR /app/frontend
-COPY vendored/sbv/frontend/package*.json ./
-RUN npm ci
-COPY vendored/sbv/frontend/ ./
-# Relative API path so the SPA calls /api on whatever host it is served from.
-ENV VITE_API_URL=/api
-RUN npm run build
-
-# Stage 2: Build backend (CGO: SQLite FTS5 + libheif HEIC decode)
-FROM golang:1.25-alpine AS sbv-backend
-WORKDIR /app
-RUN apk add --no-cache gcc g++ musl-dev libheif-dev
-COPY vendored/sbv/go.mod vendored/sbv/go.sum ./
-RUN go mod download
-COPY vendored/sbv/*.go ./
-COPY vendored/sbv/internal/*.go internal/
-# CGO required for go-sqlite3 (fts5) and libheif; heic tag enables HEIC->JPEG.
-RUN CGO_ENABLED=1 go build -tags "fts5 heic" -o sbv .
-
-# Stage 3: Assemble the sbv runtime layout (alpine:3, musl) — same /app layout the
-# upstream ghcr image shipped. This is the `sbv` stage the final image lifts from.
-FROM alpine:3 AS sbv
-WORKDIR /app
-RUN apk add --no-cache ca-certificates wget ffmpeg libheif su-exec
-COPY --from=sbv-backend /app/sbv .
-COPY --from=sbv-frontend /app/frontend/dist ./frontend/dist
-COPY vendored/sbv/docker-entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
-RUN mkdir -p /data
-ARG SBV_VERSION=forensic-fork
-RUN echo "{\"version\":\"${SBV_VERSION}\"}" > /app/version.json
-ENV PORT=8081 \
-    DB_PATH_PREFIX=/data \
-    PUID=1000 \
-    PGID=1000
+FROM ghcr.io/cursedpotential/sbv-forensic:0.2.3-forensic AS sbv
 
 # -----------------------------------------------------------------------------
 # Final image: python facade + the SBV binary/assets lifted from the sbv stage.
