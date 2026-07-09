@@ -81,7 +81,7 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 # Keep the first-party suite isolated from the vendored semantica tests.
-norecursedirs = ["docs", ".venv*", "evidence/tools"]
+norecursedirs = ["docs", ".venv*", "server/tools"]
 # Integration tests are opt-in: run them with `pytest -m integration`.
 addopts = "-m 'not integration'"
 markers = [

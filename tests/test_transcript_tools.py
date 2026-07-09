@@ -12,7 +12,7 @@ import json
 
 import pytest
 
-from server.evidence.registry import load_builtin_tools, registry
+from server.tools.registry import load_builtin_tools, registry
 
 CHATMINER_WRAPPER_IDS = {
     "transcripts.chatgpt-official",

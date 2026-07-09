@@ -6,18 +6,18 @@ call logs), converts MMS media (HEIC/3GP/AMR), and serves the result over a
 session-authenticated REST API. This module uploads the XML to SBV, waits for
 processing, fetches the parsed messages + calls, and maps them into the SAME
 NormalizedRecord shape (incl. forensic call-block flags) that the pure-Python
-fallback evidence/tools/sms_xml.py produces — so Workflow A, store, and the
+fallback server/tools/sms_xml.py produces — so Workflow A, store, and the
 knowledge engine never care which parser ran.
 
 DUAL-PARSER / MESH SUBSTITUTION (ADR-0023, owner architecture): this tool and
 sms_xml.py BOTH register capability `parse.sms-xml`. The registry returns them
 in registration order, so importing this module FIRST makes SBV the preferred
 parser and sms_xml.py the automatic fallback when SBV is unreachable/unhealthy
-or rejects the input. Import order is enforced in evidence/tools/__init__... no —
+or rejects the input. Import order is enforced in server/tools/__init__... no —
 auto-discovery imports modules alphabetically, and "sbv_sms" sorts before
 "sms_xml", so SBV registers first naturally. (Verified: `sbv_sms` < `sms_xml`.)
 
-Auth + endpoints: see evidence/tools/_sbv_client.py (session-cookie, /api/...).
+Auth + endpoints: see server/tools/_sbv_client.py (session-cookie, /api/...).
 
 Provenance: new module wrapping the SBV REST API (sbv-client.ts blueprint +
 SBV_MCP_INTEGRATION.md). Forensic call-block logic mirrors sms_xml.py
@@ -31,9 +31,9 @@ from pathlib import Path
 from typing import Any
 
 from server.evidence.normalize import DisclosureTier, NormalizedRecord, RecordType
-from server.evidence.registry import register
-from server.evidence.tools._common import parse_timestamp, records_out
-from server.evidence.tools._sbv_client import SBVClient, SBVError
+from .registry import register
+from ._common import parse_timestamp, records_out
+from ._sbv_client import SBVClient, SBVError
 
 OWNER = "owner"
 

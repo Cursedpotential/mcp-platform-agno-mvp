@@ -24,9 +24,13 @@ COPY --from=sbv /app /opt/sbv
 COPY --from=sbv /lib/ld-musl-x86_64.so.1 /lib/ld-musl-x86_64.so.1
 COPY --from=sbv /usr/lib /opt/sbv-libs
 
-# tools facade (parsers/extractors API) — registry-backed: the evidence
-# package is volume-mounted at /opt/tools/evidence (see compose.yaml), so the
-# facade serves whatever parser modules exist in evidence/tools/.
+# tools facade (parsers/extractors API) — registry-backed: the WHOLE server/
+# tree (server/tools/, the cross-domain capability layer D-026, plus its
+# server/evidence/normalize.py + server/vendored/chatminer/ deps) is
+# volume-mounted at /opt/tools/server (see compose.yaml), so the facade
+# serves whatever parser modules exist in server/tools/ and imports it the
+# same way the main app does (`server.tools.*`). Mount<->import contract
+# documented in tools/facade.py.
 # pydantic = NormalizedRecord schema dep for the parser tools.
 WORKDIR /opt/tools
 COPY tools/ /opt/tools/

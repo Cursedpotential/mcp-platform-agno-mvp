@@ -54,7 +54,7 @@ def _cmd_import(args: argparse.Namespace) -> int:
 
 
 def _cmd_tools(_args: argparse.Namespace) -> int:
-    from server.evidence.registry import load_builtin_tools, registry
+    from server.tools.registry import load_builtin_tools, registry
 
     load_builtin_tools()
     print(json.dumps(registry.manifest(), indent=2))

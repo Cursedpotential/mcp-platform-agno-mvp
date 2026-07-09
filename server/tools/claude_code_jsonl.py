@@ -14,8 +14,8 @@ from pathlib import Path
 from typing import Any
 
 from server.evidence.normalize import NormalizedRecord, RecordType
-from server.evidence.registry import register
-from server.evidence.tools._common import parse_timestamp, records_out
+from .registry import register
+from ._common import parse_timestamp, records_out
 
 
 def _event_text(message: Any) -> str:

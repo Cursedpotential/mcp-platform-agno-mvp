@@ -1,4 +1,4 @@
-"""Unit tests for evidence.tools.imessage_txt — imessage-exporter TXT grammar.
+"""Unit tests for server.tools.imessage_txt — imessage-exporter TXT grammar.
 
 Reconstructs message blocks (timestamp header + sender + body), read receipts,
 announcements (rename/etc.), and the call heuristic. Forensic contract: nothing
@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from server.evidence.tools.imessage_txt import parse
+from server.tools.imessage_txt import parse
 
 # Note the DOUBLE space before the time — the exporter's "%b %d, %Y  %l:%M:%S %p".
 _EXPORT = """May 17, 2022  5:29:42 PM (Read by you after 1 hour, 2 minutes)

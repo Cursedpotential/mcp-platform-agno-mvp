@@ -21,7 +21,7 @@ TIERED + COST-AWARE (owner is cost-conscious — no $ unless asked):
      low_confidence the CALLER escalates to the configured provider ($-gated, opt-in).
 
 THIS IS A GENERAL CROSS-DOMAIN TOOL (any domain/surface calls it via MCP), not
-evidence-specific — its current location under evidence/tools/ is just where the
+evidence-specific — its current location under server/tools/ is just where the
 mesh registry auto-discovers it; HOME it in a platform tool registry (pending
 owner decision). All deps are OPTIONAL (graceful import) so this module imports
 fine in the slim facade; a missing backend surfaces a clear error at RUN time.
@@ -35,7 +35,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from server.evidence.registry import register
+from .registry import register
 
 _PDF_EXT = (".pdf",)
 _IMG_EXT = (".png", ".jpg", ".jpeg", ".tiff", ".tif", ".bmp", ".gif")

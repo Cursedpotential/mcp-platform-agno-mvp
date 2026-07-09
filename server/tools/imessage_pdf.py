@@ -20,9 +20,9 @@ from pathlib import Path
 from typing import Any
 
 from server.evidence.normalize import RecordType
-from server.evidence.registry import register
-from server.evidence.tools._common import records_out
-from server.evidence.tools.imessage_txt import looks_like_imessage_txt, parse_txt_text
+from .registry import register
+from ._common import records_out
+from .imessage_txt import looks_like_imessage_txt, parse_txt_text
 
 
 def _extract_pdf_text(path: Path) -> str:

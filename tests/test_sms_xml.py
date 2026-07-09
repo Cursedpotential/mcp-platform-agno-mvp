@@ -1,4 +1,4 @@
-"""Unit tests for evidence.tools.sms_xml — "SMS Backup & Restore" parser.
+"""Unit tests for server.tools.sms_xml — "SMS Backup & Restore" parser.
 
 Court-critical forensic logic: sent/received attribution, MMS body extraction,
 and the call-block forensic flags (rejected / refuse-list / outgoing-zero-
@@ -7,7 +7,7 @@ duration). Tested at the tool boundary: parse({"path": ...}) -> records_out.
 
 from __future__ import annotations
 
-from server.evidence.tools.sms_xml import parse
+from server.tools.sms_xml import parse
 
 
 def _run(tmp_path, name, xml):
