@@ -39,9 +39,13 @@ RUN go mod download
 COPY *.go ./
 COPY internal/*.go internal/
 
-# Build with FTS5 support
-# Use CGO for SQLite and libheif
-RUN CGO_ENABLED=1 go build -tags "fts5 heic" -o sbv .
+# Build with FTS5 support (SQLite). HEIC transcoding disabled: the pinned
+# libheif-go binding no longer compiles against current Alpine libheif (upstream
+# version drift). Dropping the `heic` tag uses internal/heic_disabled.go stub.
+# HEIC attachment BYTES are still ingested + custody-hashed — only in-app HEIC
+# transcode/display is off. TODO(restore-heic): pin a compatible libheif +
+# libheif-go pair, then re-add the `heic` tag. See docs/COORDINATION.md.
+RUN CGO_ENABLED=1 go build -tags "fts5" -o sbv .
 
 # Stage 3: Final runtime image
 FROM alpine:3
