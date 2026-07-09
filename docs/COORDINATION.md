@@ -71,6 +71,14 @@ listed here so Lane A can carry it through the repack:
   entries from git tags/PR history when there's time (owner-requested to-do).
 - [ ] **Cloudflare global API key rotation** (owner-only; leaked in old repos, redacted 2026-07-04).
 - [ ] **Lane C:** confirm n8n isn't deployed from the old `deploy/n8n/` path (now `docker/n8n/`).
+- [ ] **SBV Phase 5a — native Go automation endpoints** (DEFERRED 2026-07-09, owner: "skip FOR NOW
+  but make sure it doesn't slip"). `POST /api/automation/extract` + `status`/`export`/`backups` in
+  the SBV fork so it's natively headless (vs facade-proxy-orchestrated today). NOT a blocker — facade
+  proxy covers ~90% — but MUST be finished for the full vision. See `docs/planning/sbv-fork-plan.md` §5a.
+- [ ] **SBV Phase 5b — `/x/sbv/` UI embed** (DEFERRED to the G2/VPS window): Vite `base` env, CORS
+  allow-list env-configurable, reverse-proxy prefix-strip. Reverse-proxy tech (Caddy vs Traefik) = open. §5b.
+- [ ] **SBV — run the ContextForge registration** (`scripts/register_sbv_contextforge.sh` is DRY-RUN
+  only today; running it makes SBV tools live MCP capabilities). §5a.
 
 ## Ledger (append below; newest on top)
 - **2026-07-09 (A) — REPACK EXECUTED (branch, not merged):** ADR-0033 `server/` repack done on
