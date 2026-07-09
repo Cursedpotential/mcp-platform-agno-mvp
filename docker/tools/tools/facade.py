@@ -2,11 +2,13 @@
 
 Two surfaces, ONE FastAPI app (so ContextForge REST-wraps a single OpenAPI):
 
-  1. REGISTRY-BACKED parsers (/tools/...) — the evidence package is mounted at
-     /opt/tools/evidence (compose volume, read-only); every parser module
-     self-registers via load_builtin_tools(), so the inventory + execution
-     surface stay in sync with the registry. Porting a parser = adding one
-     module to evidence/tools/, nothing to edit here.
+  1. REGISTRY-BACKED parsers (/tools/...) — the `server` package is BAKED into
+     the image at build (docker/tools/Dockerfile `COPY server/ /opt/tools/server/`),
+     NOT bind-mounted: Coolify does not honor relative bind mounts, and prod
+     rebuilds this image on every deploy, so a self-contained image is strictly
+     better. Every parser module self-registers via load_builtin_tools(), so the
+     inventory + execution surface stay in sync with the registry. Porting a
+     parser = adding one module to server/evidence/tools/, nothing to edit here.
 
   2. SBV PROXY (/sbv/...) — proxies the session-authenticated SBV REST API
      (localhost:8085/api/...) so every SBV function is callable over this
@@ -14,12 +16,12 @@ Two surfaces, ONE FastAPI app (so ContextForge REST-wraps a single OpenAPI):
      service-account session so callers never deal with the cookie.
 
 ROBUSTNESS (the 2-day FATAL fix): the OLD facade did `from evidence.registry
-import ...` at module top, so an empty/missing evidence mount crashed uvicorn
+import ...` at module top, so an empty/missing evidence package crashed uvicorn
 -> supervisord FATAL-looped -> the WHOLE container's tool surface was down. Now
-the registry load is wrapped: a bad mount DEGRADES the /tools endpoints (503)
-but the app still starts and the /sbv proxy still works. We also pin
-/opt/tools onto sys.path so `import evidence.*` resolves regardless of how
-uvicorn is launched.
+the registry load is wrapped: a bad/absent package DEGRADES the /tools endpoints
+(503) but the app still starts and the /sbv proxy still works. We also pin
+/opt/tools onto sys.path so `import server.*` resolves regardless of how
+uvicorn is launched (the baked package lives at /opt/tools/server).
 
 Payload paths must be visible to THIS container — use the shared /r2 mount
 (custody blobs live at /r2/evidence/<aa>/<sha>/<name>).
@@ -71,8 +73,8 @@ def _require_registry():
     if not REGISTRY_OK or registry is None:
         raise HTTPException(
             status_code=503,
-            detail=f"registry unavailable — evidence package not importable ({REGISTRY_ERROR}). "
-            "Likely the ./evidence mount is empty; redeploy with the evidence package present.",
+            detail=f"registry unavailable — server.evidence package not importable ({REGISTRY_ERROR}). "
+            "The baked /opt/tools/server tree is missing/broken; rebuild the platform-tools image.",
         )
 
 
@@ -149,7 +151,7 @@ def _get_sbv() -> "SBVClient":
     if not SBV_OK:
         raise HTTPException(
             status_code=503,
-            detail=f"SBV client unavailable ({SBV_IMPORT_ERROR}). The evidence mount is likely empty.",
+            detail=f"SBV client unavailable ({SBV_IMPORT_ERROR}). The baked server.evidence package is missing/broken.",
         )
     if _sbv_client_singleton is None:
         _sbv_client_singleton = SBVClient()

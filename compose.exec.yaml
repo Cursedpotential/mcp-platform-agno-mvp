@@ -201,7 +201,13 @@ services:
   # ---------------------------------------------------------------------------
   platform-tools:
     build:
-      context: ./docker/tools
+      # Context is the REPO ROOT (not ./docker/tools): SBV is now built from
+      # source at vendored/sbv/ which lives outside ./docker/tools. The
+      # Dockerfile's COPYs are repo-root-relative (vendored/sbv/, docker/tools/).
+      # NB: agentos-api already builds from this same root context, so the
+      # exec-tier deploy already uploads the repo as build context — no new risk.
+      context: .
+      dockerfile: docker/tools/Dockerfile
     image: agno-platform-tools:latest
     container_name: platform-tools
     restart: unless-stopped
@@ -211,8 +217,10 @@ services:
     volumes:
       - /data/agno/volumes/sbv_data:/opt/sbv/data
       - r2-nexus:/r2
-      # registry-backed facade: parser modules live in the evidence package
-      - ./evidence:/opt/tools/evidence:ro
+      # NOTE: the `server` package is BAKED into the image (docker/tools/Dockerfile
+      # `COPY server/`), NOT mounted — Coolify ignores relative bind mounts and the
+      # exec tier rebuilds this image on every push to main, so the facade is
+      # self-contained (fixes the live ModuleNotFoundError: No module named 'server').
     # DOMAIN PHASE — SBV GUI. Re-enable + set TOOLS_DOMAIN to expose:
     # labels:
     #   - traefik.enable=true

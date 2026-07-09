@@ -51,8 +51,9 @@ func HandleUpload(c echo.Context) error {
 
 	slog.Info("Receiving file", "filename", header.Filename, "size", header.Size)
 
-	// Save uploaded file to temporary location first
-	tempFilePath, err := SaveUploadedFile(file, header.Filename)
+	// Save uploaded file to temporary location first. fileHash is the H1
+	// custody hash over the RAW uploaded bytes (h1-rawbytes-v1).
+	tempFilePath, fileHash, err := SaveUploadedFile(file, header.Filename)
 	if err != nil {
 		slog.Error("Error saving file", "error", err)
 		return c.JSON(http.StatusInternalServerError, UploadResponse{
@@ -61,7 +62,7 @@ func HandleUpload(c echo.Context) error {
 		})
 	}
 
-	slog.Info("File saved", "path", tempFilePath)
+	slog.Info("File saved", "path", tempFilePath, "h1", fileHash)
 
 	// Get user ID from context
 	userID, ok := c.Get("user_id").(string)
@@ -81,8 +82,9 @@ func HandleUpload(c echo.Context) error {
 		})
 	}
 
-	// Start background processing with user context
-	go ProcessUploadedFile(userID, username, tempFilePath)
+	// Start background processing with user context (carry H1 through so the
+	// per-import custody row can be written when parsing completes).
+	go ProcessUploadedFile(userID, username, tempFilePath, fileHash)
 
 	// Return immediately - client will poll /api/progress for status
 	return c.JSON(http.StatusOK, UploadResponse{
@@ -91,6 +93,37 @@ func HandleUpload(c echo.Context) error {
 		CallLogCount: 0,
 		Processing:   true,
 	})
+}
+
+// HandleHashes serves the forensic custody hashes for an import batch:
+// GET /api/hashes/:importID  ->  { import_id, file_hash (H1), chain_hash (H3),
+// record_count, imported_at, ...canon versions }. The special id "latest" returns
+// the most recent import (the batch a just-finished upload produced) — the anchor
+// the Python custody cross-check reads after upload+wait.
+func HandleHashes(c echo.Context) error {
+	userDB, err := getUserDB(c)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	idParam := c.Param("importID")
+	var rec *ImportRecord
+	if idParam == "latest" || idParam == "" {
+		rec, err = GetLatestImport(userDB)
+	} else {
+		id, convErr := strconv.ParseInt(idParam, 10, 64)
+		if convErr != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid importID"})
+		}
+		rec, err = GetImport(userDB, id)
+	}
+	if err == sql.ErrNoRows || rec == nil {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "import not found"})
+	}
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	return c.JSON(http.StatusOK, rec)
 }
 
 func HandleConversations(c echo.Context) error {

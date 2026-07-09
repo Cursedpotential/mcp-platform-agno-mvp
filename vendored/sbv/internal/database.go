@@ -155,6 +155,11 @@ func InitDB(filepath string) error {
 		return err
 	}
 
+	// Forensic custody: H2 content_hash column + H1/H3 imports table (idempotent).
+	if err = ensureCustodyColumns(db); err != nil {
+		return err
+	}
+
 	slog.Info("Database initialized successfully")
 	return nil
 }
@@ -261,6 +266,11 @@ func InitUserDB(userID string, filepath string) error {
 		return err
 	}
 
+	// Forensic custody: H2 content_hash column + H1/H3 imports table (idempotent).
+	if err = ensureCustodyColumns(userDB); err != nil {
+		return err
+	}
+
 	// Store in map
 	userDBsMutex.Lock()
 	userDBs[userID] = userDB
@@ -318,9 +328,10 @@ func InsertMessage(userDB *sql.DB, msg *Message) error {
 		INSERT INTO messages (
 			record_type, address, body, type, date, read, thread_id, subject, media_type, media_data,
 			protocol, status, service_center, sub_id, contact_name, sender,
-			content_type, read_report, read_status, message_id, message_size, message_type, sim_slot, addresses
+			content_type, read_report, read_status, message_id, message_size, message_type, sim_slot, addresses,
+			content_hash
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT DO NOTHING
 	`
 	result, err := userDB.Exec(query,
@@ -348,6 +359,7 @@ func InsertMessage(userDB *sql.DB, msg *Message) error {
 		msg.MessageType,
 		msg.SimSlot,
 		addressesJSON,
+		msg.ContentHash, // H2 per-record custody hash (h2-rawelement-v1)
 	)
 	if err != nil {
 		slog.Debug("InsertMessage: Error inserting message", "error", err)
@@ -365,8 +377,8 @@ func InsertMessage(userDB *sql.DB, msg *Message) error {
 
 func InsertCallLog(userDB *sql.DB, call *CallLog) error {
 	query := `
-		INSERT INTO messages (record_type, address, type, date, duration, presentation, subscription_id, contact_name)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO messages (record_type, address, type, date, duration, presentation, subscription_id, contact_name, content_hash)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT DO NOTHING
 	`
 	result, err := userDB.Exec(query,
@@ -378,6 +390,7 @@ func InsertCallLog(userDB *sql.DB, call *CallLog) error {
 		call.Presentation,
 		call.SubscriptionID,
 		call.ContactName,
+		call.ContentHash, // H2 per-record custody hash (h2-rawelement-v1)
 	)
 	if err != nil {
 		return err
@@ -538,7 +551,7 @@ func GetMessages(userDB *sql.DB, address string, startDate, endDate *time.Time) 
 		       COALESCE(sub_id, 0), COALESCE(contact_name, ''), COALESCE(sender, ''),
 		       COALESCE(content_type, ''), COALESCE(read_report, 0), COALESCE(read_status, 0),
 		       COALESCE(message_id, ''), COALESCE(message_size, 0), COALESCE(message_type, 0),
-		       COALESCE(sim_slot, 0), COALESCE(addresses, '')
+		       COALESCE(sim_slot, 0), COALESCE(addresses, ''), COALESCE(content_hash, '')
 		FROM messages
 		WHERE record_type IN (1, 2) AND address = ?  -- 1 = SMS, 2 = MMS
 	`
@@ -576,7 +589,7 @@ func GetMessages(userDB *sql.DB, address string, startDate, endDate *time.Time) 
 			&readInt, &m.ThreadID, &m.Subject, &m.MediaType, &m.MediaData,
 			&m.Protocol, &m.Status, &m.ServiceCenter, &m.SubID, &m.ContactName, &m.Sender,
 			&m.ContentType, &m.ReadReport, &m.ReadStatus, &m.MessageID,
-			&m.MessageSize, &m.MessageType, &m.SimSlot, &addressesStr)
+			&m.MessageSize, &m.MessageType, &m.SimSlot, &addressesStr, &m.ContentHash)
 		if err != nil {
 			return nil, err
 		}
@@ -604,7 +617,8 @@ func GetMessages(userDB *sql.DB, address string, startDate, endDate *time.Time) 
 func GetCallLogs(userDB *sql.DB, number string, startDate, endDate *time.Time) ([]CallLog, error) {
 	query := `
 		SELECT id, address, duration, date, type,
-		       COALESCE(presentation, 0), COALESCE(subscription_id, ''), COALESCE(contact_name, '')
+		       COALESCE(presentation, 0), COALESCE(subscription_id, ''), COALESCE(contact_name, ''),
+		       COALESCE(content_hash, '')
 		FROM messages
 		WHERE record_type = 3 AND address = ?  -- 3 = call
 	`
@@ -632,7 +646,7 @@ func GetCallLogs(userDB *sql.DB, number string, startDate, endDate *time.Time) (
 		var c CallLog
 		var dateUnix int64
 		err := rows.Scan(&c.ID, &c.Number, &c.Duration, &dateUnix, &c.Type,
-			&c.Presentation, &c.SubscriptionID, &c.ContactName)
+			&c.Presentation, &c.SubscriptionID, &c.ContactName, &c.ContentHash)
 		if err != nil {
 			return nil, err
 		}
@@ -646,7 +660,8 @@ func GetCallLogs(userDB *sql.DB, number string, startDate, endDate *time.Time) (
 func GetAllCalls(userDB *sql.DB, startDate, endDate *time.Time, limit, offset int) ([]CallLog, error) {
 	query := `
 		SELECT id, address, duration, date, type,
-		       COALESCE(presentation, 0), COALESCE(subscription_id, ''), COALESCE(contact_name, '')
+		       COALESCE(presentation, 0), COALESCE(subscription_id, ''), COALESCE(contact_name, ''),
+		       COALESCE(content_hash, '')
 		FROM messages
 		WHERE record_type = 3  -- 3 = call
 	`
@@ -675,7 +690,7 @@ func GetAllCalls(userDB *sql.DB, startDate, endDate *time.Time, limit, offset in
 		var c CallLog
 		var dateUnix int64
 		err := rows.Scan(&c.ID, &c.Number, &c.Duration, &dateUnix, &c.Type,
-			&c.Presentation, &c.SubscriptionID, &c.ContactName)
+			&c.Presentation, &c.SubscriptionID, &c.ContactName, &c.ContentHash)
 		if err != nil {
 			return nil, err
 		}
@@ -703,7 +718,7 @@ func GetActivityByAddress(userDB *sql.DB, address string, startDate, endDate *ti
 		       COALESCE(read_status, 0), COALESCE(message_id, ''), COALESCE(message_size, 0),
 		       COALESCE(message_type, 0), COALESCE(sim_slot, 0), COALESCE(addresses, ''),
 		       COALESCE(duration, 0), COALESCE(presentation, 0), COALESCE(subscription_id, ''),
-		       COALESCE(sender, '')
+		       COALESCE(sender, ''), COALESCE(content_hash, '')
 		FROM messages
 		WHERE 1=1
 	`
@@ -752,6 +767,9 @@ func GetActivityByAddress(userDB *sql.DB, address string, startDate, endDate *ti
 		// Call fields
 		var duration, presentation sql.NullInt64
 
+		// Shared: H2 per-record custody hash (applies to messages and calls)
+		var contentHash sql.NullString
+
 		err := rows.Scan(&recordType, &dateUnix, &address, &contactName,
 			&id, &body, &itemType, &readInt, &threadID, &subject,
 			&mediaType,
@@ -759,7 +777,7 @@ func GetActivityByAddress(userDB *sql.DB, address string, startDate, endDate *ti
 			&subID, &contentType, &readReport,
 			&readStatus, &messageID, &messageSize,
 			&messageTypeField, &simSlot, &addressesStr,
-			&duration, &presentation, &subscriptionID, &sender)
+			&duration, &presentation, &subscriptionID, &sender, &contentHash)
 		if err != nil {
 			return nil, err
 		}
@@ -803,6 +821,7 @@ func GetActivityByAddress(userDB *sql.DB, address string, startDate, endDate *ti
 				MessageType:   int(messageTypeField.Int64),
 				SimSlot:       int(simSlot.Int64),
 				Sender:        sender.String,
+				ContentHash:   contentHash.String,
 			}
 			if itemType.Valid {
 				msg.Type = int(itemType.Int64)
@@ -837,6 +856,7 @@ func GetActivityByAddress(userDB *sql.DB, address string, startDate, endDate *ti
 				Presentation:   int(presentation.Int64),
 				SubscriptionID: subscriptionID.String,
 				ContactName:    contactName,
+				ContentHash:    contentHash.String,
 			}
 			slog.Debug("GetActivityByAddress: Call", "id", call.ID, "number", call.Number, "type", call.Type, "duration", call.Duration)
 			activity.Call = call

@@ -80,7 +80,11 @@ services:
   # ---------------------------------------------------------------------------
   platform-tools:
     build:
-      context: ./docker/tools
+      # Context is the REPO ROOT (not ./docker/tools): SBV is now built from
+      # source at vendored/sbv/ which lives outside ./docker/tools. The
+      # Dockerfile's COPYs are repo-root-relative (vendored/sbv/, docker/tools/).
+      context: .
+      dockerfile: docker/tools/Dockerfile
     image: agno-platform-tools:latest
     container_name: platform-tools
     profiles: ["tools"]
@@ -91,8 +95,9 @@ services:
     volumes:
       - sbv_data:/opt/sbv/data        # SBV uses CWD-relative ./data
       - r2-nexus:/r2
-      # registry-backed facade: parser modules live in the evidence package
-      - ./evidence:/opt/tools/evidence:ro
+      # NOTE: the `server` package is BAKED into the image (docker/tools/Dockerfile
+      # `COPY server/`), NOT mounted — Coolify ignores relative bind mounts and the
+      # image is rebuilt on every deploy, so the facade is self-contained.
     networks:
       - agentos
 

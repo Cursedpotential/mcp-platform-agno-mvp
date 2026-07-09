@@ -2,8 +2,10 @@ package internal
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/xml"
 	"fmt"
 	"io"
@@ -700,35 +702,46 @@ func ClearUploadProgress() {
 	uploadProgress = nil
 }
 
-// SaveUploadedFile saves the uploaded file to a temporary location
-func SaveUploadedFile(file io.Reader, filename string) (string, error) {
+// SaveUploadedFile saves the uploaded file to a temporary location and returns
+// the temp path plus the H1 file-level custody hash (h1-rawbytes-v1) — the
+// lowercase-hex SHA-256 of the RAW uploaded bytes, computed as the bytes stream
+// to disk, BEFORE anything parses them. This H1 is byte-for-byte identical to
+// what server/evidence/custody.py::_sha256_file computes for the same file, so
+// the two independently-derived H1s cross-check on the Python side.
+func SaveUploadedFile(file io.Reader, filename string) (string, string, error) {
 	// Create temp directory if it doesn't exist
 	tempDir := os.TempDir()
 	uploadDir := filepath.Join(tempDir, "sbv-uploads")
 	err := os.MkdirAll(uploadDir, 0755)
 	if err != nil {
-		return "", fmt.Errorf("failed to create upload directory: %v", err)
+		return "", "", fmt.Errorf("failed to create upload directory: %v", err)
 	}
 
 	// Create temporary file
 	tempFile, err := os.CreateTemp(uploadDir, "backup-*.xml")
 	if err != nil {
-		return "", fmt.Errorf("failed to create temp file: %v", err)
+		return "", "", fmt.Errorf("failed to create temp file: %v", err)
 	}
 	defer tempFile.Close()
 
-	// Copy uploaded file to temp file
-	_, err = io.Copy(tempFile, file)
+	// Copy uploaded file to temp file, hashing the RAW bytes in the same pass
+	// (H1 is computed on the original bytes, never on anything reformatted).
+	hasher := sha256.New()
+	_, err = io.Copy(tempFile, io.TeeReader(file, hasher))
 	if err != nil {
 		os.Remove(tempFile.Name())
-		return "", fmt.Errorf("failed to save file: %v", err)
+		return "", "", fmt.Errorf("failed to save file: %v", err)
 	}
+	fileHash := hex.EncodeToString(hasher.Sum(nil))
 
-	return tempFile.Name(), nil
+	return tempFile.Name(), fileHash, nil
 }
 
-// ProcessUploadedFile processes the uploaded file in the background
-func ProcessUploadedFile(userID string, username string, filePath string) {
+// ProcessUploadedFile processes the uploaded file in the background. fileHash is
+// the H1 custody hash produced by SaveUploadedFile; it is carried through to
+// ParseSMSBackupStreaming so the per-import custody row (H1 + H3 + count) can be
+// written once parsing completes.
+func ProcessUploadedFile(userID string, username string, filePath string, fileHash string) {
 	defer func() {
 		// Always clean up the temp file when done
 		slog.Info("Removing temporary file", "path", filePath)
@@ -771,7 +784,7 @@ func ProcessUploadedFile(userID string, username string, filePath string) {
 	defer file.Close()
 
 	// Process with streaming parser (batch size 1 for minimal memory)
-	messageCount, callCount, err := ParseSMSBackupStreaming(userDB, file, 1) // Insert immediately, no batching
+	messageCount, callCount, err := ParseSMSBackupStreaming(userDB, file, 1, fileHash) // Insert immediately, no batching
 	if err != nil {
 		slog.Error("Error processing file", "error", err)
 		SetUploadProgress(0, 0, "error")
@@ -789,8 +802,16 @@ func ProcessUploadedFile(userID string, username string, filePath string) {
 }
 
 // ParseSMSBackupStreaming parses SMS backup file with streaming to reduce memory usage
-// Each message is inserted immediately and memory is freed aggressively
-func ParseSMSBackupStreaming(userDB *sql.DB, r io.Reader, batchSize int) (int, int, error) {
+// Each message is inserted immediately and memory is freed aggressively.
+//
+// FORENSIC ORDERING: for every <sms>/<mms>/<call> element the H2 per-record
+// custody hash is computed on the RAW source element bytes (h2-rawelement-v1)
+// BEFORE the element is decoded/normalized, carried into the row's content_hash,
+// and accumulated in source order. After the stream is exhausted the ordered H2s
+// are folded into the H3 batch chain (h3-chain-v1) and one custody row
+// (file_hash=H1, chain_hash=H3, record_count) is written to the imports table.
+// fileHash is the H1 hash SaveUploadedFile computed over the raw file bytes.
+func ParseSMSBackupStreaming(userDB *sql.DB, r io.Reader, batchSize int, fileHash string) (int, int, error) {
 	// Initialize progress tracking
 	uploadProgressLock.Lock()
 	uploadProgress = &UploadProgress{
@@ -799,14 +820,24 @@ func ParseSMSBackupStreaming(userDB *sql.DB, r io.Reader, batchSize int) (int, i
 	}
 	uploadProgressLock.Unlock()
 
-	decoder := xml.NewDecoder(r)
+	// Wrap the reader so we can extract the RAW byte span of each element after
+	// the decoder consumes it (needed for H2 raw-element hashing).
+	cr := newRawCaptureReader(r)
+	decoder := xml.NewDecoder(cr)
 
 	var messageCount, callCount int
+
+	// Ordered per-record H2 hashes, in raw source order — folded into H3 at end.
+	recordHashes := make([]string, 0, 1024)
 
 	// Track total count from root element if available
 	var totalCount int
 
 	for {
+		// Offset of the end of the previous token == start of the element about to
+		// be read (leading inter-element whitespace is trimmed off the raw span).
+		startOff := decoder.InputOffset()
+
 		token, err := decoder.Token()
 		if err == io.EOF {
 			break
@@ -841,11 +872,17 @@ func ParseSMSBackupStreaming(userDB *sql.DB, r io.Reader, batchSize int) (int, i
 					continue
 				}
 
+				// H2: hash the RAW <sms> element bytes BEFORE any conversion.
+				endOff := decoder.InputOffset()
+				h2 := HashRecordH2(trimLeadingXMLSpace(cr.slice(startOff, endOff)))
+				cr.discardBefore(endOff)
+
 				msg, err := convertSMSEntry(sms)
 				if err != nil {
 					slog.Error("Error converting SMS", "error", err)
 					continue
 				}
+				msg.ContentHash = h2
 
 				// Insert immediately - no batching
 				err = InsertMessage(userDB, &msg)
@@ -853,6 +890,7 @@ func ParseSMSBackupStreaming(userDB *sql.DB, r io.Reader, batchSize int) (int, i
 					slog.Error("Error inserting message", "error", err)
 				} else {
 					messageCount++
+					recordHashes = append(recordHashes, h2)
 					UpdateMessageProgress(messageCount)
 				}
 
@@ -871,6 +909,12 @@ func ParseSMSBackupStreaming(userDB *sql.DB, r io.Reader, batchSize int) (int, i
 					continue
 				}
 
+				// H2: hash the RAW <mms> element bytes (incl. base64 parts) BEFORE
+				// any conversion/base64-decode/normalization.
+				endOff := decoder.InputOffset()
+				h2 := HashRecordH2(trimLeadingXMLSpace(cr.slice(startOff, endOff)))
+				cr.discardBefore(endOff)
+
 				msg, err := convertMMSEntry(mms)
 
 				// Clear the MMS struct immediately after conversion to free base64 strings
@@ -881,6 +925,7 @@ func ParseSMSBackupStreaming(userDB *sql.DB, r io.Reader, batchSize int) (int, i
 					slog.Error("Error converting MMS", "error", err)
 					continue
 				}
+				msg.ContentHash = h2
 
 				// Insert immediately - no batching
 				err = InsertMessage(userDB, &msg)
@@ -888,6 +933,7 @@ func ParseSMSBackupStreaming(userDB *sql.DB, r io.Reader, batchSize int) (int, i
 					slog.Error("Error inserting message", "error", err)
 				} else {
 					messageCount++
+					recordHashes = append(recordHashes, h2)
 					UpdateMessageProgress(messageCount)
 				}
 
@@ -910,11 +956,17 @@ func ParseSMSBackupStreaming(userDB *sql.DB, r io.Reader, batchSize int) (int, i
 					continue
 				}
 
+				// H2: hash the RAW <call> element bytes BEFORE any conversion.
+				endOff := decoder.InputOffset()
+				h2 := HashRecordH2(trimLeadingXMLSpace(cr.slice(startOff, endOff)))
+				cr.discardBefore(endOff)
+
 				callLog, err := convertCallEntry(call)
 				if err != nil {
 					slog.Error("Error converting call", "error", err)
 					continue
 				}
+				callLog.ContentHash = h2
 
 				// Insert immediately - no batching
 				err = InsertCallLog(userDB, &callLog)
@@ -922,6 +974,7 @@ func ParseSMSBackupStreaming(userDB *sql.DB, r io.Reader, batchSize int) (int, i
 					slog.Error("Error inserting call log", "error", err)
 				} else {
 					callCount++
+					recordHashes = append(recordHashes, h2)
 					uploadProgressLock.Lock()
 					uploadProgress.mu.Lock()
 					uploadProgress.TotalCalls++
@@ -935,6 +988,15 @@ func ParseSMSBackupStreaming(userDB *sql.DB, r io.Reader, batchSize int) (int, i
 
 	// Final garbage collection
 	runtime.GC()
+
+	// H3: fold the ordered per-record H2s into the batch chain digest and record
+	// the per-import custody summary (H1 file hash + H3 chain + record count).
+	chainHash := ChainH3(recordHashes, "")
+	if _, err := RecordImport(userDB, fileHash, len(recordHashes), chainHash); err != nil {
+		// A custody-row failure must not lose the parsed data, but it IS a
+		// forensic gap — surface it loudly rather than swallowing it.
+		slog.Error("Error recording import custody row", "error", err, "file_hash", fileHash, "records", len(recordHashes))
+	}
 
 	// Mark as completed
 	SetUploadProgress(messageCount, messageCount, "completed")

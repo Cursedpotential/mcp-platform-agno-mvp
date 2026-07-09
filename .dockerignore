@@ -29,3 +29,13 @@ aienv*
 # Project-specific
 tmp/
 .claude/
+
+# Vendored SBV — build artifacts are produced INSIDE the image (stages 1-3),
+# never copied from the build context. Keep them out of the root context that
+# platform-tools (and agentos-api) upload.
+vendored/sbv/frontend/node_modules
+vendored/sbv/frontend/dist
+vendored/sbv/sbv
+vendored/sbv/**/*.db
+vendored/sbv/**/*.db-shm
+vendored/sbv/**/*.db-wal
