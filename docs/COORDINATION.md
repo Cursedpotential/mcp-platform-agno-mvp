@@ -79,12 +79,22 @@ listed here so Lane A can carry it through the repack:
   allow-list env-configurable, reverse-proxy prefix-strip. Reverse-proxy tech (Caddy vs Traefik) = open. §5b.
 - [ ] **SBV — run the ContextForge registration** (`scripts/register_sbv_contextforge.sh` is DRY-RUN
   only today; running it makes SBV tools live MCP capabilities). §5a.
-- [ ] **restore-heic** (DEFERRED 2026-07-09): the SBV fork image (`v0.2.3-forensic`) is built with
-  the `heic` tag DROPPED because pinned `strukturag/libheif-go@20250130` no longer compiles vs
-  current Alpine libheif (CGO enum drift). HEIC attachment BYTES are still ingested + custody-hashed;
-  only in-app HEIC transcode/display is off. FIX: pin a compatible libheif + libheif-go pair in
-  `vendored/sbv/Dockerfile`, re-add `-tags "fts5 heic"`, rebuild the fork image, bump the tag in
-  `docker/tools/Dockerfile`.
+- [ ] **restore-heic — FIND A BETTER SOLUTION** (owner: wants HEIC functional someday, DOWN THE ROAD,
+  not urgent). Today the SBV fork image (`v0.2.3-forensic`) has the `heic` tag DROPPED because pinned
+  `strukturag/libheif-go@20250130` no longer compiles vs current Alpine libheif (CGO enum drift). HEIC
+  attachment BYTES are still ingested + custody-hashed; only in-app HEIC transcode/display is off.
+  Owner wants a ROBUST long-term fix, not a brittle version pin. Options to explore (best→worth-trying):
+  - (a) **Decouple HEIC from SBV's build entirely** — transcode HEIC→JPEG via a separate path (ffmpeg
+    is already in the platform-tools image; or a standalone `heif-convert`/libheif CLI, or a small
+    media-conversion tool/app) so SBV never needs the fragile CGO libheif binding. Cleanest, most durable.
+  - (b) bump `strukturag/libheif-go` to a version matching current Alpine libheif (may break SBV's
+    `heic_enabled.go` if the binding API changed — test).
+  - (c) pin a compatible libheif + libheif-go PAIR in `vendored/sbv/Dockerfile` (brittle; ties us to
+    an old Alpine).
+  Whichever: re-add `-tags "fts5 heic"` (or route HEIC around it), rebuild the fork image, bump the tag
+  in `docker/tools/Dockerfile`. NOTE: this also relates to the broader media pipeline (HEIC/3GP/AMR/etc.
+  from iPhone MMS = real forensic evidence), so a general media-conversion capability may be the right
+  home rather than SBV-internal HEIC.
 - [ ] **FACADE COLLAPSE + SEMANTICA MOVE** (the one deliberate follow-up restructure): rip the facade's
   parser-registry endpoints (Python tools serve via Agno/agentos-mcp, not a 2nd copy); point CF at
   agentos-mcp; G4 tool_finder optional efficiency-wall. `platform-tools` = app-runtime-host only.
