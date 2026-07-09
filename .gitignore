@@ -81,3 +81,10 @@ docs/INFRASTRUCTURE.md
 
 # gateway content-addressed result store (runtime artifacts, never committed)
 data/content_store/
+
+# build artifacts + local analysis scratch (untracked lanes)
+*.egg-info/
+.osgrep/
+analytics/
+# live-DB dumps (may contain sealed values) — NEVER commit
+live-dumps/
