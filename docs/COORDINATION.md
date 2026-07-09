@@ -66,6 +66,12 @@ listed here so Lane A can carry it through the repack:
 - **2026-07-08 (A):** sealed-lexicon rows: committed seeds keep `[REDACTED:]` placeholders
   ONLY; real values never enter git (0006 court-safety rule).
 
+## TODO / carried tasks
+- [ ] **CHANGELOG backfill** — `CHANGELOG.md` started 2026-07-09; reconstruct pre-2026-07-09
+  entries from git tags/PR history when there's time (owner-requested to-do).
+- [ ] **Cloudflare global API key rotation** (owner-only; leaked in old repos, redacted 2026-07-04).
+- [ ] **Lane C:** confirm n8n isn't deployed from the old `deploy/n8n/` path (now `docker/n8n/`).
+
 ## Ledger (append below; newest on top)
 - **2026-07-09 (A):** owner decided the open questions (while driving). DONE on
   `restructure/option-a`: `visualizations/`→`docs/visualizations/`; `configs/`→`docker/milvus/`;
