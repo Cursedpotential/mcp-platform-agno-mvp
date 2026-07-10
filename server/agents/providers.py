@@ -34,6 +34,9 @@ from sqlalchemy import create_engine
 from agno.context.database import DatabaseContextProvider
 from agno.context.workspace import WorkspaceContextProvider
 
+from server.agents.tools.gateway_tools import GATEWAY_TOOLS
+from server.agents.tools.sbv_tools import SBV_TOOLS
+
 # Deferred to later goals (cloud cleanup / MCP fleet):
 # from agno.context.gdrive import GoogleDriveContextProvider
 # from agno.context.mcp import MCPContextProvider
@@ -164,9 +167,12 @@ def build_context(
     drive_read_tools: list[Any] = []
     drive_write_tools: list[Any] = []
 
-    # Source tools for the platform agents = codebase + DB access.
+    # Source tools for the platform agents = codebase + DB access + the G4
+    # parser gateway (server.tools registry, wrapped as 5 meta-op tools) +
+    # SBV's REST toolkit (facade-collapse Batch A, docs/planning/facade-
+    # collapse-plan.md §1/§2) — additive, does not touch the tools-facade.
     # (TS/Py MCP servers join at Phase 7 via MCPTools/MCPContextProvider.)
-    source_tools = [*code_tools, *db_tools]
+    source_tools = [*code_tools, *db_tools, *GATEWAY_TOOLS, *SBV_TOOLS]
 
     # Graphiti temporal graph memory (ADR-0014) — attached only when the
     # graph profile is up (GRAPHITI_MCP_URL set). AgentOS manages the MCP
