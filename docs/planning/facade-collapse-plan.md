@@ -713,6 +713,17 @@ and requires both prior batches proven first.
   Recommend deferring — smaller win, separate blast radius (log capture, health checks), shouldn't
   block this cutover.
 
+### Owner resolutions (2026-07-09)
+- **OQ-1 + OQ-2 RESOLVED → tailnet-direct.** ContextForge registers `agentos-mcp` at the tailnet
+  address `100.72.169.40:8001` with `transport: STREAMABLEHTTP`, mirroring the `coolify-mcp`
+  precedent. NOT the public `agentos.mitechconsult.com/mcp` route (no shared-password/basic-auth
+  layer needed). Tailscale latency is a non-issue for CF→mcp.
+- **OQ-4 RESOLVED → no live consumers.** Owner: nothing is currently using any of the tools (facade
+  or otherwise). So Batch C (facade removal) has NO coverage-gap risk from live traffic — we still
+  verify agentos-mcp serves the parser tools on `tools/list` before removing the facade, but there
+  is no consumer to break. The whole collapse is low-risk.
+- OQ-3/5/6/7/8/9 remain as noted (non-blocking or handled in-batch).
+
 ---
 
 ## 8. File-change summary (for the eventual PR)
