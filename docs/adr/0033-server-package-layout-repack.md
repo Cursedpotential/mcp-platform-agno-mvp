@@ -103,3 +103,38 @@ tool module that touches either dependency — confirmed by simulating the conta
 `server.tools.registry` / `server.tools._sbv_client` — the same import path the main app uses,
 no container-only alias needed. Verified: the isolated simulation loads all 23 tools. See
 `docs/DECISION_LOG.md` D-026 and `docs/REPO_STRUCTURE.md`.
+
+## Amendment 2026-07-09b: `vendored/` scope broadened; semantica relocated in
+
+ADR-0033's layout described `server/vendored/` as "vendored parser core (import-only)" —
+scoped to chatminer, a package we `import server.vendored.chatminer`. That scope is too
+narrow. `server/vendored/` is the home for **any third-party Python lib or tool Agno
+consumes directly — whether imported in-tree OR installed/deployed as a dependency or
+service.**
+
+Semantica (a ~12MB/616-file full Python project: `semantica/` pkg + its own
+pyproject/tests/benchmarks/docs) moves from `docs/wiki/tools/semantica/` to
+`server/vendored/semantica/` via `git mv` (faithful snapshot of the vendored 0.3.0-alpha
+copy — NOT a subtree pull of upstream, which would diverge; see `docs/COORDINATION.md` and
+`docs/planning/sbv-fork-plan.md`). Consumption differs from chatminer:
+- **chatminer** = vendored *package*, imported as `server.vendored.chatminer`.
+- **semantica** = vendored *project*, installed as the `semantica` dist / deployed as a
+  service; wired by config convention in `server/analysis/semantica_wiring.py` (which imports
+  NO semantica code). Its top-level import name stays `semantica`, not
+  `server.vendored.semantica`.
+
+Mechanics: docs+benchmarks symlinked into our tree (`docs/semantica`,
+`docs/semantica-benchmarks` → `../server/vendored/semantica/{docs,benchmarks}`); tests kept
+OUT of the default pytest run (heavy deps — torch/spacy/transformers, present even in
+semantica's "safe default" install — break collection under our env; opt-in via explicit
+path after installing `[dev]` extras); `server/vendored/` excluded from OUR ruff+mypy
+(third-party, also closing a latent gap where chatminer was unexcluded) and added to pytest
+`norecursedirs`. Its `.github/`/`.claude/` dirs remain in place under vendored (inert).
+Behavior-neutral: nothing imports semantica yet.
+
+Symlink note: this repo's Windows dev sandbox has `core.symlinks=false` and no
+Developer-Mode/admin symlink privilege, so the working tree materializes
+`docs/semantica`/`docs/semantica-benchmarks` as small text files containing the relative
+target path rather than functional symlinks. The git objects are correctly stored as mode
+`120000` symlink blobs (created via `git update-index --cacheinfo 120000`), so a checkout on
+Linux (the real consumer — CI, containers) resolves them as real, functional symlinks.
