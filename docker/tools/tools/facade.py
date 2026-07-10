@@ -262,6 +262,14 @@ async def sbv_analytics() -> Any:
     return _sbv_call(_get_sbv().analytics)
 
 
+@app.get("/sbv/hashes", tags=["sbv"])
+async def sbv_hashes(import_id: str = Query("latest")) -> Any:
+    """Forensic custody hashes for one SBV import batch: file_hash (H1), chain_hash
+    (H3), record_count, canon versions. import_id='latest' = most recent import.
+    Our forensic fork only (custody.go); 404s on stock upstream SBV."""
+    return _sbv_call(_get_sbv().hashes, import_id)
+
+
 @app.get("/sbv/search", tags=["sbv"])
 async def sbv_search(q: str = Query(...), limit: int | None = Query(None)) -> Any:
     return _sbv_call(_get_sbv().search, q, limit=limit)
