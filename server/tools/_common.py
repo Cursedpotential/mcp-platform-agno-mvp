@@ -7,7 +7,7 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
-from server.evidence.normalize import NormalizedRecord
+from server.contracts.records import NormalizedRecord
 
 
 def parse_timestamp(value: Any) -> datetime | None:

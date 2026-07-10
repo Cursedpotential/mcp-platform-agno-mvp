@@ -63,7 +63,7 @@ def fake_registry(monkeypatch, tmp_path):
     execute_tool/get_ref round-trip without touching the real parser catalog
     or the real on-disk data/content_store directory."""
     from server.tools import registry as registry_mod
-    from server.evidence.tool_finder.content_store import ContentStore
+    from server.tools.gateway.content_store import ContentStore
 
     fresh = registry_mod.ToolRegistry()
     fresh.register(
@@ -86,8 +86,8 @@ def fake_registry(monkeypatch, tmp_path):
         )
     )
     monkeypatch.setattr(registry_mod, "registry", fresh)
-    monkeypatch.setattr("server.evidence.tool_finder.toolfinder.registry", fresh)
-    monkeypatch.setattr("server.evidence.tool_finder.toolfinder._ensure_loaded", lambda: None)
+    monkeypatch.setattr("server.tools.gateway.toolfinder.registry", fresh)
+    monkeypatch.setattr("server.tools.gateway.toolfinder._ensure_loaded", lambda: None)
     monkeypatch.setattr(gateway_tools, "_store", ContentStore(tmp_path / "cs"))
     return fresh
 

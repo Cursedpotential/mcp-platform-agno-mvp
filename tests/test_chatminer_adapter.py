@@ -20,7 +20,7 @@ from server.vendored.chatminer.core.types import (
     ParsedMessage,
     ParseResult,
 )
-from server.evidence.normalize import RecordType
+from server.contracts.records import RecordType
 from server.tools._chatminer_adapter import run_chatminer_parser, to_normalized_records
 
 

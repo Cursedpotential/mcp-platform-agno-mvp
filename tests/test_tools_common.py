@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from server.evidence.normalize import NormalizedRecord
+from server.contracts.records import NormalizedRecord
 from server.tools._common import parse_timestamp, records_out
 
 

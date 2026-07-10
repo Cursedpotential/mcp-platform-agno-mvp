@@ -33,8 +33,8 @@ __all__ = [
 _LAZY = {
     "ArtifactRef": ("server.evidence.custody", "ArtifactRef"),
     "ingest_artifact": ("server.evidence.custody", "ingest_artifact"),
-    "DisclosureTier": ("server.evidence.normalize", "DisclosureTier"),
-    "NormalizedRecord": ("server.evidence.normalize", "NormalizedRecord"),
+    "DisclosureTier": ("server.contracts.records", "DisclosureTier"),
+    "NormalizedRecord": ("server.contracts.records", "NormalizedRecord"),
     "ToolRegistry": ("server.tools.registry", "ToolRegistry"),
     "registry": ("server.tools.registry", "registry"),
 }

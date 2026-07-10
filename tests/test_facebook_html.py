@@ -1,4 +1,4 @@
-"""Unit tests for server.tools.facebook_messenger_html.
+"""Unit tests for server.tools.parsers.messaging.facebook_messenger_html.
 
 Covers both DOM layouts Facebook emits (legacy div.message, card _a6-g), fuzzy
 timestamp parsing, owner-based direction tagging, and format rejection.
@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 
-from server.tools.facebook_messenger_html import parse
+from server.tools.parsers.messaging.facebook_messenger_html import parse
 
 
 def _run(tmp_path, html, *, owner=None, name="thread.html"):
