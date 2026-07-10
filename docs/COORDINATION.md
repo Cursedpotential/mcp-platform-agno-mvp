@@ -95,11 +95,12 @@ listed here so Lane A can carry it through the repack:
   in `docker/tools/Dockerfile`. NOTE: this also relates to the broader media pipeline (HEIC/3GP/AMR/etc.
   from iPhone MMS = real forensic evidence), so a general media-conversion capability may be the right
   home rather than SBV-internal HEIC.
-- [ ] **FACADE COLLAPSE + SEMANTICA MOVE** (the one deliberate follow-up restructure): rip the facade's
-  parser-registry endpoints (Python tools serve via Agno/agentos-mcp, not a 2nd copy); point CF at
-  agentos-mcp; G4 tool_finder optional efficiency-wall. `platform-tools` = app-runtime-host only.
-  Semantica → subtree `server/vendored/semantica/`, symlink docs+benchmarks into our tree, tests via
-  pytest testpaths, exclude `server/vendored/` from ruff/mypy, broaden ADR-0033 `vendored/` scope.
+- [ ] **FACADE COLLAPSE** (still open): rip the facade's parser-registry endpoints (Python tools serve
+  via Agno/agentos-mcp, not a 2nd copy); point CF at agentos-mcp; G4 tool_finder optional
+  efficiency-wall. `platform-tools` = app-runtime-host only.
+- [x] ~~**SEMANTICA MOVE**~~ — done on `restructure/semantica-vendor` (branch, not merged); see Ledger
+  entry below. Landed as a **`git mv` relocate**, not a subtree add (see rationale in the entry) —
+  correcting this line item's original "subtree" wording.
 
 ## SBV build path (LOCKED 2026-07-09) — do NOT rebuild SBV from source in the exec tier
 The SBV app is built by **GitHub Actions in the fork** `Cursedpotential/sbv-forensic` (workflow
@@ -111,6 +112,33 @@ tag → CI builds → bump the tag in `docker/tools/Dockerfile`. Image name MUST
 `cursedpotential/sbv-forensic` in the workflow — `${{ github.repository }}`'s capital C breaks the push).
 
 ## Ledger (append below; newest on top)
+- **2026-07-09 (A) — SEMANTICA VENDOR MOVE (branch, not merged):** ADR-0033 amendment
+  ("2026-07-09b") on `restructure/semantica-vendor` (off `main`): relocated
+  `docs/wiki/tools/semantica/` (12MB, 615 tracked files) to `server/vendored/semantica/` via
+  `git mv` — **NOT** a `git subtree add`. Rationale: our vendored copy is a modified snapshot
+  (`pyproject` says `0.3.0-alpha`, `__init__.py` says `0.2.7`, no `README.md` despite
+  `pyproject` declaring one) that diverges from upstream HEAD; the discoverable upstream URL
+  (`github.com/Hawksight-AI/semantica` in `mkdocs.yml`/`FUNDING.yml`) could not be reliably
+  confirmed as canonical (a WebFetch resolved a *different* org, `semantica-agi/semantica` —
+  unverified, possible org-rename or fetch noise); `server/analysis/semantica_wiring.py`
+  hard-codes config-key names that an upstream version bump could silently rename; and the
+  chatminer precedent (same vendored/ class) was itself a plain relocate, no subtree/remote.
+  A future live-upstream adoption is a **separate, deliberate upgrade** (verify the real
+  remote first) — appendix commands left in the ADR amendment, not run here.
+  Symlinked `docs/semantica` → `../server/vendored/semantica/docs` and
+  `docs/semantica-benchmarks` → `../server/vendored/semantica/benchmarks`, git-tracked as real
+  mode-`120000` symlink blobs (via `git update-index --cacheinfo 120000`, since this dev
+  sandbox has `core.symlinks=false` and no Developer-Mode/admin symlink privilege — the
+  working tree here shows plain text placeholder files, but the git objects are correct and
+  Linux checkouts/CI/containers will resolve them as functional symlinks).
+  `server/vendored/` excluded from ruff+mypy (`pyproject.toml`, closing a latent gap where
+  chatminer was previously unexcluded too) and added to pytest `norecursedirs` — semantica's
+  test suite pulls heavy ML deps (torch/spacy/transformers, present even in its "safe
+  default" install) that aren't in our env, so it stays **opt-in only**
+  (`uv pip install -e "server/vendored/semantica[dev]"` then
+  `uv run pytest server/vendored/semantica/tests`), never in the default run. Nothing in-tree
+  imports semantica yet — behavior-neutral. Gates: see commit message for the exact numbers
+  from this run. Branch NOT merged — pushed to origin for review only.
 - **2026-07-09 (A) — TOOLS LAYER PROMOTED (branch, not merged):** D-026 / ADR-0033 amendment on
   `restructure/tools-layer` (off `main`, post-repack): moved the atomic-tools capability layer +
   registry OUT of the evidence spine to a top-level `server/tools/` (cross-domain — evidence,
