@@ -15,7 +15,7 @@ from typing import Any, cast
 import pytest
 
 from server.evidence import custody
-from server.tools import sbv_sms
+from server.tools.parsers.messaging import sbv_sms
 from server.tools._sbv_client import SBVClient
 
 

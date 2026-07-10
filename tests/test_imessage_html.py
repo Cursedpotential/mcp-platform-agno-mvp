@@ -1,4 +1,4 @@
-"""Unit tests for server.tools.imessage_html — imessage-exporter HTML export.
+"""Unit tests for server.tools.parsers.messaging.imessage_html — imessage-exporter HTML export.
 
 The DOM discriminator (div.message > div.sent|received > timestamp+sender) is
 what lets the mesh tell an iMessage HTML export from a Facebook one. Covers
@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from server.tools.imessage_html import parse
+from server.tools.parsers.messaging.imessage_html import parse
 
 _HTML = """<html><body>
   <div class="message">

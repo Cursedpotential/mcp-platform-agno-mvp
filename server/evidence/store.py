@@ -24,7 +24,7 @@ from typing import Any
 from sqlalchemy import create_engine, text
 
 from server.evidence.custody import ArtifactRef
-from server.evidence.normalize import NormalizedRecord
+from server.contracts.records import NormalizedRecord
 
 _engine = None
 

@@ -9,14 +9,20 @@ Two surfaces, ONE FastAPI app (so ContextForge REST-wraps a single OpenAPI):
      inventory + execution surface stay in sync with the registry.
      MOUNT<->IMPORT CONTRACT: the WHOLE `server/` tree mounts at
      /opt/tools/server (not just server/tools/) because server.tools.* has
-     real transitive deps outside itself — server.evidence.normalize (the
-     NormalizedRecord schema) and server.vendored.chatminer (the parser
-     core) — both lightweight (no sqlalchemy/agno at import time), so this
-     is cheap. With /opt/tools on sys.path (below), `server` resolves as a
-     real top-level package inside the container exactly as it does
-     in-repo, so the imports below are plain `server.tools.*` — no special
-     container-only import alias needed. Porting a parser = adding one
-     module to server/tools/, nothing to edit here.
+     real transitive deps outside itself — server.contracts.records (the
+     NormalizedRecord schema, ADR-0035; every parser imports it) and
+     server.vendored.chatminer (the parser core) — both deliberately
+     lightweight (no sqlalchemy/agno at import time; server.contracts is the
+     import-light contracts package created precisely so the parser import
+     graph stays facade-safe), so this is cheap. The mount already covers
+     server/contracts/, so no compose change was needed. With /opt/tools on
+     sys.path (below), `server` resolves as a real top-level package inside
+     the container exactly as it does in-repo, so the imports below are plain
+     `server.tools.*` — no special container-only import alias needed. Since
+     ADR-0035 the parser modules live in capability sub-packages
+     (server/tools/parsers/{messaging,ai_chat,generic}/, extractors/) and
+     load_builtin_tools() walks them recursively. Porting a parser = adding
+     one module under server/tools/parsers/, nothing to edit here.
 
   2. SBV PROXY (/sbv/...) — proxies the session-authenticated SBV REST API
      (localhost:8085/api/...) so every SBV function is callable over this

@@ -11,7 +11,7 @@ re-shape it into an ``{"error": ...}`` dict. They let it propagate. Two
 things make "raise" the right call here, not just the simplest one:
 
 1. It matches the dominant convention actually used by the layer these tools
-   sit next to (``server/tools/*.py``, ``server/evidence/tool_finder/``) —
+   sit next to (``server/tools/*.py``, ``server/tools/gateway/``) —
    atomic tools and the G4 meta-ops raise (``KeyError``, ``ValueError``,
    ``FileNotFoundError``, ...) and let the caller/framework handle it, they
    do not return ad-hoc error dicts.

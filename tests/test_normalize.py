@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from server.evidence.normalize import (
+from server.contracts.records import (
     DisclosureTier,
     NormalizedRecord,
     RecordType,

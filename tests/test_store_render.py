@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from server.evidence.normalize import NormalizedRecord
+from server.contracts.records import NormalizedRecord
 from server.evidence.store import render_conversations_markdown
 
 

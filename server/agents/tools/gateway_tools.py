@@ -1,5 +1,5 @@
 """agents/tools/gateway_tools.py — agno ``@tool`` wrappers over the G4
-progressive-disclosure meta-ops (``server/evidence/tool_finder/toolfinder.py``).
+progressive-disclosure meta-ops (``server/tools/gateway/toolfinder.py``).
 Exposes the 23-tool parser registry to agents/MCP clients as five thin
 functions instead of one ``FunctionTool`` per parser, so the catalog never
 floods context (locked decision, ``docs/COORDINATION.md:98-100``).
@@ -25,8 +25,8 @@ from typing import Any
 
 from agno.tools import tool
 
-from server.evidence.tool_finder import toolfinder as _tf
-from server.evidence.tool_finder.content_store import ContentStore
+from server.tools.gateway import toolfinder as _tf
+from server.tools.gateway.content_store import ContentStore
 
 # Module-level singleton so REFs written by execute_tool are retrievable by a
 # later get_ref call in the same process (toolfinder.py itself defaults

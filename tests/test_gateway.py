@@ -14,9 +14,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from server.tools.registry import FunctionTool, load_builtin_tools, registry
-from server.evidence.tool_finder.api import build_app
-from server.evidence.tool_finder.content_store import ContentStore, parse_ref
-from server.evidence.tool_finder.toolfinder import (
+from server.tools.gateway.api import build_app
+from server.tools.gateway.content_store import ContentStore, parse_ref
+from server.tools.gateway.toolfinder import (
     describe_tool,
     execute_tool,
     get_ref,
@@ -133,8 +133,8 @@ def fake_tools(monkeypatch):
         )
     )
     monkeypatch.setattr(registry_mod, "registry", fresh)
-    monkeypatch.setattr("server.evidence.tool_finder.toolfinder.registry", fresh)
-    monkeypatch.setattr("server.evidence.tool_finder.toolfinder._ensure_loaded", lambda: None)
+    monkeypatch.setattr("server.tools.gateway.toolfinder.registry", fresh)
+    monkeypatch.setattr("server.tools.gateway.toolfinder._ensure_loaded", lambda: None)
     return fresh
 
 
