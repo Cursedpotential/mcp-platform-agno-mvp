@@ -80,6 +80,13 @@ services:
       R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
       R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
       R2_ENDPOINT_URL: ${R2_ENDPOINT_URL:-}
+      # SBV toolkit (facade-collapse plan Batch A, §2.3) — server/agents/tools/
+      # sbv_tools.py talks to SBV directly over the agentos docker network
+      # (platform-tools:8085), not through the tools-facade proxy. Same
+      # service account the old facade's /sbv/* proxy already used.
+      SBV_BASE_URL: ${SBV_BASE_URL:-http://platform-tools:8085}
+      SBV_SERVICE_USER: ${SBV_SERVICE_USER:-mcp_service}
+      SBV_SERVICE_PASS: ${SBV_SERVICE_PASS:?set SBV_SERVICE_PASS in Coolify app env}
     # No depends_on agentos-db — it's on another box. WAIT_FOR_DB handles startup.
     # DOMAIN PHASE — main API. Re-enable + set API_DOMAIN to expose publicly:
     # labels:
@@ -156,6 +163,13 @@ services:
       R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
       R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
       R2_ENDPOINT_URL: ${R2_ENDPOINT_URL:-}
+      # SBV toolkit (facade-collapse plan Batch A, §2.3) — see agentos-api's
+      # matching block above for the rationale; agentos-mcp needs the same
+      # env because it's the process that actually serves sbv_tools.py's
+      # @tool functions over MCP.
+      SBV_BASE_URL: ${SBV_BASE_URL:-http://platform-tools:8085}
+      SBV_SERVICE_USER: ${SBV_SERVICE_USER:-mcp_service}
+      SBV_SERVICE_PASS: ${SBV_SERVICE_PASS:?set SBV_SERVICE_PASS in Coolify app env}
     labels:
       - traefik.enable=true
       - traefik.docker.network=rz41wqhpjfh1rj796ixvjhfs

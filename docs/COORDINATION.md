@@ -95,9 +95,13 @@ listed here so Lane A can carry it through the repack:
   in `docker/tools/Dockerfile`. NOTE: this also relates to the broader media pipeline (HEIC/3GP/AMR/etc.
   from iPhone MMS = real forensic evidence), so a general media-conversion capability may be the right
   home rather than SBV-internal HEIC.
-- [ ] **FACADE COLLAPSE** (still open): rip the facade's parser-registry endpoints (Python tools serve
-  via Agno/agentos-mcp, not a 2nd copy); point CF at agentos-mcp; G4 tool_finder optional
-  efficiency-wall. `platform-tools` = app-runtime-host only.
+- [ ] **FACADE COLLAPSE** (still open — Batch A of 3 built, NOT merged): rip the facade's
+  parser-registry endpoints (Python tools serve via Agno/agentos-mcp, not a 2nd copy); point CF
+  at agentos-mcp; G4 tool_finder optional efficiency-wall. `platform-tools` = app-runtime-host
+  only. Plan: `docs/planning/facade-collapse-plan.md`. Batch A (§1/§2, additive, facade
+  untouched) built on `feature/facade-collapse-batch-a` — see Ledger entry below; needs a
+  watched deploy verifying `agentos-mcp` serves the new tools before Batch B (repoint CF) and
+  Batch C (remove the facade) proceed.
 - [x] ~~**SEMANTICA MOVE**~~ — done on `restructure/semantica-vendor` (branch, not merged); see Ledger
   entry below. Landed as a **`git mv` relocate**, not a subtree add (see rationale in the entry) —
   correcting this line item's original "subtree" wording.
@@ -112,6 +116,52 @@ tag → CI builds → bump the tag in `docker/tools/Dockerfile`. Image name MUST
 `cursedpotential/sbv-forensic` in the workflow — `${{ github.repository }}`'s capital C breaks the push).
 
 ## Ledger (append below; newest on top)
+- **2026-07-09 (A) — FACADE COLLAPSE BATCH A (branch, not merged):** built Batch A of
+  `docs/planning/facade-collapse-plan.md` on `feature/facade-collapse-batch-a` (off `main`) —
+  the additive half of the FACADE COLLAPSE TODO (line ~98). **Does NOT close that TODO**;
+  only Batch A of 3 (Batch B repoints ContextForge, Batch C removes the facade — both still
+  gated on live deploy verification per the plan §6). New `server/agents/tools/` package:
+  `gateway_tools.py` (5 agno `@tool` wrappers over the G4 progressive-disclosure meta-ops,
+  `server/evidence/tool_finder/toolfinder.py` — `get_tool_categories`, `search_tools`,
+  `describe_tool`, `execute_tool`, `get_ref`) and `sbv_tools.py` (11 agno `@tool` wrappers
+  over `SBVClient`, `server/tools/_sbv_client.py` — mirrors the old facade's `/sbv/*` proxy
+  surface, PLUS `sbv_hashes` which exposes the H1/H3 forensic custody hashes that
+  `SBVClient.hashes()` already had but the facade never routed — the custody chain is the
+  whole point of the SBV fork). Both wired into `source_tools` in
+  `server/agents/providers.py:169` (one import + one list-splice, same append pattern already
+  used for Graphiti), so every agent built off `PlatformContext` — and therefore
+  `agentos-mcp`'s MCP surface — picks them up with zero other file changes.
+  **Error convention (OQ-8) resolved:** neither module catches/re-shapes exceptions into an
+  `{"error": ...}` dict. Both let exceptions propagate (`KeyError`/`ValueError` from the
+  registry/toolfinder layer, `SBVError` from `SBVClient`) — this matches the convention
+  already dominant one layer down (`server/tools/*.py`, `server/evidence/tool_finder/`, which
+  raise and document raising), and agno's own `Function.execute()` already catches any
+  exception raised inside a `@tool` entrypoint and reports a structured
+  `status="failure"` result to the calling agent — so re-catching here would only throw that
+  signal away. The codebase's other `@tool` (`apply_db_modification`, `factory.py`) uses a
+  string-prefixed `"ERROR: ..."` return instead, but that's a different tool shape (a
+  HITL-approval-gated write reporting a tri-state OK/REJECTED/ERROR outcome), not a precedent
+  for these read-only, dict/list-returning tools.
+  `compose.exec.yaml` (`agentos-api` + `agentos-mcp` env blocks) and `compose.yaml`
+  (`agentos-api` only — no `agentos-mcp` service exists in the local/dev compose) both get
+  `SBV_BASE_URL` (defaults to `http://platform-tools:8085`, the docker-network hostname —
+  `_sbv_client.py`'s own default of `localhost:8085` is wrong from inside these containers),
+  `SBV_SERVICE_USER`, `SBV_SERVICE_PASS`. On the exec tier `SBV_SERVICE_PASS` is a **hard**
+  `${SBV_SERVICE_PASS:?...}` per the plan (unset = container won't start, checked BEFORE
+  merging); on local/dev it's a soft `${SBV_SERVICE_PASS:-}` default (matches every other
+  local-compose secret, none of which are hard-required there) — a judgment call, not
+  explicitly specified by the plan for the local file.
+  Tests: `tests/test_gateway_tools.py` (9 tests) + `tests/test_sbv_tools.py` (11 tests, incl.
+  a CSV/JSON shape-parity regression test for the ported `sbv_export` synthesis logic —
+  the one piece of real business logic moving, not just re-plumbing) — mock `SBVClient`
+  entirely, no live SBV dependency. Gates on the branch: `ruff format`/`ruff check` clean,
+  `mypy` clean (112 files), `pytest` 208 passed (191 baseline + 17 new — up, not down).
+  **Deploy-only, cannot be verified from the repo:** whether `agentos-mcp`'s MCP `tools/list`
+  actually surfaces these 16 tools over the wire once this merges (FastMCP standalone-app
+  extraction is an integration property unit tests don't exercise — plan §1.4/§6 Batch-A
+  post-deploy gate) — do not proceed to Batch B/C until that's confirmed. Facade
+  (`docker/tools/tools/facade.py`) untouched this batch, exactly as scoped. Branch NOT
+  merged — pushed to origin for a watched-deploy review before Batch B/C proceed.
 - **2026-07-09 (A) — SEMANTICA VENDOR MOVE (branch, not merged):** ADR-0033 amendment
   ("2026-07-09b") on `restructure/semantica-vendor` (off `main`): relocated
   `docs/wiki/tools/semantica/` (12MB, 615 tracked files) to `server/vendored/semantica/` via
