@@ -13,20 +13,36 @@ not yet merged to `main`.
 
 ## [Unreleased]
 
-Work committed on branches, not yet merged to `main`:
+_Nothing pending — all branch work below merged to `main` 2026-07-11._
+
+## 2026-07-11
 
 ### Added
-- **Forensic guard — no fabricated timestamps** (branch `test/forensic-no-fabricated-timestamps`):
+- **Forensic guard — no fabricated timestamps**:
   `tests/test_no_fabricated_timestamps.py` AST-scans all parser/extractor modules and fails on
   any wall-clock call (`datetime.now/utcnow/today`, `date.today`, `time.time`), plus a behavioral
   check that `imessage._parse_ts` returns `None` (never `now()`) on unparseable input. Encodes the
   parser-inventory finding that TS-lineage parsers fabricate event times while the Python lane
   preserves the raw value.
-- **SBV Phase 5a — native Go automation endpoints** (branch `worktree-agent-abe280ccbefefe136`,
-  under `vendored/sbv/`): headless `POST /api/automation/extract`, `GET /api/automation/status/:id`,
+- **SBV Phase 5a — native Go automation endpoints** (under `vendored/sbv/`): headless `POST /api/automation/extract`, `GET /api/automation/status/:id`,
   `GET /api/automation/export/:id`, `GET /api/automation/backups`. Custody ordering preserved
   (H1 → parse/H2/H3 → record, before normalization); source files opened read-only and never
-  deleted. Ships via the locked subtree → fork → CI → tag-bump sequence (not yet triggered).
+  deleted. Source merged; the deployed image stays on the `0.2.3-forensic` pin until the locked
+  subtree → fork CI → tag-bump ship sequence runs.
+
+### Changed
+- **Documentation sync (autonomous arc)** — CHANGELOG backfilled from full git history;
+  ADR-0035 flipped to Accepted & Implemented (+ as-built Outcome) and ADR index reconciled
+  (+0033); root `AGENTS.md` rewritten to the real `server/*` layout with 5 nested `AGENTS.md`
+  drill-downs (progressive disclosure); `CLAUDE.md` fixed from inert text to a real
+  `@AGENTS.md` import; COORDINATION/DECISION_LOG/REPO_STRUCTURE/PROJECT_CANON/CONVENTIONS/
+  BUILD_PLAN/DEBT/DOC_DEBT reconciled to post-restructure reality incl. roadmap/status
+  refresh (Phase A parser core-swap verified DONE; Qdrant→Milvus correction).
+
+### Fixed
+- `custody.reconcile_sbv_import` actor default updated to the module's real path
+  (`server.tools.parsers.messaging.sbv_sms`) — verified consequence-free against live PG
+  (`evidence.custody_event` held 0 rows).
 
 ## 2026-07-10
 
