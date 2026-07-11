@@ -67,6 +67,9 @@ listed here so Lane A can carry it through the repack:
   ONLY; real values never enter git (0006 court-safety rule).
 
 ## TODO / carried tasks
+- [ ] **Milvus real-sparse lane (D-031)** — replace agno's hashed-TF-IDF sparse with genuine
+  dense+sparse hybrid (BM25 server function or real BGE-M3 sparse); build WITH the KB-ingest
+  work after Topic 4 decides collection/partition shape. Owner-decided 2026-07-11; must not slip.
 - [x] ~~**CHANGELOG backfill**~~ — done on branch `docs/changelog-backfill`, folded into
   `docs/autonomous-doc-sync` (`9fd032c`); `CHANGELOG.md` now carries the full backfilled history
   (`ac14385`) plus a corrected `[Unreleased]` section.
