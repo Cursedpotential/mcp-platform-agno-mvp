@@ -29,7 +29,7 @@
 # HEIC attachment bytes are still ingested + custody-hashed; only in-app HEIC
 # display is off. To bump SBV: build a new tag in the fork, change the tag below.
 # -----------------------------------------------------------------------------
-FROM ghcr.io/cursedpotential/sbv-forensic:0.2.3-forensic AS sbv
+FROM ghcr.io/cursedpotential/sbv-forensic:0.2.4-forensic AS sbv
 
 # -----------------------------------------------------------------------------
 # Final image: python facade + the SBV binary/assets lifted from the sbv stage.
