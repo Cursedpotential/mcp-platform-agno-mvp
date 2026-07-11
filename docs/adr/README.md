@@ -43,7 +43,8 @@ guarantee gets an ADR. One short record. Supersede (don't edit) when a decision 
 | 0030 | Agno R2 access = pg_duckdb account-wide S3 secret (SQL) + rclone bucket mount (files); creds in Coolify | Accepted (extends 0007/0013) |
 | 0031 | CaseBible entity/temporal-graph layer = Neo4j + Graphiti, isolated by group_id | Accepted (extends 0014/0018) |
 | 0032 | Drop the PG Multicorn FDW federation hub; cross-source reach = pg_duckdb + native drivers | Accepted (supersedes 2026-06-14 federation-hub stance) |
-| 0035 | Tools sub-namespacing, tool_finder extraction, and the record contract's home | Accepted |
+| 0033 | `server/` package layout (Option A repack) | Accepted (merged + deployed; amended 2026-07-09 — tools promoted to `server/tools/`, `vendored/` scope broadened) |
+| 0035 | Tools sub-namespacing, tool_finder extraction, and the record contract's home | Accepted & Implemented (merged `8240205`, deployed + verified 2026-07-10; supersedes/relates ADR-0033) |
 
 > The full vision, current stack, roadmap, access, and gotchas live in
 > [`docs/PROJECT_CANON.md`](../PROJECT_CANON.md) (the durable source of truth).
