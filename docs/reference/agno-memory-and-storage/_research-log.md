@@ -152,6 +152,20 @@ operational/session store [current, needs the LearningMachine-stub fix decision]
 | `9d71a68` | R1a memory+learning |
 | `95c66e5` | R1c storage/vectordb + R1d RAG/tools |
 
+## Owner process directive for post-synthesis (2026-07-11)
+
+**Do NOT deliver one giant plan.** After synthesis: use the owner's thinking/planning skills and
+the interview / human-in-the-loop brainstorming skill; for each decision look at a few different
+options; pull it together, then **break it up and discuss thoroughly, bit by bit**. The synthesis
+doc is the evidence base + a decision agenda; decisions happen one topic at a time with the owner.
+Agreed topic agenda: (1) LearningMachine memory-bug fix (PostgresDb / implement stubs / split);
+(2) KB home — Surreal challenger vs Milvus incumbent (custom-retriever cost); (3) Surreal
+consolidation-space design (story-assembly schema/graph shape); (4) per-domain vector DBs +
+specialized embedders; (5) Graphiti group_id resolution + custom entity/edge types vs ontology;
+(6) Semantica adoption path (conflicts/dedup/entity-resolution + missing GraphWriteAdapter);
+(7) quick-win adoptions (Milvus partition keys, materialized-view caching, KnowledgeTools for the
+Legal Team researcher). Each concluded topic → DECISION_LOG/ADR as warranted, then next.
+
 ## Still open for Phase R2 synthesis
 
 1. The 7 discrepancies (plan file) — several already answered above (LearningMachine parity: NO;
