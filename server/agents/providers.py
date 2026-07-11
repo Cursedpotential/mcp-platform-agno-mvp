@@ -250,7 +250,12 @@ def build_learning(db: Any, model: Any, knowledge: Any) -> Any:
         user_profile=UserProfileConfig(mode=LearningMode.ALWAYS),
         user_memory=UserMemoryConfig(mode=LearningMode.AGENTIC),
         session_context=SessionContextConfig(mode=LearningMode.ALWAYS, enable_planning=True),
-        entity_memory=EntityMemoryConfig(mode=LearningMode.PROPOSE),  # HITL
+        # NOT actually HITL today (verified 2026-07-11): EntityMemoryStore silently
+        # degrades PROPOSE->ALWAYS (log-warning only) in agno 2.6.13, and the whole
+        # lane is a no-op on the SurrealDb backend (learning methods are stubs).
+        # See docs/reference/agno-memory-and-storage/07-platform-mapping.md §A.3 —
+        # fix decision = Topic 1 of the decision agenda.
+        entity_memory=EntityMemoryConfig(mode=LearningMode.PROPOSE),
         learned_knowledge=LearnedKnowledgeConfig(  # HITL
             mode=LearningMode.PROPOSE,
             knowledge=knowledge,

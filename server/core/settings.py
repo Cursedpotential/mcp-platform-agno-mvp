@@ -59,11 +59,15 @@ _DEFAULT_ORDER: list[str] = [
     "groq",
 ]
 
-# Embedder IDs mirror db/session.py for reference.
-# db/session.py is the source of truth for embedder IDs/dims.
+# Embedder IDs mirror server/core/session.py for REFERENCE ONLY — this map is
+# never imported by the embedding path; session.py is the source of truth.
+# (Corrected 2026-07-11: the previous values here were stale NVIDIA models that
+# session.py never used — see docs/reference/agno-memory-and-storage/07-platform-mapping.md §A.2.)
+# NOTE: the Graphiti/Neo4j lane uses a SEPARATE embedder — gateway `embed-text`
+# = nvidia/nv-embed-v1 @ 4096-d, dim-locked to the existing graph.
 _EMBEDDER_IDS: dict[str, str] = {
-    "text": "nvidia/llama-nemotron-embed-vl-1b-v2",  # docs/legal/transcripts — 2048-d
-    "code": "nvidia/nv-embedcode-7b-v1",  # code artifacts — 4096-d
+    "text": "baai/bge-m3",  # docs/legal/transcripts — 1024-d, symmetric (via OpenRouter)
+    "code": "mistralai/codestral-embed-2505",  # code artifacts — 1536-d (via OpenRouter)
 }
 
 
