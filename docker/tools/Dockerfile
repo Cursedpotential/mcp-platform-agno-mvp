@@ -51,13 +51,14 @@ COPY --from=sbv /usr/lib /opt/sbv-libs
 # is BAKED IN at build (COPY server/ below), NOT bind-mounted: Coolify does not
 # honor relative bind mounts, and the exec tier rebuilds this image on every push
 # to main anyway, so a self-contained image is strictly better than a runtime
-# mount. facade.py imports `server.evidence.registry` + `load_builtin_tools()`,
+# mount. facade.py imports `server.tools.registry` + `load_builtin_tools()`,
 # which resolves from the baked /opt/tools/server tree.
 # pydantic = NormalizedRecord schema dep for the parser tools.
 WORKDIR /opt/tools
 COPY docker/tools/tools/ /opt/tools/
-# The whole server tree: server.evidence.registry pulls in server.evidence.*
-# (normalize, tools/*, _sbv_client) + server.vendored.chatminer transitively.
+# The whole server tree: server.tools.registry pulls in server.contracts.records
+# (the NormalizedRecord schema, ADR-0035) + server.tools/parsers/* +
+# server.tools._sbv_client + server.vendored.chatminer transitively.
 # All lightweight (stdlib + pydantic); heavy modules (api/workflows/core) are
 # never imported by load_builtin_tools, so the slim deps below suffice.
 COPY server/ /opt/tools/server/

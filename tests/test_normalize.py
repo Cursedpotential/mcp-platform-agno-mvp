@@ -1,4 +1,7 @@
-"""Unit tests for evidence.normalize — the canonical bitemporal record.
+"""Unit tests for server.contracts.records — the canonical bitemporal record.
+
+(Promoted out of ``server/evidence/normalize.py`` in ADR-0035;
+``evidence.normalize`` remains only as a deprecated re-export shim.)
 
 The Part-2 "abuse made legible" delta filters on occurred_at / knowledge_time /
 disclosure_tier, so the tz-coercion validator and finalize() defaults are

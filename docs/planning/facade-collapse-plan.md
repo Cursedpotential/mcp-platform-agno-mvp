@@ -8,6 +8,25 @@
 > "Facade + ContextForge REST-wrap" decision, line 15, is the thing this plan replaces — SBV's
 > other build tasks there, e.g. `sbv_sms.py` as primary SMS-XML parser, are unaffected and stay).
 
+> ---
+> ## ⚠️ SUPERSEDED / PARTIALLY MOOT — corrected 2026-07-10
+>
+> **Batch A** (add the G4 gateway + SBV toolkit as agno `@tool`s) was **built, merged, and deployed**
+> (`bec5596`). **Batches B and C are MOOT — do not execute them.** This plan's core premise — that
+> `enable_mcp_server` re-exports granular `@tool` functions over `agentos-mcp`, so ContextForge could
+> be repointed there (Batch B) and the facade removed (Batch C) — is **FALSE.** Verified from agno
+> source (`agno/os/app.py:588-595`): AgentOS's MCP surface collects only `MCPTools`/`MultiMCPTools`
+> instances (external MCP servers) and exposes ~19 AgentOS *operations* (run_agent/team/workflow,
+> session/memory mgmt) — **never** the parser/SBV `@tool`s. The **facade therefore STAYS**: it is the
+> only granular-tool MCP surface. All 14 facade tools were instead registered directly in
+> ContextForge as REST tools (virtual server `platform_tools`, 2026-07-10). The clean future is
+> promoting the G4 `tool_finder` into a *dedicated* MCP gateway, not removing the facade.
+>
+> Also: since ADR-0035 (2026-07-10) `tool_finder` now lives at **`server/tools/gateway/`**, not
+> `server/evidence/tool_finder/` as the paths below still say. This document is retained as a
+> historical record of the (corrected) plan.
+> ---
+
 ## 0. Ground truth this plan was verified against
 
 All paths relative to `Agno-MCP-Platform/`. Re-verified directly from source on `main`

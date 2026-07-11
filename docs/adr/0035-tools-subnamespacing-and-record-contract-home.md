@@ -2,7 +2,12 @@
 
 > _Byline: Claude Code · Opus 4.8 · 2026-07-10_
 
-**Status:** Proposed (awaiting owner sign-off on the record-contract home — see Decision 3)
+**Status:** **Accepted & Implemented** (2026-07-10). Owner chose **Option A** for Decision 3
+(`server/contracts/records.py`). Executed, merged to `main` (`8240205`), and deployed to the
+exec tier — verified healthy (facade `/health` 23 tools, agentos-api `:8000/health` 200,
+agentos-mcp up). Behavior-neutral: 23 tool IDs unchanged, no ContextForge re-registration,
+facade import graph verified sqlalchemy-free. Gates green (ruff/mypy/pytest 208). See the
+**Outcome** section at the end for the as-built record.
 **Supersedes/relates:** [ADR-0033](0033-server-package-layout-repack.md) (server/ repack), D-026 (tools → server/tools/ cross-domain layer)
 **Note on numbering:** `0034` is reserved by the unmerged `docs/adr-0033-0034-evidence-model` branch (evidence model); this decision takes `0035` to avoid collision.
 
@@ -129,3 +134,40 @@ Two admissible homes:
   co-location beats a new top-level context.
 - **Deeper `tools/` nesting (per-vendor dirs).** Rejected — capability-level grouping is
   the right granularity; per-vendor would re-fragment `ai_chat`.
+
+## Outcome (as-built, 2026-07-10)
+
+Executed exactly as planned, Option A confirmed. Merged `8240205`; deployed and verified.
+
+**Decision 3 — record contract → `server/contracts/records.py`** (Option A, the recommended
+import-light home; `server/core` was disqualified because its `__init__` pulls
+sqlalchemy/agno/duckdb and would FATAL-loop the dep-light facade). `server/contracts/__init__.py`
+is deliberately dependency-free. `server/evidence/normalize.py` remains as a thin **deprecated
+re-export shim** (nothing deleted). All importers rewritten to `server.contracts.records`.
+
+**Decision 1 — gateway:** `git mv server/evidence/tool_finder → server/tools/gateway`; importers
+in `server/agents/tools/*` and 2 gateway tests updated.
+
+**Decision 2 — sub-namespacing:** `server/tools/parsers/{messaging(9),ai_chat(11),generic(2)}/`,
+`extractors/(1)`, `gateway/`; `registry.py`, `_common.py`, `_chatminer_adapter.py`,
+`_sbv_client.py` stay at the package root. `load_builtin_tools()` switched from
+`pkgutil.iter_modules` to `pkgutil.walk_packages` (recursive; skips `_`-prefixed helpers, the
+`gateway` subpackage, and sub-package `__init__`s; remains package-name-agnostic for the facade's
+top-level `tools` import).
+
+**Verification (all green):** ruff clean · mypy success (79 files) · pytest **208** · discovery
+smoke test reported **23 tools with byte-identical IDs** to the pre-refactor baseline · the
+mandatory facade-safety check confirmed `sqlalchemy` is **not** pulled into the parser import
+graph (the landmine). A completeness sweep (2026-07-10) confirmed **no stale old-path imports**
+remain anywhere in `server/`, `tests/`, `docker/`, or `scripts/`.
+
+**Beyond the ADR's enumerated set:** 9 test modules imported parsers by their old flat paths
+(surfaced by pytest collection) and were retargeted to the new sub-package paths.
+
+**Deploy:** exec-tier redeploy verified healthy — facade `/health` 23 tools, agentos-mcp `:8001`
+up, agentos-api `:8000/health` 200. (The public `agentos.mitechconsult.com/` 503 is pre-existing
+config — the agentos-api Traefik router is intentionally commented out — not a regression.)
+
+**Left open (unchanged by this ADR):** `scripts/repack_to_server_layout.py` still contains the
+old `gateway → server/evidence/tool_finder` mapping — intentionally, as a historical record of
+the ADR-0033 migration it documents, not a live importer.

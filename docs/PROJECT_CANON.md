@@ -4,8 +4,9 @@
 > repeated compaction never loses the vision, decisions, or plan. It is kept
 > current as decisions are made. If something here conflicts with an older ADR,
 > this file's "Locked Decisions" section wins and the ADR should be updated.
-> Last updated: 2026-06-13.
-> _Byline: Claude Code · Opus 4.8 · 2026-06-13 (created 2026-06; this revision Opus 4.8)_
+> Last updated: 2026-06-13 (§6 Roadmap statuses refreshed 2026-07-11).
+> _Byline: Claude Code · Opus 4.8 · 2026-06-13 (created 2026-06; this revision Opus 4.8;
+> §6 status refresh 2026-07-11 Claude Code · Sonnet 5)_
 
 ---
 
@@ -27,7 +28,7 @@ the wiki, `glossary.md`) is **subordinate history/reference**, not a competing s
 **Drift rules (non-negotiable):**
 1. If any doc conflicts with another, **§5 Locked Decisions here wins**; fix the others to match.
 2. When a locked decision is made, **update this canon in the SAME change** — never let it lag.
-3. New capabilities become **atomic tools** (`evidence/tools/`) or **MCP services wrapped behind Agno** — NEVER a new forked architecture. See `REPO_STRUCTURE.md`.
+3. New capabilities become **atomic tools** (`server/tools/`, capability-sub-namespaced per ADR-0035) or **MCP services wrapped behind Agno** — NEVER a new forked architecture. See `REPO_STRUCTURE.md`.
 4. `dev-resources/Archives/` is **read-only donor material** — mine it, never edit or build inside it.
 
 ---
@@ -165,8 +166,8 @@ Access: `ssh -i ~/.ssh/ovh debian@40.160.5.19`. Code volume-mounted (`.:/app`)
 - **Ollama Cloud `glm-5.1` = PRIMARY LLM** via LiteLLM gateway. NVIDIA NIM =
   embeddings + rerank + LLM backup only (NVIDIA rate-limited the owner).
 - **Models:** embedder `nvidia/llama-nemotron-embed-vl-1b-v2` (2048-d, asymmetric —
-  query vs passage modes, `db/embedder.py`); reranker `nvidia/rerank-qa-mistral-4b`
-  (`db/reranker.py`, custom — Agno's CohereReranker leaks to Cohere). Gemini 2.5 Pro
+  query vs passage modes, `server/core/embedder.py`); reranker `nvidia/rerank-qa-mistral-4b`
+  (`server/core/reranker.py`, custom — Agno's CohereReranker leaks to Cohere). Gemini 2.5 Pro
   for Document Digest. Groq/OpenRouter in reserve.
 - **Memory = LearningMachine (operational) + Graphiti/Neo4j (evidentiary, bitemporal)
   + pgvector Knowledge (reference, domain-partitioned).** Semantica pulled forward
@@ -244,8 +245,9 @@ Access: `ssh -i ~/.ssh/ovh debian@40.160.5.19`. Code volume-mounted (`.:/app`)
   **LLM/model gateway** (LiteLLM, ADR-0015) — don't conflate the layers. *(Needs an ADR;
   supersedes the earlier "Agno-native gateway, ContextForge fallback" framing.)*
 - **Donor reconciliation (locked 2026-06-13):** Python `chatminer` (10 AI-chat parsers
-  + segmenter) gets **vendored** into `evidence/tools/` as atomic modules (replacing the
-  4 shallow placeholder parsers). dial-stack's TypeScript capabilities (forensic parsers,
+  + segmenter) gets **vendored** into `server/tools/parsers/ai_chat/` as atomic modules
+  (replacing the 4 shallow placeholder parsers; done — see ADR-0035). dial-stack's
+  TypeScript capabilities (forensic parsers,
   pattern-analyzer, timeline, bi-temporal Graphiti, document-intelligence engines incl.
   Google DocAI + IBM watsonx, ~100-tool catalog) are **wrapped as MCP services behind
   Agno** — no mass rewrite. Full inventory: `docs/EVIDENCE_MERGE_MAP.md`.
@@ -267,11 +269,27 @@ Access: `ssh -i ~/.ssh/ovh debian@40.160.5.19`. Code volume-mounted (`.:/app`)
   `apply_db_modification` (analysis-only write, evidence-ref guard). Custom
   approval table/routes removed. Cloud Drive Cleanup agent removed from active
   topology (owner: separate future feature).
-- P2 evidence spine 🟡 BUILT LOCALLY (`evidence/`: custody, registry, workflows,
-  normalize, store, cli) — NOT yet redeployed; the 4 transcript parsers are shallow
-  placeholders to be **replaced by vendored chatminer** (see BUILD_PLAN Phase A).
+- P2 evidence spine 🟡 **parser core-swap DONE** (verified 2026-07-11), **pipeline/schema
+  population still open**. Directory layout repacked twice since this line was written:
+  ADR-0033 server/ repack merged+deployed 2026-07-09; ADR-0035 tools sub-namespacing
+  merged+deployed 2026-07-10 (see that ADR's Outcome section). Chatminer vendoring landed —
+  `server/vendored/chatminer/` + 11 real parser modules in `server/tools/parsers/ai_chat/`
+  (9 chatminer-backed, 2 genuinely custom formats — claude.ai export JSON, Claude Code
+  JSONL — chatminer has no equivalent); `DEBT.md` marks "Backend atomic tools attached"
+  resolved 2026-07-10. Still open: "Evidence schemas populated by a real pipeline" remains
+  `planned` (`DEBT.md`) — live PG evidence schema is near-empty (`evidence_hash`=26 rows,
+  verified 2026-07-11); the RESTART-0001 per-source raw-table redesign (6 `source.*` tables
+  + `file_custody` anchor, h1/h2/h3 as row columns) is DRAFT awaiting owner sign-off (D-008,
+  `docs/DECISION_LOG.md`) and the old ingestion schema is DEAD per owner.
 - P3 bitemporal substrate (valid/knowledge-time + disclosure-tier; Semantica stand-up)
-- P4 SBV as Workflow A (custody-gated vertical + iframe + CLI + export)
+- P4 SBV as Workflow A (custody-gated vertical + iframe + CLI + export) 🟡 **largely landed**
+  (as of 2026-07-11): forensic fork LIVE in prod with H1/H2/H3 custody hashing
+  (`ghcr.io/cursedpotential/sbv-forensic:0.2.3-forensic`, deployed 2026-07-09); all 14 facade
+  tools registered in ContextForge virtual server `platform_tools` (2026-07-10). Open:
+  Phase 5a native Go automation endpoints (`POST /api/automation/extract`+`status`/`export`/
+  `backups`) are BUILT on fork branch `worktree-agent-abe280ccbefefe136` (`813f3b2`) but not
+  yet shipped through the subtree→fork→CI→tag-bump sequence (`docs/COORDINATION.md`); Phase
+  5b `/x/sbv/` UI embed is DEFERRED to the G2/VPS window (see `docs/planning/sbv-fork-plan.md`).
 - P5 harness-first tests + backups to R2
 
 > **Forward build sequencing now lives in `docs/BUILD_PLAN.md`** (Phases A–E + Part 2/3),
@@ -284,7 +302,9 @@ Access: `ssh -i ~/.ssh/ovh debian@40.160.5.19`. Code volume-mounted (`.:/app`)
 - **Part 3** — AI Legal Team (port Gemini Gems personas to Agno; strategy/docs/filings).
 - **Knowledge engine** — domain-partitioned collections + ingestion of all
   conversation domains (timeline/personal/design/legal).
-- **Hardening** — self-hosted evidence vector store (Qdrant-leaning) at scale;
+- **Hardening** — evidence-text embeddings at scale in **Milvus** (the locked platform-wide
+  vector substrate — ADR-0026/ADR-0027, LIVE on the `data-vector` Coolify app; the earlier
+  "Qdrant-leaning" framing here was stale and is corrected 2026-07-11, see §5 Locked Decisions);
   multi-user auth; V2 slim Graphiti image.
 
 ---

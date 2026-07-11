@@ -1,6 +1,6 @@
 # COORDINATION — multi-chat war room for Agno-MCP-Platform
 
-> _Byline: Claude Code · Fable 5 · 2026-07-08_
+> _Byline: Claude Code · Fable 5 · 2026-07-08 (TODO/Ledger update: Claude Opus 4.8 · 2026-07-10)_
 > **Purpose:** two (or more) Claude chats work this repo concurrently. This file is the
 > shared ledger: who owns what, what's in flight, what's frozen, and handoffs. **Append,
 > don't rewrite history** — add timestamped entries under your lane; strike (~~…~~) items
@@ -67,18 +67,23 @@ listed here so Lane A can carry it through the repack:
   ONLY; real values never enter git (0006 court-safety rule).
 
 ## TODO / carried tasks
-- [ ] **CHANGELOG backfill** — `CHANGELOG.md` started 2026-07-09; reconstruct pre-2026-07-09
-  entries from git tags/PR history when there's time (owner-requested to-do).
+- [x] ~~**CHANGELOG backfill**~~ — done on branch `docs/changelog-backfill`, folded into
+  `docs/autonomous-doc-sync` (`9fd032c`); `CHANGELOG.md` now carries the full backfilled history
+  (`ac14385`) plus a corrected `[Unreleased]` section.
 - [ ] **Cloudflare global API key rotation** (owner-only; leaked in old repos, redacted 2026-07-04).
 - [ ] **Lane C:** confirm n8n isn't deployed from the old `deploy/n8n/` path (now `docker/n8n/`).
-- [ ] **SBV Phase 5a — native Go automation endpoints** (DEFERRED 2026-07-09, owner: "skip FOR NOW
-  but make sure it doesn't slip"). `POST /api/automation/extract` + `status`/`export`/`backups` in
-  the SBV fork so it's natively headless (vs facade-proxy-orchestrated today). NOT a blocker — facade
-  proxy covers ~90% — but MUST be finished for the full vision. See `docs/planning/sbv-fork-plan.md` §5a.
+- [x] ~~**SBV Phase 5a — native Go automation endpoints**~~ — BUILT, not shipped: `POST
+  /api/automation/extract` + `status`/`export`/`backups` implemented in the SBV fork on branch
+  `worktree-agent-abe280ccbefefe136` (`813f3b2`), custody ordering preserved (H1 → parse/H2/H3 →
+  record). Not yet pushed through the locked subtree → fork → CI → tag-bump sequence, so it isn't
+  live — see `docs/planning/sbv-fork-plan.md` §5a before shipping.
 - [ ] **SBV Phase 5b — `/x/sbv/` UI embed** (DEFERRED to the G2/VPS window): Vite `base` env, CORS
   allow-list env-configurable, reverse-proxy prefix-strip. Reverse-proxy tech (Caddy vs Traefik) = open. §5b.
-- [ ] **SBV — run the ContextForge registration** (`scripts/register_sbv_contextforge.sh` is DRY-RUN
-  only today; running it makes SBV tools live MCP capabilities). §5a.
+- [x] ~~**SBV — run the ContextForge registration**~~ — DONE 2026-07-10: all 14 facade tools
+  (`docker/tools/tools/facade.py`) registered directly as ContextForge REST tools in a 5th virtual
+  server `platform_tools`, alongside the existing `agno`/`coolify`/`graphiti`/`exa` servers. (This
+  superseded running `scripts/register_sbv_contextforge.sh` as originally planned — see the
+  FACADE COLLAPSE entry below for why the facade-REST-wrap path won instead of an MCP repoint.)
 - [ ] **restore-heic — FIND A BETTER SOLUTION** (owner: wants HEIC functional someday, DOWN THE ROAD,
   not urgent). Today the SBV fork image (`v0.2.3-forensic`) has the `heic` tag DROPPED because pinned
   `strukturag/libheif-go@20250130` no longer compiles vs current Alpine libheif (CGO enum drift). HEIC
@@ -95,13 +100,16 @@ listed here so Lane A can carry it through the repack:
   in `docker/tools/Dockerfile`. NOTE: this also relates to the broader media pipeline (HEIC/3GP/AMR/etc.
   from iPhone MMS = real forensic evidence), so a general media-conversion capability may be the right
   home rather than SBV-internal HEIC.
-- [ ] **FACADE COLLAPSE** (still open — Batch A of 3 built, NOT merged): rip the facade's
-  parser-registry endpoints (Python tools serve via Agno/agentos-mcp, not a 2nd copy); point CF
-  at agentos-mcp; G4 tool_finder optional efficiency-wall. `platform-tools` = app-runtime-host
-  only. Plan: `docs/planning/facade-collapse-plan.md`. Batch A (§1/§2, additive, facade
-  untouched) built on `feature/facade-collapse-batch-a` — see Ledger entry below; needs a
-  watched deploy verifying `agentos-mcp` serves the new tools before Batch B (repoint CF) and
-  Batch C (remove the facade) proceed.
+- [x] **FACADE COLLAPSE — Batches B/C now MOOT, the facade STAYS** (corrected 2026-07-10). Batch A
+  (add the G4 gateway + SBV toolkit as agno `@tool`s) was built, merged, and deployed (`bec5596`).
+  This item's original premise — that `enable_mcp_server` re-exports granular `@tool` functions
+  over `agentos-mcp`, so ContextForge could be repointed there (Batch B) and the facade removed
+  (Batch C) — was **DISPROVEN 2026-07-10**: verified from agno source (`agno/os/app.py:588-595`),
+  AgentOS's MCP surface only ever exposes ~19 AgentOS *operations*, never the parser/SBV `@tool`s.
+  The facade therefore stays as the only granular-tool MCP surface; all 14 facade tools were
+  instead registered directly in ContextForge as REST tools (see the "SBV — run the ContextForge
+  registration" entry above). Full corrected plan + superseded banner:
+  `docs/planning/facade-collapse-plan.md`.
 - [x] ~~**SEMANTICA MOVE**~~ — done on `restructure/semantica-vendor` (branch, not merged); see Ledger
   entry below. Landed as a **`git mv` relocate**, not a subtree add (see rationale in the entry) —
   correcting this line item's original "subtree" wording.
@@ -116,6 +124,33 @@ tag → CI builds → bump the tag in `docker/tools/Dockerfile`. Image name MUST
 `cursedpotential/sbv-forensic` in the workflow — `${{ github.repository }}`'s capital C breaks the push).
 
 ## Ledger (append below; newest on top)
+- **2026-07-10 — DOCUMENTATION SYNC (branch `docs/autonomous-doc-sync`):** AGENTS.md
+  progressive-disclosure reconfiguration after ADR-0033/0035 left the root `AGENTS.md`
+  describing the pre-repack flat-package layout and promising per-directory `README.md`
+  files that never existed. Rewrote root `AGENTS.md` as a concise map (`server/*` layout,
+  `## Commands` table, closest-file-wins pointer) and added 5 nested `AGENTS.md` drill-downs:
+  `server/AGENTS.md` (dependency direction), `server/tools/AGENTS.md` (registry + "how to add
+  a parser"), `server/evidence/AGENTS.md`, `server/agents/AGENTS.md`, `server/contracts/AGENTS.md`
+  (facade-safety rule). Reconciled `docs/COORDINATION.md` (this entry + the TODO closures above),
+  `docs/DECISION_LOG.md`, `docs/adr/README.md` (added the missing ADR-0033 index row), and
+  `docs/REPO_STRUCTURE.md` (ADR-0035 tree: `contracts/`, sub-namespaced `tools/`, `gateway/`).
+  Fixed a stale comment in `docker/tools/Dockerfile` (said `server.evidence.registry`, real import
+  is `server.tools.registry`). Doc-only; gates re-run to confirm no regression.
+- **2026-07-10 — ADR-0035 EXECUTED, MERGED, DEPLOYED:** tools sub-namespacing
+  (`parsers/{messaging,ai_chat,generic}/`, `extractors/`), G4 gateway extraction
+  (`server/evidence/tool_finder/` → `server/tools/gateway/`), and the record contract's new home
+  (Option A, `server/contracts/records.py`; `server/evidence/normalize.py` now a deprecated
+  re-export shim). Merged to `main` (`8240205`), deployed to the exec tier, verified healthy
+  (facade `/health` 23 tools, `agentos-api :8000/health` 200, `agentos-mcp` up). Behavior-neutral:
+  23 tool IDs unchanged, no ContextForge re-registration needed. Gates green: ruff/mypy/pytest 208.
+  Full as-built record: `docs/adr/0035-tools-subnamespacing-and-record-contract-home.md` (Outcome
+  section).
+- **2026-07-09 — FORENSIC GUARD: no fabricated timestamps (branch
+  `test/forensic-no-fabricated-timestamps`):** `tests/test_no_fabricated_timestamps.py` AST-scans
+  every parser/extractor module and fails on any wall-clock call (`datetime.now/utcnow/today`,
+  `date.today`, `time.time`), plus a behavioral check that `imessage._parse_ts` returns `None`
+  (never `now()`) on unparseable input. Encodes the parser-inventory finding that TS-lineage
+  parsers fabricate event times while the Python lane preserves the raw value. Not yet merged.
 - **2026-07-09 (A) — FACADE COLLAPSE BATCH A (branch, not merged):** built Batch A of
   `docs/planning/facade-collapse-plan.md` on `feature/facade-collapse-batch-a` (off `main`) —
   the additive half of the FACADE COLLAPSE TODO (line ~98). **Does NOT close that TODO**;

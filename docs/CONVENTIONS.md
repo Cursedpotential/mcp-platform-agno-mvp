@@ -71,7 +71,7 @@ docstring. This prevents context rot in LLM-based agents.
 - Target **3.12**; `from __future__ import annotations`; **type hints required on every function**.
 - **pydantic** for schemas/records (e.g. `NormalizedRecord`); `@dataclass` ok for simple value types.
 - Formatting via `./scripts/format.sh` (ruff). `snake_case` modules and functions, `PascalCase` classes.
-- **Lazy imports** for packages light consumers shouldn't pull (PEP 562 `__getattr__`, as in `evidence/__init__.py`) so the tools-facade container stays slim.
+- **Lazy imports** for packages light consumers shouldn't pull (PEP 562 `__getattr__`, as in `server/evidence/__init__.py`) so the tools-facade container stays slim.
 - Module starts with a purpose docstring (what it owns, what writes where).
 - **Descriptive names** — `build_ingestion_orchestrator`, not `build_io`. Clear whitespace between logical sections.
 - **Comments explain why**, not what. The code shows what.
@@ -94,12 +94,13 @@ docstring. This prevents context rot in LLM-based agents.
 
 ## The atomic-tool contract (the heart of the architecture)
 
-Every tool — Python in-process or polyglot — satisfies one capability under the registry contract (`evidence/registry.py`):
+Every tool — Python in-process or polyglot — satisfies one capability under the registry contract (`server/tools/registry.py`):
 
 ```python
-# evidence/tools/<format>.py — ONE capability per file, self-registering.
+# server/tools/parsers/<domain>/<format>.py — ONE capability per file, self-registering.
+# (domain ∈ {messaging, ai_chat, generic}; extractors live in server/tools/extractors/ — ADR-0035.)
 from __future__ import annotations
-from evidence.registry import register
+from server.tools.registry import register
 
 @register(
     id="transcripts.chatgpt-official",    # unique, dotted, stable (UI/tests depend on it)
@@ -113,7 +114,7 @@ def run(payload: dict) -> dict:
 ```
 
 - **Capability resolution:** workflows resolve by `capability`, not function name. First registered = preferred; the rest are **substitution candidates** an agent can swap in on failure.
-- **Auto-discovery:** `load_builtin_tools()` imports every non-`_` module in `evidence/tools/`. Underscore-prefixed modules = shared helpers, never tools.
+- **Auto-discovery:** `load_builtin_tools()` recursively imports every non-`_` module under `server/tools/` (`parsers/`, `extractors/`) via `pkgutil.walk_packages` (ADR-0035). Underscore-prefixed modules = shared helpers, never tools; the `gateway/` sub-package is excluded (it's a registry consumer, not a tool).
 - **Polyglot:** TS/Go/HTTP/MCP tools register with a runner (shell-out / HTTP) under the same contract — same `id`/`capability`/`accepts`/`run`, different transport.
 - **Universal exposure — API-first + MCP-wrapped (canon §5):** EVERY tool, agent, AND workflow gets (1) an **internal API** (FastAPI/HTTP) for in-platform callers and (2) an **MCP wrapper over that API** for external/any-surface callers (federated by IBM ContextForge). Everything is **atomically callable**; tools also **compose into workflows** (which may hold a variable tool slot); workflows get the same API+MCP. **Everything gets an API; every API gets an MCP.**
 - **Tool exposure pattern (owner, 2026-06-13):** heavy, long-running, or non-Python tools are wrapped as **FastAPI (or similar) HTTP services** — the existing `platform-tools` *tools-facade* pattern — then registered via the registry's HTTP runner and/or federated through **IBM ContextForge**. Lightweight Python tools stay in-process via `@register` but still expose the API+MCP per the universal rule. Either way the *contract* (capability + `NormalizedRecord`/payload I/O) is identical.

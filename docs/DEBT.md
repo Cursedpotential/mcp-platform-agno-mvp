@@ -14,7 +14,8 @@ match this table exactly. Keep this current as part of every change.
 > was removed from the active topology — owner decision: cloud cleanup is a separate
 > future feature, not part of the evidence platform. It returns, fully toolled,
 > with the Drive/OneDrive MCP integration. Empty `drive_*_tools` placeholders
-> remain in `agents/providers.py` for that feature.
+> remain in `server/agents/providers.py` for that feature (still true as of this
+> doc-sync pass, 2026-07-10).
 
 > When a stub is added: add a `# STUB: <tag>` comment at the code site and a row above.
 > When resolved: remove both.
@@ -23,12 +24,12 @@ match this table exactly. Keep this current as part of every change.
 
 | Item | Status | Where |
 |---|---|---|
-| Backend atomic tools (parsers/extractors) attached | planned | P2 — `evidence/registry.py` |
-| Evidence schemas populated by a real pipeline | planned | P2/P4 — `evidence/*` |
-| `tools-facade` populated (was `PORTED={}`) | planned | P2 — `docker/tools/tools/facade.py` |
-| Evals populated (was `CASES=()`) | planned | P5 — `evals/cases.py` |
+| Backend atomic tools (parsers/extractors) attached | **resolved 2026-07-10** — real chatminer-backed parsers exist under `server/tools/parsers/{messaging,ai_chat,generic}/` + `server/tools/extractors/`, registry populated | P2 — `server/tools/registry.py` |
+| Evidence schemas populated by a real pipeline | planned | P2/P4 — `server/evidence/*` |
+| `tools-facade` populated (was `PORTED={}`) | **resolved 2026-07-10** — `load_builtin_tools()`-backed, real registry + SBV proxy surface | P2 — `docker/tools/tools/facade.py` |
+| Evals populated (was `CASES=()`) | planned (still `CASES: tuple[Case, ...] = ()` as of 2026-07-10) | P5 — `evals/cases.py` |
 | Backups (pg_dump + neo4j dump → R2) | planned | P5 |
-| Self-hosted evidence vector store (Qdrant/Milvus) | deferred (at scale) | future |
+| Self-hosted evidence vector store (Qdrant/Milvus) | **resolved 2026-07-11** — Milvus is the locked platform-wide vector substrate (ADR-0026/ADR-0027), self-hosted + LIVE on the `data-vector` Coolify app; the "Qdrant" framing was stale. Evidence-text-embeddings *ingestion* at scale is still future work, tracked as "Evidence schemas populated by a real pipeline" above. | future → `docs/adr/0026-self-hosted-milvus-coolify-semantic-store.md`, `docs/adr/0027-milvus-platform-wide-vector-substrate.md` |
 | Part 2 multi-pass analysis engine | next round | future |
 | V2 slim Graphiti image; multi-user auth | deferred | future |
 
@@ -48,6 +49,7 @@ Agno provides natively — switch before building P1–P5:**
 
 **Justified custom (NO native equivalent — keep):** `db/embedder.py` NimEmbedder (no native NVIDIA
 embedder; query/passage), `db/reranker.py` NvidiaReranker (no native NVIDIA reranker; Cohere leaks).
+(Now `server/core/embedder.py` / `server/core/reranker.py` — ADR-0033 `db/` → `server/core/`.)
 
 **Under-used native worth adopting:** `output_schema` (Pydantic) for normalized/analysis records;
 `tool_hooks` for custody/audit wrapping; native Knowledge readers/chunkers for ingestion.
