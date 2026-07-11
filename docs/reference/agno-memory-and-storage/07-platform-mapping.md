@@ -47,6 +47,18 @@
 ### Topic 1 — Fix the silent memory lanes (LearningMachine × SurrealDb)
 **Now:** 4 of 5 lanes no-op. **Options:** (a) point LearningMachine `db=` at PostgresDb (works today; splits operational stores across two DBs); (b) implement the four SurrealDb learning methods ourselves (keeps one store; we own a patch/fork of agno); (c) defer lanes we don't yet need and enable only `learned_knowledge` + (a/b) later. **Also in scope:** the PROPOSE→ALWAYS degrade means entity-HITL needs its own answer regardless. **Decides it:** how much we value one-operational-store vs shipping now vs patch ownership.
 
+> **Owner-supplied evidence (2026-07-11, milvus.io/docs/sparse_vector.md):** Milvus 3.0 (our
+> version) has **native `SPARSE_FLOAT_VECTOR`** (GA; beta since 2.4) — no dimension declaration,
+> `SPARSE_INVERTED_INDEX`/`SPARSE_WAND` indexes, IP metric, `drop_ratio_build/search` knobs, and
+> **dense+sparse columns in one collection with hybrid search**. Real sparse models (SPLADE,
+> **BGE-M3**) are supported via pre-computed embeddings. Since our text embedder is already
+> **bge-m3 — whose full model emits BOTH dense and sparse lanes** — the weak sparse half is
+> **agno's client-side hashed-TF-IDF shortcut, not a Milvus limitation.** A custom insert/search
+> path (or agno contribution) feeding real BGE-M3 sparse vectors would upgrade Milvus hybrid to
+> genuine dense+sparse quality. This strengthens the Milvus incumbent case in Topics 2 & 4 and
+> adds option: "fix the sparse lane" alongside "accept approximation". Limitations: sparse has no
+> range/grouping/iterator search; IP only.
+
 ### Topic 2 — KB substrate: Milvus incumbent vs SurrealDB challenger ("first/last stop")
 **For Surreal:** native one-statement vector+graph+FTS/BM25, DISKANN, live queries. **Against:** agno's Surreal vectordb is vector-only → Surreal hybrid = custom `knowledge_retriever` we own; thinnest agno integration surface (sync-only Db, the Topic-1 bug); Milvus is ADR-0026/27-locked with working (true-RRF) hybrid + partition keys — though its sparse is the TF-IDF approximation. **Options:** (a) Milvus stays KB substrate, revisit later; (b) Surreal for AI-chat/code KBs via custom retriever (pilot one domain); (c) hybrid: Milvus for vectors, Surreal for the graph/story side only (Topic 3). **Decides it:** how much the one-statement hybrid is worth in owned code + who wins a retrieval-quality bake-off on one real domain.
 
