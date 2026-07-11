@@ -29,7 +29,7 @@ match this table exactly. Keep this current as part of every change.
 | `tools-facade` populated (was `PORTED={}`) | **resolved 2026-07-10** — `load_builtin_tools()`-backed, real registry + SBV proxy surface | P2 — `docker/tools/tools/facade.py` |
 | Evals populated (was `CASES=()`) | planned (still `CASES: tuple[Case, ...] = ()` as of 2026-07-10) | P5 — `evals/cases.py` |
 | Backups (pg_dump + neo4j dump → R2) | planned | P5 |
-| Self-hosted evidence vector store (Qdrant/Milvus) | deferred (at scale) | future |
+| Self-hosted evidence vector store (Qdrant/Milvus) | **resolved 2026-07-11** — Milvus is the locked platform-wide vector substrate (ADR-0026/ADR-0027), self-hosted + LIVE on the `data-vector` Coolify app; the "Qdrant" framing was stale. Evidence-text-embeddings *ingestion* at scale is still future work, tracked as "Evidence schemas populated by a real pipeline" above. | future → `docs/adr/0026-self-hosted-milvus-coolify-semantic-store.md`, `docs/adr/0027-milvus-platform-wide-vector-substrate.md` |
 | Part 2 multi-pass analysis engine | next round | future |
 | V2 slim Graphiti image; multi-user auth | deferred | future |
 
