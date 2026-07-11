@@ -88,3 +88,9 @@ data/content_store/
 analytics/
 # live-DB dumps (may contain sealed values) — NEVER commit
 live-dumps/
+
+# AI-chat sample analysis — local format-reference for adapting the case-bible
+# plugin; the breakdowns quote REAL case content (names, abuse/psychiatric
+# detail). NEVER commit (real PII stays out of git; real chats live in the
+# Case Bible location out-of-band).
+docs/planning/chat-sample-analysis/
