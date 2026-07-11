@@ -125,7 +125,7 @@ def _build_app() -> Any:
     model = build_model()
     db = get_agno_db()
     knowledge = create_knowledge("platform", "platform_knowledge")
-    learning = build_learning(db, model, knowledge)
+    learning = build_learning(model, knowledge)  # learning persists to PG (D-030); db (SurrealDb) keeps sessions
 
     ctx = build_context(model, db, knowledge, learning, db_url)
     agents = build_agent_team(ctx)

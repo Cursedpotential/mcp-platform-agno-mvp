@@ -8,8 +8,10 @@ Context-provider architecture::
     WorkspaceContextProvider  → codebase navigation tools (read-only).
     DatabaseContextProvider   → DB tools (split: write engine for ``analysis``,
                                 readonly engine for ``evidence``).
-    LearningMachine           → operational memory (session context, user memory,
-                                entity memory, learned knowledge).
+    LearningMachine           → operational memory on PostgresDb (user profile,
+                                user memory, session context, decision log,
+                                learned knowledge; entity memory temporarily
+                                deferred to Topics 5/6 — D-030).
 
 The evidence read-only guarantee is INFRASTRUCTURE-LEVEL: the readonly engine
 sets ``default_transaction_read_only=on`` at the connection level, so sub-agents
@@ -20,7 +22,7 @@ MCP servers (Graphiti, future tools) are wired here and appended to the
 
 Public entry points:
 - ``build_context(model, db, knowledge, learning, db_url) -> PlatformContext``
-- ``build_learning(db, model, knowledge) -> LearningMachine``
+- ``build_learning(model, knowledge) -> LearningMachine`` (persists to PG, D-030)
 """
 
 from __future__ import annotations
@@ -212,16 +214,29 @@ def build_context(
 # ---------------------------------------------------------------------------
 
 
-def build_learning(db: Any, model: Any, knowledge: Any) -> Any:
-    """Build the native operational memory on Postgres (ADR-0004).
+def build_learning(model: Any, knowledge: Any) -> Any:
+    """Build the native operational memory on **Postgres** (ADR-0004; D-030, 2026-07-11).
 
-    ``PROPOSE`` mode = agent proposes, human confirms — HITL-native capture for
-    the high-stakes durable stores (Entity Memory, Learned Knowledge).
+    The learning stores persist to :func:`server.core.session.get_postgres_db` —
+    deliberately NOT the SurrealDb operational store — because agno 2.6.13's
+    SurrealDb backend stubs all four learning methods as ``NotImplementedError``
+    (``agno/db/surrealdb/surrealdb.py:1990-2034``), which made every lane except
+    ``learned_knowledge`` a silent no-op. Sessions/chat-history remain on
+    SurrealDb (those table roles work there). Evidence + fix decision:
+    ``docs/reference/agno-memory-and-storage/07-platform-mapping.md`` §A.3 / §D Topic 1.
+
+    ``PROPOSE`` mode = agent proposes, human confirms — genuine HITL only for
+    Learned Knowledge (verified). ``entity_memory`` is **TEMPORARILY DEFERRED**
+    (NOT dropped — the fix is deferred, it stays on the board): agno silently
+    degrades its PROPOSE to ALWAYS (no real HITL), and entities get their real
+    home via Semantica + Graphiti custom entity types — it returns as part of
+    decision agenda Topics 5/6, with a genuine gate.
+
+    ``decision_log`` runs in ALWAYS mode — its only active mode (non-ALWAYS is
+    inert, not degraded) — recording agent decisions durably for audit.
 
     Parameters
     ----------
-    db:
-        Agno operational DB.
     model:
         Agno model instance.
     knowledge:
@@ -230,11 +245,11 @@ def build_learning(db: Any, model: Any, knowledge: Any) -> Any:
     Returns
     -------
     LearningMachine
-        Configured learning machine with session context, user memory,
-        entity memory, and learned knowledge stores.
+        Configured learning machine with user profile, user memory, session
+        context, decision log, and learned knowledge stores on PostgresDb.
     """
     from agno.learn import (
-        EntityMemoryConfig,
+        DecisionLogConfig,
         LearnedKnowledgeConfig,
         LearningMachine,
         LearningMode,
@@ -243,20 +258,19 @@ def build_learning(db: Any, model: Any, knowledge: Any) -> Any:
         UserProfileConfig,
     )
 
+    from server.core.session import get_postgres_db
+
     return LearningMachine(
-        db=db,
+        db=get_postgres_db(),  # D-030: PG implements learning; SurrealDb stubs it
         model=model,
         knowledge=knowledge,
         user_profile=UserProfileConfig(mode=LearningMode.ALWAYS),
         user_memory=UserMemoryConfig(mode=LearningMode.AGENTIC),
         session_context=SessionContextConfig(mode=LearningMode.ALWAYS, enable_planning=True),
-        # NOT actually HITL today (verified 2026-07-11): EntityMemoryStore silently
-        # degrades PROPOSE->ALWAYS (log-warning only) in agno 2.6.13, and the whole
-        # lane is a no-op on the SurrealDb backend (learning methods are stubs).
-        # See docs/reference/agno-memory-and-storage/07-platform-mapping.md §A.3 —
-        # fix decision = Topic 1 of the decision agenda.
-        entity_memory=EntityMemoryConfig(mode=LearningMode.PROPOSE),
-        learned_knowledge=LearnedKnowledgeConfig(  # HITL
+        # entity_memory TEMPORARILY DEFERRED (fix deferred to Topics 5/6 — NOT
+        # dropped; see docstring / D-030). Restore here with a genuine HITL gate.
+        decision_log=DecisionLogConfig(mode=LearningMode.ALWAYS),  # audit lane (D-030)
+        learned_knowledge=LearnedKnowledgeConfig(  # HITL (genuine PROPOSE gate)
             mode=LearningMode.PROPOSE,
             knowledge=knowledge,
             namespace="platform",

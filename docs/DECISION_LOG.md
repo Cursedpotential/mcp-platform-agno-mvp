@@ -12,6 +12,12 @@ Lanes: **A** = restructure · **B** = ingestion/table redesign · **C** = infra/
 
 ---
 
+## 2026-07-11
+
+| # | Decision | Lane | Status | Rationale / notes |
+|---|---|---|---|---|
+| D-030 | **LearningMachine persists to PostgresDb (not SurrealDb); entity_memory fix TEMPORARILY DEFERRED to Topics 5/6; decision_log enabled (ALWAYS)** | B | done (Topic 1 of the memory/storage decision agenda, owner-decided) | agno 2.6.13's SurrealDb backend stubs all four learning methods (`NotImplementedError`, `agno/db/surrealdb/surrealdb.py:1990-2034`) — `user_profile`/`user_memory`/`session_context`/`entity_memory` were silent no-ops in production; only `learned_knowledge` worked (bypasses db via Knowledge/Milvus). Fix: `build_learning()` now uses `get_postgres_db()` (restores the documented ADR-0004 intent; smallest diff, no agno patch ownership); sessions/chat-history STAY on SurrealDb (those roles work there); Surreal's consolidation-space role untouched. `entity_memory`: the fix is **temporarily deferred, NOT dropped** — agno silently degrades PROPOSE→ALWAYS (no genuine HITL) and entities get their real home via Semantica + Graphiti custom entity types; it returns in Topics 5/6 with a genuine gate. `decision_log` store enabled in ALWAYS mode (its only active mode) as the durable agent-decision audit lane. Owner also set a wording rule: never label deferred work "disabled" — that's how things get forgotten; say "temporarily deferred". Evidence: `docs/reference/agno-memory-and-storage/07-platform-mapping.md` §A.3/§D-Topic-1, `01-memory-and-learning.md`. |
+
 ## 2026-07-10
 
 | # | Decision | Lane | Status | Rationale / notes |
