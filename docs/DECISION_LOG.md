@@ -1,6 +1,6 @@
 # DECISION LOG — Agno-MCP-Platform
 
-> _Byline: Claude Code · Fable 5 · started 2026-07-09_
+> _Byline: Claude Code · Fable 5 · started 2026-07-09 (2026-07-10 entries: Claude Opus 4.8)_
 > **Running, append-only design/decision log.** Every load-bearing decision lands here with
 > date, lane, rationale, and status — a fast scan of "why is it this way?" without digging
 > through chat. Complements (does not replace) the formal `docs/adr/` ADRs: when a decision is
@@ -11,6 +11,14 @@ Lanes: **A** = restructure · **B** = ingestion/table redesign · **C** = infra/
 `docs/COORDINATION.md` for lane ownership and the live-status ledger.
 
 ---
+
+## 2026-07-10
+
+| # | Decision | Lane | Status | Rationale / notes |
+|---|---|---|---|---|
+| D-029 | **AGENTS.md progressive-disclosure reconfiguration** — root `AGENTS.md` rewritten as a concise map of the real `server/*` layout + 5 nested `AGENTS.md` drill-downs (`server/`, `server/tools/`, `server/evidence/`, `server/agents/`, `server/contracts/`) | — | done | Root `AGENTS.md` still described the pre-ADR-0033 flat-package layout (`agents/`, `app/`, `db/`, `evidence/`) and promised per-directory `README.md` files that never existed — the progressive disclosure it advertised didn't exist. Closest-file-wins nesting now backs that promise for real. Doc-only, gates re-verified green. |
+| D-028 | **Facade-collapse premise DISPROVEN — the facade STAYS; Batches B/C are MOOT** | A/C | corrected | `docs/planning/facade-collapse-plan.md`'s core premise — that `agno`'s `enable_mcp_server` re-exports granular `@tool` functions over `agentos-mcp`, letting ContextForge repoint there and the facade be removed — is false: verified from agno source (`agno/os/app.py:588-595`), AgentOS's MCP surface exposes only ~19 AgentOS *operations*, never the parser/SBV `@tool`s. Batch A (G4 gateway + SBV toolkit as agno `@tool`s) shipped anyway (useful on its own); Batches B/C do not proceed. All 14 facade tools instead registered directly in ContextForge as REST tools (5th virtual server `platform_tools`, alongside `agno`/`coolify`/`graphiti`/`exa`). rel: `docs/planning/facade-collapse-plan.md` (superseded banner), `docs/COORDINATION.md` FACADE COLLAPSE entry. |
+| D-027 | **ADR-0035 Option A — record contract's home is `server/contracts/records.py`, not `server/core/`** | A | done | Owner initially picked "promote to `server/core/records.py`" (the literal reading of "promote out of evidence"), but `server/core/__init__.py` eagerly imports `server.core.session` (sqlalchemy/agno/duckdb) — routing the record contract through it would FATAL-loop the dep-light `docker/tools` facade the moment any parser imports it (the same failure class as the 2-day ADR-0033-era outage). `server/contracts/` is a new, deliberately import-light package created to be facade-safe by construction; `server/contracts/__init__.py` stays dependency-free. `server/evidence/normalize.py` kept as a deprecated re-export shim (nothing deleted). Also executed same-ADR: `server/evidence/tool_finder/` → `server/tools/gateway/`; `server/tools/` sub-namespaced into `parsers/{messaging,ai_chat,generic}/` + `extractors/`; registry discovery switched `pkgutil.iter_modules` → `pkgutil.walk_packages` (recursive). Merged `main` (`8240205`), deployed, verified (facade `/health` 23 tools). Gates green: ruff/mypy/pytest 208. rel: ADR-0035 (supersedes/relates ADR-0033). |
 
 ## 2026-07-09
 
