@@ -18,9 +18,9 @@
 - [ ] Consistency: one voice, one structure (CONVENTIONS), bylines on every doc
 
 ## Open items (seeded 2026-06-13)
-- [ ] `chatminer/` vendored package — module overview + per-parser capability notes
-- [ ] `evidence/schemas/*` (entity / relationship / event) — document the canonical model once created (HANDOFFS Track 0)
-- [ ] `evidence/tools/*` atomic wrappers — capability + example per format (HANDOFFS HA.2)
-- [ ] `evidence/config/case_terms*` — how segmentation case-tuning works (link example)
+- [ ] `server/vendored/chatminer/` vendored package — module overview + per-parser capability notes
+- [ ] `server/evidence/schemas/*` (entity / relationship / event) — document the canonical model once created (HANDOFFS Track 0)
+- [ ] `server/tools/parsers/*` + `server/tools/extractors/*` atomic wrappers — capability + example per format (HANDOFFS HA.2). Partially covered by `server/tools/AGENTS.md`'s directory overview, but not per-format capability+example docs.
+- [ ] `server/evidence/config/case_terms*` — how segmentation case-tuning works (link example)
 - [ ] ContextForge + SurrealDB integration — setup/config/exposure (after Phase C / D; ADR-0023/0024/0025)
 - [ ] Part 3 AI Law Firm — persona inventory + each legal agent's API+MCP surface

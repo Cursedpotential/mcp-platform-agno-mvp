@@ -19,8 +19,8 @@ redeployed; 4 parsers are shallow placeholders). Inventory complete (`EVIDENCE_M
 
 ## Phase A — Parser core swap (transcripts become real)
 
-**Goal:** replace the 4 shallow `evidence/tools/` parsers with the vendored **chatminer** core so AI-chat exports parse correctly.
-- Vendor `chatminer` (10 format parsers + sentence-transformers segmenter + artifact extractor) into `evidence/tools/` as **atomic, self-registering modules** (one per format) per `CONVENTIONS.md`.
+**Goal:** replace the 4 shallow `evidence/tools/` (now `server/tools/parsers/ai_chat/`) parsers with the vendored **chatminer** core so AI-chat exports parse correctly. (Vendoring appears to have landed since this phase was written — see `server/tools/parsers/ai_chat/` + `server/vendored/chatminer/` — not re-verified in this doc-sync pass.)
+- Vendor `chatminer` (10 format parsers + sentence-transformers segmenter + artifact extractor) into `server/tools/parsers/ai_chat/` as **atomic, self-registering modules** (one per format) per `CONVENTIONS.md`.
 - Write an adapter: `ParsedMessage`/`ParsedConversation` → `NormalizedRecord` (content/role/timestamp/source → fields; rest → `attrs`).
 - Add **`RELATIONSHIP_HISTORY`** to the `TopicTag` enum; keep `TopicTag` a **separate segment-level metadata field** (not a knowledge domain). Decide: keep case-tuned segmenter keywords vs. config-load them (open Q from merge map §5).
 - Delete the 4 placeholder parsers. Deploy to VPS; smoke-test parse of real exports.
@@ -72,7 +72,7 @@ The SSOT is tool-agnostic (`CONVENTIONS.md` § cross-tool), so work can be split
 |---|---|---|
 | **Bulk scanning / reading / summarizing into the inventory** (unread plugin bodies, 9 doc-intel engine bodies, loaders/pipelines, drizzle schemas) | **Cheaper model** (Sonnet/Haiku) or OpenCode/Codex agent, read-only | High volume, low judgment; just extract + record |
 | **ADR supersession sweep + planning/* reconciliation** (flag conflicts vs the new SSOT) | **Cheaper model**, read-only, *proposes* — human/Opus confirms | Mechanical cross-check; decisions stay with owner/canon |
-| **Mechanical porting** (vendor a chatminer parser into `evidence/tools/` to the atomic-tool contract) | OpenCode/Codex agent or cheaper model, per `CONVENTIONS.md` | Pattern is fixed; contract is explicit |
+| **Mechanical porting** (vendor a chatminer parser into `server/tools/parsers/ai_chat/` to the atomic-tool contract) | OpenCode/Codex agent or cheaper model, per `CONVENTIONS.md` | Pattern is fixed; contract is explicit |
 | **Wrapping a donor TS tool as an MCP service** | OpenCode/Codex (strong at codegen) | Self-contained, testable |
 | **Architecture/decisions, conflict reconciliation, plan changes, anything touching CANON §5** | **This tier (Opus/Fable)** — NOT delegated | Judgment + cross-cutting consistency; the debacle came from un-reconciled decisions |
 | **Anything that writes evidence/HITL/custody** | reviewed here, HITL-gated | Trust boundary |
