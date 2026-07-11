@@ -1,8 +1,9 @@
 # AGENTS.md — Universal Entry Point
 
-> **This is the first file any agent (Claude Code, Codem, Hermes) reads.**
-> Keep it short: universal context + navigation index. Details live one level
-> deeper in each directory's `README.md`.
+> **This is the first file any agent (Claude Code, Codex, Gemini CLI, opencode) reads.**
+> Keep it short: universal context + navigation index. **Closest file wins** — nested
+> `AGENTS.md` files below override this one for their subtree; read the nested map
+> before editing inside that directory.
 
 ## Project
 
@@ -18,20 +19,37 @@ store · FastAPI base_app pattern.
 
 ## Repository Layout
 
-> **Read each directory's `README.md` when you need details about that area.**
+> Backend repacked under one `server/` boundary (ADR-0033); `server/tools/` is
+> capability-sub-namespaced (ADR-0035). Progressive disclosure: this table
+> tells you WHICH nested `AGENTS.md` to read before editing a subtree.
 
-| Directory | What lives there | When to read its README |
+| Directory | What lives there | Nested map |
 |---|---|---|
-| `agents/` | All agent + team constructors, context providers, instructions | Adding/changing an agent or team |
-| `app/` | Server entrypoint, model factory, config | Starting the server, changing providers |
-| `db/` | DB connections, knowledge engine, embeddings | DB/schema work, knowledge ingestion |
-| `evidence/` | The evidence spine: custody, registry, normalize, store, parsers | Evidence pipeline work |
-| `sql/` | Numbered PostgreSQL migrations | Schema changes |
-| `docker/` | Dockerfiles for each service image | Container builds |
-| `docs/` | Canon, ADRs, plans, wiki | Vision, decisions, roadmap |
-| `evals/` | Agno eval cases (harness-first) | Testing agent behavior |
-| `scripts/` | Format, validate, ingest, entrypoint | Dev workflow |
-| `knowledge/` | Curated knowledge inputs (NEVER secrets) | Knowledge ingestion |
+| `server/` | The whole backend (`server.*` imports), dependency direction | `server/AGENTS.md` |
+| `server/contracts/` | Import-light `NormalizedRecord`/`RecordType` contract | `server/contracts/AGENTS.md` |
+| `server/evidence/` | The evidence spine: custody, store, workflows, cli | `server/evidence/AGENTS.md` |
+| `server/tools/` | Cross-domain parser/extractor/gateway registry | `server/tools/AGENTS.md` |
+| `server/agents/` | Agent/team constructors, providers, `@tool` wrappers | `server/agents/AGENTS.md` |
+| `server/api/`, `server/core/`, `server/analysis/` | Entrypoint/config, DB session/model factory, behavioral analysis | see `server/AGENTS.md` |
+| `server/vendored/` | Third-party projects (chatminer, semantica) — not ours to lint | — |
+| `sql/` | Numbered PostgreSQL migrations (`NNNN_name.sql`, never edit an applied one) | — |
+| `docker/` | One folder per service image (`tools/`, `gateway/`, `postgres/`, ...) | — |
+| `docs/` | Canon, ADRs, decision log, plans, wiki | `docs/PROJECT_CANON.md` |
+| `tests/` | The pytest suite | — |
+| `scripts/` | format/validate/ingest/entrypoint | — |
+
+## Commands
+
+| Task | Command |
+|---|---|
+| Lint | `uv run ruff check server tests` |
+| Format check | `uv run ruff format --check server tests` |
+| Typecheck | `uv run mypy server` |
+| Test (default, unit) | `uv run pytest -q` |
+| Test (one file) | `uv run pytest -q tests/test_<name>.py` |
+| Integration tests (opt-in, live services) | `uv run pytest -m integration` |
+
+All Python is `uv`-managed — never invoke a bare `python`/`pip`/`pytest`.
 
 ## Agent Topology
 
@@ -48,49 +66,31 @@ Root Router (mode=route)
 +-- document_digest (conditional, GOOGLE_API_KEY)
 ```
 
-See `agents/README.md` for the full agent roster, build instructions, and conventions.
+See `server/agents/AGENTS.md` for the roster and build conventions.
 
 ## Model Provider Chain
 
 Ollama (glm-5.1) → NVIDIA → Kimi → OpenRouter → Anthropic → OpenAI → Google → Groq.
 First provider with valid credentials wins. Override via `DEFAULT_MODEL_PROVIDER`
-or `<PROVIDER>_MODEL_ID`. See `app/settings.py` for full resolution rules.
-
-## Development
-
-Format/validation: `./scripts/format.sh` `./scripts/validate.sh` (host venv).
-Tests: `pytest` + `python -m evals` (must run green — harness-first).
-Containerized on VPS; never a host venv.
-
-```bash
-# VPS (ssh -i ~/.ssh/ovh debian@40.160.5.19), in ~/agno-mvp:
-docker compose --profile graph --profile tools up -d --build
-docker compose logs -f agentos-api
-```
-
-Code is volume-mounted (`.:/app`) → deploy = sync files + restart.
-
-## Deploy Docs
-
-For service topology, VPS access, and infrastructure see `docs/PROJECT_CANON.md`
-(§8 Deployment) and `compose.yaml`.
+or `<PROVIDER>_MODEL_ID`. See `server/core/settings.py` for resolution rules.
 
 ## Further Reading
 
-**IMPORTANT:** Before starting any task, identify which docs below are relevant
-and read them first. Load the full context before making changes.
+Before a non-trivial task, identify which of these are relevant and read them first:
 
 - `docs/PROJECT_CANON.md` — vision, locked decisions, roadmap, gotchas
-- `docs/EVIDENCE_MERGE_MAP.md` — code inventory across all three corpora
-- `docs/BUILD_PLAN.md` — forward plan (phases A–E)
 - `docs/REPO_STRUCTURE.md` — where every kind of file goes
 - `docs/CONVENTIONS.md` — coding style, tool contract, docstring standards
-- `docs/HANDOFFS.md` — agent-executable task units
+- `docs/COORDINATION.md` — multi-chat lane ownership + live TODO ledger
+- `docs/DECISION_LOG.md` — running append-only decision log (complements ADRs)
+- `docs/adr/` — Architecture Decision Records (`docs/adr/README.md` = index)
 - `docs/DEBT.md` — active stubs and known debt
-- `docs/adr/` — 28 Architecture Decision Records
 
-Tool-specific setup (hooks, slash-commands) lives in that tool's own config,
-never in these authoritative docs.
+Tool-specific setup (hooks, slash-commands) lives in that tool's own config, never here.
+
+## Commit Attribution
+
+AI commits carry: `Co-Authored-By: <agent name and model> <noreply@anthropic.com>`
 
 ## Claude-Reflect Learnings
 
