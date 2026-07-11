@@ -357,7 +357,11 @@ def reconcile_sbv_import(
     sbv_file_hash: str | None,
     sbv_record_hashes: list[str] | None = None,
     sbv_chain_hash: str | None = None,
-    actor: str = "server.evidence.tools.sbv_sms",
+    # Audit-trail actor tag persisted to evidence.custody_event rows. Renamed
+    # from "server.evidence.tools.sbv_sms" 2026-07-11 after ADR-0033/0035 moved
+    # the module; live table held 0 rows at rename time (verified), so no
+    # historical event carries the old label (append-only chain unaffected).
+    actor: str = "server.tools.parsers.messaging.sbv_sms",
 ) -> dict:
     """Cross-check SBV's H1 against our own, then record H2/H3 evidence + events.
 
