@@ -1,0 +1,92 @@
+# =============================================================================
+# CONTEXTFORGE — split out of the exec-tier bundle (compose.exec.yaml), owner
+# order 2026-07-19: "separate anything that can be separated." Mirrors the
+# proven data-tier split (commit 18c42d2, compose.data-vector.yaml pattern):
+# one compose file per Coolify app, shared external `agno` docker network for
+# cross-app DNS, reattach the EXISTING bind mount — zero data migration.
+#
+# DEPLOY AS its own Coolify "Docker Compose" app on OVH-1 (server
+# fmuao9enq3nxk8qw5hqjzzce), app `exec-contextforge`. Env: BIND_IP=100.72.169.40
+# (OVH-1 tailnet), OVH3_HOST=100.119.96.29 (OVH-3 tailnet, for GRAPHITI_MCP_URL),
+# plus CF_JWT_SECRET_KEY / CF_AUTH_ENCRYPTION_SECRET / CF_BASIC_AUTH_USER /
+# CF_BASIC_AUTH_PASSWORD / CF_ADMIN_EMAIL / CF_ADMIN_PASSWORD copied verbatim
+# from the exec-tier bundle's env (see exec-tier-split-result.md for parity
+# verification).
+#
+# Same absolute bind mount as the bundle (/data/agno/volumes/contextforge) —
+# already exists on the host, holds the live mcp.db. Reattaches as-is.
+#
+# CUTOVER (doors policy — old bundle service stays up until this is verified):
+#   1. This file lands on main (enabling commit, no compose.exec.yaml change).
+#   2. `docker network create agno` on OVH-1 if not present (cross-app DNS).
+#   3. Set envs on exec-contextforge (uuid k272znxpa4gh6drmolut723w), deploy.
+#   4. Briefly `docker stop contextforge-rz41w...` (frees host port 4444),
+#      deploy exec-contextforge, verify /health + a real vserver tools/list.
+#   5. Only then: remove the contextforge: block from compose.exec.yaml
+#      (batched into the final cutover commit) and update agentos-api/mcp's
+#      CF_GATEWAY_URL to resolve via the shared `agno` network (same value,
+#      http://contextforge:4444 — works once both sides join `agno`).
+#   Reversible: `docker start` the old container + revert compose.exec.yaml +
+#   delete the exec-contextforge app.
+# =============================================================================
+
+services:
+  contextforge:
+    image: ghcr.io/ibm/mcp-context-forge:v1.0.4   # keep the "v" — bare "1.0.4" does not exist on ghcr
+    platform: linux/amd64
+    container_name: contextforge
+    restart: unless-stopped
+    ports:
+      - "${BIND_IP:-127.0.0.1}:4444:4444"   # unified MCP + admin API/UI surface — tailnet-only
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "4444"
+      DATABASE_URL: "sqlite:////data/mcp.db"
+      CACHE_TYPE: "database"
+      GRAPHITI_MCP_URL: ${GRAPHITI_MCP_URL:-http://${OVH3_HOST}:8071}
+      AUTH_REQUIRED: "true"
+      JWT_SECRET_KEY: ${CF_JWT_SECRET_KEY:?set CF_JWT_SECRET_KEY}
+      AUTH_ENCRYPTION_SECRET: ${CF_AUTH_ENCRYPTION_SECRET:?set CF_AUTH_ENCRYPTION_SECRET}
+      BASIC_AUTH_USER: ${CF_BASIC_AUTH_USER:-admin}
+      BASIC_AUTH_PASSWORD: ${CF_BASIC_AUTH_PASSWORD:?set CF_BASIC_AUTH_PASSWORD}
+      PLATFORM_ADMIN_EMAIL: ${CF_ADMIN_EMAIL:-admin@mitechconsult.com}
+      PLATFORM_ADMIN_PASSWORD: ${CF_ADMIN_PASSWORD:?set CF_ADMIN_PASSWORD}
+      PLATFORM_ADMIN_FULL_NAME: "Platform Admin"
+      MCPGATEWAY_UI_ENABLED: "true"
+      MCPGATEWAY_ADMIN_API_ENABLED: "true"
+      SECURE_COOKIES: "false"
+      CSRF_ENABLED: "false"                          # 1.0.x CSRF -> CSRF_TOKEN_INVALID for header-token API clients; tailnet-only + Bearer auth
+      PASSWORD_CHANGE_ENFORCEMENT_ENABLED: "false"    # 1.0.x forces admin password change on first login (403)
+      GUNICORN_WORKERS: "1"
+    volumes:
+      # SAME absolute bind as the bundle — reattaches the live mcp.db, no migration.
+      - /data/agno/volumes/contextforge:/data
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:4444/health').status==200 else 1)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    networks:
+      - agno
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # PUBLIC FRONT DOOR — ContextForge is THE MCP gateway (ADR-0025).
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=k272znxpa4gh6drmolut723w   # this app's own uuid (disambiguates among the 2 attached networks)
+      - traefik.http.routers.contextforge.rule=Host(`mcp.mitechconsult.com`)
+      - traefik.http.routers.contextforge.entryPoints=https
+      - traefik.http.routers.contextforge.tls=true
+      - traefik.http.routers.contextforge.tls.certresolver=letsencrypt
+      - traefik.http.routers.contextforge.service=contextforge
+      - traefik.http.services.contextforge.loadbalancer.server.port=4444
+
+networks:
+  agno:
+    external: true   # shared cross-app network on OVH-1, mirrors OVH-3's `agno` net (data-vector precedent)
+
+# Byline: Claude Code · Sonnet · 2026-07-19 (split out of compose.exec.yaml, exec-tier split, owner order 2026-07-19)

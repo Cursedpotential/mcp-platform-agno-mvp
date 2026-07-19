@@ -1,0 +1,41 @@
+# =============================================================================
+# DESKTOP — Kasm browser desktop, split out of the exec-tier bundle
+# (compose.exec.yaml), owner order 2026-07-19: "separate anything that can be
+# separated." Mirrors the proven data-tier split (commit 18c42d2): one compose
+# file per Coolify app, reattach the EXISTING bind mounts — zero data migration.
+#
+# DEPLOY AS its own Coolify "Docker Compose" app on OVH-1 (server
+# fmuao9enq3nxk8qw5hqjzzce), app `exec-desktop`. Env: BIND_IP=100.72.169.40,
+# KASM_VNC_PW (copy from the exec-tier bundle's env).
+#
+# No cross-app docker-DNS dependency (nothing else calls `desktop` by docker
+# name), so this app does NOT join the shared `agno` network.
+#
+# Same absolute bind mounts as the bundle (kasm_profile persistent home +
+# agent_workspace shared with sandbox) — reattaches as-is, no migration.
+#
+# CUTOVER (doors policy): old bundle's desktop container stays up until this
+# is deployed + verified (port answers), THEN the desktop: block is removed
+# from compose.exec.yaml (batched into the final cutover commit).
+# Reversible: revert compose.exec.yaml + delete the exec-desktop app.
+# =============================================================================
+
+services:
+  desktop:
+    image: kasmweb/desktop:1.16.0
+    platform: linux/amd64
+    container_name: kasm-desktop
+    restart: unless-stopped
+    ports:
+      - "${BIND_IP:-127.0.0.1}:6901:6901"   # Kasm desktop (HTTPS)
+    environment:
+      VNC_PW: ${KASM_VNC_PW:-changeme-desktop}
+    shm_size: "1gb"
+    mem_limit: 2g
+    volumes:
+      - /data/agno/volumes/kasm_profile:/home/kasm-user   # persistent home — SAME bind as the bundle
+      - /data/agno/volumes/agent_workspace:/workspace     # shared with sandbox — SAME bind as the bundle
+    networks:
+      - default
+
+# Byline: Claude Code · Sonnet · 2026-07-19 (split out of compose.exec.yaml, exec-tier split, owner order 2026-07-19)

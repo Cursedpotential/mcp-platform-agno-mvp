@@ -1,0 +1,57 @@
+# =============================================================================
+# PLATFORM-TOOLS — consolidated tool containers (SBV GUI + parsers/extractors
+# facade), split out of the exec-tier bundle (compose.exec.yaml), owner order
+# 2026-07-19: "separate anything that can be separated." Mirrors the proven
+# data-tier split (commit 18c42d2): one compose file per Coolify app, shared
+# external `agno` docker network for cross-app DNS, reattach the EXISTING
+# bind mount — zero data migration.
+#
+# DEPLOY AS its own Coolify "Docker Compose" app on OVH-1 (server
+# fmuao9enq3nxk8qw5hqjzzce), app `exec-platform-tools`. Build context is the
+# REPO ROOT (SBV built from vendored/sbv/, Dockerfile COPYs are repo-root-
+# relative) — set the Coolify app's base directory to "/". Env: BIND_IP.
+#
+# agentos-api / agentos-mcp (the rump exec-tier bundle) reach this over the
+# shared `agno` network via SBV_BASE_URL=http://platform-tools:8085 — SAME
+# value as before the split; it now resolves via `agno` docker DNS instead
+# of the old single-app "agentos" local network.
+#
+# CUTOVER (doors policy): old bundle's platform-tools container stays up
+# until this is deployed + verified (per its healthcheck/port), THEN the
+# platform-tools: block is removed from compose.exec.yaml AND agentos-api/mcp
+# join the `agno` network too (batched into the final cutover commit).
+# Reversible: revert compose.exec.yaml + delete the exec-platform-tools app.
+# =============================================================================
+
+services:
+  platform-tools:
+    build:
+      context: .
+      dockerfile: docker/tools/Dockerfile
+    image: agno-platform-tools:latest
+    container_name: platform-tools
+    restart: unless-stopped
+    ports:
+      - "${BIND_IP:-127.0.0.1}:8085:8085"   # SBV GUI — tailnet-only
+      - "${BIND_IP:-127.0.0.1}:8090:8090"   # parsers/extractors facade — tailnet-only
+    volumes:
+      - /data/agno/volumes/sbv_data:/opt/sbv/data   # SAME bind as the bundle
+      - r2-nexus:/r2
+    networks:
+      - agno
+
+networks:
+  agno:
+    external: true   # shared cross-app network on OVH-1 — agentos-api/mcp reach platform-tools:8085 here
+
+volumes:
+  # Cloudflare R2 bucket "nexus" via the rclone volume plugin (same driver
+  # config as the bundle: /var/lib/docker-plugins/rclone/config/rclone.conf).
+  r2-nexus:
+    driver: rclone
+    driver_opts:
+      remote: "r2:nexus"
+      allow_other: "true"
+      vfs_cache_mode: "writes"
+
+# Byline: Claude Code · Sonnet · 2026-07-19 (split out of compose.exec.yaml, exec-tier split, owner order 2026-07-19)

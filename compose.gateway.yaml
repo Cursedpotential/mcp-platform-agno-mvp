@@ -1,0 +1,47 @@
+# =============================================================================
+# GATEWAY — LiteLLM proxy (OpenAI-compatible) + OpenCode server, split out of
+# the exec-tier bundle (compose.exec.yaml), owner order 2026-07-19: "separate
+# anything that can be separated." Mirrors the proven data-tier split (commit
+# 18c42d2): one compose file per Coolify app.
+#
+# DEPLOY AS its own Coolify "Docker Compose" app on OVH-1 (server
+# fmuao9enq3nxk8qw5hqjzzce), app `exec-gateway`. Build context is
+# ./docker/gateway (bakes litellm-config.yaml at build time — set the
+# Coolify app's base directory to repo root "/" so this path resolves).
+# Env: BIND_IP=100.72.169.40 + provider keys (NVIDIA/OLLAMA/GROQ/OPENROUTER/
+# GOOGLE) + LITELLM_MASTER_KEY, copied from the exec-tier bundle's env.
+#
+# NOTE 2026-07-19: Graphiti no longer depends on this gateway (cut over to
+# Portkey earlier today, see docs/portkey cutover notes) — cutover risk here
+# is low; nothing else in the exec-tier calls `gateway` by docker name today
+# (cross-box callers already use the OVH1_HOST tailnet IP), so this app does
+# NOT need the shared `agno` network.
+#
+# CUTOVER (doors policy): old bundle's gateway container stays up until this
+# is deployed + verified (/health/liveliness 200 + one real completion),
+# THEN the gateway: block (incl. its stray duplicate `gateway:` key — fixed
+# here) is removed from compose.exec.yaml (batched into the final cutover
+# commit). Reversible: revert compose.exec.yaml + delete the exec-gateway app.
+# =============================================================================
+
+services:
+  gateway:
+    build:
+      context: ./docker/gateway
+    image: agno-gateway:latest
+    container_name: gateway
+    restart: unless-stopped
+    ports:
+      - "${BIND_IP:-127.0.0.1}:4000:4000"   # LiteLLM proxy (OpenAI-compatible)
+      - "${BIND_IP:-127.0.0.1}:4096:4096"   # OpenCode server
+    environment:
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-changeme-dev-key}
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+    networks:
+      - default
+
+# Byline: Claude Code · Sonnet · 2026-07-19 (split out of compose.exec.yaml, exec-tier split, owner order 2026-07-19)

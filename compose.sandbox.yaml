@@ -1,0 +1,39 @@
+# =============================================================================
+# SANDBOX — agent code-execution sandbox, split out of the exec-tier bundle
+# (compose.exec.yaml), owner order 2026-07-19: "separate anything that can be
+# separated." Mirrors the proven data-tier split (commit 18c42d2): one
+# compose file per Coolify app, reattach the EXISTING bind mount — zero data
+# migration.
+#
+# DEPLOY AS its own Coolify "Docker Compose" app on OVH-1 (server
+# fmuao9enq3nxk8qw5hqjzzce), app `exec-sandbox`. Build context is
+# ./docker/sandbox. NO published ports, NO env secrets, NO repo mounts by
+# design (isolation boundary) — nothing in server/ currently calls
+# `http://sandbox:8070` by docker name (grepped 2026-07-19: no hits), so this
+# app does NOT need the shared `agno` network today. If a future caller needs
+# it, add `agno` then.
+#
+# Same absolute bind mount as the bundle (agent_workspace, shared with
+# desktop) — reattaches as-is, no migration.
+#
+# CUTOVER (doors policy): old bundle's sandbox container stays up until this
+# is deployed + verified (per its healthcheck/port), THEN the sandbox: block
+# is removed from compose.exec.yaml (batched into the final cutover commit).
+# Reversible: revert compose.exec.yaml + delete the exec-sandbox app.
+# =============================================================================
+
+services:
+  sandbox:
+    build:
+      context: ./docker/sandbox
+    image: agno-sandbox:latest
+    container_name: agent-sandbox
+    restart: unless-stopped
+    cpus: 2
+    mem_limit: 1g
+    volumes:
+      - /data/agno/volumes/agent_workspace:/workspace   # SAME bind as the bundle — shared with desktop
+    networks:
+      - default
+
+# Byline: Claude Code · Sonnet · 2026-07-19 (split out of compose.exec.yaml, exec-tier split, owner order 2026-07-19)
