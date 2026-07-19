@@ -1,16 +1,26 @@
 # =============================================================================
-# EXEC TIER — deploy on OVH-1 ("ovh1-agno"; tailnet 100.72.169.40, salem private
-# 10.1.1.122, public 40.160.5.19), the execution + surfaces box. Coolify
-# "Docker Compose" app built from this repo. Counterpart: compose.data.yaml on
-# OVH-3 ("ovh3-data"). Hosts: agentos-api, gateway, sandbox, platform-tools,
-# desktop, agent-ui, contextforge.  (Platform re-deploy, Phase B/C.)
+# EXEC TIER (RUMP) — deploy on OVH-1 ("ovh1-agno"; tailnet 100.72.169.40, salem
+# private 10.1.1.122, public 40.160.5.19), the execution + surfaces box.
+# Coolify "Docker Compose" app (rz41wqhpjfh1rj796ixvjhfs) built from this repo.
+#
+# 2026-07-19 SPLIT (owner order: "separate anything that can be separated"):
+# gateway, sandbox, platform-tools, desktop, and contextforge were split out
+# into their own one-service-per-app Coolify apps (compose.gateway.yaml,
+# compose.sandbox.yaml, compose.platform-tools.yaml, compose.desktop.yaml,
+# compose.contextforge.yaml — see exec-tier-split-result.md for the full
+# before/after). agent-ui was REMOVED (not split) — the standalone `agent-ui`
+# Coolify app (ee2vevjrutfzxlytlu081frh) already served chat.mitechconsult.com
+# and was functionally redundant with this bundle's tailnet-only copy.
+#
+# This file now holds ONLY agentos-api + agentos-mcp — legitimately coupled
+# (same image, one build) and left together per owner's explicit call.
+# They reach contextforge/platform-tools over the shared external `agno`
+# docker network (same docker-DNS names as before the split: `contextforge`,
+# `platform-tools` — CF_GATEWAY_URL / SBV_BASE_URL values are UNCHANGED).
 # =============================================================================
 # Mirrors the proven milvus-coolify pattern:
 #   * ports bind to ${BIND_IP} (the box's TAILNET IP) — NOT 0.0.0.0. Set
-#     BIND_IP=100.72.169.40 in the Coolify app env (OVH-1 tailnet IP). This is
-#     REQUIRED here, not just safety: graphiti-mcp on OVH-3 reaches the gateway
-#     at http://${OVH1_HOST}:4000, which must resolve to a tailnet-bound port.
-#   * Traefik labels for HTTP surfaces scaffolded but COMMENTED OUT (DOMAIN PHASE).
+#     BIND_IP=100.72.169.40 in the Coolify app env (OVH-1 tailnet IP).
 #
 # Cross-box wiring: at the moment everything communicates through Tailscale, so
 # cross-box addresses DEFAULT to the tailnet IP, with the salem private IP
@@ -18,13 +28,16 @@
 #   OVH1_HOST   this exec box. Default 100.72.169.40 (tailnet); salem alt 10.1.1.122.
 #   OVH3_HOST   data box (db + neo4j + graphiti + milvus + surrealdb).
 #               Default 100.119.96.29 (tailnet); salem alt 10.1.2.101.
-# plus DB_*, MILVUS_*, SURREALDB_*, CF_*, R2_*, gateway provider keys, OPENROUTER_API_KEY.
+# plus DB_*, MILVUS_*, SURREALDB_*, CF_*, R2_*, OPENROUTER_API_KEY.
 #
 # HOST-PREP on OVH-1 BEFORE first deploy:
 #   sudo mkdir -p /data/agno/volumes/{sbv_data,agent_workspace,kasm_profile,contextforge}
 #   sudo chown -R 1000:1000 /data/agno/volumes/agent_workspace  # shared sandbox<->desktop
 #   sudo chown -R 1000:1000 /data/agno/volumes/contextforge     # ContextForge SQLite db + state
 # (r2-nexus stays a named volume — it uses the rclone driver, not a bind.)
+# `docker network create agno` on OVH-1 if not already present (shared
+# cross-app network — created 2026-07-19 for this split, mirrors OVH-3's
+# `agno` net from the data-tier split, commit 18c42d2).
 # =============================================================================
 
 services:
@@ -69,7 +82,9 @@ services:
       SURREALDB_NS: ${SURREALDB_NS:-agno}
       SURREALDB_DB: ${SURREALDB_DB:-platform}
       # Reach MCP servers ONLY through ContextForge, never graphiti's 8071 directly.
-      CF_GATEWAY_URL: http://contextforge:4444          # internal docker network name
+      # `contextforge` now resolves via the shared `agno` network (its own split
+      # app, compose.contextforge.yaml) — value UNCHANGED from before the split.
+      CF_GATEWAY_URL: http://contextforge:4444
       CF_GRAPHITI_SERVER_ID: ${CF_GRAPHITI_SERVER_ID:-} # virtual server UUID from POST /servers
       CF_GATEWAY_TOKEN: ${CF_GATEWAY_TOKEN:-}           # long-lived client JWT (mint w/ create_jwt_token)
       # Knowledge embedder via OpenRouter symmetric models (ADR-0027).
@@ -81,9 +96,9 @@ services:
       R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
       R2_ENDPOINT_URL: ${R2_ENDPOINT_URL:-}
       # SBV toolkit (facade-collapse plan Batch A, §2.3) — server/agents/tools/
-      # sbv_tools.py talks to SBV directly over the agentos docker network
-      # (platform-tools:8085), not through the tools-facade proxy. Same
-      # service account the old facade's /sbv/* proxy already used.
+      # sbv_tools.py talks to SBV directly over the shared `agno` network
+      # (platform-tools:8085, now its own split app, compose.platform-tools.yaml),
+      # not through the tools-facade proxy. Value UNCHANGED from before the split.
       SBV_BASE_URL: ${SBV_BASE_URL:-http://platform-tools:8085}
       SBV_SERVICE_USER: ${SBV_SERVICE_USER:-mcp_service}
       SBV_SERVICE_PASS: ${SBV_SERVICE_PASS:?set SBV_SERVICE_PASS in Coolify app env}
@@ -99,6 +114,7 @@ services:
     #   - traefik.http.services.agentos-api.loadbalancer.server.port=8000
     networks:
       - agentos
+      - agno   # cross-app docker-DNS to contextforge / platform-tools (2026-07-19 split)
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -184,221 +200,14 @@ services:
       - traefik.http.services.agentos-mcp.loadbalancer.server.port=8001
     networks:
       - agentos
+      - agno   # cross-app docker-DNS to contextforge / platform-tools (2026-07-19 split)
     extra_hosts:
       - "host.docker.internal:host-gateway"
-
-  gateway:
-
-  gateway:
-    build:
-      context: ./docker/gateway
-    image: agno-gateway:latest
-    container_name: gateway
-    restart: unless-stopped
-    ports:
-      # Tailnet-only (BIND_IP). graphiti-mcp on OVH-2 calls http://${OVH1_HOST}:4000.
-      # NOT proxied — guarded only by LITELLM_MASTER_KEY; keep off public ingress.
-      - "${BIND_IP:-127.0.0.1}:4000:4000"   # LiteLLM proxy (OpenAI-compatible)
-      - "${BIND_IP:-127.0.0.1}:4096:4096"   # OpenCode server
-    environment:
-      NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
-      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-changeme-dev-key}
-      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
-      GROQ_API_KEY: ${GROQ_API_KEY:-}
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
-    networks:
-      - agentos
-
-  # ---------------------------------------------------------------------------
-  # Consolidated tool containers (owner decision 2026-06-10).
-  # ---------------------------------------------------------------------------
-  platform-tools:
-    build:
-      # Context is the REPO ROOT (not ./docker/tools): SBV is now built from
-      # source at vendored/sbv/ which lives outside ./docker/tools. The
-      # Dockerfile's COPYs are repo-root-relative (vendored/sbv/, docker/tools/).
-      # NB: agentos-api already builds from this same root context, so the
-      # exec-tier deploy already uploads the repo as build context — no new risk.
-      context: .
-      dockerfile: docker/tools/Dockerfile
-    image: agno-platform-tools:latest
-    container_name: platform-tools
-    restart: unless-stopped
-    ports:
-      - "${BIND_IP:-127.0.0.1}:8085:8085"   # SBV GUI — host OFF 8080 (Coolify/Traefik collision killed the old stack) — proxy-ready below
-      - "${BIND_IP:-127.0.0.1}:8090:8090"   # parsers/extractors facade — tailnet-only
-    volumes:
-      - /data/agno/volumes/sbv_data:/opt/sbv/data
-      - r2-nexus:/r2
-      # NOTE: the `server` package is BAKED into the image (docker/tools/Dockerfile
-      # `COPY server/`), NOT mounted — Coolify ignores relative bind mounts and the
-      # exec tier rebuilds this image on every push to main, so the facade is
-      # self-contained (fixes the live ModuleNotFoundError: No module named 'server').
-    # DOMAIN PHASE — SBV GUI. Re-enable + set TOOLS_DOMAIN to expose:
-    # labels:
-    #   - traefik.enable=true
-    #   - traefik.http.routers.platform-tools.rule=Host(`${TOOLS_DOMAIN}`)
-    #   - traefik.http.routers.platform-tools.entryPoints=https
-    #   - traefik.http.routers.platform-tools.tls=true
-    #   - traefik.http.routers.platform-tools.tls.certresolver=letsencrypt
-    #   - traefik.http.routers.platform-tools.service=platform-tools
-    #   - traefik.http.services.platform-tools.loadbalancer.server.port=8085
-    networks:
-      - agentos
-
-  sandbox:
-    build:
-      context: ./docker/sandbox
-    image: agno-sandbox:latest
-    container_name: agent-sandbox
-    restart: unless-stopped
-    # NO published ports, NO env secrets, NO repo mounts — agents reach it over
-    # the internal network only (http://sandbox:8070/run).
-    cpus: 2
-    mem_limit: 1g
-    volumes:
-      - /data/agno/volumes/agent_workspace:/workspace   # shared with the desktop
-    networks:
-      - agentos
-
-  # Kasm browser desktop — opt-in (Coolify: scale to 0, or omit from the app).
-  # Separate from sandbox to preserve the sandbox's no-secrets isolation; shares
-  # the workspace volume so the desktop sees/edits the same files.
-  desktop:
-    image: kasmweb/desktop:1.16.0
-    platform: linux/amd64
-    container_name: kasm-desktop
-    restart: unless-stopped
-    ports:
-      - "${BIND_IP:-127.0.0.1}:6901:6901"   # Kasm desktop (HTTPS) — proxy-ready below
-    environment:
-      VNC_PW: ${KASM_VNC_PW:-changeme-desktop}
-    shm_size: "1gb"
-    mem_limit: 2g
-    volumes:
-      - /data/agno/volumes/kasm_profile:/home/kasm-user   # persistent home
-      - /data/agno/volumes/agent_workspace:/workspace     # shared with sandbox
-    # DOMAIN PHASE — Kasm desktop. Re-enable + set DESKTOP_DOMAIN to expose.
-    # NOTE Kasm serves HTTPS on 6901 → use a TLS passthrough/serversTransport if proxied.
-    # labels:
-    #   - traefik.enable=true
-    #   - traefik.http.routers.desktop.rule=Host(`${DESKTOP_DOMAIN}`)
-    #   - traefik.http.routers.desktop.entryPoints=https
-    #   - traefik.http.routers.desktop.tls=true
-    #   - traefik.http.routers.desktop.tls.certresolver=letsencrypt
-    #   - traefik.http.routers.desktop.service=desktop
-    #   - traefik.http.services.desktop.loadbalancer.server.port=6901
-    #   - traefik.http.services.desktop.loadbalancer.server.scheme=https
-    networks:
-      - agentos
-
-  # ---------------------------------------------------------------------------
-  # Agno Agent UI — native self-hosted chat/control surface (build docker/agent-ui).
-  # Browser talks directly to agentos-api; no DB, no secrets here. Internal
-  # surface now (chat.int.*); gated public twin (chat.*) via Traefik later.
-  # Endpoint is chosen in the UI connect dialog → point at the api hostname.
-  # ---------------------------------------------------------------------------
-  agent-ui:
-    build:
-      context: ./docker/agent-ui
-    image: agno-agent-ui:latest
-    container_name: agent-ui
-    restart: unless-stopped
-    ports:
-      - "${BIND_IP:-127.0.0.1}:3000:3000"   # chat UI — internal; proxy-ready below
-    networks:
-      - agentos
-    # DOMAIN PHASE — chat.int.* (private) now, chat.* (public twin) when opened:
-    # labels:
-    #   - traefik.enable=true
-    #   - traefik.http.routers.agent-ui.rule=Host(`${CHAT_DOMAIN}`)
-    #   - traefik.http.routers.agent-ui.entryPoints=https
-    #   - traefik.http.routers.agent-ui.tls=true
-    #   - traefik.http.routers.agent-ui.tls.certresolver=letsencrypt
-    #   - traefik.http.routers.agent-ui.service=agent-ui
-    #   - traefik.http.services.agent-ui.loadbalancer.server.port=3000
-
-  # ---------------------------------------------------------------------------
-  # ContextForge — IBM MCP Gateway (ADR-0025). The ONE controlled MCP front door.
-  # All external MCP flows through here; graphiti-mcp (DATA tier, OVH-3) and any
-  # future MCP servers register BEHIND it as federated peer "Gateways" and are
-  # never exposed directly. Public face: mcp.int.mitechconsult.com (private) +
-  # gated mcp.mitechconsult.com (public twin) — Traefik scaffold below, OFF by default.
-  #
-  # Backing store: SQLite on a bind mount (single-node, no external Postgres/Redis
-  # needed for this footprint). Listen port 4444 (house rule: NEVER publish 8080).
-  # Reaches graphiti-mcp on OVH-3 via ${GRAPHITI_MCP_URL} (default OVH3_HOST tailnet
-  # :8071; salem alt 10.1.2.101:8071) — used at bootstrap registration, not here.
-  # ---------------------------------------------------------------------------
-  contextforge:
-    image: ghcr.io/ibm/mcp-context-forge:v1.0.4   # pin to v1.0.4 (note: ghcr tag has the "v"; bare "1.0.4" does not exist). Upgraded from 0.8.0 on 2026-07-07 after a clean throwaway-mcp.db test: Alembic migration OK, /health OK, admin login OK. The two 1.0.x blockers are handled via env below: CSRF_ENABLED=false (CSRF_TOKEN_INVALID on API calls) and PASSWORD_CHANGE_ENFORCEMENT_ENABLED=false (forced admin password-change gate returned 403 on /auth/email/login). Keep testing any future bump on a throwaway mcp.db copy first.
-    platform: linux/amd64
-    container_name: contextforge
-    restart: unless-stopped
-    ports:
-      # Tailnet-only (BIND_IP=ovh1 tailnet IP). Public exposure happens ONLY via the
-      # Traefik DOMAIN PHASE labels below — never bind 0.0.0.0, never publish elsewhere.
-      - "${BIND_IP:-127.0.0.1}:4444:4444"   # unified MCP + admin API/UI surface
-    env_file:
-      - path: .env
-        required: false
-    environment:
-      HOST: "0.0.0.0"            # inside the container; the host bind is gated by BIND_IP above
-      PORT: "4444"
-      # --- persistence: SQLite on the bind mount (no external DB) ---
-      DATABASE_URL: "sqlite:////data/mcp.db"
-      CACHE_TYPE: "database"     # use the DB for cache/sessions — no Redis dependency
-      # --- upstream MCP peer (DATA tier graphiti on OVH-3); default tailnet, salem alt 10.1.2.101 ---
-      GRAPHITI_MCP_URL: ${GRAPHITI_MCP_URL:-http://${OVH3_HOST}:8071}
-      # --- auth / admin ---
-      AUTH_REQUIRED: "true"
-      JWT_SECRET_KEY: ${CF_JWT_SECRET_KEY:?set CF_JWT_SECRET_KEY}            # openssl rand -hex 32
-      AUTH_ENCRYPTION_SECRET: ${CF_AUTH_ENCRYPTION_SECRET:?set CF_AUTH_ENCRYPTION_SECRET}  # encrypts stored peer creds
-      BASIC_AUTH_USER: ${CF_BASIC_AUTH_USER:-admin}
-      BASIC_AUTH_PASSWORD: ${CF_BASIC_AUTH_PASSWORD:?set CF_BASIC_AUTH_PASSWORD}
-      PLATFORM_ADMIN_EMAIL: ${CF_ADMIN_EMAIL:-admin@mitechconsult.com}
-      PLATFORM_ADMIN_PASSWORD: ${CF_ADMIN_PASSWORD:?set CF_ADMIN_PASSWORD}
-      PLATFORM_ADMIN_FULL_NAME: "Platform Admin"
-      MCPGATEWAY_UI_ENABLED: "true"          # admin dashboard (only reachable via tailnet/proxy)
-      MCPGATEWAY_ADMIN_API_ENABLED: "true"   # admin REST API (POST /gateways, /servers)
-      SECURE_COOKIES: "false"                # HTTP on the tailnet; flip true once behind TLS proxy
-      # --- 1.0.x knobs (both REQUIRED for v1.0.4; verified on throwaway mcp.db 2026-07-07) ---
-      CSRF_ENABLED: "false"                  # 1.0.x defaults CSRF on -> CSRF_TOKEN_INVALID for header-token API clients; tailnet-only + Bearer auth, so off
-      PASSWORD_CHANGE_ENFORCEMENT_ENABLED: "false"  # 1.0.x forces admin password change on first login (403); keep PLATFORM_ADMIN_PASSWORD env authoritative instead
-      # --- keep the worker count low: OVH-1 is a tight 7.6GB box ---
-      GUNICORN_WORKERS: "1"                   # 1–2 max; each worker is a full python process
-    volumes:
-      # SQLite db + gateway state on a host bind (owner backs up via host dirs).
-      - /data/agno/volumes/contextforge:/data
-    healthcheck:
-      # /health is unauthenticated and returns 200 when the gateway is up.
-      test: ["CMD-SHELL", "python3 -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:4444/health').status==200 else 1)\""]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 40s
-    networks:
-      - agentos
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    # PUBLIC FRONT DOOR — ContextForge is THE MCP gateway (ADR-0025). Exposed at
-    # mcp.mitechconsult.com. CF self-authenticates (AUTH_REQUIRED=true: basic auth
-    # for the admin UI, JWT for MCP clients) so Traefik just terminates TLS + routes.
-    # (Ported from hotfix/agent-ui-lockfile 2026-07-08 when exec-tier repointed to main —
-    # the deploy-from-main had silently dropped this route: 503 "no available server".)
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=rz41wqhpjfh1rj796ixvjhfs
-      - traefik.http.routers.contextforge.rule=Host(`mcp.mitechconsult.com`)
-      - traefik.http.routers.contextforge.entryPoints=https
-      - traefik.http.routers.contextforge.tls=true
-      - traefik.http.routers.contextforge.tls.certresolver=letsencrypt
-      - traefik.http.routers.contextforge.service=contextforge
-      - traefik.http.services.contextforge.loadbalancer.server.port=4444
 
 networks:
   agentos:
+  agno:
+    external: true   # shared cross-app network on OVH-1 (created 2026-07-19 split)
 
 volumes:
   # Cloudflare R2 bucket "nexus" via the rclone volume plugin (host config:
@@ -412,3 +221,4 @@ volumes:
 
 # Byline: Claude Code · Opus 4.8 · 2026-06-14
 # Byline: Claude Code · Fable 5 · 2026-07-07 (contextforge 0.8.0 -> v1.0.4: image bump + CSRF_ENABLED=false + PASSWORD_CHANGE_ENFORCEMENT_ENABLED=false)
+# Byline: Claude Code · Sonnet · 2026-07-19 (exec-tier split: slimmed to agentos-api + agentos-mcp rump, joined shared `agno` network; owner order "separate anything that can be separated")
