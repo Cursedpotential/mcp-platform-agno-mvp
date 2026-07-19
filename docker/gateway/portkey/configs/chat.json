@@ -1,0 +1,27 @@
+{
+  "_comment": "rag+chat lane — mid-to-heavy reasoning. Collapsed from the proposal's separate rag/chat drafts (owner direction 2026-07-19: they were identical anyway; split them again later if rag and chat ever need independent tuning). Mirrors litellm-config.yaml's glm-5.1-primary / NVIDIA-backup pattern, with the Gemini 4-key rotation slotted in as a middle tier that absorbs rate-limit overflow before falling all the way to NVIDIA. Middle tier pinned to 'gemini-flash-latest', NOT 'gemini-2.5-pro': live verification 2026-07-19 found every one of the 4 keys 429'd ('exceeded current quota') on gemini-2.5-pro/gemini-pro-latest under test traffic, while gemini-flash-latest returned 200 for all keys tested. Revisit the pro tier once real usage patterns show whether that 429 was rapid-test-traffic-induced or a standing free-tier cap — see docker/gateway/portkey/README.md.",
+  "strategy": { "mode": "fallback" },
+  "targets": [
+    {
+      "provider": "openai",
+      "custom_host": "https://ollama.com/v1",
+      "api_key": "$OLLAMA_API_KEY",
+      "override_params": { "model": "glm-5.1" }
+    },
+    {
+      "strategy": { "mode": "loadbalance" },
+      "targets": [
+        { "provider": "google", "api_key": "$GEMINI_API_KEY",   "weight": 1, "override_params": { "model": "gemini-flash-latest" } },
+        { "provider": "google", "api_key": "$GEMINI_API_KEY_2", "weight": 1, "override_params": { "model": "gemini-flash-latest" } },
+        { "provider": "google", "api_key": "$GEMINI_API_KEY_3", "weight": 1, "override_params": { "model": "gemini-flash-latest" } },
+        { "provider": "google", "api_key": "$GEMINI_API_KEY_4", "weight": 1, "override_params": { "model": "gemini-flash-latest" } }
+      ]
+    },
+    {
+      "provider": "openai",
+      "custom_host": "https://integrate.api.nvidia.com/v1",
+      "api_key": "$NVIDIA_API_KEY",
+      "override_params": { "model": "nvidia/nemotron-3-super-120b-a12b" }
+    }
+  ]
+}

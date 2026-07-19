@@ -1,0 +1,21 @@
+{
+  "_comment": "Cheap/fast triage calls. Gemini flash primary (4-key loadbalance rotation), NVIDIA NIM llama-3.1-8b-instruct as cross-provider fallback. Model pinned to 'gemini-flash-latest' (NOT 'gemini-2.5-flash') because live verification 2026-07-19 found GEMINI_API_KEY_2/_3's underlying accounts 404 on 'gemini-2.5-flash' ('no longer available to new users') but succeed on the *-latest alias — see docker/gateway/portkey/README.md for the full per-key verification matrix.",
+  "strategy": { "mode": "fallback" },
+  "targets": [
+    {
+      "strategy": { "mode": "loadbalance" },
+      "targets": [
+        { "provider": "google", "api_key": "$GEMINI_API_KEY",   "weight": 1, "override_params": { "model": "gemini-flash-latest" } },
+        { "provider": "google", "api_key": "$GEMINI_API_KEY_2", "weight": 1, "override_params": { "model": "gemini-flash-latest" } },
+        { "provider": "google", "api_key": "$GEMINI_API_KEY_3", "weight": 1, "override_params": { "model": "gemini-flash-latest" } },
+        { "provider": "google", "api_key": "$GEMINI_API_KEY_4", "weight": 1, "override_params": { "model": "gemini-flash-latest" } }
+      ]
+    },
+    {
+      "provider": "openai",
+      "custom_host": "https://integrate.api.nvidia.com/v1",
+      "api_key": "$NVIDIA_API_KEY",
+      "override_params": { "model": "meta/llama-3.1-8b-instruct" }
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "_comment": "For NOT-YET-CREATED knowledge-core collections only (dimension not locked yet). Gemini primary (4-key loadbalance rotation) with NVIDIA nv-embed-v1 as cross-provider fallback. WARNING verified live 2026-07-19: 'output_dimensionality'/'outputDimensionality'/'dimensions' in override_params (tried all three, snake_case + camelCase + top-level request body) is NOT honored by this pinned Portkey image for the google provider's embeddings path — every combination still returned the model's native 3072-d, not a truncated 1536-d. Do NOT trust the 1536 figure below as real; it is aspirational/unverified. Before pointing any real Milvus collection at this lane: (1) re-verify the actual returned dimension with a live call, (2) lock the Milvus collection to whatever dimension is ACTUALLY observed (3072-d unless a future Portkey version fixes truncation), per ADR-0010 (one collection per embedder, dimension-locked at creation, never assumed).",
+  "strategy": { "mode": "fallback" },
+  "targets": [
+    {
+      "strategy": { "mode": "loadbalance" },
+      "targets": [
+        { "provider": "google", "api_key": "$GEMINI_API_KEY",   "weight": 1, "override_params": { "model": "gemini-embedding-001", "output_dimensionality": 1536 } },
+        { "provider": "google", "api_key": "$GEMINI_API_KEY_2", "weight": 1, "override_params": { "model": "gemini-embedding-001", "output_dimensionality": 1536 } },
+        { "provider": "google", "api_key": "$GEMINI_API_KEY_3", "weight": 1, "override_params": { "model": "gemini-embedding-001", "output_dimensionality": 1536 } },
+        { "provider": "google", "api_key": "$GEMINI_API_KEY_4", "weight": 1, "override_params": { "model": "gemini-embedding-001", "output_dimensionality": 1536 } }
+      ]
+    },
+    {
+      "provider": "openai",
+      "custom_host": "https://integrate.api.nvidia.com/v1",
+      "api_key": "$NVIDIA_API_KEY",
+      "override_params": { "model": "nvidia/nv-embed-v1" }
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "_comment": "Graphiti embed-text lane — 4096-d, symmetric, DIMENSION-LOCKED to the Neo4j vector index. NVIDIA nv-embed-v1 ONLY, no cross-provider fallback: Gemini's gemini-embedding-001 tops out at 3072-d and cannot match this index, and a silent wrong-dimension fallback would corrupt vectors rather than fail loudly. Portkey still buys retry-on-transient-error around the one target.",
+  "strategy": { "mode": "fallback" },
+  "targets": [
+    {
+      "provider": "openai",
+      "custom_host": "https://integrate.api.nvidia.com/v1",
+      "api_key": "$NVIDIA_API_KEY",
+      "override_params": { "model": "nvidia/nv-embed-v1" },
+      "retry": { "attempts": 2, "on_status_codes": [429, 500, 502, 503, 504] }
+    }
+  ]
+}
