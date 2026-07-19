@@ -1,0 +1,13 @@
+{
+  "_comment": "Graphiti's LLM lane specifically (NOT the general-purpose chat.json). Graphiti requires NIM guided-JSON structured output support -- glm-5.1 (chat.json's primary tier) cannot emit schema-conformant JSON (confirmed 2026-07-04, see owner's CLAUDE.md global learnings: 'glm-5.1 cannot emit JSON-schema-conformant structured output -- never use it for schema-constrained workloads'). So this mirrors litellm-config.yaml's dedicated 'nemotron' model_name 1:1 rather than reusing chat.json's glm-5.1-primary chain, which would silently break Graphiti's structured extraction if glm answered first. Single NVIDIA target, matching current LiteLLM risk profile exactly (num_retries:2, no cross-provider fallback) -- diversifying this is a legitimate follow-up, not part of this cutover.",
+  "strategy": { "mode": "fallback" },
+  "targets": [
+    {
+      "provider": "openai",
+      "custom_host": "https://integrate.api.nvidia.com/v1",
+      "api_key": "$NVIDIA_API_KEY",
+      "override_params": { "model": "nvidia/nemotron-3-super-120b-a12b" },
+      "retry": { "attempts": 2, "on_status_codes": [429, 500, 502, 503, 504] }
+    }
+  ]
+}

@@ -99,9 +99,39 @@ services:
       - graphiti
       - agno
 
+  # -----------------------------------------------------------------------
+  # Portkey header-injection sidecar (2026-07-19 Portkey changeover, Phase 3).
+  # WHY: graphiti_core's OpenAIClient/OpenAIEmbedder build a bare
+  # AsyncOpenAI(api_key=, base_url=) with no default_headers/extra_headers
+  # hook anywhere in the chain (config.yaml -> factories.py -> graphiti_core
+  # client ctors — read live out of the running image 2026-07-19, no such
+  # param exists), so Graphiti structurally cannot send the
+  # x-portkey-config header Portkey's stateless/no-DB deployment requires.
+  # Same architectural pattern as graphiti-hostfix above: a static nginx
+  # config injects the right x-portkey-config per path (embeddings vs chat)
+  # and proxies to Portkey on OVH-1. Config templates that generated this
+  # static file live in docker/gateway/portkey/configs/{embed,graphiti-llm}.json
+  # in this repo — portkeyfix.conf is NOT hand-authored, it's those two JSON
+  # bodies inlined with the real key substituted, staged at
+  # /data/agno/config/graphiti/portkeyfix.conf (same host-mount convention as
+  # hostfix.conf). Internal-only (no host port) — only graphiti-mcp talks to it.
+  # NOT yet wired into graphiti-mcp's config.yaml as of this commit — this
+  # stands the sidecar up standalone so it can be verified in isolation
+  # BEFORE graphiti-mcp's OPENAI_API_URL is repointed at it (doors policy:
+  # LiteLLM stays the active path for graphiti-mcp until Portkey is proven).
+  # -----------------------------------------------------------------------
+  graphiti-portkeyfix:
+    image: nginx:alpine
+    restart: unless-stopped
+    volumes:
+      - /data/agno/config/graphiti/portkeyfix.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - graphiti
+      - agno
+
 networks:
   graphiti:
   agno:
     external: true          # pre-created on OVH-3 (`docker network create agno`)
 
-# Byline: Claude Code · Fable 5 · 2026-07-05 · Claude Code · Fable 5 · 2026-07-07 (hostfix sidecar: upstream FastMCP ctor locks allowed_hosts to localhost, env override ignored -> nginx rewrites Host)
+# Byline: Claude Code · Fable 5 · 2026-07-05 · Claude Code · Fable 5 · 2026-07-07 (hostfix sidecar: upstream FastMCP ctor locks allowed_hosts to localhost, env override ignored -> nginx rewrites Host) · Claude Code · Sonnet · 2026-07-19 (graphiti-portkeyfix sidecar, Portkey changeover Phase 3)
