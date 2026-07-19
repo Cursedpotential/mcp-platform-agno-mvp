@@ -60,10 +60,20 @@ services:
       NEO4J_URI: bolt://neo4j:7687   # docker DNS on the shared `agno` net (was tailnet host IP pre-shared-net)
       NEO4J_USER: neo4j
       NEO4J_PASSWORD: ${NEO4J_PASSWORD:-graphiti-dev-password}
-      # LLM + embeddings via the LiteLLM gateway on OVH-1, over the tailnet.
-      OPENAI_API_KEY: ${LITELLM_MASTER_KEY:-changeme-dev-key}
-      OPENAI_API_URL: http://${OVH1_HOST:-100.72.169.40}:4000/v1
-      OPENAI_BASE_URL: http://${OVH1_HOST:-100.72.169.40}:4000/v1
+      # LLM + embeddings via the graphiti-portkeyfix sidecar (this compose,
+      # internal docker DNS) -> Portkey on OVH-1. CUTOVER 2026-07-19: was
+      # http://${OVH1_HOST:-100.72.169.40}:4000/v1 (LiteLLM, direct). The
+      # sidecar bakes the real provider auth into the x-portkey-config header
+      # it injects server-side (see docker/gateway/portkey/configs/{embed,
+      # graphiti-llm}.json), so OPENAI_API_KEY here is a dummy value nginx
+      # never inspects — LITELLM_MASTER_KEY is no longer read for this path.
+      # ROLLBACK: point OPENAI_API_URL/OPENAI_BASE_URL back at
+      # http://${OVH1_HOST:-100.72.169.40}:4000/v1 and OPENAI_API_KEY back at
+      # ${LITELLM_MASTER_KEY:-changeme-dev-key}; redeploy. LiteLLM
+      # (docker/gateway/litellm-config.yaml) was never touched or stopped.
+      OPENAI_API_KEY: portkey-sidecar-noauth
+      OPENAI_API_URL: http://graphiti-portkeyfix:8072/v1
+      OPENAI_BASE_URL: http://graphiti-portkeyfix:8072/v1
     volumes:
       # ABSOLUTE host bind (gotcha #5) — staged at /data/agno/config/graphiti/
       - /data/agno/config/graphiti/config.yaml:/app/mcp/config/config.yaml:ro
