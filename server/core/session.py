@@ -54,9 +54,14 @@ SURREALDB_DB = getenv("SURREALDB_DB", "platform")
 MILVUS_URI = getenv("MILVUS_ADDRESS", "http://100.119.96.29:19530")
 MILVUS_TOKEN = getenv("MILVUS_TOKEN", "root:Milvus")
 
-# --- Embedder: OpenRouter, OpenAI-compatible, SYMMETRIC ----------------------
+# --- Embedder: OpenAI-compatible /embeddings, SYMMETRIC ----------------------
+# Dedicated EMBED_BASE_URL / EMBED_API_KEY override the OpenRouter defaults so
+# the embedding lane can move providers (e.g. NVIDIA NIM) WITHOUT touching
+# OPENROUTER_API_KEY, which settings.py also reads for LLM provider selection.
 _OR_BASE_URL = getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 _OR_API_KEY = getenv("OPENROUTER_API_KEY", "")
+_EMBED_BASE_URL = getenv("EMBED_BASE_URL") or _OR_BASE_URL
+_EMBED_API_KEY = getenv("EMBED_API_KEY") or _OR_API_KEY
 
 # Embedding model IDs + dims (ADR-0010: one collection per embedder). Defaults are
 # symmetric OpenRouter models; override via env. Dim MUST match the model's output.
@@ -75,9 +80,14 @@ def _embedder(model_id: str, dimensions: int) -> OpenAIEmbedder:
     """
     return OpenAIEmbedder(
         id=model_id,
-        api_key=_OR_API_KEY,
-        base_url=_OR_BASE_URL,
+        api_key=_EMBED_API_KEY,
         dimensions=dimensions,
+        # base_url goes via client_params ON PURPOSE: agno's OpenAIEmbedder
+        # injects a `dimensions` request param whenever self.base_url is set,
+        # and NIM /embeddings hard-400s on extra params (extra_forbidden).
+        # Symmetric models emit their native dim anyway; `dimensions` here is
+        # still read by the vector store for collection schema.
+        client_params={"base_url": _EMBED_BASE_URL},
     )
 
 
