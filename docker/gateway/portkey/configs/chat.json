@@ -1,5 +1,5 @@
 {
-  "_comment": "rag+chat lane — mid-to-heavy reasoning. Collapsed from the proposal's separate rag/chat drafts (owner direction 2026-07-19: they were identical anyway; split them again later if rag and chat ever need independent tuning). Mirrors litellm-config.yaml's glm-5.1-primary / NVIDIA-backup pattern, with the Gemini 4-key rotation slotted in as a middle tier that absorbs rate-limit overflow before falling all the way to NVIDIA. Middle tier pinned to 'gemini-flash-latest', NOT 'gemini-2.5-pro': live verification 2026-07-19 found every one of the 4 keys 429'd ('exceeded current quota') on gemini-2.5-pro/gemini-pro-latest under test traffic, while gemini-flash-latest returned 200 for all keys tested. Revisit the pro tier once real usage patterns show whether that 429 was rapid-test-traffic-induced or a standing free-tier cap — see docker/gateway/portkey/README.md.",
+  "_comment": "rag+chat lane — mid-to-heavy reasoning. Collapsed from the proposal's separate rag/chat drafts (owner direction 2026-07-19: they were identical anyway; split them again later if rag and chat ever need independent tuning). Mirrors litellm-config.yaml's glm-5.1-primary / NVIDIA-backup pattern, with the Gemini 4-key rotation slotted in as a middle tier that absorbs rate-limit overflow before falling all the way to NVIDIA. Middle tier pinned to 'gemini-flash-latest', NOT 'gemini-2.5-pro': live verification 2026-07-19 found every one of the 4 keys 429'd ('exceeded current quota') on gemini-2.5-pro/gemini-pro-latest under test traffic, while gemini-flash-latest returned 200 for all keys tested. Revisit the pro tier once real usage patterns show whether that 429 was rapid-test-traffic-induced or a standing free-tier cap — see docker/gateway/portkey/README.md. EXTENDED 2026-07-19 (owner: provider-key sweep) with 3 more free/cheap tiers between Gemini and NVIDIA, plus Mistral appended as the absolute-last paid fallback (owner policy: Mistral costs money, never primary, only hit if every other tier — including NVIDIA — is down). Groq is a single target, not a loadbalance pair: the donor-.env second Groq key (candidate rotation partner) verified DEAD (401) on 2026-07-19, so only the canonical key is wired. Native Portkey provider slugs 'groq'/'cerebras'/'openrouter'/'mistral-ai' confirmed valid live (2026-07-19 probe of the pinned gateway's own error list) — no custom_host needed for these three, unlike NVIDIA/Ollama which aren't native and go through the openai-compatible custom_host path. WARNING: the openrouter tier is wired but its key is valid-but-broke — 402 'Insufficient credits' on a real completion, both directly and through this gateway, verified 2026-07-19 (the /v1/auth/key endpoint alone looked healthy and is misleading; it doesn't reflect balance). Left in the chain per owner instruction to include marked-broke providers; it will simply no-op-fallthrough to NVIDIA until topped up at https://openrouter.ai/settings/credits. Groq and Cerebras tiers ARE confirmed live end-to-end through this gateway (real completions, 2026-07-19).",
   "strategy": { "mode": "fallback" },
   "targets": [
     {
@@ -18,10 +18,30 @@
       ]
     },
     {
+      "provider": "groq",
+      "api_key": "$GROQ_API_KEY",
+      "override_params": { "model": "llama-3.3-70b-versatile" }
+    },
+    {
+      "provider": "cerebras",
+      "api_key": "$CEREBRAS_API_KEY",
+      "override_params": { "model": "gpt-oss-120b" }
+    },
+    {
+      "provider": "openrouter",
+      "api_key": "$OPENROUTER_API_KEY",
+      "override_params": { "model": "meta-llama/llama-3.3-70b-instruct" }
+    },
+    {
       "provider": "openai",
       "custom_host": "https://integrate.api.nvidia.com/v1",
       "api_key": "$NVIDIA_API_KEY",
       "override_params": { "model": "nvidia/nemotron-3-super-120b-a12b" }
+    },
+    {
+      "provider": "mistral-ai",
+      "api_key": "$MISTRAL_API_KEY",
+      "override_params": { "model": "mistral-medium-latest" }
     }
   ]
 }

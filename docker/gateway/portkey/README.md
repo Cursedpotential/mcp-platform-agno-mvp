@@ -17,19 +17,21 @@ Space) for the full as-built research this was built from.
 |---|---|---|
 | `configs/embed.json` | Graphiti's `embed-text` (dimension-locked, 4096-d) | NVIDIA `nv-embed-v1` ONLY — no cross-provider fallback. Gemini embeddings top out at 3072-d and can't match the Neo4j-locked index; a silent wrong-dimension fallback would corrupt vectors, not just error. |
 | `configs/embed-general.json` | Future/not-yet-dimension-locked knowledge-core collections | Gemini 4-key loadbalance primary, NVIDIA `nv-embed-v1` fallback. **See the dimension-truncation warning inside the file** — do not trust it blind. |
-| `configs/classify.json` | Cheap/fast triage calls | Gemini `gemini-flash-latest` 4-key loadbalance primary, NVIDIA `meta/llama-3.1-8b-instruct` fallback. |
-| `configs/chat.json` | rag+chat (mid-to-heavy reasoning) | glm-5.1 (Ollama Cloud) primary → Gemini `gemini-flash-latest` 4-key loadbalance middle tier → NVIDIA `nemotron-3-super-120b-a12b` final fallback. Collapsed from separate rag/chat drafts — they came out identical; split again later if they ever need independent tuning. |
+| `configs/classify.json` | Cheap/fast triage calls | Gemini `gemini-flash-latest` 4-key loadbalance primary → Groq `llama-3.1-8b-instant` → Cerebras `gemma-4-31b` → OpenRouter `meta-llama/llama-3.1-8b-instruct` (valid-but-broke, see below) → NVIDIA `meta/llama-3.1-8b-instruct` → Mistral `mistral-small-latest` (paid, absolute-last fallback). Groq/Cerebras/OpenRouter/Mistral tiers added 2026-07-19 provider-key sweep. |
+| `configs/chat.json` | rag+chat (mid-to-heavy reasoning) | glm-5.1 (Ollama Cloud) primary → Gemini `gemini-flash-latest` 4-key loadbalance → Groq `llama-3.3-70b-versatile` → Cerebras `gpt-oss-120b` → OpenRouter `meta-llama/llama-3.3-70b-instruct` (valid-but-broke, see below) → NVIDIA `nemotron-3-super-120b-a12b` → Mistral `mistral-medium-latest` (paid, absolute-last fallback). Collapsed from separate rag/chat drafts — they came out identical; split again later if they ever need independent tuning. Groq/Cerebras/OpenRouter/Mistral tiers added 2026-07-19 provider-key sweep. |
 
 Each `$VAR` placeholder is substituted with a real secret value at request-construction time by
 whatever consumer builds the outgoing `x-portkey-config` header — Portkey itself does **not** read
 these from its own container env (confirmed: `Mounts: []`, and env-substitution inside an inline
 header isn't a documented Portkey feature). The values live in `C:\Users\matts\.secrets\Agno-MCP-Platform.env`
 locally and were also upserted into the Portkey Coolify app's stored env
-(`NVIDIA_API_KEY`, `GEMINI_API_KEY`, `GEMINI_API_KEY_2`, `GEMINI_API_KEY_3`, `GEMINI_API_KEY_4`) on
-2026-07-19 so they're available server-side for whatever future substitution mechanism picks them
-up (e.g. a small router/sidecar service, or a wrapper script) — see the Coolify env upsert note
-below. `GOOGLE_API_KEY` is deliberately **not** part of this rotation pool (owner: reserved, stays
-separate) even though as of 2026-07-19 it happens to hold the same value as `GEMINI_API_KEY`.
+(`NVIDIA_API_KEY`, `GEMINI_API_KEY`, `GEMINI_API_KEY_2`, `GEMINI_API_KEY_3`, `GEMINI_API_KEY_4` on
+2026-07-19 Phase 1; `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `CEREBRAS_API_KEY`, `MISTRAL_API_KEY`,
+`OPENAI_API_KEY` added same day, Phase 4 provider-key sweep) so they're available server-side for
+whatever future substitution mechanism picks them up (e.g. a small router/sidecar service, or a
+wrapper script) — see the Coolify env upsert note below. `GOOGLE_API_KEY` is deliberately **not**
+part of this rotation pool (owner: reserved, stays separate) even though as of 2026-07-19 it happens
+to hold the same value as `GEMINI_API_KEY`.
 
 ## Verified live (2026-07-19, real API calls through `http://100.72.169.40:8787`)
 
@@ -74,6 +76,34 @@ separate) even though as of 2026-07-19 it happens to hold the same value as `GEM
   output, not the requested 1536-d. This is flagged inline in `embed-general.json` itself; treat the
   1536 figure in that file as aspirational until re-verified, and lock any real Milvus collection to
   the dimension actually observed at creation time, not the config's stated intent.
+
+## Provider-key sweep (Phase 4, 2026-07-19) — new providers wired into chat.json/classify.json
+
+Owner ordered a scan of every available provider key, live verification of each, and durable
+config into Portkey. Full per-key verification matrix (real API calls; last4 only, never full
+values):
+
+| Provider | Key (last4) | Source | Direct API check | Through Portkey gateway | Decision |
+|---|---|---|---|---|---|
+| Groq | `9Nna` (canonical) | `.secrets` | HTTP 200, 15 models | HTTP 200, real completion (`GROQ_OK`) | **LIVE** — wired as single target (chat + classify) |
+| Groq #2 | `wpCO` | donor `.env` (agno-agent-platform, prior-iteration project) | HTTP 401 invalid_api_key | not tested (dead at source) | **DEAD** — not added anywhere, not a working rotation partner |
+| OpenRouter | `0fe6` (canonical) | `.secrets` | `/v1/auth/key` HTTP 200 (key valid, `is_free_tier=false`) but a real completion 402s "Insufficient credits" | HTTP 402 "Insufficient credits" | **valid-but-broke** — wired anyway per owner instruction; will no-op-fallthrough until topped up at openrouter.ai/settings/credits |
+| OpenRouter #2 | `1ec9` | donor `.env` | HTTP 401 "User not found" | not tested (dead at source) | **DEAD** — not added |
+| Cerebras | `8d5c` | donor `.env` (added to `.secrets` this pass) | HTTP 200, 3 models | HTTP 200, real completion | **LIVE** — wired as single target (chat + classify) |
+| Mistral | `eXMA` (canonical) | `.secrets` | HTTP 200, 72 models | HTTP 200, real completion (`MISTRAL_OK`) | **LIVE** — wired as the absolute-last fallback tier per owner policy (paid, never primary) |
+| Ollama Cloud | `kA8U` (canonical) | `.secrets` | `GET /api/tags` HTTP 200 (model list returned); `/api/whoami` 404 (wrong path, not the auth check) | already wired as chat.json's primary tier (unchanged) | **LIVE**, no change needed |
+| OpenAI | `ELUA` (dashboard.env origin, added to `.secrets` this pass) | `Secrets/dashboard.env` | HTTP 200, 123 models | not wired into chat/classify (not requested — added to `.secrets`+Coolify for future use) | **LIVE**, held in reserve |
+| Gemini #5 (`GOOGLE_API_KEY` donor variant) | `stmg` | donor `.env` | HTTP 400 `API_KEY_INVALID` | not tested (dead at source) | **DEAD** — not added as `GEMINI_API_KEY_5`, rotation pool stays at 4 keys |
+| NVIDIA, Gemini 1-4 | — | already in Portkey Coolify env | unchanged | unchanged | out of scope this pass (already configured) |
+
+A real bug was found and fixed in this same pass: the first Coolify bulk-upsert of `CEREBRAS_API_KEY`/
+`OPENAI_API_KEY` accidentally captured this file's own inline `# account: ...` trailing comment as
+part of the value (a naive `cut -d= -f2-` extraction doesn't strip trailing comments the way
+`python-dotenv`-style parsers do) — caught because the Cerebras gateway proof-call 401'd with "Wrong
+API Key" even though the same key worked fine directly against `api.cerebras.ai`. Fixed by moving the
+`# account:` notes to their own line **above** the `KEY=value` line instead of trailing it (matches
+how every entry in this file should be written going forward — trailing comments are parser-fragile,
+leading comments are not) and re-upserting the corrected values; re-verified 200 end-to-end afterward.
 
 ## Coolify env durability (Phase 1 of the 2026-07-19 changeover)
 
