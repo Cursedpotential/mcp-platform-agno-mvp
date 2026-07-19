@@ -96,9 +96,54 @@ this fix. Corrected in-place; verified against the live API (create → in-place
 matching `uuid` + changed `updated_at` → cleanup delete) before relying on it for the real upserts
 in this pass.
 
+## Graphiti cutover (Phase 3, 2026-07-19) — CUTOVER LIVE, LiteLLM untouched
+
+Graphiti's embed-text + LLM calls now run through Portkey, not LiteLLM. See
+`compose.data-graphiti.yaml` (`graphiti-portkeyfix` service) and the two dedicated configs,
+`configs/embed.json` (reused as-is) and `configs/graphiti-llm.json` (new — Graphiti needs NIM
+guided-JSON structured output, and `chat.json`'s glm-5.1 primary tier can't emit schema-conformant
+JSON, so this is a dedicated NVIDIA-nemotron-only lane, not a reuse of `chat.json`).
+
+**Why a sidecar and not a direct config.yaml repoint**: confirmed live (2026-07-19, reading the
+running `zepai/knowledge-graph-mcp` image's own source) that `graphiti_core`'s `OpenAIClient`/
+`OpenAIEmbedder` construct a bare `AsyncOpenAI(api_key=, base_url=)` with **no**
+`default_headers`/`extra_headers` hook anywhere in the chain (`config.yaml` → `factories.py` →
+`graphiti_core` client constructors) — so Graphiti structurally cannot send the `x-portkey-config`
+header Portkey's stateless deployment needs. `graphiti-portkeyfix` (`nginx:alpine`, same pattern as
+the existing `graphiti-hostfix` sidecar) sits between `graphiti-mcp` and Portkey, statically
+injecting the right `x-portkey-config` per path (`/v1/embeddings` → `embed.json`, everything else
+including `/v1/responses` → `graphiti-llm.json`, since `graphiti_core`'s structured-completion path
+uses OpenAI's newer Responses API, not `/v1/chat/completions`).
+
+**The static config file bakes the real `NVIDIA_API_KEY` as a literal**, staged at
+`/data/agno/config/graphiti/portkeyfix.conf` on `ovh-data` — same convention as `hostfix.conf`
+already uses for that host path. To regenerate after a key rotation: re-render
+`docker/gateway/portkey/configs/{embed,graphiti-llm}.json` with the new key substituted for
+`$NVIDIA_API_KEY` into the nginx `proxy_set_header x-portkey-config '...'` value (see the template
+this was built from, or just hand-edit the two JSON blobs in the staged file), `scp` it back to
+`/data/agno/config/graphiti/portkeyfix.conf`, then restart just the `graphiti-portkeyfix` container
+(`docker compose ... restart graphiti-portkeyfix` or a Coolify redeploy of `data-graphiti`) — no
+image rebuild needed.
+
+**Verified end-to-end with real production traffic**, not a synthetic probe: added a live episode
+via `graphiti-add-memory` with a random marker token, watched `graphiti-mcp`'s own logs show real
+`POST http://graphiti-portkeyfix:8072/v1/embeddings` (4× `200 OK`) and
+`POST http://graphiti-portkeyfix:8072/v1/responses` (2× `200 OK`) calls during that episode's actual
+background processing, then confirmed via `graphiti-search-memory-facts` that the exact fact
+(`HAS_MARKER_TOKEN: "Verification episode has marker token ...VERIFYTOKEN."`) was extracted,
+indexed, and retrievable. Full round trip: real LLM extraction + real embedding + real Neo4j
+write + real semantic search, all through Portkey.
+
+**Rollback** (if ever needed): revert `compose.data-graphiti.yaml`'s `graphiti-mcp.environment`
+block to `OPENAI_API_URL`/`OPENAI_BASE_URL: http://${OVH1_HOST:-100.72.169.40}:4000/v1` and
+`OPENAI_API_KEY: ${LITELLM_MASTER_KEY:-changeme-dev-key}`, then redeploy `data-graphiti`. LiteLLM
+was never stopped or reconfigured, so this is a config repoint, not a restore-from-backup.
+
 ## Doors policy
 
-LiteLLM (`gateway:4000`, `docker/gateway/litellm-config.yaml`) is untouched by any of this — it
-stays live as the working fallback path per the workspace's doors policy until whatever Portkey
-cutover is attempted (Graphiti first, see the Phase 3 writeup in the result doc above) is verified
-working end-to-end, and for an owner-set soak period after that.
+LiteLLM (`gateway:4000`, `docker/gateway/litellm-config.yaml`) is untouched and still running (live
+health-checked `200 "I'm alive!"` at the end of this pass) — it stays live as the working fallback
+path per the workspace's doors policy. Graphiti has been cut over to Portkey and verified end-to-end
+as of 2026-07-19; the owner's stated soak-period recommendation before considering LiteLLM retirement
+still applies (see `docker/gateway/litellm-config.yaml`'s own header and the "Retire LiteLLM" section
+of the originating proposal doc).
