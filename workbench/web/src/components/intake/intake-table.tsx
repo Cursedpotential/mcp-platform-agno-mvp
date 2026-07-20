@@ -1,8 +1,15 @@
-// Byline: Claude Code · Sonnet (agent) · 2026-07-19
+// Byline: Claude Code · Sonnet (agent) · 2026-07-20
 "use client";
 
+/**
+ * The Intake table — renamed/rewritten from file-browser.tsx. The Promote
+ * button is gone (owner rejected the upload->promote blind-box UX); each
+ * row's action is now "Start run ->", which opens the New-run dialog
+ * prefilled with that staged file (see lib/new-run-dialog-context.tsx).
+ * Metadata editing + the detail view (FileDetailDialog) stay.
+ */
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCw, Eye, Rocket, Loader2 } from "lucide-react";
+import { RefreshCw, Eye, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,9 +24,10 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FileDetailDialog } from "./file-detail-dialog";
-import { ApiError, listFiles, promoteFile } from "@/lib/api-client";
+import { listFiles } from "@/lib/api-client";
 import { humanizeBytes, formatDate } from "@/lib/utils";
 import { useRefresh } from "@/lib/refresh-context";
+import { useNewRunDialog } from "@/lib/new-run-dialog-context";
 import type { StagedFile, StagedStatus, DetectedType } from "@/lib/shared/types";
 
 const STATUS_OPTIONS: Array<{ value: StagedStatus | "all"; label: string }> = [
@@ -51,15 +59,15 @@ function statusVariant(
   }
 }
 
-export function FileBrowser() {
+export function IntakeTable() {
   const [files, setFiles] = useState<StagedFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<StagedStatus | "all">("all");
   const [typeFilter, setTypeFilter] = useState<DetectedType | "all">("all");
   const [detailFile, setDetailFile] = useState<StagedFile | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [promotingIds, setPromotingIds] = useState<Set<string>>(new Set());
-  const { refreshKey, triggerRefresh } = useRefresh();
+  const { refreshKey } = useRefresh();
+  const { openNewRun } = useNewRunDialog();
 
   const fetchFiles = useCallback(() => {
     setLoading(true);
@@ -78,35 +86,6 @@ export function FileBrowser() {
   useEffect(() => {
     fetchFiles();
   }, [fetchFiles, refreshKey]);
-
-  const handlePromote = async (file: StagedFile) => {
-    setPromotingIds((prev) => new Set(prev).add(file.id));
-    try {
-      const result = await promoteFile(file.id);
-      setFiles((prev) =>
-        prev.map((f) =>
-          f.id === file.id
-            ? { ...f, status: result.status, promote_result: result.promote_result ?? f.promote_result }
-            : f,
-        ),
-      );
-      if (result.status === "failed") {
-        toast.error(`${file.name} failed to promote${result.error ? `: ${result.error}` : ""}`);
-      } else {
-        toast.success(`${file.name} promoted`);
-      }
-      triggerRefresh();
-    } catch (err) {
-      const detail = err instanceof ApiError ? err.message : "Failed to promote file";
-      toast.error(detail);
-    } finally {
-      setPromotingIds((prev) => {
-        const next = new Set(prev);
-        next.delete(file.id);
-        return next;
-      });
-    }
-  };
 
   const handleOpenDetail = (file: StagedFile) => {
     setDetailFile(file);
@@ -206,19 +185,10 @@ export function FileBrowser() {
                         <Button
                           variant="outline"
                           size="sm"
-                          disabled={
-                            promotingIds.has(file.id) ||
-                            file.status === "promoted" ||
-                            file.status === "promoting"
-                          }
-                          onClick={() => handlePromote(file)}
+                          onClick={() => openNewRun({ stagedId: file.id, name: file.name })}
                         >
-                          {promotingIds.has(file.id) ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Rocket className="h-3.5 w-3.5 mr-1" />
-                          )}
-                          Promote
+                          Start run
+                          <ArrowRight className="h-3.5 w-3.5 ml-1" />
                         </Button>
                       </div>
                     </TableCell>
@@ -235,7 +205,6 @@ export function FileBrowser() {
         open={detailOpen}
         onOpenChange={setDetailOpen}
         onUpdated={handleDetailUpdated}
-        onPromoted={handleDetailUpdated}
       />
     </>
   );

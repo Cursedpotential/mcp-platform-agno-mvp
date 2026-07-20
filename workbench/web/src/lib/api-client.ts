@@ -9,10 +9,15 @@
  * different port (it is baked in at build time, same as the donor kit).
  */
 import type {
-  PromoteResult,
+  RunCreateResponse,
+  RunDetail,
+  RunMode,
+  RunSummary,
   StagedFile,
   StagedFileMeta,
+  ToolServerGroup,
   UploadResponse,
+  Workflow,
 } from "./shared/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
@@ -88,14 +93,82 @@ export async function updateFileMeta(id: string, patch: Partial<StagedFileMeta>)
   });
 }
 
-export async function promoteFile(id: string) {
-  return apiFetch<PromoteResult>(`/api/promote/${encodeURIComponent(id)}`, {
+// ---------------------------------------------------------------------------
+// Runs (C1 Operator Console)
+// ---------------------------------------------------------------------------
+
+export interface ListRunsParams {
+  status?: string;
+  limit?: number;
+}
+
+export async function listRuns(params: ListRunsParams = {}) {
+  const qs = new URLSearchParams();
+  if (params.status) qs.set("status", params.status);
+  if (params.limit) qs.set("limit", String(params.limit));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return apiFetch<RunSummary[]>(`/api/runs${suffix}`);
+}
+
+export async function getRun(runId: string) {
+  return apiFetch<RunDetail>(`/api/runs/${encodeURIComponent(runId)}`);
+}
+
+/** Start a run from an already-staged file (JSON body — no re-upload). */
+export async function createRunFromStaged(params: {
+  stagedId: string;
+  workflow: Workflow | string;
+  domain: string;
+  mode: RunMode;
+  sourceMeta?: Record<string, unknown>;
+}) {
+  return apiFetch<RunCreateResponse>("/api/runs", {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      staged_id: params.stagedId,
+      workflow: params.workflow,
+      domain: params.domain,
+      mode: params.mode,
+      source_meta: params.sourceMeta ?? null,
+    }),
   });
 }
 
-export async function promoteAll() {
-  return apiFetch<PromoteResult[]>("/api/promote-all", { method: "POST" });
+/** Start a run from a freshly dropped file (multipart — never lands in staging). */
+export async function createRunFromFile(params: {
+  file: File;
+  workflow: Workflow | string;
+  domain: string;
+  mode: RunMode;
+  sourceMeta?: Record<string, unknown>;
+}) {
+  const formData = new FormData();
+  formData.append("file", params.file);
+  formData.append("workflow", params.workflow);
+  formData.append("domain", params.domain);
+  formData.append("mode", params.mode);
+  if (params.sourceMeta) formData.append("source_meta", JSON.stringify(params.sourceMeta));
+  return apiFetch<RunCreateResponse>("/api/runs", { method: "POST", body: formData });
+}
+
+// ---------------------------------------------------------------------------
+// Tool Explorer (MCP servers)
+// ---------------------------------------------------------------------------
+
+export async function listTools() {
+  return apiFetch<ToolServerGroup[]>("/api/tools");
+}
+
+/** Raw tool-call result — shape is whatever the target MCP tool returns. */
+export type ToolCallResult = unknown;
+
+export async function callTool(server: string, name: string, args: Record<string, unknown>) {
+  return apiFetch<ToolCallResult>("/api/tools/call", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ server, name, arguments: args }),
+  });
 }
 
 /** Upload a file with progress reporting (non-streaming — one JSON response). */

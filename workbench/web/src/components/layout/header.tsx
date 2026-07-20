@@ -1,4 +1,4 @@
-// Byline: Claude Code · Sonnet (agent) · 2026-07-19
+// Byline: Claude Code · Sonnet (agent) · 2026-07-20
 "use client";
 
 import { usePathname } from "next/navigation";
@@ -17,14 +17,15 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 
 const pageTitles: Record<string, string> = {
-  "/upload": "Upload",
-  "/files": "Files",
+  "/runs": "Runs",
+  "/tools": "Tools",
+  "/intake": "Intake",
 };
 
 export function Header() {
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
-  const pageTitle = pageTitles[pathname] || "Files";
+  const pageTitle = pageTitles[pathname] || "Runs";
 
   return (
     <header className="flex h-12 items-center gap-2 bg-nav text-nav-foreground px-4">
@@ -33,8 +34,8 @@ export function Header() {
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>
-            <BreadcrumbLink href="/files" className="text-nav-foreground/70 hover:text-nav-foreground">
-              Knowledge Workbench
+            <BreadcrumbLink href="/runs" className="text-nav-foreground/70 hover:text-nav-foreground">
+              Operator Console
             </BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator className="text-nav-foreground/40" />

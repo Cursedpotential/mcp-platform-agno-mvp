@@ -1,10 +1,11 @@
 # Byline: Claude Code · Sonnet (agent) · 2026-07-19
-"""Knowledge Workbench API entrypoint.
+"""Knowledge Workbench API entrypoint — the C1 Operator Console backend.
 
-A staging + promote surface: stages uploaded files locally (LanceDB whole-file
-store + object-store copy) and promotes them through the EXISTING platform
-ingestion API (AGENTOS_API_URL). Never chunks, embeds, or writes Milvus/
-Postgres itself — see workbench/api/README.md.
+Stages uploaded files locally (LanceDB whole-file store + object-store copy),
+starts/lists/inspects spine runs (custody -> parse -> store -> knowledge, via
+AGENTOS_API_URL's /v1/runs), and proxies MCP tool servers for the Tool
+Explorer. Never chunks, embeds, or writes Milvus/Postgres itself — see
+workbench/api/README.md.
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.config import settings
-from app.runtime import documents, files, health, metrics, promote, upload
+from app.runtime import documents, files, health, metrics, promote, runs, tools, upload
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("workbench")
@@ -36,6 +37,8 @@ app.include_router(upload.router)
 app.include_router(files.router)
 app.include_router(promote.router)
 app.include_router(documents.router)
+app.include_router(runs.router)
+app.include_router(tools.router)
 app.include_router(metrics.router)
 
 # Static frontend (built separately) mounted LAST so /api + /health always win.

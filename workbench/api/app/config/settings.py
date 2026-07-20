@@ -8,6 +8,8 @@ defaults and the Coolify env-literal-rendering gotcha.
 
 from __future__ import annotations
 
+import json
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,9 +25,28 @@ class Settings(BaseSettings):
     # --- LanceDB local whole-file staging store (no S3, no AWS env vars) ---
     lancedb_path: str = "/data/lancedb"
 
-    # --- Existing platform ingestion API (the promote target) ---
+    # --- Existing platform ingestion API (the promote target + the run spine) ---
     agentos_api_url: str = "http://100.72.169.40:8000"
     agentos_api_token: str | None = None
+
+    # --- MCP tool servers (Tool Explorer) ---
+    # Config-driven so the C1 console never hardcodes a server list. Each
+    # entry may carry its own "token" (bearer); CONTEXTFORGE_TOKEN below fills
+    # in the "contextforge" entry's token when the entry itself doesn't carry
+    # one — see mcp_servers_parsed. NOTE the default "contextforge" URL below
+    # is the bare gateway root; the confirmed real path convention (see
+    # docs/planning/architecture-directives/contextforge-integration.md) is
+    # per-virtual-server: `http://<host>:4444/servers/<SERVER_UUID>/mcp`, and
+    # ContextForge has AUTH_REQUIRED=true (JWT bearer, minted via
+    # `mcpgateway.utils.create_jwt_token`) — NOT the "no auth on tailnet" the
+    # build brief assumed. Update MCP_SERVERS with the real registered
+    # virtual-server URL (e.g. for "platform_tools") once known, and set
+    # CONTEXTFORGE_TOKEN to a minted JWT.
+    mcp_servers: str = (
+        '[{"key":"agentos","label":"AgentOS","url":"http://100.72.169.40:8001/mcp"},'
+        '{"key":"contextforge","label":"ContextForge","url":"http://100.72.169.40:4444/mcp"}]'
+    )
+    contextforge_token: str | None = None
 
     # --- App ---
     app_port: int = 8020
@@ -37,6 +58,28 @@ class Settings(BaseSettings):
     @property
     def max_upload_bytes(self) -> int:
         return self.max_upload_mb * 1024 * 1024
+
+    @property
+    def mcp_servers_parsed(self) -> list[dict]:
+        """Parse MCP_SERVERS (json) into [{key, label, url, token?}, ...].
+
+        A bare CONTEXTFORGE_TOKEN env fills in the bearer token for the
+        "contextforge"-keyed entry when that entry doesn't already carry its
+        own "token" field. Malformed/non-list JSON degrades to an empty list
+        rather than raising — a bad env var should not crash the whole app.
+        """
+        try:
+            servers = json.loads(self.mcp_servers)
+        except (TypeError, ValueError):
+            return []
+        if not isinstance(servers, list):
+            return []
+        for server in servers:
+            if not isinstance(server, dict):
+                continue
+            if server.get("key") == "contextforge" and not server.get("token") and self.contextforge_token:
+                server["token"] = self.contextforge_token
+        return servers
 
 
 settings = Settings()

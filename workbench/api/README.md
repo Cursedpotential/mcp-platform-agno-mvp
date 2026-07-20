@@ -16,16 +16,18 @@ import from higher ones (enforced by `tests/test_structure.py`). `boto3` and
 
 | Layer | Files | Role |
 |---|---|---|
-| `config` | `settings.py` | S3-agnostic object-store env knobs + LanceDB path + spine URL |
-| `repo` | `object_store_client.py`, `lancedb_client.py`, `staging.py` | boto3 + LanceDB, confined here |
-| `service` | `upload.py`, `detect.py`, `files.py`, `documents.py`, `promote.py`, `metadata.py` | business logic, no SDK imports |
-| `runtime` | `upload.py`, `files.py`, `promote.py`, `documents.py`, `health.py`, `metrics.py` | FastAPI routers |
+| `config` | `settings.py` | S3-agnostic object-store env knobs + LanceDB path + spine URL + MCP server list |
+| `repo` | `object_store_client.py`, `lancedb_client.py`, `staging.py`, `mcp_client.py` | boto3 + LanceDB + MCP streamable-HTTP, confined here |
+| `service` | `upload.py`, `detect.py`, `files.py`, `documents.py`, `promote.py`, `metadata.py`, `runs.py`, `tools.py` | business logic, no SDK imports |
+| `runtime` | `upload.py`, `files.py`, `promote.py`, `documents.py`, `health.py`, `metrics.py`, `runs.py`, `tools.py` | FastAPI routers |
 
 ## Endpoints
 
 - `POST /api/upload` — stream-hash + stage a file (dedupes by sha256)
 - `GET /api/files`, `GET /api/files/{id}`, `PATCH /api/files/{id}` — list/detail/edit staged files
-- `POST /api/promote/{id}`, `POST /api/promote-all` — push staged file(s) through the platform ingestion API
+- `POST /api/promote/{id}`, `POST /api/promote-all` — legacy direct-to-`/knowledge` promote path (superseded in the UI by Runs, kept as a backend endpoint)
+- `POST /api/runs` (json `{staged_id, workflow, domain, mode, source_meta}` or multipart `file`), `GET /api/runs`, `GET /api/runs/{id}` — proxy to the spine's `/v1/runs` pipeline (custody → parse → store → knowledge)
+- `GET /api/tools`, `POST /api/tools/call` — proxy to every configured MCP server (`MCP_SERVERS` env) for the Tool Explorer
 - `GET /api/documents/stats` — staging-table counts by status/type
 - `GET /health`, `GET /metrics`
 

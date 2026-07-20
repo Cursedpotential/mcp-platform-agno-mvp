@@ -1,9 +1,41 @@
-# Knowledge Workbench — web
+# Knowledge Workbench — web (C1 Operator Console)
 
-> _Byline: Claude Code · Sonnet (agent) · 2026-07-19_
+> _Byline: Claude Code · Sonnet (agent) · 2026-07-20 (C1 rebuild: Runs/Tools/Intake replaces Upload/Files-promote)_
 
-Staging + promote surface for the platform knowledge base. Two pages: **Upload**
-(drag-drop staging) and **Files** (staged-file browser, metadata editor, promote).
+The C1 Operator Console: drive the evidence spine instead of feeding a blind
+upload->promote box (owner rejection, `docs/planning/operator-console-requirements.md`).
+Three pages: **Runs** (default landing — start/watch spine runs stage-by-stage:
+custody -> parse -> store -> knowledge), **Tools** (schema-generated forms over
+every configured MCP server), **Intake** (the renamed Files page — upload folded
+in, Promote buttons removed, each row's action is "Start run ->").
+
+## C1 rebuild (2026-07-20)
+
+- `POST /api/promote/{id}` still exists on the backend but nothing in this UI
+  calls it anymore — `promoteFile`/`promoteAll`/`PromoteResult` were removed
+  from `lib/api-client.ts` and `lib/shared/types.ts`.
+- `/upload` route retired (folded into `/intake`) — the old route file is
+  archived at `_stale/upload-page-pre-c1/page.tsx` (never deleted, per the
+  project's no-delete convention), not part of the route tree.
+- `/files` renamed to `/intake` (`src/app/files` -> `src/app/intake` via `git mv`);
+  `src/components/files/` renamed to `src/components/intake/`,
+  `file-browser.tsx` -> `intake-table.tsx`.
+- New: `src/components/runs/` (RunsTable, NewRunDialog, RunDetailDialog,
+  StageRail, StageDrawer, StageOutputView), `src/components/tools/`
+  (ToolExplorer, ToolForm — hand-rolled JSON-Schema form, ToolResultPane),
+  `src/lib/new-run-dialog-context.tsx` (lets the Runs page and the Intake
+  table's row action both open the same New-run dialog), `src/components/ui/switch.tsx`
+  and `textarea.tsx` (small primitives the donor kit didn't carry).
+- Run/Stage/ToolServer/Tool types cross-checked against the actual spine
+  implementation that landed in this same working tree mid-build
+  (`server/evidence/run_ledger.py`, `server/api/run_routes.py`,
+  `sql/0005_workflow_run_ledger.sql`) — notably, STAGE status uses
+  `pending|running|success|failed|skipped` (not `completed`, which is only
+  the RUN-level vocabulary), and the custody stage's blob-path field is
+  named `blob_key`.
+
+The sections below (donor origin, static-export constraints) describe the
+original P0–P4 workbench build and still apply structurally.
 
 ## Donor origin
 

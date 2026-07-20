@@ -1,4 +1,4 @@
-// Byline: Claude Code · Sonnet (agent) · 2026-07-19
+// Byline: Claude Code · Sonnet (agent) · 2026-07-20
 "use client";
 
 import { useEffect, useState } from "react";
@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { ApiError, promoteFile, updateFileMeta } from "@/lib/api-client";
+import { ApiError, updateFileMeta } from "@/lib/api-client";
 import { humanizeBytes, formatDate } from "@/lib/utils";
 import { DOMAIN_OPTIONS, type StagedFile } from "@/lib/shared/types";
 
@@ -25,23 +25,24 @@ interface FileDetailDialogProps {
   onOpenChange: (open: boolean) => void;
   /** Called after a successful metadata save, with the server's updated record. */
   onUpdated: (file: StagedFile) => void;
-  /** Called after a promote attempt (success or failure), with the merged record. */
-  onPromoted: (file: StagedFile) => void;
 }
 
-/** Detail view for a staged file: text preview + metadata editor + promote. */
+/**
+ * Detail view for a staged file: text preview + metadata editor + dedupe
+ * info. The Promote button/section is GONE — the owner rejected the
+ * upload->promote blind-box UX; "Start run ->" (in the Intake table row) is
+ * the only way forward for a staged file now.
+ */
 export function FileDetailDialog({
   file,
   open,
   onOpenChange,
   onUpdated,
-  onPromoted,
 }: FileDetailDialogProps) {
   const [domain, setDomain] = useState("");
   const [category, setCategory] = useState("");
   const [sourcePlatform, setSourcePlatform] = useState("");
   const [saving, setSaving] = useState(false);
-  const [promoting, setPromoting] = useState(false);
 
   useEffect(() => {
     if (file) {
@@ -68,28 +69,6 @@ export function FileDetailDialog({
       toast.error(detail);
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handlePromote = async () => {
-    setPromoting(true);
-    try {
-      const result = await promoteFile(file.id);
-      onPromoted({
-        ...file,
-        status: result.status,
-        promote_result: result.promote_result ?? file.promote_result,
-      });
-      if (result.status === "failed") {
-        toast.error(`Promote failed${result.error ? `: ${result.error}` : ""}`);
-      } else {
-        toast.success("File promoted");
-      }
-    } catch (err) {
-      const detail = err instanceof ApiError ? err.message : "Failed to promote file";
-      toast.error(detail);
-    } finally {
-      setPromoting(false);
     }
   };
 
@@ -180,31 +159,11 @@ export function FileDetailDialog({
               />
             </div>
           </div>
-
-          {file.promote_result != null && (
-            <>
-              <Separator />
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
-                  Promote result
-                </p>
-                <pre className="rounded-md border bg-muted/30 p-3 max-h-32 overflow-y-auto text-xs">
-                  {JSON.stringify(file.promote_result, null, 2)}
-                </pre>
-              </div>
-            </>
-          )}
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={handleSave} disabled={saving}>
             {saving ? "Saving…" : "Save metadata"}
-          </Button>
-          <Button
-            onClick={handlePromote}
-            disabled={promoting || file.status === "promoted" || file.status === "promoting"}
-          >
-            {promoting ? "Promoting…" : "Promote"}
           </Button>
         </DialogFooter>
       </DialogContent>

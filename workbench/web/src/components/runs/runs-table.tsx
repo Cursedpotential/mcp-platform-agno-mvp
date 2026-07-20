@@ -1,0 +1,195 @@
+// Byline: Claude Code · Sonnet (agent) · 2026-07-20
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { RefreshCw, Plus } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
+import { StageRail } from "./stage-rail";
+import { RunDetailDialog } from "./run-detail-dialog";
+import { listRuns } from "@/lib/api-client";
+import { useRefresh } from "@/lib/refresh-context";
+import { useNewRunDialog } from "@/lib/new-run-dialog-context";
+import type { RunStatus, RunSummary } from "@/lib/shared/types";
+
+const LIST_POLL_MS = 4000;
+
+const STATUS_OPTIONS: Array<{ value: RunStatus | "all"; label: string }> = [
+  { value: "all", label: "All statuses" },
+  { value: "running", label: "Running" },
+  { value: "paused", label: "Paused" },
+  { value: "completed", label: "Completed" },
+  { value: "failed", label: "Failed" },
+];
+
+function statusVariant(status: RunStatus): "default" | "secondary" | "destructive" | "outline" {
+  switch (status) {
+    case "completed":
+      return "default";
+    case "running":
+      return "secondary";
+    case "failed":
+      return "destructive";
+    default:
+      return "outline";
+  }
+}
+
+function ageFrom(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  const minutes = Math.floor(ms / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
+export function RunsTable() {
+  const [runs, setRuns] = useState<RunSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<RunStatus | "all">("all");
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const { refreshKey, triggerRefresh } = useRefresh();
+  const { openNewRun } = useNewRunDialog();
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const fetchRuns = useCallback(() => {
+    setLoading(true);
+    listRuns({ status: statusFilter === "all" ? undefined : statusFilter })
+      .then(setRuns)
+      .catch(() => {
+        setRuns([]);
+        toast.error("Failed to load runs");
+      })
+      .finally(() => setLoading(false));
+  }, [statusFilter]);
+
+  useEffect(() => {
+    fetchRuns();
+  }, [fetchRuns, refreshKey]);
+
+  // Keep the mini stage rails fresh while anything is in flight.
+  useEffect(() => {
+    const hasActive = runs.some((r) => r.status === "running" || r.status === "paused");
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+    if (hasActive) {
+      pollRef.current = setInterval(fetchRuns, LIST_POLL_MS);
+    }
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runs, fetchRuns]);
+
+  const handleOpenDetail = (run: RunSummary) => {
+    setSelectedRunId(run.run_id);
+    setDetailOpen(true);
+  };
+
+  const handleDetailOpenChange = (next: boolean) => {
+    setDetailOpen(next);
+    if (!next) triggerRefresh();
+  };
+
+  return (
+    <>
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap">
+          <CardTitle>Runs</CardTitle>
+          <div className="flex items-center gap-2 flex-wrap">
+            <select
+              className="h-9 rounded-md border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as RunStatus | "all")}
+              aria-label="Filter by status"
+            >
+              {STATUS_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            <Button variant="outline" size="sm" onClick={fetchRuns}>
+              <RefreshCw className="h-4 w-4 mr-1" />
+              Refresh
+            </Button>
+            <Button size="sm" onClick={() => openNewRun()}>
+              <Plus className="h-4 w-4 mr-1" />
+              New run
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {loading && runs.length === 0 ? (
+            <div className="space-y-2">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Skeleton key={i} className="h-10 w-full" />
+              ))}
+            </div>
+          ) : runs.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-12 text-center">
+              No runs yet. Start one from a staged file or drop a new one.
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Source</TableHead>
+                  <TableHead>Workflow</TableHead>
+                  <TableHead>Domain</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Stages</TableHead>
+                  <TableHead>Age</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {runs.map((run) => (
+                  <TableRow
+                    key={run.run_id}
+                    className="cursor-pointer"
+                    onClick={() => handleOpenDetail(run)}
+                  >
+                    <TableCell className="font-medium truncate max-w-[220px]">
+                      {run.source_name}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{run.workflow}</Badge>
+                    </TableCell>
+                    <TableCell>{run.domain || "—"}</TableCell>
+                    <TableCell>
+                      <Badge variant={statusVariant(run.status)}>{run.status}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <StageRail stages={run.stages} variant="mini" />
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-xs">
+                      {ageFrom(run.updated_at)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <RunDetailDialog runId={selectedRunId} open={detailOpen} onOpenChange={handleDetailOpenChange} />
+    </>
+  );
+}

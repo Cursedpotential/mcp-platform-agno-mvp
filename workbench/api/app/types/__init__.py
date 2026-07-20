@@ -2,15 +2,19 @@
 from app.types.documents import DetectedType, StagedFile, StagedFileMeta, StagedStatus
 from app.types.files import ALLOWED_DOMAINS, FilePatchRequest
 from app.types.formatting import humanize_bytes
+from app.types.runs import RunCreateRequest
+from app.types.tools import ToolCallRequest
 from app.types.upload import StagedUploadResponse
 
 __all__ = [
     "ALLOWED_DOMAINS",
     "DetectedType",
     "FilePatchRequest",
+    "RunCreateRequest",
     "StagedFile",
     "StagedFileMeta",
     "StagedStatus",
     "StagedUploadResponse",
+    "ToolCallRequest",
     "humanize_bytes",
 ]

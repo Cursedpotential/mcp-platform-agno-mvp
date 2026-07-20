@@ -9,18 +9,20 @@ interface DropzoneProps {
   onFilesSelected: (files: File[]) => void;
   onFilesRejected: (rejections: FileRejection[]) => void;
   disabled?: boolean;
+  /** Restrict to a single file (e.g. the New-run dialog's "upload a file" source). Default true. */
+  multiple?: boolean;
 }
 
 const MAX_SIZE = 100 * 1024 * 1024; // 100MB
 
-export function Dropzone({ onFilesSelected, onFilesRejected, disabled }: DropzoneProps) {
+export function Dropzone({ onFilesSelected, onFilesRejected, disabled, multiple = true }: DropzoneProps) {
   const onDrop = useCallback(
     (accepted: File[]) => {
       if (accepted.length > 0) {
-        onFilesSelected(accepted);
+        onFilesSelected(multiple ? accepted : accepted.slice(0, 1));
       }
     },
-    [onFilesSelected]
+    [onFilesSelected, multiple]
   );
 
   const onDropRejected = useCallback(
@@ -36,7 +38,7 @@ export function Dropzone({ onFilesSelected, onFilesRejected, disabled }: Dropzon
       onDropRejected,
       maxSize: MAX_SIZE,
       disabled,
-      multiple: true,
+      multiple,
     });
 
   return (

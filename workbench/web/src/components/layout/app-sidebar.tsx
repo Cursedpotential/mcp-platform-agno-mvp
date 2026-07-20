@@ -1,9 +1,9 @@
-// Byline: Claude Code · Sonnet (agent) · 2026-07-19
+// Byline: Claude Code · Sonnet (agent) · 2026-07-20
 "use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Upload, FolderOpen, Brain } from "lucide-react";
+import { PlayCircle, Wrench, Inbox, Brain } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -17,9 +17,12 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 
+// C1 Operator Console nav: Runs (default landing) -> Tools -> Intake.
+// "Files"/"Upload" retired — see _stale/upload-page-pre-c1/ for the old route.
 const navItems = [
-  { title: "Upload", href: "/upload", icon: Upload },
-  { title: "Files", href: "/files", icon: FolderOpen },
+  { title: "Runs", href: "/runs", icon: PlayCircle },
+  { title: "Tools", href: "/tools", icon: Wrench },
+  { title: "Intake", href: "/intake", icon: Inbox },
 ];
 
 export function AppSidebar() {
@@ -28,9 +31,9 @@ export function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader className="border-b px-4 py-3">
-        <Link href="/files" className="flex items-center gap-2 font-semibold">
+        <Link href="/runs" className="flex items-center gap-2 font-semibold">
           <Brain className="h-5 w-5" />
-          <span>Knowledge Workbench</span>
+          <span>Operator Console</span>
         </Link>
       </SidebarHeader>
       <SidebarContent>
@@ -54,7 +57,7 @@ export function AppSidebar() {
       </SidebarContent>
       <SidebarFooter className="border-t px-4 py-3">
         <span className="text-xs text-muted-foreground">
-          Knowledge Workbench — staging &amp; promote
+          C1 Operator Console — drive the pipeline
         </span>
       </SidebarFooter>
     </Sidebar>

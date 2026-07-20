@@ -24,7 +24,7 @@
 # compose at deploy — set ALL envs (bulk API, {"data":[...]} shape) BEFORE the
 # first deploy; later env changes require a redeploy.
 # =============================================================================
-# Byline: Claude Code · Fable 5 · 2026-07-19
+# Byline: Claude Code · Fable 5 · 2026-07-19 (MCP_SERVERS/CONTEXTFORGE_TOKEN added 2026-07-20, C1 rebuild)
 
 services:
   knowledge-workbench:
@@ -40,8 +40,23 @@ services:
       APP_PORT: "8020"
       LANCEDB_PATH: /data/lancedb
       AGENTOS_API_URL: ${AGENTOS_API_URL:-http://100.72.169.40:8000}
-      # AGENTOS_API_TOKEN: optional Bearer for when the spine grows JWT
+      # Bearer for both /knowledge/* (legacy promote) and /v1/runs (C1
+      # console) — base_app's OS_SECURITY_KEY gate applies to every route
+      # regardless of authorization=False (see AGENTS.md Claude-Reflect note).
       AGENTOS_API_TOKEN: ${AGENTOS_API_TOKEN:-}
+      # --- MCP tool servers (Tool Explorer, C1 console) ---
+      # ContextForge needs a real path (per-virtual-server, not the bare
+      # gateway root) + a minted JWT once one exists — see
+      # workbench/api/app/config/settings.py's mcp_servers_parsed docstring
+      # and docs/planning/architecture-directives/contextforge-integration.md.
+      # Set as a LITERAL, not `${MCP_SERVERS:-<json>}`: Docker Compose's
+      # interpolation has no brace-nesting awareness, so a JSON default
+      # containing `}` would truncate at the JSON's own first `}`. This is
+      # also just this repo's existing Coolify convention anyway (env
+      # values are rendered as literals at deploy — see the file header) —
+      # to override, edit this value directly in the Coolify env editor.
+      MCP_SERVERS: '[{"key":"agentos","label":"AgentOS","url":"http://100.72.169.40:8001/mcp"},{"key":"contextforge","label":"ContextForge","url":"http://100.72.169.40:4444/mcp"}]'
+      CONTEXTFORGE_TOKEN: ${CONTEXTFORGE_TOKEN:-}
       # --- S3-agnostic object store (R2 now; B2/any-S3 = swap these envs) ---
       OBJECT_STORE_ENDPOINT_URL: ${R2_ENDPOINT_URL}
       OBJECT_STORE_BUCKET: ${R2_BUCKET_NAME}
