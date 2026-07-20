@@ -43,8 +43,25 @@ app.include_router(metrics.router)
 
 # Static frontend (built separately) mounted LAST so /api + /health always win.
 _static_dir = Path(settings.static_dir)
+
+
+class _NextStaticFiles(StaticFiles):
+    """StaticFiles that also maps extensionless paths to Next's flat exports.
+
+    `output: 'export'` (no trailingSlash) writes `/runs` as `runs.html`, which
+    plain StaticFiles(html=True) won't serve for a deep link to `/runs`."""
+
+    async def get_response(self, path: str, scope):  # type: ignore[override]
+        response = await super().get_response(path, scope)
+        if response.status_code == 404 and path and "." not in path.rsplit("/", 1)[-1]:
+            candidate = Path(self.directory) / f"{path}.html"  # type: ignore[arg-type]
+            if candidate.is_file():
+                return await super().get_response(f"{path}.html", scope)
+        return response
+
+
 if _static_dir.is_dir():
-    app.mount("/", StaticFiles(directory=str(_static_dir), html=True), name="static")
+    app.mount("/", _NextStaticFiles(directory=str(_static_dir), html=True), name="static")
     logger.info("Serving static frontend from %s", _static_dir)
 else:
     logger.info("STATIC_DIR %s not found — no frontend mounted", _static_dir)
