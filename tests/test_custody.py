@@ -154,3 +154,48 @@ def test_verify_artifact_matches_and_detects_tamper(blob_root, sample_file, monk
 
 def test_blob_root_env_override(blob_root):
     assert custody.blob_root() == blob_root
+
+
+# --- C2 two-tier custody (operator-console-requirements.md addendum 2) -------
+
+
+def test_ingest_artifact_default_tier_is_full(blob_root, sample_file, monkeypatch):
+    fake = _FakeEngine([None, 101, {"id": 42, "hashed_at": datetime(2026, 1, 1, tzinfo=timezone.utc)}])
+    monkeypatch.setattr(custody, "_get_engine", lambda: fake)
+
+    ref = custody.ingest_artifact(sample_file)  # tier not passed — unchanged callers
+
+    assert ref.custody_tier == "full"
+
+
+def test_ingest_artifact_light_tier_new_artifact_records_tier(blob_root, sample_file, monkeypatch):
+    fake = _FakeEngine([None, 101, {"id": 42, "hashed_at": datetime(2026, 1, 1, tzinfo=timezone.utc)}])
+    monkeypatch.setattr(custody, "_get_engine", lambda: fake)
+
+    ref = custody.ingest_artifact(sample_file, tier="light")
+
+    assert ref.custody_tier == "light"
+    assert ref.duplicate is False
+
+
+def test_ingest_artifact_duplicate_hit_reports_requested_tier(blob_root, sample_file, monkeypatch):
+    existing = {
+        "id": 7,
+        "source_ref": "/orig/path.txt",
+        "blob_key": "aa/aaaa/path.txt",
+        "hashed_at": datetime(2025, 6, 1, tzinfo=timezone.utc),
+    }
+    fake = _FakeEngine([existing])
+    monkeypatch.setattr(custody, "_get_engine", lambda: fake)
+
+    ref = custody.ingest_artifact(sample_file, tier="light")
+
+    # Dedupe hit reuses the EXISTING artifact but reports what THIS call
+    # requested (the tier the current run intends), per custody.py's docstring.
+    assert ref.duplicate is True
+    assert ref.custody_tier == "light"
+
+
+def test_ingest_artifact_rejects_unknown_tier(blob_root, sample_file):
+    with pytest.raises(ValueError, match="custody tier"):
+        custody.ingest_artifact(sample_file, tier="bogus")

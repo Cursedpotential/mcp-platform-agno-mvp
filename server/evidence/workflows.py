@@ -21,11 +21,19 @@ Both runners accept an optional `run_id` (C0 operator-console run ledger,
 server/evidence/run_ledger.py): when set, every step is wrapped so
 analysis.workflow_run_stage rows land AS STAGES EXECUTE instead of only in
 the end-of-run summary dict. run_id=None (the CLI's path) is unchanged.
+
+C2 additions (`mode` + `custody_tier` params, sql/0006_run_gates_and_custody_tier.sql):
+`mode='supervised'` pauses the run at a gate after every non-final stage for
+an operator decision (see `_wrap_step_for_run_control`); `custody_tier`
+('full' | 'light') threads through to custody_step -> ingest_artifact
+(server/evidence/custody.py). Both default to their pre-C2 values, so
+run_id=None / mode='auto' / custody_tier='full' callers are unchanged.
 """
-# Byline: Claude Code · Sonnet (agent) · 2026-07-20 (C0 run-ledger instrumentation added)
+# Byline: Claude Code · Sonnet (agent) · 2026-07-20 (C0 run-ledger instrumentation; C2 gates+retry+custody_tier added same day)
 
 from __future__ import annotations
 
+import asyncio
 import functools
 import inspect
 import json
@@ -64,6 +72,7 @@ def _ledger_stage_output(name: str | None, ctx: dict[str, Any]) -> dict[str, Any
             "artifact_id": artifact.artifact_id,
             "duplicate": artifact.duplicate,
             "blob_key": artifact.blob_key,
+            "custody_tier": artifact.custody_tier,  # C2 two-tier custody
         }
     if name == "parse":
         raw = ctx.get("raw_records") or []
@@ -138,6 +147,97 @@ def _wrap_step_for_ledger(step: Step, seq: int, run_id: str, ctx: dict[str, Any]
     step.active_executor = _ledger_wrapped  # type: ignore[assignment]  # agno's own step.py does the same (see _set_active_executor)
 
 
+# ---------------------------------------------------------------------------
+# C2 operator console: supervised gates + operator abort, keyed off
+# analysis.workflow_run.gate_state (sql/0006_run_gates_and_custody_tier.sql).
+# ---------------------------------------------------------------------------
+
+_GATE_POLL_INTERVAL_S = 2
+_GATE_POLL_CEILING_S = 24 * 60 * 60  # 24h — a paused-forever run fails closed
+
+
+async def _gate_sleep(seconds: float) -> None:
+    """Indirection over asyncio.sleep so tests can monkeypatch just this
+    module's poll delay without mutating the real asyncio module."""
+    await asyncio.sleep(seconds)
+
+
+def _wrap_step_for_run_control(
+    step: Step, seq: int, total_steps: int, run_id: str, ctx: dict[str, Any], mode: str
+) -> None:
+    """Mutate one Step in place. MUST be called AFTER `_wrap_step_for_ledger`
+    has already replaced step.executor — this wraps THAT (ledger-wrapped)
+    executor, so stage_start/stage_finish always run first, before any
+    gate/abort logic below sees the stage as done.
+
+    Two behaviors, both keyed off analysis.workflow_run.gate_state:
+
+    1. Operator ABORT check — runs at EVERY stage boundary, in BOTH 'auto'
+       and 'supervised' mode (one cheap read_gate() call): POST
+       /v1/runs/{id}/abort on a RUNNING run only sets gate_state='abort' (it
+       does not — and, by single-writer design, must not — call finish_run
+       itself); this is the code that actually observes that flag and stops
+       the run. This is the "wrapper honors it at the next gate/stage
+       boundary" limitation the C2 task spec calls out explicitly: an abort
+       requested mid-stage-execution is NOT preemptive — the in-flight
+       step's executor always runs to completion first, and if that stage
+       has no further boundary after it (nothing happens if the run finishes
+       before this check next runs), the abort request will show up as
+       gate_state='abort' forever on an otherwise-terminal run.
+    2. Supervised PAUSE-FOR-APPROVAL — 'supervised' mode ONLY, and only
+       after a stage that is NOT the last one (there is nothing left to gate
+       into after the final stage): pauses the run (status='paused',
+       gate_state='waiting') and polls every 2s (24h ceiling) until the
+       operator releases (-> resume) or aborts (-> same abort path as #1). A
+       24h timeout with no decision is ALSO treated as an abort (fail closed
+       rather than poll forever).
+
+    On either abort path, ctx['gate_aborted'] is set (read by
+    `_terminal_status` -> 'failed', and by the runners' finally-block to
+    populate workflow_run.error), and every still-'pending' stage is marked
+    'skipped' (run_ledger.skip_remaining_stages) — the stage rail should
+    never show 'pending' rows once a run has a terminal status.
+    """
+    already_wrapped = step.executor
+    name = step.name
+
+    from server.evidence.run_ledger import read_gate, set_gate, skip_remaining_stages
+
+    def _do_abort(reason: str) -> StepOutput:
+        ctx["gate_aborted"] = {"stage": name, "message": reason}
+        skip_remaining_stages(run_id, seq)
+        return StepOutput(content=f"gate: {reason}", success=False, stop=True)
+
+    @functools.wraps(already_wrapped)
+    async def _control_wrapped(step_input: StepInput, **kwargs: Any) -> StepOutput:
+        result = await already_wrapped(step_input, **kwargs)  # runs stage_start/executor/stage_finish
+        if not getattr(result, "success", True):
+            return result  # this stage already failed on its own — nothing to gate
+
+        if mode == "supervised" and seq < total_steps:
+            set_gate(run_id, "waiting", status="paused")
+            elapsed = 0
+            while elapsed < _GATE_POLL_CEILING_S:
+                await _gate_sleep(_GATE_POLL_INTERVAL_S)
+                elapsed += _GATE_POLL_INTERVAL_S
+                state = read_gate(run_id)
+                if state == "released":
+                    set_gate(run_id, None, status="running")
+                    return result
+                if state == "abort":
+                    return _do_abort(f"aborted by operator at gate after {name}")
+            return _do_abort(f"gate timed out (24h) after {name} with no operator decision")
+
+        # 'auto' mode, or the last stage in 'supervised' mode: no pause, but
+        # still honor an out-of-band abort request set on a RUNNING run.
+        if read_gate(run_id) == "abort":
+            return _do_abort(f"aborted by operator at gate after {name}")
+        return result
+
+    step.executor = _control_wrapped
+    step.active_executor = _control_wrapped  # type: ignore[assignment]
+
+
 # agno.run.base.RunStatus values ('PENDING'/'RUNNING'/'COMPLETED'/'PAUSED'/
 # 'CANCELLED'/'ERROR') -> analysis.workflow_run.status CHECK set ('running'/
 # 'paused'/'completed'/'failed'). NOTE: none of agno's failure statuses
@@ -170,6 +270,8 @@ def _terminal_status(ctx: dict[str, Any], result: Any) -> str:
        only trusted here once every executed step ALSO reports success=True;
        otherwise this maps to 'failed' regardless of what agno itself says.
     """
+    if ctx.get("gate_aborted"):  # C2 operator abort (gate abort/timeout) — see _wrap_step_for_run_control
+        return "failed"
     if ctx.get("paused_decision"):  # sms-xml no-silent-substitution pause
         return "paused"
     if result is None:
@@ -188,19 +290,29 @@ def build_chat_transcript_workflow(
     source_meta: dict[str, Any] | None = None,
     domain: str = "platform_design",
     knowledge=None,
+    custody_tier: str = "full",
 ) -> tuple[Workflow, dict[str, Any]]:
     """Build the chat-transcript workflow. Steps share `ctx` (closure state);
-    each StepOutput carries a human-readable status line for the run log."""
+    each StepOutput carries a human-readable status line for the run log.
+
+    custody_tier ('full' default | 'light', C2 addendum 2): threaded into the
+    custody step's ingest_artifact() call; run_routes.py's /v1/runs defaults
+    this to 'light' for chat-transcript uploads specifically (this builder's
+    own default stays 'full' — unchanged behavior for the CLI/evidence_routes
+    callers that never pass it)."""
     load_builtin_tools()
     ctx: dict[str, Any] = {
         "path": path,
         "source_meta": source_meta or {},
         "domain": domain,
         "attempts": [],
+        "custody_tier": custody_tier,
     }
 
     def custody_step(step_input: StepInput) -> StepOutput:
-        artifact = ingest_artifact(ctx["path"], {**ctx["source_meta"], "workflow": "chat-transcript"})
+        artifact = ingest_artifact(
+            ctx["path"], {**ctx["source_meta"], "workflow": "chat-transcript"}, tier=ctx["custody_tier"]
+        )
         ctx["artifact"] = artifact
         note = "duplicate — already in custody" if artifact.duplicate else "new artifact"
         return StepOutput(
@@ -291,6 +403,7 @@ def build_sms_xml_workflow(
     domain: str = "timeline_relationship",
     knowledge=None,
     allow_fallback: bool = False,
+    custody_tier: str = "full",
 ) -> tuple[Workflow, dict[str, Any]]:
     """Workflow A — the SBV SMS-XML vertical. Same custody->parse->store->knowledge
     spine as chat-transcript, but resolves capability `parse.sms-xml`: the
@@ -302,7 +415,12 @@ def build_sms_xml_workflow(
     allow_fallback=True permits the substitution loop to continue autonomously,
     but the run and every stored record are flagged as an ALTERNATE-PARSER parse
     with the primary's failure recorded — a backup parse must never be
-    indistinguishable from the primary."""
+    indistinguishable from the primary.
+
+    custody_tier ('full' default | 'light', C2 addendum 2): sms-xml is an
+    evidence vertical, so run_routes.py's /v1/runs keeps this workflow's
+    default at 'full' (unlike chat-transcript's 'light' default) — this
+    builder's own default stays 'full' regardless of caller."""
     load_builtin_tools()
     ctx: dict[str, Any] = {
         "path": path,
@@ -311,10 +429,11 @@ def build_sms_xml_workflow(
         "attempts": [],
         "alt_parse": False,
         "alt_parse_detail": None,
+        "custody_tier": custody_tier,
     }
 
     def custody_step(step_input: StepInput) -> StepOutput:
-        artifact = ingest_artifact(ctx["path"], {**ctx["source_meta"], "workflow": "sms-xml"})
+        artifact = ingest_artifact(ctx["path"], {**ctx["source_meta"], "workflow": "sms-xml"}, tier=ctx["custody_tier"])
         ctx["artifact"] = artifact
         note = "duplicate — already in custody" if artifact.duplicate else "new artifact"
         return StepOutput(
@@ -442,6 +561,8 @@ async def run_sms_xml(
     knowledge=None,
     allow_fallback: bool = False,
     run_id: str | None = None,
+    mode: str = "auto",
+    custody_tier: str = "full",
 ) -> dict[str, Any]:
     """Run the SMS-XML vertical (Workflow A) end-to-end; return a verifiable summary.
 
@@ -451,15 +572,28 @@ async def run_sms_xml(
     alt_parse=True + the primary's failure detail.
 
     run_id (C0 ledger, optional): see module docstring block above
-    `_ledger_stage_output` — None (default) is a strict no-op."""
-    wf, ctx = build_sms_xml_workflow(path, source_meta, domain, knowledge, allow_fallback=allow_fallback)
+    `_ledger_stage_output` — None (default) is a strict no-op.
+
+    mode ('auto' default | 'supervised', C2): only meaningful when run_id is
+    also set — 'supervised' pauses for operator approval after every
+    non-final stage (see `_wrap_step_for_run_control`); 'auto' still honors
+    an out-of-band operator abort at each stage boundary but never pauses.
+
+    custody_tier ('full' default | 'light', C2 addendum 2): threaded to
+    build_sms_xml_workflow -> custody_step -> ingest_artifact."""
+    wf, ctx = build_sms_xml_workflow(
+        path, source_meta, domain, knowledge, allow_fallback=allow_fallback, custody_tier=custody_tier
+    )
     ctx["allow_fallback"] = allow_fallback
     if run_id is not None:
         # wf.steps is always the plain list[Step] we just built above (agno's
         # own declared type is a broad union that also covers Loop/Parallel/
         # Router/Workflow-as-step, none of which build_*_workflow() uses).
-        for seq, step in enumerate(cast("list[Step]", wf.steps), start=1):
+        steps = cast("list[Step]", wf.steps)
+        total = len(steps)
+        for seq, step in enumerate(steps, start=1):
             _wrap_step_for_ledger(step, seq, run_id, ctx)
+            _wrap_step_for_run_control(step, seq, total, run_id, ctx, mode)
 
     summary: dict[str, Any] | None = None
     result: Any = None
@@ -490,11 +624,12 @@ async def run_sms_xml(
             from server.evidence.run_ledger import finish_run
 
             artifact = ctx.get("artifact")
+            gate_abort = ctx.get("gate_aborted")
             finish_run(
                 run_id,
                 _terminal_status(ctx, result),
                 summary=summary,
-                error=exc_message,
+                error=exc_message or (gate_abort["message"] if gate_abort else None),
                 sha256=artifact.sha256 if artifact else None,
                 artifact_id=artifact.artifact_id if artifact else None,
             )
@@ -521,18 +656,32 @@ async def run_chat_transcript(
     domain: str = "platform_design",
     knowledge=None,
     run_id: str | None = None,
+    mode: str = "auto",
+    custody_tier: str = "full",
 ) -> dict[str, Any]:
     """Run the chat-transcript vertical end-to-end; return a verifiable summary.
 
     run_id (C0 ledger, optional): see module docstring block above
-    `_ledger_stage_output` — None (default) is a strict no-op."""
-    wf, ctx = build_chat_transcript_workflow(path, source_meta, domain, knowledge)
+    `_ledger_stage_output` — None (default) is a strict no-op.
+
+    mode ('auto' default | 'supervised', C2): only meaningful when run_id is
+    also set — 'supervised' pauses for operator approval after every
+    non-final stage (see `_wrap_step_for_run_control`); 'auto' still honors
+    an out-of-band operator abort at each stage boundary but never pauses.
+
+    custody_tier ('full' default | 'light', C2 addendum 2): threaded to
+    build_chat_transcript_workflow -> custody_step -> ingest_artifact.
+    run_routes.py's /v1/runs defaults this workflow specifically to 'light'."""
+    wf, ctx = build_chat_transcript_workflow(path, source_meta, domain, knowledge, custody_tier=custody_tier)
     if run_id is not None:
         # wf.steps is always the plain list[Step] we just built above (agno's
         # own declared type is a broad union that also covers Loop/Parallel/
         # Router/Workflow-as-step, none of which build_*_workflow() uses).
-        for seq, step in enumerate(cast("list[Step]", wf.steps), start=1):
+        steps = cast("list[Step]", wf.steps)
+        total = len(steps)
+        for seq, step in enumerate(steps, start=1):
             _wrap_step_for_ledger(step, seq, run_id, ctx)
+            _wrap_step_for_run_control(step, seq, total, run_id, ctx, mode)
 
     summary: dict[str, Any] | None = None
     result: Any = None
@@ -560,11 +709,12 @@ async def run_chat_transcript(
             from server.evidence.run_ledger import finish_run
 
             artifact = ctx.get("artifact")
+            gate_abort = ctx.get("gate_aborted")
             finish_run(
                 run_id,
                 _terminal_status(ctx, result),
                 summary=summary,
-                error=exc_message,
+                error=exc_message or (gate_abort["message"] if gate_abort else None),
                 sha256=artifact.sha256 if artifact else None,
                 artifact_id=artifact.artifact_id if artifact else None,
             )

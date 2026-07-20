@@ -113,6 +113,14 @@ class ArtifactRef:
     size_bytes: int
     duplicate: bool  # True if this digest was already in custody
     ingested_at: str  # ISO timestamp
+    # Two-tier custody (operator-console-requirements.md addendum 2, C2).
+    # 'full' (default) — unchanged historical behavior. 'light' — same
+    # sha256+blob+dedupe write here, but the caller (workflows.py's
+    # custody_step) records custody_tier='light' on the run so no FUTURE
+    # per-record H2/H3 hashing hook is ever invoked for this artifact. See
+    # the `tier` docstring on ingest_artifact() below for why this call site
+    # itself has nothing extra to skip today.
+    custody_tier: str = "full"
 
 
 def _sha256_file(path: Path) -> str:
@@ -123,12 +131,30 @@ def _sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
-def ingest_artifact(src: str | Path, source_meta: dict | None = None) -> ArtifactRef:
+def ingest_artifact(src: str | Path, source_meta: dict | None = None, *, tier: str = "full") -> ArtifactRef:
     """Take custody of one file. Returns an immutable ArtifactRef.
 
     Idempotent: re-ingesting the same bytes returns the EXISTING artifact
     (duplicate=True) — custody rows and blobs are never overwritten.
+
+    tier ('full' default | 'light', C2 two-tier custody — addendum 2):
+    the write path here is IDENTICAL for both tiers today — sha256, dedupe
+    check against evidence.evidence_hash, write-once blob copy, one H1
+    evidence_hash + source row. ingest_artifact() has never generated H2/H3
+    per-record chain rows itself (that only happens in
+    reconcile_sbv_import(), a separate SBV-reconciliation path this linear
+    custody step does not call) — so 'light' has nothing extra to skip at
+    THIS call site. tier is still threaded through and stamped into
+    meta['custody_tier'] (-> evidence.source.original_metadata) so: (a) the
+    workflow's custody stage output and analysis.workflow_run.custody_tier
+    column can report it, and (b) any FUTURE per-record hashing hook added
+    here can branch on it — 'light' must never call such a hook, 'full' may.
+    The sole-writer boundary is unchanged: this function is still the only
+    evidence-schema writer for the linear ingest path either way.
     """
+    if tier not in ("full", "light"):
+        raise ValueError(f"custody tier must be 'full' or 'light', got {tier!r}")
+
     path = Path(src)
     if not path.is_file():
         raise FileNotFoundError(f"custody: source file not found: {path}")
@@ -139,6 +165,7 @@ def ingest_artifact(src: str | Path, source_meta: dict | None = None) -> Artifac
     meta = dict(source_meta or {})
     meta.setdefault("original_name", path.name)
     meta.setdefault("size_bytes", size)
+    meta["custody_tier"] = tier
 
     engine = _get_engine()
 
@@ -156,6 +183,11 @@ def ingest_artifact(src: str | Path, source_meta: dict | None = None) -> Artifac
             .first()
         )
     if row is not None:
+        # A duplicate hit reuses the EXISTING artifact regardless of which
+        # tier this call requested — the artifact was already in custody.
+        # We report this call's requested tier (not whatever the original
+        # ingest used), since that's what this run's custody stage output
+        # and workflow_run.custody_tier should reflect for THIS run.
         return ArtifactRef(
             artifact_id=str(row["id"]),
             sha256=sha_hex,
@@ -164,6 +196,7 @@ def ingest_artifact(src: str | Path, source_meta: dict | None = None) -> Artifac
             size_bytes=size,
             duplicate=True,
             ingested_at=row["hashed_at"].isoformat(),
+            custody_tier=tier,
         )
 
     # Write-once blob copy: <aa>/<sha256>/<original-name>
@@ -229,6 +262,7 @@ def ingest_artifact(src: str | Path, source_meta: dict | None = None) -> Artifac
         size_bytes=size,
         duplicate=False,
         ingested_at=new["hashed_at"].isoformat() if isinstance(new["hashed_at"], datetime) else str(new["hashed_at"]),
+        custody_tier=tier,
     )
 
 
