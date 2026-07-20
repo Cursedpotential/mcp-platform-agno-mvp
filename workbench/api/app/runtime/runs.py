@@ -1,14 +1,21 @@
-# Byline: Claude Code · Sonnet (agent) · 2026-07-20
+# Byline: Claude Code · Sonnet (agent) · 2026-07-20 (C2: continue/abort/retry endpoints)
 """POST /api/runs, GET /api/runs, GET /api/runs/{id} — proxy to the spine's run pipeline.
 
 POST /api/runs accepts EITHER a JSON body ({staged_id, workflow, domain,
-mode, source_meta}) OR a multipart body (file, workflow, domain, mode,
-source_meta as a json string) — the New-run dialog uses JSON when the
-operator picked an already-staged file, multipart when they dropped a fresh
-one. FastAPI can't bind one endpoint signature to both shapes based on
-runtime content-type, so this handler reads the raw `Request` and branches
-on `Content-Type` itself, then hands a validated/normalized call down to
-service/runs.py either way.
+mode, source_meta, custody_tier}) OR a multipart body (file, workflow,
+domain, mode, source_meta as a json string, custody_tier) — the New-run
+dialog uses JSON when the operator picked an already-staged file, multipart
+when they dropped a fresh one. FastAPI can't bind one endpoint signature to
+both shapes based on runtime content-type, so this handler reads the raw
+`Request` and branches on `Content-Type` itself, then hands a
+validated/normalized call down to service/runs.py either way.
+
+C2 (supervised-gate controls) adds three action endpoints against an
+existing run — continue/abort/retry — each a bare POST with no body. They
+share the same RunsError -> HTTPException translation as the rest of this
+module, which is what lets the spine's own 409 (continue on a non-paused
+run, abort on a terminal run, retry on a non-failed run) reach the frontend
+with its real `detail` message intact instead of a generic 502.
 """
 
 from __future__ import annotations
@@ -19,7 +26,15 @@ import logging
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import ValidationError
 
-from app.service.runs import RunsError, get_run, list_runs, start_run
+from app.service.runs import (
+    RunsError,
+    abort_run,
+    continue_run,
+    get_run,
+    list_runs,
+    retry_run,
+    start_run,
+)
 from app.types.runs import RunCreateRequest
 
 logger = logging.getLogger(__name__)
@@ -44,6 +59,7 @@ async def _start_from_multipart(request: Request) -> dict:
         workflow=str(form.get("workflow", "")),
         domain=form.get("domain") or None,
         mode=str(form.get("mode", "auto")),
+        custody_tier=form.get("custody_tier") or None,
         source_meta=source_meta,
         file_bytes=file_bytes,
         filename=upload.filename,
@@ -62,6 +78,7 @@ async def _start_from_json(request: Request) -> dict:
         workflow=payload.workflow,
         domain=payload.domain,
         mode=payload.mode,
+        custody_tier=payload.custody_tier,
         source_meta=payload.source_meta,
     )
 
@@ -89,5 +106,32 @@ async def list_runs_endpoint(status: str | None = None, limit: int | None = None
 async def get_run_endpoint(run_id: str):
     try:
         return get_run(run_id)
+    except RunsError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail) from None
+
+
+@router.post("/runs/{run_id}/continue")
+async def continue_run_endpoint(run_id: str):
+    """Release a gated run past its current stage boundary. 409 if not paused."""
+    try:
+        return continue_run(run_id)
+    except RunsError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail) from None
+
+
+@router.post("/runs/{run_id}/abort")
+async def abort_run_endpoint(run_id: str):
+    """Abort a running or gated run. 409 if the run is already terminal."""
+    try:
+        return abort_run(run_id)
+    except RunsError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail) from None
+
+
+@router.post("/runs/{run_id}/retry")
+async def retry_run_endpoint(run_id: str):
+    """Start a fresh run from a terminal-failed one. 409 if not failed."""
+    try:
+        return retry_run(run_id)
     except RunsError as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail) from None

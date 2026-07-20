@@ -1,4 +1,4 @@
-// Byline: Claude Code · Sonnet (agent) · 2026-07-19
+// Byline: Claude Code · Sonnet (agent) · 2026-07-19 (C2: continue/abort/retry + custody_tier added 2026-07-20)
 /**
  * API client for the Knowledge Workbench.
  *
@@ -9,9 +9,13 @@
  * different port (it is baked in at build time, same as the donor kit).
  */
 import type {
+  CustodyTier,
+  RunAbortResponse,
+  RunContinueResponse,
   RunCreateResponse,
   RunDetail,
   RunMode,
+  RunRetryResponse,
   RunSummary,
   StagedFile,
   StagedFileMeta,
@@ -43,6 +47,13 @@ export class ApiError extends Error {
 
   get isConflict(): boolean {
     return this.status === 409;
+  }
+
+  /** 410 — the spine has retired the resource (e.g. a stale gate action
+   * racing a run that moved on). Distinct from isConflict(409): a 409
+   * means "not in the right state right now", a 410 means "gone for good". */
+  get isGone(): boolean {
+    return this.status === 410;
   }
 }
 
@@ -120,6 +131,7 @@ export async function createRunFromStaged(params: {
   workflow: Workflow | string;
   domain: string;
   mode: RunMode;
+  custodyTier?: CustodyTier;
   sourceMeta?: Record<string, unknown>;
 }) {
   return apiFetch<RunCreateResponse>("/api/runs", {
@@ -130,6 +142,7 @@ export async function createRunFromStaged(params: {
       workflow: params.workflow,
       domain: params.domain,
       mode: params.mode,
+      custody_tier: params.custodyTier ?? null,
       source_meta: params.sourceMeta ?? null,
     }),
   });
@@ -141,6 +154,7 @@ export async function createRunFromFile(params: {
   workflow: Workflow | string;
   domain: string;
   mode: RunMode;
+  custodyTier?: CustodyTier;
   sourceMeta?: Record<string, unknown>;
 }) {
   const formData = new FormData();
@@ -148,8 +162,39 @@ export async function createRunFromFile(params: {
   formData.append("workflow", params.workflow);
   formData.append("domain", params.domain);
   formData.append("mode", params.mode);
+  if (params.custodyTier) formData.append("custody_tier", params.custodyTier);
   if (params.sourceMeta) formData.append("source_meta", JSON.stringify(params.sourceMeta));
   return apiFetch<RunCreateResponse>("/api/runs", { method: "POST", body: formData });
+}
+
+// ---------------------------------------------------------------------------
+// Run gate controls (C2)
+// ---------------------------------------------------------------------------
+
+/** Release a gated (paused) run past its current stage boundary. Throws
+ * ApiError(409) if the run isn't paused. */
+export async function continueRun(runId: string) {
+  return apiFetch<RunContinueResponse>(`/api/runs/${encodeURIComponent(runId)}/continue`, {
+    method: "POST",
+  });
+}
+
+/** Abort a running or gated run. While `running`, this takes effect at the
+ * next stage boundary rather than instantly. Throws ApiError(409) if the
+ * run is already terminal. */
+export async function abortRun(runId: string) {
+  return apiFetch<RunAbortResponse>(`/api/runs/${encodeURIComponent(runId)}/abort`, {
+    method: "POST",
+  });
+}
+
+/** Start a fresh run from a terminal-failed one. The returned `run_id` is
+ * the NEW run (not the one passed in) — open that run to watch it.
+ * Throws ApiError(409) if the source run isn't terminal-failed. */
+export async function retryRun(runId: string) {
+  return apiFetch<RunRetryResponse>(`/api/runs/${encodeURIComponent(runId)}/retry`, {
+    method: "POST",
+  });
 }
 
 // ---------------------------------------------------------------------------

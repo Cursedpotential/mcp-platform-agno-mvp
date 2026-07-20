@@ -85,6 +85,20 @@ export type Workflow = (typeof WORKFLOW_OPTIONS)[number];
 
 export type RunMode = "auto" | "supervised";
 
+/** Supervised-gate state on a run (C2). Set only for supervised-mode runs;
+ * `null` for auto-mode runs and non-gated states. Per the C2 spine contract
+ * (console/c2-spine, a parallel branch this frontend codes against):
+ * `status==='paused' && gate_state==='waiting'` means the run is stopped at
+ * a gate, and the NEXT pending stage (lowest seq with status 'pending') is
+ * the gated one. */
+export type GateState = "waiting" | "released" | "abort" | null;
+
+/** Evidence-chain depth for a run's source file (C2). `light` = whole-file
+ * hash only; `full` = every intermediate hashed into the custody chain. The
+ * spine defaults this per-workflow when omitted at run-creation time
+ * (chat-transcript -> light, sms-xml -> full). */
+export type CustodyTier = "full" | "light";
+
 /** One row of a run's stage list, as embedded in `GET /v1/runs` list items. */
 export interface RunStageSummary {
   seq: number;
@@ -166,6 +180,13 @@ export interface RunFields {
   error?: string | null;
   created_at: string;
   updated_at: string;
+  /** C2: supervised-gate state — see `GateState` doc comment. */
+  gate_state: GateState;
+  /** C2: the run this one was created from via POST /v1/runs/{id}/retry,
+   * or null for a run that wasn't a retry. */
+  parent_run_id: string | null;
+  /** C2: evidence-chain depth — see `CustodyTier` doc comment. */
+  custody_tier: CustodyTier;
 }
 
 /** One row of `GET /v1/runs`. */
@@ -183,6 +204,27 @@ export interface RunCreateResponse {
   run_id: string;
   workflow: string;
   mode: string;
+}
+
+/** `POST /api/runs/{id}/continue` 200 response (C2). 409 if not paused. */
+export interface RunContinueResponse {
+  run_id: string;
+  status: RunStatus;
+}
+
+/** `POST /api/runs/{id}/abort` 200 response (C2) — `status` is always
+ * 'failed'. 409 if the run is already terminal. */
+export interface RunAbortResponse {
+  run_id: string;
+  status: RunStatus;
+}
+
+/** `POST /api/runs/{id}/retry` 202 response (C2) — `run_id` is the NEW run;
+ * `parent_run_id` is the failed run that was retried. 409 if the source run
+ * isn't terminal-failed. */
+export interface RunRetryResponse {
+  run_id: string;
+  parent_run_id: string;
 }
 
 // ---------------------------------------------------------------------------

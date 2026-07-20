@@ -51,14 +51,23 @@ def create_run(
     source_name: str | None = None,
     source_path: str | None = None,
     domain: str | None = None,
+    parent_run_id: str | None = None,
+    custody_tier: str = "full",
 ) -> str:
-    """Insert a new analysis.workflow_run row (status='running'). Returns run_id."""
+    """Insert a new analysis.workflow_run row (status='running'). Returns run_id.
+
+    parent_run_id (C2 retry lineage, sql/0006): set when this run was created
+    by POST /v1/runs/{id}/retry — links back to the terminal-failed run it
+    re-runs from. custody_tier (C2 two-tier custody, sql/0006): 'full'
+    (default, unchanged historical meaning) or 'light' — see
+    server/evidence/custody.py's ingest_artifact() docstring.
+    """
     with _get_engine().begin() as conn:
         run_id = conn.execute(
             text(
                 "INSERT INTO analysis.workflow_run "
-                "(workflow, mode, source_name, source_path, domain) "
-                "VALUES (:workflow, :mode, :source_name, :source_path, :domain) "
+                "(workflow, mode, source_name, source_path, domain, parent_run_id, custody_tier) "
+                "VALUES (:workflow, :mode, :source_name, :source_path, :domain, :parent_run_id, :custody_tier) "
                 "RETURNING run_id"
             ),
             {
@@ -67,6 +76,8 @@ def create_run(
                 "source_name": source_name,
                 "source_path": source_path,
                 "domain": domain,
+                "parent_run_id": parent_run_id,
+                "custody_tier": custody_tier,
             },
         ).scalar()
     return str(run_id)
@@ -128,6 +139,73 @@ def stage_finish(
         )
 
 
+def set_gate(run_id: str, state: str | None, status: str | None = None) -> None:
+    """Set analysis.workflow_run.gate_state (C2 supervised gates, sql/0006).
+
+    state: 'waiting' | 'released' | 'abort' | None (None clears the gate —
+    used when a release lets the run resume).
+
+    status: optional — when given, updated in the SAME statement as gate_state
+    (one round-trip instead of two): the supervised-gate wrapper in
+    workflows.py uses this to pause ('waiting' + status='paused') and resume
+    ('None' + status='running') atomically; run_routes.py's /continue
+    endpoint uses it the same way. Left out (None) leaves status untouched —
+    e.g. the /abort endpoint on a RUNNING run only flips gate_state; the run's
+    own background task is what eventually calls finish_run(status='failed').
+    """
+    with _get_engine().begin() as conn:
+        if status is not None:
+            conn.execute(
+                text(
+                    "UPDATE analysis.workflow_run "
+                    "SET gate_state = :state, status = :status, updated_at = now() "
+                    "WHERE run_id = :run_id"
+                ),
+                {"run_id": run_id, "state": state, "status": status},
+            )
+        else:
+            conn.execute(
+                text(
+                    "UPDATE analysis.workflow_run "
+                    "SET gate_state = :state, updated_at = now() "
+                    "WHERE run_id = :run_id"
+                ),
+                {"run_id": run_id, "state": state},
+            )
+
+
+def read_gate(run_id: str) -> str | None:
+    """Read the current gate_state for a run — a lightweight single-column
+    read (no stage join), used by the supervised-gate poll loop in
+    workflows.py (every ~2s while paused) and the run-control endpoints'
+    abort-at-boundary check. Returns None if the run doesn't exist or has no
+    gate open."""
+    with _get_engine().connect() as conn:
+        row = conn.execute(
+            text("SELECT gate_state FROM analysis.workflow_run WHERE run_id = :run_id"),
+            {"run_id": run_id},
+        ).first()
+    return row[0] if row is not None else None
+
+
+def skip_remaining_stages(run_id: str, from_seq: int = 0) -> None:
+    """Mark every still-'pending' stage after `from_seq` as 'skipped' — used
+    when an operator aborts at a supervised gate, a gate times out (24h
+    ceiling with no operator decision), or an operator aborts a RUNNING run
+    (the `status='pending' AND seq > from_seq` filter means passing
+    from_seq=0 safely skips 'whatever is still pending' without needing to
+    know the exact current stage)."""
+    with _get_engine().begin() as conn:
+        conn.execute(
+            text(
+                "UPDATE analysis.workflow_run_stage "
+                "SET status = 'skipped' "
+                "WHERE run_id = :run_id AND seq > :from_seq AND status = 'pending'"
+            ),
+            {"run_id": run_id, "from_seq": from_seq},
+        )
+
+
 def finish_run(
     run_id: str,
     status: str,
@@ -186,6 +264,8 @@ def get_run(run_id: str) -> dict[str, Any] | None:
 
     run = dict(run_row)
     run["run_id"] = str(run["run_id"])
+    if run.get("parent_run_id") is not None:
+        run["parent_run_id"] = str(run["parent_run_id"])
     run["summary"] = _jsonb(run.get("summary"))
 
     stages = []
@@ -208,6 +288,7 @@ def list_runs(limit: int = 50, status: str | None = None) -> list[dict[str, Any]
     sql = text(
         "SELECT r.run_id, r.workflow, r.mode, r.source_name, r.source_path, r.sha256, "
         "       r.artifact_id, r.domain, r.status, r.summary, r.error, r.created_at, r.updated_at, "
+        "       r.gate_state, r.parent_run_id, r.custody_tier, "
         "       s.seq, s.name AS stage_name, s.status AS stage_status "
         f"FROM (SELECT * FROM analysis.workflow_run {where_clause} "
         "       ORDER BY created_at DESC LIMIT :limit) r "
@@ -226,6 +307,10 @@ def list_runs(limit: int = 50, status: str | None = None) -> list[dict[str, Any]
     for row in rows:
         rid = str(row["run_id"])
         if rid not in runs:
+            # .get() (not row[...]) for the three C2 columns: keeps this
+            # resilient for callers/test doubles built against pre-0006 row
+            # shapes (a real 0006-applied DB always has them via the SELECT).
+            parent_run_id = row.get("parent_run_id")
             runs[rid] = {
                 "run_id": rid,
                 "workflow": row["workflow"],
@@ -236,6 +321,9 @@ def list_runs(limit: int = 50, status: str | None = None) -> list[dict[str, Any]
                 "artifact_id": row["artifact_id"],
                 "domain": row["domain"],
                 "status": row["status"],
+                "gate_state": row.get("gate_state"),
+                "parent_run_id": str(parent_run_id) if parent_run_id is not None else None,
+                "custody_tier": row.get("custody_tier", "full"),
                 "summary": _jsonb(row["summary"]),
                 "error": row["error"],
                 "created_at": row["created_at"],
