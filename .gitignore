@@ -88,3 +88,8 @@ data/content_store/
 analytics/
 # live-DB dumps (may contain sealed values) — NEVER commit
 live-dumps/
+
+# env backups (live secrets) — NEVER commit
+.env.bak*
+# chat-sample breakdowns (real case PII; owner rule 2026-07-11: local + gitignored)
+docs/planning/chat-sample-analysis/
