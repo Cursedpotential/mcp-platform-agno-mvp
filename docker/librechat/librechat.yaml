@@ -23,10 +23,11 @@ endpoints:
       titleModel: "current_model"
       modelDisplayLabel: "Platform chat (failover lane)"
 
-# MCP/Actions URL security check — the tailnet AgentOS door must be allowlisted.
-actions:
-  allowedDomains:
-    - "100.72.169.40"
+# MCP SSRF policy: allowedAddresses permits specific private host:port targets
+# (the tailnet AgentOS door) while keeping the default policy for everything else.
+mcpSettings:
+  allowedAddresses:
+    - "100.72.169.40:8001"
 
 mcpServers:
   agentos:
