@@ -1,0 +1,38 @@
+# =============================================================================
+# LIBRECHAT MONGO — deploy as its OWN Coolify app on ovh-files (OVH-2,
+# tailnet 100.91.190.107), project "Case Bible". One-concern-per-app rule.
+#
+# ⚠ Conscious owner override (2026-07-20): REAL MongoDB, not FerretDB — the
+# MongoDB→FerretDB substitution mandate is waived for LibreChat only (Mongoose
+# query patterns hit FerretDB compatibility gaps). Do not copy this precedent.
+#
+# NO host port — internal docker-network access only (librechat reaches it as
+# mongodb://librechat-mongo:27017 over the shared external `agno` net).
+#
+# HOST-PREP (once, before first deploy):
+#   mkdir -p /data/agno/volumes/librechat/mongo && chown -R 999:999 /data/agno/volumes/librechat/mongo
+#   docker network inspect agno >/dev/null 2>&1 || docker network create agno
+# =============================================================================
+# Byline: Claude Code · Fable 5 · 2026-07-20
+
+services:
+  librechat-mongo:
+    image: mongo:7
+    container_name: librechat-mongo
+    restart: unless-stopped
+    command: mongod --quiet
+    volumes:
+      # Bind mounts only — owner backs up host dirs (no named volumes).
+      - /data/agno/volumes/librechat/mongo:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - agno
+
+networks:
+  agno:
+    external: true

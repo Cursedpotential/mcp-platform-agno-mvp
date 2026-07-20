@@ -1,0 +1,66 @@
+# =============================================================================
+# LIBRECHAT — deploy as its OWN Coolify app on ovh-files (OVH-2, tailnet
+# 100.91.190.107), project "Case Bible". Minimal profile: app + mongo ONLY —
+# NO Meilisearch (SEARCH=false), NO rag_api/vector store (knowledge lives in
+# the platform spine → Milvus; a second RAG lane would violate single-writer).
+#
+# Model backend = Portkey gateway (ovh-app :8787) via the chat.json failover
+# lane, sent per-request as the x-portkey-config header (see
+# docker/gateway/portkey/README.md). The header value is the MATERIALIZED
+# config (secrets substituted) held in the PORTKEY_CHAT_CONFIG stored env —
+# LibreChat interpolates ${PORTKEY_CHAT_CONFIG} from container env into the
+# header at request time (config file itself stays secret-free).
+#
+# Agents: mcpServers.agentos in librechat.yaml points at the AgentOS MCP door
+# (tailnet http://100.72.169.40:8001/mcp, no basic-auth on the direct port) so
+# any chat model can invoke platform agents/workflows as tools.
+#
+# HOST-PREP (once, before first deploy):
+#   mkdir -p /data/agno/volumes/librechat/{config,images,uploads,logs}
+#   # stage docker/librechat/librechat.yaml -> /data/agno/volumes/librechat/config/librechat.yaml
+#   docker network inspect agno >/dev/null 2>&1 || docker network create agno
+#
+# Coolify gotcha: env values are baked at deploy — set ALL envs before first
+# deploy; changes need a redeploy. After the owner registers their account,
+# flip ALLOW_REGISTRATION=false + redeploy.
+# =============================================================================
+# Byline: Claude Code · Fable 5 · 2026-07-20
+
+services:
+  librechat:
+    image: ghcr.io/danny-avila/librechat:latest
+    container_name: librechat
+    restart: unless-stopped
+    ports:
+      - "${BIND_IP:-127.0.0.1}:3080:3080"   # tailnet-only; NEVER 0.0.0.0
+    environment:
+      HOST: 0.0.0.0
+      PORT: "3080"
+      MONGO_URI: mongodb://librechat-mongo:27017/LibreChat
+      CONFIG_PATH: /app/librechat.yaml
+      # --- session/crypto secrets (random, stored in Coolify env only) ---
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      CREDS_KEY: ${CREDS_KEY}
+      CREDS_IV: ${CREDS_IV}
+      # --- Portkey chat lane (materialized chat.json, single line) ---
+      PORTKEY_CHAT_CONFIG: ${PORTKEY_CHAT_CONFIG}
+      # --- minimal profile ---
+      SEARCH: "false"
+      ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-true}
+      ALLOW_SOCIAL_LOGIN: "false"
+      NO_INDEX: "true"
+    volumes:
+      # Bind mounts only — owner backs up host dirs (no named volumes).
+      - /data/agno/volumes/librechat/config/librechat.yaml:/app/librechat.yaml:ro
+      - /data/agno/volumes/librechat/images:/app/client/public/images
+      - /data/agno/volumes/librechat/uploads:/app/uploads
+      - /data/agno/volumes/librechat/logs:/app/api/logs
+    networks:
+      - librechat
+      - agno
+
+networks:
+  librechat:
+  agno:
+    external: true

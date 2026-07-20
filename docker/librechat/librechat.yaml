@@ -1,0 +1,30 @@
+# LibreChat instance config — SOURCE OF TRUTH lives here in the repo;
+# staged to ovh-files:/data/agno/volumes/librechat/config/librechat.yaml
+# (mounted read-only at /app/librechat.yaml). SECRET-FREE by design:
+# ${PORTKEY_CHAT_CONFIG} is interpolated by LibreChat from container env.
+# Byline: Claude Code · Fable 5 · 2026-07-20
+version: 1.2.1
+cache: true
+
+endpoints:
+  custom:
+    - name: "Platform (Portkey)"
+      # Portkey ignores the bearer key; routing/auth is the x-portkey-config header.
+      apiKey: "portkey"
+      baseURL: "http://100.72.169.40:8787/v1"
+      headers:
+        x-portkey-config: "${PORTKEY_CHAT_CONFIG}"
+      models:
+        # Pseudo-model: the chat.json lane overrides provider+model per target
+        # (glm-5.1 -> Gemini pool -> Groq -> Cerebras -> OpenRouter -> NVIDIA -> Mistral).
+        default: ["platform-chat"]
+        fetch: false
+      titleConvo: true
+      titleModel: "current_model"
+      modelDisplayLabel: "Platform chat (failover lane)"
+
+mcpServers:
+  agentos:
+    type: streamable-http
+    url: "http://100.72.169.40:8001/mcp"
+    timeout: 120000
