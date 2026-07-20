@@ -98,5 +98,12 @@ AI commits carry: `Co-Authored-By: <agent name and model> <noreply@anthropic.com
 
 ### Environment Setup
 - Tailnet PG from the desktop needs `DB_HOST=100.119.96.29` — the default host `agentos-db` only resolves inside the compose network.
+- VPS services bind `${BIND_IP}` (the box's tailnet IP), NOT loopback — on-box probes and SSH tunnels must target `100.72.169.40:<port>`, never `localhost:<port>` (a tunnel to VPS-localhost gets connection-refused).
+
+### API Auth
+- agentos-api: `authorization=False` in main.py only disables JWT — the `OS_SECURITY_KEY` bearer still gates every route (incl. `/knowledge/*`). Internal callers send `Authorization: Bearer $OS_SECURITY_KEY` (value in `~/.secrets/infra-access.md`).
+
+### Control Surfaces
+- os.agno.com free tier accepts the remote instance via localhost trickery: the browser does the connecting, so `ssh -i ~/.ssh/ovh -N -L 7777:100.72.169.40:8000 root@100.72.169.40` makes the platform "http://localhost:7777" — CORS already allows the os.agno.com origin. One-click launcher: `C:\Users\matts\bin\agentos-control.cmd` (Desktop shortcut "AgentOS Control Plane").
 
 <!-- End claude-reflect section -->
