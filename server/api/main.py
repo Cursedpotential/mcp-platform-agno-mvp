@@ -142,8 +142,10 @@ def _build_app() -> Any:
     register_knowledge_routes(app, knowledge)
 
     from server.api.evidence_routes import register_evidence_routes
+    from server.api.run_routes import register_run_routes
 
     register_evidence_routes(app, knowledge)
+    register_run_routes(app, knowledge)
 
     teams = [v for v in agents.values() if isinstance(v, Team)]
     solo_agents = [v for v in agents.values() if not isinstance(v, Team)]

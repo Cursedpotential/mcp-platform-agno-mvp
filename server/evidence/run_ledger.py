@@ -1,0 +1,248 @@
+"""
+evidence/run_ledger.py — C0 run ledger: persist per-run + per-stage state as
+the evidence workflows (server/evidence/workflows.py) execute, so a run is a
+first-class, inspectable DB object (analysis.workflow_run /
+analysis.workflow_run_stage, sql/0005_workflow_run_ledger.sql) instead of a
+black box whose only telemetry is the final in-memory step_log.
+
+Engine pattern mirrors server/evidence/store.py exactly (module-level lazy
+engine, sqlalchemy `text()`, `db_url` imported lazily to avoid import-time
+env coupling) — this module does not invent a second connection helper.
+
+Byline: Claude Code · Sonnet (agent) · 2026-07-20
+"""
+
+from __future__ import annotations
+
+import json
+from typing import Any
+
+from sqlalchemy import create_engine, text
+
+_engine = None
+
+
+def _get_engine():
+    global _engine
+    if _engine is None:
+        from server.core.url import db_url
+
+        _engine = create_engine(db_url, pool_pre_ping=True)
+    return _engine
+
+
+def _jsonb(value: Any) -> Any:
+    """Round-trip a jsonb column value to a plain Python object.
+
+    Some driver/SQLAlchemy combinations already deserialize jsonb to
+    dict/list; others hand back the raw json text. Handle both so callers
+    always get parsed data.
+    """
+    if value is None:
+        return None
+    if isinstance(value, (dict, list)):
+        return value
+    return json.loads(value)
+
+
+def create_run(
+    workflow: str,
+    mode: str = "auto",
+    source_name: str | None = None,
+    source_path: str | None = None,
+    domain: str | None = None,
+) -> str:
+    """Insert a new analysis.workflow_run row (status='running'). Returns run_id."""
+    with _get_engine().begin() as conn:
+        run_id = conn.execute(
+            text(
+                "INSERT INTO analysis.workflow_run "
+                "(workflow, mode, source_name, source_path, domain) "
+                "VALUES (:workflow, :mode, :source_name, :source_path, :domain) "
+                "RETURNING run_id"
+            ),
+            {
+                "workflow": workflow,
+                "mode": mode,
+                "source_name": source_name,
+                "source_path": source_path,
+                "domain": domain,
+            },
+        ).scalar()
+    return str(run_id)
+
+
+def seed_stages(run_id: str, names: list[str]) -> None:
+    """Seed one 'pending' row per stage name, in seq order (1-based — matches
+    workflows.py's `enumerate(wf.steps, start=1)` wrapping order)."""
+    if not names:
+        return
+    rows = [{"run_id": run_id, "seq": i, "name": name} for i, name in enumerate(names, start=1)]
+    with _get_engine().begin() as conn:
+        conn.execute(
+            text("INSERT INTO analysis.workflow_run_stage (run_id, seq, name) VALUES (:run_id, :seq, :name)"),
+            rows,
+        )
+
+
+def stage_start(run_id: str, seq: int) -> None:
+    """Flip a seeded stage to 'running' and stamp started_at (server-side now())."""
+    with _get_engine().begin() as conn:
+        conn.execute(
+            text(
+                "UPDATE analysis.workflow_run_stage "
+                "SET status = 'running', started_at = now() "
+                "WHERE run_id = :run_id AND seq = :seq"
+            ),
+            {"run_id": run_id, "seq": seq},
+        )
+
+
+def stage_finish(
+    run_id: str,
+    seq: int,
+    status: str,
+    content: str | None = None,
+    output: dict[str, Any] | None = None,
+) -> None:
+    """Record a stage's terminal status/content/typed-output; stamp finished_at.
+
+    On an exception in the wrapped step, callers pass status='failed' and
+    content=str(exc) (see workflows.py's `_fail` helper).
+    """
+    with _get_engine().begin() as conn:
+        conn.execute(
+            text(
+                "UPDATE analysis.workflow_run_stage "
+                "SET status = :status, content = :content, "
+                "    output = CAST(:output AS jsonb), finished_at = now() "
+                "WHERE run_id = :run_id AND seq = :seq"
+            ),
+            {
+                "run_id": run_id,
+                "seq": seq,
+                "status": status,
+                "content": content,
+                "output": json.dumps(output) if output is not None else None,
+            },
+        )
+
+
+def finish_run(
+    run_id: str,
+    status: str,
+    summary: dict[str, Any] | None = None,
+    error: str | None = None,
+    sha256: str | None = None,
+    artifact_id: str | None = None,
+) -> None:
+    """Mark the run terminal (completed/failed/paused) with the runner's summary dict.
+
+    sha256/artifact_id use COALESCE so a late-arriving None never clobbers a
+    value already recorded by an earlier stage.
+    """
+    with _get_engine().begin() as conn:
+        conn.execute(
+            text(
+                "UPDATE analysis.workflow_run "
+                "SET status = :status, summary = CAST(:summary AS jsonb), error = :error, "
+                "    sha256 = COALESCE(:sha256, sha256), "
+                "    artifact_id = COALESCE(:artifact_id, artifact_id), "
+                "    updated_at = now() "
+                "WHERE run_id = :run_id"
+            ),
+            {
+                "run_id": run_id,
+                "status": status,
+                "summary": json.dumps(summary) if summary is not None else None,
+                "error": error,
+                "sha256": sha256,
+                "artifact_id": artifact_id,
+            },
+        )
+
+
+def get_run(run_id: str) -> dict[str, Any] | None:
+    """Return the run row + its ordered stages (jsonb parsed), or None if missing."""
+    with _get_engine().connect() as conn:
+        run_row = (
+            conn.execute(
+                text("SELECT * FROM analysis.workflow_run WHERE run_id = :run_id"),
+                {"run_id": run_id},
+            )
+            .mappings()
+            .first()
+        )
+        if run_row is None:
+            return None
+        stage_rows = (
+            conn.execute(
+                text("SELECT * FROM analysis.workflow_run_stage WHERE run_id = :run_id ORDER BY seq"),
+                {"run_id": run_id},
+            )
+            .mappings()
+            .all()
+        )
+
+    run = dict(run_row)
+    run["run_id"] = str(run["run_id"])
+    run["summary"] = _jsonb(run.get("summary"))
+
+    stages = []
+    for row in stage_rows:
+        stage = dict(row)
+        stage["run_id"] = str(stage["run_id"])
+        stage["output"] = _jsonb(stage.get("output"))
+        stages.append(stage)
+    run["stages"] = stages
+    return run
+
+
+def list_runs(limit: int = 50, status: str | None = None) -> list[dict[str, Any]]:
+    """List runs (most recent first), each carrying its per-stage name/status pairs.
+
+    Single round-trip: LIMIT applies to runs (via a subquery), then a LEFT JOIN
+    pulls each run's stages so pagination isn't skewed by stage fan-out.
+    """
+    where_clause = "WHERE status = :status" if status is not None else ""
+    sql = text(
+        "SELECT r.run_id, r.workflow, r.mode, r.source_name, r.source_path, r.sha256, "
+        "       r.artifact_id, r.domain, r.status, r.summary, r.error, r.created_at, r.updated_at, "
+        "       s.seq, s.name AS stage_name, s.status AS stage_status "
+        f"FROM (SELECT * FROM analysis.workflow_run {where_clause} "
+        "       ORDER BY created_at DESC LIMIT :limit) r "
+        "LEFT JOIN analysis.workflow_run_stage s ON s.run_id = r.run_id "
+        "ORDER BY r.created_at DESC, s.seq"
+    )
+    params: dict[str, Any] = {"limit": limit}
+    if status is not None:
+        params["status"] = status
+
+    with _get_engine().connect() as conn:
+        rows = conn.execute(sql, params).mappings().all()
+
+    runs: dict[str, dict[str, Any]] = {}
+    order: list[str] = []
+    for row in rows:
+        rid = str(row["run_id"])
+        if rid not in runs:
+            runs[rid] = {
+                "run_id": rid,
+                "workflow": row["workflow"],
+                "mode": row["mode"],
+                "source_name": row["source_name"],
+                "source_path": row["source_path"],
+                "sha256": row["sha256"],
+                "artifact_id": row["artifact_id"],
+                "domain": row["domain"],
+                "status": row["status"],
+                "summary": _jsonb(row["summary"]),
+                "error": row["error"],
+                "created_at": row["created_at"],
+                "updated_at": row["updated_at"],
+                "stages": [],
+            }
+            order.append(rid)
+        if row["seq"] is not None:
+            runs[rid]["stages"].append({"seq": row["seq"], "name": row["stage_name"], "status": row["stage_status"]})
+    return [runs[rid] for rid in order]

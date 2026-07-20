@@ -7,6 +7,12 @@ can drive the spine without shelling into the container.
 
 Registered on the base FastAPI app BEFORE AgentOS wraps it (base_app pattern,
 same as ``register_knowledge_routes`` — see ``server/api/main.py``).
+
+NOTE (2026-07-20): ported verbatim from `main` (commit 0a5b917) onto
+`workbench/sprint`, which branched before that commit landed — this branch
+had no REST evidence-import route at all until now. Content unchanged from
+main; only its presence on this branch is new. See the C0 run-ledger task
+report for the full explanation.
 """
 # Byline: Claude Code · Fable 5 · 2026-07-19
 
@@ -73,6 +79,4 @@ def register_evidence_routes(app: FastAPI, knowledge: Any) -> None:
         with tempfile.TemporaryDirectory(prefix="evidence-import-") as tmpdir:
             tmp_path = Path(tmpdir) / suffix_name
             tmp_path.write_bytes(await file.read())
-            return await run_chat_transcript(
-                str(tmp_path), source_meta=meta, domain=domain, knowledge=knowledge
-            )
+            return await run_chat_transcript(str(tmp_path), source_meta=meta, domain=domain, knowledge=knowledge)

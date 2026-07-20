@@ -1,0 +1,28 @@
+# Byline: Claude Code · Sonnet (agent) · 2026-07-20
+"""Request shape for the JSON branch of POST /api/runs.
+
+The multipart branch (a fresh file drop) is parsed by hand in
+runtime/runs.py from the raw `Request.form()` — FastAPI can't cleanly bind
+one endpoint to either a pydantic JSON body OR multipart Form/File params
+based on the runtime content-type, so only the JSON shape gets a model here.
+
+Response bodies (run/stage records from the spine) are NOT modeled — they're
+passthrough JSON from a parallel-built service (see workbench/api/app/
+service/runs.py module docstring for the assumed contract); pydantic
+response_model would fight that open-ended, still-settling shape rather than
+help.
+"""
+
+from __future__ import annotations
+
+from pydantic import BaseModel
+
+
+class RunCreateRequest(BaseModel):
+    """POST /api/runs JSON body — starts a run from an already-staged file."""
+
+    staged_id: str
+    workflow: str
+    domain: str | None = None
+    mode: str = "auto"
+    source_meta: dict | None = None

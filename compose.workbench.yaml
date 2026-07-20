@@ -1,0 +1,94 @@
+# =============================================================================
+# KNOWLEDGE WORKBENCH — deploy as its OWN Coolify app on OVH-1 ("ovh-app",
+# tailnet 100.72.169.40). Single-service app per the one-concern-per-app rule
+# (see compose.data-vector.yaml for the pattern precedent).
+#
+# Coolify Watch Paths for this app: workbench/** + compose.workbench.yaml
+# Branch: workbench/sprint (sprint), main after milestone merges.
+#
+# HOST-PREP (once, before first deploy):
+#   sudo mkdir -p /data/agno/volumes/workbench/{lancedb,inbox}
+#   sudo chown -R 1000:1000 /data/agno/volumes/workbench
+#   docker network inspect agno >/dev/null 2>&1 || docker network create agno
+#
+# The workbench stages uploads locally (LanceDB whole-file store) and promotes
+# them through the EXISTING ingestion spine (agentos-api). It never writes
+# Milvus/Postgres directly. agentos-api is reached via the tailnet-published
+# port (cross-app docker DNS does NOT resolve — agentos-api is on an
+# app-scoped network, not the shared `agno` net).
+#
+# Object storage is S3-agnostic: point OBJECT_STORE_* at R2 today; a B2 (or
+# any S3) target is a pure env swap + redeploy. Nothing provider-specific.
+#
+# Coolify gotcha: env values are rendered as literals into the materialized
+# compose at deploy — set ALL envs (bulk API, {"data":[...]} shape) BEFORE the
+# first deploy; later env changes require a redeploy.
+# =============================================================================
+# Byline: Claude Code · Fable 5 · 2026-07-19 (MCP_SERVERS/CONTEXTFORGE_TOKEN added 2026-07-20, C1 rebuild)
+
+services:
+  knowledge-workbench:
+    build:
+      context: ./workbench
+      dockerfile: Dockerfile
+    image: agno-knowledge-workbench:latest
+    container_name: knowledge-workbench
+    restart: unless-stopped
+    ports:
+      - "${BIND_IP:-127.0.0.1}:8020:8020"   # tailnet-only; NEVER 0.0.0.0
+    environment:
+      APP_PORT: "8020"
+      LANCEDB_PATH: /data/lancedb
+      AGENTOS_API_URL: ${AGENTOS_API_URL:-http://100.72.169.40:8000}
+      # Bearer for both /knowledge/* (legacy promote) and /v1/runs (C1
+      # console) — base_app's OS_SECURITY_KEY gate applies to every route
+      # regardless of authorization=False (see AGENTS.md Claude-Reflect note).
+      AGENTOS_API_TOKEN: ${AGENTOS_API_TOKEN:-}
+      # --- MCP tool servers (Tool Explorer, C1 console) ---
+      # ContextForge needs a real path (per-virtual-server, not the bare
+      # gateway root) + a minted JWT once one exists — see
+      # workbench/api/app/config/settings.py's mcp_servers_parsed docstring
+      # and docs/planning/architecture-directives/contextforge-integration.md.
+      # Set as a LITERAL, not `${MCP_SERVERS:-<json>}`: Docker Compose's
+      # interpolation has no brace-nesting awareness, so a JSON default
+      # containing `}` would truncate at the JSON's own first `}`. This is
+      # also just this repo's existing Coolify convention anyway (env
+      # values are rendered as literals at deploy — see the file header) —
+      # to override, edit this value directly in the Coolify env editor.
+      MCP_SERVERS: '[{"key":"agentos","label":"AgentOS","url":"http://100.72.169.40:8001/mcp"},{"key":"contextforge","label":"ContextForge","url":"http://100.72.169.40:4444/mcp"}]'
+      CONTEXTFORGE_TOKEN: ${CONTEXTFORGE_TOKEN:-}
+      # --- S3-agnostic object store (R2 now; B2/any-S3 = swap these envs) ---
+      OBJECT_STORE_ENDPOINT_URL: ${R2_ENDPOINT_URL}
+      OBJECT_STORE_BUCKET: ${R2_BUCKET_NAME}
+      OBJECT_STORE_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
+      OBJECT_STORE_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
+      OBJECT_STORE_REGION: ${OBJECT_STORE_REGION:-auto}
+      OBJECT_STORE_PREFIX: ${OBJECT_STORE_PREFIX:-workbench/staging}
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-200}
+    volumes:
+      # Bind mounts only — owner backs up host dirs (no named volumes).
+      - /data/agno/volumes/workbench/lancedb:/data/lancedb
+      - /data/agno/volumes/workbench/inbox:/data/inbox
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8020/health', timeout=5).status==200 else 1)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - workbench
+      - agno
+    # --- DOMAIN PHASE (scaffolded, COMMENTED — tailnet-only until DNS fixed) ---
+    # labels:
+    #   - traefik.enable=true
+    #   - traefik.http.routers.workbench.rule=Host(`workbench.int.mitechconsult.com`)
+    #   - traefik.http.routers.workbench.entrypoints=websecure
+    #   - traefik.http.routers.workbench.tls.certresolver=letsencrypt
+    #   - traefik.http.services.workbench.loadbalancer.server.port=8020
+    #   - traefik.http.routers.workbench.middlewares=workbench-auth
+    #   - traefik.http.middlewares.workbench-auth.basicauth.users=<apr1-hash-here>
+
+networks:
+  workbench:
+  agno:
+    external: true   # shared cross-app net; declared for future DNS, not depended on
