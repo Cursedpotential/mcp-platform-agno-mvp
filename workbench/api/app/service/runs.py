@@ -1,4 +1,4 @@
-# Byline: Claude Code · Sonnet (agent) · 2026-07-20
+# Byline: Claude Code · Sonnet (agent) · 2026-07-20 (C2 gate controls: continue/abort/retry + custody_tier)
 """Proxy to the spine's run pipeline (POST /v1/runs, GET /v1/runs[/{id}]).
 
 New in the workbench — the C1 Operator Console's replacement for the
@@ -15,6 +15,22 @@ Two ways to start a run:
 - `file_bytes` + `filename` — a fresh upload forwarded directly, without
   ever landing in the staging table (the New-run dialog's "drop a file"
   path can skip staging entirely).
+
+C2 (supervised-gate controls) adds three more passthroughs against a run
+that already exists — continue_run/abort_run/retry_run — plus an optional
+`custody_tier` on start_run. All contract details (status codes, response
+shapes, gate semantics) are per the console/c2-spine build brief, a
+parallel branch this module codes against but does not implement:
+
+- `status='paused'` + `gate_state='waiting'` means the run is stopped at a
+  gate; the NEXT pending stage (by seq) is the gated one.
+- POST /v1/runs/{id}/continue -> 200 {run_id, status}; 409 if not paused.
+- POST /v1/runs/{id}/abort -> 200 {run_id, status:'failed'}; 409 on terminal.
+- POST /v1/runs/{id}/retry -> 202 {run_id: NEW, parent_run_id}; only
+  terminal-failed runs are retryable.
+- POST /v1/runs accepts `custody_tier` ('full' | 'light'); the spine
+  defaults it per-workflow when omitted (chat-transcript -> light,
+  sms-xml -> full), so it's forwarded only when the caller set one.
 """
 
 from __future__ import annotations
@@ -91,12 +107,16 @@ def start_run(
     workflow: str,
     domain: str | None,
     mode: str = "auto",
+    custody_tier: str | None = None,
     source_meta: dict | None = None,
     staged_id: str | None = None,
     file_bytes: bytes | None = None,
     filename: str | None = None,
 ) -> dict:
     """Start a spine run. Provide either `staged_id` or (`file_bytes` + `filename`).
+
+    `custody_tier` ('full' | 'light') is optional — omit it to take the
+    spine's per-workflow default.
 
     Returns the spine's 202 response body: {run_id, workflow, mode}.
     """
@@ -121,6 +141,8 @@ def start_run(
         raise RunsError("a file is required: pass staged_id or an uploaded file", 400)
 
     form = {"workflow": workflow, "domain": domain or "", "mode": mode or "auto"}
+    if custody_tier:
+        form["custody_tier"] = custody_tier
     if source_meta is not None:
         form["source_meta"] = json.dumps(source_meta)
 
@@ -147,4 +169,34 @@ def list_runs(status: str | None = None, limit: int | None = None) -> list[dict]
 def get_run(run_id: str) -> dict:
     """GET /v1/runs/{id} passthrough."""
     response = _spine_request("GET", f"/v1/runs/{run_id}")
+    return response.json()
+
+
+def continue_run(run_id: str) -> dict:
+    """POST /v1/runs/{id}/continue passthrough — releases a gated run.
+
+    Returns {run_id, status}. Raises RunsError(409, ...) if the run wasn't
+    paused (the spine's own detail, surfaced verbatim by _extract_detail).
+    """
+    response = _spine_request("POST", f"/v1/runs/{run_id}/continue")
+    return response.json()
+
+
+def abort_run(run_id: str) -> dict:
+    """POST /v1/runs/{id}/abort passthrough — stops a running or gated run.
+
+    Returns {run_id, status:'failed'}. Raises RunsError(409, ...) if the run
+    is already terminal.
+    """
+    response = _spine_request("POST", f"/v1/runs/{run_id}/abort")
+    return response.json()
+
+
+def retry_run(run_id: str) -> dict:
+    """POST /v1/runs/{id}/retry passthrough — starts a fresh run from a failed one.
+
+    Returns {run_id: <new run's id>, parent_run_id: <this run_id>}. Only
+    valid for terminal-failed runs; the spine 409s otherwise.
+    """
+    response = _spine_request("POST", f"/v1/runs/{run_id}/retry")
     return response.json()

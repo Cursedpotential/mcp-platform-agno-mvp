@@ -1,4 +1,4 @@
-// Byline: Claude Code · Sonnet (agent) · 2026-07-20
+// Byline: Claude Code · Sonnet (agent) · 2026-07-20 (C2: real supervised tooltip + custody tier select)
 "use client";
 
 /**
@@ -8,6 +8,14 @@
  * once near the app root (layout.tsx) and opened via useNewRunDialog() from
  * either the Runs page ("New run" button, no prefill) or the Intake page's
  * "Start run ->" row action (prefilled with that staged file).
+ *
+ * C2 landed the gate controls the supervised toggle's tooltip used to defer
+ * to ("gates land in C2") — the tooltip below now describes the real
+ * behavior. It also adds an optional custody-tier select (per the C2
+ * requirements addendum): 'light' (whole-file hash) vs 'full' (evidence
+ * chain), defaulted per workflow the same way the spine itself defaults it
+ * when the field is omitted (chat-transcript -> light, sms-xml -> full) —
+ * sent explicitly here so the operator can see and override the choice.
  */
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -28,9 +36,23 @@ import { Dropzone } from "@/components/upload/dropzone";
 import { ApiError, createRunFromFile, createRunFromStaged, listFiles } from "@/lib/api-client";
 import { useRefresh } from "@/lib/refresh-context";
 import { useNewRunDialog } from "@/lib/new-run-dialog-context";
-import { DOMAIN_OPTIONS, WORKFLOW_OPTIONS, type RunMode, type StagedFile, type Workflow } from "@/lib/shared/types";
+import {
+  DOMAIN_OPTIONS,
+  WORKFLOW_OPTIONS,
+  type CustodyTier,
+  type RunMode,
+  type StagedFile,
+  type Workflow,
+} from "@/lib/shared/types";
 
 type SourceMode = "staged" | "upload";
+
+/** Mirrors the spine's own per-workflow default (chat-transcript -> light,
+ * sms-xml -> full) — sent explicitly rather than omitted, so the select
+ * below always shows what will actually happen. */
+function defaultCustodyTierFor(workflow: Workflow): CustodyTier {
+  return workflow === "sms-xml" ? "full" : "light";
+}
 
 export function NewRunDialog() {
   const { open, prefill, closeNewRun } = useNewRunDialog();
@@ -43,6 +65,7 @@ export function NewRunDialog() {
   const [workflow, setWorkflow] = useState<Workflow>("chat-transcript");
   const [domain, setDomain] = useState("");
   const [mode, setMode] = useState<RunMode>("auto");
+  const [custodyTier, setCustodyTier] = useState<CustodyTier>(defaultCustodyTierFor("chat-transcript"));
   const [submitting, setSubmitting] = useState(false);
 
   // Reset on open, and seed from a row-action prefill if present.
@@ -54,10 +77,19 @@ export function NewRunDialog() {
     setWorkflow("chat-transcript");
     setDomain("");
     setMode("auto");
+    setCustodyTier(defaultCustodyTierFor("chat-transcript"));
     listFiles({ status: "staged" })
       .then(setStagedFiles)
       .catch(() => setStagedFiles([]));
   }, [open, prefill]);
+
+  // Re-default the custody tier whenever the workflow changes, mirroring
+  // the spine's own per-workflow default — an operator who wants something
+  // else can still pick it from the select afterward.
+  const handleWorkflowChange = (next: Workflow) => {
+    setWorkflow(next);
+    setCustodyTier(defaultCustodyTierFor(next));
+  };
 
   const handleFilesRejected = (rejections: FileRejection[]) => {
     for (const r of rejections) {
@@ -83,8 +115,8 @@ export function NewRunDialog() {
     try {
       const result =
         sourceMode === "staged"
-          ? await createRunFromStaged({ stagedId: selectedStagedId, workflow, domain, mode })
-          : await createRunFromFile({ file: uploadFile as File, workflow, domain, mode });
+          ? await createRunFromStaged({ stagedId: selectedStagedId, workflow, domain, mode, custodyTier })
+          : await createRunFromFile({ file: uploadFile as File, workflow, domain, mode, custodyTier });
       toast.success(`Run ${result.run_id} started`);
       triggerRefresh();
       closeNewRun();
@@ -160,7 +192,7 @@ export function NewRunDialog() {
               id="run-workflow-select"
               className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
               value={workflow}
-              onChange={(e) => setWorkflow(e.target.value as Workflow)}
+              onChange={(e) => handleWorkflowChange(e.target.value as Workflow)}
             >
               {WORKFLOW_OPTIONS.map((w) => (
                 <option key={w} value={w}>
@@ -187,6 +219,19 @@ export function NewRunDialog() {
             </select>
           </div>
 
+          <div className="space-y-1.5">
+            <Label htmlFor="run-custody-tier-select">Custody tier</Label>
+            <select
+              id="run-custody-tier-select"
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+              value={custodyTier}
+              onChange={(e) => setCustodyTier(e.target.value as CustodyTier)}
+            >
+              <option value="light">light — whole-file hash</option>
+              <option value="full">full — evidence chain</option>
+            </select>
+          </div>
+
           <div className="flex items-center justify-between rounded-md border p-3">
             <div className="space-y-0.5">
               <Label htmlFor="run-supervised-toggle">Supervised</Label>
@@ -204,7 +249,9 @@ export function NewRunDialog() {
                   />
                 </span>
               </TooltipTrigger>
-              <TooltipContent>Gates land in C2 — supervised runs still run straight through for now.</TooltipContent>
+              <TooltipContent>
+                Pauses at each stage boundary — use Continue or Abort from the run&apos;s detail view to proceed.
+              </TooltipContent>
             </Tooltip>
           </div>
         </div>

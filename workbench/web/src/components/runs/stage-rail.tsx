@@ -1,4 +1,4 @@
-// Byline: Claude Code · Sonnet (agent) · 2026-07-20
+// Byline: Claude Code · Sonnet (agent) · 2026-07-20 (C2: gatedSeq pulsing-ring indicator)
 "use client";
 
 /**
@@ -9,6 +9,11 @@
  *
  * Two variants: "mini" (a row of small dots for the Runs table) and "full"
  * (a labeled, clickable stepper for the run-detail dialog).
+ *
+ * C2: an optional `gatedSeq` marks the stage a paused run is stopped at
+ * (the caller computes this as the lowest-seq 'pending' stage when
+ * `status==='paused' && gate_state==='waiting'`) with a pulsing amber ring,
+ * so operators can see where a gate is without opening the drawer.
  */
 import { Check, X, Loader2, Circle, Minus } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -29,6 +34,9 @@ interface StageRailProps {
   variant?: "mini" | "full";
   activeSeq?: number;
   onSelect?: (seq: number) => void;
+  /** C2: seq of the stage a paused run is gated at — rendered with a
+   * pulsing amber ring in both variants. */
+  gatedSeq?: number;
 }
 
 function statusColorClasses(status: StageStatus): string {
@@ -61,7 +69,7 @@ function StatusIcon({ status }: { status: StageStatus }) {
   }
 }
 
-export function StageRail({ stages, variant = "full", activeSeq, onSelect }: StageRailProps) {
+export function StageRail({ stages, variant = "full", activeSeq, onSelect, gatedSeq }: StageRailProps) {
   const items: StageLike[] =
     stages.length > 0
       ? stages
@@ -77,11 +85,14 @@ export function StageRail({ stages, variant = "full", activeSeq, onSelect }: Sta
                 className={cn(
                   "inline-flex size-2.5 shrink-0 rounded-full border",
                   statusColorClasses(stage.status).split(" ").slice(0, 2).join(" "),
+                  stage.seq === gatedSeq &&
+                    "ring-2 ring-amber-500 ring-offset-1 ring-offset-background animate-pulse",
                 )}
               />
             </TooltipTrigger>
             <TooltipContent>
               {stage.name}: {stage.status}
+              {stage.seq === gatedSeq ? " (gated)" : ""}
             </TooltipContent>
           </Tooltip>
         ))}
@@ -107,6 +118,8 @@ export function StageRail({ stages, variant = "full", activeSeq, onSelect }: Sta
                 "flex size-8 items-center justify-center rounded-full border-2 transition-colors",
                 statusColorClasses(stage.status),
                 activeSeq === stage.seq && "ring-2 ring-ring ring-offset-2 ring-offset-background",
+                stage.seq === gatedSeq &&
+                  "ring-2 ring-amber-500 ring-offset-2 ring-offset-background animate-pulse",
               )}
             >
               <StatusIcon status={stage.status} />

@@ -1,4 +1,4 @@
-# Byline: Claude Code · Sonnet (agent) · 2026-07-20
+# Byline: Claude Code · Sonnet (agent) · 2026-07-20 (custody_tier added — C2 gate controls)
 """Request shape for the JSON branch of POST /api/runs.
 
 The multipart branch (a fresh file drop) is parsed by hand in
@@ -26,3 +26,7 @@ class RunCreateRequest(BaseModel):
     domain: str | None = None
     mode: str = "auto"
     source_meta: dict | None = None
+    # C2 spine contract (console/c2-spine, parallel branch): the spine
+    # defaults this per-workflow (chat-transcript -> light, sms-xml -> full)
+    # when omitted, so it stays optional here too.
+    custody_tier: str | None = None

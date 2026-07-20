@@ -1,4 +1,4 @@
-// Byline: Claude Code · Sonnet (agent) · 2026-07-20
+// Byline: Claude Code · Sonnet (agent) · 2026-07-20 (C2: gated chip + navigate-to-retry)
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -173,10 +173,28 @@ export function RunsTable() {
                     </TableCell>
                     <TableCell>{run.domain || "—"}</TableCell>
                     <TableCell>
-                      <Badge variant={statusVariant(run.status)}>{run.status}</Badge>
+                      <div className="flex items-center gap-1.5">
+                        <Badge variant={statusVariant(run.status)}>{run.status}</Badge>
+                        {run.status === "paused" && run.gate_state === "waiting" && (
+                          <Badge
+                            variant="outline"
+                            className="border-amber-500/60 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                          >
+                            gated
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
-                      <StageRail stages={run.stages} variant="mini" />
+                      <StageRail
+                        stages={run.stages}
+                        variant="mini"
+                        gatedSeq={
+                          run.status === "paused" && run.gate_state === "waiting"
+                            ? run.stages.find((s) => s.status === "pending")?.seq
+                            : undefined
+                        }
+                      />
                     </TableCell>
                     <TableCell className="text-muted-foreground text-xs">
                       {ageFrom(run.updated_at)}
@@ -189,7 +207,12 @@ export function RunsTable() {
         </CardContent>
       </Card>
 
-      <RunDetailDialog runId={selectedRunId} open={detailOpen} onOpenChange={handleDetailOpenChange} />
+      <RunDetailDialog
+        runId={selectedRunId}
+        open={detailOpen}
+        onOpenChange={handleDetailOpenChange}
+        onNavigateToRun={setSelectedRunId}
+      />
     </>
   );
 }
