@@ -1,5 +1,10 @@
-# Byline: Claude Code · Sonnet (agent) · 2026-07-19
-"""GET/PATCH /api/files — list, detail, and metadata edits over staged files."""
+# Byline: Claude Code · Sonnet (agent) · 2026-07-21 (C2.7: /text + /analyze added)
+"""GET/PATCH /api/files — list, detail, and metadata edits over staged files.
+
+C2.7 owner scope addition: GET /api/files/{id}/text (full untruncated
+extracted text, for the Preview modal) and POST /api/files/{id}/analyze
+(re-run detect.py + basic shape stats, for the Analyze action).
+"""
 
 from __future__ import annotations
 
@@ -10,7 +15,9 @@ from fastapi import APIRouter, HTTPException
 from app.service.files import (
     StagedFileNotFoundError,
     StagedFileValidationError,
+    analyze_file,
     get_staged_detail,
+    get_staged_text,
     list_staged,
     update_metadata,
 )
@@ -38,6 +45,22 @@ async def list_files_endpoint(
 async def get_file_endpoint(file_id: str):
     try:
         return get_staged_detail(file_id)
+    except StagedFileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=e.detail) from None
+
+
+@router.get("/files/{file_id}/text")
+async def get_file_text_endpoint(file_id: str):
+    try:
+        return get_staged_text(file_id)
+    except StagedFileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=e.detail) from None
+
+
+@router.post("/files/{file_id}/analyze")
+async def analyze_file_endpoint(file_id: str):
+    try:
+        return analyze_file(file_id)
     except StagedFileNotFoundError as e:
         raise HTTPException(status_code=404, detail=e.detail) from None
 

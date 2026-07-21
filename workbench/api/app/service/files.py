@@ -1,4 +1,4 @@
-# Byline: Claude Code · Sonnet (agent) · 2026-07-19
+# Byline: Claude Code · Sonnet (agent) · 2026-07-21 (C2.7: get_staged_text + analyze_file added)
 """Staged-file service — list/detail/edit-metadata over the LanceDB staging table.
 
 Rewired from the donor kit's files.py, which listed raw B2 objects. Here the
@@ -9,7 +9,10 @@ directly.
 
 from __future__ import annotations
 
+import json
+
 from app.repo import staging
+from app.service import detect
 from app.service.metadata import build_display_metadata
 from app.types.files import ALLOWED_DOMAINS
 
@@ -57,6 +60,56 @@ def get_staged_detail(file_id: str) -> dict:
     record["text_truncated"] = len(text) > TEXT_PREVIEW_CHARS
     record["display"] = build_display_metadata(record["name"], record["size"], record["mime"])
     return record
+
+
+def get_staged_text(file_id: str) -> dict:
+    """Full, untruncated extracted text for the Preview modal (C2.7 owner
+    scope addition). Unlike get_staged_detail() (capped at
+    TEXT_PREVIEW_CHARS for the summary/detail views), this always returns
+    the complete text field already sitting in the staging row — no re-fetch
+    from the object store, no re-parse."""
+    record = staging.get(file_id)
+    if record is None:
+        raise StagedFileNotFoundError()
+    text = record.get("text") or ""
+    return {"id": file_id, "text": text, "length": len(text)}
+
+
+def analyze_file(file_id: str) -> dict:
+    """Re-run detect.py's sniffing over a staged file and report basic shape
+    stats (C2.7 owner scope addition) — lightweight and in-process only:
+    no R2/object-store re-fetch, and deliberately does NOT invoke any spine
+    parser (a true dry-run parse is a future spine-side feature; see the
+    C2.7 build report for that recommendation).
+    """
+    record = staging.get(file_id)
+    if record is None:
+        raise StagedFileNotFoundError()
+    text = record.get("text") or ""
+    detected_type, evidence = detect.detect_type_with_evidence(record["name"], text)
+
+    is_json_parseable = False
+    if text:
+        try:
+            json.loads(text)
+            is_json_parseable = True
+        except (json.JSONDecodeError, ValueError):
+            is_json_parseable = False
+
+    return {
+        "id": file_id,
+        "detected_type": detected_type,
+        "current_detected_type": record.get("detected_type"),
+        "evidence": evidence,
+        "shape": {
+            "size": record.get("size"),
+            "mime": record.get("mime"),
+            "text_length": len(text),
+            "line_count": (text.count("\n") + 1) if text else 0,
+            "is_json_parseable": is_json_parseable,
+            "has_text": bool(text.strip()),
+        },
+    }
 
 
 def update_metadata(file_id: str, updates: dict) -> dict:

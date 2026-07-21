@@ -1,4 +1,4 @@
-// Byline: Claude Code · Sonnet (agent) · 2026-07-20
+// Byline: Claude Code · Sonnet (agent) · 2026-07-21 (C2.7: routing-hint relabel + Preview action)
 "use client";
 
 /**
@@ -7,9 +7,15 @@
  * row's action is now "Start run ->", which opens the New-run dialog
  * prefilled with that staged file (see lib/new-run-dialog-context.tsx).
  * Metadata editing + the detail view (FileDetailDialog) stay.
+ *
+ * C2.7 additions: the "Domain" column is a routing hint, not a
+ * classification (requirements addenda 7-8) — header relabeled
+ * accordingly. A "Preview" row action opens FilePreviewDialog with the
+ * staged file's full extracted text + an on-demand Analyze pass (owner
+ * scope addition, 2026-07-21).
  */
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCw, Eye, ArrowRight } from "lucide-react";
+import { RefreshCw, Eye, ArrowRight, FileSearch } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +30,7 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FileDetailDialog } from "./file-detail-dialog";
+import { FilePreviewDialog } from "./file-preview-dialog";
 import { listFiles } from "@/lib/api-client";
 import { humanizeBytes, formatDate } from "@/lib/utils";
 import { useRefresh } from "@/lib/refresh-context";
@@ -66,6 +73,8 @@ export function IntakeTable() {
   const [typeFilter, setTypeFilter] = useState<DetectedType | "all">("all");
   const [detailFile, setDetailFile] = useState<StagedFile | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [previewFile, setPreviewFile] = useState<StagedFile | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const { refreshKey } = useRefresh();
   const { openNewRun } = useNewRunDialog();
 
@@ -90,6 +99,11 @@ export function IntakeTable() {
   const handleOpenDetail = (file: StagedFile) => {
     setDetailFile(file);
     setDetailOpen(true);
+  };
+
+  const handleOpenPreview = (file: StagedFile) => {
+    setPreviewFile(file);
+    setPreviewOpen(true);
   };
 
   const handleDetailUpdated = (updated: StagedFile) => {
@@ -151,7 +165,7 @@ export function IntakeTable() {
                   <TableHead>Name</TableHead>
                   <TableHead>Size</TableHead>
                   <TableHead>Type</TableHead>
-                  <TableHead>Domain</TableHead>
+                  <TableHead>Routing hint</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Updated</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -174,6 +188,14 @@ export function IntakeTable() {
                     <TableCell>{formatDate(file.updated_at)}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenPreview(file)}
+                        >
+                          <FileSearch className="h-3.5 w-3.5 mr-1" />
+                          Preview
+                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"
@@ -206,6 +228,8 @@ export function IntakeTable() {
         onOpenChange={setDetailOpen}
         onUpdated={handleDetailUpdated}
       />
+
+      <FilePreviewDialog file={previewFile} open={previewOpen} onOpenChange={setPreviewOpen} />
     </>
   );
 }

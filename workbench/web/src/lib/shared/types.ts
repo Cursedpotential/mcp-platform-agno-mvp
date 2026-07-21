@@ -1,4 +1,4 @@
-// Byline: Claude Code · Sonnet (agent) · 2026-07-20
+// Byline: Claude Code · Sonnet (agent) · 2026-07-21 (C2.7: file text/analyze + McpTool.annotations added)
 /**
  * Types for the Knowledge Workbench staged-file record.
  *
@@ -41,6 +41,11 @@ export interface StagedFile {
   detected_type: DetectedType;
   /** Extracted text preview, capped server-side; "" for binary formats. */
   text?: string;
+  /** True when `text` above was cut short of the full extracted text by the
+   * detail endpoint's TEXT_PREVIEW_CHARS cap — only set on the `GET
+   * /api/files/{id}` detail response, not on list rows (C2.7). Use
+   * `getFileText()` / the Preview dialog for the untruncated text. */
+  text_truncated?: boolean;
   meta: StagedFileMeta;
   r2_key: string;
   status: StagedStatus;
@@ -52,6 +57,39 @@ export interface StagedFile {
 /** Response body from `POST /api/upload` — a staged file plus a duplicate flag. */
 export interface UploadResponse extends StagedFile {
   duplicate?: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Intake Preview + Analyze (C2.7 owner scope addition, 2026-07-21)
+// ---------------------------------------------------------------------------
+
+/** `GET /api/files/{id}/text` — the full, untruncated extracted text (unlike
+ * `StagedFile.text`, which the detail endpoint caps for the summary view). */
+export interface FileTextResponse {
+  id: string;
+  text: string;
+  length: number;
+}
+
+/** `POST /api/files/{id}/analyze` — re-runs the server's detect.py sniffing
+ * and reports basic shape stats. Mirrors `app/service/files.py::analyze_file`. */
+export interface FileAnalysis {
+  id: string;
+  detected_type: DetectedType;
+  /** The type currently recorded on the staged-file row, for comparison
+   * against a freshly re-sniffed `detected_type` (they can drift if the
+   * operator manually overrode detected_type via metadata edit). */
+  current_detected_type: DetectedType | null;
+  /** Human-readable reason the sniffer landed on `detected_type`. */
+  evidence: string;
+  shape: {
+    size: number;
+    mime: string;
+    text_length: number;
+    line_count: number;
+    is_json_parseable: boolean;
+    has_text: boolean;
+  };
 }
 
 /** Local upload-widget progress state — not part of the API contract. */
@@ -248,6 +286,9 @@ export interface McpTool {
   name: string;
   description?: string;
   inputSchema?: JsonSchema;
+  /** Optional MCP tool-hints object (e.g. readOnlyHint/destructiveHint) —
+   * present only when the source server sends it (C2.7). */
+  annotations?: Record<string, unknown>;
 }
 
 /** One entry of `GET /api/tools` — a configured server, its tools, or an error. */
