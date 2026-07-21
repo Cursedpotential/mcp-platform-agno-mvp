@@ -14,7 +14,13 @@ registration convention as register_knowledge_routes / register_evidence_routes
   POST /v1/runs/{run_id}/abort    — abort a paused or running run (C2).
   POST /v1/runs/{run_id}/retry    — re-run a terminal-failed run from its
                                      original custody blob, linked via
-                                     parent_run_id (C2).
+                                     parent_run_id (C2). Optional JSON body
+                                     {"from_stage": "knowledge"} (C2.6) skips
+                                     straight to re-running the knowledge
+                                     stage over the parent's already-stored
+                                     records instead of a full rerun.
+  GET  /v1/health/deps            — cheap parallel pg + Milvus connectivity
+                                     check, 3s timeout each (C2.6 requirement 4).
 
 The caller polls GET /v1/runs/{run_id} to watch analysis.workflow_run_stage
 rows fill in as server/evidence/workflows.py executes (server/evidence/
@@ -30,8 +36,23 @@ these control endpoints only flip analysis.workflow_run.gate_state (and, for
 response is truthful immediately); single-writer discipline for run
 termination is preserved exactly the way custody.py is the sole writer of
 the evidence schema.
+
+C2.6 retry `from_stage` (requirement 1 — the real prod bug this fixes): a
+plain retry re-ingests from the custody blob, custody dedupes (same bytes,
+duplicate=True), parse/store re-run but store sees 0 NEW rows to insert
+(the records are already there) — under the OLD behavior, the knowledge
+step then saw an empty `ctx['records']` and reported a false success with
+docs_ingested=0. `{"from_stage": "knowledge"}` sidesteps that trap entirely:
+it creates a child run that skips custody/parse/store (recorded 'skipped',
+content "inherited from parent") and re-runs ONLY the knowledge stage over
+the parent's already-stored analysis.normalized_record rows
+(server/evidence/workflows.py's `run_knowledge_from_store`). A plain retry
+(no body / from_stage omitted) ALSO got safer this task: if its custody
+step dedupes AND the parent's knowledge stage had failed, `_store_step_impl`
+auto-routes into the same reload-and-reingest path instead of silently
+reporting 0 records, logging it loudly on the store stage's content.
 """
-# Byline: Claude Code · Sonnet (agent) · 2026-07-20 (C2: gates + retry + custody_tier added)
+# Byline: Claude Code · Sonnet (agent) · 2026-07-21 (C2 gates+retry+custody_tier 2026-07-20; C2.6 retry from_stage + health/deps 2026-07-21)
 
 from __future__ import annotations
 
@@ -39,13 +60,14 @@ import asyncio
 import json
 import shutil
 import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 
 from server.evidence.custody import blob_root
-from server.evidence.run_ledger import create_run, get_run, list_runs, seed_stages, set_gate
+from server.evidence.run_ledger import create_run, get_run, list_runs, ping, seed_stages, set_gate
 
 _ALLOWED_DOMAINS = {
     "timeline_relationship",
@@ -56,6 +78,12 @@ _ALLOWED_DOMAINS = {
 _ALLOWED_WORKFLOWS = {"chat-transcript", "sms-xml"}
 _ALLOWED_MODES = {"auto", "supervised"}
 _ALLOWED_CUSTODY_TIERS = {"full", "light"}
+# C2.6 requirement 1: only "knowledge" is supported today — the retry-stage
+# fix only exists for the knowledge stage's dedupe/no-new-rows trap. Any
+# other value 422s rather than silently falling back to a full rerun.
+_ALLOWED_RETRY_FROM_STAGES = {"knowledge"}
+# C2.6 requirement 4: per-check timeout for GET /v1/health/deps.
+_HEALTH_DEPS_TIMEOUT_S = 3.0
 
 _DEFAULT_DOMAIN: dict[str, str] = {
     "chat-transcript": "platform_design",
@@ -95,6 +123,7 @@ def register_run_routes(app: FastAPI, knowledge: Any) -> None:
         domain: str,
         mode: str = "auto",
         custody_tier: str = "full",
+        parent_run_id: str | None = None,
     ) -> None:
         """Background task body: run the workflow with the ledger wired in,
         then clean up the private temp dir regardless of outcome. The runner's
@@ -106,7 +135,13 @@ def register_run_routes(app: FastAPI, knowledge: Any) -> None:
         gate poll loop (server/evidence/workflows.py's
         `_wrap_step_for_run_control`) — POST .../continue and .../abort below
         only flip analysis.workflow_run.gate_state; THIS coroutine is what
-        actually observes it and resumes/halts the workflow."""
+        actually observes it and resumes/halts the workflow.
+
+        parent_run_id (C2.6, optional): only set for a FULL rerun kicked off
+        by POST .../retry (not a from_stage='knowledge' retry, which never
+        calls this function — see `_retry_from_knowledge`) — threaded to the
+        runner so its store step can auto-route a custody-dedupe no-op into
+        knowledge-from-store when the parent's knowledge stage had failed."""
         from server.evidence.workflows import run_chat_transcript, run_sms_xml
 
         runner = run_chat_transcript if workflow == "chat-transcript" else run_sms_xml
@@ -119,6 +154,7 @@ def register_run_routes(app: FastAPI, knowledge: Any) -> None:
                 run_id=run_id,
                 mode=mode,
                 custody_tier=custody_tier,
+                parent_run_id=parent_run_id,
             )
         except Exception:
             # workflows.py's own finally-block already recorded this failure
@@ -128,6 +164,119 @@ def register_run_routes(app: FastAPI, knowledge: Any) -> None:
             pass
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
+
+    async def _retry_from_knowledge(run_id: str, run: dict[str, Any]) -> dict[str, Any]:
+        """C2.6 requirement 1 — the explicit `{"from_stage": "knowledge"}`
+        retry path. Validates the parent run actually has something to
+        re-ingest (custody/parse/store all succeeded, artifact_id/sha256
+        recorded), then starts `run_knowledge_from_store` as a background
+        task exactly like a normal retry starts `_execute_run`."""
+        if run.get("artifact_id") is None or run.get("sha256") is None:
+            raise HTTPException(
+                409,
+                f"run {run_id!r} has no artifact_id/sha256 recorded — cannot retry "
+                "from_stage='knowledge' (nothing to reload from analysis.normalized_record)",
+            )
+        stage_by_name = {s["name"]: s for s in run["stages"]}
+        for name in ("custody", "parse", "store"):
+            stage = stage_by_name.get(name)
+            if stage is None or stage["status"] != "success":
+                got = stage["status"] if stage else "missing"
+                raise HTTPException(
+                    409,
+                    f"run {run_id!r}: retry from_stage='knowledge' requires custody/parse/store to "
+                    f"have succeeded on the parent run — stage {name!r} is {got!r}",
+                )
+
+        from server.evidence.workflows import WORKFLOW_STAGE_NAMES, run_knowledge_from_store
+
+        workflow = run["workflow"]
+        domain = run["domain"]
+        custody_tier = run.get("custody_tier") or _DEFAULT_CUSTODY_TIER.get(workflow, "full")
+        custody_stage = stage_by_name.get("custody") or {}
+        blob_key = (custody_stage.get("output") or {}).get("blob_key")
+
+        new_run_id = create_run(
+            workflow=workflow,
+            mode=run["mode"],
+            source_name=run.get("source_name"),
+            source_path=None,
+            domain=domain,
+            parent_run_id=run_id,
+            custody_tier=custody_tier,
+        )
+        seed_stages(new_run_id, WORKFLOW_STAGE_NAMES[workflow])
+
+        asyncio.create_task(
+            run_knowledge_from_store(
+                parent_run_id=run_id,
+                run_id=new_run_id,
+                workflow=workflow,
+                domain=domain,
+                knowledge=knowledge,
+                artifact_id=run["artifact_id"],
+                sha256=run["sha256"],
+                blob_key=blob_key,
+                custody_tier=custody_tier,
+            )
+        )
+
+        return {"run_id": new_run_id, "parent_run_id": run_id}
+
+    async def _check_pg() -> dict[str, Any]:
+        """GET /v1/health/deps' pg check — SELECT 1 via run_ledger's engine,
+        time-boxed to `_HEALTH_DEPS_TIMEOUT_S` (a slow/blocked DB should not
+        hang the health endpoint itself)."""
+        try:
+            await asyncio.wait_for(asyncio.to_thread(ping), timeout=_HEALTH_DEPS_TIMEOUT_S)
+            return {"status": "ok"}
+        except Exception as exc:
+            return {"status": "error", "error": str(exc)[:300]}
+
+    async def _check_milvus() -> dict[str, Any]:
+        """GET /v1/health/deps' Milvus check — reuses the already-connected
+        Knowledge instance's Milvus client when available (agno's
+        `Milvus.client` property, a lazily-created pymilvus MilvusClient) so
+        this doesn't open a second connection with its own credentials;
+        falls back to a fresh MilvusClient (server.core.session's
+        MILVUS_URI/MILVUS_TOKEN) when `knowledge` is None (e.g. this route
+        registered without a live knowledge handle, as in tests)."""
+
+        def _do() -> None:
+            client = None
+            vector_db = getattr(knowledge, "vector_db", None) if knowledge is not None else None
+            if vector_db is not None:
+                client = getattr(vector_db, "client", None)
+            if client is None:
+                from pymilvus import MilvusClient
+
+                from server.core.session import MILVUS_TOKEN, MILVUS_URI
+
+                client = MilvusClient(uri=MILVUS_URI, token=MILVUS_TOKEN)
+            client.list_collections()
+
+        try:
+            await asyncio.wait_for(asyncio.to_thread(_do), timeout=_HEALTH_DEPS_TIMEOUT_S)
+            return {"status": "ok"}
+        except Exception as exc:
+            return {"status": "error", "error": str(exc)[:300]}
+
+    @app.get("/v1/health/deps")
+    async def health_deps() -> dict[str, Any]:
+        """C2.6 requirement 4 — cheap, parallel dependency health check.
+
+        Returns ``{"pg": {"status": "ok"|"error", "error"?: str},
+        "milvus": {...}, "checked_at": <iso8601>}``. Object-store health is
+        workbench-side only (this spine doesn't touch R2 directly) — the
+        workbench's own GET /api/health/deps merges its lancedb/object_store
+        checks with a proxy of THIS endpoint.
+        """
+        pg_result, milvus_result = await asyncio.gather(_check_pg(), _check_milvus())
+        return {
+            "pg": pg_result,
+            "milvus": milvus_result,
+            "checked_at": datetime.now(timezone.utc).isoformat(),
+        }
 
     @app.post("/v1/runs", status_code=202)
     async def start_run(
@@ -258,16 +407,43 @@ def register_run_routes(app: FastAPI, knowledge: Any) -> None:
         return {"run_id": run_id, "status": "failed"}
 
     @app.post("/v1/runs/{run_id}/retry", status_code=202)
-    async def retry_run(run_id: str) -> dict[str, Any]:
-        """Re-run a terminal-failed run from its ORIGINAL custody blob.
+    async def retry_run(run_id: str, request: Request) -> dict[str, Any]:
+        """Re-run a terminal-failed run.
 
-        409 if the parent run is not status='failed'. 410 Gone if neither the
-        custody blob (preferred) nor the original source_path (fallback) is
-        still readable — see the docstring below for which path this ships.
+        Optional JSON body ``{"from_stage": "knowledge"}`` (C2.6 requirement
+        1): skips custody/parse/store entirely and re-runs ONLY the
+        knowledge stage over the parent's already-stored records — see
+        `_retry_from_knowledge` and server/evidence/workflows.py's
+        `run_knowledge_from_store`. No body (or a body without `from_stage`,
+        or `from_stage: null`) keeps the pre-C2.6 full-rerun behavior below,
+        UNCHANGED except that a custody-dedupe no-op now auto-routes into
+        knowledge-from-store when the parent's knowledge stage had failed
+        (server/evidence/workflows.py's `_store_step_impl`).
+
+        409 if the parent run is not status='failed'. 422 for an unknown
+        `from_stage` value or a non-JSON/non-object body. 410 Gone (full
+        rerun only) if neither the custody blob (preferred) nor the original
+        source_path (fallback) is still readable.
 
         Returns 202 {"run_id": <NEW run_id>, "parent_run_id": <this run_id>}
         — poll the new run_id like any other fire-and-watch run.
         """
+        from_stage: str | None = None
+        body_bytes = await request.body()
+        if body_bytes:
+            try:
+                payload = json.loads(body_bytes)
+            except json.JSONDecodeError as exc:
+                raise HTTPException(422, f"retry body is not valid JSON: {exc}") from exc
+            if payload is not None:
+                if not isinstance(payload, dict):
+                    raise HTTPException(422, "retry body must be a JSON object, e.g. {\"from_stage\": \"knowledge\"}")
+                from_stage = payload.get("from_stage")
+                if from_stage is not None and from_stage not in _ALLOWED_RETRY_FROM_STAGES:
+                    raise HTTPException(
+                        422, f"unknown from_stage {from_stage!r}; allowed: {sorted(_ALLOWED_RETRY_FROM_STAGES)}"
+                    )
+
         run = get_run(run_id)
         if run is None:
             raise HTTPException(404, f"run {run_id!r} not found")
@@ -275,6 +451,9 @@ def register_run_routes(app: FastAPI, knowledge: Any) -> None:
             raise HTTPException(
                 409, f"run {run_id!r} is {run['status']!r}, not failed — retry only allowed on a terminal-failed run"
             )
+
+        if from_stage == "knowledge":
+            return await _retry_from_knowledge(run_id, run)
 
         workflow = run["workflow"]
         domain = run["domain"]
@@ -337,8 +516,22 @@ def register_run_routes(app: FastAPI, knowledge: Any) -> None:
         # derived custody/parse outputs are) — a retried run's source_meta is
         # always {} (documented deviation; workflow/domain/mode/custody_tier
         # and the original bytes are all faithfully re-used).
+        #
+        # parent_run_id=run_id (C2.6): lets this new run's store step detect
+        # "I just deduped AND my parent's knowledge stage failed" and
+        # auto-route into knowledge-from-store instead of a silent no-op.
         asyncio.create_task(
-            _execute_run(new_run_id, workflow, tmp_path, tmpdir, {}, domain, mode=mode, custody_tier=custody_tier)
+            _execute_run(
+                new_run_id,
+                workflow,
+                tmp_path,
+                tmpdir,
+                {},
+                domain,
+                mode=mode,
+                custody_tier=custody_tier,
+                parent_run_id=run_id,
+            )
         )
 
         return {"run_id": new_run_id, "parent_run_id": run_id}

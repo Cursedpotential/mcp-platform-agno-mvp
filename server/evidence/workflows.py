@@ -28,8 +28,42 @@ an operator decision (see `_wrap_step_for_run_control`); `custody_tier`
 ('full' | 'light') threads through to custody_step -> ingest_artifact
 (server/evidence/custody.py). Both default to their pre-C2 values, so
 run_id=None / mode='auto' / custody_tier='full' callers are unchanged.
+
+C2.6 additions (resilience + observability, 2026-07-20/21):
+- `parent_run_id` (optional, threaded from server/api/run_routes.py's retry
+  endpoint into ctx): when a FULL rerun's custody step dedupes (the source
+  bytes are already in custody) AND the parent run's knowledge stage
+  FAILED, store_step auto-routes to the same "load records from Postgres,
+  re-run knowledge" path `run_knowledge_from_store` uses below, instead of
+  silently reporting `docs_ingested=0` as a false success — this was a real
+  prod bug (Milvus 503 fails knowledge -> operator retries -> custody
+  dedupes -> store sees 0 NEW rows -> knowledge sees no records -> run
+  reports COMPLETED with docs_ingested=0 and the knowledge docs never land).
+- `run_knowledge_from_store()` — the explicit counterpart, wired off
+  `POST /v1/runs/{id}/retry {"from_stage": "knowledge"}`: a child run that
+  SKIPS custody/parse/store (recorded 'skipped', content "inherited from
+  parent") and re-runs ONLY the knowledge stage over the parent's already-
+  stored analysis.normalized_record rows.
+- Every Step() below now sets `on_error="fail"` explicitly. agno's own
+  `Step.on_error` field defaults to `OnError.skip` (its class docstring
+  claims 'fail' is the default — it is not; verify against
+  agno/workflow/step.py before trusting the docstring). Under the actual
+  default, an UNCAUGHT exception in a step executor gets silently converted
+  into a 'skipped' StepOutput (still success=False, so `_terminal_status`'s
+  existing `any(success is False for s in step_results)` check already
+  catches it — see tests/test_run_ledger.py) and the workflow keeps
+  running with broken ctx state instead of stopping. Overriding to 'fail'
+  makes an uncaught exception halt the workflow immediately instead of
+  cascading into KeyErrors on later steps that assume the earlier one set
+  ctx['artifact'] etc.
+- Bounded exponential-backoff retry around the knowledge insert and the
+  store DB write (server/evidence/store.py's `_retry_async`/`_retry_sync`)
+  — every attempt lands in the stage's `output.attempts` list.
+- INFO logging (logger "evidence.runs", run_id-prefixed) at run start/
+  finish and every stage start/finish, with duration_s per stage and
+  duration_ms in the run's finish summary.
 """
-# Byline: Claude Code · Sonnet (agent) · 2026-07-20 (C0 run-ledger instrumentation; C2 gates+retry+custody_tier added same day)
+# Byline: Claude Code · Sonnet (agent) · 2026-07-21 (C0 run-ledger instrumentation 2026-07-20; C2 gates+retry+custody_tier 2026-07-20; C2.6 resilience+observability 2026-07-21)
 
 from __future__ import annotations
 
@@ -37,16 +71,25 @@ import asyncio
 import functools
 import inspect
 import json
+import logging
+import time
 from pathlib import Path
 from typing import Any, cast
 
 from agno.workflow import Step, Workflow
-from agno.workflow.types import StepInput, StepOutput
+from agno.workflow.types import OnError, StepInput, StepOutput
 
-from server.evidence.custody import ArtifactRef, ingest_artifact
+from server.evidence.custody import ArtifactRef, ingest_artifact, utcnow_iso
 from server.contracts.records import NormalizedRecord, finalize
 from server.tools.registry import load_builtin_tools, registry
-from server.evidence.store import ingest_into_knowledge, record_counts, store_records
+from server.evidence.store import (
+    ingest_into_knowledge,
+    load_records_for_artifact,
+    record_counts,
+    store_records,
+)
+
+logger = logging.getLogger("evidence.runs")
 
 # ---------------------------------------------------------------------------
 # C0 operator-console run ledger — optional, additive instrumentation.
@@ -88,12 +131,22 @@ def _ledger_stage_output(name: str | None, ctx: dict[str, Any]) -> dict[str, Any
             "sample_records": [json.dumps(r, default=str)[:500] for r in raw[:3]],
         }
     if name == "store":
-        return {"rows_stored": ctx.get("stored"), "table": "analysis.normalized_record"}
+        return {
+            "rows_stored": ctx.get("stored"),
+            "table": "analysis.normalized_record",
+            # C2.6 requirement 2 — every store_records() DB-write attempt
+            # (n, error truncated to 200 chars, waited_s); [] when the
+            # insert succeeded on the first try or store was skipped.
+            "attempts": ctx.get("store_attempts", []),
+        }
     if name == "knowledge":
         return {
             "docs_ingested": ctx.get("knowledge_docs", 0),
             "domain": ctx.get("domain"),
             "skipped": ctx.get("knowledge_skipped", True),
+            # C2.6 requirement 2 — every knowledge.ainsert() attempt across
+            # every conversation doc this stage tried to insert.
+            "attempts": ctx.get("knowledge_attempts", []),
         }
     return None
 
@@ -122,7 +175,9 @@ def _wrap_step_for_ledger(step: Step, seq: int, run_id: str, ctx: dict[str, Any]
 
     @functools.wraps(original)
     async def _ledger_wrapped(step_input: StepInput, **kwargs: Any) -> StepOutput:
+        logger.info("run %s: stage %s (seq=%s) starting", run_id, name, seq)
         stage_start(run_id, seq)
+        t0 = time.monotonic()
         try:
             result = (
                 await original(step_input, **kwargs)  # type: ignore[misc]
@@ -130,16 +185,22 @@ def _wrap_step_for_ledger(step: Step, seq: int, run_id: str, ctx: dict[str, Any]
                 else original(step_input, **kwargs)
             )
         except Exception as exc:
-            stage_finish(run_id, seq, "failed", content=str(exc), output=None)
+            duration_s = round(time.monotonic() - t0, 3)
+            logger.error("run %s: stage %s (seq=%s) raised after %ss: %s", run_id, name, seq, duration_s, exc)
+            stage_finish(run_id, seq, "failed", content=str(exc), output={"duration_s": duration_s})
             raise
+        duration_s = round(time.monotonic() - t0, 3)
         content = getattr(result, "content", None)
         status = "success" if getattr(result, "success", True) else "failed"
+        logger.info("run %s: stage %s (seq=%s) finished status=%s duration_s=%s", run_id, name, seq, status, duration_s)
+        output = _ledger_stage_output(name, ctx) or {}
+        output["duration_s"] = duration_s
         stage_finish(
             run_id,
             seq,
             status,
             content=str(content) if content is not None else None,
-            output=_ledger_stage_output(name, ctx),
+            output=output,
         )
         return result  # type: ignore[return-value]
 
@@ -285,12 +346,104 @@ def _terminal_status(ctx: dict[str, Any], result: Any) -> str:
     return mapped
 
 
+def _parent_knowledge_failed(parent_run_id: str) -> bool:
+    """True if the parent run's knowledge stage is recorded 'failed' — used
+    to auto-route a full-rerun's custody-dedupe no-op into the
+    knowledge-from-store path (C2.6 requirement 1's "ALSO" clause) instead
+    of silently reporting docs_ingested=0 for data that's already stored."""
+    from server.evidence.run_ledger import get_run
+
+    parent = get_run(parent_run_id)
+    if parent is None:
+        return False
+    stage = next((s for s in parent.get("stages", []) if s["name"] == "knowledge"), None)
+    return bool(stage and stage.get("status") == "failed")
+
+
+def _store_step_impl(ctx: dict[str, Any]) -> StepOutput:
+    """Shared store-step body for both build_*_workflow builders below
+    (identical logic in both before this refactor — factored out so the
+    C2.6 dedupe/auto-route fix and retry wiring live in exactly one place).
+    custody_step/parse_step stay per-workflow (sms-xml's parse_step has the
+    no-silent-substitution pause chat-transcript doesn't need).
+
+    THE REAL BUG (C2.6 requirement 1): a run stores N rows, the knowledge
+    stage fails (e.g. Milvus 503). A plain retry re-ingests from the same
+    blob -> custody dedupes (duplicate=True, this is the SAME artifact) ->
+    parse succeeds again -> this function used to just report "0 new rows,
+    skipped re-store" -> the knowledge step then saw ctx['records'] empty
+    and ALSO reported success with docs_ingested=0. The run shows
+    'completed'. The knowledge docs never land, silently. Fix: when this
+    dedupe-no-op fires AND `ctx['parent_run_id']` is set AND that parent's
+    knowledge stage genuinely failed, reload the artifact's already-stored
+    records from Postgres and hand them to the knowledge step anyway (loud
+    stage content + a WARNING log), instead of leaving ctx['records'] empty.
+    """
+    artifact: ArtifactRef = ctx["artifact"]
+    if artifact.duplicate and record_counts(artifact.artifact_id)["records"] > 0:
+        parent_run_id = ctx.get("parent_run_id")
+        if parent_run_id and _parent_knowledge_failed(parent_run_id):
+            records = load_records_for_artifact(artifact.artifact_id)
+            ctx["stored"] = 0
+            ctx["records"] = records
+            msg = (
+                f"store: duplicate artifact — custody already had these bytes, 0 NEW rows stored, "
+                f"BUT parent run {parent_run_id}'s knowledge stage had FAILED — auto-routing "
+                f"{len(records)} existing record(s) from analysis.normalized_record into the "
+                f"knowledge stage so the docs are not silently dropped (see the knowledge stage's "
+                f"docs_ingested below)"
+            )
+            logger.warning("run auto-route (dedupe + parent knowledge failed): %s", msg)
+            return StepOutput(content=msg, success=True)
+        ctx["stored"] = 0
+        ctx["records"] = []
+        return StepOutput(
+            content="store: duplicate artifact already has records — skipped re-store",
+            success=True,
+        )
+    records = finalize([NormalizedRecord.model_validate(r) for r in ctx["raw_records"]])
+    # provenance stamp: which tool parsed, and whether an alternate (backup)
+    # parser produced it — a backup parse must never be indistinguishable
+    # from the primary
+    for rec in records:
+        rec.attrs.setdefault("parser_tool", ctx.get("parser_id"))
+        if ctx.get("alt_parse"):
+            rec.attrs["alt_parse"] = True
+            rec.attrs["alt_parse_detail"] = ctx.get("alt_parse_detail")
+    ctx["records"] = records
+    attempts_log: list[dict[str, Any]] = []
+    ctx["store_attempts"] = attempts_log
+    ctx["stored"] = store_records(records, artifact, attempts_log=attempts_log)
+    note = " [ALT-PARSE — primary unavailable, see alt_parse_detail]" if ctx.get("alt_parse") else ""
+    return StepOutput(content=f"store: {ctx['stored']} rows -> analysis.normalized_record{note}", success=True)
+
+
+async def _knowledge_step_impl(ctx: dict[str, Any], knowledge: Any) -> StepOutput:
+    """Shared knowledge-step body for both build_*_workflow builders."""
+    domain = ctx["domain"]
+    if knowledge is None:
+        ctx["knowledge_skipped"] = True
+        ctx["knowledge_docs"] = 0
+        return StepOutput(content="knowledge: no engine handle passed — skipped (CLI --no-knowledge)", success=True)
+    if not ctx.get("records"):
+        ctx["knowledge_skipped"] = True
+        ctx["knowledge_docs"] = 0
+        return StepOutput(content="knowledge: no new records — skipped", success=True)
+    attempts_log: list[dict[str, Any]] = []
+    ctx["knowledge_attempts"] = attempts_log
+    n = await ingest_into_knowledge(knowledge, ctx["records"], ctx["artifact"], domain, attempts_log=attempts_log)
+    ctx["knowledge_skipped"] = False
+    ctx["knowledge_docs"] = n
+    return StepOutput(content=f"knowledge: {n} conversation doc(s) -> domain={domain}", success=True)
+
+
 def build_chat_transcript_workflow(
     path: str,
     source_meta: dict[str, Any] | None = None,
     domain: str = "platform_design",
     knowledge=None,
     custody_tier: str = "full",
+    parent_run_id: str | None = None,
 ) -> tuple[Workflow, dict[str, Any]]:
     """Build the chat-transcript workflow. Steps share `ctx` (closure state);
     each StepOutput carries a human-readable status line for the run log.
@@ -299,7 +452,11 @@ def build_chat_transcript_workflow(
     custody step's ingest_artifact() call; run_routes.py's /v1/runs defaults
     this to 'light' for chat-transcript uploads specifically (this builder's
     own default stays 'full' — unchanged behavior for the CLI/evidence_routes
-    callers that never pass it)."""
+    callers that never pass it).
+
+    parent_run_id (C2.6, optional): only set on a FULL rerun started via
+    POST /v1/runs/{id}/retry (no from_stage) — see `_store_step_impl`'s
+    dedupe + parent-knowledge-failed auto-route."""
     load_builtin_tools()
     ctx: dict[str, Any] = {
         "path": path,
@@ -307,6 +464,7 @@ def build_chat_transcript_workflow(
         "domain": domain,
         "attempts": [],
         "custody_tier": custody_tier,
+        "parent_run_id": parent_run_id,
     }
 
     def custody_step(step_input: StepInput) -> StepOutput:
@@ -348,50 +506,23 @@ def build_chat_transcript_workflow(
         )
 
     def store_step(step_input: StepInput) -> StepOutput:
-        artifact: ArtifactRef = ctx["artifact"]
-        if artifact.duplicate and record_counts(artifact.artifact_id)["records"] > 0:
-            ctx["stored"] = 0
-            ctx["records"] = []
-            return StepOutput(
-                content="store: duplicate artifact already has records — skipped re-store",
-                success=True,
-            )
-        records = finalize([NormalizedRecord.model_validate(r) for r in ctx["raw_records"]])
-        # provenance stamp: which tool parsed, and whether an alternate (backup)
-        # parser produced it — a backup parse must never be indistinguishable
-        # from the primary
-        for rec in records:
-            rec.attrs.setdefault("parser_tool", ctx.get("parser_id"))
-            if ctx.get("alt_parse"):
-                rec.attrs["alt_parse"] = True
-                rec.attrs["alt_parse_detail"] = ctx.get("alt_parse_detail")
-        ctx["records"] = records
-        ctx["stored"] = store_records(records, artifact)
-        note = " [ALT-PARSE — primary unavailable, see alt_parse_detail]" if ctx.get("alt_parse") else ""
-        return StepOutput(content=f"store: {ctx['stored']} rows -> analysis.normalized_record{note}", success=True)
+        return _store_step_impl(ctx)
 
     async def knowledge_step(step_input: StepInput) -> StepOutput:
-        if knowledge is None:
-            ctx["knowledge_skipped"] = True
-            ctx["knowledge_docs"] = 0
-            return StepOutput(content="knowledge: no engine handle passed — skipped (CLI --no-knowledge)", success=True)
-        if not ctx.get("records"):
-            ctx["knowledge_skipped"] = True
-            ctx["knowledge_docs"] = 0
-            return StepOutput(content="knowledge: no new records — skipped", success=True)
-        n = await ingest_into_knowledge(knowledge, ctx["records"], ctx["artifact"], ctx["domain"])
-        ctx["knowledge_skipped"] = False
-        ctx["knowledge_docs"] = n
-        return StepOutput(content=f"knowledge: {n} conversation doc(s) -> domain={ctx['domain']}", success=True)
+        return await _knowledge_step_impl(ctx, knowledge)
 
     wf = Workflow(
         name="chat-transcript",
         description="AI-chat transcript ingestion: custody -> parse -> store -> knowledge",
         steps=[
-            Step(name="custody", executor=custody_step),
-            Step(name="parse", executor=parse_step),
-            Step(name="store", executor=store_step),
-            Step(name="knowledge", executor=knowledge_step),
+            # on_error="fail" overrides agno's actual Step default
+            # (OnError.skip — see the C2.6 module-docstring note above) so an
+            # uncaught exception halts the workflow instead of continuing
+            # with broken ctx state.
+            Step(name="custody", executor=custody_step, on_error=OnError.fail),
+            Step(name="parse", executor=parse_step, on_error=OnError.fail),
+            Step(name="store", executor=store_step, on_error=OnError.fail),
+            Step(name="knowledge", executor=knowledge_step, on_error=OnError.fail),
         ],
     )
     return wf, ctx
@@ -404,6 +535,7 @@ def build_sms_xml_workflow(
     knowledge=None,
     allow_fallback: bool = False,
     custody_tier: str = "full",
+    parent_run_id: str | None = None,
 ) -> tuple[Workflow, dict[str, Any]]:
     """Workflow A — the SBV SMS-XML vertical. Same custody->parse->store->knowledge
     spine as chat-transcript, but resolves capability `parse.sms-xml`: the
@@ -420,7 +552,11 @@ def build_sms_xml_workflow(
     custody_tier ('full' default | 'light', C2 addendum 2): sms-xml is an
     evidence vertical, so run_routes.py's /v1/runs keeps this workflow's
     default at 'full' (unlike chat-transcript's 'light' default) — this
-    builder's own default stays 'full' regardless of caller."""
+    builder's own default stays 'full' regardless of caller.
+
+    parent_run_id (C2.6, optional): only set on a FULL rerun started via
+    POST /v1/runs/{id}/retry (no from_stage) — see `_store_step_impl`'s
+    dedupe + parent-knowledge-failed auto-route."""
     load_builtin_tools()
     ctx: dict[str, Any] = {
         "path": path,
@@ -430,6 +566,7 @@ def build_sms_xml_workflow(
         "alt_parse": False,
         "alt_parse_detail": None,
         "custody_tier": custody_tier,
+        "parent_run_id": parent_run_id,
     }
 
     def custody_step(step_input: StepInput) -> StepOutput:
@@ -505,50 +642,23 @@ def build_sms_xml_workflow(
         )
 
     def store_step(step_input: StepInput) -> StepOutput:
-        artifact: ArtifactRef = ctx["artifact"]
-        if artifact.duplicate and record_counts(artifact.artifact_id)["records"] > 0:
-            ctx["stored"] = 0
-            ctx["records"] = []
-            return StepOutput(
-                content="store: duplicate artifact already has records — skipped re-store",
-                success=True,
-            )
-        records = finalize([NormalizedRecord.model_validate(r) for r in ctx["raw_records"]])
-        # provenance stamp: which tool parsed, and whether an alternate (backup)
-        # parser produced it — a backup parse must never be indistinguishable
-        # from the primary
-        for rec in records:
-            rec.attrs.setdefault("parser_tool", ctx.get("parser_id"))
-            if ctx.get("alt_parse"):
-                rec.attrs["alt_parse"] = True
-                rec.attrs["alt_parse_detail"] = ctx.get("alt_parse_detail")
-        ctx["records"] = records
-        ctx["stored"] = store_records(records, artifact)
-        note = " [ALT-PARSE — primary unavailable, see alt_parse_detail]" if ctx.get("alt_parse") else ""
-        return StepOutput(content=f"store: {ctx['stored']} rows -> analysis.normalized_record{note}", success=True)
+        return _store_step_impl(ctx)
 
     async def knowledge_step(step_input: StepInput) -> StepOutput:
-        if knowledge is None:
-            ctx["knowledge_skipped"] = True
-            ctx["knowledge_docs"] = 0
-            return StepOutput(content="knowledge: no engine handle passed — skipped (CLI --no-knowledge)", success=True)
-        if not ctx.get("records"):
-            ctx["knowledge_skipped"] = True
-            ctx["knowledge_docs"] = 0
-            return StepOutput(content="knowledge: no new records — skipped", success=True)
-        n = await ingest_into_knowledge(knowledge, ctx["records"], ctx["artifact"], ctx["domain"])
-        ctx["knowledge_skipped"] = False
-        ctx["knowledge_docs"] = n
-        return StepOutput(content=f"knowledge: {n} conversation doc(s) -> domain={ctx['domain']}", success=True)
+        return await _knowledge_step_impl(ctx, knowledge)
 
     wf = Workflow(
         name="sms-xml",
         description="SMS-XML ingestion (SBV primary / custom fallback): custody -> parse -> store -> knowledge",
         steps=[
-            Step(name="custody", executor=custody_step),
-            Step(name="parse", executor=parse_step),
-            Step(name="store", executor=store_step),
-            Step(name="knowledge", executor=knowledge_step),
+            # on_error="fail" overrides agno's actual Step default
+            # (OnError.skip — see the C2.6 module-docstring note above) so an
+            # uncaught exception halts the workflow instead of continuing
+            # with broken ctx state.
+            Step(name="custody", executor=custody_step, on_error=OnError.fail),
+            Step(name="parse", executor=parse_step, on_error=OnError.fail),
+            Step(name="store", executor=store_step, on_error=OnError.fail),
+            Step(name="knowledge", executor=knowledge_step, on_error=OnError.fail),
         ],
     )
     return wf, ctx
@@ -563,6 +673,7 @@ async def run_sms_xml(
     run_id: str | None = None,
     mode: str = "auto",
     custody_tier: str = "full",
+    parent_run_id: str | None = None,
 ) -> dict[str, Any]:
     """Run the SMS-XML vertical (Workflow A) end-to-end; return a verifiable summary.
 
@@ -580,9 +691,23 @@ async def run_sms_xml(
     an out-of-band operator abort at each stage boundary but never pauses.
 
     custody_tier ('full' default | 'light', C2 addendum 2): threaded to
-    build_sms_xml_workflow -> custody_step -> ingest_artifact."""
+    build_sms_xml_workflow -> custody_step -> ingest_artifact.
+
+    parent_run_id (C2.6, optional): set by server/api/run_routes.py's retry
+    endpoint on a FULL rerun (not a from_stage='knowledge' retry, which uses
+    `run_knowledge_from_store` instead) so `_store_step_impl` can auto-route
+    a custody-dedupe no-op when the parent's knowledge stage had failed."""
+    t0 = time.monotonic()
+    if run_id is not None:
+        logger.info("run %s: workflow=sms-xml starting mode=%s custody_tier=%s", run_id, mode, custody_tier)
     wf, ctx = build_sms_xml_workflow(
-        path, source_meta, domain, knowledge, allow_fallback=allow_fallback, custody_tier=custody_tier
+        path,
+        source_meta,
+        domain,
+        knowledge,
+        allow_fallback=allow_fallback,
+        custody_tier=custody_tier,
+        parent_run_id=parent_run_id,
     )
     ctx["allow_fallback"] = allow_fallback
     if run_id is not None:
@@ -620,14 +745,19 @@ async def run_sms_xml(
         exc_message = str(exc)
         raise
     finally:
+        duration_ms = round((time.monotonic() - t0) * 1000)
+        if summary is not None:
+            summary["duration_ms"] = duration_ms
         if run_id is not None:
             from server.evidence.run_ledger import finish_run
 
             artifact = ctx.get("artifact")
             gate_abort = ctx.get("gate_aborted")
+            final_status = _terminal_status(ctx, result)
+            logger.info("run %s: workflow=sms-xml finished status=%s duration_ms=%s", run_id, final_status, duration_ms)
             finish_run(
                 run_id,
-                _terminal_status(ctx, result),
+                final_status,
                 summary=summary,
                 error=exc_message or (gate_abort["message"] if gate_abort else None),
                 sha256=artifact.sha256 if artifact else None,
@@ -658,6 +788,7 @@ async def run_chat_transcript(
     run_id: str | None = None,
     mode: str = "auto",
     custody_tier: str = "full",
+    parent_run_id: str | None = None,
 ) -> dict[str, Any]:
     """Run the chat-transcript vertical end-to-end; return a verifiable summary.
 
@@ -671,8 +802,18 @@ async def run_chat_transcript(
 
     custody_tier ('full' default | 'light', C2 addendum 2): threaded to
     build_chat_transcript_workflow -> custody_step -> ingest_artifact.
-    run_routes.py's /v1/runs defaults this workflow specifically to 'light'."""
-    wf, ctx = build_chat_transcript_workflow(path, source_meta, domain, knowledge, custody_tier=custody_tier)
+    run_routes.py's /v1/runs defaults this workflow specifically to 'light'.
+
+    parent_run_id (C2.6, optional): set by server/api/run_routes.py's retry
+    endpoint on a FULL rerun (not a from_stage='knowledge' retry, which uses
+    `run_knowledge_from_store` instead) so `_store_step_impl` can auto-route
+    a custody-dedupe no-op when the parent's knowledge stage had failed."""
+    t0 = time.monotonic()
+    if run_id is not None:
+        logger.info("run %s: workflow=chat-transcript starting mode=%s custody_tier=%s", run_id, mode, custody_tier)
+    wf, ctx = build_chat_transcript_workflow(
+        path, source_meta, domain, knowledge, custody_tier=custody_tier, parent_run_id=parent_run_id
+    )
     if run_id is not None:
         # wf.steps is always the plain list[Step] we just built above (agno's
         # own declared type is a broad union that also covers Loop/Parallel/
@@ -705,16 +846,185 @@ async def run_chat_transcript(
         exc_message = str(exc)
         raise
     finally:
+        duration_ms = round((time.monotonic() - t0) * 1000)
+        if summary is not None:
+            summary["duration_ms"] = duration_ms
         if run_id is not None:
             from server.evidence.run_ledger import finish_run
 
             artifact = ctx.get("artifact")
             gate_abort = ctx.get("gate_aborted")
+            final_status = _terminal_status(ctx, result)
+            logger.info(
+                "run %s: workflow=chat-transcript finished status=%s duration_ms=%s", run_id, final_status, duration_ms
+            )
             finish_run(
                 run_id,
-                _terminal_status(ctx, result),
+                final_status,
                 summary=summary,
                 error=exc_message or (gate_abort["message"] if gate_abort else None),
                 sha256=artifact.sha256 if artifact else None,
                 artifact_id=artifact.artifact_id if artifact else None,
             )
+
+
+async def run_knowledge_from_store(
+    *,
+    parent_run_id: str,
+    run_id: str,
+    workflow: str,
+    domain: str,
+    knowledge: Any,
+    artifact_id: str,
+    sha256: str,
+    blob_key: str | None,
+    custody_tier: str = "full",
+) -> dict[str, Any]:
+    """C2.6 requirement 1 — the explicit `POST /v1/runs/{id}/retry
+    {"from_stage": "knowledge"}` path (server/api/run_routes.py's
+    `_retry_from_knowledge`).
+
+    Re-runs ONLY the knowledge stage, over the PARENT run's already-stored
+    analysis.normalized_record rows (`load_records_for_artifact`) — custody/
+    parse/store are never touched: this run's stages 1-3 are recorded
+    'skipped' with content "inherited from parent" (seeded by the caller via
+    seed_stages(run_id, WORKFLOW_STAGE_NAMES[workflow]) before this runs).
+
+    This is the direct fix for the prod bug requirement 1 describes: a full
+    rerun's custody dedupe used to make the knowledge step see ZERO new
+    records (nothing was parsed/stored again) and report a false success
+    with docs_ingested=0 — the knowledge docs never landed. This path skips
+    straight to "reload what's already stored, ingest it" so there's no
+    dedupe/no-new-rows trap to fall into at all.
+
+    Bypasses agno's Workflow/Step machinery entirely (there's only one real
+    stage to run) — writes directly to the run ledger the same way
+    `_wrap_step_for_ledger` would, and always calls `finish_run` in a
+    `finally` block exactly like `run_chat_transcript`/`run_sms_xml` do.
+    """
+    from server.evidence.run_ledger import finish_run, stage_finish, stage_start
+
+    t0 = time.monotonic()
+    logger.info(
+        "run %s: workflow=%s starting (retry from_stage=knowledge, parent=%s, artifact_id=%s)",
+        run_id,
+        workflow,
+        parent_run_id,
+        artifact_id,
+    )
+
+    # Stages 1-3 (custody/parse/store) are inherited from the parent run
+    # verbatim — nothing to redo, nothing new hashed/parsed/stored here.
+    for seq in (1, 2, 3):
+        stage_start(run_id, seq)
+        stage_finish(run_id, seq, "skipped", content="inherited from parent", output=None)
+
+    artifact = ArtifactRef(
+        artifact_id=artifact_id,
+        sha256=sha256,
+        source_ref=f"parent:{parent_run_id}",
+        blob_key=blob_key or "",
+        size_bytes=0,
+        duplicate=True,
+        ingested_at=utcnow_iso(),
+        custody_tier=custody_tier,
+    )
+
+    stage_start(run_id, 4)
+    k_t0 = time.monotonic()
+    summary: dict[str, Any] | None = None
+    error_message: str | None = None
+    status = "failed"
+    attempts_log: list[dict[str, Any]] = []
+    try:
+        records = load_records_for_artifact(artifact_id)
+        if not records:
+            error_message = (
+                f"knowledge: parent {parent_run_id}'s artifact {artifact_id} has 0 rows in "
+                "analysis.normalized_record — nothing to re-ingest"
+            )
+            logger.error("run %s: %s", run_id, error_message)
+            stage_finish(
+                run_id,
+                4,
+                "failed",
+                content=error_message,
+                output={
+                    "docs_ingested": 0,
+                    "domain": domain,
+                    "skipped": False,
+                    "attempts": [],
+                    "duration_s": round(time.monotonic() - k_t0, 3),
+                },
+            )
+        else:
+            n = await ingest_into_knowledge(knowledge, records, artifact, domain, attempts_log=attempts_log)
+            duration_s = round(time.monotonic() - k_t0, 3)
+            content = (
+                f"knowledge: {n} conversation doc(s) -> domain={domain} "
+                f"({len(records)} record(s) inherited from parent {parent_run_id}, retry from_stage=knowledge)"
+            )
+            stage_finish(
+                run_id,
+                4,
+                "success",
+                content=content,
+                output={
+                    "docs_ingested": n,
+                    "domain": domain,
+                    "skipped": False,
+                    "attempts": attempts_log,
+                    "duration_s": duration_s,
+                },
+            )
+            status = "completed"
+            summary = {
+                "workflow": workflow,
+                "status": "completed",
+                "artifact_id": artifact_id,
+                "sha256": sha256,
+                "duplicate": True,
+                "records_stored": 0,
+                "records_reused_from_parent": len(records),
+                "docs_ingested": n,
+                "parent_run_id": parent_run_id,
+                "retry_from_stage": "knowledge",
+            }
+    except Exception as exc:
+        error_message = str(exc)
+        duration_s = round(time.monotonic() - k_t0, 3)
+        logger.error("run %s: knowledge (retry from_stage=knowledge) failed after %ss: %s", run_id, duration_s, exc)
+        stage_finish(
+            run_id,
+            4,
+            "failed",
+            content=f"knowledge: {error_message}",
+            output={
+                "docs_ingested": 0,
+                "domain": domain,
+                "skipped": False,
+                "attempts": attempts_log,
+                "duration_s": duration_s,
+            },
+        )
+        status = "failed"
+    finally:
+        duration_ms = round((time.monotonic() - t0) * 1000)
+        if summary is not None:
+            summary["duration_ms"] = duration_ms
+        logger.info(
+            "run %s: workflow=%s finished status=%s duration_ms=%s (retry from_stage=knowledge)",
+            run_id,
+            workflow,
+            status,
+            duration_ms,
+        )
+        finish_run(run_id, status, summary=summary, error=error_message, sha256=sha256, artifact_id=artifact_id)
+
+    return summary or {
+        "workflow": workflow,
+        "status": status,
+        "run_id": run_id,
+        "parent_run_id": parent_run_id,
+        "error": error_message,
+    }

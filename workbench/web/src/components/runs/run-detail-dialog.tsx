@@ -1,4 +1,4 @@
-// Byline: Claude Code · Sonnet (agent) · 2026-07-20 (C2: supervised-gate controls — continue/abort/retry)
+// Byline: Claude Code · Sonnet (agent) · 2026-07-21 (C2: supervised-gate controls — continue/abort/retry; C2.6: louder failure banner + retry from_stage=knowledge)
 "use client";
 
 /**
@@ -22,9 +22,19 @@
  * that starts a new run and — since this dialog is controlled by the
  * parent's `runId` state, not its own — asks the parent (`onNavigateToRun`)
  * to swap over to the new run so the operator watches it land.
+ *
+ * C2.6 requirement 3 (louder failures): a failed run now gets a prominent
+ * red banner at the TOP of the dialog with the failing stage name and its
+ * full error text (monospace, copy button) — replaces the old small
+ * failed-stage callout that used to sit below the stage rail. When the
+ * failing stage is specifically "knowledge", a second "Retry from
+ * knowledge" button (server/evidence/workflows.py's
+ * `run_knowledge_from_store`, C2.6 requirement 1) sits next to the regular
+ * full Retry — it skips straight to re-running the knowledge stage over
+ * this run's already-stored records instead of a full rerun.
  */
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, Pause, RotateCcw } from "lucide-react";
+import { AlertTriangle, Pause, RotateCcw, Zap } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -39,6 +49,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { StageRail } from "./stage-rail";
 import { StageDrawer } from "./stage-drawer";
+import { CopyButton } from "./stage-output-view";
 import { ApiError, abortRun, continueRun, getRun, retryRun } from "@/lib/api-client";
 import { useRefresh } from "@/lib/refresh-context";
 import { formatDate } from "@/lib/utils";
@@ -172,12 +183,14 @@ export function RunDetailDialog({ runId, open, onOpenChange, onNavigateToRun }: 
     }
   };
 
-  const handleRetry = async () => {
+  const handleRetry = async (fromKnowledge = false) => {
     if (!runId) return;
     setActionPending(true);
     try {
-      const result = await retryRun(runId);
-      toast.success(`Retried as ${result.run_id}`);
+      const result = await retryRun(runId, fromKnowledge ? "knowledge" : undefined);
+      toast.success(
+        fromKnowledge ? `Retried from knowledge stage as ${result.run_id}` : `Retried as ${result.run_id}`,
+      );
       triggerRefresh();
       onNavigateToRun?.(result.run_id);
     } catch (err) {
@@ -207,6 +220,41 @@ export function RunDetailDialog({ runId, open, onOpenChange, onNavigateToRun }: 
             <p className="py-8 text-center text-sm text-muted-foreground">Loading…</p>
           ) : (
             <div className="space-y-4">
+              {/* C2.6 requirement 3: prominent red banner at the TOP for a
+                  failed run — the failing stage's full error text (or, if
+                  no stage was individually marked failed, run.error — set
+                  only when an exception escaped the runner itself, rare)
+                  in a monospace block with a copy button. */}
+              {run.status === "failed" && (
+                <div className="space-y-2 rounded-md border-2 border-destructive bg-destructive/10 p-3">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-destructive">
+                    <AlertTriangle className="size-4 shrink-0" />
+                    {failedStage ? `Run failed at stage "${failedStage.name}"` : "Run failed"}
+                  </div>
+                  {failedStage?.content && (
+                    <div className="relative">
+                      <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-md border border-destructive/30 bg-background p-2 pr-9 font-mono text-xs text-destructive">
+                        {failedStage.content}
+                      </pre>
+                      <div className="absolute right-1 top-1">
+                        <CopyButton text={failedStage.content} />
+                      </div>
+                    </div>
+                  )}
+                  {run.error && run.error !== failedStage?.content && (
+                    <div className="relative">
+                      <p className="text-xs font-medium uppercase tracking-wide text-destructive/80">Run error</p>
+                      <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-md border border-destructive/30 bg-background p-2 pr-9 font-mono text-xs text-destructive">
+                        {run.error}
+                      </pre>
+                      <div className="absolute right-1 top-6">
+                        <CopyButton text={run.error} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {isGated && (
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-2">
                   <div className="flex items-center gap-2 text-sm">
@@ -248,40 +296,36 @@ export function RunDetailDialog({ runId, open, onOpenChange, onNavigateToRun }: 
               )}
 
               {run.status === "failed" && (
-                <div className="flex justify-end">
-                  <Button size="sm" onClick={handleRetry} disabled={actionPending}>
+                <div className="flex flex-wrap justify-end gap-2">
+                  {/* C2.6 requirement 1: when the knowledge stage is
+                      specifically what failed, offer the targeted retry
+                      that skips custody/parse/store and re-runs only
+                      knowledge over this run's already-stored records
+                      (server/evidence/workflows.py's run_knowledge_from_store) —
+                      faster, and sidesteps the custody-dedupe/no-new-rows
+                      trap a full rerun could otherwise hit. */}
+                  {failedStage?.name === "knowledge" && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleRetry(true)}
+                          disabled={actionPending}
+                        >
+                          <Zap className="size-4" />
+                          Retry from knowledge
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        Skips custody/parse/store — re-ingests this run&apos;s already-stored records
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+                  <Button size="sm" onClick={() => handleRetry()} disabled={actionPending}>
                     <RotateCcw className="size-4" />
                     Retry
                   </Button>
-                </div>
-              )}
-
-              {failedStage && (
-                <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm">
-                  <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
-                  <div>
-                    <p className="font-medium text-destructive">
-                      Stage &quot;{failedStage.name}&quot; failed
-                    </p>
-                    {failedStage.content && (
-                      <p className="mt-0.5 whitespace-pre-wrap text-xs text-destructive/90">
-                        {failedStage.content}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* run.error is set only when an exception escaped the runner
-                  itself (rare) — distinct from a per-stage failure above,
-                  which is how most failures actually surface. */}
-              {run.error && (
-                <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm">
-                  <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
-                  <div>
-                    <p className="font-medium text-destructive">Run error</p>
-                    <p className="mt-0.5 whitespace-pre-wrap text-xs text-destructive/90">{run.error}</p>
-                  </div>
                 </div>
               )}
 

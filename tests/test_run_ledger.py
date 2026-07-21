@@ -409,13 +409,22 @@ def test_ledger_stage_output_parse_trims_samples_and_flags_schema():
 
 
 def test_ledger_stage_output_store_and_knowledge():
+    # C2.6 requirement 2: "attempts" is now always present (default []) on
+    # both store and knowledge stage output — the retry/backoff audit trail.
     assert workflows_mod._ledger_stage_output("store", {"stored": 5}) == {
         "rows_stored": 5,
         "table": "analysis.normalized_record",
+        "attempts": [],
     }
     assert workflows_mod._ledger_stage_output(
         "knowledge", {"knowledge_docs": 2, "domain": "platform_design", "knowledge_skipped": False}
-    ) == {"docs_ingested": 2, "domain": "platform_design", "skipped": False}
+    ) == {"docs_ingested": 2, "domain": "platform_design", "skipped": False, "attempts": []}
+    assert workflows_mod._ledger_stage_output(
+        "store", {"stored": 3, "store_attempts": [{"n": 1, "error": "timeout", "waited_s": 0}]}
+    )["attempts"] == [{"n": 1, "error": "timeout", "waited_s": 0}]
+    assert workflows_mod._ledger_stage_output(
+        "knowledge", {"knowledge_docs": 1, "knowledge_attempts": [{"n": 1, "error": None, "waited_s": 0}]}
+    )["attempts"] == [{"n": 1, "error": None, "waited_s": 0}]
 
 
 class _FakeRunResult:
