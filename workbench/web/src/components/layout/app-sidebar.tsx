@@ -12,10 +12,12 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarFooter,
 } from "@/components/ui/sidebar";
+import { useFailedRunsCount } from "@/lib/failed-runs-context";
 
 // C1 Operator Console nav: Runs (default landing) -> Tools -> Intake.
 // "Files"/"Upload" retired — see _stale/upload-page-pre-c1/ for the old route.
@@ -27,6 +29,9 @@ const navItems = [
 
 export function AppSidebar() {
   const pathname = usePathname();
+  // C2.6 requirement 3: red count badge of failed runs on the "Runs" nav
+  // item, driven by the list poll in lib/failed-runs-context.tsx.
+  const failedRunsCount = useFailedRunsCount();
 
   return (
     <Sidebar>
@@ -49,6 +54,11 @@ export function AppSidebar() {
                       <span>{item.title}</span>
                     </Link>
                   </SidebarMenuButton>
+                  {item.href === "/runs" && failedRunsCount > 0 && (
+                    <SidebarMenuBadge className="bg-destructive text-destructive-foreground">
+                      {failedRunsCount > 99 ? "99+" : failedRunsCount}
+                    </SidebarMenuBadge>
+                  )}
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>

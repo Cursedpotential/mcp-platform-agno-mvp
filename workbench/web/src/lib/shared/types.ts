@@ -99,11 +99,17 @@ export type GateState = "waiting" | "released" | "abort" | null;
  * (chat-transcript -> light, sms-xml -> full). */
 export type CustodyTier = "full" | "light";
 
-/** One row of a run's stage list, as embedded in `GET /v1/runs` list items. */
+/** One row of a run's stage list, as embedded in `GET /v1/runs` list items.
+ *
+ * `content` (C2.6 requirement 3, optional): the spine's `list_runs()` now
+ * includes each stage's `content` text (truncated server-side to 500 chars)
+ * so a failed run's table row can show a truncated error snippet without a
+ * second round-trip to `GET /v1/runs/{id}`. */
 export interface RunStageSummary {
   seq: number;
   name: string;
   status: StageStatus;
+  content?: string | null;
 }
 
 /** Typed `output` shapes per stage — keyed by convention on stage `name`
@@ -225,6 +231,35 @@ export interface RunAbortResponse {
 export interface RunRetryResponse {
   run_id: string;
   parent_run_id: string;
+}
+
+/** `POST /api/runs/{id}/retry` optional JSON body (C2.6). Omit entirely for
+ * the full-rerun behavior; `"knowledge"` re-runs ONLY the knowledge stage
+ * over the parent's already-stored records (server/evidence/workflows.py's
+ * `run_knowledge_from_store`) — the fix for the custody-dedupe/no-new-rows
+ * trap where a plain retry could report docs_ingested=0 without actually
+ * re-ingesting anything. */
+export type RetryFromStage = "knowledge";
+
+// ---------------------------------------------------------------------------
+// Dependency health strip (C2.6 requirement 4)
+// ---------------------------------------------------------------------------
+
+/** One dependency's health, as returned by both the spine's
+ * `GET /v1/health/deps` and the workbench's `GET /api/health/deps`. */
+export interface DepStatus {
+  status: "ok" | "error";
+  error?: string;
+}
+
+/** `GET /api/health/deps` response — the workbench's own lancedb/object_store
+ * checks merged with a proxy of the spine's pg/milvus checks. */
+export interface HealthDepsResponse {
+  pg: DepStatus;
+  milvus: DepStatus;
+  lancedb: DepStatus;
+  object_store: DepStatus;
+  checked_at: string;
 }
 
 // ---------------------------------------------------------------------------

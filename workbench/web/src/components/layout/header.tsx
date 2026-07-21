@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
+import { HealthChips } from "@/components/layout/health-chips";
 
 const pageTitles: Record<string, string> = {
   "/runs": "Runs",
@@ -46,7 +47,9 @@ export function Header() {
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
-      <div className="ml-auto flex items-center gap-1">
+      <div className="ml-auto flex items-center gap-3">
+        <HealthChips />
+        <Separator orientation="vertical" className="h-4 bg-nav-foreground/20" />
         <Button
           variant="ghost"
           size="icon"

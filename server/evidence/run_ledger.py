@@ -31,6 +31,15 @@ def _get_engine():
     return _engine
 
 
+def ping() -> None:
+    """Cheap connectivity check — SELECT 1 against the same engine every
+    other function in this module uses. Raises on failure; the caller (C2.6
+    requirement 4, GET /v1/health/deps in server/api/run_routes.py) decides
+    how to time-box and report it."""
+    with _get_engine().connect() as conn:
+        conn.execute(text("SELECT 1"))
+
+
 def _jsonb(value: Any) -> Any:
     """Round-trip a jsonb column value to a plain Python object.
 
@@ -278,18 +287,25 @@ def get_run(run_id: str) -> dict[str, Any] | None:
     return run
 
 
+_LIST_RUNS_STAGE_CONTENT_MAX_CHARS = 500  # matches _ledger_stage_output's sample_records truncation convention
+
+
 def list_runs(limit: int = 50, status: str | None = None) -> list[dict[str, Any]]:
     """List runs (most recent first), each carrying its per-stage name/status pairs.
 
     Single round-trip: LIMIT applies to runs (via a subquery), then a LEFT JOIN
     pulls each run's stages so pagination isn't skewed by stage fan-out.
+
+    Each stage dict also carries `content` (C2.6 requirement 3, truncated to
+    500 chars server-side) — a failed run's Runs-table row shows a truncated
+    error snippet without a second round-trip to GET /v1/runs/{run_id}.
     """
     where_clause = "WHERE status = :status" if status is not None else ""
     sql = text(
         "SELECT r.run_id, r.workflow, r.mode, r.source_name, r.source_path, r.sha256, "
         "       r.artifact_id, r.domain, r.status, r.summary, r.error, r.created_at, r.updated_at, "
         "       r.gate_state, r.parent_run_id, r.custody_tier, "
-        "       s.seq, s.name AS stage_name, s.status AS stage_status "
+        "       s.seq, s.name AS stage_name, s.status AS stage_status, s.content AS stage_content "
         f"FROM (SELECT * FROM analysis.workflow_run {where_clause} "
         "       ORDER BY created_at DESC LIMIT :limit) r "
         "LEFT JOIN analysis.workflow_run_stage s ON s.run_id = r.run_id "
@@ -332,5 +348,13 @@ def list_runs(limit: int = 50, status: str | None = None) -> list[dict[str, Any]
             }
             order.append(rid)
         if row["seq"] is not None:
-            runs[rid]["stages"].append({"seq": row["seq"], "name": row["stage_name"], "status": row["stage_status"]})
+            content = row.get("stage_content")
+            runs[rid]["stages"].append(
+                {
+                    "seq": row["seq"],
+                    "name": row["stage_name"],
+                    "status": row["stage_status"],
+                    "content": content[:_LIST_RUNS_STAGE_CONTENT_MAX_CHARS] if content else content,
+                }
+            )
     return [runs[rid] for rid in order]
