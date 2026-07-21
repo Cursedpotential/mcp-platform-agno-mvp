@@ -19,7 +19,9 @@ import type {
   StoreOutput,
 } from "@/lib/shared/types";
 
-function CopyButton({ text }: { text: string }) {
+/** Exported so run-detail-dialog.tsx's failed-run banner can reuse it
+ * (C2.6 requirement 3) instead of duplicating a copy-to-clipboard button. */
+export function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <Button

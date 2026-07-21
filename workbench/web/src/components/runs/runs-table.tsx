@@ -1,6 +1,23 @@
-// Byline: Claude Code · Sonnet (agent) · 2026-07-20 (C2: gated chip + navigate-to-retry)
+// Byline: Claude Code · Sonnet (agent) · 2026-07-21 (C2: gated chip + navigate-to-retry; C2.6: error snippet + transition toasts)
 "use client";
 
+/**
+ * C2.6 requirement 3 (louder failures): failed rows show a truncated error
+ * snippet under the source name (from the failing stage's `content`, or
+ * `run.error` as a fallback), and every poll compares each run's status
+ * against its last-seen value here to toast on a failed/completed
+ * TRANSITION (not merely "is failed" — a toast must fire once, at the
+ * moment it happens, not on every subsequent poll).
+ *
+ * KNOWN LIMITATION: the transition map is keyed off whatever `fetchRuns()`
+ * last saw for the ACTIVE status filter. Switching the status-filter
+ * dropdown can occasionally produce a spurious toast for a run whose last
+ * recorded status predates the filter change (e.g. filtering to "failed"
+ * right after it was "running" in the "all" view) — a real edge case, but a
+ * minor, rare cosmetic one; a fully correct implementation would poll
+ * unfiltered in the background purely for transition-detection, doubling
+ * the request volume for a rare, low-stakes toast wording nitpick.
+ */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RefreshCw, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -56,6 +73,25 @@ function ageFrom(iso: string): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
+const SNIPPET_MAX_CHARS = 120;
+
+/** C2.6 requirement 3: truncated error snippet under a failed row's source
+ * name — the failing stage's content (falls back to run.error, the rarer
+ * "exception escaped the runner itself" case). */
+function FailedRunSnippet({ run }: { run: RunSummary }) {
+  const failedStage = run.stages.find((s) => s.status === "failed");
+  const raw = failedStage?.content || run.error;
+  if (!raw) return null;
+  const snippet = raw.length > SNIPPET_MAX_CHARS ? `${raw.slice(0, SNIPPET_MAX_CHARS)}…` : raw;
+  const prefix = failedStage ? `${failedStage.name}: ` : "";
+  return (
+    <div className="truncate text-xs text-destructive/80" title={`${prefix}${raw}`}>
+      {prefix}
+      {snippet}
+    </div>
+  );
+}
+
 export function RunsTable() {
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,11 +101,33 @@ export function RunsTable() {
   const { refreshKey, triggerRefresh } = useRefresh();
   const { openNewRun } = useNewRunDialog();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // C2.6: last-seen status per run_id, to detect transitions across polls.
+  // `null` on the very first fetch (nothing to compare against yet) so a
+  // page load with pre-existing failed/completed runs never toasts.
+  const prevStatusesRef = useRef<Map<string, RunStatus> | null>(null);
 
   const fetchRuns = useCallback(() => {
     setLoading(true);
     listRuns({ status: statusFilter === "all" ? undefined : statusFilter })
-      .then(setRuns)
+      .then((data) => {
+        const prev = prevStatusesRef.current;
+        if (prev) {
+          for (const run of data) {
+            const before = prev.get(run.run_id);
+            if (!before || before === run.status) continue;
+            if (run.status === "failed") {
+              const failedStage = run.stages.find((s) => s.status === "failed");
+              toast.error(
+                `Run ${run.source_name ?? run.run_id} failed at ${failedStage?.name ?? "unknown stage"}`,
+              );
+            } else if (run.status === "completed") {
+              toast.success(`Run ${run.source_name ?? run.run_id} completed`);
+            }
+          }
+        }
+        prevStatusesRef.current = new Map(data.map((r) => [r.run_id, r.status]));
+        setRuns(data);
+      })
       .catch(() => {
         setRuns([]);
         toast.error("Failed to load runs");
@@ -165,8 +223,11 @@ export function RunsTable() {
                     className="cursor-pointer"
                     onClick={() => handleOpenDetail(run)}
                   >
-                    <TableCell className="font-medium truncate max-w-[220px]">
-                      {run.source_name}
+                    <TableCell className="max-w-[220px] font-medium">
+                      <div className="truncate">{run.source_name}</div>
+                      {run.status === "failed" && (
+                        <FailedRunSnippet run={run} />
+                      )}
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline">{run.workflow}</Badge>

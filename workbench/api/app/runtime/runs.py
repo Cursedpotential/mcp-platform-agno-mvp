@@ -129,9 +129,25 @@ async def abort_run_endpoint(run_id: str):
 
 
 @router.post("/runs/{run_id}/retry")
-async def retry_run_endpoint(run_id: str):
-    """Start a fresh run from a terminal-failed one. 409 if not failed."""
+async def retry_run_endpoint(run_id: str, request: Request):
+    """Start a fresh run from a terminal-failed one. 409 if not failed.
+
+    Optional JSON body ``{"from_stage": "knowledge"}`` (C2.6) — forwarded
+    verbatim to the spine's retry endpoint; see app/service/runs.py's
+    `retry_run` docstring. No body (or a body without `from_stage`) keeps
+    the pre-C2.6 full-rerun behavior."""
+    from_stage: str | None = None
+    body_bytes = await request.body()
+    if body_bytes:
+        try:
+            payload = json.loads(body_bytes)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=422, detail="retry body is not valid JSON") from None
+        if payload is not None:
+            if not isinstance(payload, dict):
+                raise HTTPException(status_code=422, detail="retry body must be a JSON object")
+            from_stage = payload.get("from_stage")
     try:
-        return retry_run(run_id)
+        return retry_run(run_id, from_stage=from_stage)
     except RunsError as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail) from None

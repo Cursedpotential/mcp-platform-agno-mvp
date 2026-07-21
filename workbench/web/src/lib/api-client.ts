@@ -12,6 +12,8 @@ import type {
   CustodyTier,
   FileAnalysis,
   FileTextResponse,
+  HealthDepsResponse,
+  RetryFromStage,
   RunAbortResponse,
   RunContinueResponse,
   RunCreateResponse,
@@ -79,6 +81,12 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
 export async function getHealth() {
   return apiFetch<{ status: string }>("/health");
+}
+
+/** Console header's dependency status chips (C2.6 requirement 4) —
+ * `{lancedb, object_store, pg, milvus, checked_at}`. */
+export async function getHealthDeps() {
+  return apiFetch<HealthDepsResponse>("/api/health/deps");
 }
 
 export interface ListFilesParams {
@@ -204,10 +212,18 @@ export async function abortRun(runId: string) {
 
 /** Start a fresh run from a terminal-failed one. The returned `run_id` is
  * the NEW run (not the one passed in) — open that run to watch it.
- * Throws ApiError(409) if the source run isn't terminal-failed. */
-export async function retryRun(runId: string) {
+ * Throws ApiError(409) if the source run isn't terminal-failed.
+ *
+ * `fromStage` (C2.6, optional): pass `"knowledge"` to skip straight to
+ * re-running the knowledge stage over the parent's already-stored records
+ * instead of a full custody->parse->store->knowledge rerun — see
+ * `RetryFromStage`'s doc comment. Omit for the pre-C2.6 full-rerun. */
+export async function retryRun(runId: string, fromStage?: RetryFromStage) {
   return apiFetch<RunRetryResponse>(`/api/runs/${encodeURIComponent(runId)}/retry`, {
     method: "POST",
+    ...(fromStage
+      ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify({ from_stage: fromStage }) }
+      : {}),
   });
 }
 

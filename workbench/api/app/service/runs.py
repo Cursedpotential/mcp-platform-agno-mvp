@@ -192,11 +192,21 @@ def abort_run(run_id: str) -> dict:
     return response.json()
 
 
-def retry_run(run_id: str) -> dict:
+def retry_run(run_id: str, from_stage: str | None = None) -> dict:
     """POST /v1/runs/{id}/retry passthrough — starts a fresh run from a failed one.
 
+    `from_stage` (C2.6, optional): pass ``"knowledge"`` to skip straight to
+    re-running the knowledge stage over the parent's already-stored records
+    (fixes the custody-dedupe/no-new-rows trap — see server/api/run_routes.py's
+    module docstring) instead of a full custody->parse->store->knowledge
+    rerun. Omit (default) for the pre-C2.6 full-rerun behavior, unchanged.
+
     Returns {run_id: <new run's id>, parent_run_id: <this run_id>}. Only
-    valid for terminal-failed runs; the spine 409s otherwise.
+    valid for terminal-failed runs; the spine 409s otherwise. 422 if
+    `from_stage` isn't a value the spine recognizes.
     """
-    response = _spine_request("POST", f"/v1/runs/{run_id}/retry")
+    kwargs: dict = {}
+    if from_stage is not None:
+        kwargs["json"] = {"from_stage": from_stage}
+    response = _spine_request("POST", f"/v1/runs/{run_id}/retry", **kwargs)
     return response.json()
