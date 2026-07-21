@@ -1,4 +1,4 @@
-// Byline: Claude Code · Sonnet (agent) · 2026-07-20 (C2: real supervised tooltip + custody tier select)
+// Byline: Claude Code · Sonnet (agent) · 2026-07-21 (C2.7: domain relabeled to "Initial routing")
 "use client";
 
 /**
@@ -16,6 +16,12 @@
  * chain), defaulted per workflow the same way the spine itself defaults it
  * when the field is omitted (chat-transcript -> light, sms-xml -> full) —
  * sent explicitly here so the operator can see and override the choice.
+ *
+ * C2.7 (requirements addenda 7-8): the "Domain" select is relabeled
+ * "Initial routing" with helper copy — it's a routing hint for the
+ * whole-doc knowledge copy, NOT a classification. Real domain tags land
+ * per-segment from the analysis lane later. The field name/values/API
+ * contract (`domain`) are unchanged — this is presentation-only.
  */
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -203,20 +209,24 @@ export function NewRunDialog() {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="run-domain-select">Domain</Label>
+            <Label htmlFor="run-domain-select">Initial routing</Label>
             <select
               id="run-domain-select"
               className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
               value={domain}
               onChange={(e) => setDomain(e.target.value)}
             >
-              <option value="">— choose a domain —</option>
+              <option value="">— choose a routing hint —</option>
               {DOMAIN_OPTIONS.map((d) => (
                 <option key={d} value={d}>
                   {d}
                 </option>
               ))}
             </select>
+            <p className="text-xs text-muted-foreground">
+              Whole-doc knowledge copy lands here. Real domain tags are applied per-segment by
+              the analysis lane later — one conversation usually spans many domains.
+            </p>
           </div>
 
           <div className="space-y-1.5">

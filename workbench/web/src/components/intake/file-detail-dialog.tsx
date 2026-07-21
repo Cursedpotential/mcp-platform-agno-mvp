@@ -1,7 +1,8 @@
-// Byline: Claude Code · Sonnet (agent) · 2026-07-20
+// Byline: Claude Code · Sonnet (agent) · 2026-07-21 (C2.7: domain relabeled + Preview action)
 "use client";
 
 import { useEffect, useState } from "react";
+import { FileSearch } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -15,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { FilePreviewDialog } from "./file-preview-dialog";
 import { ApiError, updateFileMeta } from "@/lib/api-client";
 import { humanizeBytes, formatDate } from "@/lib/utils";
 import { DOMAIN_OPTIONS, type StagedFile } from "@/lib/shared/types";
@@ -43,6 +45,7 @@ export function FileDetailDialog({
   const [category, setCategory] = useState("");
   const [sourcePlatform, setSourcePlatform] = useState("");
   const [saving, setSaving] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   useEffect(() => {
     if (file) {
@@ -110,12 +113,23 @@ export function FileDetailDialog({
           <Separator />
 
           <div>
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
-              Text preview
-            </p>
+            <div className="flex items-center justify-between mb-1.5">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Text preview
+              </p>
+              <Button variant="outline" size="sm" onClick={() => setPreviewOpen(true)}>
+                <FileSearch className="h-3.5 w-3.5 mr-1" />
+                Preview / Analyze
+              </Button>
+            </div>
             <div className="rounded-md border bg-muted/30 p-3 max-h-48 overflow-y-auto text-xs font-mono whitespace-pre-wrap">
               {file.text?.trim() ? file.text : "No text preview available for this file."}
             </div>
+            {file.text_truncated && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Truncated — open Preview / Analyze for the full text.
+              </p>
+            )}
           </div>
 
           <Separator />
@@ -125,7 +139,7 @@ export function FileDetailDialog({
               Metadata
             </p>
             <div className="space-y-1.5">
-              <Label htmlFor="domain-select">Domain</Label>
+              <Label htmlFor="domain-select">Initial routing</Label>
               <select
                 id="domain-select"
                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
@@ -139,6 +153,10 @@ export function FileDetailDialog({
                   </option>
                 ))}
               </select>
+              <p className="text-xs text-muted-foreground">
+                Whole-doc knowledge copy lands here. Real domain tags are applied per-segment by
+                the analysis lane later — one conversation usually spans many domains.
+              </p>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="category-input">Category</Label>
@@ -167,6 +185,8 @@ export function FileDetailDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <FilePreviewDialog file={file} open={previewOpen} onOpenChange={setPreviewOpen} />
     </Dialog>
   );
 }
