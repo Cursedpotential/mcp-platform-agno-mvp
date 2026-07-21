@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.config import settings
-from app.runtime import documents, files, health, metrics, promote, runs, tools, upload
+from app.runtime import copilot, documents, files, health, metrics, promote, runs, tools, upload
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("workbench")
@@ -39,6 +39,7 @@ app.include_router(promote.router)
 app.include_router(documents.router)
 app.include_router(runs.router)
 app.include_router(tools.router)
+app.include_router(copilot.router)
 app.include_router(metrics.router)
 
 # Static frontend (built separately) mounted LAST so /api + /health always win.

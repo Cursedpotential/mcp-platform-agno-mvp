@@ -48,6 +48,29 @@ class Settings(BaseSettings):
     )
     contextforge_token: str | None = None
 
+    # --- OpenCode headless server (Ops Copilot, C2.5) ---
+    # Basic auth is native to `opencode serve` via these two env names — see
+    # compose.gateway.yaml (OPENCODE_SERVER_USERNAME/OPENCODE_SERVER_PASSWORD,
+    # the C2.5 build's key-leak fix: GET /provider returns plaintext provider
+    # keys unauth'd). When opencode_password is empty, no Authorization
+    # header is sent — matches the pre-redeploy, still-unauthenticated
+    # tailnet state (see app/repo/opencode_client.py).
+    opencode_url: str = "http://100.72.169.40:4096"
+    opencode_username: str = "opencode"
+    opencode_password: str | None = None
+    # provider/model, e.g. "groq/llama-3.3-70b-versatile" — overridable per request
+    opencode_model: str = "groq/llama-3.3-70b-versatile"
+    # SINGLE shared session-workspace directory for ALL copilot sessions (not
+    # per-session) — the workbench container can't mkdir on the gateway host,
+    # so isolation comes from opencode's own session model, not per-session
+    # dirs. See app/repo/opencode_client.py module docstring + the
+    # compose.gateway.yaml HOST-PREP comment (bind mount + one-time mkdir).
+    opencode_workspace_dir: str = "/workspace/copilot"
+
+    # --- Copilot preset prompts (optional JSON override, merged over
+    # in-code defaults — see app/service/copilot_presets.py) ---
+    copilot_presets_path: str = "/data/copilot/presets.json"
+
     # --- App ---
     app_port: int = 8020
     static_dir: str = "/app/static"

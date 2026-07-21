@@ -7,9 +7,17 @@
 # Branch: workbench/sprint (sprint), main after milestone merges.
 #
 # HOST-PREP (once, before first deploy):
-#   sudo mkdir -p /data/agno/volumes/workbench/{lancedb,inbox}
+#   sudo mkdir -p /data/agno/volumes/workbench/{lancedb,inbox,copilot}
 #   sudo chown -R 1000:1000 /data/agno/volumes/workbench
 #   docker network inspect agno >/dev/null 2>&1 || docker network create agno
+#
+# C2.5 (Ops Copilot) note: OPENCODE_URL points at the exec-gateway app's
+# published :4096 (same box, same tailnet IP as AGENTOS_API_URL below — see
+# compose.gateway.yaml for the OpenCode server + its own C2.5 fixes: the
+# /workspace bind mount + OPENCODE_SERVER_USERNAME/PASSWORD Basic auth).
+# Deploy order: redeploy exec-gateway with those fixes FIRST (or together),
+# THEN this app — OPENCODE_PASSWORD here should match OPENCODE_SERVER_PASSWORD
+# there once the owner sets it (never committed in either place).
 #
 # The workbench stages uploads locally (LanceDB whole-file store) and promotes
 # them through the EXISTING ingestion spine (agentos-api). It never writes
@@ -24,7 +32,7 @@
 # compose at deploy — set ALL envs (bulk API, {"data":[...]} shape) BEFORE the
 # first deploy; later env changes require a redeploy.
 # =============================================================================
-# Byline: Claude Code · Fable 5 · 2026-07-19 (MCP_SERVERS/CONTEXTFORGE_TOKEN added 2026-07-20, C1 rebuild)
+# Byline: Claude Code · Fable 5 · 2026-07-19 (MCP_SERVERS/CONTEXTFORGE_TOKEN added 2026-07-20, C1 rebuild; OPENCODE_*/COPILOT_PRESETS_PATH + copilot bind mount added 2026-07-21, C2.5)
 
 services:
   knowledge-workbench:
@@ -57,6 +65,17 @@ services:
       # to override, edit this value directly in the Coolify env editor.
       MCP_SERVERS: '[{"key":"agentos","label":"AgentOS","url":"http://100.72.169.40:8001/mcp"},{"key":"contextforge","label":"ContextForge","url":"http://100.72.169.40:4444/mcp"}]'
       CONTEXTFORGE_TOKEN: ${CONTEXTFORGE_TOKEN:-}
+      # --- Ops Copilot (C2.5) — headless OpenCode server, exec-gateway app ---
+      OPENCODE_URL: ${OPENCODE_URL:-http://100.72.169.40:4096}
+      OPENCODE_USERNAME: ${OPENCODE_USERNAME:-opencode}
+      # Empty = no Authorization header sent (matches the OpenCode server's
+      # pre-redeploy unauthenticated state) — see compose.gateway.yaml's
+      # C2.5 fix #2 and app/repo/opencode_client.py. Set to the SAME value
+      # as exec-gateway's OPENCODE_SERVER_PASSWORD once the owner sets it.
+      OPENCODE_PASSWORD: ${OPENCODE_PASSWORD:-}
+      OPENCODE_MODEL: ${OPENCODE_MODEL:-groq/llama-3.3-70b-versatile}
+      OPENCODE_WORKSPACE_DIR: ${OPENCODE_WORKSPACE_DIR:-/workspace/copilot}
+      COPILOT_PRESETS_PATH: ${COPILOT_PRESETS_PATH:-/data/copilot/presets.json}
       # --- S3-agnostic object store (R2 now; B2/any-S3 = swap these envs) ---
       OBJECT_STORE_ENDPOINT_URL: ${R2_ENDPOINT_URL}
       OBJECT_STORE_BUCKET: ${R2_BUCKET_NAME}
@@ -69,6 +88,9 @@ services:
       # Bind mounts only — owner backs up host dirs (no named volumes).
       - /data/agno/volumes/workbench/lancedb:/data/lancedb
       - /data/agno/volumes/workbench/inbox:/data/inbox
+      # C2.5 Ops Copilot preset-prompt override (optional — see
+      # app/service/copilot_presets.py; absent file = in-code defaults only).
+      - /data/agno/volumes/workbench/copilot:/data/copilot
     healthcheck:
       test: ["CMD-SHELL", "python3 -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8020/health', timeout=5).status==200 else 1)\""]
       interval: 30s
