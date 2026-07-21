@@ -1,4 +1,4 @@
-// Byline: Claude Code · Sonnet (agent) · 2026-07-20
+// Byline: Claude Code · Sonnet (agent) · 2026-07-21 (C2.7: Example / Save-as-example actions)
 "use client";
 
 /**
@@ -8,14 +8,21 @@
  * (array/object/unrecognized) falls back to a raw-JSON textarea, parsed at
  * submit time. When the tool's `inputSchema` isn't a plain `{type:"object",
  * properties:{...}}` at all, the WHOLE form degrades to one JSON textarea.
+ *
+ * C2.7 adds two actions (owner directive #2): "Example" fills the form from
+ * `buildExample()` (a saved example, or the schema's own examples/defaults,
+ * or a minimal required-fields skeleton); "Save as example" persists the
+ * form's current built arguments as that tool's example for next time.
  */
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { callTool } from "@/lib/api-client";
+import { buildExample, saveExample } from "@/lib/tool-examples";
 import type { JsonSchema, McpTool } from "@/lib/shared/types";
 
 export interface ToolInvokeResult {
@@ -119,6 +126,44 @@ export function ToolForm({ serverKey, tool, onResult }: ToolFormProps) {
     return args;
   }
 
+  /** Fills the form (native fields or the raw-JSON fallback, whichever is
+   * active) from buildExample()'s result. Doesn't touch fields the example
+   * doesn't mention. */
+  const handleFillExample = () => {
+    setFieldError(null);
+    const example = buildExample(serverKey, tool);
+
+    if (useRawFallback) {
+      setRawJson(JSON.stringify(example, null, 2));
+      return;
+    }
+
+    const nextValues: Record<string, FieldValue> = {};
+    const nextJsonFields: Record<string, string> = {};
+    for (const [key, propSchema] of props) {
+      if (!(key in example)) continue;
+      const value = example[key];
+      if (isSimple(propSchema)) {
+        nextValues[key] = typeof value === "boolean" ? value : String(value);
+      } else {
+        nextJsonFields[key] = JSON.stringify(value, null, 2);
+      }
+    }
+    setValues(nextValues);
+    setJsonFields(nextJsonFields);
+  };
+
+  /** Persists the form's CURRENT built arguments (same validation path as
+   * Invoke) as this tool's saved example, restored next time this tool is
+   * opened and "Example" is clicked. */
+  const handleSaveExample = () => {
+    setFieldError(null);
+    const args = buildArguments();
+    if (args === null) return;
+    saveExample(serverKey, tool.name, args);
+    toast.success("Saved current args as this tool's example");
+  };
+
   const handleInvoke = async () => {
     setFieldError(null);
     const args = buildArguments();
@@ -198,9 +243,17 @@ export function ToolForm({ serverKey, tool, onResult }: ToolFormProps) {
 
       {fieldError && <p className="text-xs text-destructive">{fieldError}</p>}
 
-      <Button onClick={handleInvoke} disabled={busy}>
-        {busy ? "Invoking…" : "Invoke"}
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button onClick={handleInvoke} disabled={busy}>
+          {busy ? "Invoking…" : "Invoke"}
+        </Button>
+        <Button type="button" variant="outline" onClick={handleFillExample} disabled={busy}>
+          Example
+        </Button>
+        <Button type="button" variant="outline" onClick={handleSaveExample} disabled={busy}>
+          Save current args as example
+        </Button>
+      </div>
     </div>
   );
 }

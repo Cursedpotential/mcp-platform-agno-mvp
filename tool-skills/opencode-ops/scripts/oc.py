@@ -19,6 +19,7 @@ when diagnosing. See `oc doctor`.
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 import re
@@ -35,6 +36,26 @@ from datetime import datetime, timezone
 OC_SERVER = os.environ.get("OC_SERVER", "http://100.72.169.40:4096").rstrip("/")
 OC_TOKEN = os.environ.get("OC_TOKEN")  # bearer for the opencode server itself,
 # IF it ever requires one. As of 2026-07-20 the tailnet deployment is unauthenticated.
+
+# HTTP Basic -- opencode serve's own native auth (OPENCODE_SERVER_USERNAME/
+# OPENCODE_SERVER_PASSWORD server-side, see compose.gateway.yaml). This is the
+# real fix for known-issues.md #1 (unauthenticated /provider leaking plaintext
+# provider keys) once the gateway app is redeployed with the password set.
+# OC_SERVER_PASSWORD unset/empty = no Authorization header sent, matching
+# today's still-unauthenticated deployment (fix landed 2026-07-21, deploy
+# pending -- see references/known-issues.md).
+OC_SERVER_USERNAME = os.environ.get("OC_SERVER_USERNAME", "opencode")
+OC_SERVER_PASSWORD = os.environ.get("OC_SERVER_PASSWORD")
+
+# When set, `oc run` without an explicit --directory defaults into
+# "<OC_WORKSPACE>/<slug>" (a fresh slug per invocation) instead of the shared
+# "global" project scope. This is the fix for known-issues.md #2's directory
+# half: a `?directory=` that doesn't exist inside the opencode container 500s
+# (ENOENT deep in SystemPrompt.environment) -- OC_WORKSPACE must point at a
+# directory that's bind-mounted and already exists (see compose.gateway.yaml
+# HOST-PREP: /data/agno/volumes/gateway-workdirs -> /workspace). Unset = old
+# behavior (shared default scope unless --directory is passed explicitly).
+OC_WORKSPACE = os.environ.get("OC_WORKSPACE")
 
 AGENTOS_URL = os.environ.get("OC_AGENTOS_URL", "http://100.72.169.40:8000").rstrip("/")
 AGENTOS_MCP_URL = os.environ.get("OC_AGENTOS_MCP_URL", "http://100.72.169.40:8001/mcp")
@@ -106,6 +127,15 @@ def _secret_hint(value: str | None) -> str:
     if not value:
         return "MISSING"
     return f"present (len={len(value)})"
+
+
+def _opencode_auth_headers() -> dict[str, str] | None:
+    """HTTP Basic Authorization header for the opencode server itself. None
+    when OC_SERVER_PASSWORD isn't set -- see its module-level doc comment."""
+    if not OC_SERVER_PASSWORD:
+        return None
+    token = base64.b64encode(f"{OC_SERVER_USERNAME}:{OC_SERVER_PASSWORD}".encode()).decode()
+    return {"Authorization": f"Basic {token}"}
 
 
 # ---------------------------------------------------------------------------
@@ -331,7 +361,9 @@ def cmd_doctor(args) -> int:
     # 1. OpenCode headless server root
     try:
         t0 = time.time()
-        status, _h, raw = http_request("GET", f"{OC_SERVER}/", bearer=OC_TOKEN, timeout=args.timeout)
+        status, _h, raw = http_request(
+            "GET", f"{OC_SERVER}/", bearer=OC_TOKEN, timeout=args.timeout, extra_headers=_opencode_auth_headers()
+        )
         ms = (time.time() - t0) * 1000
         row("opencode: GET /", status == 200, f"{OC_SERVER} HTTP {status} ({ms:.0f}ms)")
     except OcError as e:
@@ -339,7 +371,9 @@ def cmd_doctor(args) -> int:
 
     # 2. OpenCode providers
     try:
-        status, doc = http_json("GET", f"{OC_SERVER}/provider", bearer=OC_TOKEN, timeout=args.timeout)
+        status, doc = http_json(
+            "GET", f"{OC_SERVER}/provider", bearer=OC_TOKEN, timeout=args.timeout, extra_headers=_opencode_auth_headers()
+        )
         connected = doc.get("connected", []) if isinstance(doc, dict) else []
         total = len(doc.get("all", [])) if isinstance(doc, dict) else 0
         row("opencode: GET /provider", status == 200, f"HTTP {status}, {len(connected)} connected / {total} known: {', '.join(connected)}")
@@ -416,7 +450,9 @@ def cmd_doctor(args) -> int:
 
 
 def _fetch_providers(timeout: float) -> dict:
-    status, doc = http_json("GET", f"{OC_SERVER}/provider", bearer=OC_TOKEN, timeout=timeout)
+    status, doc = http_json(
+        "GET", f"{OC_SERVER}/provider", bearer=OC_TOKEN, timeout=timeout, extra_headers=_opencode_auth_headers()
+    )
     if status != 200:
         raise OcError(f"GET /provider failed: HTTP {status}")
     return doc
@@ -490,7 +526,10 @@ def cmd_sessions(args) -> int:
             print("FAIL: `oc sessions get <id>` needs a session id", file=sys.stderr)
             return 1
         try:
-            status, doc = http_json("GET", f"{OC_SERVER}/session/{args.id}", bearer=OC_TOKEN, timeout=args.timeout)
+            status, doc = http_json(
+                "GET", f"{OC_SERVER}/session/{args.id}", bearer=OC_TOKEN, timeout=args.timeout,
+                extra_headers=_opencode_auth_headers(),
+            )
         except OcError as e:
             print(f"FAIL: {e}", file=sys.stderr)
             return 1
@@ -510,7 +549,10 @@ def cmd_sessions(args) -> int:
 
     # default: list
     try:
-        status, doc = http_json("GET", f"{OC_SERVER}/session", bearer=OC_TOKEN, timeout=args.timeout)
+        status, doc = http_json(
+            "GET", f"{OC_SERVER}/session", bearer=OC_TOKEN, timeout=args.timeout,
+            extra_headers=_opencode_auth_headers(),
+        )
     except OcError as e:
         print(f"FAIL: {e}", file=sys.stderr)
         return 1
@@ -550,6 +592,15 @@ def _pick_default_model(provider_doc: dict) -> tuple[str, str] | None:
 def cmd_run(args) -> int:
     timeout = args.timeout or RUN_TIMEOUT
 
+    # OC_WORKSPACE-gated directory default (see its module-level doc comment)
+    # -- an explicit --directory always wins; otherwise, if OC_WORKSPACE is
+    # set, isolate this run under a fresh slug beneath it instead of the
+    # shared default scope.
+    directory = args.directory
+    if directory is None and OC_WORKSPACE:
+        slug = f"{int(time.time())}-{os.getpid()}"
+        directory = f"{OC_WORKSPACE.rstrip('/')}/{slug}"
+
     # model selection
     if args.model:
         if "/" not in args.model:
@@ -572,8 +623,11 @@ def cmd_run(args) -> int:
     session_id = args.session
     if not session_id:
         try:
-            qs = f"?directory={urllib.request.quote(args.directory)}" if args.directory else ""
-            status, doc = http_json("POST", f"{OC_SERVER}/session{qs}", bearer=OC_TOKEN, json_body={}, timeout=timeout)
+            qs = f"?directory={urllib.request.quote(directory)}" if directory else ""
+            status, doc = http_json(
+                "POST", f"{OC_SERVER}/session{qs}", bearer=OC_TOKEN, json_body={}, timeout=timeout,
+                extra_headers=_opencode_auth_headers(),
+            )
         except OcError as e:
             print(f"FAIL: session create: {e}", file=sys.stderr)
             return 1
@@ -590,9 +644,10 @@ def cmd_run(args) -> int:
         "parts": [{"type": "text", "text": args.prompt}],
     }
     try:
-        qs = f"?directory={urllib.request.quote(args.directory)}" if args.directory else ""
+        qs = f"?directory={urllib.request.quote(directory)}" if directory else ""
         status, doc = http_json(
-            "POST", f"{OC_SERVER}/session/{session_id}/message{qs}", bearer=OC_TOKEN, json_body=body, timeout=timeout
+            "POST", f"{OC_SERVER}/session/{session_id}/message{qs}", bearer=OC_TOKEN, json_body=body, timeout=timeout,
+            extra_headers=_opencode_auth_headers(),
         )
     except OcError as e:
         print(f"FAIL: prompt: {e}", file=sys.stderr)

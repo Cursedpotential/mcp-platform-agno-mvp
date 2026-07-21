@@ -5,6 +5,18 @@
 
 ## 1. Provider endpoints leak API keys in plaintext
 
+**FIX WIRED 2026-07-21, DEPLOY PENDING** (console/c2.5-copilot branch): `opencode serve` speaks
+HTTP Basic natively via `OPENCODE_SERVER_USERNAME`/`OPENCODE_SERVER_PASSWORD` -- compose.gateway.yaml
+now sets both (`OPENCODE_SERVER_PASSWORD: ${OPENCODE_SERVER_PASSWORD:?set}`, a hard required-env
+gate so the app can't deploy without the owner setting a real password in Coolify). `oc.py` now
+sends `Authorization: Basic ...` on every OC_SERVER call via `_opencode_auth_headers()`, built from
+new `OC_SERVER_USERNAME`/`OC_SERVER_PASSWORD` env vars (empty password = no header, i.e. today's
+still-unauthenticated behavior is unchanged until the gateway app is actually redeployed with the
+password set -- that's an owner/deploy action, not done by this branch). The workbench's own
+copilot backend (`workbench/api/app/repo/opencode_client.py`) does the same thing independently via
+`OPENCODE_USERNAME`/`OPENCODE_PASSWORD`. Once deployed: re-verify this section's live claim (bare
+curl without credentials should 401) and delete this note.
+
 `GET /provider` and `GET /config/providers` on the OpenCode server (`:4096`) both return a `"key"`
 field for every provider connected via an env-sourced credential — verified live with real
 NVIDIA_API_KEY / OPENROUTER_API_KEY / GROQ_API_KEY values coming back over an **unauthenticated**
@@ -14,6 +26,27 @@ route through `oc providers`/`oc models` instead. Flagged for the parent: this i
 (low blast radius since it's tailnet-only, but still a live secret in an HTTP response body).
 
 ## 2. `oc run` / `POST /session/{id}/message` currently 500s
+
+**Directory-cause FIX WIRED 2026-07-21, DEPLOY PENDING** (console/c2.5-copilot branch): the ENOENT/
+`SystemPrompt.environment` flavor of this 500 (distinct from the `ContextOverflowError` flavor above)
+is caused by `?directory=` naming a path that doesn't exist *inside the opencode container* --
+verified by inspecting the error, not by a clean repro in this branch's work (that was on the
+workbench side, not this CLI). Fix: compose.gateway.yaml now bind-mounts
+`/data/agno/volumes/gateway-workdirs:/workspace` into the gateway container (HOST-PREP: mkdir +
+chown 1000:1000 on the host, once, before redeploy). `oc.py`'s `cmd_run` now honors a new
+`OC_WORKSPACE` env var: when set (e.g. `OC_WORKSPACE=/workspace/oc`) and `--directory` isn't passed
+explicitly, it defaults to `<OC_WORKSPACE>/<timestamp>-<pid>` instead of the shared default scope --
+a directory that will actually exist once the bind mount above lands. Unset `OC_WORKSPACE` (today's
+default) keeps the exact old behavior (shared scope unless `--directory` is passed by hand), so this
+is non-breaking pending deploy. The workbench's Ops Copilot backend takes a DIFFERENT approach for
+its own sessions (one single shared `/workspace/copilot` directory for every copilot session,
+isolation via opencode's own session model rather than per-session directories -- see
+`workbench/api/app/repo/opencode_client.py` module docstring for why) -- `oc run`'s per-invocation
+slug and the copilot backend's single shared directory are two independent, deliberately different
+choices for two different call patterns; don't conflate them.
+
+Once the gateway app is redeployed with the bind mount, re-verify this section's 500 repro and
+delete/trim this note + the ENOENT flavor above if confirmed fixed.
 
 First attempt (fresh session, `groq/llama-3.1-8b-instant`, default `/` directory):
 ```

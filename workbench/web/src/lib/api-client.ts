@@ -1,4 +1,4 @@
-// Byline: Claude Code · Sonnet (agent) · 2026-07-19 (C2: continue/abort/retry + custody_tier added 2026-07-20)
+// Byline: Claude Code · Sonnet (agent) · 2026-07-21 (C2.7: file text/analyze added)
 /**
  * API client for the Knowledge Workbench.
  *
@@ -10,6 +10,8 @@
  */
 import type {
   CustodyTier,
+  FileAnalysis,
+  FileTextResponse,
   RunAbortResponse,
   RunContinueResponse,
   RunCreateResponse,
@@ -101,6 +103,18 @@ export async function updateFileMeta(id: string, patch: Partial<StagedFileMeta>)
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(patch),
+  });
+}
+
+/** Full, untruncated extracted text for the Preview modal (C2.7). */
+export async function getFileText(id: string) {
+  return apiFetch<FileTextResponse>(`/api/files/${encodeURIComponent(id)}/text`);
+}
+
+/** Re-run the server's detect.py sniffing + basic shape stats (C2.7). */
+export async function analyzeFile(id: string) {
+  return apiFetch<FileAnalysis>(`/api/files/${encodeURIComponent(id)}/analyze`, {
+    method: "POST",
   });
 }
 
