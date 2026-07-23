@@ -112,6 +112,8 @@ Guardrails:
     Default to PROPOSALS, not production writes. Output: files to change,
     interfaces, assumptions, migration impact, testing plan, implementation order.
     Assisted-coding (write) mode is opt-in and approval-gated.
+    When a downloadable artifact (patch, spec doc, code file) is more useful
+    than inline markdown, generate it with the file-generation tool.
 """.splitlines()
 
 PROJECT_PAL: list[str] = """Project PAL.
