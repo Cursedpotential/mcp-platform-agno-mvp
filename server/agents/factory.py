@@ -38,6 +38,7 @@ from agno.approval import approval
 from agno.team.mode import TeamMode
 from agno.team.team import Team
 from agno.tools import tool
+from agno.tools.file_generation import FileGenerationTools
 from agno.tools.user_control_flow import UserControlFlowTools
 
 from server.agents.instructions import get_instructions
@@ -246,7 +247,15 @@ def build_dev_copilot(
     """Build the Dev Copilot — proposes code, migrations, and interface contracts.
 
     Includes ``UserControlFlowTools`` for structured-question intake (the agent
-    can pause mid-run to ask clarifying questions before drafting).
+    can pause mid-run to ask clarifying questions before drafting) and
+    ``FileGenerationTools`` (agno built-in) so proposals can be handed back as
+    downloadable artifacts (patch files, generated docs/specs, code files)
+    instead of only inline markdown. Default settings (``save_files=False``):
+    generated files come back as in-memory ``File`` artifacts on the tool
+    result, matching the read-only-workspace convention ``code_tools``
+    already uses (``WorkspaceContextProvider`` never writes to ``/app``) —
+    persisting to disk would need a writable sandbox mount that doesn't
+    exist yet (``docker/sandbox`` has no repo mount, by design).
 
     Parameters
     ----------
@@ -263,7 +272,7 @@ def build_dev_copilot(
         db=db,
         knowledge=knowledge,
         learning=learning,
-        tools=[*code_tools, UserControlFlowTools()],
+        tools=[*code_tools, UserControlFlowTools(), FileGenerationTools()],
         add_history_to_context=True,
         num_history_runs=10,
         instructions=get_instructions("dev_copilot"),

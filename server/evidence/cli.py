@@ -15,6 +15,8 @@ import argparse
 import asyncio
 import json
 import sys
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 
 def _cmd_import(args: argparse.Namespace) -> int:
@@ -26,7 +28,11 @@ def _cmd_import(args: argparse.Namespace) -> int:
 
     # workflow name -> runner. --domain overrides only when explicitly passed;
     # per-workflow defaults are applied in code below (not via argparse).
-    runners = {
+    # Explicit annotation: run_chat_transcript/run_sms_xml have slightly different
+    # keyword-only signatures (allow_fallback only on the latter); mypy can't join
+    # them into a single Callable when left to infer, and falls back to an
+    # uncallable pseudo-type ("Cannot call function of unknown type").
+    runners: dict[str, Callable[..., Awaitable[dict[str, Any]]]] = {
         "chat-transcript": run_chat_transcript,
         "sms-xml": run_sms_xml,
     }
