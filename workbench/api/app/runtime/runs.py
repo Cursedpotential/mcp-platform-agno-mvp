@@ -1,4 +1,4 @@
-# Byline: Claude Code · Sonnet (agent) · 2026-07-20 (C2: continue/abort/retry endpoints)
+# Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: parse-dryrun endpoint)
 """POST /api/runs, GET /api/runs, GET /api/runs/{id} — proxy to the spine's run pipeline.
 
 POST /api/runs accepts EITHER a JSON body ({staged_id, workflow, domain,
@@ -32,6 +32,7 @@ from app.service.runs import (
     continue_run,
     get_run,
     list_runs,
+    parse_dryrun,
     retry_run,
     start_run,
 )
@@ -149,5 +150,34 @@ async def retry_run_endpoint(run_id: str, request: Request):
             from_stage = payload.get("from_stage")
     try:
         return retry_run(run_id, from_stage=from_stage)
+    except RunsError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail) from None
+
+
+@router.post("/runs/parse-dryrun")
+async def parse_dryrun_endpoint(request: Request):
+    """Dry-run parse a staged file (by sha256) or a fresh upload — no run
+    is created (C3, requirements addendum 1). Accepts JSON `{"sha256": "..."}`
+    or multipart (`file`). See service/runs.py::parse_dryrun's docstring for
+    the {id}="new" sentinel this forwards to the spine with."""
+    content_type = request.headers.get("content-type", "")
+    try:
+        if content_type.startswith("multipart/form-data"):
+            form = await request.form()
+            upload = form.get("file")
+            if upload is None or not hasattr(upload, "read"):
+                raise HTTPException(status_code=400, detail="file is required for a multipart dry-run request")
+            file_bytes = await upload.read()
+            return parse_dryrun(file_bytes=file_bytes, filename=upload.filename)
+
+        body_bytes = await request.body()
+        try:
+            body = json.loads(body_bytes) if body_bytes else {}
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=422, detail="dry-run body is not valid JSON") from None
+        sha256 = body.get("sha256") if isinstance(body, dict) else None
+        if not sha256:
+            raise HTTPException(status_code=400, detail="sha256 is required in the JSON body")
+        return parse_dryrun(sha256=sha256)
     except RunsError as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail) from None

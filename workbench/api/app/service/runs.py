@@ -1,4 +1,4 @@
-# Byline: Claude Code · Sonnet (agent) · 2026-07-20 (C2 gate controls: continue/abort/retry + custody_tier)
+# Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: parse_dryrun added)
 """Proxy to the spine's run pipeline (POST /v1/runs, GET /v1/runs[/{id}]).
 
 New in the workbench — the C1 Operator Console's replacement for the
@@ -209,4 +209,45 @@ def retry_run(run_id: str, from_stage: str | None = None) -> dict:
     if from_stage is not None:
         kwargs["json"] = {"from_stage": from_stage}
     response = _spine_request("POST", f"/v1/runs/{run_id}/retry", **kwargs)
+    return response.json()
+
+
+def parse_dryrun(
+    *,
+    sha256: str | None = None,
+    file_bytes: bytes | None = None,
+    filename: str | None = None,
+) -> dict:
+    """POST /v1/runs/{id}/parse-dryrun passthrough (C3 addendum 1: "the real
+    parser candidates the owner asked for").
+
+    Tests which parser(s) would claim a file WITHOUT starting a real run —
+    surfaced from the Intake preview dialog's "Dry-run parse" button. Provide
+    either `sha256` (an already-staged file, re-fetched spine-side) or a
+    fresh `file_bytes`/`filename` pair.
+
+    Returns `{attempts: [{tool, ok, confidence?, error}], parser_id,
+    record_count, sample_records}` per the C3 contract.
+
+    ASSUMPTION (documented since the console/c3-spine build brief specifies
+    the contract as `POST /v1/runs/{id}/parse-dryrun` — an id nested under
+    /v1/runs/, matching continue/abort/retry above — but doesn't say what
+    {id} is for a staged file that has no run yet, which is exactly the
+    Intake dry-run case this is built for): this passes the literal sentinel
+    `"new"` as {id}. A caller that already has a real run_id (e.g. a future
+    "re-test parse" action from the run detail view) should pass it via a
+    dedicated call instead of this sentinel path — not needed by any C3
+    surface today, so not plumbed through here.
+    """
+    if not sha256 and not (file_bytes and filename):
+        raise RunsError("a sha256 or a file is required for a dry-run parse", 400)
+
+    if sha256:
+        response = _spine_request("POST", "/v1/runs/new/parse-dryrun", json={"sha256": sha256})
+    else:
+        response = _spine_request(
+            "POST",
+            "/v1/runs/new/parse-dryrun",
+            files={"file": (filename, file_bytes, "application/octet-stream")},
+        )
     return response.json()

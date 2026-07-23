@@ -1,4 +1,4 @@
-// Byline: Claude Code · Sonnet (agent) · 2026-07-20
+// Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: OpenFlagsCountProvider wired in)
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { Geist_Mono } from "next/font/google";
@@ -13,6 +13,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { RefreshProvider } from "@/lib/refresh-context";
 import { NewRunDialogProvider } from "@/lib/new-run-dialog-context";
 import { FailedRunsCountProvider } from "@/lib/failed-runs-context";
+import { OpenFlagsCountProvider } from "@/lib/open-flags-context";
 import { NewRunDialog } from "@/components/runs/new-run-dialog";
 
 const inter = Inter({
@@ -46,17 +47,19 @@ export default function RootLayout({
           <RefreshProvider>
             <NewRunDialogProvider>
               <FailedRunsCountProvider>
-                <SidebarProvider>
-                  <TooltipProvider>
-                    <AppSidebar />
-                    <div className="flex flex-1 flex-col h-svh min-h-0">
-                      <Header />
-                      <main className="relative flex-1 overflow-auto p-6">{children}</main>
-                    </div>
-                    <Toaster />
-                    <NewRunDialog />
-                  </TooltipProvider>
-                </SidebarProvider>
+                <OpenFlagsCountProvider>
+                  <SidebarProvider>
+                    <TooltipProvider>
+                      <AppSidebar />
+                      <div className="flex flex-1 flex-col h-svh min-h-0">
+                        <Header />
+                        <main className="relative flex-1 overflow-auto p-6">{children}</main>
+                      </div>
+                      <Toaster />
+                      <NewRunDialog />
+                    </TooltipProvider>
+                  </SidebarProvider>
+                </OpenFlagsCountProvider>
               </FailedRunsCountProvider>
             </NewRunDialogProvider>
           </RefreshProvider>

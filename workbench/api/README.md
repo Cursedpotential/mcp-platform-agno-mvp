@@ -17,9 +17,9 @@ import from higher ones (enforced by `tests/test_structure.py`). `boto3` and
 | Layer | Files | Role |
 |---|---|---|
 | `config` | `settings.py` | S3-agnostic object-store env knobs + LanceDB path + spine URL + MCP server list |
-| `repo` | `object_store_client.py`, `lancedb_client.py`, `staging.py`, `mcp_client.py` | boto3 + LanceDB + MCP streamable-HTTP, confined here |
-| `service` | `upload.py`, `detect.py`, `files.py`, `documents.py`, `promote.py`, `metadata.py`, `runs.py`, `tools.py` | business logic, no SDK imports |
-| `runtime` | `upload.py`, `files.py`, `promote.py`, `documents.py`, `health.py`, `metrics.py`, `runs.py`, `tools.py` | FastAPI routers |
+| `repo` | `object_store_client.py`, `lancedb_client.py`, `staging.py`, `mcp_client.py`, `spine_client.py` | boto3 + LanceDB + MCP streamable-HTTP + shared spine HTTP client, confined here |
+| `service` | `upload.py`, `detect.py`, `files.py`, `documents.py`, `promote.py`, `metadata.py`, `runs.py`, `tools.py`, `inspect.py`, `flags.py` | business logic, no SDK imports |
+| `runtime` | `upload.py`, `files.py`, `promote.py`, `documents.py`, `health.py`, `metrics.py`, `runs.py`, `tools.py`, `inspect.py` | FastAPI routers |
 
 ## Endpoints
 
@@ -27,6 +27,12 @@ import from higher ones (enforced by `tests/test_structure.py`). `boto3` and
 - `GET /api/files`, `GET /api/files/{id}`, `PATCH /api/files/{id}` — list/detail/edit staged files
 - `POST /api/promote/{id}`, `POST /api/promote-all` — legacy direct-to-`/knowledge` promote path (superseded in the UI by Runs, kept as a backend endpoint)
 - `POST /api/runs` (json `{staged_id, workflow, domain, mode, source_meta}` or multipart `file`), `GET /api/runs`, `GET /api/runs/{id}` — proxy to the spine's `/v1/runs` pipeline (custody → parse → store → knowledge)
+- `POST /api/runs/{id}/continue`, `POST /api/runs/{id}/abort`, `POST /api/runs/{id}/retry` — C2 supervised-gate controls
+- `POST /api/runs/parse-dryrun` (json `{sha256}` or multipart `file`) — C3 dry-run parse (which parser would claim this file), no run created
+- `GET /api/records`, `PATCH /api/records/{id}/meta` — C3 per-run record browser (parse-quality review) + curation edits
+- `GET /api/schemas` — C3 raw PG (evidence/analysis tables + row counts) and Milvus (collections/entities/dims) inspection views
+- `POST /api/verify/{sha256}` — C3 active hash verification (re-fetch + recompute, walks the H1/H2/H3 custody chain for full-tier runs)
+- `POST /api/flags`, `GET /api/flags`, `PATCH /api/flags/{id}` — C3 corroboration flags ("needs corroborating evidence")
 - `GET /api/tools`, `POST /api/tools/call` — proxy to every configured MCP server (`MCP_SERVERS` env) for the Tool Explorer
 - `GET /api/documents/stats` — staging-table counts by status/type
 - `GET /health`, `GET /metrics`

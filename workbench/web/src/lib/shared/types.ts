@@ -1,4 +1,4 @@
-// Byline: Claude Code · Sonnet (agent) · 2026-07-21 (C2.7: file text/analyze + McpTool.annotations added)
+// Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: records, schemas, verify, parse-dryrun, flags)
 /**
  * Types for the Knowledge Workbench staged-file record.
  *
@@ -332,4 +332,193 @@ export interface ToolServerGroup {
   label: string;
   tools?: McpTool[];
   error?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Records (C3 — parse-quality review + curation, requirements addenda 1, 3)
+// mirrors console/c3-spine's GET /v1/records, a parallel branch this
+// frontend codes against per the C3 build brief's contract (not
+// independently verified — same posture as the Runs types above).
+// ---------------------------------------------------------------------------
+
+/** One row of `GET /api/records` — a normalized_record. */
+export interface RecordRow {
+  id: string;
+  /** Position within its artifact — the split-boundary/turn-order signal. */
+  idx: number;
+  record_type: string;
+  role: string | null;
+  ts: string | null;
+  /** Truncated preview text; see `full_len` for whether it was cut. */
+  text: string;
+  /** Untruncated character length of the full record text. */
+  full_len: number;
+  attrs: Record<string, unknown>;
+}
+
+/** `GET /api/records` response. */
+export interface RecordsListResponse {
+  records: RecordRow[];
+  total?: number;
+}
+
+/** `PATCH /api/records/{id}/meta` body — curation-only edits (never touches
+ * evidence blobs/hashes). All fields optional; omit a field to leave it
+ * alone (mirrors app/types/inspect.py::RecordMetaPatchRequest). */
+export interface RecordMetaPatch {
+  title?: string;
+  labels?: string[];
+  attrs_patch?: Record<string, unknown>;
+}
+
+// ---------------------------------------------------------------------------
+// Schemas (C3 — raw PG/Milvus inspection views)
+// ---------------------------------------------------------------------------
+
+export interface SchemaColumn {
+  name: string;
+  type: string;
+}
+
+export interface SchemaTable {
+  table: string;
+  rows: number;
+  columns: SchemaColumn[];
+}
+
+export interface PgSchemas {
+  evidence: SchemaTable[];
+  analysis: SchemaTable[];
+  error?: string;
+}
+
+export interface MilvusField {
+  name: string;
+  type: string;
+  dim?: number;
+}
+
+export interface MilvusCollection {
+  name: string;
+  num_entities: number;
+  fields: MilvusField[];
+}
+
+export interface MilvusSchemas {
+  collections?: MilvusCollection[];
+  error?: string;
+}
+
+/** `GET /api/schemas` response — either section may independently carry
+ * `{error}` instead of its normal shape (a down Milvus doesn't block the PG
+ * section from rendering, and vice versa). */
+export interface SchemasResponse {
+  pg: PgSchemas;
+  milvus: MilvusSchemas;
+}
+
+// ---------------------------------------------------------------------------
+// Verify (C3 — active hash verification, requirements addendum 2)
+// ---------------------------------------------------------------------------
+
+export type VerifyVerdict = "intact" | "broken" | "hash-only-ok";
+
+export interface VerifyChainLink {
+  seq: number;
+  ok: boolean;
+}
+
+/** `POST /api/verify/{sha256}` response — the verdict panel payload.
+ * `chain` is `null` for light-tier custody (whole-file hash only, no H1/H2/H3
+ * chain rows) — the panel must label that honestly as 'hash-only-ok', not
+ * imply a full chain was walked. */
+export interface VerifyResponse {
+  sha256_match: boolean;
+  computed: string;
+  recorded: string;
+  custody_tier: CustodyTier;
+  chain: VerifyChainLink[] | null;
+  verdict: VerifyVerdict;
+}
+
+// ---------------------------------------------------------------------------
+// Parse dry-run (C3 — requirements addendum 1: "the real parser candidates")
+// ---------------------------------------------------------------------------
+
+export interface ParseDryrunAttempt {
+  tool: string;
+  ok: boolean;
+  confidence?: number;
+  error?: string;
+}
+
+/** `POST /api/runs/parse-dryrun` response. */
+export interface ParseDryrunResponse {
+  attempts: ParseDryrunAttempt[];
+  parser_id: string | null;
+  record_count: number;
+  sample_records: string[];
+}
+
+// ---------------------------------------------------------------------------
+// Corroboration flags (C3 — requirements addendum 6)
+// ---------------------------------------------------------------------------
+
+export type FlagStatus = "open" | "partial" | "corroborated" | "unobtainable";
+
+/** The evidence types the owner asked the multiselect to cover verbatim. */
+export const EVIDENCE_WANTED_OPTIONS = [
+  "sms",
+  "photo",
+  "call-log",
+  "financial",
+  "witness",
+  "other",
+] as const;
+export type EvidenceWantedType = (typeof EVIDENCE_WANTED_OPTIONS)[number];
+
+/** The kinds of things a flag can target — a record (a specific turn) or a
+ * run (the whole artifact). Kept as `string` rather than a closed union
+ * since the spine is the source of truth for what target_kind values exist
+ * (a parallel build — see module-level note above). */
+export type FlagTargetKind = "record" | "run" | string;
+
+export interface FlagLinkArtifact {
+  id: string;
+  sha256: string;
+}
+
+/** A corroboration flag, as returned by `GET /api/flags` / `POST /api/flags`. */
+export interface Flag {
+  id: string;
+  target_kind: FlagTargetKind;
+  target_id: string;
+  claim: string;
+  claim_date_start?: string | null;
+  claim_date_end?: string | null;
+  evidence_wanted?: EvidenceWantedType[] | null;
+  status: FlagStatus;
+  notes?: string | null;
+  link_artifact?: FlagLinkArtifact | null;
+  created_at?: string;
+  updated_at?: string;
+  [key: string]: unknown;
+}
+
+/** `POST /api/flags` body. */
+export interface FlagCreateRequest {
+  target_kind: FlagTargetKind;
+  target_id: string;
+  claim: string;
+  claim_date_start?: string | null;
+  claim_date_end?: string | null;
+  evidence_wanted?: EvidenceWantedType[] | null;
+  notes?: string | null;
+}
+
+/** `PATCH /api/flags/{id}` body. */
+export interface FlagUpdateRequest {
+  status?: FlagStatus;
+  notes?: string | null;
+  link_artifact?: FlagLinkArtifact | null;
 }

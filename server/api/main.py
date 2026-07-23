@@ -17,6 +17,7 @@ Hard rules:
   on_route_conflict="preserve_base_app" so they win on collision.
 - The root Router (mode="route") is the primary entry point.
 """
+# Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3 spine boot resilience — KnowledgeHandle wired in place of a direct create_knowledge() call; register_inspect_routes added)
 
 from __future__ import annotations
 
@@ -33,6 +34,7 @@ from agno.utils.log import log_info
 
 from server.agents.factory import build_agent_team
 from server.agents.providers import build_context, build_learning
+from server.core.knowledge_handle import KnowledgeHandle, resolve_knowledge
 from server.core.settings import build_model
 from server.core import create_knowledge, get_agno_db
 from server.core.url import db_url
@@ -43,6 +45,17 @@ from server.core.url import db_url
 runtime_env: str = getenv("RUNTIME_ENV", "dev")
 scheduler_base_url: str = getenv("AGENTOS_URL", "http://127.0.0.1:8000")
 
+# C3 spine boot resilience (operator-console-requirements.md addendum 9's
+# boot-time follow-through — see server/core/knowledge_handle.py's module
+# docstring for the full ground-truth investigation: agno's
+# `Knowledge.__post_init__` synchronously calls `vector_db.exists()`, which
+# used to crash the WHOLE agentos-api process if Milvus was unreachable at
+# boot. `_build_app()` below calls `try_connect_now()` inside a try/except
+# instead of constructing Knowledge directly; module-level so the lifespan
+# (which only receives the ASGI `app`, not `_build_app`'s locals) can start
+# the background retry loop after the app object exists.
+_knowledge_handle = KnowledgeHandle(lambda: create_knowledge("platform", "platform_knowledge"))
+
 
 # ---------------------------------------------------------------------------
 # Lifespan
@@ -51,14 +64,23 @@ scheduler_base_url: str = getenv("AGENTOS_URL", "http://127.0.0.1:8000")
 
 @asynccontextmanager
 async def lifespan(app: Any) -> Any:
-    """AgentOS lifespan: ensure pg_duckdb R2 secret on startup, log shutdown."""
+    """AgentOS lifespan: ensure pg_duckdb R2 secret on startup, start the
+    knowledge-handle background reconnect if boot-time connect failed, log
+    shutdown."""
     log_info("AgentOS lifespan: startup")
     from server.core import ensure_duckdb_r2_secret
 
     log_info(f"pg_duckdb R2 secret ensured: {ensure_duckdb_r2_secret()}")
+    if not _knowledge_handle.ready:
+        log_info(
+            f"knowledge store was NOT ready at boot ({_knowledge_handle.last_error}) — "
+            "starting background reconnect (retries every 60s)"
+        )
+        _knowledge_handle.start_background_retry()
     try:
         yield
     finally:
+        _knowledge_handle.stop_background_retry()
         log_info("AgentOS lifespan: shutdown")
 
 
@@ -81,7 +103,12 @@ def register_knowledge_routes(app: FastAPI, knowledge: Any) -> None:
     app:
         The FastAPI application instance.
     knowledge:
-        Agno Knowledge instance used for reindexing.
+        Agno Knowledge instance used for reindexing. C3 (spine boot
+        resilience): may be a `KnowledgeHandle` — resolved fresh on every
+        request via `resolve_knowledge()`, so this genuinely-knowledge-
+        dependent route 503s with `{"detail": "knowledge store unavailable"}`
+        while the handle isn't ready yet, and starts working again the
+        instant a background reconnect succeeds — no restart needed.
     """
 
     @app.post("/v1/knowledge/reindex")
@@ -92,10 +119,18 @@ def register_knowledge_routes(app: FastAPI, knowledge: Any) -> None:
         -------
         dict
             ``{"indexedDocumentCount": <int>, "status": "completed"}``
+
+        503 ``{"detail": "knowledge store unavailable"}`` if the knowledge
+        handle isn't connected yet (C3 addendum 9 — spine boot resilience).
         """
+        live_knowledge = resolve_knowledge(knowledge)
+        if live_knowledge is None:
+            from fastapi import HTTPException
+
+            raise HTTPException(503, "knowledge store unavailable")
         from scripts.ingest_knowledge import ingest_all
 
-        count = await ingest_all(knowledge)
+        count = await ingest_all(live_knowledge)
         return {"indexedDocumentCount": count, "status": "completed"}
 
 
@@ -110,7 +145,10 @@ def _build_app() -> Any:
     Assembly order:
     1. Build model (provider-agnostic, credential-driven).
     2. Build Agno DB connections (SurrealDB operational store).
-    3. Build Knowledge instance (Milvus-backed).
+    3. Build Knowledge instance (Milvus-backed) — via `_knowledge_handle`
+       (C3 addendum 9, spine boot resilience): a single guarded connect
+       attempt that CANNOT raise (see server/core/knowledge_handle.py) — a
+       Milvus outage at boot no longer takes down the whole process.
     4. Build LearningMachine (operational memory).
     5. Build context providers (workspace, database, MCP).
     6. Build agent team (all agents + teams + router).
@@ -121,10 +159,25 @@ def _build_app() -> Any:
     -------
     Any
         The AgentOS-wrapped ASGI application.
+
+    LIMITATION (documented, accepted — see knowledge_handle.py's module
+    docstring for the full explanation): steps 3-6 below read
+    `_knowledge_handle.instance` ONCE, synchronously, at boot. If Milvus was
+    down at that moment, every agent's knowledge-search tool and AgentOS's
+    OWN built-in `/knowledge*` routes run with NO knowledge base for the
+    lifetime of THIS process — a later successful background reconnect does
+    NOT retroactively rewire already-built agents/AgentOS internals (that
+    would need AgentOS's own resync machinery, deliberately not attempted
+    here as too invasive for what C3 asks). What DOES benefit from the live
+    swap: register_run_routes/register_evidence_routes/register_knowledge_routes
+    below are handed `_knowledge_handle` itself (not a snapshotted instance),
+    so runs/evidence-imports/reindex started AFTER a background reconnect
+    succeeds see the real knowledge engine without a process restart.
     """
     model = build_model()
     db = get_agno_db()
-    knowledge = create_knowledge("platform", "platform_knowledge")
+    _knowledge_handle.try_connect_now()  # never raises — see server/core/knowledge_handle.py
+    knowledge = _knowledge_handle.instance  # may be None; agents/AgentOS get this ONE-TIME snapshot (see docstring)
     learning = build_learning(db, model, knowledge)
 
     ctx = build_context(model, db, knowledge, learning, db_url)
@@ -139,13 +192,18 @@ def _build_app() -> Any:
         agents["document_digest"] = digest
 
     app = FastAPI(title="MCP Platform Assistant — AgentOS")
-    register_knowledge_routes(app, knowledge)
+    # These three registries get the LIVE HANDLE (not `knowledge`, the
+    # one-time snapshot above) so they benefit from a later background
+    # reconnect — see the docstring LIMITATION note above.
+    register_knowledge_routes(app, _knowledge_handle)
 
     from server.api.evidence_routes import register_evidence_routes
+    from server.api.inspect_routes import register_inspect_routes
     from server.api.run_routes import register_run_routes
 
-    register_evidence_routes(app, knowledge)
-    register_run_routes(app, knowledge)
+    register_evidence_routes(app, _knowledge_handle)
+    register_run_routes(app, _knowledge_handle)
+    register_inspect_routes(app, _knowledge_handle)
 
     teams = [v for v in agents.values() if isinstance(v, Team)]
     solo_agents = [v for v in agents.values() if not isinstance(v, Team)]
@@ -158,7 +216,12 @@ def _build_app() -> Any:
         db=db,
         agents=solo_agents,
         teams=teams,  # type: ignore[arg-type]  # invariant list[Team|...]; list[Team] is safe here
-        knowledge=[knowledge],
+        # C3 addendum 9: `knowledge` is the one-time boot snapshot (may be
+        # None if Milvus was down at boot — see the docstring LIMITATION
+        # note above). AgentOS wants a list; pass [] rather than [None] so
+        # `_auto_discover_knowledge_instances`'s isinstance(k, Knowledge)
+        # filter doesn't have to special-case a None entry.
+        knowledge=[knowledge] if knowledge is not None else [],
         base_app=app,
         enable_mcp_server=True,  # serve the OS as an MCP server at /mcp (extracted standalone by app/mcp_main.py — mounted /mcp 500s, see that file)
         on_route_conflict="preserve_base_app",
