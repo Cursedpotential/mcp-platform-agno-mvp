@@ -1,0 +1,182 @@
+"""Unit tests for the C3 "retry gap" fix (server/api/run_routes.py's
+`retry_run`): `POST /v1/runs/{run_id}/retry {"from_stage": "knowledge"}` is
+now ALSO allowed on a COMPLETED parent (not only 'failed') when the
+knowledge collection can be shown to LACK the parent's doc — closing the
+"reingest after collection loss" hole. 409 only when the doc VERIFIABLY
+exists; a query failure/unknown result must be treated as "allow", never as
+an implicit block.
+
+Style matches tests/test_run_ledger.py's existing `run_routes_client` C2
+TestClient section (same monkeypatch-the-module-under-test-by-name pattern).
+"""
+# Byline: Claude Code · Sonnet (agent) · 2026-07-22
+
+from __future__ import annotations
+
+import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+import server.api.run_routes as run_routes
+
+
+class _FakeMilvusClient:
+    def __init__(self, rows=None, raise_exc=None):
+        self._rows = rows if rows is not None else []
+        self._raise = raise_exc
+
+    def query(self, collection_name, filter, limit, output_fields):
+        if self._raise is not None:
+            raise self._raise
+        return self._rows
+
+
+class _FakeVectorDb:
+    def __init__(self, client):
+        self.client = client
+        self.collection = "platform_knowledge"
+
+
+class _FakeKnowledge:
+    def __init__(self, client):
+        self.vector_db = _FakeVectorDb(client)
+
+
+def _completed_run(**overrides):
+    run = {
+        "status": "completed",
+        "workflow": "chat-transcript",
+        "domain": "platform_design",
+        "mode": "auto",
+        "custody_tier": "light",
+        "source_name": "f.txt",
+        "artifact_id": "art-1",
+        "sha256": "ab" * 32,
+        "stages": [
+            {"name": "custody", "status": "success", "output": {"blob_key": "ab/abc/f.txt"}},
+            {"name": "parse", "status": "success", "output": {}},
+            {"name": "store", "status": "success", "output": {}},
+            {"name": "knowledge", "status": "success", "output": {}},
+        ],
+    }
+    run.update(overrides)
+    return run
+
+
+@pytest.fixture
+def client_with_knowledge(monkeypatch):
+    def _make(knowledge):
+        app = FastAPI()
+        run_routes.register_run_routes(app, knowledge=knowledge)
+        return TestClient(app)
+
+    return _make
+
+
+def _stub_retry_from_knowledge_plumbing(monkeypatch):
+    """Stub create_run/seed_stages/asyncio.create_task the same way
+    test_run_ledger.py's C2 retry tests do, so `_retry_from_knowledge`'s
+    background task never actually touches the DB/workflow machinery."""
+    monkeypatch.setattr(run_routes, "create_run", lambda **kwargs: "new-run-id")
+    monkeypatch.setattr(run_routes, "seed_stages", lambda run_id, names: None)
+
+    created_tasks = []
+
+    def fake_create_task(coro):
+        created_tasks.append(coro)
+        coro.close()
+        return None
+
+    monkeypatch.setattr(run_routes.asyncio, "create_task", fake_create_task)
+    return created_tasks
+
+
+def test_retry_gap_completed_run_doc_exists_is_409(client_with_knowledge, monkeypatch):
+    monkeypatch.setattr(run_routes, "get_run", lambda run_id: _completed_run())
+    client = client_with_knowledge(_FakeKnowledge(_FakeMilvusClient(rows=[{"id": 1}])))
+
+    resp = client.post("/v1/runs/run-1/retry", json={"from_stage": "knowledge"})
+
+    assert resp.status_code == 409
+    assert "VERIFIABLY EXISTS" in resp.json()["detail"]
+
+
+def test_retry_gap_completed_run_doc_missing_is_allowed(client_with_knowledge, monkeypatch):
+    monkeypatch.setattr(run_routes, "get_run", lambda run_id: _completed_run())
+    _stub_retry_from_knowledge_plumbing(monkeypatch)
+    client = client_with_knowledge(_FakeKnowledge(_FakeMilvusClient(rows=[])))
+
+    resp = client.post("/v1/runs/run-1/retry", json={"from_stage": "knowledge"})
+
+    assert resp.status_code == 202
+    assert resp.json() == {"run_id": "new-run-id", "parent_run_id": "run-1"}
+
+
+def test_retry_gap_completed_run_query_failure_is_treated_as_allow(client_with_knowledge, monkeypatch):
+    monkeypatch.setattr(run_routes, "get_run", lambda run_id: _completed_run())
+    _stub_retry_from_knowledge_plumbing(monkeypatch)
+    client = client_with_knowledge(_FakeKnowledge(_FakeMilvusClient(raise_exc=RuntimeError("Milvus down"))))
+
+    resp = client.post("/v1/runs/run-1/retry", json={"from_stage": "knowledge"})
+
+    assert resp.status_code == 202  # unknown -> allow, never an implicit block
+
+
+def test_retry_gap_completed_run_no_knowledge_handle_is_treated_as_allow(client_with_knowledge, monkeypatch):
+    monkeypatch.setattr(run_routes, "get_run", lambda run_id: _completed_run())
+    _stub_retry_from_knowledge_plumbing(monkeypatch)
+    client = client_with_knowledge(None)  # no knowledge at all — e.g. Milvus never came up
+
+    resp = client.post("/v1/runs/run-1/retry", json={"from_stage": "knowledge"})
+
+    assert resp.status_code == 202
+
+
+def test_retry_gap_completed_run_without_sha256_is_409(client_with_knowledge, monkeypatch):
+    monkeypatch.setattr(run_routes, "get_run", lambda run_id: _completed_run(sha256=None))
+    client = client_with_knowledge(None)
+
+    resp = client.post("/v1/runs/run-1/retry", json={"from_stage": "knowledge"})
+
+    assert resp.status_code == 409
+
+
+def test_retry_gap_running_run_from_stage_knowledge_is_409(client_with_knowledge, monkeypatch):
+    monkeypatch.setattr(run_routes, "get_run", lambda run_id: _completed_run(status="running"))
+    client = client_with_knowledge(None)
+
+    resp = client.post("/v1/runs/run-1/retry", json={"from_stage": "knowledge"})
+
+    assert resp.status_code == 409
+
+
+def test_retry_gap_failed_run_from_stage_knowledge_skips_doc_check_entirely(client_with_knowledge, monkeypatch):
+    """Pre-existing C2.6 behavior, UNCHANGED: a 'failed' parent's
+    from_stage='knowledge' retry never even calls the doc-existence check —
+    only 'completed' parents are gated by it."""
+    queried = []
+
+    class _WatchedClient(_FakeMilvusClient):
+        def query(self, *a, **k):
+            queried.append(1)
+            return super().query(*a, **k)
+
+    monkeypatch.setattr(run_routes, "get_run", lambda run_id: _completed_run(status="failed"))
+    _stub_retry_from_knowledge_plumbing(monkeypatch)
+    client = client_with_knowledge(_FakeKnowledge(_WatchedClient(rows=[{"id": 1}])))
+
+    resp = client.post("/v1/runs/run-1/retry", json={"from_stage": "knowledge"})
+
+    assert resp.status_code == 202
+    assert queried == []  # doc-existence check never ran for a 'failed' parent
+
+
+def test_retry_gap_plain_retry_still_requires_failed_status(client_with_knowledge, monkeypatch):
+    """No from_stage given: the pre-C3 full-rerun path is UNCHANGED — a
+    completed run still can't be fully rerun via a bare retry."""
+    monkeypatch.setattr(run_routes, "get_run", lambda run_id: _completed_run())
+    client = client_with_knowledge(None)
+
+    resp = client.post("/v1/runs/run-1/retry")
+
+    assert resp.status_code == 409

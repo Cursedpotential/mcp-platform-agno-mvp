@@ -52,12 +52,13 @@ step dedupes AND the parent's knowledge stage had failed, `_store_step_impl`
 auto-routes into the same reload-and-reingest path instead of silently
 reporting 0 records, logging it loudly on the store stage's content.
 """
-# Byline: Claude Code · Sonnet (agent) · 2026-07-21 (C2 gates+retry+custody_tier 2026-07-20; C2.6 retry from_stage + health/deps 2026-07-21)
+# Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C2 gates+retry+custody_tier 2026-07-20; C2.6 retry from_stage + health/deps 2026-07-21; C3 KnowledgeHandle live-resolve + retry-gap for completed parents 2026-07-22)
 
 from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import shutil
 import tempfile
 from datetime import datetime, timezone
@@ -66,8 +67,11 @@ from typing import Any
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 
+from server.core.knowledge_handle import resolve_knowledge
 from server.evidence.custody import blob_root
 from server.evidence.run_ledger import create_run, get_run, list_runs, ping, seed_stages, set_gate
+
+logger = logging.getLogger("evidence.runs")  # same logger name workflows.py/store.py use
 
 _ALLOWED_DOMAINS = {
     "timeline_relationship",
@@ -111,7 +115,13 @@ def register_run_routes(app: FastAPI, knowledge: Any) -> None:
         The FastAPI application instance (base app, pre-AgentOS wrap).
     knowledge:
         Agno Knowledge instance handed through to the workflow's knowledge step
-        (same handle register_evidence_routes uses).
+        (same handle register_evidence_routes uses). C3 (spine boot resilience,
+        server/core/knowledge_handle.py): may ALSO be a `KnowledgeHandle` —
+        every usage site below resolves it via `resolve_knowledge()` freshly
+        at call time (not once at registration), so a run started AFTER a
+        background reconnect succeeds sees the real knowledge engine even
+        though this module was only ever registered once. A raw Knowledge
+        instance or None (every pre-C3 caller/test) passes through unchanged.
     """
 
     async def _execute_run(
@@ -150,7 +160,7 @@ def register_run_routes(app: FastAPI, knowledge: Any) -> None:
                 str(tmp_path),
                 source_meta=meta,
                 domain=domain,
-                knowledge=knowledge,
+                knowledge=resolve_knowledge(knowledge),
                 run_id=run_id,
                 mode=mode,
                 custody_tier=custody_tier,
@@ -213,7 +223,7 @@ def register_run_routes(app: FastAPI, knowledge: Any) -> None:
                 run_id=new_run_id,
                 workflow=workflow,
                 domain=domain,
-                knowledge=knowledge,
+                knowledge=resolve_knowledge(knowledge),
                 artifact_id=run["artifact_id"],
                 sha256=run["sha256"],
                 blob_key=blob_key,
@@ -222,6 +232,48 @@ def register_run_routes(app: FastAPI, knowledge: Any) -> None:
         )
 
         return {"run_id": new_run_id, "parent_run_id": run_id}
+
+    async def _knowledge_doc_exists_for_artifact(knowledge_instance: Any, sha256: str) -> bool | None:
+        """C3 retry-gap ("closes the reingest-after-collection-loss hole"):
+        cheap, GUARDED Milvus existence check — does the knowledge collection
+        still have at least one doc for this artifact? Filters on
+        ``metadata['sha256']`` (every doc `ingest_into_knowledge` inserts
+        carries this — server/evidence/store.py's `_do_insert`), which is a
+        more robust "artifact-derived" check than reconstructing a doc's
+        exact name (the name also encodes a per-conversation slug this
+        endpoint has no cheap way to reconstruct without first loading the
+        artifact's stored records — see `ingest_into_knowledge`'s
+        `doc_path = out_dir / f"{artifact.sha256[:12]}-{safe}.md"`).
+
+        Returns True (doc verifiably exists — caller should keep the 409),
+        False (query succeeded, zero hits — the collection genuinely lacks
+        the doc, e.g. after a collection recreate), or None (the query
+        itself failed, or there's no knowledge instance to query — UNKNOWN).
+        The task spec is explicit that a 409 is only warranted when the doc
+        VERIFIABLY exists, so callers must treat None the same as False
+        (allow the retry), never as an implicit True.
+        """
+        if knowledge_instance is None:
+            return None
+
+        def _do() -> bool:
+            vector_db = getattr(knowledge_instance, "vector_db", None)
+            client = getattr(vector_db, "client", None) if vector_db is not None else None
+            if client is None or vector_db is None:
+                raise RuntimeError("no Milvus client available on this knowledge instance")
+            rows = client.query(
+                collection_name=vector_db.collection,
+                filter=f'metadata["sha256"] == "{sha256}"',
+                limit=1,
+                output_fields=["id"],
+            )
+            return bool(rows)
+
+        try:
+            return await asyncio.wait_for(asyncio.to_thread(_do), timeout=_HEALTH_DEPS_TIMEOUT_S)
+        except Exception as exc:
+            logger.warning("retry-gap: knowledge doc-existence check failed (%s) — treating as unknown/allow", exc)
+            return None
 
     async def _check_pg() -> dict[str, Any]:
         """GET /v1/health/deps' pg check — SELECT 1 via run_ledger's engine,
@@ -244,7 +296,8 @@ def register_run_routes(app: FastAPI, knowledge: Any) -> None:
 
         def _do() -> None:
             client = None
-            vector_db = getattr(knowledge, "vector_db", None) if knowledge is not None else None
+            live_knowledge = resolve_knowledge(knowledge)
+            vector_db = getattr(live_knowledge, "vector_db", None) if live_knowledge is not None else None
             if vector_db is not None:
                 client = getattr(vector_db, "client", None)
             if client is None:
@@ -447,13 +500,50 @@ def register_run_routes(app: FastAPI, knowledge: Any) -> None:
         run = get_run(run_id)
         if run is None:
             raise HTTPException(404, f"run {run_id!r} not found")
-        if run["status"] != "failed":
-            raise HTTPException(
-                409, f"run {run_id!r} is {run['status']!r}, not failed — retry only allowed on a terminal-failed run"
-            )
 
         if from_stage == "knowledge":
+            # C3 retry-gap: from_stage='knowledge' is now ALSO allowed on a
+            # COMPLETED parent (not only 'failed') when the knowledge
+            # collection can be shown to LACK the parent's doc — e.g. Milvus
+            # collection was recreated after a completed run already landed
+            # its rows in analysis.normalized_record. This closes the
+            # "reingest after collection loss" hole: before this, the ONLY
+            # way to re-ingest into knowledge was a full custody/parse/store
+            # rerun even though the source rows were already safely stored.
+            # A plain (no from_stage) retry is UNCHANGED — still 'failed'-only.
+            if run["status"] not in ("failed", "completed"):
+                raise HTTPException(
+                    409,
+                    f"run {run_id!r} is {run['status']!r} — retry from_stage='knowledge' only allowed on a "
+                    "terminal 'failed' or 'completed' run",
+                )
+            if run["status"] == "completed":
+                sha256 = run.get("sha256")
+                if sha256 is None:
+                    raise HTTPException(
+                        409,
+                        f"run {run_id!r} is completed but has no sha256 recorded — cannot verify whether "
+                        "the knowledge collection already has this artifact's doc",
+                    )
+                exists = await _knowledge_doc_exists_for_artifact(resolve_knowledge(knowledge), sha256)
+                if exists:
+                    raise HTTPException(
+                        409,
+                        f"run {run_id!r}: a knowledge doc for sha256={sha256[:12]}... VERIFIABLY EXISTS in the "
+                        "collection already — refusing from_stage='knowledge' on a completed run to avoid "
+                        "inserting a duplicate. This path only reruns the knowledge stage when the doc is "
+                        "provably missing (e.g. after a Milvus collection recreate); a query failure/unknown "
+                        "result is treated as 'missing' (allow), never as 'exists' (block).",
+                    )
             return await _retry_from_knowledge(run_id, run)
+
+        if run["status"] != "failed":
+            raise HTTPException(
+                409,
+                f"run {run_id!r} is {run['status']!r}, not failed — a full rerun is only allowed on a "
+                "terminal-failed run (use {\"from_stage\": \"knowledge\"} to retry a completed run's "
+                "knowledge stage instead)",
+            )
 
         workflow = run["workflow"]
         domain = run["domain"]

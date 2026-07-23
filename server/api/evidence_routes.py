@@ -14,7 +14,7 @@ had no REST evidence-import route at all until now. Content unchanged from
 main; only its presence on this branch is new. See the C0 run-ledger task
 report for the full explanation.
 """
-# Byline: Claude Code · Fable 5 · 2026-07-19
+# Byline: Claude Code · Fable 5 · 2026-07-19 (C3 KnowledgeHandle live-resolve 2026-07-22 — Claude Code · Sonnet (agent))
 
 from __future__ import annotations
 
@@ -24,6 +24,8 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+
+from server.core.knowledge_handle import resolve_knowledge
 
 _ALLOWED_DOMAINS = {
     "timeline_relationship",
@@ -79,4 +81,6 @@ def register_evidence_routes(app: FastAPI, knowledge: Any) -> None:
         with tempfile.TemporaryDirectory(prefix="evidence-import-") as tmpdir:
             tmp_path = Path(tmpdir) / suffix_name
             tmp_path.write_bytes(await file.read())
-            return await run_chat_transcript(str(tmp_path), source_meta=meta, domain=domain, knowledge=knowledge)
+            return await run_chat_transcript(
+                str(tmp_path), source_meta=meta, domain=domain, knowledge=resolve_knowledge(knowledge)
+            )
