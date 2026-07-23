@@ -13,6 +13,14 @@ dependencies = [
   "fastapi[standard]",
   "mcp",
   "openai",
+  # agno 2.8.0 stopped bundling per-provider model SDKs as transitive deps
+  # (they were transitive under 2.6.13, satisfied implicitly). server/core/
+  # settings.py's provider-priority chain (ADR-0008) imports agno.models.*
+  # for all four directly, so they must be explicit here now.
+  "ollama",
+  "anthropic",
+  "groq",
+  "google-genai",
   "parallel-web",
   "pgvector",
   "pymilvus",
