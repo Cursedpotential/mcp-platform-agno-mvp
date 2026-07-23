@@ -1,4 +1,4 @@
-// Byline: Claude Code · Sonnet (agent) · 2026-07-20
+// Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: Records/Evidence Queue/Schemas page titles)
 "use client";
 
 import { usePathname } from "next/navigation";
@@ -19,8 +19,11 @@ import { HealthChips } from "@/components/layout/health-chips";
 
 const pageTitles: Record<string, string> = {
   "/runs": "Runs",
+  "/records": "Records",
   "/tools": "Tools",
   "/intake": "Intake",
+  "/evidence-queue": "Evidence Queue",
+  "/schemas": "Schemas",
 };
 
 export function Header() {

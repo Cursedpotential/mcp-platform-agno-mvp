@@ -1,4 +1,4 @@
-// Byline: Claude Code · Sonnet (agent) · 2026-07-20
+// Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: Verify action in the custody section — requirements addendum 2)
 "use client";
 
 import {
@@ -11,6 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { StageOutputView } from "./stage-output-view";
+import { VerifyPanel } from "@/components/shared/verify-panel";
 import { formatDate } from "@/lib/utils";
 import type { RunStageDetail } from "@/lib/shared/types";
 
@@ -18,6 +19,9 @@ interface StageDrawerProps {
   stage: RunStageDetail | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** The run's sha256 (C3 Verify action) — only rendered on the custody
+   * stage. Optional so existing callers keep working untouched. */
+  sha256?: string | null;
 }
 
 function statusBadgeVariant(status: string): "default" | "secondary" | "destructive" | "outline" {
@@ -33,7 +37,7 @@ function statusBadgeVariant(status: string): "default" | "secondary" | "destruct
   }
 }
 
-export function StageDrawer({ stage, open, onOpenChange }: StageDrawerProps) {
+export function StageDrawer({ stage, open, onOpenChange, sha256 }: StageDrawerProps) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
@@ -87,6 +91,22 @@ export function StageDrawer({ stage, open, onOpenChange }: StageDrawerProps) {
                 </p>
                 <StageOutputView stageName={stage.name} output={stage.output} />
               </div>
+
+              {/* C3 requirements addendum 2: active hash verification, only
+                  on the custody stage (the sha256 belongs to the whole run's
+                  source file, not to individual parse/store/knowledge
+                  stages). */}
+              {stage.name.toLowerCase() === "custody" && (
+                <>
+                  <Separator />
+                  <div>
+                    <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Custody — Verify
+                    </p>
+                    <VerifyPanel sha256={sha256} />
+                  </div>
+                </>
+              )}
             </div>
           </>
         )}

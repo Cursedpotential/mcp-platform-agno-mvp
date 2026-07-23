@@ -1,4 +1,4 @@
-// Byline: Claude Code · Sonnet (agent) · 2026-07-21
+// Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: Dry-run parse button — "the real parser candidates")
 "use client";
 
 /**
@@ -14,9 +14,15 @@
  * call (not run automatically) since it re-parses the full text server-side
  * — the owner asked for "identify format before running", not an always-on
  * cost on every preview open.
+ *
+ * "Dry-run parse" (C3, requirements addendum 1) is a THIRD on-demand call —
+ * distinct from Analyze's basic detect.py sniffing — that asks the spine
+ * which real parser(s) would claim this file, without starting a run.
+ * `file.id` is the staged file's sha256 (staging.py keys `staged_files` by
+ * content hash), forwarded as-is to POST /api/runs/parse-dryrun.
  */
 import { useEffect, useState } from "react";
-import { Copy, Check, Sparkles, WrapText, AlignLeft } from "lucide-react";
+import { Copy, Check, FlaskConical, Sparkles, WrapText, AlignLeft } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -27,9 +33,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ApiError, analyzeFile, getFileText } from "@/lib/api-client";
+import { ApiError, analyzeFile, getFileText, parseDryrunSha } from "@/lib/api-client";
 import { humanizeBytes } from "@/lib/utils";
-import type { FileAnalysis, StagedFile } from "@/lib/shared/types";
+import type { FileAnalysis, ParseDryrunResponse, StagedFile } from "@/lib/shared/types";
 
 interface FilePreviewDialogProps {
   file: StagedFile | null;
@@ -44,11 +50,14 @@ export function FilePreviewDialog({ file, open, onOpenChange }: FilePreviewDialo
   const [copied, setCopied] = useState(false);
   const [analysis, setAnalysis] = useState<FileAnalysis | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
+  const [dryrun, setDryrun] = useState<ParseDryrunResponse | null>(null);
+  const [dryrunning, setDryrunning] = useState(false);
 
   useEffect(() => {
     if (!open || !file) return;
     setText("");
     setAnalysis(null);
+    setDryrun(null);
     setLoading(true);
     getFileText(file.id)
       .then((res) => setText(res.text))
@@ -76,6 +85,19 @@ export function FilePreviewDialog({ file, open, onOpenChange }: FilePreviewDialo
     }
   };
 
+  const handleDryrun = async () => {
+    setDryrunning(true);
+    try {
+      const result = await parseDryrunSha(file.id);
+      setDryrun(result);
+    } catch (err) {
+      const detail = err instanceof ApiError ? err.message : "Dry-run parse failed";
+      toast.error(detail);
+    } finally {
+      setDryrunning(false);
+    }
+  };
+
   const handleCopy = () => {
     navigator.clipboard.writeText(text).catch(() => {});
     setCopied(true);
@@ -94,6 +116,10 @@ export function FilePreviewDialog({ file, open, onOpenChange }: FilePreviewDialo
             <Button variant="outline" size="sm" onClick={handleAnalyze} disabled={analyzing}>
               <Sparkles className="h-3.5 w-3.5 mr-1" />
               {analyzing ? "Analyzing…" : "Analyze"}
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleDryrun} disabled={dryrunning}>
+              <FlaskConical className="h-3.5 w-3.5 mr-1" />
+              {dryrunning ? "Dry-running…" : "Dry-run parse"}
             </Button>
             {hasText && (
               <>
@@ -140,6 +166,48 @@ export function FilePreviewDialog({ file, open, onOpenChange }: FilePreviewDialo
                 <span>lines: {analysis.shape.line_count.toLocaleString()}</span>
                 <span>JSON-parseable: {analysis.shape.is_json_parseable ? "yes" : "no"}</span>
               </div>
+            </div>
+          )}
+
+          {dryrun && (
+            <div className="rounded-md border bg-muted/30 p-3 space-y-2 text-xs">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium">Parser candidates</span>
+                {dryrun.parser_id ? (
+                  <Badge variant="default">{dryrun.parser_id}</Badge>
+                ) : (
+                  <Badge variant="destructive">no parser claimed this file</Badge>
+                )}
+                <span className="text-muted-foreground">{dryrun.record_count} records</span>
+              </div>
+              {dryrun.attempts.length > 0 && (
+                <div className="space-y-1">
+                  {dryrun.attempts.map((attempt, i) => (
+                    <div key={`${attempt.tool}-${i}`} className="flex items-center gap-2">
+                      <Badge variant={attempt.ok ? "outline" : "secondary"} className="shrink-0">
+                        {attempt.ok ? "ok" : "skip"}
+                      </Badge>
+                      <span className="font-mono">{attempt.tool}</span>
+                      {attempt.confidence !== undefined && (
+                        <span className="text-muted-foreground">conf {attempt.confidence.toFixed(2)}</span>
+                      )}
+                      {attempt.error && <span className="text-destructive truncate">{attempt.error}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {dryrun.sample_records.length > 0 && (
+                <div>
+                  <p className="mb-1 font-medium">Sample records</p>
+                  <div className="max-h-40 space-y-1 overflow-y-auto">
+                    {dryrun.sample_records.map((sample, i) => (
+                      <pre key={i} className="overflow-x-auto rounded border bg-background p-1.5 whitespace-pre-wrap">
+                        {sample}
+                      </pre>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

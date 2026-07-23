@@ -371,7 +371,12 @@ export function RunDetailDialog({ runId, open, onOpenChange, onNavigateToRun }: 
         </DialogContent>
       </Dialog>
 
-      <StageDrawer stage={selectedStage} open={drawerOpen} onOpenChange={setDrawerOpen} />
+      <StageDrawer
+        stage={selectedStage}
+        open={drawerOpen}
+        onOpenChange={setDrawerOpen}
+        sha256={run?.sha256}
+      />
     </>
   );
 }

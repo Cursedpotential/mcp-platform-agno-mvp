@@ -1,4 +1,4 @@
-// Byline: Claude Code · Sonnet (agent) · 2026-07-21 (C2.7: file text/analyze added)
+// Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: records, schemas, verify, parse-dryrun, flags)
 /**
  * API client for the Knowledge Workbench.
  *
@@ -12,7 +12,16 @@ import type {
   CustodyTier,
   FileAnalysis,
   FileTextResponse,
+  Flag,
+  FlagCreateRequest,
+  FlagStatus,
+  FlagTargetKind,
+  FlagUpdateRequest,
   HealthDepsResponse,
+  ParseDryrunResponse,
+  RecordMetaPatch,
+  RecordRow,
+  RecordsListResponse,
   RetryFromStage,
   RunAbortResponse,
   RunContinueResponse,
@@ -21,10 +30,12 @@ import type {
   RunMode,
   RunRetryResponse,
   RunSummary,
+  SchemasResponse,
   StagedFile,
   StagedFileMeta,
   ToolServerGroup,
   UploadResponse,
+  VerifyResponse,
   Workflow,
 } from "./shared/types";
 
@@ -224,6 +235,110 @@ export async function retryRun(runId: string, fromStage?: RetryFromStage) {
     ...(fromStage
       ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify({ from_stage: fromStage }) }
       : {}),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Records (C3 — parse-quality review + curation)
+// ---------------------------------------------------------------------------
+
+export interface ListRecordsParams {
+  artifactId?: string;
+  runId?: string;
+  q?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export async function listRecords(params: ListRecordsParams = {}) {
+  const qs = new URLSearchParams();
+  if (params.artifactId) qs.set("artifact_id", params.artifactId);
+  if (params.runId) qs.set("run_id", params.runId);
+  if (params.q) qs.set("q", params.q);
+  if (params.limit) qs.set("limit", String(params.limit));
+  if (params.offset) qs.set("offset", String(params.offset));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return apiFetch<RecordsListResponse>(`/api/records${suffix}`);
+}
+
+/** Curation-only edit (title/labels/attrs_patch) — never touches evidence
+ * blobs/hashes. Returns the updated record row. */
+export async function patchRecordMeta(recordId: string, patch: RecordMetaPatch) {
+  return apiFetch<RecordRow>(`/api/records/${encodeURIComponent(recordId)}/meta`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Schemas (C3 — raw PG/Milvus inspection views)
+// ---------------------------------------------------------------------------
+
+export async function getSchemas() {
+  return apiFetch<SchemasResponse>("/api/schemas");
+}
+
+// ---------------------------------------------------------------------------
+// Verify (C3 — active hash verification)
+// ---------------------------------------------------------------------------
+
+export async function verifySha256(sha256: string) {
+  return apiFetch<VerifyResponse>(`/api/verify/${encodeURIComponent(sha256)}`, {
+    method: "POST",
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Parse dry-run (C3 — "the real parser candidates")
+// ---------------------------------------------------------------------------
+
+/** Dry-run parse an already-staged file by sha256 — no run is created. */
+export async function parseDryrunSha(sha256: string) {
+  return apiFetch<ParseDryrunResponse>("/api/runs/parse-dryrun", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sha256 }),
+  });
+}
+
+/** Dry-run parse a fresh, not-yet-staged file — no run is created. */
+export async function parseDryrunFile(file: File) {
+  const formData = new FormData();
+  formData.append("file", file);
+  return apiFetch<ParseDryrunResponse>("/api/runs/parse-dryrun", { method: "POST", body: formData });
+}
+
+// ---------------------------------------------------------------------------
+// Corroboration flags (C3 — requirements addendum 6)
+// ---------------------------------------------------------------------------
+
+export interface ListFlagsParams {
+  status?: FlagStatus;
+  targetKind?: FlagTargetKind;
+}
+
+export async function listFlags(params: ListFlagsParams = {}) {
+  const qs = new URLSearchParams();
+  if (params.status) qs.set("status", params.status);
+  if (params.targetKind) qs.set("target_kind", params.targetKind);
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return apiFetch<Flag[]>(`/api/flags${suffix}`);
+}
+
+export async function createFlag(payload: FlagCreateRequest) {
+  return apiFetch<Flag>("/api/flags", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateFlag(flagId: string, patch: FlagUpdateRequest) {
+  return apiFetch<Flag>(`/api/flags/${encodeURIComponent(flagId)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
   });
 }
 
