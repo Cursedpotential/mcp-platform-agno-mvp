@@ -74,7 +74,7 @@ import json
 import logging
 import time
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Awaitable, cast
 
 from agno.workflow import Step, Workflow
 from agno.workflow.types import OnError, StepInput, StepOutput
@@ -260,6 +260,9 @@ def _wrap_step_for_run_control(
     never show 'pending' rows once a run has a terminal status.
     """
     already_wrapped = step.executor
+    assert already_wrapped is not None, (
+        "_wrap_step_for_run_control must run after _wrap_step_for_ledger has set step.executor"
+    )
     name = step.name
 
     from server.evidence.run_ledger import read_gate, set_gate, skip_remaining_stages
@@ -271,7 +274,12 @@ def _wrap_step_for_run_control(
 
     @functools.wraps(already_wrapped)
     async def _control_wrapped(step_input: StepInput, **kwargs: Any) -> StepOutput:
-        result = await already_wrapped(step_input, **kwargs)  # runs stage_start/executor/stage_finish
+        # already_wrapped is the ledger-wrapped executor set by _wrap_step_for_ledger,
+        # which is always an async function (agno's StepExecutor type is broader —
+        # sync/generator variants — but ours is never one of those).
+        result = await cast(
+            Awaitable[StepOutput], already_wrapped(step_input, **kwargs)
+        )  # runs stage_start/executor/stage_finish
         if not getattr(result, "success", True):
             return result  # this stage already failed on its own — nothing to gate
 
