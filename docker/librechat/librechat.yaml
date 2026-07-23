@@ -27,10 +27,14 @@ endpoints:
 # (the tailnet AgentOS door) while keeping the default policy for everything else.
 mcpSettings:
   allowedAddresses:
-    - "100.72.169.40:8001"
+    - "100.72.169.40:8000"
 
 mcpServers:
   agentos:
     type: streamable-http
-    url: "http://100.72.169.40:8001/mcp"
+    # agno 2.8: agentos-mcp (:8001) retired; mounted /mcp on the api (:8000),
+    # gated by the OS_SECURITY_KEY bearer (env-interpolated, never in-file).
+    url: "http://100.72.169.40:8000/mcp"
+    headers:
+      Authorization: "Bearer ${AGENTOS_MCP_TOKEN}"
     timeout: 120000
