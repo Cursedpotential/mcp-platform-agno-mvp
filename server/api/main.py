@@ -18,6 +18,7 @@ Hard rules:
 - The root Router (mode="route") is the primary entry point.
 """
 # Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3 spine boot resilience — KnowledgeHandle wired in place of a direct create_knowledge() call; register_inspect_routes added)
+# Byline: Claude Code · Sonnet · 2026-07-23 (agno 2.8 service accounts — AgentOS admin-plane db switched from SurrealDb to a dedicated PostgresDb; agents/teams keep SurrealDb unchanged)
 
 from __future__ import annotations
 
@@ -36,7 +37,7 @@ from server.agents.factory import build_agent_team
 from server.agents.providers import build_context, build_learning
 from server.core.knowledge_handle import KnowledgeHandle, resolve_knowledge
 from server.core.settings import build_model
-from server.core import create_knowledge, get_agno_db
+from server.core import create_knowledge, get_agno_db, get_postgres_db
 from server.core.url import db_url
 
 # ---------------------------------------------------------------------------
@@ -176,6 +177,26 @@ def _build_app() -> Any:
     """
     model = build_model()
     db = get_agno_db()
+    # AgentOS's OWN admin-plane db (agno 2.7+: service accounts, schedules,
+    # approvals, components; also the tracing write-sink) — separate from
+    # `db` above, which is what every agent/team explicitly sets as ITS OWN
+    # `db=` (SurrealDb, the operational store; unaffected by this). agno's
+    # admin routers (agno/os/routers/service_accounts, schedules, approvals,
+    # components) all key off `AgentOS(db=...)` alone via `os_db=self.db`
+    # — there is no per-feature override — and SurrealDb's backend does not
+    # implement the service-account methods (`create_service_account` etc.
+    # simply don't exist on it), so the router 503s with "Service accounts
+    # not supported by the configured database". PostgresDb does implement
+    # them, and agno's own `_create_all_tables()` (auto_provision_dbs=True,
+    # the default) already provisions `ai.agno_service_accounts` natively —
+    # no hand-DDL — via the SAME auto-provisioning pass already triggered by
+    # the Knowledge contents_db below (verified live: table exists, 0 rows,
+    # columns match `agno.db.schemas.service_accounts.ServiceAccount`).
+    # Sessions/traces stay visible: their routers aggregate across every
+    # registered db (`self.dbs`), and SurrealDb stays registered because
+    # each agent/team keeps its own explicit `db=db` (SurrealDb) below —
+    # this only redirects the OS-level admin surface + future trace writes.
+    admin_db = get_postgres_db()
     _knowledge_handle.try_connect_now()  # never raises — see server/core/knowledge_handle.py
     knowledge = _knowledge_handle.instance  # may be None; agents/AgentOS get this ONE-TIME snapshot (see docstring)
     learning = build_learning(db, model, knowledge)
@@ -213,7 +234,7 @@ def _build_app() -> Any:
     agent_os = AgentOS(
         name="AgentOS",
         id="mcp-forensic-platform",
-        db=db,
+        db=admin_db,  # OS admin plane (service accounts/schedules/approvals/components) — see note above `admin_db = get_postgres_db()`
         agents=solo_agents,
         teams=teams,  # type: ignore[arg-type]  # invariant list[Team|...]; list[Team] is safe here
         # C3 addendum 9: `knowledge` is the one-time boot snapshot (may be
