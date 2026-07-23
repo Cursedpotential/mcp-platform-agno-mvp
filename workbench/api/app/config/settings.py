@@ -42,8 +42,11 @@ class Settings(BaseSettings):
     # build brief assumed. Update MCP_SERVERS with the real registered
     # virtual-server URL (e.g. for "platform_tools") once known, and set
     # CONTEXTFORGE_TOKEN to a minted JWT.
+    # agentos url uses :8000/mcp (agentos-api's mounted MCP surface) — the
+    # standalone agentos-mcp service (:8001) was retired 2026-07-23, its
+    # mounted-/mcp bug fixed upstream in agno 2.8.0.
     mcp_servers: str = (
-        '[{"key":"agentos","label":"AgentOS","url":"http://100.72.169.40:8001/mcp"},'
+        '[{"key":"agentos","label":"AgentOS","url":"http://100.72.169.40:8000/mcp"},'
         '{"key":"contextforge","label":"ContextForge","url":"http://100.72.169.40:4444/mcp"}]'
     )
     contextforge_token: str | None = None

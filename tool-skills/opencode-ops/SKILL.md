@@ -22,7 +22,7 @@ you want one of the platform's own agents to act.
 |---|---|---|
 | OpenCode headless server | `http://100.72.169.40:4096` (`OC_SERVER`) | none currently (tailnet-only) |
 | agentos-api (REST) | `http://100.72.169.40:8000` (`OC_AGENTOS_URL`) | Bearer `OS_SECURITY_KEY`, parsed from `C:\Users\matts\.secrets\infra-access.md` |
-| agentos-mcp (JSON-RPC) | `http://100.72.169.40:8001/mcp` (`OC_AGENTOS_MCP_URL`) | none |
+| agentos MCP (JSON-RPC, mounted on agentos-api) | `http://100.72.169.40:8000/mcp` (`OC_AGENTOS_MCP_URL`) | none — standalone `agentos-mcp` service on :8001 retired 2026-07-23, agno 2.8.0 fixed the mounted-`/mcp` bug it worked around |
 | ContextForge MCP (federated catalog) | `http://100.72.169.40:4444/mcp` (`OC_CONTEXTFORGE_MCP_URL`) | Bearer `CF_MCP_CLIENT_TOKEN`, parsed from `~/.secrets/contextforge.env` |
 | Graphiti memory | — | use the sibling **`grc`** CLI (graphiti-client skill) — do not duplicate |
 
