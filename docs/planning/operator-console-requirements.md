@@ -47,8 +47,15 @@ skipped}.
    them as inspectable stages when they exist (NOT claimable before).
 2. **Hash verification (active)**: custody drawer "Verify" action → spine
    endpoint re-fetches blob, recomputes sha256, and for evidence-tier runs
-   walks the H1/H2/H3 chain (H3 = sha256(prev_hex + h2_hex), genesis = H1),
-   returns intact/broken + failing link. Verification logic lives spine-side.
+   walks the H3 chain, returns intact/broken + failing link. Verification
+   logic lives spine-side. **H3 canon CORRECTED 2026-07-22** (C3 spine agent,
+   ground truth = vendored/sbv/CUSTODY.md + custody.go, test-proven): chain_0
+   = "" (empty string, NOT H1) and chain_i = sha256(chain_{i-1} + "\n" +
+   H2_i) — H1 never enters the fold. The earlier "H3 = sha256(prev_hex +
+   h2_hex), genesis = H1" formula (also in the custody memory) was WRONG.
+   Note: only reconcile_sbv_import batches carry H2/H3 rows; plain
+   ingest_artifact custody is sha256-only → verify reports 'hash-only-ok',
+   never 'broken', when no chain exists.
    **Two-tier custody (owner decision 2026-07-20)**: knowledge-lane pours
    (platform docs, AI-chat story) need ONLY whole-file sha256 + R2 blob copy
    — integrity ("whole thing made it in") + dedupe; no evidence-schema chain
@@ -107,6 +114,22 @@ skipped}.
    corroborated fact) for Part-2 passes. Immutability: flags are metadata,
    never mutate evidence.
 
+7. **Domain is a routing HINT, not a classification (owner 2026-07-21)**: the
+   single-domain select at intake/new-run contradicts the locked canon rule
+   (conversations span all domains; tagging is SEGMENT/TURN-level TopicTag,
+   never per-conversation). UI: relabel the select "initial routing (whole-doc
+   copy) — segment smart-tags come from the analysis lane", keep a sane
+   default per source type. Real assignment = D-series: deterministic ML
+   passes first, LLM smart-tagging behind them (model via C4.5 bench),
+   multi-domain routing of segments. Manual single-domain = fallback only.
+8. **Tools page needs curation (owner 2026-07-21)**: 88 raw schemas is a
+   catalog, not a work surface. Add: full descriptions prominently rendered,
+   capability grouping, curated "starter shelf" (run_agent/run_team/
+   run_workflow, knowledge search, SBV facade ops, graphiti search, custody/
+   evidence ops) pinned first, per-tool example payloads (schema defaults +
+   saved examples), collapse the long tail behind search, and a "recently
+   used" row. Later: cached LLM-written help per tool.
+
 ## Sequencing
 C0 ledger+runs API → C1 Run Console fire-and-watch + Tools page + Intake
 (FIRST LIGHT) → C2 supervised gates + retry-stage → C2.5 Copilot lane
@@ -115,6 +138,17 @@ corroboration flags, raw PG/Milvus schema views → C4 knowledge browser +
 Graphiti pane + corroboration queue → C4.5 Model Compare bench (addendum 4)
 → C5 bulk pours + agent/team forms → D-series extraction lane + flag
 auto-suggestion (addenda 5–6).
+
+9. **Spine boot resilience (found 2026-07-21)**: agentos-api hard-crashes at
+   startup when Milvus is unreachable (create_knowledge eager-connects) —
+   an outage in the vector store takes the WHOLE API down, including routes
+   that don't need Milvus (runs ledger, evidence import). Harden: lazy/
+   tolerant knowledge init (retry in background, serve non-knowledge routes
+   immediately, health/deps reports milvus=error). Related infra fix APPLIED
+   2026-07-21: data-vector Coolify app had NO watch paths (every main push
+   bounced Milvus → etcd leader-change boot-race crash loop); now scoped to
+   compose.data-vector.yaml + milvus-coolify/**. Remaining: etcd boot-race
+   itself (embedded etcd tuning — election/heartbeat timeouts) still open.
 
 ## Standing blockers (at time of writing)
 - Milvus `platform_knowledge` recreate (1024-d→4096-d) — owner-gated; blocks
