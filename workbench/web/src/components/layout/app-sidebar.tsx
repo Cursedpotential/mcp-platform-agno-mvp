@@ -1,9 +1,9 @@
-// Byline: Claude Code · Sonnet (agent) · 2026-07-20
+// Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: Records/Evidence Queue/Schemas nav entries + open-flags badge)
 "use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { PlayCircle, Wrench, Inbox, Brain } from "lucide-react";
+import { PlayCircle, Wrench, Inbox, Brain, FileSearch, ListChecks, Database } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -18,13 +18,18 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import { useFailedRunsCount } from "@/lib/failed-runs-context";
+import { useOpenFlagsCount } from "@/lib/open-flags-context";
 
-// C1 Operator Console nav: Runs (default landing) -> Tools -> Intake.
-// "Files"/"Upload" retired — see _stale/upload-page-pre-c1/ for the old route.
+// C1/C3 Operator Console nav: Runs (default landing) -> Records -> Tools ->
+// Intake -> Evidence Queue -> Schemas. "Files"/"Upload" retired — see
+// _stale/upload-page-pre-c1/ for the old route.
 const navItems = [
   { title: "Runs", href: "/runs", icon: PlayCircle },
+  { title: "Records", href: "/records", icon: FileSearch },
   { title: "Tools", href: "/tools", icon: Wrench },
   { title: "Intake", href: "/intake", icon: Inbox },
+  { title: "Evidence Queue", href: "/evidence-queue", icon: ListChecks },
+  { title: "Schemas", href: "/schemas", icon: Database },
 ];
 
 export function AppSidebar() {
@@ -32,6 +37,8 @@ export function AppSidebar() {
   // C2.6 requirement 3: red count badge of failed runs on the "Runs" nav
   // item, driven by the list poll in lib/failed-runs-context.tsx.
   const failedRunsCount = useFailedRunsCount();
+  // C3: same pattern for open corroboration flags on "Evidence Queue".
+  const openFlagsCount = useOpenFlagsCount();
 
   return (
     <Sidebar>
@@ -59,6 +66,11 @@ export function AppSidebar() {
                       {failedRunsCount > 99 ? "99+" : failedRunsCount}
                     </SidebarMenuBadge>
                   )}
+                  {item.href === "/evidence-queue" && openFlagsCount > 0 && (
+                    <SidebarMenuBadge className="bg-amber-500 text-white">
+                      {openFlagsCount > 99 ? "99+" : openFlagsCount}
+                    </SidebarMenuBadge>
+                  )}
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>
@@ -67,7 +79,7 @@ export function AppSidebar() {
       </SidebarContent>
       <SidebarFooter className="border-t px-4 py-3">
         <span className="text-xs text-muted-foreground">
-          C1 Operator Console — drive the pipeline
+          Operator Console — drive the pipeline
         </span>
       </SidebarFooter>
     </Sidebar>
