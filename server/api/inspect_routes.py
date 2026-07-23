@@ -520,14 +520,21 @@ def _register_parse_dryrun_route(app: FastAPI) -> None:
         if file is None and not sha256:
             raise HTTPException(422, "provide either a multipart file or {sha256}")
 
-        from server.evidence.run_ledger import get_run
+        if run_id == "new":
+            # Sentinel used by the console for staged files with no run yet
+            # (workbench service/runs.py::parse_dryrun): no ledger lookup —
+            # default to the bootstrap vertical's parser capability.
+            workflow = "chat-transcript"
+        else:
+            from server.evidence.run_ledger import get_run
 
-        run = get_run(run_id)
-        if run is None:
-            raise HTTPException(404, f"run {run_id!r} not found")
-        capability = _CAPABILITY_FOR_WORKFLOW.get(run["workflow"])
+            run = get_run(run_id)
+            if run is None:
+                raise HTTPException(404, f"run {run_id!r} not found")
+            workflow = run["workflow"]
+        capability = _CAPABILITY_FOR_WORKFLOW.get(workflow)
         if capability is None:
-            raise HTTPException(422, f"run {run_id!r} has unknown workflow {run['workflow']!r}")
+            raise HTTPException(422, f"unknown workflow {workflow!r}")
 
         tmpdir = Path(tempfile.mkdtemp(prefix="parse-dryrun-"))
         try:
