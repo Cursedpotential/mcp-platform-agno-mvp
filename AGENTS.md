@@ -13,7 +13,7 @@ bitemporal graph. AI Legal Team (to build).
 
 ## Stack
 
-Agno 2.6.13 · PostgreSQL 18 (pg_duckdb + pgvector + PostGIS) · Neo4j + Graphiti
+Agno 2.8 · PostgreSQL 18 (pg_duckdb + pgvector + PostGIS) · Neo4j + Graphiti
 · LiteLLM gateway (Ollama Cloud primary) · Milvus vectors · SurrealDB operational
 store · FastAPI base_app pattern.
 

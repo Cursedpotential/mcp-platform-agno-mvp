@@ -5,7 +5,7 @@ description: Operate the platform's headless OpenCode server plus its surroundin
 
 # opencode-ops — `oc` CLI
 
-> _Byline: Claude Code · Sonnet · 2026-07-20_
+> _Byline: Claude Code · Sonnet · 2026-07-20 (agno 2.8 MCP door migration :8001->:8000 + bearer, 2026-07-23)_
 
 ## Canon role
 
@@ -22,7 +22,7 @@ you want one of the platform's own agents to act.
 |---|---|---|
 | OpenCode headless server | `http://100.72.169.40:4096` (`OC_SERVER`) | none currently (tailnet-only) |
 | agentos-api (REST) | `http://100.72.169.40:8000` (`OC_AGENTOS_URL`) | Bearer `OS_SECURITY_KEY`, parsed from `C:\Users\matts\.secrets\infra-access.md` |
-| agentos-mcp (JSON-RPC) | `http://100.72.169.40:8001/mcp` (`OC_AGENTOS_MCP_URL`) | none |
+| agentos-mcp (JSON-RPC, agno 2.8: mounted `/mcp` on agentos-api's own port — agentos-mcp :8001 RETIRED) | `http://100.72.169.40:8000/mcp` (`OC_AGENTOS_MCP_URL`) | Bearer `OS_SECURITY_KEY` (same as the REST lane above) |
 | ContextForge MCP (federated catalog) | `http://100.72.169.40:4444/mcp` (`OC_CONTEXTFORGE_MCP_URL`) | Bearer `CF_MCP_CLIENT_TOKEN`, parsed from `~/.secrets/contextforge.env` |
 | Graphiti memory | — | use the sibling **`grc`** CLI (graphiti-client skill) — do not duplicate |
 
