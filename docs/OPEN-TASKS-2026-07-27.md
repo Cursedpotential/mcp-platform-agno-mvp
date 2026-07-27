@@ -9,6 +9,11 @@
 1. **Detection matcher fix** (`server/analysis/detection.py`) — Unicode-apostrophe canonicalization w/ offset map, word boundaries, dry-run diff acceptance test; add `deflection_of_accountability` category. Cheap, measurable, gates cycle detection.
 2. **Vector substrate decision** — now ADR-0040 (Weaviate leading vs pgvector vs keep-Milvus). Needs: owner's Milvus symptom list, Weaviate RAM check, migration plan, researched gains/losses breakdown (still owed from 07-13 chat).
 
+## Deployed 2026-07-27 ✅
+- **data-weaviate LIVE** on ovh-data: uuid `h5hrvmcs84no9g1ubl0jr0pw`, host **:8081** REST (8080 is coolify-proxy's) + :50051 gRPC, `/v1/.well-known/ready` = 200, healthy. Fixes en route: CLUSTER_ADVERTISE_ADDR=127.0.0.1 (single-node memberlist), host-port move 8080→8081. Compose: `deploy/data-weaviate.yaml` @ `infra/data-weaviate-memgql`.
+- **data-memgql LIVE** on ovh-data: uuid `is1z1b0v0j6s842gggak5iew`, Bolt **:7688** open, multi-connection mode. Compose: `deploy/data-memgql.yaml` @ same branch.
+- Next: MemGQL connector attach (data-pg/Neo4j/DuckDB) · Milvus→Weaviate 4096-d vector export · Weaviate auth hardening (currently anonymous, tailnet-only) · pin Weaviate image tag (running 1.39.0-rc.0 via :latest — pin a stable tag) · DozerDB swap prep (backup first) · merge `infra/data-weaviate-memgql` → main when settled.
+
 ## New direction (owner, 2026-07-27)
 - **Memgraph temporal GraphRAG layer** — ADR-0041 (additive; Neo4j/DozerDB and all current storage stays). Evaluate **Memgraph Zero** (federated zero-ETL over PG/DuckDB/Neo4j) first; fall back to classic-Memgraph projection. Orchestration: LangGraph + LangChain or LlamaIndex (pick at first retrieval-tool build).
 - Memgraph official skills installed user-level (`~/.memgraph-skills` → junctions in `~/.claude/skills/memgraph-*`). ✅ done 07-27.
