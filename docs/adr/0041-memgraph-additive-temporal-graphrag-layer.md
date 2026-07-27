@@ -13,6 +13,10 @@ Owner (2026-07-27) wants "a real temporal graph RAG" and proposes Memgraph — e
 
 Memgraph enters read-side only, never as a system of record. Two variants, A preferred pending evaluation:
 
+**LICENSING GATE PASSED (2026-07-27): MemGQL Community is FREE** — includes GQL→Cypher and
+GQL→SQL translation, Bolt interface, all eight connector types, multi-connection mode, and an
+**MCP server** (which slots directly into the Agno-native tool plan). Variant A is GO.
+
 **Variant A — Memgraph Zero (federated, zero-ETL).** Owner-surfaced 2026-07-27
 (memgraph.com/docs/memgraph-zero): MemGQL federated engine queries data *in place* across
 PostgreSQL, DuckDB, Neo4j (and others) — exactly this stack. No sync job, no copy, no

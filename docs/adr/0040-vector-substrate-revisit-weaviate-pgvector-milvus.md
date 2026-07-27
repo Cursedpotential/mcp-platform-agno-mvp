@@ -36,7 +36,9 @@ documented 07-21→23 etcd outage this settles the demotion.
 
 ## Remaining execution steps
 
-1. Weaviate resource profile on the target node (verify RAM at current corpus scale).
+1. ~~Weaviate resource profile~~ ✅ 2026-07-27: data node has 7.6 GiB total / 4.1 GiB available
+   (Milvus itself only 760 MiB; Neo4j 1 GiB is the biggest tenant). Corpus is small — Weaviate
+   footprint at this scale ≈ 300–500 MiB. Fits comfortably even with Milvus still standing.
 2. Migration: re-embed-free export of existing 4096-d vectors Milvus → Weaviate (dims preserved).
 3. Cutover platform consumers (knowledge pipeline) → verify search parity.
 4. **Milvus stays STOOD UP but sidelined** (owner 2026-07-27): at least one MCP (memsearch lane)
