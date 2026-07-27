@@ -13,6 +13,10 @@
 - **Memgraph temporal GraphRAG layer** — ADR-0041 (additive; Neo4j/DozerDB and all current storage stays). Evaluate **Memgraph Zero** (federated zero-ETL over PG/DuckDB/Neo4j) first; fall back to classic-Memgraph projection. Orchestration: LangGraph + LangChain or LlamaIndex (pick at first retrieval-tool build).
 - Memgraph official skills installed user-level (`~/.memgraph-skills` → junctions in `~/.claude/skills/memgraph-*`). ✅ done 07-27.
 
+## New (owner, 2026-07-27 session close)
+- **TraceIQ → Agno knowledge base tie-in** — the Agno knowledge layer (Graphiti/vectors/AgentOS) currently has ZERO awareness of TraceIQ data (documented in traceiq ADR-0015). Wire TraceIQ-derived facts (home bases, patterns, labels) into the knowledge layer with provenance pointers back to deterministic rows + "prove it landed" node-count gate. This is the Evidence → Analysis → **Legal Team** tier.
+- **AgentOS UI: knowledge + memory features broken** — on first open of AgentOS, many features (specifically knowledge and memory surfaces) weren't working. Diagnose and fix; likely config/wiring between AgentOS UI and the knowledge/memory backends. Owner-reported, unscoped — needs a repro pass first.
+
 ## Carried blockers (07-13 handoff)
 - **ContextForge transport check** — Streamable HTTP vs SSE-only upstream; closes ADR-0037 blocker (Graphiti auth door, retire no-auth nginx :8071).
 - **Identity-spine verification** — does resolution stamp entity keys onto `analysis.normalized_record` at write time? Read `normalize.py` + entity tables.
