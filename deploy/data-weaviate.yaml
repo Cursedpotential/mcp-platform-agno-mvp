@@ -17,6 +17,9 @@ services:
       DEFAULT_VECTORIZER_MODULE: none   # embeddings are supplied by the platform (nv-embed-v1 4096-d)
       ENABLE_MODULES: ""
       CLUSTER_HOSTNAME: node1
+      # single-node: memberlist can't infer a private IP on the Coolify network
+      CLUSTER_ADVERTISE_ADDR: 127.0.0.1
+      CLUSTER_ADVERTISE_PORT: "7946"
       DISK_USE_READONLY_PERCENTAGE: "95"
     volumes:
       - weaviate-data:/var/lib/weaviate
