@@ -1,0 +1,31 @@
+# Open tasks — consolidated 2026-07-27
+
+> _Byline: Claude Code · Fable 5 · 2026-07-27_
+> Sources: SESSION-HANDOFF-2026-07-13.md (claude.ai export recovered from Downloads),
+> July 21–27 session logs, owner directives 2026-07-27. Supersedes the STILL-TO-DO
+> section of the 07-13 handoff where they conflict.
+
+## Highest value next (per 07-13 handoff, still true)
+1. **Detection matcher fix** (`server/analysis/detection.py`) — Unicode-apostrophe canonicalization w/ offset map, word boundaries, dry-run diff acceptance test; add `deflection_of_accountability` category. Cheap, measurable, gates cycle detection.
+2. **Vector substrate decision** — now ADR-0040 (Weaviate leading vs pgvector vs keep-Milvus). Needs: owner's Milvus symptom list, Weaviate RAM check, migration plan, researched gains/losses breakdown (still owed from 07-13 chat).
+
+## New direction (owner, 2026-07-27)
+- **Memgraph temporal GraphRAG layer** — ADR-0041 (additive; Neo4j/DozerDB and all current storage stays). Evaluate **Memgraph Zero** (federated zero-ETL over PG/DuckDB/Neo4j) first; fall back to classic-Memgraph projection. Orchestration: LangGraph + LangChain or LlamaIndex (pick at first retrieval-tool build).
+- Memgraph official skills installed user-level (`~/.memgraph-skills` → junctions in `~/.claude/skills/memgraph-*`). ✅ done 07-27.
+
+## Carried blockers (07-13 handoff)
+- **ContextForge transport check** — Streamable HTTP vs SSE-only upstream; closes ADR-0037 blocker (Graphiti auth door, retire no-auth nginx :8071).
+- **Identity-spine verification** — does resolution stamp entity keys onto `analysis.normalized_record` at write time? Read `normalize.py` + entity tables.
+
+## Housekeeping
+- Commit ADR drafts **0036–0041** + SESSION-HANDOFF-2026-07-13.md (all uncommitted on `docs/adr-graphiti-memory`).
+- **ADR-0034 stranded** on unmerged `docs/adr-0033-0034-evidence-model` — merge or re-home.
+- Verify traceIQ PR push landed (repo slimmed 3.4 GB→276 MB, push in flight 07-27 ~10:04).
+- Standing rotations: Coolify API token, OS_SECURITY_KEY.
+
+## TraceIQ lane (separate repo)
+- Distance-weighted agreement matrix / conflation resolution (designed, unbuilt; 543 same-sec collisions, 16 >1000 mph pairs).
+- UI build (pre-UI; mockups + build brief committed; ADR-0015 hybrid agent-brain).
+
+## Analysis roadmap (unchanged)
+① Antecedent reconstruction → ② cycle detection (provocation→reaction→selective-capture; frequency = intent) → ③ documentation-gap detection. Memgraph layer (ADR-0041) is the compute engine candidate for ② .
