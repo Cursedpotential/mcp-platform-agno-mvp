@@ -8,7 +8,7 @@ services:
     image: semitechnologies/weaviate:latest
     command: ["--host", "0.0.0.0", "--port", "8080", "--scheme", "http"]
     ports:
-      - "8080:8080"   # REST/GraphQL
+      - "8081:8080"   # REST/GraphQL (host 8081 — 8080 is held by coolify-proxy)
       - "50051:50051" # gRPC
     environment:
       QUERY_DEFAULTS_LIMIT: "25"
