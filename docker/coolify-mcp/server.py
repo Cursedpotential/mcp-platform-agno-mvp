@@ -418,19 +418,31 @@ def create_application(
             recoverable=True,
             data={"allowed": ["dockercompose"]},
         )
+    # Coolify 4.1.2: plain POST /applications was removed (404). App creation goes
+    # through POST /applications/private-github-app with github_app_uuid (string),
+    # discovered via GET /github-apps (verified live 2026-07-27).
+    apps = _request("GET", "/github-apps") or []
+    private = [a for a in apps if not a.get("is_public")]
+    if not (private or apps):
+        raise ToolExecutionError(
+            "NOT_FOUND", "No GitHub app sources configured on this Coolify instance.",
+            recoverable=False,
+        )
+    github_app_uuid = (private or apps)[0]["uuid"]
     body = {
-        "type": type,
         "project_uuid": project_uuid,
         "server_uuid": server_uuid,
-        "name": name,
-        "description": description,
-        "docker_compose_location": docker_compose_location,
+        "environment_name": "production",
+        "github_app_uuid": github_app_uuid,
         "git_repository": git_repository,
         "git_branch": git_branch,
-        "github_app_id": github_app_id,
-        "source": {"github_app_id": github_app_id},
+        "build_pack": "dockercompose",
+        "docker_compose_location": docker_compose_location,
+        "name": name,
+        "description": description,
+        "instant_deploy": False,
     }
-    return _request("POST", "/applications", json_body=body)
+    return _request("POST", "/applications/private-github-app", json_body=body)
 
 
 @mcp.tool()
@@ -596,6 +608,209 @@ def check_port_collision(port: int, server_uuid: str | None = None) -> dict:
         "apps": hits,
         "next_actions": next_actions,
     }
+
+
+
+@mcp.tool()
+def deploy_application(uuid: str, force: bool = False) -> dict:
+    """Trigger a deployment for an application (or database/service) by UUID.
+
+    Uses GET /deploy?uuid=&force= (POST with JSON body {"uuid","force"} is also
+    accepted by the API; GET+query is used here since it needs no body).
+
+    When to use
+    -----------
+    - After upsert_application_envs, to bake new env values into the running
+      container (Coolify renders env into compose at deploy time — env
+      changes do NOT reach the container until a redeploy).
+    - After changing git_branch/docker_compose_location via the Coolify UI.
+    - Redeploying the current commit (force=False reuses cache where possible;
+      force=True does a clean rebuild).
+
+    Parameters
+    ----------
+    uuid : str    # application (or db/service) UUID
+    force : bool  # force rebuild without cache (default False)
+
+    Returns
+    -------
+    dict — {"message": "...", "deployment_uuid": "..."}. Pass deployment_uuid
+    to get_deployment to poll status/logs.
+    """
+    return _request("GET", "/deploy", params={"uuid": uuid, "force": "true" if force else "false"})
+
+
+@mcp.tool()
+def restart_application(uuid: str) -> dict:
+    """Restart a running application by UUID (stop + start; rebuilds from current image).
+
+    Do / Don't
+    ----------
+    Do: use this for a quick container bounce (e.g. picking up a restarted
+        dependency) when you do NOT need a fresh build.
+    Don't: use this expecting new env values to apply from a compose baked at
+        an earlier deploy — use deploy_application for that.
+
+    Returns
+    -------
+    dict — {"message": "Restart request queued.", "deployment_uuid": "..."}
+    """
+    return _request("GET", f"/applications/{uuid}/restart")
+
+
+@mcp.tool()
+def stop_application(uuid: str, docker_cleanup: bool = True) -> dict:
+    """Stop a running application by UUID.
+
+    Parameters
+    ----------
+    uuid : str
+    docker_cleanup : bool  # prune networks/volumes after stop (API default True)
+
+    Do / Don't
+    ----------
+    Do: check_port_collision first if you're stopping one app to free a port
+        for another (this IS the "stop the old app" step in that workflow).
+    Don't: docker-stop the container manually outside Coolify — Coolify owns
+        the container lifecycle and will fight a manually-stopped container
+        on its next reconciliation pass, leaving it in a confused state.
+
+    Returns
+    -------
+    dict — {"message": "Application stopping request queued."}
+    """
+    return _request("GET", f"/applications/{uuid}/stop", params={"docker_cleanup": "true" if docker_cleanup else "false"})
+
+
+@mcp.tool()
+def start_application(uuid: str, force: bool = False, instant_deploy: bool = False) -> dict:
+    """Start a stopped application by UUID (deploys and starts containers).
+
+    Parameters
+    ----------
+    uuid : str
+    force : bool           # force rebuild
+    instant_deploy : bool  # skip the deploy queue
+
+    Do / Don't
+    ----------
+    Don't: use `docker start <container>` directly on a Coolify-managed
+    container — Coolify tracks desired state itself; starting outside the API
+    creates an orphan container Coolify doesn't know is running (verified
+    local lesson — leads to port conflicts and duplicate containers on the
+    next Coolify-triggered deploy). Always start/stop through this tool or
+    the Coolify UI.
+
+    Returns
+    -------
+    dict — {"message": "...", "deployment_uuid": "..."} (may be None if the
+    app was already running).
+    """
+    return _request(
+        "GET",
+        f"/applications/{uuid}/start",
+        params={"force": "true" if force else "false", "instant_deploy": "true" if instant_deploy else "false"},
+    )
+
+
+@mcp.tool()
+def get_deployment(deployment_uuid: str) -> dict:
+    """Get one deployment's status and logs by deployment UUID, with errors pre-extracted.
+
+    The raw `logs` field from the API is a JSON-encoded STRING of an array of
+    log-line objects (not a plain string, not pre-parsed JSON) — this tool
+    parses it and surfaces the tail + any error-looking lines so you don't
+    have to re-parse it yourself every call.
+
+    Parameters
+    ----------
+    deployment_uuid : str  # from deploy_application / restart_application /
+                            # start_application response, or list_deployments_for_app
+
+    Requires
+    --------
+    The API token needs `read:sensitive` permission to see the `logs` field —
+    without it, Coolify strips logs from the response (removeSensitiveData()).
+
+    Returns
+    -------
+    dict
+        {
+          deployment_uuid, status, application_id, server_id,
+          log_line_count: int,
+          last_lines: list[str],       # tail of the log (up to 40 lines)
+          error_lines: list[str],      # lines containing error/fail/exception (case-insens.)
+          raw_logs_available: bool,    # False if token lacks read:sensitive
+        }
+    """
+    d = _request("GET", f"/deployments/{deployment_uuid}") or {}
+    raw = d.get("logs")
+    last_lines: list[str] = []
+    error_lines: list[str] = []
+    count = 0
+    if isinstance(raw, str) and raw:
+        try:
+            entries = json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            entries = None
+        if isinstance(entries, list):
+            count = len(entries)
+            texts = []
+            for e in entries:
+                if isinstance(e, dict):
+                    texts.append(str(e.get("output") or e.get("message") or e))
+                else:
+                    texts.append(str(e))
+            last_lines = texts[-40:]
+            error_lines = [t for t in texts if re.search(r"error|fail|exception", t, re.IGNORECASE)][-40:]
+    return {
+        "deployment_uuid": d.get("deployment_uuid", deployment_uuid),
+        "status": d.get("status"),
+        "application_id": d.get("application_id"),
+        "server_id": d.get("server_id"),
+        "log_line_count": count,
+        "last_lines": last_lines,
+        "error_lines": error_lines,
+        "raw_logs_available": raw is not None,
+    }
+
+
+@mcp.tool()
+def list_deployments_for_app(uuid: str, skip: int = 0, take: int = 10) -> list:
+    """List past/current deployments for one application by app UUID.
+
+    GET /deployments/applications/{uuid} — separate from GET /deployments
+    (which only lists deployments currently queued/in-progress across the
+    whole team, not scoped to one app).
+
+    Parameters
+    ----------
+    uuid : str   # application UUID (not deployment_uuid)
+    skip : int   # pagination offset (default 0)
+    take : int   # page size (default 10)
+    """
+    return _request("GET", f"/deployments/applications/{uuid}", params={"skip": skip, "take": take}) or []
+
+
+@mcp.tool()
+def get_application_logs(uuid: str, lines: int = 100) -> dict:
+    """Get recent runtime container logs for an application by UUID.
+
+    This is CONTAINER STDOUT/STDERR (GET /applications/{uuid}/logs), distinct
+    from deployment build logs (get_deployment). Use this for "why is my app
+    crashing at runtime"; use get_deployment for "why did the build fail."
+
+    Parameters
+    ----------
+    uuid : str
+    lines : int  # number of lines from the end of the log (API default 100)
+
+    Requires
+    --------
+    Token needs `read:sensitive` permission — logs may contain secrets.
+    """
+    return _request("GET", f"/applications/{uuid}/logs", params={"lines": lines}) or {}
+
 
 
 # ---------------------------------------------------------------------------
