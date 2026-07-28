@@ -2,7 +2,7 @@
 
 > _Byline: Claude Code · Fable 5 · 2026-07-27_
 
-**Status**: ACCEPTED-IN-DIRECTION (owner 2026-07-27): Memgraph Zero evaluation first (licensing/pricing + connector maturity gate), classic-projection fallback. Orchestration settled Agno-native.
+**Status**: ACCEPTED (owner "go" 2026-07-28): **Variant B (classic Memgraph projection) is the decision**; Variant A (MemGQL federation) demoted to parked experiment — see 2026-07-28 addendum. Orchestration settled Agno-native.
 **Relates**: ADR-0036 (DozerDB memory/evidence isolation), ADR-0037/0038 (Graphiti), ADR-0032 (Surreal analysis sink)
 
 ## Context
@@ -37,6 +37,24 @@ maturity disqualifies it):
   **LlamaIndex is permitted as a library inside those tools** (retrievers/query engines wrapped as
   functions) where it earns its keep; LangGraph only reconsidered if a control-flow need arises
   that Agno cannot express.
+
+## Addendum 2026-07-28 — Variant B chosen; MemGQL parked
+
+> _Byline: Claude Code · Fable 5 · 2026-07-28_
+
+**Re-decision (owner "go" 2026-07-28): Variant B — plain Memgraph Community (`memgraph/memgraph-mage`) as a materialized analysis graph — is the accepted path. Variant A (MemGQL) is KILLED entirely** (owner 2026-07-28): `data-memgql` Coolify app deleted, `deploy/data-memgql.yaml` compose remains only in git history for reference. Not an experiment, not parked — removed from the architecture.
+
+Why the flip:
+
+1. **License limit surfaced**: MemGQL Community caps at **2 connectors and 2 simultaneous connections** (Enterprise lifts it; owner policy is free-tier). The 2-connection cap would bite under concurrent Agno agents.
+2. **Wrong tool for the actual workloads.** Owner requirements expanded (2026-07-28) beyond cycle detection to: **isolation/targeted-alienation trajectories** (windowed contact-degree trends per person-set, before/after incident anchors), **community detection** ("my people / her people" via Louvain/Leiden), **bridge-node analysis** (betweenness; bridge-cutting over time), and **anomaly mapping** (entities/edges that fit no community, coordinated-timing bursts). These are whole-graph MAGE algorithm workloads — federation cannot run them; only a materialized graph can.
+3. **DuckDB is embedded in PG** (pg_duckdb — owner correction 2026-07-28). There were only ever two upstreams (PG, Neo4j); the projection sync job reads DuckDB-resident data through the same PG connection. No funnel work needed.
+
+Additional guardrails from this round:
+
+5. **Temporal axis**: project **event time** (valid_from/valid_to) onto graph edges; record/ingest time stays in PG. Provenance record-ids (guardrail 2) give the full bitemporal story one hop away. Decided early because re-projection = wipe + re-sync + re-validate every query.
+6. **Identity spine is a prerequisite**: one human = one node across phone/email/platform identities (`normalize.py` entity-key stamping) before the projection job runs, or community/centrality results are garbage.
+7. Sync job is idempotent (Cypher MERGE), incremental, and rebuild-from-scratch capable; graph is a disposable derived artifact.
 
 ## Guardrails
 
