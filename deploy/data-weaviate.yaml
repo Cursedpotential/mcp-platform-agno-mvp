@@ -1,15 +1,30 @@
 # data-weaviate — platform vector substrate (ADR-0040, accepted 2026-07-27)
-# Byline: Claude Code · Fable 5 · 2026-07-27
+# Byline: Claude Code · Fable 5 · 2026-07-27 · updated 2026-07-29 (Claude Code · Fable 5)
+#
+# SECURITY FIX 2026-07-29 — ports were published as bare "8081:8080"/"50051:50051",
+# i.e. bound 0.0.0.0, and this box has a public IPv4. Verified live, not inferred:
+# tcpdump on ovh-data captured a SYN from an off-net client arriving on ens3 for
+# 147.135.79.183:8081 with Weaviate answering, and an external curl got HTTP 200 on
+# /v1/.well-known/ready — with AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED=true. The store
+# was empty ({"classes":[]}) so nothing leaked. Ports are now ${BIND_IP}-scoped like every
+# other data-tier app, fail-closed to 127.0.0.1 if BIND_IP is unset.
+# Interim host mitigation (belt-and-braces, NOT reboot-persistent): DOCKER-USER rules
+# accepting RELATED,ESTABLISHED then a source allowlist, matched with
+# `-m conntrack --ctorigdstport` — Docker DNATs before FORWARD, so matching --dport 8081
+# there silently matches nothing (the packet's dport by then is the container port 8080).
+#
 # Tailnet-internal on ovh-data. Anonymous access matches current data-tier posture
 # (tailnet-only exposure); API-key hardening tracked in OPEN-TASKS.
-# TODO: pin image tag after first successful pull.
+# Requires Coolify app env: BIND_IP=100.119.96.29.
+# HOST-PREP (once, before deploying the bind-mount change):
+#   sudo mkdir -p /data/agno/volumes/weaviate
 services:
   weaviate:
-    image: semitechnologies/weaviate:latest
+    image: semitechnologies/weaviate:1.39.0-rc.0   # pinned 2026-07-29 (was :latest — this is the version it had already resolved to)
     command: ["--host", "0.0.0.0", "--port", "8080", "--scheme", "http"]
     ports:
-      - "8081:8080"   # REST/GraphQL (host 8081 — 8080 is held by coolify-proxy)
-      - "50051:50051" # gRPC
+      - "${BIND_IP:-127.0.0.1}:8081:8080"   # REST/GraphQL (host 8081 — 8080 is held by coolify-proxy); tailnet-only
+      - "${BIND_IP:-127.0.0.1}:50051:50051" # gRPC; tailnet-only
     environment:
       QUERY_DEFAULTS_LIMIT: "25"
       AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: "true"
@@ -22,12 +37,13 @@ services:
       CLUSTER_ADVERTISE_PORT: "7946"
       DISK_USE_READONLY_PERCENTAGE: "95"
     volumes:
-      - weaviate-data:/var/lib/weaviate
+      # Bind mount only (owner rule — host dirs are what gets backed up, never named
+      # volumes). Switched from the named volume `weaviate-data` on 2026-07-29 while the
+      # store was verified EMPTY, so no data migration was required.
+      - /data/agno/volumes/weaviate:/var/lib/weaviate
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/v1/.well-known/ready || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 10
-volumes:
-  weaviate-data:
