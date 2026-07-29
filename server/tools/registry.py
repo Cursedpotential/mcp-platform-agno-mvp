@@ -135,7 +135,15 @@ def load_builtin_tools() -> int:
     Package-name-AGNOSTIC on purpose (walks tools_pkg.__name__, not a hardcoded
     "server.tools"): this same tree is also volume-mounted into the docker/tools
     platform-tools facade container — see docker/tools/tools/facade.py's module
-    docstring for the mount<->import contract."""
+    docstring for the mount<->import contract.
+
+    Memoized after the first successful walk: re-imports were always no-ops,
+    but the pkgutil filesystem walk itself ran on EVERY gateway meta-op call
+    (categories/search/describe/execute/get_ref each call _ensure_loaded).
+    """
+    global _BUILTINS_LOADED
+    if _BUILTINS_LOADED:
+        return len(registry.all())
     import importlib
     import pkgutil
 
@@ -154,4 +162,8 @@ def load_builtin_tools() -> int:
         if mod.ispkg:  # capability sub-packages register nothing
             continue
         importlib.import_module(mod.name)
+    _BUILTINS_LOADED = True
     return len(registry.all())
+
+
+_BUILTINS_LOADED = False
