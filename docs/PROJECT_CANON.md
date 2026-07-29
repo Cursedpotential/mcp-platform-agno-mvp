@@ -4,9 +4,12 @@
 > repeated compaction never loses the vision, decisions, or plan. It is kept
 > current as decisions are made. If something here conflicts with an older ADR,
 > this file's "Locked Decisions" section wins and the ADR should be updated.
-> Last updated: 2026-06-13 (§6 Roadmap statuses refreshed 2026-07-11).
+> Last updated: 2026-07-29 (§4 rewritten to the 4-box Coolify fleet from live inventory;
+> §5/§6/§7/§8 doc-sync — ADR-0040 Weaviate, ADR-0041 Memgraph, ADR-0042 Portkey/LiteLLM-retired,
+> agno 2.8.0; ADR-0036–0039 accepted same day; prior: 2026-06-13, §6 refresh 2026-07-11).
 > _Byline: Claude Code · Opus 4.8 · 2026-06-13 (created 2026-06; this revision Opus 4.8;
-> §6 status refresh 2026-07-11 Claude Code · Sonnet 5)_
+> §6 status refresh 2026-07-11 Claude Code · Sonnet 5; §5/§6/§8 sync 2026-07-29
+> Claude Code · Fable 5)_
 
 ---
 
@@ -134,27 +137,28 @@ platform components → (b) process evidence against historical timelines/events
 
 ---
 
-## 4. Current stack (deployed, OVH VPS `40.160.5.19`, `~/agno-mvp`)
+## 4. Current stack (deployed — 4-box Coolify fleet; rewritten 2026-07-29 from live Coolify inventory)
 
-Access: `ssh -i ~/.ssh/ovh debian@40.160.5.19`. Code volume-mounted (`.:/app`)
-→ deploy = sync files + `docker compose ... up -d`/`restart`. Tailnet IP
-`100.72.169.40`. Profiles: default, `tools`, `graph`, `desktop`.
+**Coolify is the deploy plane** (control plane on `ion-control`): deploy = git push → Coolify
+build, with per-app **Watch Paths** scoping the blast radius (set watch_paths at app creation,
+always — an app without them redeploys on EVERY push). Boxes are Tailscale-meshed
+(`tilapia-skilift.ts.net`); services bind `${BIND_IP}` (the box's tailnet IP), never loopback —
+probes and tunnels target the tailnet IP, not `localhost`. Coolify projects: `agno-platform`,
+`Case Bible`. (The original single-VPS `~/agno-mvp` compose layout this section used to describe
+is preserved in git history + `docs/planning/`.)
 
-| Service | Role | Port |
+| Box (tailnet IP) | Role | Coolify apps (live, verified 2026-07-29) |
 |---|---|---|
-| `agentos-db` | PG18 custom (`agno-postgres:18-duckdb`): pg_duckdb + PostGIS + pgvector + pg_stat_statements + uuidv7; dual schema evidence(ro)/analysis | 5432 |
-| `agentos-api` | AgentOS (base_app), router + agents, knowledge, learning, HITL routes | 8000 |
-| `platform-tools` | SBV (GUI/API, musl-fixed, :8085 int) + tools-facade (registry, :8090) | 8080/8090 |
-| `agent-sandbox` | isolated code-exec for agents (no secrets, no ports) | 8070 int |
-| `gateway` | LiteLLM (all providers) + OpenCode | 4000/4096 |
-| `neo4j` | Graphiti temporal graph (Browser 7474) | 7474/7687 |
-| `graphiti-mcp` | Graphiti MCP (zepai image, Neo4j backend) | 8071 |
-| `desktop` | Kasm browser desktop (persistent, profile `desktop`) | 6901 |
-| *n8n* | SEPARATE server `74.208.130.34`, Tailscale-linked `100.98.98.38` | 5678 |
+| `ion-control` (Ionos 3.8 GB) | Coolify control plane | — (Coolify itself) |
+| `ovh-app` `100.72.169.40` | Exec tier (the old exec bundle split into independent apps, owner rule "separate everything separable") | `exec-tier` (agentos-api + db rump) · `exec-gateway` (OpenCode; LiteLLM deprecated → teardown pending, ADR-0042) · `exec-contextforge` (tool gateway) · `exec-platform-tools` (SBV forensic fork + tools-facade) · `exec-sandbox` · `exec-desktop` (Kasm) · `portkey` (THE model gateway, ADR-0042) · `knowledge-workbench` (staged-ingest console, :8020) · `agent-ui` · `browser` · `coolify-mcp` |
+| `ovh-data` `100.119.96.29` | Data tier — independent apps on the shared external `agno` docker network (172.30.0.0/16; cross-app DNS — `neo4j:7687`, `milvus:19530`, …) | `data-pg` (PG18: pg_duckdb + pgvector + PostGIS; tailnet `DB_HOST=100.119.96.29`) · `data-neo4j` (Graphiti's graph) · `data-graphiti` (Graphiti MCP) · `data-surreal` · `data-weaviate` (ADR-0040 substrate — deployed & healthy, cutover pending) · `data-vector` (Milvus — sidelined per ADR-0040) · `nocodb` (review front-end, ADR-0029 lineage) |
+| `ovh-files` `100.91.190.107` | Files + chat surfaces | `librechat` (:3080) · `librechat-mongo` (real Mongo — owner waiver of the FerretDB rule) · file services (Cloudreve, casebible rclone lane) |
 
-**Storage:** Cloudflare R2 bucket `nexus` — rclone docker-volume (`/r2`) + S3 API
-+ pg_duckdb httpfs (`read_text('s3://nexus/...')`). Tailscale mesh
-`tilapia-skilift.ts.net`.
+**Off-Coolify:** Homepage dashboard `http://100.72.169.40:3010` (plain compose,
+`/data/dashboards` on ovh-app); n8n on its own server (tailnet `100.98.98.38`); AgentOS
+control plane = os.agno.com via the localhost tunnel (`agentos-control.cmd`, Desktop
+shortcut). **Storage:** Cloudflare R2 (`nexus` + the casebible buckets) — rclone mounts +
+S3 API + pg_duckdb httpfs (`read_text('s3://nexus/...')`).
 
 ---
 
@@ -187,7 +191,8 @@ Access: `ssh -i ~/.ssh/ovh debian@40.160.5.19`. Code volume-mounted (`.:/app`)
 - **Serve/consume topology (locked 2026-06-13) — the layered picture; nothing here gets dropped:**
   - **Model gateway = LiteLLM** (`gateway` container): routes ALL models — remote (Gemini/Groq/
     OpenRouter/NVIDIA/Anthropic) AND in-stack/local (Ollama Cloud primary `glm-5.1`). Every
-    agent/LLM gets its model through LiteLLM.
+    agent/LLM gets its model through LiteLLM. ⚠ **Superseded 2026-07-29 → Portkey (ADR-0042)**;
+    LiteLLM deprecated pending teardown — see the Portkey entry below.
   - **Tool gateway = IBM ContextForge**: serves/federates MCP tools to any MCP client — Agno
     agents (`MCPTools`, stdio + HTTP), **remote** LLMs (Claude/Gemini), and **local-stack** runners.
   - **Agent runtime + OUTBOUND serving = Agno AgentOS**: serves our agents/workflows out via
@@ -200,7 +205,8 @@ Access: `ssh -i ~/.ssh/ovh debian@40.160.5.19`. Code volume-mounted (`.:/app`)
     SurrealDB candidate** (Agno-native db+vector+memory; consolidates pg_duckdb/pgvector/memory;
     NOT a Graphiti replacement — Graphiti stays for cognition; decide before P3/Phase B).
   - ⚠️ A raw local model consumes tools ONLY through an MCP-capable harness (Agno / OpenCode /
-    MCP client) — never directly. Two distinct gateways: **LiteLLM = models**, **ContextForge = tools**.
+    MCP client) — never directly. Two distinct gateways: **models** (Portkey since ADR-0042,
+    formerly LiteLLM) and **ContextForge = tools**.
 - **Universal exposure — API-first + MCP-wrapped (locked 2026-06-13; needs ADR).** EVERYTHING is
   atomically addressable — **every tool, every agent, every workflow** exposes:
   1. an **internal API** (FastAPI/HTTP) that in-platform ("platform-surface") consumers call directly;
@@ -227,6 +233,31 @@ Access: `ssh -i ~/.ssh/ovh debian@40.160.5.19`. Code volume-mounted (`.:/app`)
   (owner backup preference); auth on (`root:Milvus`, rotate). Embedder unchanged (OpenRouter `codestral-embed-2505`,
   1536-d). Beta-aware: code/Case-Bible now; **Knowledge-engine migration off pgvector = Phase B/D** (accept beta or
   pin GA then). Deploy gotchas recorded in [[milvus-coolify-decision]] memory.
+  ⚠ **Engine choice superseded by ADR-0040 (2026-07-27): Weaviate LOCKED** — see the next entry;
+  Milvus stays sidelined-but-up until cutover is verified, then parks (FalkorDB status).
+- **Weaviate = the platform-wide VECTOR/ANN substrate (LOCKED 2026-07-27; ADR-0040 — supersedes
+  ADR-0026/ADR-0027 on the engine choice).** Single Go binary on the data tier replaces the
+  Milvus 4-container convoy (etcd fragility — lived 07-21→23 outage — plus data corruption and
+  a heavy footprint for unused components). No practical HNSW dim cap → keeps the nv-embed-v1
+  4096-d embed contract with NO re-embed; native hybrid BM25+vector. Collection-shape ADRs
+  0010/0011 carry over unchanged. **Execution underway:** the `data-weaviate` Coolify app is
+  deployed & healthy on ovh-data (verified live 2026-07-29); data cutover + verification still
+  pending — steps in ADR-0040.
+- **Memgraph = ADDITIVE temporal GraphRAG layer, read-side only (LOCKED 2026-07-28; ADR-0041).**
+  Variant B (classic Memgraph analytical projection). NEVER a system of record — Neo4j/DozerDB
+  stays (Semantica is Neo4j-bound; Graphiti's supported backends exclude Memgraph). Orchestration
+  is Agno-native. Variant A (MemGQL federation) parked as an experiment.
+- **Portkey = the MODEL gateway; LiteLLM RETIRED (owner ruling 2026-07-29; ADR-0042 — supersedes
+  ADR-0015).** Portkey has carried the Graphiti lane + exec-tier since 2026-07-19 (11-provider
+  failover, 4-key Gemini rotation, configs committed under `docker/gateway/portkey/`; decoupling
+  proven through a 40-min exec-tier outage). LiteLLM is deprecated pending teardown — a separate
+  owner-gated task (incl. remapping OpenCode's model config); until then nothing NEW points at it.
+- **Graphiti/memory-lane ADRs 0036–0039 ACCEPTED (owner 2026-07-29; Proposed 2026-07-13):**
+  DozerDB multi-DB with RBAC-scoped writers — `memory` vs `evidence` isolation (0036) · Graphiti
+  MCP as a write-enabled ContextForge virtual server, standalone `:8071` no-auth door to be
+  retired (0037) · Agno agents use `graphiti-core` in-process, the MCP door serves GUI clients
+  only (0038) · Graphiti extraction LLM = hosted structured-output provider, never small/local
+  (0039 — live in practice since 2026-07-04: NIM nemotron guided-JSON, lane routed via Portkey).
 - **Use Agno's NATIVE surface — do NOT rebuild it (validated against agno docs 2026-06-13).**
   AgentOS = Runtime (FastAPI serving agents/teams/workflows) + **Control-plane UI** (manage/
   monitor/debug) + a **Chat UI** (chat with agents, run workflows; open-source Next.js "AgentUI",
@@ -302,9 +333,9 @@ Access: `ssh -i ~/.ssh/ovh debian@40.160.5.19`. Code volume-mounted (`.:/app`)
 - **Part 3** — AI Legal Team (port Gemini Gems personas to Agno; strategy/docs/filings).
 - **Knowledge engine** — domain-partitioned collections + ingestion of all
   conversation domains (timeline/personal/design/legal).
-- **Hardening** — evidence-text embeddings at scale in **Milvus** (the locked platform-wide
-  vector substrate — ADR-0026/ADR-0027, LIVE on the `data-vector` Coolify app; the earlier
-  "Qdrant-leaning" framing here was stale and is corrected 2026-07-11, see §5 Locked Decisions);
+- **Hardening** — evidence-text embeddings at scale in **Weaviate** (the locked platform-wide
+  vector substrate — ADR-0040 2026-07-27, superseding the Milvus lock ADR-0026/ADR-0027; Milvus
+  stays sidelined-but-up on the `data-vector` Coolify app until cutover is verified);
   multi-user auth; V2 slim Graphiti image.
 
 ---
@@ -318,18 +349,22 @@ Access: `ssh -i ~/.ssh/ovh debian@40.160.5.19`. Code volume-mounted (`.:/app`)
 - Providers in `.env`: `OLLAMA_API_KEY` (primary), `NVIDIA_API_KEY`,
   `GOOGLE_API_KEY` (gemini-2.5-pro), `GROQ_API_KEY`, `OPENROUTER_API_KEY`,
   `LITELLM_MASTER_KEY`. Kasm `KASM_VNC_PW`. Neo4j `NEO4J_PASSWORD`.
-- URLs: AgentOS `:8000` (`/config`, `/docs`, `/approvals`), SBV `:8080`,
-  Neo4j Browser `:7474`, LiteLLM `:4000`, OpenCode `:4096`, Kasm `:6901` (https),
-  Graphiti MCP `:8071/mcp` (Host-header override needed).
+- URLs (tailnet; box IPs in §4): AgentOS `ovh-app:8000` (`/config`, `/docs`, `/approvals`),
+  SBV `:8080`, OpenCode `:4096`, Kasm `:6901` (https), Neo4j Browser `ovh-data:7474`,
+  Graphiti MCP `:8071/mcp` (Host-header override; door retirement pending per ADR-0037),
+  LibreChat `ovh-files:3080`, Homepage `ovh-app:3010`, workbench console `:8020`.
+  LiteLLM `:4000` deprecated (ADR-0042 — do not wire anything new to it).
 
 ---
 
 ## 8. Gotchas (hard-won, do not relearn)
 
-- agno 2.6.13 (upgraded from 2.6.9 on 2026-06-12): embedders/rerankers under `agno.knowledge.embedder/.reranker`; Team
+- agno 2.8.0 (2.6.9→2.6.13 on 2026-06-12; →2.8.0 on 2026-07-23): embedders/rerankers under `agno.knowledge.embedder/.reranker`; Team
   mode needs `TeamMode` enum (strings break `/config`); `requirements.txt` is
   `uv pip sync`'d → new pkg needs its transitive deps listed; EntityMemoryStore
-  has no PROPOSE mode (falls back to ALWAYS).
+  has no PROPOSE mode (falls back to ALWAYS); 2.8.0 stopped bundling per-provider
+  model SDKs as transitive deps → every provider in the ADR-0008 chain must be an
+  explicit dependency (see the comment in `pyproject.toml`).
 - NIM embedqa REQUIRES `input_type`; asymmetric (passage for docs, query for search).
 - Graphiti image (zepai): embeds an UNUSED FalkorDB (`BROWSER=0`); `CONFIG_PATH`
   env ignored → mount config OVER `/app/mcp/config/config.yaml`; MCP endpoint

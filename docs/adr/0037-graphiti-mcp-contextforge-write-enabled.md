@@ -2,7 +2,7 @@
 
 > _Byline: Claude (Opus 4.8, chat) + owner · 2026-07-13 · DRAFT for review_
 
-**Status:** **Proposed** (2026-07-13). Blocked on one verification (see Open). Requires owner acceptance.
+**Status:** **Accepted** — owner 2026-07-29 (Proposed 2026-07-13). The original BLOCKER (ContextForge federating a Streamable HTTP upstream) is cleared by lived evidence: a `graphiti` virtual server has been registered and serving in ContextForge since ≤2026-07-10 (DECISION_LOG D-028 lists it alongside `agno`/`coolify`/`exa`/`platform_tools`). Execution remainder: verify the registered surface is the full WRITE surface, and retire the standalone no-auth `:8071` nginx door.
 **Supersedes/relates:** [ADR-0025](0025-gateway-topology-agno-contextforge-litellm.md) (gateway topology: Agno · ContextForge · LiteLLM), [ADR-0014](0014-neo4j-graphiti-temporal-memory.md), [ADR-0036](0036-dozerdb-multidb-rbac-memory-evidence-isolation.md). Retires the standalone read-only Graphiti door.
 
 ## Context

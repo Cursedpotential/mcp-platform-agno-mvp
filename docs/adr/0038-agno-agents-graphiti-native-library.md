@@ -2,7 +2,7 @@
 
 > _Byline: Claude (Opus 4.8, chat) + owner · 2026-07-13 · DRAFT for review_
 
-**Status:** **Proposed** (2026-07-13). Requires owner acceptance.
+**Status:** **Accepted** — owner 2026-07-29 (Proposed 2026-07-13). Consistent with ADR-0041's later "orchestration settled Agno-native" ruling.
 **Supersedes/relates:** [ADR-0024](0024-surrealdb-store-session-knowledge-memory.md) (SurrealDB for session/knowledge/memory), [ADR-0037](0037-graphiti-mcp-contextforge-write-enabled.md).
 
 ## Context

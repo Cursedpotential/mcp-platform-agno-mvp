@@ -45,6 +45,13 @@ guarantee gets an ADR. One short record. Supersede (don't edit) when a decision 
 | 0032 | Drop the PG Multicorn FDW federation hub; cross-source reach = pg_duckdb + native drivers | Accepted (supersedes 2026-06-14 federation-hub stance) |
 | 0033 | `server/` package layout (Option A repack) | Accepted (merged + deployed; amended 2026-07-09 — tools promoted to `server/tools/`, `vendored/` scope broadened) |
 | 0035 | Tools sub-namespacing, tool_finder extraction, and the record contract's home | Accepted & Implemented (merged `8240205`, deployed + verified 2026-07-10; supersedes/relates ADR-0033) |
+| 0036 | DozerDB multi-DB RBAC — memory/evidence isolation | Accepted (owner 2026-07-29; execution pending) |
+| 0037 | Graphiti MCP via ContextForge, write-enabled | Accepted (owner 2026-07-29; blocker cleared per D-028; retire `:8071` door pending) |
+| 0038 | Agno agents ↔ Graphiti as native library | Accepted (owner 2026-07-29) |
+| 0039 | Graphiti extraction LLM = hosted structured-output model | Accepted (owner 2026-07-29; implemented in practice 2026-07-04 via NIM nemotron, lane now Portkey) |
+| 0040 | Vector substrate revisit — Weaviate LOCKED (vs pgvector / keep-Milvus) | Accepted (2026-07-27; supersedes 0026/0027 engine choice; migration pending, Milvus sidelined) |
+| 0041 | Memgraph = additive temporal GraphRAG layer, read-side only (Neo4j/DozerDB stays) | Accepted (2026-07-28; Variant B) |
+| 0042 | Portkey replaces LiteLLM as THE model gateway; LiteLLM retired | Accepted (2026-07-29; supersedes 0015; teardown pending) |
 
 > The full vision, current stack, roadmap, access, and gotchas live in
 > [`docs/PROJECT_CANON.md`](../PROJECT_CANON.md) (the durable source of truth).

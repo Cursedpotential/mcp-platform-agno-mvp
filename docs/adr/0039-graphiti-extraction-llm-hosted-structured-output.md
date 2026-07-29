@@ -2,7 +2,7 @@
 
 > _Byline: Claude (Opus 4.8, chat) + owner · 2026-07-13 · DRAFT for review_
 
-**Status:** **Proposed** (2026-07-13). Requires owner acceptance.
+**Status:** **Accepted** — owner 2026-07-29 (Proposed 2026-07-13). Already implemented in practice: extraction moved to NIM `nemotron` guided-JSON on 2026-07-04 (glm-5.1 could not conform — the exact silent-failure class this ADR guards against), and the lane now routes through the Portkey gateway (ADR-0042). The embedder Open item is unblocked: ADR-0040 (Weaviate) keeps the nv-embed-v1 4096-d contract, no re-embed.
 **Supersedes/relates:** [ADR-0011](0011-nvidia-nim-provider-and-embedder-dimension-contract.md) (NIM provider + embedder dimension contract), [ADR-0015](0015-litellm-gateway-ollama-primary.md) (LiteLLM gateway, Ollama primary), [ADR-0037](0037-graphiti-mcp-contextforge-write-enabled.md).
 
 ## Context

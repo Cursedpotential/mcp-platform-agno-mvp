@@ -12,6 +12,13 @@ Lanes: **A** = restructure · **B** = ingestion/table redesign · **C** = infra/
 
 ---
 
+## 2026-07-29
+
+| # | Decision | Lane | Status | Rationale / notes |
+|---|---|---|---|---|
+| D-031 | **ADRs 0036–0039 ACCEPTED** (DozerDB multi-DB isolation · Graphiti-MCP-via-ContextForge write-enabled · agents use graphiti-core natively · hosted structured-output extraction LLM) | C | done (acceptance; execution items open) | Owner "let's do it" 2026-07-29. Reality-checked before flipping: 0037's Streamable-HTTP blocker cleared by lived evidence (graphiti virtual server serving in ContextForge since ≤07-10, see D-028); 0039 already implemented in practice (nemotron guided-JSON 07-04, lane now Portkey per ADR-0042); 0038 consistent with ADR-0041's Agno-native orchestration ruling. Open execution items: DozerDB named-DB write verification + per-DB backups (0036), verify write surface + retire `:8071` no-auth door (0037). rel: ADR-0036..0039, canon §5 updated same change. |
+| D-030 | **LiteLLM RETIRED — Portkey = THE model gateway** | C | done (docs; teardown pending) | Owner ruling 2026-07-29 (doc-patch pass). Portkey has carried Graphiti + exec-tier since 07-19 (11-provider failover, `docker/gateway/portkey/`); dual-gateway split-brain ends. Teardown of the LiteLLM container + OpenCode model-config remap = separate owner-gated task. → author ADR-0042 (created same change). Same pass also synced canon §5 to ADR-0040 (Weaviate locked, Milvus sidelined) + ADR-0041 (Memgraph additive), fixed agno 2.6.13→2.8.0 current-state refs (AGENTS.md, CONVENTIONS.md, canon §8), and backfilled ADR index rows 0036–0041. rel: ADR-0042, ADR-0040, ADR-0041. |
+
 ## 2026-07-10
 
 | # | Decision | Lane | Status | Rationale / notes |

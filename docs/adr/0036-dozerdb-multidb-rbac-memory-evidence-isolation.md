@@ -2,7 +2,7 @@
 
 > _Byline: Claude (Opus 4.8, chat) + owner · 2026-07-13 · DRAFT for review_
 
-**Status:** **Proposed** (2026-07-13). Sketched in an architecture session; not yet implemented. Requires owner acceptance before execution.
+**Status:** **Accepted** — owner 2026-07-29 (Proposed 2026-07-13). Execution/verification per the Open list still pending (deployment state not re-verified at acceptance time).
 **Supersedes/relates:** [ADR-0014](0014-neo4j-graphiti-temporal-memory.md) (Neo4j + Graphiti temporal memory), [ADR-0031](0031-casebible-entity-layer-neo4j-graphiti.md) (CaseBible entity layer). Establishes the physical isolation those ADRs assume.
 
 ## Context
