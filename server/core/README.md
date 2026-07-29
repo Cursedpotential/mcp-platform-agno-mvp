@@ -18,16 +18,16 @@ db/
 | Database | Technology | Role |
 |---|---|---|
 | Operational store | **SurrealDB** (via `agno.db.surrealdb`) | Sessions, memory, metrics, eval, culture, traces, knowledge contents |
-| Knowledge vectors | **Milvus** (via `agno.vectordb.milvus`) | Embeddings for knowledge engine (ADR-0026/27) |
+| Knowledge vectors | **Weaviate** (ADR-0040, owner-locked; cutover = HANDOFF-2026-07-27 Phase 1) | Embeddings for knowledge engine; Milvus SIDELINED (memsearch only, no new writers) |
 
 > pgvector is in the PG image but is **no longer the knowledge store**.
 > PostgreSQL holds the evidence + analysis schemas (relational).
 
-## Embedders (ADR-0010)
+## Embedders (ADR-0010; contract revised per ADR-0040/handoff)
 
-- Text: `bge-m3` (1024-d) via OpenRouter — documents, legal, transcripts.
+- Text: `nvidia/nv-embed-v1` (4096-d, symmetric) — LIVE since 2026-07-19; documents, legal, transcripts. (Retired: `bge-m3` 1024-d — 500ing on NIM since 2026-07-04.)
 - Code: `codestral-embed-2505` (1536-d) via OpenRouter — code artifacts.
-- One Milvus collection per embedder.
+- One collection per embedder; dimension fixed at collection creation (changing = re-embed).
 
 ## Reranker
 

@@ -5,18 +5,18 @@ Database Session
 ``get_agno_db()``  — Agno OPERATIONAL store (sessions/memory/metrics/eval/culture/traces/spans)
                      on **SurrealDB** (WS transport, /rpc, lazy-connect via agno.db.surrealdb).
 ``get_postgres_db()`` — Postgres for Knowledge *contents* rows and pg_duckdb / evidence work.
-``create_knowledge()`` — agent Knowledge with **vectors in Milvus** (ADR-0026/0027), the
-platform-wide vector substrate. pgvector remains in the PG image but is NO LONGER the
-Knowledge store.
+``create_knowledge()`` — agent Knowledge vectors. CURRENT CONTRACT (ADR-0040, owner-locked
+2026-07; HANDOFF-2026-07-27): **Weaviate is the platform vector store** — Milvus (ADR-0026/0027)
+is SIDELINED for memsearch only, no new platform writers. The knowledge-stage cutover to
+Weaviate is HANDOFF Phase-1 task 4. pgvector remains in the PG image but is NOT the Knowledge
+store.
 
-Embedder: **OpenRouter (OpenAI-compatible), SYMMETRIC models** — no query/passage modes, so
-none of the NVIDIA-NIM asymmetric shim PgVector needed (which would silently degrade retrieval
-on Milvus). Text = ``bge-m3`` (1024-d); code = ``codestral-embed-2505`` (1536-d). One collection
-per embedder (ADR-0010); Milvus creates each collection at the embedder's dimension. The
-embedder/dim is fixed at collection creation — changing it means dropping + re-creating the
-collection. (NVIDIA ``NimEmbedder`` is retained in ``db/embedder.py`` as an opt-in fallback.)
-
-Reranking: Milvus **hybrid** search fuses dense+sparse natively (RRF) — no external reranker.
+Embedder: **SYMMETRIC models only** — no query/passage modes (asymmetric NIM embedqa models
+silently degrade retrieval; owner rule). LIVE contract since 2026-07-19: ``nvidia/nv-embed-v1``
+(4096-d) for text — the live store already holds 4096-d nv-embed-v1 vectors (handoff
+verified-live table). Code = ``codestral-embed-2505`` (1536-d). One collection per embedder
+(ADR-0010); the embedder/dim is fixed at collection creation — changing it means dropping +
+re-creating (re-embedding) the collection. (NVIDIA ``NimEmbedder`` fallback retained.)
 
 Config via env:
   SurrealDB (operational): ``SURREALDB_URL`` / ``SURREALDB_USER`` / ``SURREALDB_PASS`` /
@@ -63,10 +63,12 @@ _OR_API_KEY = getenv("OPENROUTER_API_KEY", "")
 _EMBED_BASE_URL = getenv("EMBED_BASE_URL") or _OR_BASE_URL
 _EMBED_API_KEY = getenv("EMBED_API_KEY") or _OR_API_KEY
 
-# Embedding model IDs + dims (ADR-0010: one collection per embedder). Defaults are
-# symmetric OpenRouter models; override via env. Dim MUST match the model's output.
-EMBED_TEXT_ID = getenv("EMBED_TEXT_ID", "baai/bge-m3")
-EMBED_TEXT_DIM = int(getenv("EMBED_TEXT_DIM", "1024"))
+# Embedding model IDs + dims (ADR-0010: one collection per embedder). Defaults match the
+# LIVE platform contract (nv-embed-v1 4096-d since 2026-07-19 — handoff verified-live);
+# override via env. Dim MUST match the model's output. (Old default was bge-m3/1024,
+# retired: bge-m3 500ing on NIM since 2026-07-04, store re-embedded to nv-embed-v1.)
+EMBED_TEXT_ID = getenv("EMBED_TEXT_ID", "nvidia/nv-embed-v1")
+EMBED_TEXT_DIM = int(getenv("EMBED_TEXT_DIM", "4096"))
 EMBED_CODE_ID = getenv("EMBED_CODE_ID", "mistralai/codestral-embed-2505")
 EMBED_CODE_DIM = int(getenv("EMBED_CODE_DIM", "1536"))
 

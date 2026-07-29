@@ -59,10 +59,13 @@ _DEFAULT_ORDER: list[str] = [
     "groq",
 ]
 
-# Embedder IDs mirror db/session.py for reference.
-# db/session.py is the source of truth for embedder IDs/dims.
+# LEGACY/NIM-fallback embedder IDs — these do NOT mirror the live contract and never did
+# ("db/session.py" here means server/core/session.py, the actual source of truth).
+# Current platform truth: nv-embed-v1 4096-d text (LIVE since 2026-07-19, symmetric —
+# see session.py EMBED_TEXT_ID). nemotron-embed-vl is an ASYMMETRIC NIM embedqa model
+# (owner rule: avoid — silently degrades retrieval without per-call input_type).
 _EMBEDDER_IDS: dict[str, str] = {
-    "text": "nvidia/llama-nemotron-embed-vl-1b-v2",  # docs/legal/transcripts — 2048-d
+    "text": "nvidia/llama-nemotron-embed-vl-1b-v2",  # legacy NIM fallback — 2048-d, asymmetric
     "code": "nvidia/nv-embedcode-7b-v1",  # code artifacts — 4096-d
 }
 

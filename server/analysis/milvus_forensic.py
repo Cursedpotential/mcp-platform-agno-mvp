@@ -1,6 +1,12 @@
 """
 evidence/milvus_forensic.py — FORENSIC Milvus collection schema DEFINITIONS.
 
+*** SIDELINED (ADR-0040, owner-locked 2026-07; HANDOFF-2026-07-27): Milvus is no
+longer the platform vector store — Weaviate is. Milvus stays up for memsearch
+ONLY, with NO new platform writers. These schema definitions are retained for
+the legacy lane and the Milvus->Weaviate export (handoff Phase-1 task 3); new
+vector work goes through Weaviate (see server/analysis/semantica_wiring.py). ***
+
 DEFINE-ONLY. This module declares the forensic vector collections as a
 dependency-free field-spec SSOT (plain dataclasses) plus a lazy converter to
 real pymilvus objects. It DOES NOT create anything on the server by default —
@@ -8,10 +14,11 @@ real pymilvus objects. It DOES NOT create anything on the server by default —
 HITL/APPROVALS-gated: creating collections on the live Milvus is a prod-infra
 write). The field-spec table can be validated offline with no pymilvus install.
 
-Contract (source of truth = db/session.py, ADR-0010/0026/0027):
-  * Vectors live in Milvus; contents/relational live in Postgres.
+Contract (source of truth = server/core/session.py, ADR-0010/0026/0027; embedder
+contract revised — LIVE is nv-embed-v1 4096-d since 2026-07-19):
+  * Contents/relational live in Postgres; legacy vectors in Milvus (sidelined).
   * ONE collection per embedder, dimension fixed at creation.
-  * Text embedder = bge-m3 (1024-d) via OpenRouter (symmetric) -> EMBED_TEXT_DIM.
+  * Text embedder -> EMBED_TEXT_DIM (nv-embed-v1 4096-d; bge-m3 1024-d retired).
   * Milvus at MILVUS_ADDRESS (default tailnet 100.119.96.29:19530),
     token MILVUS_TOKEN (user:pass, default root:Milvus). Metric = COSINE.
   * Hybrid dense+sparse (BM25 RRF) is the platform default; the sparse lane is
