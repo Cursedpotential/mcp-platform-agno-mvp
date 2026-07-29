@@ -20,7 +20,7 @@
 #   sudo mkdir -p /data/agno/volumes/weaviate
 services:
   weaviate:
-    image: semitechnologies/weaviate:1.39.0-rc.0   # pinned 2026-07-29 (was :latest — this is the version it had already resolved to)
+    image: semitechnologies/weaviate:1.38.7  # pinned 2026-07-29 to latest STABLE (was 1.39.0-rc.0; store empty, no downgrade risk)
     command: ["--host", "0.0.0.0", "--port", "8080", "--scheme", "http"]
     ports:
       - "${BIND_IP:-127.0.0.1}:8081:8080"   # REST/GraphQL (host 8081 — 8080 is held by coolify-proxy); tailnet-only
