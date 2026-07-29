@@ -20,21 +20,45 @@ from fastapi.testclient import TestClient
 import server.api.run_routes as run_routes
 
 
-class _FakeMilvusClient:
+class _FakeWeaviateClient:
+    """Mimics the v4-client call chain the existence check uses:
+    client.collections.get(name).query.fetch_objects(limit=, filters=).objects"""
+
     def __init__(self, rows=None, raise_exc=None):
         self._rows = rows if rows is not None else []
         self._raise = raise_exc
 
-    def query(self, collection_name, filter, limit, output_fields):
-        if self._raise is not None:
-            raise self._raise
-        return self._rows
+    @property
+    def collections(self):
+        outer = self
+
+        class _Collections:
+            def get(self, name):
+                class _Query:
+                    def fetch_objects(self, limit=1, filters=None):
+                        if outer._raise is not None:
+                            raise outer._raise
+
+                        class _Result:
+                            objects = outer._rows
+
+                        return _Result()
+
+                class _Handle:
+                    query = _Query()
+
+                return _Handle()
+
+        return _Collections()
 
 
 class _FakeVectorDb:
     def __init__(self, client):
-        self.client = client
+        self._client = client
         self.collection = "platform_knowledge"
+
+    def get_client(self):
+        return self._client
 
 
 class _FakeKnowledge:
@@ -93,7 +117,7 @@ def _stub_retry_from_knowledge_plumbing(monkeypatch):
 
 def test_retry_gap_completed_run_doc_exists_is_409(client_with_knowledge, monkeypatch):
     monkeypatch.setattr(run_routes, "get_run", lambda run_id: _completed_run())
-    client = client_with_knowledge(_FakeKnowledge(_FakeMilvusClient(rows=[{"id": 1}])))
+    client = client_with_knowledge(_FakeKnowledge(_FakeWeaviateClient(rows=[{"id": 1}])))
 
     resp = client.post("/v1/runs/run-1/retry", json={"from_stage": "knowledge"})
 
@@ -104,7 +128,7 @@ def test_retry_gap_completed_run_doc_exists_is_409(client_with_knowledge, monkey
 def test_retry_gap_completed_run_doc_missing_is_allowed(client_with_knowledge, monkeypatch):
     monkeypatch.setattr(run_routes, "get_run", lambda run_id: _completed_run())
     _stub_retry_from_knowledge_plumbing(monkeypatch)
-    client = client_with_knowledge(_FakeKnowledge(_FakeMilvusClient(rows=[])))
+    client = client_with_knowledge(_FakeKnowledge(_FakeWeaviateClient(rows=[])))
 
     resp = client.post("/v1/runs/run-1/retry", json={"from_stage": "knowledge"})
 
@@ -115,7 +139,7 @@ def test_retry_gap_completed_run_doc_missing_is_allowed(client_with_knowledge, m
 def test_retry_gap_completed_run_query_failure_is_treated_as_allow(client_with_knowledge, monkeypatch):
     monkeypatch.setattr(run_routes, "get_run", lambda run_id: _completed_run())
     _stub_retry_from_knowledge_plumbing(monkeypatch)
-    client = client_with_knowledge(_FakeKnowledge(_FakeMilvusClient(raise_exc=RuntimeError("Milvus down"))))
+    client = client_with_knowledge(_FakeKnowledge(_FakeWeaviateClient(raise_exc=RuntimeError("Weaviate down"))))
 
     resp = client.post("/v1/runs/run-1/retry", json={"from_stage": "knowledge"})
 
@@ -156,10 +180,11 @@ def test_retry_gap_failed_run_from_stage_knowledge_skips_doc_check_entirely(clie
     only 'completed' parents are gated by it."""
     queried = []
 
-    class _WatchedClient(_FakeMilvusClient):
-        def query(self, *a, **k):
+    class _WatchedClient(_FakeWeaviateClient):
+        @property
+        def collections(self):
             queried.append(1)
-            return super().query(*a, **k)
+            return super().collections
 
     monkeypatch.setattr(run_routes, "get_run", lambda run_id: _completed_run(status="failed"))
     _stub_retry_from_knowledge_plumbing(monkeypatch)

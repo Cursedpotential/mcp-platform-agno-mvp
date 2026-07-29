@@ -258,16 +258,21 @@ def register_run_routes(app: FastAPI, knowledge: Any) -> None:
 
         def _do() -> bool:
             vector_db = getattr(knowledge_instance, "vector_db", None)
-            client = getattr(vector_db, "client", None) if vector_db is not None else None
-            if client is None or vector_db is None:
-                raise RuntimeError("no Milvus client available on this knowledge instance")
-            rows = client.query(
-                collection_name=vector_db.collection,
-                filter=f'metadata["sha256"] == "{sha256}"',
+            if vector_db is None:
+                raise RuntimeError("no vector_db available on this knowledge instance")
+            client = vector_db.get_client()
+            # agno's Weaviate stores meta_data as a JSON STRING property, so the
+            # sha256 can't be filtered as a structured key — LIKE-match the hex
+            # token inside the serialized JSON (a sha256 hex string is a single
+            # token; false positives would need a 64-hex-char collision in other
+            # metadata, which "verifiably exists" tolerates for a 409 gate).
+            from weaviate.classes.query import Filter
+
+            result = client.collections.get(vector_db.collection).query.fetch_objects(
                 limit=1,
-                output_fields=["id"],
+                filters=Filter.by_property("meta_data").like(f"*{sha256}*"),
             )
-            return bool(rows)
+            return bool(result.objects)
 
         try:
             return await asyncio.wait_for(asyncio.to_thread(_do), timeout=_HEALTH_DEPS_TIMEOUT_S)
@@ -285,28 +290,27 @@ def register_run_routes(app: FastAPI, knowledge: Any) -> None:
         except Exception as exc:
             return {"status": "error", "error": str(exc)[:300]}
 
-    async def _check_milvus() -> dict[str, Any]:
-        """GET /v1/health/deps' Milvus check — reuses the already-connected
-        Knowledge instance's Milvus client when available (agno's
-        `Milvus.client` property, a lazily-created pymilvus MilvusClient) so
-        this doesn't open a second connection with its own credentials;
-        falls back to a fresh MilvusClient (server.core.session's
-        MILVUS_URI/MILVUS_TOKEN) when `knowledge` is None (e.g. this route
-        registered without a live knowledge handle, as in tests)."""
+    async def _check_weaviate() -> dict[str, Any]:
+        """GET /v1/health/deps' vector-store check — reuses the already-connected
+        Knowledge instance's Weaviate client when available (agno's
+        `Weaviate.get_client()`, a lazily-created v4 client) so this doesn't
+        open a second connection; falls back to a fresh client
+        (server.core.session.get_weaviate_client) when `knowledge` is None
+        (e.g. this route registered without a live knowledge handle, as in
+        tests)."""
 
         def _do() -> None:
             client = None
             live_knowledge = resolve_knowledge(knowledge)
             vector_db = getattr(live_knowledge, "vector_db", None) if live_knowledge is not None else None
-            if vector_db is not None:
-                client = getattr(vector_db, "client", None)
+            if vector_db is not None and getattr(vector_db, "get_client", None) is not None:
+                client = vector_db.get_client()
             if client is None:
-                from pymilvus import MilvusClient
+                from server.core.session import get_weaviate_client
 
-                from server.core.session import MILVUS_TOKEN, MILVUS_URI
-
-                client = MilvusClient(uri=MILVUS_URI, token=MILVUS_TOKEN)
-            client.list_collections()
+                client = get_weaviate_client()
+            if not client.is_ready():
+                raise RuntimeError("weaviate not ready")
 
         try:
             await asyncio.wait_for(asyncio.to_thread(_do), timeout=_HEALTH_DEPS_TIMEOUT_S)
@@ -319,15 +323,20 @@ def register_run_routes(app: FastAPI, knowledge: Any) -> None:
         """C2.6 requirement 4 — cheap, parallel dependency health check.
 
         Returns ``{"pg": {"status": "ok"|"error", "error"?: str},
-        "milvus": {...}, "checked_at": <iso8601>}``. Object-store health is
+        "weaviate": {...}, "milvus": <deprecated alias of weaviate>,
+        "checked_at": <iso8601>}``. The ``milvus`` key is a TRANSITIONAL alias
+        (ADR-0040 cutover 2026-07-29) kept only until the workbench health proxy
+        (workbench/api/app/runtime/health.py) and its UI read ``weaviate``; it
+        now reports the Weaviate check, not Milvus. Object-store health is
         workbench-side only (this spine doesn't touch R2 directly) — the
         workbench's own GET /api/health/deps merges its lancedb/object_store
         checks with a proxy of THIS endpoint.
         """
-        pg_result, milvus_result = await asyncio.gather(_check_pg(), _check_milvus())
+        pg_result, vector_result = await asyncio.gather(_check_pg(), _check_weaviate())
         return {
             "pg": pg_result,
-            "milvus": milvus_result,
+            "weaviate": vector_result,
+            "milvus": vector_result,  # deprecated alias — see docstring
             "checked_at": datetime.now(timezone.utc).isoformat(),
         }
 

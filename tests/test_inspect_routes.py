@@ -298,45 +298,61 @@ def test_inspect_pg_schemas_estimate_for_large_tables(monkeypatch):
     assert len(fake.calls) == 2  # no third (exact count) call
 
 
-def test_inspect_milvus_collections_guards_failures(monkeypatch):
-    # Force the "no knowledge instance -> build a fresh MilvusClient" path to
-    # fail deterministically (this sandbox's network may or may not actually
-    # reach a live Milvus at the default tailnet address, so the test must
+def test_inspect_weaviate_collections_guards_failures(monkeypatch):
+    # Force the "no knowledge instance -> build a fresh Weaviate client" path
+    # to fail deterministically (this sandbox's network may or may not actually
+    # reach a live Weaviate at the default tailnet address, so the test must
     # not rely on ambient reachability either way).
-    import pymilvus
+    def _boom():
+        raise RuntimeError("connection refused")
 
-    class _BoomClient:
-        def __init__(self, *a, **k):
-            raise RuntimeError("connection refused")
+    monkeypatch.setattr("server.core.session.get_weaviate_client", _boom, raising=False)
 
-    monkeypatch.setattr(pymilvus, "MilvusClient", _BoomClient)
-
-    out = inspect_routes._inspect_milvus_collections(None)
+    out = inspect_routes._inspect_weaviate_collections(None)
 
     assert isinstance(out, dict) and "error" in out
 
 
-def test_inspect_milvus_collections_happy_path():
+def test_inspect_weaviate_collections_happy_path():
+    class _FakeProperty:
+        name = "content"
+        data_type = "TEXT"
+
+    class _FakeCfg:
+        properties = [_FakeProperty()]
+
+    class _FakeAgg:
+        total_count = 7
+
+    class _FakeAggregate:
+        def over_all(self, total_count=True):
+            return _FakeAgg()
+
+    class _FakeCollectionHandle:
+        aggregate = _FakeAggregate()
+
+    class _FakeCollections:
+        def list_all(self):
+            return {"Platform_knowledge": _FakeCfg()}
+
+        def get(self, name):
+            return _FakeCollectionHandle()
+
     class _FakeClient:
-        def list_collections(self):
-            return ["platform_knowledge"]
-
-        def describe_collection(self, name):
-            return {"fields": [{"name": "vector", "type": "FloatVector", "params": {"dim": 1024}}]}
-
-        def get_collection_stats(self, name):
-            return {"row_count": 7}
+        collections = _FakeCollections()
 
     class _FakeVectorDb:
-        client = _FakeClient()
         collection = "platform_knowledge"
+
+        def get_client(self):
+            return _FakeClient()
 
     class _FakeKnowledge:
         vector_db = _FakeVectorDb()
 
-    out = inspect_routes._inspect_milvus_collections(_FakeKnowledge())
+    out = inspect_routes._inspect_weaviate_collections(_FakeKnowledge())
 
-    assert out == [{"name": "platform_knowledge", "fields": [{"name": "vector", "type": "FloatVector", "dim": 1024}], "num_entities": 7}]
+    assert out == [{"name": "Platform_knowledge", "fields": [{"name": "content", "type": "TEXT"}], "num_entities": 7}]
 
 
 # =============================================================================

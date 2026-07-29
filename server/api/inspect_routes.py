@@ -294,32 +294,27 @@ def _inspect_pg_schemas() -> dict[str, Any]:
     return out
 
 
-def _inspect_milvus_collections(knowledge: Any) -> Any:
+def _inspect_weaviate_collections(knowledge: Any) -> Any:
     """Guarded (task spec: "guard failures -> {"error"}") — returns a list of
-    {name, fields, dims, num_entities} on success, or {"error": str} on any
-    failure (Milvus down, collection introspection error, missing client)."""
+    {name, fields, num_entities} on success, or {"error": str} on any failure
+    (Weaviate down, collection introspection error, missing client).
+    ADR-0040 cutover 2026-07-29: inspects Weaviate, not Milvus."""
     try:
         client = None
         vector_db = getattr(knowledge, "vector_db", None) if knowledge is not None else None
-        if vector_db is not None:
-            client = getattr(vector_db, "client", None)
+        if vector_db is not None and getattr(vector_db, "get_client", None) is not None:
+            client = vector_db.get_client()
         if client is None:
-            from pymilvus import MilvusClient
+            from server.core.session import get_weaviate_client
 
-            from server.core.session import MILVUS_TOKEN, MILVUS_URI
-
-            client = MilvusClient(uri=MILVUS_URI, token=MILVUS_TOKEN)
+            client = get_weaviate_client()
 
         collections = []
-        for name in client.list_collections():
-            desc = client.describe_collection(name)
-            fields = [
-                {"name": f.get("name"), "type": str(f.get("type")), "dim": (f.get("params") or {}).get("dim")}
-                for f in desc.get("fields", [])
-            ]
+        for name, cfg in client.collections.list_all().items():
+            fields = [{"name": p.name, "type": str(p.data_type)} for p in (cfg.properties or [])]
             try:
-                stats = client.get_collection_stats(name)
-                num_entities = stats.get("row_count")
+                agg = client.collections.get(name).aggregate.over_all(total_count=True)
+                num_entities = agg.total_count
             except Exception:
                 num_entities = None
             collections.append({"name": name, "fields": fields, "num_entities": num_entities})
@@ -331,9 +326,11 @@ def _inspect_milvus_collections(knowledge: Any) -> Any:
 def _register_schemas_route(app: FastAPI, knowledge: Any) -> None:
     @app.get("/v1/inspect/schemas")
     async def inspect_schemas() -> dict[str, Any]:
+        vector = _inspect_weaviate_collections(resolve_knowledge(knowledge))
         return {
             "pg": _inspect_pg_schemas(),
-            "milvus": _inspect_milvus_collections(resolve_knowledge(knowledge)),
+            "weaviate": vector,
+            "milvus": vector,  # deprecated alias (ADR-0040 cutover) — until workbench schemas-view reads "weaviate"
         }
 
 

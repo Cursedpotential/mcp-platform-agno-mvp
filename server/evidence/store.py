@@ -78,9 +78,10 @@ def _truncate_error(exc: BaseException) -> str:
 def _is_transient_error(exc: BaseException) -> bool:
     """Classify an exception as transient (worth retrying) vs. not.
 
-    Transient: Milvus 503/UNAVAILABLE/timeout (pymilvus's MilvusException,
-    duck-typed by module+class name so this module never hard-imports
-    pymilvus — it may not be installed on every path that imports store.py),
+    Transient: vector-store 503/UNAVAILABLE/timeout — Weaviate (v4 client's
+    weaviate.exceptions, ADR-0040 cutover) and legacy pymilvus, both duck-typed
+    by module+class name so this module never hard-imports either client (they
+    may not be installed on every path that imports store.py) —
     plain connection/timeout errors, and SQLAlchemy's OperationalError/
     DBAPIError (DB connection drops, not data errors like IntegrityError).
     Deliberately does NOT treat bare OSError as transient — FileNotFoundError
@@ -90,6 +91,15 @@ def _is_transient_error(exc: BaseException) -> bool:
     """
     module = type(exc).__module__ or ""
     name = type(exc).__name__
+    if "weaviate" in module:
+        # v4 client: WeaviateConnectionError / WeaviateTimeoutError /
+        # WeaviateGRPCUnavailableError etc. are retryable; schema/query errors
+        # (UnexpectedStatusCodeError 4xx, WeaviateInvalidInputError) are not.
+        if any(marker in name for marker in ("Connection", "Timeout", "Unavailable", "GRPCUnavailable")):
+            return True
+        status = str(getattr(exc, "message", "") or exc).upper()
+        if "UNAVAILABLE" in status or "DEADLINE_EXCEEDED" in status or "503" in status:
+            return True
     if "pymilvus" in module and "Milvus" in name:
         code = getattr(exc, "code", None)
         if code in (503, "503"):

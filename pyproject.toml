@@ -23,7 +23,7 @@ dependencies = [
   "google-genai",
   "parallel-web",
   "pgvector",
-  "pymilvus",
+  "weaviate-client",
   "psycopg[binary]",
   "sqlalchemy",
 ]
@@ -66,7 +66,7 @@ explicit_package_bases = true
 # deps that aren't installed in CI and are lazy-imported in the segmenters).
 module = [
   "pgvector.*",
-  "pymilvus.*",
+  "weaviate.*",
   "agno.*",
   "httpx.*",
   "mcp.*",

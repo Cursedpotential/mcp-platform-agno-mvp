@@ -6,10 +6,10 @@ Database Session
                      on **SurrealDB** (WS transport, /rpc, lazy-connect via agno.db.surrealdb).
 ``get_postgres_db()`` — Postgres for Knowledge *contents* rows and pg_duckdb / evidence work.
 ``create_knowledge()`` — agent Knowledge vectors. CURRENT CONTRACT (ADR-0040, owner-locked
-2026-07; HANDOFF-2026-07-27): **Weaviate is the platform vector store** — Milvus (ADR-0026/0027)
-is SIDELINED for memsearch only, no new platform writers. The knowledge-stage cutover to
-Weaviate is HANDOFF Phase-1 task 4. pgvector remains in the PG image but is NOT the Knowledge
-store.
+2026-07; HANDOFF-2026-07-27): **Weaviate is the platform vector store** — CUTOVER DONE
+2026-07-29 (Phase-1 task 4): vectors write to data-weaviate; Milvus (ADR-0026/0027) is
+SIDELINED for memsearch only and no longer referenced here. pgvector remains in the PG
+image but is NOT the Knowledge store.
 
 Embedder: **SYMMETRIC models only** — no query/passage modes (asymmetric NIM embedqa models
 silently degrade retrieval; owner rule). LIVE contract since 2026-07-19: ``nvidia/nv-embed-v1``
@@ -21,7 +21,8 @@ re-creating (re-embedding) the collection. (NVIDIA ``NimEmbedder`` fallback reta
 Config via env:
   SurrealDB (operational): ``SURREALDB_URL`` / ``SURREALDB_USER`` / ``SURREALDB_PASS`` /
     ``SURREALDB_NS`` / ``SURREALDB_DB``.
-  Milvus (vectors): ``MILVUS_ADDRESS`` / ``MILVUS_TOKEN`` (token = ``user:pass``).
+  Weaviate (vectors): ``WEAVIATE_HTTP_HOST`` / ``WEAVIATE_HTTP_PORT`` / ``WEAVIATE_GRPC_PORT``
+    / ``WEAVIATE_API_KEY`` (empty = anonymous until Phase-1 task 5).
   Embedder: ``OPENROUTER_API_KEY`` (+ optional ``OPENROUTER_BASE_URL``), ``EMBED_*`` overrides.
 """
 
@@ -31,7 +32,8 @@ from agno.db.postgres import PostgresDb
 from agno.db.surrealdb import SurrealDb
 from agno.knowledge import Knowledge
 from agno.knowledge.embedder.openai import OpenAIEmbedder
-from agno.vectordb.milvus import Milvus, SearchType
+from agno.vectordb.search import SearchType
+from agno.vectordb.weaviate import Weaviate
 
 from server.core.url import db_url
 
@@ -47,12 +49,37 @@ SURREALDB_PASS = getenv("SURREALDB_PASS", "root")
 SURREALDB_NS = getenv("SURREALDB_NS", "agno")
 SURREALDB_DB = getenv("SURREALDB_DB", "platform")
 
-# --- Milvus: the platform-wide vector substrate (ADR-0026/0027) --------------
-# Lives on the OVH-3 data tier (relocated off the decommissioned OVH-2). Default =
-# OVH-3 tailnet IP (matches compose OVH3_HOST :19530); compose passes MILVUS_ADDRESS
-# at runtime so this default only fires in a bare local run. Token = user:pass.
-MILVUS_URI = getenv("MILVUS_ADDRESS", "http://100.119.96.29:19530")
-MILVUS_TOKEN = getenv("MILVUS_TOKEN", "root:Milvus")
+# --- Weaviate: THE platform vector store (ADR-0040, cutover 2026-07-29) ------
+# data-weaviate on the OVH-3 data tier: REST :8081 (host 8080 = coolify-proxy),
+# gRPC :50051, tailnet/BIND_IP-scoped. Anonymous auth until Phase-1 task 5
+# (WEAVIATE_API_KEY wired here already — empty = anonymous). agno's Weaviate
+# `local=True` hardcodes connect_to_local() (localhost), so we always hand it a
+# preconstructed connect_to_custom() client.
+WEAVIATE_HTTP_HOST = getenv("WEAVIATE_HTTP_HOST", "100.119.96.29")
+WEAVIATE_HTTP_PORT = int(getenv("WEAVIATE_HTTP_PORT", "8081"))
+WEAVIATE_GRPC_PORT = int(getenv("WEAVIATE_GRPC_PORT", "50051"))
+WEAVIATE_API_KEY = getenv("WEAVIATE_API_KEY", "")
+
+
+def get_weaviate_client():
+    """Fresh v4 client to the platform Weaviate (connect_to_custom — see above).
+
+    skip_init_checks: the readiness probe hits gRPC health before REST is up in
+    some boot orders; the lazy connect on first op surfaces real failures.
+    """
+    import weaviate
+    from weaviate.classes.init import Auth
+
+    return weaviate.connect_to_custom(
+        http_host=WEAVIATE_HTTP_HOST,
+        http_port=WEAVIATE_HTTP_PORT,
+        http_secure=False,
+        grpc_host=WEAVIATE_HTTP_HOST,
+        grpc_port=WEAVIATE_GRPC_PORT,
+        grpc_secure=False,
+        auth_credentials=Auth.api_key(WEAVIATE_API_KEY) if WEAVIATE_API_KEY else None,
+        skip_init_checks=True,
+    )
 
 # --- Embedder: OpenAI-compatible /embeddings, SYMMETRIC ----------------------
 # Dedicated EMBED_BASE_URL / EMBED_API_KEY override the OpenRouter defaults so
@@ -154,15 +181,18 @@ def get_agno_db() -> SurrealDb:
 
 
 def create_knowledge(name: str, table_name: str, use_code_embedder: bool = False) -> Knowledge:
-    """Knowledge base with **vectors in Milvus** (hybrid) + contents in Postgres.
+    """Knowledge base with **vectors in Weaviate** (hybrid BM25+vector) + contents in Postgres.
 
     ``use_code_embedder=True`` selects the code embedder (codestral-embed-2505, 1536-d) for
-    code-artifact collections; default is the text embedder (bge-m3, 1024-d) for
+    code-artifact collections; default is the text embedder (nv-embed-v1, 4096-d) for
     docs/transcripts/notes (ADR-0010: one collection per embedder).
 
-    ``table_name`` is used as the **Milvus collection** name; document contents persist in
-    Postgres ``{table_name}_contents``. The collection dimension is fixed at creation —
-    changing the embedder requires dropping + re-creating the collection.
+    ``table_name`` is used as the **Weaviate collection** name (Weaviate capitalizes the
+    first letter internally — ``platform_knowledge`` is served as ``Platform_knowledge``);
+    document contents persist in Postgres ``{table_name}_contents``. Weaviate stores vectors
+    per-object without a declared dim, but the embedder stays a pinned contract (ADR-0010):
+    mixing embedders in one collection silently corrupts retrieval — changing the embedder
+    means a new collection + re-embed.
     """
     if use_code_embedder:
         embedder = _embedder(EMBED_CODE_ID, EMBED_CODE_DIM)
@@ -171,10 +201,9 @@ def create_knowledge(name: str, table_name: str, use_code_embedder: bool = False
 
     return Knowledge(
         name=name,
-        vector_db=Milvus(
+        vector_db=Weaviate(
+            client=get_weaviate_client(),
             collection=table_name,
-            uri=MILVUS_URI,
-            token=MILVUS_TOKEN,
             search_type=SearchType.hybrid,
             embedder=embedder,
         ),
