@@ -253,7 +253,13 @@ S3 API + pg_duckdb httpfs (`read_text('s3://nexus/...')`).
   proven through a 40-min exec-tier outage). LiteLLM is deprecated pending teardown — a separate
   owner-gated task (incl. remapping OpenCode's model config); until then nothing NEW points at it.
 - **Graphiti/memory-lane ADRs 0036–0039 ACCEPTED (owner 2026-07-29; Proposed 2026-07-13):**
-  DozerDB multi-DB with RBAC-scoped writers — `memory` vs `evidence` isolation (0036) · Graphiti
+  DozerDB multi-DB with RBAC-scoped writers — `memory` vs `evidence` isolation (0036; **LIVE
+  2026-07-30** — `data-neo4j` = `graphstack/dozerdb:5.26.27.0`, same upstream version so no
+  store migration; `memory` + `evidence` created and isolation-verified. ⚠ Two caveats: DozerDB
+  only accepts the PLAIN `CREATE DATABASE x` form — `IF NOT EXISTS`/`WAIT` return a misleading
+  "Unsupported administration command"; and **RBAC roles are unimplemented upstream**, so the
+  wall is database-scoped (blocks accidents) not permission-scoped (does not block a caller
+  holding the `neo4j` superuser credential). Phase 2 = move Graphiti onto `memory`) · Graphiti
   MCP as a write-enabled ContextForge virtual server, standalone `:8071` no-auth door to be
   retired (0037) · Agno agents use `graphiti-core` in-process, the MCP door serves GUI clients
   only (0038) · Graphiti extraction LLM = hosted structured-output provider, never small/local
