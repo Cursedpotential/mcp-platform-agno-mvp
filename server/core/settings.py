@@ -11,9 +11,10 @@ Provider priority chain (when no override):
 Ollama Cloud (``glm-5.1``) is the primary provider (D7 revision).
 NVIDIA NIM is the backup — its OpenAI-compatible endpoint serves most models.
 
-Embedder strategy (ADR-0010):
-- One Milvus collection per embedder, dimension-locked at creation.
-- Text: ``bge-m3`` (1024-d) via OpenRouter.
+Embedder strategy (ADR-0010; store = Weaviate per ADR-0040):
+- One vector collection per embedder, embedder pinned at creation.
+- Text: ``nvidia/nv-embed-v1`` (4096-d) — LIVE contract since 2026-07-19
+  (bge-m3 retired: 500ing on NIM since 2026-07-04, store re-embedded).
 - Code: ``codestral-embed-2505`` (1536-d) via OpenRouter.
 
 Environment variables:
@@ -24,6 +25,7 @@ Environment variables:
 - Provider-specific: ``OLLAMA_HOST``, ``NVIDIA_BASE_URL``, ``MOONSHOT_BASE_URL``,
   ``NVIDIA_RERANK_URL``.
 """
+# Byline: Claude Code · Fable 5 · 2026-07-31 (embedder docstring truth: nv-embed-v1 4096-d live contract; Weaviate store)
 
 from __future__ import annotations
 

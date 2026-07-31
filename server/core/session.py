@@ -25,6 +25,7 @@ Config via env:
     / ``WEAVIATE_API_KEY`` (empty = anonymous until Phase-1 task 5).
   Embedder: ``OPENROUTER_API_KEY`` (+ optional ``OPENROUTER_BASE_URL``), ``EMBED_*`` overrides.
 """
+# Byline: Claude Code · Fable 5 · 2026-07-31 (distinct db registry ids (agentos-admin-db / agentos-contents-db) — HANDOFF-2026-07-30 audit #1 fix)
 
 from os import getenv
 
@@ -37,7 +38,15 @@ from agno.vectordb.weaviate import Weaviate
 
 from server.core.url import db_url
 
-DB_ID = "agentos-db"
+# Distinct registry ids per backend (fix 2026-07-31, HANDOFF-2026-07-30 audit #1):
+# agno's AgentOS registers dbs keyed by `db.id` (os/app.py) and its route resolver
+# only detects a multi-db setup by counting registry KEYS (os/utils.py). Sharing
+# one id across SurrealDb + PostgresDb merged both backends into a single bucket,
+# so memory/session/knowledge routes hit whichever backend won registration —
+# the root cause of the "memory/knowledge broken on first open" breakage.
+DB_ID = "agentos-db"  # SurrealDb — the operational store (sessions/memory/traces)
+ADMIN_DB_ID = "agentos-admin-db"  # PostgresDb — AgentOS admin plane
+CONTENTS_DB_ID = "agentos-contents-db"  # PostgresDb — Knowledge contents rows
 
 # --- SurrealDB: the Agno OPERATIONAL store (sessions/memory/metrics/eval/
 # knowledge-content/culture/traces/spans). Reached from the exec tier on OVH-1 ->
@@ -80,6 +89,7 @@ def get_weaviate_client():
         auth_credentials=Auth.api_key(WEAVIATE_API_KEY) if WEAVIATE_API_KEY else None,
         skip_init_checks=True,
     )
+
 
 # --- Embedder: OpenAI-compatible /embeddings, SYMMETRIC ----------------------
 # Dedicated EMBED_BASE_URL / EMBED_API_KEY override the OpenRouter defaults so
@@ -158,11 +168,16 @@ def get_postgres_db(contents_table: str | None = None) -> PostgresDb:
 
     Pass ``contents_table`` only when this database is the ``contents_db``
     of a Knowledge base — it tells agno where to persist document contents.
-    For plain agent persistence (sessions, memory) leave it unset.
+    Without it, the instance is the AgentOS admin-plane db.
+
+    Each role gets its OWN registry id (never ``DB_ID``): agno's AgentOS
+    resolver merges same-id dbs into one bucket, and sharing SurrealDb's id
+    here made memory/session/knowledge routes resolve to a backend lottery
+    (HANDOFF-2026-07-30 audit #1, confirmed live 2026-07-31).
     """
     if contents_table is not None:
-        return PostgresDb(id=DB_ID, db_url=db_url, knowledge_table=contents_table)
-    return PostgresDb(id=DB_ID, db_url=db_url)
+        return PostgresDb(id=CONTENTS_DB_ID, db_url=db_url, knowledge_table=contents_table)
+    return PostgresDb(id=ADMIN_DB_ID, db_url=db_url)
 
 
 def get_agno_db() -> SurrealDb:

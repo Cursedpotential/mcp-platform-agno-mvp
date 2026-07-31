@@ -25,6 +25,7 @@ Conventions:
 - The HITL write tool (``apply_db_modification``) is the ONLY way agents write
   to the ``analysis`` schema. It pauses for human approval before executing.
 """
+# Byline: Claude Code · Fable 5 · 2026-07-31 (enable_user_memories on Root Router + Project PAL; Weaviate docstring fix)
 
 from __future__ import annotations
 
@@ -141,7 +142,7 @@ def build_ingestion_orchestrator(
     db:
         Agno operational DB (SurrealDB).
     knowledge:
-        Agno Knowledge instance (Milvus-backed).
+        Agno Knowledge instance (Weaviate-backed, ADR-0040).
     learning:
         Agno LearningMachine instance.
     source_tools:
@@ -319,6 +320,9 @@ def build_project_pal(model: Any, db: Any, learning: Any) -> Agent:
         learning=learning,
         add_history_to_context=True,
         num_history_runs=10,
+        # Rolling memory IS this agent's role — capture user memories when it
+        # runs directly (the Root Router covers the routed path).
+        enable_user_memories=True,
         instructions=get_instructions("project_pal"),
         markdown=True,
     )
@@ -415,6 +419,13 @@ def build_root_router(model: Any, db: Any, ops_team: Team, builder_team: Team) -
         mode=TeamMode.route,
         add_history_to_context=True,
         num_history_runs=10,
+        # Memory capture lives HERE (plus Project PAL) and nowhere else: the
+        # router sees every user message, so one enable = one memory-extraction
+        # pass per user run instead of one per member agent. Memories persist
+        # to `db` (SurrealDb, agno_memories) and feed the AgentOS memory panel
+        # — which stayed empty because nothing ever wrote memories
+        # (HANDOFF-2026-07-30 audit, confirmed live 2026-07-31).
+        enable_user_memories=True,
         instructions=get_instructions("router"),
         markdown=True,
     )

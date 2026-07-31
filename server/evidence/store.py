@@ -4,8 +4,8 @@ evidence/store.py — persist normalized records + feed the knowledge engine.
 Two sinks (P2 scope):
   1. analysis.normalized_record — the relational home of every canonical record,
      carrying the bitemporal fields (occurred_at / knowledge_time / disclosure_tier).
-  2. The domain-partitioned KNOWLEDGE engine (Milvus collection `platform_knowledge`,
-     ADR-0027 — vectors in Milvus, contents in Postgres): transcripts are re-rendered
+  2. The domain-partitioned KNOWLEDGE engine (Weaviate collection `Platform_knowledge`,
+     ADR-0040 — vectors in Weaviate, contents in Postgres): transcripts are re-rendered
      as conversation markdown and inserted with a `domain` metadata tag
      (timeline_relationship | personal_history | platform_design | legal_strategy) so
      agents filter to their domains (native knowledge_filters — see docs/DEBT.md).
@@ -26,6 +26,7 @@ C2.6 (resilience + observability, 2026-07-20/21) additions:
     stage output can show exactly what was retried and why.
 """
 # Byline: Claude Code · Sonnet (agent) · 2026-07-21 (C2.6: retry/backoff + load_records_for_artifact + logging)
+# Byline: Claude Code · Fable 5 · 2026-07-31 (Milvus→Weaviate doc-drift cleanup (ADR-0040))
 
 from __future__ import annotations
 

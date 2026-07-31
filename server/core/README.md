@@ -8,7 +8,7 @@
 db/
   __init__.py          <- Re-exports: create_knowledge, db_url, ensure_duckdb_r2_secret, get_agno_db.
   url.py               <- Database URL builder from env vars.
-  session.py           <- Agno DB setup: SurrealDB (operational store), Milvus (vectors).
+  session.py           <- Agno DB setup: SurrealDB (operational store), Weaviate (vectors, ADR-0040).
   embedder.py          <- NVIDIA NIM embedder (asymmetric query/passage).
   reranker.py          <- NVIDIA NIM reranker (native ranking API).
 ```

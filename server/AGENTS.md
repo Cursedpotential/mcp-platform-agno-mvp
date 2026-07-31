@@ -17,7 +17,7 @@ is `server.*`). ADR-0035 sub-namespaced `server/tools/` by capability.
 | `evidence/` | The evidence spine (custody/store/workflows/cli) — see `evidence/AGENTS.md` |
 | `tools/` | Cross-domain parser/extractor/gateway registry — see `tools/AGENTS.md` |
 | `agents/` | Agent/team constructors, providers, `@tool` wrappers — see `agents/AGENTS.md` |
-| `analysis/` | Behavioral domain: `detection.py`, `patterns.py`, `court_language.py`, `milvus_forensic.py` |
+| `analysis/` | Behavioral domain: `detection.py`, `patterns.py`, `court_language.py`, `semantica_wiring.py` |
 | `vendored/` | Third-party projects (`chatminer`, `semantica`) — import-only, excluded from ruff/mypy/pytest |
 
 ## Dependency direction (downward only)
