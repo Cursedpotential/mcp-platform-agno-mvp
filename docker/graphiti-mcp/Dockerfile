@@ -90,7 +90,7 @@ RUN sed -i '/\[tool\.uv\.sources\]/,/graphiti-core/d' pyproject.toml \
     && sed -i "s/graphiti-core\[falkordb\][>=]\+[0-9]\+\.[0-9]\+\.[0-9]\+/graphiti-core[${GRAPHITI_EXTRAS}]==${GRAPHITI_CORE_VERSION}/" pyproject.toml \
     && grep -q "graphiti-core\[${GRAPHITI_EXTRAS}\]==${GRAPHITI_CORE_VERSION}" pyproject.toml \
     && ! grep -q "falkordb" pyproject.toml \
-    && grep -q 'requires-python = ">=3.11"' pyproject.toml \
+    && grep -q 'requires-python = ">=3.11' pyproject.toml \
     && rm -f uv.lock \
     && uv lock
 
