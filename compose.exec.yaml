@@ -119,90 +119,16 @@ services:
       - "host.docker.internal:host-gateway"
 
   # ---------------------------------------------------------------------------
+  # agentos-mcp RETIRED 2026-07-23 (owner decision). It existed only to work
+  # around agno's mounted /mcp sub-app not surviving uvicorn (StreamableHTTP
+  # session-manager task group didn't init when mounted) — fixed upstream in
+  # agno 2.8.0 (verified: agentos-api's mounted :8000/mcp now does a clean
+  # initialize + tools/list round-trip). The workaround (server/api/mcp_main.py,
+  # kept and marked DEPRECATED, not deleted) and this service block are no
+  # longer needed; all MCP traffic now goes to agentos-api's mounted /mcp on
+  # :8000. See docs/adr/ and C:\Users\matts\OneDrive\AI Space\agno-upgrade-result.md
+  # ("agentos-mcp retirement" section) for the full verification trail.
   # ---------------------------------------------------------------------------
-  # agentos-mcp — the MCP server run STANDALONE (NOT mounted). FastMCP's
-  # StreamableHTTP session-manager task group does not survive being a mounted
-  # sub-app under uvicorn → mounted /mcp 500s "task group not initialized".
-  # Served as its OWN ASGI app (server.api.mcp_main:mcp_app) its lifespan runs natively
-  # and /mcp works (verified mounted=0/5 vs standalone=5/5). Same image as
-  # agentos-api. Traefik routes Host(agentos.*) + PathPrefix(/mcp) HERE (higher
-  # priority than the agentos-api catch-all), gated by basic auth (user matt).
-  # ---------------------------------------------------------------------------
-  agentos-mcp:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: agentos-mcp
-    image: ${IMAGE_NAME:-agentos}:${IMAGE_TAG:-latest}
-    command: uvicorn server.api.mcp_main:mcp_app --host 0.0.0.0 --port 8001
-    restart: unless-stopped
-    ports:
-      - "${BIND_IP:-127.0.0.1}:8001:8001"   # MCP surface (tailnet); public via Traefik below
-    volumes:
-      - r2-nexus:/r2
-    env_file:
-      - path: .env
-        required: false
-    environment:
-      RUNTIME_ENV: ${RUNTIME_ENV:-dev}
-      AGNO_DEBUG: "True"
-      WAIT_FOR_DB: "True"
-      AGENTOS_URL: http://127.0.0.1:8000
-      # fastmcp 3.x: settings.host defaults to 127.0.0.1 which AUTO-LOCKS the Host
-      # allowlist to localhost -> CF's "Host: agentos-mcp:8001" got 421 (same upstream
-      # bug as graphiti). FASTMCP_HOST=0.0.0.0 skips the auto-lock.
-      FASTMCP_HOST: 0.0.0.0
-      OS_SECURITY_KEY: ${OS_SECURITY_KEY:-}
-      DB_HOST: ${OVH3_HOST}
-      DB_PORT: 5432
-      DB_USER: ${DB_USER:-ai}
-      DB_PASS: ${DB_PASS:-ai}
-      DB_DATABASE: ${DB_DATABASE:-ai}
-      MILVUS_ADDRESS: ${MILVUS_ADDRESS:-http://${OVH3_HOST}:19530}
-      MILVUS_TOKEN: ${MILVUS_TOKEN:-}
-      SURREALDB_URL: ${SURREALDB_URL:-ws://${OVH3_HOST}:8000/rpc}
-      SURREALDB_USER: ${SURREALDB_USER:-root}
-      SURREALDB_PASS: ${SURREALDB_PASS:-root}
-      SURREALDB_NS: ${SURREALDB_NS:-agno}
-      SURREALDB_DB: ${SURREALDB_DB:-platform}
-      CF_GATEWAY_URL: http://contextforge:4444
-      CF_GRAPHITI_SERVER_ID: ${CF_GRAPHITI_SERVER_ID:-}
-      CF_GATEWAY_TOKEN: ${CF_GATEWAY_TOKEN:-}
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
-      NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
-      GROQ_API_KEY: ${GROQ_API_KEY:-}
-      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
-      DEFAULT_MODEL_PROVIDER: ${DEFAULT_MODEL_PROVIDER:-}
-      R2_BUCKET_NAME: ${R2_BUCKET_NAME:-}
-      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
-      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
-      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
-      R2_ENDPOINT_URL: ${R2_ENDPOINT_URL:-}
-      # SBV toolkit (facade-collapse plan Batch A, §2.3) — see agentos-api's
-      # matching block above for the rationale; agentos-mcp needs the same
-      # env because it's the process that actually serves sbv_tools.py's
-      # @tool functions over MCP.
-      SBV_BASE_URL: ${SBV_BASE_URL:-http://platform-tools:8085}
-      SBV_SERVICE_USER: ${SBV_SERVICE_USER:-mcp_service}
-      SBV_SERVICE_PASS: ${SBV_SERVICE_PASS:?set SBV_SERVICE_PASS in Coolify app env}
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=rz41wqhpjfh1rj796ixvjhfs
-      - traefik.http.routers.agentos-mcp.rule=Host(`agentos.mitechconsult.com`) && PathPrefix(`/mcp`)
-      - traefik.http.routers.agentos-mcp.entryPoints=https
-      - traefik.http.routers.agentos-mcp.tls=true
-      - traefik.http.routers.agentos-mcp.tls.certresolver=letsencrypt
-      - traefik.http.routers.agentos-mcp.priority=200
-      - traefik.http.routers.agentos-mcp.service=agentos-mcp
-      - traefik.http.routers.agentos-mcp.middlewares=mcp-auth
-      - traefik.http.middlewares.mcp-auth.basicauth.users=matt:$apr1$baWBjon1$CeRCrbBEl/8SEglAHlfTu1
-      - traefik.http.services.agentos-mcp.loadbalancer.server.port=8001
-    networks:
-      - agentos
-      - agno   # cross-app docker-DNS to contextforge / platform-tools (2026-07-19 split)
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
 
 networks:
   agentos:

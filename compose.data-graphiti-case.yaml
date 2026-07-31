@@ -1,0 +1,97 @@
+# =============================================================================
+# DATA TIER — CASE GRAPHITI (second Graphiti instance, CASE/AGENT memory lane).
+#
+# WHY A SECOND INSTANCE AND NOT JUST A group_id (owner ruling 2026-07-30/31):
+# agent memory for evidence + legal reasoning must NOT share a memory space with
+# platform build chatter — provenance, retrieval contamination, disclosure
+# boundaries and retention lifecycles all differ. A Graphiti instance binds to
+# exactly ONE Neo4j database (config.yaml `database:`), so `group_id` can only
+# partition WITHIN one database and a stray clear_graph/DETACH DELETE crosses it
+# freely. Cross-database separation therefore requires a separate instance.
+# That database boundary is also the ONLY mechanical wall available: DozerDB's
+# RBAC is unimplemented upstream (ADR-0036 Outcome), so role-scoped writers are
+# not an option today.
+#
+# LANES:
+#   data-graphiti      -> database `neo4j`   -> BUILD/DEV memory (owner + Claude)
+#   data-graphiti-case -> database `memory`  -> CASE/AGENT memory  (this file)
+#   Semantica          -> database `evidence` -> evidence graph (agents read-only)
+#
+# DEPLOY AS ITS OWN Coolify "Docker Compose" app `data-graphiti-case` on ovh-data
+# (server jt1tv1j5samqn5rglmtky0qc), repo Cursedpotential/mcp-platform-agno-mvp
+# @ main, compose file /compose.data-graphiti-case.yaml.
+# Env (copy from data-graphiti, PLUS the database selector):
+#   BIND_IP=100.119.96.29
+#   NEO4J_PASSWORD           (must match data-neo4j)
+#   NEO4J_DATABASE=memory    <-- THE difference from data-graphiti
+#
+# HOST-PREP (done 2026-07-31) — Coolify mounts these read-only, they must pre-exist:
+#   /data/agno/config/graphiti-case/{config.yaml,hostfix.conf,portkeyfix.conf}
+#   config.yaml is the data-graphiti one with group_id: "case-salem-kinzel";
+#   hostfix.conf listens 8073 and proxies graphiti-case-mcp.
+#
+# PORTS: 8073 (dev instance owns 8071). Tailnet-only, never proxied publicly.
+# =============================================================================
+
+services:
+  graphiti-case-mcp:
+    image: zepai/knowledge-graph-mcp:latest
+    platform: linux/amd64
+    container_name: graphiti-case-mcp
+    restart: unless-stopped
+    # No host port — the hostfix sidecar owns ${BIND_IP}:8073 (same pattern as
+    # data-graphiti: upstream FastMCP locks allowed_hosts to localhost, so a
+    # tailnet-IP Host header gets a 421 without the rewrite).
+    environment:
+      CONFIG_PATH: /app/mcp/config/config.yaml
+      BROWSER: "0"
+      FASTMCP_TRANSPORT_SECURITY: '{"enable_dns_rebinding_protection": false}'
+      NEO4J_URI: bolt://neo4j:7687      # docker DNS on the shared `agno` net
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-graphiti-dev-password}
+      # THE isolation control: this instance reads/writes ONLY the `memory`
+      # database (created on DozerDB 2026-07-30, ADR-0036). Verified isolated:
+      # a node written here is invisible from the `neo4j` database.
+      NEO4J_DATABASE: ${NEO4J_DATABASE:-memory}
+      # LLM + embeddings via the portkeyfix sidecar -> Portkey on ovh-app
+      # (ADR-0042; LiteLLM is retired). Dummy key: nginx injects the real
+      # x-portkey-config server-side and never inspects this value.
+      OPENAI_API_KEY: portkey-sidecar-noauth
+      OPENAI_API_URL: http://graphiti-case-portkeyfix:8072/v1
+      OPENAI_BASE_URL: http://graphiti-case-portkeyfix:8072/v1
+    volumes:
+      - /data/agno/config/graphiti-case/config.yaml:/app/mcp/config/config.yaml:ro
+    networks:
+      - graphiti-case
+      - agno
+
+  graphiti-case-hostfix:
+    image: nginx:alpine
+    container_name: graphiti-case-hostfix
+    restart: unless-stopped
+    ports:
+      - "${BIND_IP:-127.0.0.1}:8073:8073"   # tailnet-only; external access only via ContextForge
+    volumes:
+      - /data/agno/config/graphiti-case/hostfix.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - graphiti-case-mcp
+    networks:
+      - graphiti-case
+      - agno
+
+  graphiti-case-portkeyfix:
+    image: nginx:alpine
+    container_name: graphiti-case-portkeyfix
+    restart: unless-stopped
+    volumes:
+      - /data/agno/config/graphiti-case/portkeyfix.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - graphiti-case
+      - agno
+
+networks:
+  graphiti-case:
+  agno:
+    external: true
+
+# Byline: Claude Code · Fable 5 · 2026-07-31 (case/agent memory lane, ADR-0036 database isolation)

@@ -63,7 +63,10 @@ services:
       # also just this repo's existing Coolify convention anyway (env
       # values are rendered as literals at deploy — see the file header) —
       # to override, edit this value directly in the Coolify env editor.
-      MCP_SERVERS: '[{"key":"agentos","label":"AgentOS","url":"http://100.72.169.40:8001/mcp"},{"key":"contextforge","label":"ContextForge","url":"http://100.72.169.40:4444/mcp"}]'
+      # agentos url uses :8000/mcp (agentos-api's mounted MCP surface) — the
+      # standalone agentos-mcp service (:8001) was retired 2026-07-23, its
+      # mounted-/mcp bug fixed upstream in agno 2.8.0.
+      MCP_SERVERS: '[{"key":"agentos","label":"AgentOS","url":"http://100.72.169.40:8000/mcp"},{"key":"contextforge","label":"ContextForge","url":"http://100.72.169.40:4444/mcp"}]'
       CONTEXTFORGE_TOKEN: ${CONTEXTFORGE_TOKEN:-}
       # --- Ops Copilot (C2.5) — headless OpenCode server, exec-gateway app ---
       OPENCODE_URL: ${OPENCODE_URL:-http://100.72.169.40:4096}

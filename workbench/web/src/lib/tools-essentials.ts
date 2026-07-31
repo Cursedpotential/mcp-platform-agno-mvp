@@ -9,7 +9,9 @@
  * MCP surfaces (see workbench/api/app/config/settings.py::mcp_servers)
  * differ in how stable/enumerable their tool names are:
  *
- * - "agentos" (:8001/mcp) exposes Agno's own fixed AgentOS-operation set
+ * - "agentos" (:8000/mcp, mounted on agentos-api — standalone :8001 service
+ *   retired 2026-07-23, agno 2.8.0 fixed the mounted-/mcp bug it worked
+ *   around) exposes Agno's own fixed AgentOS-operation set
  *   (per docs/BUILD_PLAN.md: "AgentOS's native MCP surface exposes only
  *   ~19 AgentOS operations, never granular @tool functions" — verified
  *   from agno source `agno/os/app.py:588-595`). An EXACT allowlist is safe

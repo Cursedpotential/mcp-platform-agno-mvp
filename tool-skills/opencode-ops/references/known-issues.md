@@ -107,19 +107,23 @@ JSON) even though `GET /info` reports non-zero `agent_count`/`team_count`. `GET 
 sessions which reference agent/team ids) or `agentos:run_agent`/`run_team` directly if the id is
 already known from other context (e.g. Coolify env, AGENTOS docs).
 
-## 5. ContextForge `/mcp` gateway is stateless; agentos-mcp is session-scoped
+## 5. ContextForge `/mcp` gateway is stateless; agentos MCP is session-scoped
 
 Verified live: a bare `tools/list` POST against `http://100.72.169.40:4444/mcp` with **no prior
 `initialize` call at all** returns 200 with the full 69-tool catalog — no `Mcp-Session-Id` header
-is issued or required. `http://100.72.169.40:8001/mcp` (agentos-mcp direct) **does** issue a session
-id on `initialize` and expects it echoed back on subsequent calls. `oc.py`'s `McpClient` handles
-both: it always calls `initialize()` once per client instance, captures a session id if one comes
-back, and only sends the `Mcp-Session-Id` header when it has one.
+is issued or required. `http://100.72.169.40:8000/mcp` (agentos-api's mounted MCP surface) **does**
+issue a session id on `initialize` and expects it echoed back on subsequent calls. `oc.py`'s
+`McpClient` handles both: it always calls `initialize()` once per client instance, captures a
+session id if one comes back, and only sends the `Mcp-Session-Id` header when it has one.
+
+(Historical note: this same session-scoped behavior was previously observed against the standalone
+`agentos-mcp` service on `:8001`, retired 2026-07-23 once agno 2.8.0 fixed the mounted-`/mcp` bug
+that service worked around — `:8000/mcp` now exhibits the identical session-id contract.)
 
 ContextForge's federated tool names are the catalog's own registered names verbatim (e.g.
 `agno-platform-run-agent`, `coolify-write-list-projects`, `graphiti-get-status`) — **not** a fixed
 `<server>-` prefix derived from the `oc tools call <server>:<tool>` server selector. The `server`
-argument only picks which endpoint to hit (`agentos` → direct `:8001/mcp` with native
+argument only picks which endpoint to hit (`agentos` → direct `:8000/mcp` with native
 underscore-style names like `run_agent`; `contextforge` → `:4444/mcp` with the catalog's own
 hyphenated names like `agno-platform-run-agent`). Always `oc tools list --server X` first to get the
 exact literal name before `oc tools call X:<name>`.

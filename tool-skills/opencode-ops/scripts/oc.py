@@ -58,7 +58,10 @@ OC_SERVER_PASSWORD = os.environ.get("OC_SERVER_PASSWORD")
 OC_WORKSPACE = os.environ.get("OC_WORKSPACE")
 
 AGENTOS_URL = os.environ.get("OC_AGENTOS_URL", "http://100.72.169.40:8000").rstrip("/")
-AGENTOS_MCP_URL = os.environ.get("OC_AGENTOS_MCP_URL", "http://100.72.169.40:8001/mcp")
+# agentos-mcp standalone service (:8001) retired 2026-07-23 — agno 2.8.0 fixed
+# the mounted-/mcp bug it worked around, so agentos-api's own :8000/mcp is now
+# the canonical MCP surface.
+AGENTOS_MCP_URL = os.environ.get("OC_AGENTOS_MCP_URL", "http://100.72.169.40:8000/mcp")
 CONTEXTFORGE_MCP_URL = os.environ.get("OC_CONTEXTFORGE_MCP_URL", "http://100.72.169.40:4444/mcp")
 
 INFRA_SECRETS_FILE = os.environ.get("OC_INFRA_SECRETS_FILE", r"C:/Users/matts/.secrets/infra-access.md")
