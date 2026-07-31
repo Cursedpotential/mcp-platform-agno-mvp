@@ -79,10 +79,18 @@ RUN cd /app/mcp \
     && echo "patch verified in place"
 
 # Swap upstream's dependency line for ours (same mechanism upstream uses).
+#
+# requires-python is also raised to >=3.11. Upstream declares >=3.10, which makes
+# `uv lock` go looking for a 3.10 interpreter that this 3.11 image doesn't have
+# (UV_PYTHON_DOWNLOADS=never, deliberately — no surprise interpreter downloads).
+# 3.11 is also the correct floor for us regardless: the gliner2 extra is gated on
+# python_version >= "3.11", so resolving for 3.10 would silently drop CPU-local NER.
 RUN sed -i '/\[tool\.uv\.sources\]/,/graphiti-core/d' pyproject.toml \
+    && sed -i 's/^requires-python = ">=3\.10/requires-python = ">=3.11/' pyproject.toml \
     && sed -i "s/graphiti-core\[falkordb\][>=]\+[0-9]\+\.[0-9]\+\.[0-9]\+/graphiti-core[${GRAPHITI_EXTRAS}]==${GRAPHITI_CORE_VERSION}/" pyproject.toml \
     && grep -q "graphiti-core\[${GRAPHITI_EXTRAS}\]==${GRAPHITI_CORE_VERSION}" pyproject.toml \
     && ! grep -q "falkordb" pyproject.toml \
+    && grep -q 'requires-python = ">=3.11"' pyproject.toml \
     && rm -f uv.lock \
     && uv lock
 
