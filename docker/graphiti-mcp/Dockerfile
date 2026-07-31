@@ -27,8 +27,10 @@
 # =============================================================================
 FROM python:3.11-slim-bookworm
 
+# `patch` and `git` are build-time needs (fetch the pinned upstream, apply our
+# hunks); `curl` is also the healthcheck at runtime.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        curl ca-certificates git \
+        curl ca-certificates git patch \
     && rm -rf /var/lib/apt/lists/*
 
 ADD https://astral.sh/uv/install.sh /uv-installer.sh
