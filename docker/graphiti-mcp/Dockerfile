@@ -80,12 +80,15 @@ RUN cd /app/mcp \
 
 # Swap upstream's dependency line for ours (same mechanism upstream uses).
 #
-# requires-python is also raised to >=3.11. Upstream declares >=3.10, which makes
-# `uv lock` go looking for a 3.10 interpreter that this 3.11 image doesn't have
-# (UV_PYTHON_DOWNLOADS=never, deliberately — no surprise interpreter downloads).
-# 3.11 is also the correct floor for us regardless: the gliner2 extra is gated on
+# The Python floor is raised to 3.11 in BOTH places upstream pins it:
+#   - `.python-version` (3.10) — this is the one uv actually reads to select an
+#     interpreter, and with UV_PYTHON_DOWNLOADS=never (deliberate: no surprise
+#     interpreter downloads) it fails the build on a 3.11-only image.
+#   - `requires-python` (">=3.10,<4") — the resolution floor.
+# 3.11 is the correct floor for us regardless: the gliner2 extra is gated on
 # python_version >= "3.11", so resolving for 3.10 would silently drop CPU-local NER.
-RUN sed -i '/\[tool\.uv\.sources\]/,/graphiti-core/d' pyproject.toml \
+RUN echo "3.11" > .python-version \
+    && sed -i '/\[tool\.uv\.sources\]/,/graphiti-core/d' pyproject.toml \
     && sed -i 's/^requires-python = ">=3\.10/requires-python = ">=3.11/' pyproject.toml \
     && sed -i "s/graphiti-core\[falkordb\][>=]\+[0-9]\+\.[0-9]\+\.[0-9]\+/graphiti-core[${GRAPHITI_EXTRAS}]==${GRAPHITI_CORE_VERSION}/" pyproject.toml \
     && grep -q "graphiti-core\[${GRAPHITI_EXTRAS}\]==${GRAPHITI_CORE_VERSION}" pyproject.toml \
