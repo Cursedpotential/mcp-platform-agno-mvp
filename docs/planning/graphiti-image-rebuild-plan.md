@@ -60,3 +60,41 @@ The old ovh-data app (`mgfmunojgfp92k9uqd9td3np`) is **stopped**, not deleted.
 - `graphiti-hostfix` sidecar retained; not yet tested whether the new image makes it
   redundant.
 - Upstream PR not opened (owner undecided).
+
+---
+
+## Follow-ups closed (2026-07-31, same day)
+
+**1. Stray `case-*` nodes — cleaned, nothing destroyed beyond the two probes.**
+`delete_episode` removed the 2 probe episodes (dev graph 508 → 506) but does **not**
+cascade to derived entities (Graphiti allows entities to be shared across episodes), so
+7 entity nodes survived. Inspection showed their content was *infrastructure* — "case
+memory", "DozerDB memory database", "platform build graph", "case config" — i.e. residue
+of the plumbing test, **not case facts or PII**. Their content genuinely belongs in the
+dev graph; only the `group_id` was wrong. So they were **relabelled** to `group_id:
+"platform"` with `regrouped_from` + `regrouped_at` stamps rather than deleted — the
+honest fix, fully reversible, and it respects the never-delete rule. Result: **0**
+`case-*` nodes in the dev database; total 506; case lane (`memory`) intact at 4.
+
+**2. `graphiti-hostfix` sidecar — TESTED, still required. Do not remove.**
+Probed the new image directly (bypassing the sidecar):
+
+| `Host:` header sent | Result |
+|---|---|
+| `localhost:8000` (what hostfix injects) | **200** |
+| `100.91.190.107:8073` (tailnet, what a real client sends) | **421** |
+| arbitrary (`evil.example.com`) | **421** |
+
+The upstream FastMCP DNS-rebinding lock is **still active in graphiti-core 0.29.3 /
+MCP server 1.0.2**: `server.host: 0.0.0.0` does not disable it and the
+`FASTMCP_TRANSPORT_SECURITY` env is still ignored. The plan speculated this sidecar
+might be redundant after the rebuild — **it is not**. Both nginx sidecars stay.
+
+**3. The patch is durably preserved (no upstream PR — owner call).**
+- `docker/graphiti-mcp/patches/0001-neo4j-database-selection.patch` committed and pushed
+  to `origin/main` (blob `c0487449`).
+- The Dockerfile applies it behind a guard that **fails the build** if the anchors move,
+  so a silent regression is impossible.
+- `/app/mcp/.upstream-ref` inside the image records the exact upstream SHA it applies to.
+
+Three independent copies: the repo, the build recipe, and the running image.
