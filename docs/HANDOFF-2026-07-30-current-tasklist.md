@@ -31,15 +31,27 @@ HANDOFF-2026-07-27 Phase 3 task 2: TraceIQ facts → Graphiti with provenance + 
 Scope with owner first (sort completion vs vault scaffold vs lakehouse vs all).
 Use case-bible:* skills; case-bible-architect governs structure.
 
-### 4. [complete 2026-07-30] HANDOFF v2 system (global, ~/.claude)
-`/handoff` skill (`~/.claude/skills/handoff/SKILL.md`) + PreCompact hook (compact summaries follow
-HANDOFF v2 shape) + SessionStart(compact) hook (re-anchors fresh context on newest `HANDOFF-*.md`).
-Scripts pipe-tested; settings.json validated.
+### 4. [complete 2026-07-31] HANDOFF v2 system (global, ~/.claude) — LIVE-FIRE VERIFIED
+`/handoff` skill (`~/.claude/skills/handoff/SKILL.md`) + three hooks in `~/.claude/settings.json`:
+- **PreCompact** (`precompact_handoff.py`) — snapshots open tasks to `docs/TODO-SNAPSHOT-<date>.json`.
+  It does **NOT** shape the compaction summary: Claude Code schema-validates hook JSON and PreCompact
+  has **no `hookSpecificOutput.additionalContext` variant**. Emitting it fails validation and discards
+  the hook's entire output. Verified live 2026-07-31 (first real `/compact` errored on exactly this);
+  script rewritten to emit only top-level fields (`suppressOutput` + `systemMessage`).
+- **PostCompact** (`postcompact_summary.py`) — writes the summary to `docs/COMPACT-SUMMARY-<date>.md`.
+- **SessionStart(compact)** (`sessionstart_compact_handoff.py`) — the only injection point that works;
+  re-anchors fresh context on the newest `HANDOFF-*.md`, points at the newest `TODO-SNAPSHOT-*.json`,
+  and restates the owner working-style contract.
+
+Net effect: HANDOFF v2 shape is enforced by the `/handoff` skill and by post-compact re-anchoring —
+never by pre-compact summary instructions, which the platform does not support.
 
 ## UNRESOLVED (mandatory)
 
-- HANDOFF v2 hooks not yet live-fire verified — compaction fires outside a turn; first real
-  `/compact` is the end-to-end test. If silent, open `/hooks` once to reload config.
+- ~~HANDOFF v2 hooks not yet live-fire verified~~ — RESOLVED 2026-07-31. First real `/compact` ran:
+  PreCompact task-snapshot worked, PreCompact context-injection failed schema validation (see task 4),
+  PostCompact + SessionStart succeeded. Hooks reload at session start, so the corrected PreCompact
+  script takes effect from the next session onward.
 - BUILD_STATUS UNKNOWN — branch `fix/review-hardening-adr36-40` build/tests not run at handoff time;
   local `.venv` is known-broken until fix #2 (stale uv.lock).
 - Uncommitted working-tree changes NOT covered by this handoff: `docs/PROJECT_CANON.md`,

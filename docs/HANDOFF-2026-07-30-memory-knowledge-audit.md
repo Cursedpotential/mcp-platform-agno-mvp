@@ -1,6 +1,9 @@
 # HANDOFF — Memory/Knowledge audit + review-hardening (2026-07-30)
 
-> _Byline: Claude Code · Fable 5 · 2026-07-30_
+> _Byline: Claude Code · Fable 5 · 2026-07-30 (conformed to HANDOFF v2 template 2026-07-31)_
+STATUS: PARTIAL
+BUILD_STATUS: UNKNOWN
+
 > Prior session ran in the WRONG cwd (`C:\Users\matts\.agents\skills\mineru`) — this handoff
 > moves the work here. Next session: run from THIS repo root, read this file top to bottom.
 > Session logs from the prior work live under
@@ -48,6 +51,32 @@ Read-only audit completed 2026-07-30 (agno==2.6.13 in local venv; prod requireme
 3. Was the deployed image built BEFORE weaviate-client landed in requirements.txt (2026-07-29 ~07:37)?
 4. Does Weaviate `Platform_knowledge` actually hold objects post-cutover (Milvus→Weaviate export status)?
 5. `GRAPHITI_MCP_URL` set on live agentos-api?
+
+## UNRESOLVED (mandatory)
+
+- **Root-cause fix #1 NOT applied** — WHY: read-only audit only; a parallel session's live worktree
+  (`.claude/worktrees/wf_2f37bdc8-dea-3/`) owned `session.py`/`main.py`, so editing them would have
+  raced. APPROACH tried: none beyond diagnosis. SHORTCOMING of leaving it: memory/session/knowledge
+  routes keep resolving by registration order, so the UI stays intermittently wrong.
+- **All five live checks below are unrun** — WHY: they need the running container / browser, not the
+  repo. Until they run, finding #1 is HIGH-confidence-but-unconfirmed, not proven.
+- **BUILD_STATUS UNKNOWN** — branch build/tests not executed at handoff time; the local `.venv`
+  is known-broken (finding #2, stale `uv.lock` missing weaviate-client), so an import-level check
+  would fail for reasons unrelated to the branch.
+- **Findings #2–#5 all open** — lock regen, Weaviate client-close race (upstream agno, not ours),
+  "Milvus-backed" doc drift, ADR-0038 unimplemented.
+
+## Pending owner decisions
+
+- **Split the colliding db ids** — WHAT: give the admin Postgres db its own id (e.g.
+  `agentos-admin-db`) instead of sharing `DB_ID`. WHY: both backends currently merge into one agno
+  registry bucket, so memory/session/knowledge routes hit whichever backend registered first.
+  OPTIONS: (a) rename the admin id — recommended, smallest blast radius; (b) rename the SurrealDb id —
+  touches more call sites; (c) registry-level guard in agno — upstream change, slow.
+  SHORTCOMINGS: any rename may orphan rows keyed by the old id; check before applying.
+  RECOMMENDATION: run live check 1 first (registry key count), then apply (a).
+- **Case Bible scope** — WHAT: decide sort completion vs vault scaffold vs lakehouse vs all.
+  WHY: workstream 3 cannot start without it. No recommendation — owner-only call.
 
 ## Open workstreams (owner order)
 
