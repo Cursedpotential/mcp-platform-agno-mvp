@@ -108,7 +108,18 @@ for a in data:
     data-neo4j)
       pw=$(cf_get_env_value "$OVHDATA_UUID_NEO4J" NEO4J_PASSWORD)
       [ -n "$pw" ] || { echo "could not read source NEO4J_PASSWORD" >&2; exit 1; }
-      cf_upsert_envs "$uuid" "BIND_IP=100.91.190.107" "NEO4J_PASSWORD=$pw" ;;
+      # NEO4J_server_config_strict__validation_enabled=false is REQUIRED
+      # alongside NEO4J_PASSWORD: the official neo4j image auto-maps any
+      # unrecognized NEO4J_xxx env into a neo4j.conf setting, so the raw
+      # NEO4J_PASSWORD var (present for compose-level ${NEO4J_PASSWORD}
+      # substitution, but also leaked into the container env by Coolify)
+      # becomes a bogus "PASSWORD" setting. Source tolerates this by
+      # disabling strict validation; skipping this env crashes the
+      # container in a restart loop with "Unrecognized setting... PASSWORD"
+      # (hit live 2026-08-01 standing up data-neo4j on ovh-files).
+      strict=$(cf_get_env_value "$OVHDATA_UUID_NEO4J" NEO4J_server_config_strict__validation_enabled)
+      cf_upsert_envs "$uuid" "BIND_IP=100.91.190.107" "NEO4J_PASSWORD=$pw" \
+        "NEO4J_server_config_strict__validation_enabled=${strict:-false}" ;;
     data-vector)
       cf_upsert_envs "$uuid" "BIND_IP=100.91.190.107" ;;
     nocodb)
