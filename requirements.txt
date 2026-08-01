@@ -10,6 +10,20 @@ annotated-types==0.7.0
 anthropic==0.118.0
 anyio==4.14.2
 attrs==26.1.0
+# HOTFIX 2026-08-01: authlib + validators are REQUIRED deps of weaviate-client
+# 4.22.0 that the generated requirements.txt was missing, so `uv pip sync
+# requirements.txt --system` produced an image where `import weaviate` died on
+# `ModuleNotFoundError: No module named 'validators'`. agno masks that as
+# "Weaviate is not installed. Install using 'pip install weaviate-client'."
+# (agno/vectordb/weaviate/weaviate.py:19), which sent the first diagnosis the
+# wrong way — weaviate-client 4.22.0 WAS installed. Because session.py imports
+# Weaviate at module scope, this crash-looped agentos-api on boot.
+# Root cause of the omission: scripts/generate_requirements.sh runs
+# `uv pip compile` WITHOUT `--python-platform linux`, so the resolve happens
+# against the Windows host. Remove these two pins only when that script is
+# fixed and a clean linux-target recompile carries them itself.
+authlib==1.7.2
+joserfc==1.7.4  # HOTFIX 2026-08-01: unconditional dep of authlib (no marker)
 cachetools==7.1.5
 certifi==2026.7.22
 cffi==2.1.0
@@ -108,6 +122,7 @@ typing-inspection==0.4.2
 urllib3==2.7.0
 uvicorn==0.51.0
 uvloop==0.22.1
+validators==0.35.0  # HOTFIX 2026-08-01: required by weaviate-client, see note at authlib
 watchfiles==1.2.0
 websockets==16.1.1
 wrapt==2.2.2
