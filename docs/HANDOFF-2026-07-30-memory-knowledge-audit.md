@@ -88,6 +88,44 @@ and it has a **behavioural edge the fix introduces**:
   Mitigation if needed: keep the admin/contents split but re-merge the two Postgres roles under a
   single id, leaving 2 keys, and pass `db_id` explicitly from our own callers.
 
+### "NOTHING IN THE PLATFORM IS POPULATED" — answered against the live API (2026-08-01)
+
+Owner report, with 13 UI screenshots: *"really nothing in the platform is populated or functional,
+no agents, no workflows, knowledge, entities, nothing."* Checked `GET /config` on the live instance
+(tailnet `:8000`, HTTP 200). The roster **is** served:
+
+| Surface | Live API says | Verdict |
+|---|---|---|
+| **Agents** | **6** — ingestion-orchestrator, analysis-orchestrator, review-gatekeeper, dev-copilot, project-pal, forensic-data-agent | ✅ populated |
+| **Teams** | **3** — mcp-platform-router, platform-ops, builder | ✅ populated |
+| **Workflows** | **0** | ❌ genuinely none registered |
+| **Interfaces** | **0** | (none configured) |
+| **Knowledge** | 1 instance `platform` → `agentos-db` / `platform_knowledge_contents` | ⚠ contents exist, vectors mostly missing (above) |
+| **Databases** | **1** — `agentos-db` | ❌ the collision, still live |
+
+**The agents/teams complaint is a UI-surface confusion, not an outage.** The screenshots are of
+**Studio → Agents / Teams / Workflows** (`os.agno.com/studio/*`), which is agno's **cloud authoring**
+surface — "Get started by creating a new agent", with greyed *demo templates* (Support Agent, Data
+Agent, Sales Team, Report Generator…). Those are agno's samples, not ours. Agents defined in Python
+and served by a connected AgentOS do **not** appear there; they appear under **Chat** (the
+agent/team picker) and in **Studio → Registry**.
+
+**Registry corroborates the connection is healthy** — it shows our real instance: model `Ollama /
+GLM-5.1`, tools `apply_db_modification` / `describe_tool` / `execute_tool`, database `AGENTOS-DB`.
+
+**Genuinely broken/empty, with causes:**
+1. **Memory panel empty** — `agno_memories` 0 rows in both backends; nothing ever extracted
+   memories. Fixed in `9a7e4ac` (`enable_user_memories`), **not yet deployed**.
+2. **Knowledge mostly unretrievable** — 3 of 4 content rows have no vectors (table above).
+3. **Workflows genuinely 0** — `server/evidence/workflows.py` exists but nothing is registered as
+   an AgentOS `Workflow`, so the panel is correctly empty. Separate piece of work.
+4. **Entity Memories empty** — same root cause as (1).
+
+**Useful UI evidence for the deploy gate:** the Memory page renders an explicit
+`Database: agentos-db / Table: agno_memories` selector — i.e. the SPA *is* database-aware and
+resolves a specific db, which is encouraging (though not proof) for it sending `db_id` once the
+registry holds three keys.
+
 ### DEPLOY BLOCKERS — what a redeploy of this branch actually ships (verified 2026-08-01)
 
 The redeploy is **not** just the db-id fix. The live image is the **2026-07-23** build; the branch
@@ -107,18 +145,35 @@ So prod today is **still Milvus-era code**. One redeploy lands three changes at 
 | 2 | **Milvus → Weaviate cutover goes live for the first time** | See count mismatch below |
 | 3 | `enable_user_memories` on Root Router + Project PAL | Benign/desired — memory capture starts working |
 
-**Count mismatch (BLOCKER, measured today):**
+**Count mismatch — RAISED then RESOLVED the same day. NOT a blocker.**
 
-| Store | Collection | Count |
+> ~~Milvus 14 rows vs Weaviate 7 objects → "cutting over risks halving the knowledge base".~~
+> **Wrong — corrected 2026-08-01 by a full `query_iterator` walk.** Milvus's `row_count: 14` is a
+> segment-level statistic that counts soft-deleted/uncompacted rows (the doc was re-indexed once).
+> Iterating the collection returns **7 live rows**. Both stores hold the *same* content:
+
+| Store | Live rows | Distinct sha256 | Chunks |
+|---|---|---|---|
+| Milvus `platform_knowledge` | **7** | `d8f1b80f8826` ×7 | 1–7 |
+| Weaviate `Platform_knowledge` | **7** | `d8f1b80f8826` ×7 | 1–7 |
+
+**Vector parity is exact.** The Milvus→Weaviate export is complete. Lesson: never compare
+`get_collection_stats()['row_count']` against another store's object count — walk the collection.
+
+**The REAL knowledge defect (found via the owner's 2026-08-01 UI screenshots):** the Knowledge page
+lists **4 content rows**, but only **one** of them has vectors in either store:
+
+| Content row | Status in UI | Vectors |
 |---|---|---|
-| Milvus (what prod serves NOW) | `platform_knowledge` | **14 rows** |
-| Weaviate (what prod would serve AFTER) | `Platform_knowledge` | **7 objects** |
+| `d8f1b80f8826-d11a456b…` (file, 23 Jul) | COMPLETED | **7 chunks** ✅ |
+| `38dfbfc8bbce-63ec8468…` (file, 20 Jul) | COMPLETED | **none** ❌ |
+| `PROJECT_CANON.md` (file, 20 Jul) | **FAILED** | none |
+| `ingest-smoke-test` (text) | COMPLETED | **none** ❌ |
 
-Weaviate is healthy (`/v1/.well-known/ready` → 200) and holds real content, but it has **half the
-row count of the live Milvus collection**. Before concluding data loss this needs reconciling —
-the two may not count the same unit (documents vs chunks). Either way, **cutting over on today's
-numbers risks halving the knowledge base**, and this is exactly the question original live check #4
-was meant to answer.
+So contents rows (Postgres) and vectors (Milvus/Weaviate) have diverged: two rows report COMPLETED
+with nothing embedded, one hard-FAILED. That — not the cutover — is why knowledge retrieval looks
+empty. Chase the ingest/embed path, and note the global rule: a `float vector field … got nil`
+class of failure means the embedder returned no vector (dead key / out-of-credits / gateway).
 
 **Finding #3 (Weaviate client-close race) is NOT observable in prod** and cannot be: 9 days of
 `agentos-api` logs contain **zero** `WeaviateClosedClientError`, zero gRPC `UNAVAILABLE`, and zero
