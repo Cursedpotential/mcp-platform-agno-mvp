@@ -145,3 +145,49 @@ def test_async_insert_succeeds_when_base_embeds_documents(monkeypatch):
 
     asyncio.run(_run())
     assert docs[0].embedding is not None
+
+
+# --- update_metadata: agno 2.8.0 vs weaviate-client 4.22.0 kwarg regression ---
+# Byline: Claude Code · Opus 5 · 2026-08-01
+
+
+def test_update_metadata_uses_filters_not_where(monkeypatch):
+    """REGRESSION (live 2026-08-01): agno 2.8.0 calls fetch_objects(where=...),
+    but weaviate-client 4.22.0 takes filters=. The TypeError propagated out of
+    ainsert() and aborted a whole reindex on its first file (POST
+    /v1/knowledge/reindex -> 500, zero new vectors written).
+    """
+    from server.core.knowledge_vectordb import VerifiedWeaviate
+
+    captured = {}
+
+    class FakeQuery:
+        def fetch_objects(self, **kwargs):
+            captured.update(kwargs)
+            if "where" in kwargs:  # the upstream bug, reproduced
+                raise TypeError("fetch_objects() got an unexpected keyword argument 'where'")
+
+            class R:
+                objects = []
+
+            return R()
+
+    class FakeCollection:
+        query = FakeQuery()
+        data = None
+
+    class FakeClient:
+        class collections:
+            @staticmethod
+            def get(_name):
+                return FakeCollection()
+
+    db = VerifiedWeaviate.__new__(VerifiedWeaviate)
+    db.collection = "Platform_knowledge"
+    monkeypatch.setattr(type(db), "get_client", lambda self: FakeClient(), raising=False)
+
+    db.update_metadata("content-123", {"domain": "platform"})
+
+    assert "filters" in captured, "must pass filters= (v4), never where= (v3)"
+    assert "where" not in captured
+    assert captured["limit"] == 1000

@@ -119,3 +119,57 @@ class VerifiedWeaviate(Weaviate):
     ) -> None:
         await super().async_insert(content_hash, documents, filters=filters)
         _verify_embedded(documents)
+
+    def update_metadata(self, content_id: str, metadata: Dict[str, Any]) -> None:
+        """Reimplementation of ``Weaviate.update_metadata`` with the correct kwarg.
+
+        UPSTREAM BUG (agno 2.8.0 vs weaviate-client 4.22.0), hit live 2026-08-01:
+        ``agno/vectordb/weaviate/weaviate.py:950`` calls::
+
+            collection.query.fetch_objects(where=Filter.by_property(...).equal(...))
+
+        but the v4 client's ``fetch_objects()`` takes ``filters=``, not ``where=``
+        (``where`` was the v3 REST spelling). Every call therefore dies with::
+
+            TypeError: _FetchObjectsQueryExecutor.fetch_objects() got an
+                       unexpected keyword argument 'where'
+
+        That is fatal for ingestion, not cosmetic: agno calls ``update_metadata``
+        from ``Knowledge._aupdate_content``, which runs AFTER the vectors are
+        written. The TypeError propagates out of ``ainsert`` and aborts
+        ``scripts.ingest_knowledge.ingest_all`` on its FIRST file, so a whole
+        reindex writes nothing. Observed exactly that: ``POST
+        /v1/knowledge/reindex`` -> 500, Weaviate still holding only the 7
+        pre-existing objects.
+
+        Same merge semantics as upstream (nested ``meta_data``/``filters`` dicts
+        updated rather than replaced) so behavior is identical once the call
+        works. Delete this override when agno ships the ``filters=`` fix.
+        """
+        from weaviate.classes.query import Filter
+
+        # Same accessor agno itself uses (there is no get_collection() helper).
+        collection = self.get_client().collections.get(self.collection)
+
+        query_result = collection.query.fetch_objects(
+            filters=Filter.by_property("content_id").equal(content_id),
+            limit=1000,
+        )
+        if not query_result.objects:
+            logger.debug("No documents found with content_id: %s", content_id)
+            return
+
+        for obj in query_result.objects:
+            props = dict(obj.properties or {})
+            for key in ("meta_data", "filters"):
+                if isinstance(props.get(key), dict):
+                    props[key].update(metadata)
+                else:
+                    props[key] = metadata
+            collection.data.update(uuid=obj.uuid, properties=props)
+
+        logger.debug(
+            "Updated metadata for %s document(s) with content_id: %s",
+            len(query_result.objects),
+            content_id,
+        )
