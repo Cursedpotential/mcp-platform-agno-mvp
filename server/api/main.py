@@ -32,13 +32,14 @@ from fastapi import FastAPI
 
 from agno.os import AgentOS
 from agno.team.team import Team
-from agno.utils.log import log_info
+from agno.utils.log import log_info, log_warning
 
 from server.agents.factory import build_agent_team
 from server.agents.providers import build_context, build_learning
 from server.core.knowledge_handle import KnowledgeHandle, resolve_knowledge
 from server.core.settings import build_model
 from server.core import create_knowledge, get_agno_db, get_postgres_db
+from server.core.session import DB_ID
 from server.core.url import db_url
 
 # ---------------------------------------------------------------------------
@@ -255,7 +256,24 @@ def _build_app() -> Any:
         lifespan=lifespan,
         config=str(Path(__file__).parent / "config.yaml"),
     )
-    return agent_os.get_app()
+    final_app = agent_os.get_app()
+
+    # The registry now holds THREE ids (agentos-db / agentos-admin-db /
+    # agentos-contents-db, see server/core/session.py). That is correct, but it
+    # arms agno's `len(dbs) > 1` guard: `db_id` is optional on every route that
+    # takes one, so a client omitting it would get a 400 instead of the
+    # silently-wrong 200 it used to get. Neither is right — default it to the
+    # SurrealDb operational store so routing is DELIBERATE. Clients that send
+    # their own `db_id` (or `knowledge_id`) are untouched.
+    from server.api.db_id_middleware import install_db_id_default
+
+    defaulted = install_db_id_default(final_app, DB_ID)
+    if defaulted:
+        log_info(f"db_id default installed on {defaulted} routes -> {DB_ID}")
+    else:
+        log_warning("db_id default installed on NO routes — agno route signatures may have changed")
+
+    return final_app
 
 
 # ---------------------------------------------------------------------------
