@@ -102,7 +102,7 @@ and it has a **behavioural edge the fix introduces**:
   Mitigation if needed: keep the admin/contents split but re-merge the two Postgres roles under a
   single id, leaving 2 keys, and pass `db_id` explicitly from our own callers.
 
-## RESOLVED + DEPLOYED 2026-08-01 — seven bugs, each masking the next
+## RESOLVED + DEPLOYED 2026-08-01 — eight bugs, each masking the next
 
 The branch is merged to `main` and **live in prod**. Verified against the running
 instance, not inferred:
@@ -143,6 +143,30 @@ instance, not inferred:
 7. **`filters` is `object`, not `text`** (`a3d897f`) — fix #6 serialized BOTH
    properties and broke `filters`. Read the live schema instead of assuming:
    `meta_data text`, `filters object`. Encoding is now a per-property table.
+8. **Search results missing `id`** (`3ec7d90`) — `POST /knowledge/search` 500'd
+   on EVERY call: agno's `Weaviate.get_search_results()` (the shared helper
+   behind vector/keyword/hybrid, sync + async, 6 call sites) builds each result
+   `Document` without setting `id`, but `VectorSearchResult.from_document()`
+   requires `id: str`. This is the API Studio/Chat retrieval uses to display
+   ingested text — so there was no way to view chunk content through AgentOS at
+   all. It could only surface AFTER #5/#6/#7, because search is unreachable
+   against an empty index. Fixed by backfilling `id` from the Weaviate UUID.
+
+**FINAL VERIFIED STATE (live, 2026-08-01):**
+
+| Endpoint | Result |
+|---|---|
+| `/config` | 200 — 6 agents, 3 teams |
+| `/memories` (no `db_id`) | 200 |
+| `/sessions` | 200 — 8 sessions |
+| `/memory_topics` | 200 |
+| `/knowledge/search` | **200 — 10 results with real chunk text** |
+| Weaviate | 59 objects / 5 documents |
+| content rows | 7 completed / 1 failed (legacy `PROJECT_CANON.md`) |
+
+Correction to an earlier claim in this doc: "Studio empty" was reported as
+purely a UI-surface confusion. That was right for agents/teams but INCOMPLETE —
+Studio's *retrieval* was genuinely broken by #8. Two separate causes.
 
 **Standing lessons (all earned the hard way today):**
 - A library's error message can be a lie — agno reported "Weaviate is not
