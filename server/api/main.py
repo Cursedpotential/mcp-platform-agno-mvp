@@ -20,6 +20,10 @@ Hard rules:
 # Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3 spine boot resilience — KnowledgeHandle wired in place of a direct create_knowledge() call; register_inspect_routes added)
 # Byline: Claude Code · Sonnet · 2026-07-23 (agno 2.8 service accounts — AgentOS admin-plane db switched from SurrealDb to a dedicated PostgresDb; agents/teams keep SurrealDb unchanged)
 # Byline: Claude Code · Fable 5 · 2026-07-31 (Milvus→Weaviate doc-drift cleanup (ADR-0040))
+# DEPLOY NOTE (2026-08-01): exec-tier auto-deploys from `main` via the Coolify
+# GitHub App (`cursedpotential`, app_id 4047891, installation 140142795;
+# Coolify source_id=2). Watch paths are `compose.exec.yaml`, `Dockerfile`,
+# `server/**` — a change confined to `docs/` will NOT redeploy the API.
 
 from __future__ import annotations
 
