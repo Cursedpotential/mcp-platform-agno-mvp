@@ -47,6 +47,7 @@ is logged loudly instead so an operator can see the partial-embed rate.
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
@@ -90,6 +91,34 @@ def _verify_embedded(documents: "List[Document]") -> None:
             len(documents),
             len(documents) - embedded,
         )
+
+
+def _merged_json_property(existing: Any, metadata: Dict[str, Any]) -> str:
+    """Merge ``metadata`` into ``existing`` and return it as a JSON **string**.
+
+    The Weaviate class declares ``meta_data`` and ``filters`` as ``text``
+    properties, and existing rows hold JSON strings. Writing a dict back yields::
+
+        UnexpectedStatusCodeError: 422 ... invalid text property 'meta_data' on
+        class 'Platform_knowledge': not a string, but map[string]interface {}
+
+    agno's own ``update_metadata`` assigns a raw dict here and would hit the
+    same 422 — it simply never got this far, dying earlier on the ``where=``
+    kwarg. A malformed/legacy value is treated as absent rather than raising:
+    metadata enrichment must never be what fails an otherwise good ingest.
+    """
+    current: Dict[str, Any] = {}
+    if isinstance(existing, dict):
+        current = dict(existing)
+    elif isinstance(existing, str) and existing.strip():
+        try:
+            parsed = json.loads(existing)
+            if isinstance(parsed, dict):
+                current = parsed
+        except (ValueError, TypeError):
+            logger.debug("meta property was not valid JSON; overwriting: %.60s", existing)
+    current.update(metadata)
+    return json.dumps(current)
 
 
 class VerifiedWeaviate(Weaviate):
@@ -210,12 +239,13 @@ class VerifiedWeaviate(Weaviate):
 
         for obj in query_result.objects:
             props = dict(obj.properties or {})
+            updates: Dict[str, Any] = {}
             for key in ("meta_data", "filters"):
-                if isinstance(props.get(key), dict):
-                    props[key].update(metadata)
-                else:
-                    props[key] = metadata
-            collection.data.update(uuid=obj.uuid, properties=props)
+                updates[key] = _merged_json_property(props.get(key), metadata)
+            # PATCH only the two keys we actually change. Re-sending every
+            # property (what upstream does) risks 422s on any other field whose
+            # round-tripped type no longer matches the schema.
+            collection.data.update(uuid=obj.uuid, properties=updates)
 
         logger.debug(
             "Updated metadata for %s document(s) with content_id: %s",

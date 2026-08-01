@@ -246,3 +246,75 @@ def test_session_wires_the_async_client_factory():
     src = inspect.getsource(session.create_knowledge)
     assert "async_client_factory" in src, "create_knowledge must inject the async client factory"
     assert hasattr(session, "get_weaviate_async_client")
+
+
+# --- meta_data is a TEXT property: must be written as a JSON string -----------
+# Byline: Claude Code · Opus 5 · 2026-08-01
+
+
+def test_merged_json_property_returns_a_string():
+    """REGRESSION (live 2026-08-01): writing a dict to the `meta_data` text
+    property gave weaviate 422 "not a string, but map[string]interface {}",
+    which failed the whole reindex.
+    """
+    import json as _json
+
+    from server.core.knowledge_vectordb import _merged_json_property
+
+    out = _merged_json_property('{"domain": "platform", "keep": 1}', {"category": "docs"})
+    assert isinstance(out, str), "must be a JSON string, never a dict"
+    assert _json.loads(out) == {"domain": "platform", "keep": 1, "category": "docs"}
+
+
+def test_merged_json_property_handles_dict_and_junk():
+    import json as _json
+
+    from server.core.knowledge_vectordb import _merged_json_property
+
+    assert _json.loads(_merged_json_property({"a": 1}, {"b": 2})) == {"a": 1, "b": 2}
+    # legacy/garbage values must not blow up an otherwise good ingest
+    assert _json.loads(_merged_json_property("not json at all", {"b": 2})) == {"b": 2}
+    assert _json.loads(_merged_json_property(None, {"b": 2})) == {"b": 2}
+
+
+def test_update_metadata_patches_only_meta_keys_as_strings(monkeypatch):
+    from server.core.knowledge_vectordb import VerifiedWeaviate
+
+    sent = {}
+
+    class Obj:
+        uuid = "u-1"
+        properties = {"meta_data": '{"domain":"platform"}', "content": "big text", "name": "doc"}
+
+    class FakeQuery:
+        def fetch_objects(self, **kwargs):
+            class R:
+                objects = [Obj()]
+
+            return R()
+
+    class FakeData:
+        def update(self, uuid, properties):
+            sent["uuid"] = uuid
+            sent["properties"] = properties
+
+    class FakeCollection:
+        query = FakeQuery()
+        data = FakeData()
+
+    class FakeClient:
+        class collections:
+            @staticmethod
+            def get(_n):
+                return FakeCollection()
+
+    db = VerifiedWeaviate.__new__(VerifiedWeaviate)
+    db.collection = "Platform_knowledge"
+    monkeypatch.setattr(type(db), "get_client", lambda self: FakeClient(), raising=False)
+
+    db.update_metadata("c-1", {"category": "docs"})
+
+    props = sent["properties"]
+    assert set(props) == {"meta_data", "filters"}, "must PATCH only the meta keys"
+    assert isinstance(props["meta_data"], str) and isinstance(props["filters"], str)
+    assert "content" not in props, "must not resend unrelated properties"
