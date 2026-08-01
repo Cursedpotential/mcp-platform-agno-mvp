@@ -85,6 +85,9 @@ docs/INFRASTRUCTURE.md
 # gateway content-addressed result store (runtime artifacts, never committed)
 data/content_store/
 
+# context-chat-ingest local dedup ledger (runtime state, never committed)
+data/context_ingest/
+
 # build artifacts + local analysis scratch (untracked lanes)
 *.egg-info/
 .osgrep/
