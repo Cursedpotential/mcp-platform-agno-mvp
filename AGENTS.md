@@ -13,9 +13,10 @@ bitemporal graph. AI Legal Team (to build).
 
 ## Stack
 
-Agno 2.6.13 · PostgreSQL 18 (pg_duckdb + pgvector + PostGIS) · Neo4j + Graphiti
-· LiteLLM gateway (Ollama Cloud primary) · Milvus vectors · SurrealDB operational
-store · FastAPI base_app pattern.
+Agno 2.8.0 · PostgreSQL 18 (pg_duckdb + pgvector + PostGIS) · Neo4j + Graphiti
+· Portkey gateway (Ollama Cloud primary; LiteLLM retired, ADR-0042) · Weaviate
+vectors (locked ADR-0040, cutover pending — Milvus sidelined) · SurrealDB
+operational store · FastAPI base_app pattern.
 
 ## Repository Layout
 
@@ -102,6 +103,13 @@ AI commits carry: `Co-Authored-By: <agent name and model> <noreply@anthropic.com
 
 ### API Auth
 - agentos-api: `authorization=False` in main.py only disables JWT — the `OS_SECURITY_KEY` bearer still gates every route (incl. `/knowledge/*`). Internal callers send `Authorization: Bearer $OS_SECURITY_KEY` (value in `~/.secrets/infra-access.md`).
+
+### Deploy & Data-Tier Gotchas
+- Coolify apps WITHOUT watch_paths redeploy on EVERY push to their branch — the whole data tier (pg/neo4j/graphiti/surreal/vector) bounced on every main merge until watch paths were scoped per-app (2026-07-21/22). New app = set watch_paths at creation, always.
+- Milvus standalone boot: embedded etcd defaults (100ms heartbeat/1s election) + slow VPS disk = "etcdserver: leader changed" panic loop (exit 134). Fixed via milvus-coolify/embedEtcd.yaml heartbeat-interval 1000 / election-timeout 10000 (host copy: ovh-data /data/agno/config/milvus/embedEtcd.yaml, ro-mounted — edit host file and the next restart picks it up).
+- After dropping a Milvus collection externally, RESTART agentos-api — agno's client caches the numeric collection ID and 500s with code=100 collection-not-found on the next insert.
+- agno `Step.on_error` REALLY defaults to skip (docstring claims fail) — always set on_error="fail" explicitly or failed stages report run-completed.
+- H3 custody chain canon (vendored/sbv/CUSTODY.md + custody.go, test-proven): chain_0 = "" and chain_i = sha256(chain_{i-1} + "<LF>" + H2_i) — H1 is NOT the genesis and never enters the fold.
 
 ### Control Surfaces
 - os.agno.com free tier accepts the remote instance via localhost trickery: the browser does the connecting, so `ssh -i ~/.ssh/ovh -N -L 7777:100.72.169.40:8000 root@100.72.169.40` makes the platform "http://localhost:7777" — CORS already allows the os.agno.com origin. One-click launcher: `C:\Users\matts\bin\agentos-control.cmd` (Desktop shortcut "AgentOS Control Plane").

@@ -12,7 +12,10 @@ Sections:
   PG        ontology counts (0006 seed: behavior_category / detection_pattern /
             pattern_lexicon / behavior_category_mcl), evidence.source presence,
             detection.run(dry_run=True, limit=50) against real records
-  MILVUS    connect, list_collections, diff vs create_forensic_collections plan
+  MILVUS    LEGACY lane (ADR-0040: Milvus sidelined — memsearch only, no new
+            platform writers): connect, list_collections, diff vs plan. Kept for
+            the Milvus->Weaviate export; a smoke_weaviate() section is the
+            follow-up once the Phase-1 cutover lands.
   WIRING    semantica_wiring.full_wiring() renders (no secret values printed)
 """
 

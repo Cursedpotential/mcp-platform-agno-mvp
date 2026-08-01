@@ -22,6 +22,7 @@ Public entry points:
 - ``build_context(model, db, knowledge, learning, db_url) -> PlatformContext``
 - ``build_learning(db, model, knowledge) -> LearningMachine``
 """
+# Byline: Claude Code · Fable 5 · 2026-07-31 (Weaviate docstring fix (ADR-0040))
 
 from __future__ import annotations
 
@@ -58,7 +59,7 @@ class PlatformContext:
     db:
         Agno operational DB (SurrealDB).
     knowledge:
-        Agno Knowledge instance (Milvus-backed).
+        Agno Knowledge instance (Weaviate-backed, ADR-0040).
     learning:
         Agno LearningMachine instance.
     source_tools:

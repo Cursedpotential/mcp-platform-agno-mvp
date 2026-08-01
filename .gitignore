@@ -68,6 +68,9 @@ tmp
 # Local tool state (auto-generated, machine-local) — never commit
 .memsearch/
 .planning/
+.serena/
+# generated reports from doc-patch / principles audit passes
+.migration-passes/
 
 # Optional: local PyPI creds (uncomment if you ever create it)
 # .pypirc

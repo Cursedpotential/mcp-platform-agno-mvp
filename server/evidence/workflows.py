@@ -405,8 +405,24 @@ def _store_step_impl(ctx: dict[str, Any]) -> StepOutput:
             return StepOutput(content=msg, success=True)
         ctx["stored"] = 0
         ctx["records"] = []
+        ctx["dedupe_noop"] = True  # lets the knowledge step name the real skip reason
+        if parent_run_id:
+            why = (
+                f"parent run {parent_run_id}'s knowledge stage did not fail, so its docs "
+                f"already landed — nothing to replay"
+            )
+        else:
+            why = (
+                "NO parent_run_id linkage — cannot verify whether an earlier run's knowledge "
+                "stage succeeded; if knowledge docs are missing for this artifact, replay them "
+                "explicitly via run_knowledge_from_store(artifact_id)"
+            )
+            logger.warning(
+                "store dedupe-no-op WITHOUT parent linkage for artifact %s: knowledge "
+                "landing cannot be verified from this run", artifact.artifact_id,
+            )
         return StepOutput(
-            content="store: duplicate artifact already has records — skipped re-store",
+            content=f"store: duplicate artifact already has records — skipped re-store ({why})",
             success=True,
         )
     records = finalize([NormalizedRecord.model_validate(r) for r in ctx["raw_records"]])
@@ -436,7 +452,11 @@ async def _knowledge_step_impl(ctx: dict[str, Any], knowledge: Any) -> StepOutpu
     if not ctx.get("records"):
         ctx["knowledge_skipped"] = True
         ctx["knowledge_docs"] = 0
-        return StepOutput(content="knowledge: no new records — skipped", success=True)
+        reason = (
+            "duplicate-artifact no-op — see the store stage content for whether docs previously landed"
+            if ctx.get("dedupe_noop") else "parse produced no records"
+        )
+        return StepOutput(content=f"knowledge: no records to ingest — skipped ({reason})", success=True)
     attempts_log: list[dict[str, Any]] = []
     ctx["knowledge_attempts"] = attempts_log
     n = await ingest_into_knowledge(knowledge, ctx["records"], ctx["artifact"], domain, attempts_log=attempts_log)

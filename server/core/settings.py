@@ -11,9 +11,10 @@ Provider priority chain (when no override):
 Ollama Cloud (``glm-5.1``) is the primary provider (D7 revision).
 NVIDIA NIM is the backup — its OpenAI-compatible endpoint serves most models.
 
-Embedder strategy (ADR-0010):
-- One Milvus collection per embedder, dimension-locked at creation.
-- Text: ``bge-m3`` (1024-d) via OpenRouter.
+Embedder strategy (ADR-0010; store = Weaviate per ADR-0040):
+- One vector collection per embedder, embedder pinned at creation.
+- Text: ``nvidia/nv-embed-v1`` (4096-d) — LIVE contract since 2026-07-19
+  (bge-m3 retired: 500ing on NIM since 2026-07-04, store re-embedded).
 - Code: ``codestral-embed-2505`` (1536-d) via OpenRouter.
 
 Environment variables:
@@ -24,6 +25,7 @@ Environment variables:
 - Provider-specific: ``OLLAMA_HOST``, ``NVIDIA_BASE_URL``, ``MOONSHOT_BASE_URL``,
   ``NVIDIA_RERANK_URL``.
 """
+# Byline: Claude Code · Fable 5 · 2026-07-31 (embedder docstring truth: nv-embed-v1 4096-d live contract; Weaviate store)
 
 from __future__ import annotations
 
@@ -59,10 +61,13 @@ _DEFAULT_ORDER: list[str] = [
     "groq",
 ]
 
-# Embedder IDs mirror db/session.py for reference.
-# db/session.py is the source of truth for embedder IDs/dims.
+# LEGACY/NIM-fallback embedder IDs — these do NOT mirror the live contract and never did
+# ("db/session.py" here means server/core/session.py, the actual source of truth).
+# Current platform truth: nv-embed-v1 4096-d text (LIVE since 2026-07-19, symmetric —
+# see session.py EMBED_TEXT_ID). nemotron-embed-vl is an ASYMMETRIC NIM embedqa model
+# (owner rule: avoid — silently degrades retrieval without per-call input_type).
 _EMBEDDER_IDS: dict[str, str] = {
-    "text": "nvidia/llama-nemotron-embed-vl-1b-v2",  # docs/legal/transcripts — 2048-d
+    "text": "nvidia/llama-nemotron-embed-vl-1b-v2",  # legacy NIM fallback — 2048-d, asymmetric
     "code": "nvidia/nv-embedcode-7b-v1",  # code artifacts — 4096-d
 }
 

@@ -5,9 +5,12 @@ label is the task brief's shorthand for "make agentos-api survive Milvus being
 down at boot", which is real and unaddressed; see this module's own docstring
 tail + the C3 task report for the full provenance note).
 
-THE PROBLEM (verified from agno source, not assumed): ``server/core/session.py``'s
-``create_knowledge()`` builds an ``agno.vectordb.milvus.Milvus`` instance whose
-``__init__`` does NOT touch the network (``self._client = None``, lazy) — but
+THE PROBLEM (verified from agno source, not assumed; investigated against
+Milvus, but the mechanism is store-agnostic and applies unchanged to the
+Weaviate store that replaced it — ADR-0040 cutover 2026-07-29):
+``server/core/session.py``'s ``create_knowledge()`` builds a vector-db
+instance (now ``agno.vectordb.weaviate.Weaviate``) whose
+``__init__`` does NOT touch the network (lazy client) — but
 ``agno.knowledge.knowledge.Knowledge`` (a ``@dataclass``) has:
 
     def __post_init__(self):
@@ -57,6 +60,7 @@ until ready" contract) also resolves fresh and 503s with
 ``{"detail": "knowledge store unavailable"}`` while ``.ready`` is False.
 """
 # Byline: Claude Code · Sonnet (agent) · 2026-07-22
+# Byline: Claude Code · Fable 5 · 2026-07-31 (Milvus→Weaviate doc-drift cleanup (ADR-0040))
 
 from __future__ import annotations
 

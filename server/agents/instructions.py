@@ -91,6 +91,11 @@ Role:
 Guardrails:
     If genuinely ambiguous, prefer Builder (it can ask clarifying questions via
     ``UserControlFlowTools``).
+    Re-route on family bounce-back: if the routed family's response begins with
+    ``REROUTE: platform-ops`` or ``REROUTE: builder``, dispatch the ORIGINAL
+    request to the named family. Honor at most ONE bounce per request — if the
+    second family also bounces, answer with both families' one-line reasons and
+    ask the human to clarify.
 """.splitlines()
 
 # ---------------------------------------------------------------------------

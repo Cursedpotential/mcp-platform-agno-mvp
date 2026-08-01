@@ -4,8 +4,8 @@ evidence/store.py — persist normalized records + feed the knowledge engine.
 Two sinks (P2 scope):
   1. analysis.normalized_record — the relational home of every canonical record,
      carrying the bitemporal fields (occurred_at / knowledge_time / disclosure_tier).
-  2. The domain-partitioned KNOWLEDGE engine (Milvus collection `platform_knowledge`,
-     ADR-0027 — vectors in Milvus, contents in Postgres): transcripts are re-rendered
+  2. The domain-partitioned KNOWLEDGE engine (Weaviate collection `Platform_knowledge`,
+     ADR-0040 — vectors in Weaviate, contents in Postgres): transcripts are re-rendered
      as conversation markdown and inserted with a `domain` metadata tag
      (timeline_relationship | personal_history | platform_design | legal_strategy) so
      agents filter to their domains (native knowledge_filters — see docs/DEBT.md).
@@ -26,6 +26,7 @@ C2.6 (resilience + observability, 2026-07-20/21) additions:
     stage output can show exactly what was retried and why.
 """
 # Byline: Claude Code · Sonnet (agent) · 2026-07-21 (C2.6: retry/backoff + load_records_for_artifact + logging)
+# Byline: Claude Code · Fable 5 · 2026-07-31 (Milvus→Weaviate doc-drift cleanup (ADR-0040))
 
 from __future__ import annotations
 
@@ -78,9 +79,10 @@ def _truncate_error(exc: BaseException) -> str:
 def _is_transient_error(exc: BaseException) -> bool:
     """Classify an exception as transient (worth retrying) vs. not.
 
-    Transient: Milvus 503/UNAVAILABLE/timeout (pymilvus's MilvusException,
-    duck-typed by module+class name so this module never hard-imports
-    pymilvus — it may not be installed on every path that imports store.py),
+    Transient: vector-store 503/UNAVAILABLE/timeout — Weaviate (v4 client's
+    weaviate.exceptions, ADR-0040 cutover) and legacy pymilvus, both duck-typed
+    by module+class name so this module never hard-imports either client (they
+    may not be installed on every path that imports store.py) —
     plain connection/timeout errors, and SQLAlchemy's OperationalError/
     DBAPIError (DB connection drops, not data errors like IntegrityError).
     Deliberately does NOT treat bare OSError as transient — FileNotFoundError
@@ -90,6 +92,15 @@ def _is_transient_error(exc: BaseException) -> bool:
     """
     module = type(exc).__module__ or ""
     name = type(exc).__name__
+    if "weaviate" in module:
+        # v4 client: WeaviateConnectionError / WeaviateTimeoutError /
+        # WeaviateGRPCUnavailableError etc. are retryable; schema/query errors
+        # (UnexpectedStatusCodeError 4xx, WeaviateInvalidInputError) are not.
+        if any(marker in name for marker in ("Connection", "Timeout", "Unavailable", "GRPCUnavailable")):
+            return True
+        status = str(getattr(exc, "message", "") or exc).upper()
+        if "UNAVAILABLE" in status or "DEADLINE_EXCEEDED" in status or "503" in status:
+            return True
     if "pymilvus" in module and "Milvus" in name:
         code = getattr(exc, "code", None)
         if code in (503, "503"):

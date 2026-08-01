@@ -19,6 +19,7 @@ Hard rules:
 """
 # Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3 spine boot resilience — KnowledgeHandle wired in place of a direct create_knowledge() call; register_inspect_routes added)
 # Byline: Claude Code · Sonnet · 2026-07-23 (agno 2.8 service accounts — AgentOS admin-plane db switched from SurrealDb to a dedicated PostgresDb; agents/teams keep SurrealDb unchanged)
+# Byline: Claude Code · Fable 5 · 2026-07-31 (Milvus→Weaviate doc-drift cleanup (ADR-0040))
 
 from __future__ import annotations
 
@@ -31,13 +32,14 @@ from fastapi import FastAPI
 
 from agno.os import AgentOS
 from agno.team.team import Team
-from agno.utils.log import log_info
+from agno.utils.log import log_info, log_warning
 
 from server.agents.factory import build_agent_team
 from server.agents.providers import build_context, build_learning
 from server.core.knowledge_handle import KnowledgeHandle, resolve_knowledge
 from server.core.settings import build_model
 from server.core import create_knowledge, get_agno_db, get_postgres_db
+from server.core.session import DB_ID
 from server.core.url import db_url
 
 # ---------------------------------------------------------------------------
@@ -50,7 +52,7 @@ scheduler_base_url: str = getenv("AGENTOS_URL", "http://127.0.0.1:8000")
 # boot-time follow-through — see server/core/knowledge_handle.py's module
 # docstring for the full ground-truth investigation: agno's
 # `Knowledge.__post_init__` synchronously calls `vector_db.exists()`, which
-# used to crash the WHOLE agentos-api process if Milvus was unreachable at
+# used to crash the WHOLE agentos-api process if the vector store was unreachable at
 # boot. `_build_app()` below calls `try_connect_now()` inside a try/except
 # instead of constructing Knowledge directly; module-level so the lifespan
 # (which only receives the ASGI `app`, not `_build_app`'s locals) can start
@@ -146,10 +148,11 @@ def _build_app() -> Any:
     Assembly order:
     1. Build model (provider-agnostic, credential-driven).
     2. Build Agno DB connections (SurrealDB operational store).
-    3. Build Knowledge instance (Milvus-backed) — via `_knowledge_handle`
-       (C3 addendum 9, spine boot resilience): a single guarded connect
-       attempt that CANNOT raise (see server/core/knowledge_handle.py) — a
-       Milvus outage at boot no longer takes down the whole process.
+    3. Build Knowledge instance (Weaviate-backed, ADR-0040) — via
+       `_knowledge_handle` (C3 addendum 9, spine boot resilience): a single
+       guarded connect attempt that CANNOT raise (see
+       server/core/knowledge_handle.py) — a vector-store outage at boot no
+       longer takes down the whole process.
     4. Build LearningMachine (operational memory).
     5. Build context providers (workspace, database, MCP).
     6. Build agent team (all agents + teams + router).
@@ -163,7 +166,7 @@ def _build_app() -> Any:
 
     LIMITATION (documented, accepted — see knowledge_handle.py's module
     docstring for the full explanation): steps 3-6 below read
-    `_knowledge_handle.instance` ONCE, synchronously, at boot. If Milvus was
+    `_knowledge_handle.instance` ONCE, synchronously, at boot. If Weaviate was
     down at that moment, every agent's knowledge-search tool and AgentOS's
     OWN built-in `/knowledge*` routes run with NO knowledge base for the
     lifetime of THIS process — a later successful background reconnect does
@@ -238,7 +241,7 @@ def _build_app() -> Any:
         agents=solo_agents,
         teams=teams,  # type: ignore[arg-type]  # invariant list[Team|...]; list[Team] is safe here
         # C3 addendum 9: `knowledge` is the one-time boot snapshot (may be
-        # None if Milvus was down at boot — see the docstring LIMITATION
+        # None if Weaviate was down at boot — see the docstring LIMITATION
         # note above). AgentOS wants a list; pass [] rather than [None] so
         # `_auto_discover_knowledge_instances`'s isinstance(k, Knowledge)
         # filter doesn't have to special-case a None entry.
@@ -253,7 +256,24 @@ def _build_app() -> Any:
         lifespan=lifespan,
         config=str(Path(__file__).parent / "config.yaml"),
     )
-    return agent_os.get_app()
+    final_app = agent_os.get_app()
+
+    # The registry now holds THREE ids (agentos-db / agentos-admin-db /
+    # agentos-contents-db, see server/core/session.py). That is correct, but it
+    # arms agno's `len(dbs) > 1` guard: `db_id` is optional on every route that
+    # takes one, so a client omitting it would get a 400 instead of the
+    # silently-wrong 200 it used to get. Neither is right — default it to the
+    # SurrealDb operational store so routing is DELIBERATE. Clients that send
+    # their own `db_id` (or `knowledge_id`) are untouched.
+    from server.api.db_id_middleware import install_db_id_default
+
+    defaulted = install_db_id_default(final_app, DB_ID)
+    if defaulted:
+        log_info(f"db_id default installed on {defaulted} routes -> {DB_ID}")
+    else:
+        log_warning("db_id default installed on NO routes — agno route signatures may have changed")
+
+    return final_app
 
 
 # ---------------------------------------------------------------------------

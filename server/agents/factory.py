@@ -25,9 +25,11 @@ Conventions:
 - The HITL write tool (``apply_db_modification``) is the ONLY way agents write
   to the ``analysis`` schema. It pauses for human approval before executing.
 """
+# Byline: Claude Code · Fable 5 · 2026-07-31 (enable_user_memories on Root Router + Project PAL; Weaviate docstring fix)
 
 from __future__ import annotations
 
+import os
 import re
 from typing import Any
 
@@ -70,38 +72,51 @@ def _get_write_engine() -> Any:
 
 _EVIDENCE_REF = re.compile(r"\bevidence\s*\.", re.IGNORECASE)
 
+# Schemas the approval-gated write tool may target. `evidence` is HARD-DENIED
+# regardless of this list (immutable, infrastructure-enforced read-only) — the
+# allowlist can grow via env, the evidence wall cannot be configured away.
+_WRITE_SCHEMAS: frozenset[str] = frozenset(
+    s.strip() for s in os.getenv("DB_WRITE_SCHEMAS", "analysis").split(",") if s.strip()
+) - {"evidence"}
+_SCHEMA_NAME_RE = re.compile(r"^[a-z_][a-z0-9_]*$")
+
 
 @approval  # type: ignore[call-overload]
 @tool(requires_confirmation=True)
 def apply_db_modification(statement: str, target_schema: str = "analysis") -> str:
-    """Apply ONE approved SQL write to the ``analysis`` schema.
+    """Apply ONE approved SQL write to an allowlisted schema.
 
     The run pauses for recorded human approval before this executes (native
     ``@approval`` flow). Single statement per call; unqualified table names
-    resolve to the ``analysis`` schema via ``search_path``.
+    resolve to ``target_schema`` via ``search_path``.
 
     Parameters
     ----------
     statement:
         A single SQL statement. Must not reference the ``evidence`` schema.
     target_schema:
-        Target schema — currently only ``"analysis"`` is allowed.
+        Target schema. Allowed values come from the ``DB_WRITE_SCHEMAS`` env
+        var (comma-separated; default ``"analysis"``). ``evidence`` is always
+        rejected regardless of configuration.
 
     Returns
     -------
     str
         Status message (``OK: ...``, ``REJECTED: ...``, or ``ERROR: ...``).
     """
-    if target_schema != "analysis":
-        return f"REJECTED: target_schema must be 'analysis', got {target_schema!r}. No write performed."
+    if target_schema not in _WRITE_SCHEMAS or not _SCHEMA_NAME_RE.match(target_schema):
+        return (
+            f"REJECTED: target_schema must be one of {sorted(_WRITE_SCHEMAS)} "
+            f"(DB_WRITE_SCHEMAS), got {target_schema!r}. No write performed."
+        )
     if _EVIDENCE_REF.search(statement):
         return "REJECTED: statement references the immutable `evidence` schema. No write performed."
     try:
         with _get_write_engine().begin() as conn:
-            conn.execute(text("SET LOCAL search_path TO analysis"))
+            conn.execute(text(f"SET LOCAL search_path TO {target_schema}"))
             result = conn.execute(text(statement))
             rowcount = result.rowcount if result.rowcount is not None else 0
-        return f"OK: statement applied to `analysis` (rowcount={rowcount})."
+        return f"OK: statement applied to `{target_schema}` (rowcount={rowcount})."
     except Exception as exc:
         return f"ERROR: write failed and was rolled back: {exc}"
 
@@ -127,7 +142,7 @@ def build_ingestion_orchestrator(
     db:
         Agno operational DB (SurrealDB).
     knowledge:
-        Agno Knowledge instance (Milvus-backed).
+        Agno Knowledge instance (Weaviate-backed, ADR-0040).
     learning:
         Agno LearningMachine instance.
     source_tools:
@@ -227,6 +242,10 @@ def build_platform_ops_team(model: Any, db: Any, members: list[Agent]) -> Team:
         instructions=[
             "Route operational work to the right member. Ensure every write "
             "passes the Review Gatekeeper / confirmation gate before execution.",
+            "If the request is actually platform DEVELOPMENT work (code changes, "
+            "migrations, schema design, tooling), do not attempt it: reply with a "
+            "first line of exactly `REROUTE: builder` plus one sentence of reason, "
+            "so the Root Router re-dispatches it.",
         ],
         markdown=True,
     )
@@ -301,6 +320,9 @@ def build_project_pal(model: Any, db: Any, learning: Any) -> Agent:
         learning=learning,
         add_history_to_context=True,
         num_history_runs=10,
+        # Rolling memory IS this agent's role — capture user memories when it
+        # runs directly (the Root Router covers the routed path).
+        enable_user_memories=True,
         instructions=get_instructions("project_pal"),
         markdown=True,
     )
@@ -358,7 +380,13 @@ def build_builder_team(model: Any, db: Any, members: list[Agent]) -> Team:
         show_members_responses=True,
         add_history_to_context=True,
         num_history_runs=10,
-        instructions=["Delegate development work to the right member and synthesize a single answer."],
+        instructions=[
+            "Delegate development work to the right member and synthesize a single answer.",
+            "If the request is actually OPERATIONAL work on existing platform data "
+            "(ingest, parse, analyze evidence), do not attempt it: reply with a first "
+            "line of exactly `REROUTE: platform-ops` plus one sentence of reason, so "
+            "the Root Router re-dispatches it.",
+        ],
         markdown=True,
     )
 
@@ -391,6 +419,13 @@ def build_root_router(model: Any, db: Any, ops_team: Team, builder_team: Team) -
         mode=TeamMode.route,
         add_history_to_context=True,
         num_history_runs=10,
+        # Memory capture lives HERE (plus Project PAL) and nowhere else: the
+        # router sees every user message, so one enable = one memory-extraction
+        # pass per user run instead of one per member agent. Memories persist
+        # to `db` (SurrealDb, agno_memories) and feed the AgentOS memory panel
+        # — which stayed empty because nothing ever wrote memories
+        # (HANDOFF-2026-07-30 audit, confirmed live 2026-07-31).
+        enable_user_memories=True,
         instructions=get_instructions("router"),
         markdown=True,
     )

@@ -868,24 +868,23 @@ def test_health_deps_both_ok(run_routes_client, monkeypatch):
     run_routes, client = run_routes_client
     monkeypatch.setattr(run_routes, "ping", lambda: None)
 
-    class _FakeMilvusClient:
-        def list_collections(self):
-            return ["platform_knowledge"]
+    class _FakeWeaviateClient:
+        def is_ready(self):
+            return True
 
+    # _check_weaviate falls back to session.get_weaviate_client when the route
+    # has no live knowledge handle (this fixture registers with knowledge=None).
     monkeypatch.setattr(
-        "server.core.session.MILVUS_URI", "http://fake:19530", raising=False
+        "server.core.session.get_weaviate_client", lambda: _FakeWeaviateClient(), raising=False
     )
-
-    import pymilvus  # noqa: F401 — only to confirm it resolves in this env; not used directly
-
-    monkeypatch.setattr(pymilvus, "MilvusClient", lambda uri, token: _FakeMilvusClient())
 
     resp = client.get("/v1/health/deps")
 
     assert resp.status_code == 200
     body = resp.json()
     assert body["pg"] == {"status": "ok"}
-    assert body["milvus"] == {"status": "ok"}
+    assert body["weaviate"] == {"status": "ok"}
+    assert body["milvus"] == {"status": "ok"}  # deprecated alias of the weaviate check
     assert "checked_at" in body
 
 
@@ -897,9 +896,12 @@ def test_health_deps_pg_error_surfaces_message(run_routes_client, monkeypatch):
 
     monkeypatch.setattr(run_routes, "ping", _boom)
 
-    import pymilvus  # noqa: F401
+    def _weaviate_down():
+        raise ConnectionError("weaviate down")
 
-    monkeypatch.setattr(pymilvus, "MilvusClient", lambda uri, token: (_ for _ in ()).throw(ConnectionError("milvus down")))
+    monkeypatch.setattr(
+        "server.core.session.get_weaviate_client", _weaviate_down, raising=False
+    )
 
     resp = client.get("/v1/health/deps")
 
@@ -907,4 +909,5 @@ def test_health_deps_pg_error_surfaces_message(run_routes_client, monkeypatch):
     body = resp.json()
     assert body["pg"]["status"] == "error"
     assert "pg unreachable" in body["pg"]["error"]
-    assert body["milvus"]["status"] == "error"
+    assert body["weaviate"]["status"] == "error"
+    assert body["milvus"]["status"] == "error"  # deprecated alias
