@@ -88,6 +88,43 @@ and it has a **behavioural edge the fix introduces**:
   Mitigation if needed: keep the admin/contents split but re-merge the two Postgres roles under a
   single id, leaving 2 keys, and pass `db_id` explicitly from our own callers.
 
+### DEPLOY BLOCKERS — what a redeploy of this branch actually ships (verified 2026-08-01)
+
+The redeploy is **not** just the db-id fix. The live image is the **2026-07-23** build; the branch
+has moved on twice since. Verified by probing the running container directly:
+
+```
+docker exec <agentos-api> python -c "import weaviate"  -> ModuleNotFoundError: No module named 'weaviate'
+docker exec <agentos-api> python -c "import agno"      -> 2.8.0
+docker exec <agentos-api> python -c "import pymilvus"  -> 3.0.0
+```
+
+So prod today is **still Milvus-era code**. One redeploy lands three changes at once:
+
+| # | Change | Risk |
+|---|---|---|
+| 1 | db-id split (`9a7e4ac`) | **Arms agno's multi-db guard** — clients omitting `db_id` get 400 (proven by probe) |
+| 2 | **Milvus → Weaviate cutover goes live for the first time** | See count mismatch below |
+| 3 | `enable_user_memories` on Root Router + Project PAL | Benign/desired — memory capture starts working |
+
+**Count mismatch (BLOCKER, measured today):**
+
+| Store | Collection | Count |
+|---|---|---|
+| Milvus (what prod serves NOW) | `platform_knowledge` | **14 rows** |
+| Weaviate (what prod would serve AFTER) | `Platform_knowledge` | **7 objects** |
+
+Weaviate is healthy (`/v1/.well-known/ready` → 200) and holds real content, but it has **half the
+row count of the live Milvus collection**. Before concluding data loss this needs reconciling —
+the two may not count the same unit (documents vs chunks). Either way, **cutting over on today's
+numbers risks halving the knowledge base**, and this is exactly the question original live check #4
+was meant to answer.
+
+**Finding #3 (Weaviate client-close race) is NOT observable in prod** and cannot be: 9 days of
+`agentos-api` logs contain **zero** `WeaviateClosedClientError`, zero gRPC `UNAVAILABLE`, and zero
+mentions of Weaviate at all — because the module isn't installed. The race becomes live only
+*after* this redeploy. It is a post-deploy watch item, not a pre-deploy one.
+
 ### #2 — uv.lock stale/trap
 - `uv.lock` (2026-07-23) has NO weaviate-client → local `.venv` cannot import `server.core.session` at all (top-level Weaviate import). Verified live.
 - Prod likely safe: Dockerfile + CI install from requirements.txt (`weaviate-client==4.22.0`, `agno==2.8.0`).
