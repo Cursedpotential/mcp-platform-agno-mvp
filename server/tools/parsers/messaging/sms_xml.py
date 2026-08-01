@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import hashlib
 import xml.etree.ElementTree as ET
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 from xml.etree.ElementTree import Element
@@ -226,7 +226,10 @@ def _sanitize_xml(raw: str) -> str:
     return re.sub(r"&(?!#\d+;|#x[0-9A-Fa-f]+;|[A-Za-z][A-Za-z0-9._-]*;)", "&amp;", raw)
 
 
-def iter_records(path: Path) -> Iterator[NormalizedRecord]:
+def iter_records(
+    path: Path,
+    on_reject: Callable[[str, int, dict[str, str]], None] | None = None,
+) -> Iterator[NormalizedRecord]:
     """Stream records one at a time — never materialises the whole export.
 
     `_collect` below parses incrementally but accumulates every record into a list,
@@ -241,13 +244,25 @@ def iter_records(path: Path) -> Iterator[NormalizedRecord]:
     calls `path.read_text()` on the whole file, which is exactly what streaming
     exists to avoid. On a ParseError this raises so the caller can decide, rather
     than silently ballooning to multi-GB.
+
+    `on_reject(tag, index, attrib)` is called for every element the mapper refuses.
+    A dropped record is an ABSENCE and cannot be recovered by querying afterwards —
+    the caller only gets one chance to write it down. Defaulting this to None keeps
+    the old signature working, but any ingest that stores evidence should pass it
+    (see evidence.raw_rejected, migration 0012).
     """
+    index = 0
     for _event, elem in ET.iterparse(str(path), events=("end",)):
         tag = elem.tag.lower()
         if tag in _TAGS:
-            rec = _map(tag, dict(elem.attrib), elem)
+            attrib = dict(elem.attrib)
+            rec = _map(tag, attrib, elem)
             if rec is not None:
                 yield rec
+            elif on_reject is not None:
+                # never hand back the base64 payload
+                on_reject(tag, index, {k: v for k, v in attrib.items() if k != "data"})
+            index += 1
         if tag in _TAGS or tag in ("smses", "calls"):
             elem.clear()
 
