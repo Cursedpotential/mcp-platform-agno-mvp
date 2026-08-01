@@ -32,6 +32,16 @@ dependencies = [
 # beautifulsoup4: needed to exercise the HTML evidence parsers in tests
 # (the tools import it lazily at runtime; it's optional for them, required to test them).
 dev = ["mypy", "ruff", "pytest", "pytest-cov", "beautifulsoup4"]
+# claude-agent-sdk: powers agno.agents.claude.ClaudeAgent (runs Claude Code as
+# a subprocess — the SDK bundles its own native Claude Code binary, no
+# separate Node.js/CLI install needed). NOT a base dependency: it's a heavier
+# install than the chat-completion path (agno.models.anthropic.Claude, which
+# only needs the `anthropic` package already in base deps) and is opt-in
+# pending owner sign-off on actually mounting server/agents/claude_code_agent.py
+# into the live Root Router topology (server/agents/factory.py). See that
+# module's docstring for the concrete wiring plan. Install with:
+#   uv pip install -e ".[claude-code]"
+claude-code = ["claude-agent-sdk"]
 
 [build-system]
 requires = ["setuptools"]

@@ -14,6 +14,7 @@ runtime context they share. Imports `evidence/`, `tools/`, `analysis/`, `core/`
 | `providers.py` | Builds `PlatformContext` (context providers, `LearningMachine`, MCP wiring). `source_tools` is the single append point for new agno `@tool` lists (Graphiti, `gateway_tools`, `sbv_tools` all append here). |
 | `instructions.py` | Authoritative role/guardrail text for every agent — change the docstring first, then the instruction strings. `GLOBAL_GUARDRAILS` prepends to every agent. |
 | `*_orchestrator.py`, `dev_copilot.py`, `project_pal.py`, `forensic_data_agent.py`, `review_gatekeeper.py`, `document_digest.py`, `transcript_miner.py` | Individual agent/team builders — see the topology diagram in the root map. |
+| `claude_code_agent.py` | `build_claude_code_agent()` — Claude Code (`agno.agents.claude.ClaudeAgent`) wrapped for AgentOS. **Staged, NOT mounted** into `build_agent_team()` / the Root Router — needs the `claude-code` extra installed and an explicit owner decision on where it sits in the topology (see the module docstring, 2026-08-01). |
 | `tools/gateway_tools.py` | agno `@tool` wrappers over the G4 gateway (`server/tools/gateway/toolfinder.py`) — 5 thin functions instead of one per parser. |
 | `tools/sbv_tools.py` | agno `@tool` wrappers over `SBVClient` (`server/tools/_sbv_client.py`) — mirrors the old facade's `/sbv/*` proxy surface + `sbv_hashes` (H1/H3 custody chain). |
 
