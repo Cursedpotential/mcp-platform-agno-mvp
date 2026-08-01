@@ -1,6 +1,8 @@
 """One-off Milvus -> Weaviate migration (HANDOFF Phase-1 task 3, ADR-0040).
 
 Byline: Claude Code · Fable 5 · 2026-07-29
+Byline: Claude Code · Sonnet (agent) · 2026-08-01 (updated _embedder() call for its
+new explicit base_url/api_key params — server/core/session.py's knowledge-ingest fix)
 
 Copies the `platform_knowledge` collection (nv-embed-v1 4096-d dense vectors +
 agno knowledge fields) from the sidelined Milvus into the platform Weaviate,
@@ -41,7 +43,14 @@ def _milvus_token() -> str:
 def main() -> int:
     from pymilvus import MilvusClient
 
-    from server.core.session import _embedder, EMBED_TEXT_DIM, EMBED_TEXT_ID, get_weaviate_client
+    from server.core.session import (
+        _EMBED_TEXT_API_KEY,
+        _EMBED_TEXT_BASE_URL,
+        _embedder,
+        EMBED_TEXT_DIM,
+        EMBED_TEXT_ID,
+        get_weaviate_client,
+    )
     from agno.vectordb.search import SearchType
     from agno.vectordb.weaviate import Weaviate
 
@@ -57,7 +66,7 @@ def main() -> int:
         client=get_weaviate_client(),
         collection=COLLECTION,
         search_type=SearchType.hybrid,
-        embedder=_embedder(EMBED_TEXT_ID, EMBED_TEXT_DIM),
+        embedder=_embedder(EMBED_TEXT_ID, EMBED_TEXT_DIM, _EMBED_TEXT_BASE_URL, _EMBED_TEXT_API_KEY),
     )
     vector_db.create()
     client = vector_db.get_client()

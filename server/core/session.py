@@ -23,9 +23,15 @@ Config via env:
     ``SURREALDB_NS`` / ``SURREALDB_DB``.
   Weaviate (vectors): ``WEAVIATE_HTTP_HOST`` / ``WEAVIATE_HTTP_PORT`` / ``WEAVIATE_GRPC_PORT``
     / ``WEAVIATE_API_KEY`` (empty = anonymous until Phase-1 task 5).
-  Embedder: ``OPENROUTER_API_KEY`` (+ optional ``OPENROUTER_BASE_URL``), ``EMBED_*`` overrides.
+  Embedder: text defaults to NVIDIA NIM (``NVIDIA_BASE_URL`` / ``NVIDIA_API_KEY``); code
+    defaults to OpenRouter (``OPENROUTER_API_KEY`` + optional ``OPENROUTER_BASE_URL``).
+    ``EMBED_BASE_URL`` / ``EMBED_API_KEY`` override BOTH when set (2026-08-01 fix — see
+    the comment above ``_EMBED_TEXT_BASE_URL`` for the live-verified incident this closes).
 """
 # Byline: Claude Code · Fable 5 · 2026-07-31 (distinct db registry ids (agentos-admin-db / agentos-contents-db) — HANDOFF-2026-07-30 audit #1 fix)
+# Byline: Claude Code · Sonnet (agent) · 2026-08-01 (embedder default routing fixed:
+# text embedder now defaults to NVIDIA NIM, not dead OpenRouter; VerifiedWeaviate wired
+# in so a dead embedder reports FAILED instead of silently reporting COMPLETED)
 
 from os import getenv
 
@@ -34,8 +40,8 @@ from agno.db.surrealdb import SurrealDb
 from agno.knowledge import Knowledge
 from agno.knowledge.embedder.openai import OpenAIEmbedder
 from agno.vectordb.search import SearchType
-from agno.vectordb.weaviate import Weaviate
 
+from server.core.knowledge_vectordb import VerifiedWeaviate
 from server.core.url import db_url
 
 # Distinct registry ids per backend (fix 2026-07-31, HANDOFF-2026-07-30 audit #1):
@@ -92,13 +98,40 @@ def get_weaviate_client():
 
 
 # --- Embedder: OpenAI-compatible /embeddings, SYMMETRIC ----------------------
-# Dedicated EMBED_BASE_URL / EMBED_API_KEY override the OpenRouter defaults so
-# the embedding lane can move providers (e.g. NVIDIA NIM) WITHOUT touching
-# OPENROUTER_API_KEY, which settings.py also reads for LLM provider selection.
+# Dedicated EMBED_BASE_URL / EMBED_API_KEY, when set, override EVERYTHING below
+# for BOTH embedders — an explicit operator escape hatch that moves the whole
+# embedding lane to a single provider WITHOUT touching OPENROUTER_API_KEY
+# (settings.py also reads that var for LLM provider selection).
+#
+# Per-embedder PROVIDER DEFAULTS (bug fixed 2026-08-01 — see incident note
+# below): the text embedder (``nvidia/nv-embed-v1``) is an NVIDIA NIM model;
+# OpenRouter does NOT host it. The code embedder (``codestral-embed-2505``)
+# IS OpenRouter-hosted. Before this fix, BOTH embedders defaulted to
+# OpenRouter (settings.py's own docstring already documented text=NVIDIA,
+# code=OpenRouter — session.py just didn't implement it), so every text-embed
+# call with no EMBED_BASE_URL override hit OpenRouter, which 400s
+# ``Model nvidia/nv-embed-v1 does not exist`` (verified live 2026-08-01) —
+# and separately the configured OpenRouter key had no credits either (402 on
+# an OpenRouter-native embedding model, verified same day). agno's embedder
+# swallows that failure and returns (None, None) instead of raising (see
+# ``agno.knowledge.embedder.openai.OpenAIEmbedder.get_embedding_and_usage``),
+# so every knowledge ingest silently wrote ZERO vectors while still reporting
+# ContentStatus.COMPLETED — the "COMPLETED with no vectors" bug. Direct calls
+# to NVIDIA NIM (``NVIDIA_BASE_URL`` + ``NVIDIA_API_KEY``) for nv-embed-v1
+# verified live 2026-08-01: HTTP 200, real 4096-d vector, matching the store's
+# existing embedded rows exactly.
 _OR_BASE_URL = getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 _OR_API_KEY = getenv("OPENROUTER_API_KEY", "")
-_EMBED_BASE_URL = getenv("EMBED_BASE_URL") or _OR_BASE_URL
-_EMBED_API_KEY = getenv("EMBED_API_KEY") or _OR_API_KEY
+_NVIDIA_BASE_URL = getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")
+_NVIDIA_API_KEY = getenv("NVIDIA_API_KEY", "")
+
+# Text embedder (nv-embed-v1): NVIDIA NIM by default.
+_EMBED_TEXT_BASE_URL = getenv("EMBED_BASE_URL") or _NVIDIA_BASE_URL
+_EMBED_TEXT_API_KEY = getenv("EMBED_API_KEY") or _NVIDIA_API_KEY
+
+# Code embedder (codestral-embed-2505): OpenRouter by default (unchanged).
+_EMBED_CODE_BASE_URL = getenv("EMBED_BASE_URL") or _OR_BASE_URL
+_EMBED_CODE_API_KEY = getenv("EMBED_API_KEY") or _OR_API_KEY
 
 # Embedding model IDs + dims (ADR-0010: one collection per embedder). Defaults match the
 # LIVE platform contract (nv-embed-v1 4096-d since 2026-07-19 — handoff verified-live);
@@ -110,23 +143,27 @@ EMBED_CODE_ID = getenv("EMBED_CODE_ID", "mistralai/codestral-embed-2505")
 EMBED_CODE_DIM = int(getenv("EMBED_CODE_DIM", "1536"))
 
 
-def _embedder(model_id: str, dimensions: int) -> OpenAIEmbedder:
-    """Symmetric OpenRouter embedder via the OpenAI-compatible /embeddings endpoint.
+def _embedder(model_id: str, dimensions: int, base_url: str, api_key: str) -> OpenAIEmbedder:
+    """Symmetric embedder via an OpenAI-compatible /embeddings endpoint.
 
     Symmetric => the same vector space for documents and queries, so there is no
     query/passage mode to manage (unlike the NVIDIA-NIM asymmetric models, which
     required the PgVector-specific NimEmbedder shim and don't map cleanly to Milvus).
+
+    ``base_url``/``api_key`` are caller-supplied (not read from module globals here)
+    so the text and code embedders can each get their own provider default — see the
+    module-level comment above ``_EMBED_TEXT_BASE_URL``/``_EMBED_CODE_BASE_URL``.
     """
     return OpenAIEmbedder(
         id=model_id,
-        api_key=_EMBED_API_KEY,
+        api_key=api_key,
         dimensions=dimensions,
         # base_url goes via client_params ON PURPOSE: agno's OpenAIEmbedder
         # injects a `dimensions` request param whenever self.base_url is set,
         # and NIM /embeddings hard-400s on extra params (extra_forbidden).
         # Symmetric models emit their native dim anyway; `dimensions` here is
         # still read by the vector store for collection schema.
-        client_params={"base_url": _EMBED_BASE_URL},
+        client_params={"base_url": base_url},
     )
 
 
@@ -210,13 +247,19 @@ def create_knowledge(name: str, table_name: str, use_code_embedder: bool = False
     means a new collection + re-embed.
     """
     if use_code_embedder:
-        embedder = _embedder(EMBED_CODE_ID, EMBED_CODE_DIM)
+        embedder = _embedder(EMBED_CODE_ID, EMBED_CODE_DIM, _EMBED_CODE_BASE_URL, _EMBED_CODE_API_KEY)
     else:
-        embedder = _embedder(EMBED_TEXT_ID, EMBED_TEXT_DIM)
+        embedder = _embedder(EMBED_TEXT_ID, EMBED_TEXT_DIM, _EMBED_TEXT_BASE_URL, _EMBED_TEXT_API_KEY)
 
     return Knowledge(
         name=name,
-        vector_db=Weaviate(
+        # VerifiedWeaviate (not the raw agno Weaviate class): agno's Weaviate
+        # silently skips documents whose embedding is None and still reports
+        # the content row COMPLETED (see server/core/knowledge_vectordb.py's
+        # docstring for the full trace) — VerifiedWeaviate raises instead when
+        # an ENTIRE batch failed to embed, so a dead/misconfigured embedder
+        # correctly surfaces as ContentStatus.FAILED.
+        vector_db=VerifiedWeaviate(
             client=get_weaviate_client(),
             collection=table_name,
             search_type=SearchType.hybrid,
