@@ -78,30 +78,43 @@ else
       --endpoint http://localhost:8000 \
       --username "${SURREAL_USER:-root}" --password "${SURREAL_PASS:-root}" \
       --namespace agno --database platform /tmp/surreal.surql >"$STAGE/surreal.log" 2>&1
-  if docker exec "$SR" test -s /tmp/surreal.surql; then
-    docker cp "$SR:/tmp/surreal.surql" "$STAGE/surreal_platform.surql"
+  # NOTE: do NOT verify with `docker exec ... test -s` — the surrealdb image is
+  # distroless and has no `test` binary, so that check reports failure even when
+  # the export succeeded (hit live 2026-08-01). Copy out, then size-check on the
+  # HOST, where coreutils actually exists.
+  docker cp "$SR:/tmp/surreal.surql" "$STAGE/surreal_platform.surql" 2>/dev/null
+  if [ -s "$STAGE/surreal_platform.surql" ]; then
+    tables=$(grep -c '^-- TABLE:' "$STAGE/surreal_platform.surql" || true)
     gzip -f "$STAGE/surreal_platform.surql"
-    echo "  OK  $(ls -lh "$STAGE/surreal_platform.surql.gz" | awk '{print $5}')"
+    echo "  OK  $(ls -lh "$STAGE/surreal_platform.surql.gz" | awk '{print $5}')  tables=$tables"
   else
-    echo "  FAIL: export empty"; tail -3 "$STAGE/surreal.log"; fail=1
+    echo "  FAIL: export produced no file"; tail -3 "$STAGE/surreal.log"; fail=1
   fi
 fi
 echo
 
 # --- Weaviate -----------------------------------------------------------------
-echo "=== Weaviate (/v1/backups filesystem, hot) ==="
-resp=$(curl -s -X POST "$WEAVIATE_URL/v1/backups/filesystem" \
-        -H 'Content-Type: application/json' -d "{\"id\":\"$BACKUP_ID\"}")
-echo "  request: $(echo "$resp" | head -c 160)"
-for _ in $(seq 1 30); do
-  st=$(curl -s "$WEAVIATE_URL/v1/backups/filesystem/$BACKUP_ID" \
-       | grep -o '"status":"[A-Z]*"' | head -1 | cut -d'"' -f4)
-  [ "$st" = "SUCCESS" ] && break
-  [ "$st" = "FAILED" ] && break
-  sleep 4
+echo "=== Weaviate (GraphQL object export, hot) ==="
+# The /v1/backups API needs the `backup-filesystem` module, which is NOT enabled
+# on this instance (verified live 2026-08-01: "no backup backend filesystem").
+# Enabling it means an env change + restart of a Coolify-managed container for a
+# 6.5 MB store — not worth it. Export the objects (WITH their vectors, which is
+# what makes this a real backup rather than a listing) straight out of GraphQL.
+for CLS in $(curl -s "$WEAVIATE_URL/v1/schema" | grep -o '"class":"[^"]*"' | cut -d'"' -f4); do
+  out="$STAGE/weaviate_${CLS}.json"
+  curl -s -X POST "$WEAVIATE_URL/v1/graphql" -H 'Content-Type: application/json' \
+    -d "{\"query\":\"{Get{${CLS}(limit:10000){name content meta_data content_id content_hash _additional{id vector}}}}\"}" \
+    > "$out"
+  n=$(grep -o '"id":' "$out" | wc -l)
+  if [ -s "$out" ] && ! grep -q '"errors"' "$out" && [ "$n" -gt 0 ]; then
+    gzip -f "$out"
+    echo "  OK  ${CLS}: ${n} objects -> $(ls -lh "$out.gz" | awk '{print $5}')"
+  elif [ "$n" -eq 0 ] && ! grep -q '"errors"' "$out"; then
+    rm -f "$out"; echo "  ..  ${CLS}: 0 objects (empty class, nothing to back up)"
+  else
+    echo "  FAIL ${CLS}: $(head -c 150 "$out")"; fail=1
+  fi
 done
-echo "  status: ${st:-UNKNOWN}"
-[ "${st:-}" = "SUCCESS" ] || { echo "  FAIL: weaviate backup did not reach SUCCESS"; fail=1; }
 echo
 
 # --- Manifest -----------------------------------------------------------------
