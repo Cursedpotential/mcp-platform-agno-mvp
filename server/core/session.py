@@ -97,6 +97,35 @@ def get_weaviate_client():
     )
 
 
+def get_weaviate_async_client():
+    """ASYNC twin of :func:`get_weaviate_client` — required, not optional.
+
+    agno's ``Weaviate.__init__`` takes ``client=`` but has no ``async_client``
+    parameter, and its ``get_async_client()`` falls back to
+    ``weaviate.use_async_with_local()`` → **localhost:8080**. Since agno's
+    entire ingest path is async (``ainsert`` → ``async_upsert`` →
+    ``async_insert``), a sync-only custom client means every WRITE silently
+    targets localhost while sync search keeps working — which is exactly how
+    "knowledge never populates" presented (live 2026-08-01).
+
+    Returned unconnected; ``VerifiedWeaviate.get_async_client()`` connects it
+    lazily, mirroring the sync client's lazy-connect behavior.
+    """
+    import weaviate
+    from weaviate.classes.init import Auth
+
+    return weaviate.use_async_with_custom(
+        http_host=WEAVIATE_HTTP_HOST,
+        http_port=WEAVIATE_HTTP_PORT,
+        http_secure=False,
+        grpc_host=WEAVIATE_HTTP_HOST,
+        grpc_port=WEAVIATE_GRPC_PORT,
+        grpc_secure=False,
+        auth_credentials=Auth.api_key(WEAVIATE_API_KEY) if WEAVIATE_API_KEY else None,
+        skip_init_checks=True,
+    )
+
+
 # --- Embedder: OpenAI-compatible /embeddings, SYMMETRIC ----------------------
 # Dedicated EMBED_BASE_URL / EMBED_API_KEY, when set, override EVERYTHING below
 # for BOTH embedders — an explicit operator escape hatch that moves the whole
@@ -261,6 +290,13 @@ def create_knowledge(name: str, table_name: str, use_code_embedder: bool = False
         # correctly surfaces as ContentStatus.FAILED.
         vector_db=VerifiedWeaviate(
             client=get_weaviate_client(),
+            # agno has NO `async_client` constructor param, and its
+            # get_async_client() falls back to use_async_with_local()
+            # (localhost:8080). The INGEST path is fully async, so without this
+            # every write failed against localhost while sync search worked —
+            # the real cause of "knowledge never populates". See
+            # VerifiedWeaviate.get_async_client().
+            async_client_factory=get_weaviate_async_client,
             collection=table_name,
             search_type=SearchType.hybrid,
             embedder=embedder,

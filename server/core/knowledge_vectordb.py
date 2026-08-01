@@ -102,6 +102,55 @@ class VerifiedWeaviate(Weaviate):
     through these overrides too — every insert/upsert path is covered.
     """
 
+    def __init__(self, *args: Any, async_client_factory: Any = None, **kwargs: Any) -> None:
+        """``async_client_factory``: zero-arg callable returning a *custom* v4
+        async client. See :meth:`get_async_client` for why this is required.
+
+        Injected as a callable rather than imported here because
+        ``server.core.session`` imports THIS module — importing it back would
+        be circular.
+        """
+        super().__init__(*args, **kwargs)
+        self._async_client_factory = async_client_factory
+
+    async def get_async_client(self) -> Any:
+        """Return a custom async client instead of agno's localhost fallback.
+
+        THE BUG (root cause of "knowledge never populates", found live
+        2026-08-01). agno's ``Weaviate.get_async_client()`` reads::
+
+            if self.async_client is None:
+                ...
+                self.async_client = weaviate.use_async_with_local()
+
+        ``Weaviate.__init__`` accepts ``client=`` but has NO ``async_client``
+        parameter, so handing it a preconstructed ``connect_to_custom()`` client
+        only ever covers the SYNC path. Every async call falls through to
+        ``use_async_with_local()`` -> **localhost:8080**, which is nothing on
+        this host. session.py's own comment already warned that agno hardcodes
+        ``connect_to_local()``; the async twin was simply missed.
+
+        Why it presented as "ingest silently does nothing": the ingest path is
+        entirely async (``Knowledge.ainsert`` -> ``async_upsert`` ->
+        ``async_insert``), while search/inspection is sync. So the sync client
+        worked, every manual probe passed, and only WRITES failed — with::
+
+            Error upserting document: Connection to Weaviate failed.
+            Is Weaviate running and reachable at http://localhost:8080?
+
+        agno catches that per document and the content row lands FAILED with
+        the generic "Could not upsert embedding", giving no hint that the host
+        was wrong. Verified: 4 files reindexed, 4 rows FAILED, Weaviate object
+        count unchanged at 7.
+        """
+        if self.async_client is None and self._async_client_factory is not None:
+            self.async_client = self._async_client_factory()
+        if self.async_client is None:  # no factory supplied — upstream behavior
+            return await super().get_async_client()
+        if not self.async_client.is_connected():
+            await self.async_client.connect()
+        return self.async_client
+
     def insert(
         self,
         content_hash: str,

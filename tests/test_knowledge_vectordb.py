@@ -191,3 +191,58 @@ def test_update_metadata_uses_filters_not_where(monkeypatch):
     assert "filters" in captured, "must pass filters= (v4), never where= (v3)"
     assert "where" not in captured
     assert captured["limit"] == 1000
+
+
+# --- async client must be CUSTOM, never agno's localhost fallback -------------
+# Byline: Claude Code · Opus 5 · 2026-08-01
+
+
+async def _get_async(db):
+    return await db.get_async_client()
+
+
+def test_async_client_uses_injected_factory_not_localhost():
+    """REGRESSION (root cause of "knowledge never populates", live 2026-08-01):
+    agno's Weaviate has no async_client constructor param and its
+    get_async_client() falls back to use_async_with_local() -> localhost:8080.
+    The ingest path is fully async, so writes hit localhost while sync search
+    worked, and every content row landed FAILED with "Could not upsert
+    embedding" and no hint the host was wrong.
+    """
+    import asyncio
+
+    from server.core.knowledge_vectordb import VerifiedWeaviate
+
+    class FakeAsyncClient:
+        def __init__(self):
+            self.connected = False
+
+        def is_connected(self):
+            return self.connected
+
+        async def connect(self):
+            self.connected = True
+
+    made = FakeAsyncClient()
+    db = VerifiedWeaviate.__new__(VerifiedWeaviate)
+    db.async_client = None
+    db._async_client_factory = lambda: made
+
+    got = asyncio.run(_get_async(db))
+    assert got is made, "must use the injected custom client, not agno's localhost default"
+    assert got.connected is True, "must lazily connect the async client"
+
+    # second call reuses it rather than reconnecting
+    assert asyncio.run(_get_async(db)) is made
+
+
+def test_session_wires_the_async_client_factory():
+    """create_knowledge() must pass async_client_factory — without it the
+    subclass silently falls back to agno's localhost behavior."""
+    import inspect
+
+    import server.core.session as session
+
+    src = inspect.getsource(session.create_knowledge)
+    assert "async_client_factory" in src, "create_knowledge must inject the async client factory"
+    assert hasattr(session, "get_weaviate_async_client")
