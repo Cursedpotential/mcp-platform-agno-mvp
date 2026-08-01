@@ -63,7 +63,15 @@ def load_dotenv(path: Path) -> dict[str, str]:
             continue
         m = re.match(r"^\s*([A-Z0-9_]+)\s*=\s*(.+?)\s*$", line)
         if m:
-            env[m.group(1)] = m.group(2)
+            value = m.group(2)
+            # Strip one matching pair of wrapping quotes — some .env files quote
+            # values literally (e.g. anthropic.env: KEY="sk-ant-..."), and a
+            # naive parse folds the quote chars into the secret, corrupting any
+            # Bearer header built from it (401 "Invalid bearer token", caught
+            # live 2026-08-01 diagnosing why a known-valid OAuth token failed).
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
+                value = value[1:-1]
+            env[m.group(1)] = value
     return env
 
 
