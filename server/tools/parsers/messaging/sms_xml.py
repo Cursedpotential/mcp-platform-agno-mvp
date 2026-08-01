@@ -21,6 +21,7 @@ message parsers); capability parse.sms-xml (Workflow A / SBV vertical).
 from __future__ import annotations
 
 import xml.etree.ElementTree as ET
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 from xml.etree.ElementTree import Element
@@ -150,6 +151,32 @@ def _sanitize_xml(raw: str) -> str:
     raw = re.sub(r"[\x00-\x08\x0B\x0C\x0E-\x1F]", "", raw)  # stray control chars
     # escape bare ampersands that aren't already a valid entity
     return re.sub(r"&(?!#\d+;|#x[0-9A-Fa-f]+;|[A-Za-z][A-Za-z0-9._-]*;)", "&amp;", raw)
+
+
+def iter_records(path: Path) -> Iterator[NormalizedRecord]:
+    """Stream records one at a time — never materialises the whole export.
+
+    `_collect` below parses incrementally but accumulates every record into a list,
+    so a real "SMS Backup & Restore" dump (these run 0.6-1.3 GB) still peaks at the
+    full corpus in RAM. That is fine for the registry contract, which hands back a
+    list, but unusable for bulk ingest.
+
+    This yields instead, so a caller can batch straight into the raw layer with flat
+    memory. Same mapping logic as `_collect` — only the accumulation differs.
+
+    NOTE: the malformed-XML fallback is deliberately NOT mirrored here. That path
+    calls `path.read_text()` on the whole file, which is exactly what streaming
+    exists to avoid. On a ParseError this raises so the caller can decide, rather
+    than silently ballooning to multi-GB.
+    """
+    for _event, elem in ET.iterparse(str(path), events=("end",)):
+        tag = elem.tag.lower()
+        if tag in _TAGS:
+            rec = _map(tag, dict(elem.attrib), elem)
+            if rec is not None:
+                yield rec
+        if tag in _TAGS or tag in ("smses", "calls"):
+            elem.clear()
 
 
 def _collect(path: Path) -> list[NormalizedRecord]:
