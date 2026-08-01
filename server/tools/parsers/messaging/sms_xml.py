@@ -12,6 +12,9 @@ RAM (elements are cleared after mapping). Falls back to a sanitize-whole-file
 parse only if the stream hits malformed XML (stray ampersands are common in
 these dumps).
 
+Body-less records (attachment-only MMS, empty sends) are KEPT and flagged rather
+than dropped — see _map_sms. Byline: Claude Code . Opus 5 (1M) . 2026-08-01.
+
 Provenance: Python port of dev-resources/Archives/dial-stack/mcp-servers/
 ts-mcp-server/src/tools/SmsXmlParser.ts (+ the call-blocking forensic logic
 from dial-stack ConflictAnalysisApp). Part of evidence-spine P1 (forensic
@@ -20,6 +23,7 @@ message parsers); capability parse.sms-xml (Workflow A / SBV vertical).
 
 from __future__ import annotations
 
+import hashlib
 import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from pathlib import Path
@@ -46,6 +50,13 @@ def _epoch_ms_to_dt(value: str | None):
     return parse_timestamp(ms / 1000.0) if ms > 0 else None
 
 
+def _has_counterparty(attrib: dict[str, str]) -> bool:
+    return bool(
+        (attrib.get("address") or attrib.get("number") or attrib.get("from") or "").strip()
+        or (attrib.get("contact_name") or "").strip()
+    )
+
+
 def _counterparty(attrib: dict[str, str]) -> str:
     name = (attrib.get("contact_name") or "").strip()
     if name and name.lower() not in ("", "unknown", "(unknown)", "null"):
@@ -64,14 +75,82 @@ def _mms_text(elem: Element) -> str:
     return "\n".join(c for c in chunks if c and c != "null").strip()
 
 
-def _map_sms(attrib: dict[str, str], body: str) -> NormalizedRecord | None:
+_NON_ATTACHMENT_CT = ("text/plain", "application/smil")
+
+
+def _attachment_parts(elem: Element | None) -> list[dict[str, Any]]:
+    """Describe the non-text MMS parts WITHOUT retaining their payload.
+
+    The base64 `data` attribute of a photo part is megabytes. It is already resident
+    (iterparse built the element), so hashing it is free, but keeping it is not — it
+    would be copied into the record, the JSON blob, and the raw row. So each part is
+    reduced to identity + provenance: content type, filename, byte length, and a
+    digest of the base64 text.
+
+    That digest is what makes an attachment-only message DEDUPABLE. Without it two
+    different photos sent in the same second to the same number are indistinguishable.
+    """
+    if elem is None:
+        return []
+    out: list[dict[str, Any]] = []
+    for part in elem.iter("part"):
+        ct = (part.attrib.get("ct") or "").lower()
+        if not ct or ct in _NON_ATTACHMENT_CT:
+            continue
+        data = part.attrib.get("data") or ""
+        out.append(
+            {
+                "ct": ct,
+                "name": part.attrib.get("cl") or part.attrib.get("name") or "",
+                "b64_len": len(data),
+                "b64_sha256": hashlib.sha256(data.encode("utf-8")).hexdigest() if data else None,
+            }
+        )
+    return out
+
+
+def _map_sms(
+    attrib: dict[str, str],
+    body: str,
+    elem: Element | None = None,
+    channel: str = "sms",
+) -> NormalizedRecord | None:
     text = (body or attrib.get("body") or attrib.get("text") or "").strip()
+    attachments: list[dict[str, Any]] = []
     if not text or text == "null":
-        return None
+        # An MMS with no text body is still evidence — a photo, video, or voice note
+        # sent with no caption. Returning None here silently DISCARDED 516 of 7,815
+        # MMS in a real 636 MiB export (proven 2026-08-01 against the export's own
+        # declared count). Keep the record with empty content; the attachment parts
+        # carry its identity. Only a genuinely empty element is still dropped.
+        #
+        # A message with no body AND no attachment is still an EVENT: it has a
+        # timestamp, a counterparty, and a direction. One such record exists in the
+        # 636 MiB export (a sent MMS whose only text part is a newline). Keep it and
+        # mark it empty rather than deciding, in a parser, that it did not happen.
+        # Only a record with no timestamp and no counterparty is truly unusable.
+        attachments = _attachment_parts(elem)
+        if not (attrib.get("date") or attrib.get("timestamp")) and not _has_counterparty(attrib):
+            return None
+        text = ""
     raw_type = attrib.get("type") or "0"
     direction = _SMS_TYPE.get(raw_type, "unknown")
     other = _counterparty(attrib)
     role = OWNER if raw_type == "2" else other
+    attrs: dict[str, Any] = {
+        "channel": channel,
+        "direction": direction,
+        "raw_type": raw_type,
+        "address": attrib.get("address") or attrib.get("number") or "",
+        "contact_name": attrib.get("contact_name") or "",
+    }
+    if not text:
+        attrs["body_present"] = False
+        if attachments:
+            attrs["attachments"] = attachments
+            attrs["attachment_count"] = len(attachments)
+        else:
+            attrs["empty_body"] = True
     return NormalizedRecord(
         record_type=RecordType.message,
         source="sms-xml",
@@ -81,13 +160,7 @@ def _map_sms(attrib: dict[str, str], body: str) -> NormalizedRecord | None:
         content=text,
         occurred_at=_epoch_ms_to_dt(attrib.get("date") or attrib.get("timestamp")),
         disclosure_tier=DisclosureTier.contemporaneous,
-        attrs={
-            "channel": "sms",
-            "direction": direction,
-            "raw_type": raw_type,
-            "address": attrib.get("address") or attrib.get("number") or "",
-            "contact_name": attrib.get("contact_name") or "",
-        },
+        attrs=attrs,
     )
 
 
@@ -138,7 +211,7 @@ def _map(tag: str, attrib: dict[str, str], elem: Element | None) -> NormalizedRe
     if tag == "call":
         return _map_call(attrib)
     if tag == "mms":
-        return _map_sms(attrib, _mms_text(elem) if elem is not None else "")
+        return _map_sms(attrib, _mms_text(elem) if elem is not None else "", elem, "mms")
     return _map_sms(attrib, "")
 
 
