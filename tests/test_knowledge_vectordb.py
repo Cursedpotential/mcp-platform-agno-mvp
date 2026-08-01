@@ -316,5 +316,20 @@ def test_update_metadata_patches_only_meta_keys_as_strings(monkeypatch):
 
     props = sent["properties"]
     assert set(props) == {"meta_data", "filters"}, "must PATCH only the meta keys"
-    assert isinstance(props["meta_data"], str) and isinstance(props["filters"], str)
+    # Different schema types, verified live: meta_data is `text`, filters is `object`.
+    assert isinstance(props["meta_data"], str), "meta_data is text -> JSON string"
+    assert isinstance(props["filters"], dict), "filters is object -> dict, NOT a string"
     assert "content" not in props, "must not resend unrelated properties"
+
+
+def test_filters_is_a_dict_not_a_string():
+    """REGRESSION (live 2026-08-01): `filters` is an `object` property while
+    `meta_data` is `text`. Serializing both gave
+    422 "invalid object property 'filters'". Probed live: filters=str FAIL,
+    filters=dict OK.
+    """
+    from server.core.knowledge_vectordb import _merged_dict, _merged_json_property
+
+    assert isinstance(_merged_dict('{"a":1}', {"b": 2}), dict)
+    assert _merged_dict('{"a":1}', {"b": 2}) == {"a": 1, "b": 2}
+    assert isinstance(_merged_json_property({"a": 1}, {"b": 2}), str)

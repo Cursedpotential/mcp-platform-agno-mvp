@@ -93,18 +93,10 @@ def _verify_embedded(documents: "List[Document]") -> None:
         )
 
 
-def _merged_json_property(existing: Any, metadata: Dict[str, Any]) -> str:
-    """Merge ``metadata`` into ``existing`` and return it as a JSON **string**.
+def _merged_dict(existing: Any, metadata: Dict[str, Any]) -> Dict[str, Any]:
+    """Merge ``metadata`` into ``existing``, tolerating str/dict/None/junk.
 
-    The Weaviate class declares ``meta_data`` and ``filters`` as ``text``
-    properties, and existing rows hold JSON strings. Writing a dict back yields::
-
-        UnexpectedStatusCodeError: 422 ... invalid text property 'meta_data' on
-        class 'Platform_knowledge': not a string, but map[string]interface {}
-
-    agno's own ``update_metadata`` assigns a raw dict here and would hit the
-    same 422 — it simply never got this far, dying earlier on the ``where=``
-    kwarg. A malformed/legacy value is treated as absent rather than raising:
+    A malformed or legacy value is treated as absent rather than raising:
     metadata enrichment must never be what fails an otherwise good ingest.
     """
     current: Dict[str, Any] = {}
@@ -118,7 +110,35 @@ def _merged_json_property(existing: Any, metadata: Dict[str, Any]) -> str:
         except (ValueError, TypeError):
             logger.debug("meta property was not valid JSON; overwriting: %.60s", existing)
     current.update(metadata)
-    return json.dumps(current)
+    return current
+
+
+def _merged_json_property(existing: Any, metadata: Dict[str, Any]) -> str:
+    """Merge and return a JSON **string** — for ``text``-typed properties."""
+    return json.dumps(_merged_dict(existing, metadata))
+
+
+# The two metadata properties have DIFFERENT schema types, verified against the
+# live class (2026-08-01) rather than assumed:
+#
+#     name text | content text | meta_data TEXT | content_id text
+#     content_hash text | filters OBJECT
+#
+# so they need different Python types on write, and getting either wrong is a
+# hard 422 that fails the whole ingest:
+#
+#     meta_data as dict -> "invalid text property 'meta_data' ...
+#                           not a string, but map[string]interface {}"
+#     filters as str    -> "invalid object property 'filters' ... object m[...]"
+#
+# Probed both directions individually against a live object before settling
+# this: meta_data=json.dumps(...) OK, filters=str FAIL, filters=dict OK.
+# agno's upstream update_metadata assigns a raw dict to BOTH, so it is wrong for
+# meta_data on this schema — another reason this override has to exist.
+_PROPERTY_ENCODERS = {
+    "meta_data": _merged_json_property,  # text   -> JSON string
+    "filters": _merged_dict,  # object -> dict
+}
 
 
 class VerifiedWeaviate(Weaviate):
@@ -239,9 +259,9 @@ class VerifiedWeaviate(Weaviate):
 
         for obj in query_result.objects:
             props = dict(obj.properties or {})
-            updates: Dict[str, Any] = {}
-            for key in ("meta_data", "filters"):
-                updates[key] = _merged_json_property(props.get(key), metadata)
+            updates: Dict[str, Any] = {
+                key: encode(props.get(key), metadata) for key, encode in _PROPERTY_ENCODERS.items()
+            }
             # PATCH only the two keys we actually change. Re-sending every
             # property (what upstream does) risks 422s on any other field whose
             # round-tripped type no longer matches the schema.
