@@ -42,9 +42,18 @@ Audit complete (read-only, 2026-07-30). Remaining, in order:
    now the only remaining piece. See the AS-BUILT section of
    `docs/planning/graphiti-image-rebuild-plan.md`.
 
-6. **NEW — deploy gate before the #1 fix reaches prod.** The fix arms agno's multi-db guard; a
-   client that omits `db_id` gets a 400 instead of a silently-wrong 200 (proven by probe on agno
-   2.8.0). Decide the mitigation before redeploying — see the audit handoff's "Pre-deploy gate".
+6. ~~**NEW — deploy gate before the #1 fix reaches prod.**~~ **CLEARED 2026-08-01 (`6bfb522`)** —
+   `server/api/db_id_middleware.py` defaults absent `db_id` to the operational store on all 48
+   db_id-accepting routes. Proven on agno 2.8.0: three ids without the middleware → 400; with it →
+   200; explicit `db_id` still honoured. Suite 414 passed / 0 failed.
+
+7. **NEXT — the deploy itself.** Branch is ready; merge + exec-tier redeploy has NOT run. Prod is
+   still the 2026-07-23 Milvus-era image. Post-deploy: watch for `WeaviateClosedClientError`
+   (finding #3 goes live) and confirm `/config` shows three databases.
+
+8. **NEW — broken knowledge ingest.** 3 of 4 Knowledge content rows have NO vectors and
+   `PROJECT_CANON.md` hard-FAILED. This is the symptom visible in the UI today and is independent
+   of the deploy. Nobody has looked at the ingest/embed path yet.
 
 ### 2. [pending] TraceIQ → Agno knowledge tie-in
 HANDOFF-2026-07-27 Phase 3 task 2: TraceIQ facts → Graphiti with provenance + node-count landing gate.

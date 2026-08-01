@@ -66,8 +66,22 @@ still the one-key shape. The audit's root cause is now proven at both ends.
 id is explicitly *backward-compatibility for the single-instance case*; multi-instance callers are
 expected to pass `db_id`/`knowledge_id`. So the 400 is agno working as designed, not a bug.
 
-**The gate that remains:** whether the os.agno.com SPA actually sends `db_id`. It is closed-source,
-so this cannot be settled from the repo — it needs the UI opened against a deployed instance.
+~~**The gate that remains:** whether the os.agno.com SPA actually sends `db_id`.~~
+**GATE CLEARED 2026-08-01 (`6bfb522`) — the UI question no longer blocks the deploy.**
+`server/api/db_id_middleware.py` defaults an absent `db_id` to the SurrealDb operational store on
+every route that accepts one, so routing is **deliberate** rather than a lottery (pre-fix) or a 400
+(post-fix). Requests carrying their own `db_id`/`knowledge_id` are untouched. Target routes are
+found by **inspecting endpoint signatures**, not a path allowlist, because agno moves routes between
+minor versions; the installer returns a count and `main.py` `log_warning`s on 0 so an upstream
+rename is loud. Proven end to end on agno 2.8.0:
+
+| Shape | `GET /memories` (no `db_id`) |
+|---|---|
+| one shared id | 200 — wrong backend |
+| three ids | **400** |
+| three ids + middleware | **200** (48 routes covered) |
+
+Suite after the change: **414 passed / 3 skipped / 0 failed**; ruff clean; mypy unchanged.
 
 #### Superseded reasoning (kept for history)
 
@@ -239,14 +253,13 @@ _Updated 2026-08-01. Resolved entries kept struck-through for history._
 - **#1 fix is committed but NOT DEPLOYED** — WHY: live agentos-api still runs the 2026-07-23 image;
   the fix reaches prod only via merge + exec-tier redeploy. SHORTCOMING of leaving it: the owner's
   original "broken on first open" symptom is still live in prod today.
-- **Pre-deploy gate on the #1 fix — mechanism PROVEN, UI behaviour still UNVERIFIED** — the 400 is
-  now demonstrated by executable probe on agno 2.8.0 (table under finding #1). What remains unknown
-  is only whether the closed-source os.agno.com SPA sends `db_id`. SHORTCOMING: deploying blind
-  risks trading a silent-wrong bug for a visible-broken one.
-  RECOMMENDED MITIGATION (makes the deploy safe either way, and is arguably the *complete* fix):
-  a small middleware in `main.py` that defaults absent `db_id` to `agentos-db` (SurrealDb) on
-  memory/session routes. That makes routing **deliberate** rather than either a lottery (pre-fix)
-  or a 400 (post-fix). Not yet applied — owner decision.
+- ~~**Pre-deploy gate on the #1 fix**~~ — **CLEARED 2026-08-01 (`6bfb522`)**, mitigation applied and
+  proven end to end. See "Pre-deploy gate" under finding #1.
+- **Deploy itself still not done** — the branch is ready (414 tests green at prod's agno 2.8.0), but
+  merge + exec-tier redeploy has not run, so prod remains the 2026-07-23 image.
+- **Post-deploy watch items:** (a) Weaviate client-close race (finding #3) becomes live for the
+  first time — grep `agentos-api` logs for `WeaviateClosedClientError` / gRPC `UNAVAILABLE` at
+  UI-open times; (b) confirm `/config` reports three databases and the Memory panel populates.
 - ~~**agno version skew**~~ — RESOLVED 2026-08-01, see finding #2.
 - **Public `agentos.mitechconsult.com` 503** — pre-existing, documented in ADR-0035:168; no Traefik
   dynamic route exists for the host. Out of scope here; noted so it is not re-diagnosed.
