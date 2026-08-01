@@ -90,6 +90,49 @@ def test_other_query_params_are_preserved(client: TestClient) -> None:
     assert "user_id=u1" in str(r.request.url) or True  # scope rewrite is server-side
 
 
+def test_routes_behind_include_router_are_found() -> None:
+    """REGRESSION (2026-08-01, shipped to prod): agno uses ``base_app=`` +
+    ``include_router``, so live routes are ``_IncludedRouter`` objects with no
+    ``.routes``/``.endpoint`` — a flat ``isinstance(r, APIRoute)`` scan found
+    ZERO and the guard protected nothing. The original test only built routes
+    directly on the app, so it passed while prod 400'd.
+    """
+    from fastapi import APIRouter
+
+    app = FastAPI()
+    router = APIRouter()
+
+    @router.get("/memories")
+    def list_memories(db_id: Optional[str] = Query(default=None)):
+        return {"db_id": db_id}
+
+    @router.get("/sessions")
+    def list_sessions(db_id: Optional[str] = Query(default=None)):
+        return {"db_id": db_id}
+
+    app.include_router(router)
+    assert install_db_id_default(app, DEFAULT) == 2, "routes behind include_router must be found"
+
+    client = TestClient(app)
+    assert client.get("/memories").json()["db_id"] == DEFAULT
+    assert client.get("/sessions").json()["db_id"] == DEFAULT
+
+
+def test_routes_behind_a_mounted_subapp_are_found() -> None:
+    """The live app also carries a Mount; don't regress on that shape either."""
+    app = FastAPI()
+    sub = FastAPI()
+
+    @sub.get("/memories")
+    def list_memories(db_id: Optional[str] = Query(default=None)):
+        return {"db_id": db_id}
+
+    app.mount("/api", sub)
+    assert install_db_id_default(app, DEFAULT) >= 1
+
+    assert TestClient(app).get("/api/memories").json()["db_id"] == DEFAULT
+
+
 def test_reports_zero_when_no_route_takes_db_id() -> None:
     """A 0 return is the tripwire for agno renaming the parameter upstream."""
     app = FastAPI()

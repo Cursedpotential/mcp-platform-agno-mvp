@@ -58,18 +58,60 @@ from fastapi.routing import APIRoute
 __all__ = ["install_db_id_default"]
 
 
-def _routes_accepting_db_id(app: FastAPI) -> list[Any]:
-    """Every mounted APIRoute whose endpoint declares a ``db_id`` parameter."""
-    matched = []
-    for route in app.routes:
-        if not isinstance(route, APIRoute):
+def _walk(routes: Any, depth: int = 0, prefix: str = "") -> Any:
+    """Yield every leaf APIRoute reachable from a Starlette/FastAPI route list.
+
+    Route trees are NOT flat, and the shape is FastAPI-version dependent. With
+    the ``base_app=`` pattern agno uses, ``app.routes`` holds mostly
+    ``fastapi.routing._IncludedRouter`` objects — a private class that exposes
+    NEITHER ``.routes`` NOR ``.endpoint``, only ``.original_router``. A naive
+    ``isinstance(r, APIRoute)`` scan over ``app.routes`` therefore matches
+    ZERO routes and this guard silently protects nothing.
+
+    That is not hypothetical: it shipped. On 2026-08-01 the first deploy of this
+    middleware logged "installed on NO routes" in prod while the same code
+    matched 48 routes in a bare ``AgentOS(agents=...)`` test — because the test
+    did not use ``base_app=``. Live topology was 17 APIRoute + 21
+    _IncludedRouter + 1 Mount + 4 Route at top level, with all 48 db_id routes
+    hidden one level down. Hence: descend generically, never assume a shape.
+
+    Yields ``(prefix, route)``. ``prefix`` is the mount path a nested route sits
+    behind — a mounted sub-app's ``route.path`` is RELATIVE to its mount, so
+    matching it against the absolute request path silently fails without it.
+    """
+    if depth > 6 or routes is None:  # cycle/pathology guard
+        return
+    for route in routes:
+        if isinstance(route, APIRoute):
+            yield prefix, route
             continue
+        # A Mount contributes its own path as an additional prefix;
+        # include_router already baked its prefix into the child paths.
+        mount_path = getattr(route, "path", "") or ""
+        for attr in ("original_router", "app"):
+            nested = getattr(route, attr, None)
+            if nested is not None and hasattr(nested, "routes"):
+                sub_prefix = prefix + mount_path if attr == "app" else prefix
+                yield from _walk(nested.routes, depth + 1, sub_prefix)
+        nested_routes = getattr(route, "routes", None)
+        if nested_routes:
+            yield from _walk(nested_routes, depth + 1, prefix)
+
+
+def _routes_accepting_db_id(app: FastAPI) -> list[Any]:
+    """Every reachable APIRoute whose endpoint declares a ``db_id`` parameter."""
+    matched = []
+    seen = set()
+    for prefix, route in _walk(app.routes):
+        if (prefix, id(route)) in seen:  # the same route is reachable by >1 path
+            continue
+        seen.add((prefix, id(route)))
         try:
             signature = inspect.signature(route.endpoint)
         except (TypeError, ValueError):  # builtins / C-implemented callables
             continue
         if "db_id" in signature.parameters:
-            matched.append(route)
+            matched.append((prefix, route))
     return matched
 
 
@@ -86,8 +128,8 @@ def install_db_id_default(app: FastAPI, default_db_id: str) -> int:
 
     # Compiled path regexes are cheaper per-request than re-walking the router,
     # and they respect path params (e.g. /memories/{memory_id}).
-    patterns = [route.path_regex for route in targets]
-    methods: list[set[str]] = [route.methods or set() for route in targets]
+    # (mount prefix, compiled path regex, allowed methods) per target route.
+    matchers = [(prefix, route.path_regex, route.methods or set()) for prefix, route in targets]
 
     @app.middleware("http")
     async def _default_db_id(request, call_next):  # type: ignore[no-untyped-def]
@@ -99,8 +141,8 @@ def install_db_id_default(app: FastAPI, default_db_id: str) -> int:
         path = request.scope.get("path", "")
         method = request.scope.get("method", "")
         if any(
-            pattern.match(path) and (not allowed or method in allowed)
-            for pattern, allowed in zip(patterns, methods, strict=True)
+            path.startswith(prefix) and pattern.match(path[len(prefix) :]) and (not allowed or method in allowed)
+            for prefix, pattern, allowed in matchers
         ):
             pairs = parse_qsl(query.decode("latin-1"), keep_blank_values=True)
             pairs.append(("db_id", default_db_id))
