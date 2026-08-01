@@ -1,0 +1,48 @@
+diff --git a/mcp_server/src/graphiti_mcp_server.py b/mcp_server/src/graphiti_mcp_server.py
+index a281443..9409834 100644
+--- a/mcp_server/src/graphiti_mcp_server.py
++++ b/mcp_server/src/graphiti_mcp_server.py
+@@ -255,11 +255,21 @@ class GraphitiService:
+                         max_coroutines=self.semaphore_limit,
+                     )
+                 else:
+-                    # For Neo4j (default), use the original approach
+-                    self.client = Graphiti(
++                    # For Neo4j (default), construct the driver explicitly so the
++                    # configured database is honored. Graphiti(uri=...) always
++                    # targets the server's default database, silently ignoring
++                    # NEO4J_DATABASE and the config's database: field.
++                    from graphiti_core.driver.neo4j_driver import Neo4jDriver
++
++                    neo4j_driver = Neo4jDriver(
+                         uri=db_config['uri'],
+                         user=db_config['user'],
+                         password=db_config['password'],
++                        database=db_config.get('database') or 'neo4j',
++                    )
++
++                    self.client = Graphiti(
++                        graph_driver=neo4j_driver,
+                         llm_client=llm_client,
+                         embedder=embedder_client,
+                         cross_encoder=cross_encoder_client,
+diff --git a/mcp_server/src/services/factories.py b/mcp_server/src/services/factories.py
+index d7515b9..9f0be87 100644
+--- a/mcp_server/src/services/factories.py
++++ b/mcp_server/src/services/factories.py
+@@ -541,12 +541,13 @@ class DatabaseDriverFactory:
+                 username = os.environ.get('NEO4J_USER', neo4j_config.username)
+                 password = os.environ.get('NEO4J_PASSWORD', neo4j_config.password)
+ 
++                database = os.environ.get('NEO4J_DATABASE', neo4j_config.database)
++
+                 return {
+                     'uri': uri,
+                     'user': username,
+                     'password': password,
+-                    # Note: database and use_parallel_runtime would need to be passed
+-                    # to the driver after initialization if supported
++                    'database': database,
+                 }
+ 
+             case 'falkordb':

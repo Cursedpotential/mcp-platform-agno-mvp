@@ -1,0 +1,109 @@
+# Graphiti MCP server config — BAKED INTO OUR IMAGE.
+# Byline: Claude Code · Fable 5 · 2026-07-31
+#
+# Baking this is deliberate: the upstream image ignores CONFIG_PATH, which is why
+# the old deployment had to bind-mount a config file. Everything that legitimately
+# differs per instance comes from the environment instead, so ONE image serves both
+# the dev/platform lane and the case lane.
+#
+# Per-instance env:
+#   NEO4J_URI / NEO4J_USER / NEO4J_PASSWORD
+#   NEO4J_DATABASE      neo4j = dev lane · memory = case lane   (works thanks to
+#                       patches/0001-neo4j-database-selection.patch — upstream
+#                       silently discards it)
+#   GRAPHITI_GROUP_ID   logical partition WITHIN a database
+#   OPENAI_API_URL      the portkeyfix sidecar -> Portkey (ADR-0042)
+
+server:
+  transport: "http"
+  host: "0.0.0.0"
+  port: 8000
+
+llm:
+  provider: "openai"
+  # NIM nemotron via Portkey — guided JSON. glm-5.1 cannot emit schema-conformant
+  # structured output (verified 2026-07-04; Graphiti was silently empty for weeks).
+  model: ${GRAPHITI_LLM_MODEL:nemotron}
+  max_tokens: 4096
+  providers:
+    openai:
+      api_key: ${OPENAI_API_KEY}
+      api_url: ${OPENAI_API_URL:http://graphiti-portkeyfix:8072/v1}
+
+embedder:
+  provider: "openai"
+  # nvidia nv-embed-v1, symmetric. 4096-d is EXACTLY Neo4j's vector-index ceiling
+  # (1..4096) — zero headroom, so any embedder change must respect that cap.
+  model: ${GRAPHITI_EMBED_MODEL:embed-text}
+  dimensions: 4096
+  providers:
+    openai:
+      api_key: ${OPENAI_API_KEY}
+      api_url: ${OPENAI_API_URL:http://graphiti-portkeyfix:8072/v1}
+
+database:
+  provider: "neo4j"
+  providers:
+    neo4j:
+      uri: ${NEO4J_URI:bolt://neo4j:7687}
+      username: ${NEO4J_USER:neo4j}
+      password: ${NEO4J_PASSWORD}
+      database: ${NEO4J_DATABASE:neo4j}
+
+graphiti:
+  group_id: ${GRAPHITI_GROUP_ID:platform}
+
+  # --- Entity types -------------------------------------------------------
+  # The Zep `SetEntityTypes` equivalent. Names matching a model registered in
+  # models.entity_types.ENTITY_TYPES get the rich Pydantic model; the rest get a
+  # documentation-only model built from name + description.
+  #
+  # NOTE: a schema GUIDES extraction, it does not CONSTRAIN it — the LLM may still
+  # emit other labels. Treat this as a retrieval contract, not a guarantee.
+  entity_types:
+    # -- shipped models (rich Pydantic, reused as-is) --
+    - name: "Person"
+      description: "A person: party, child, relative, witness, professional, or official."
+    - name: "Organization"
+      description: "An organization: court, agency, employer, school, provider, or firm."
+    - name: "Event"
+      description: "A time-anchored occurrence referenced in the record."
+    - name: "Location"
+      description: "A place: residence, exchange location, facility, or jurisdiction."
+
+    # -- forensic / legal types (documentation-only models) --
+    - name: "Communication"
+      description: "A single message, call, email or voicemail treated as an evidentiary unit. Capture medium, who sent it, who received it, when it was sent, and the thread it belongs to."
+    - name: "Exhibit"
+      description: "Material prepared or produced for filing. Capture the exhibit number, the hash of its source file, its custody reference, and whether it was admitted."
+    - name: "CourtFiling"
+      description: "A motion, response, order, judgment or notice. Capture the filing type, filing date, court, and docket number."
+    - name: "Allegation"
+      description: "A specific claim asserted by a party. Capture who asserted it, who or what it concerns, when it was asserted, and whether it was substantiated, unsubstantiated or unresolved."
+    - name: "Incident"
+      description: "A discrete real-world occurrence described in the record, distinct from the document describing it. Capture when it occurred, who was involved, where, and whether it was reported."
+    - name: "Custodian"
+      description: "A person or organization that held, produced or transmitted evidence. Capture their role in the custody chain and their organization."
+    - name: "BestInterestFactor"
+      description: "One of the twelve Michigan MCL 722.23 best-interest-of-the-child factors, (a) through (l). Capture the factor code and its statutory reference."
+
+  # --- Edge types ---------------------------------------------------------
+  edge_types:
+    - name: "SENT"
+      description: "A person sent a communication."
+    - name: "RECEIVED"
+      description: "A person received a communication."
+    - name: "REFERENCES"
+      description: "One item refers to another item, event or person."
+    - name: "CORROBORATES"
+      description: "One piece of evidence independently supports another claim or account."
+    - name: "CONTRADICTS"
+      description: "One piece of evidence conflicts with another claim or account. This is what makes contemporaneous-versus-hindsight discrepancies queryable rather than narrative."
+    - name: "SUPERSEDES"
+      description: "A later item replaces or overrides an earlier one."
+    - name: "EVIDENCES"
+      description: "An item bears on a specific MCL 722.23 best-interest factor."
+    - name: "PARTY_TO"
+      description: "A person is a party to a filing, incident or proceeding."
+    - name: "OCCURRED_AT"
+      description: "An event or incident took place at a location."

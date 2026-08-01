@@ -36,6 +36,21 @@ CF_URL = os.environ.get(
 )
 CF_ENV_FILE = os.environ.get("CONTEXTFORGE_ENV_FILE", r"C:/Users/matts/.secrets/contextforge.env")
 DEFAULT_GROUP = os.environ.get("GRAPHITI_GROUP_ID", "platform")
+
+# --- LANES (owner ruling 2026-07-31) -------------------------------------
+# Case/agent memory must not share a memory space with platform build chatter.
+# A Graphiti instance binds to exactly ONE Neo4j database, so the lanes are
+# SEPARATE INSTANCES, not just separate group_ids:
+#   platform -> data-graphiti      :8071 -> DozerDB database `neo4j`
+#   case     -> data-graphiti-case :8073 -> DozerDB database `memory`
+# Picking a lane switches BOTH the endpoint and the default group_id, so a
+# case episode cannot land in the dev graph just because --group was omitted.
+CASE_URL = os.environ.get("GRAPHITI_CASE_URL", "http://100.91.190.107:8073/mcp")
+CASE_GROUP = os.environ.get("GRAPHITI_CASE_GROUP_ID", "case-salem-kinzel")
+LANES = {
+    "platform": {"url": DIRECT_URL, "group": DEFAULT_GROUP},
+    "case": {"url": CASE_URL, "group": CASE_GROUP},
+}
 PROTOCOL_VERSION = "2024-11-05"
 CLIENT_NAME = "grc"
 CLIENT_VERSION = "0.1.0"
@@ -208,14 +223,27 @@ class McpClient:
         return result
 
 
-def _build_client(via: str) -> McpClient:
+def _build_client(via: str, lane: str = "platform") -> McpClient:
     if via == "cf":
         env = _load_env_file(CF_ENV_FILE)
         token = env.get("CF_MCP_CLIENT_TOKEN")
         if not token:
             raise GrcError(f"CF_MCP_CLIENT_TOKEN not found in {CF_ENV_FILE}")
+        if lane != "platform":
+            # The case lane is not federated through ContextForge yet; failing
+            # loudly beats silently writing case memory into the dev graph.
+            raise GrcError(
+                f"lane '{lane}' has no ContextForge virtual server yet — use --via direct"
+            )
         return McpClient(CF_URL, bearer=token, tool_prefix="graphiti-")
-    return McpClient(DIRECT_URL)
+    return McpClient(_lane(lane)["url"])
+
+
+def _lane(lane: str) -> dict:
+    try:
+        return LANES[lane]
+    except KeyError:
+        raise GrcError(f"unknown lane '{lane}' (choose: {', '.join(LANES)})") from None
 
 
 # ---------------------------------------------------------------------------
@@ -238,7 +266,7 @@ def _truncate(s: str, n: int = 100) -> str:
 
 
 def cmd_status(args) -> int:
-    client = _build_client(args.via)
+    client = _build_client(args.via, getattr(args, "lane", "platform"))
     try:
         result = client.call_tool("get_status", {})
     except GrcError as e:
@@ -254,8 +282,8 @@ def cmd_status(args) -> int:
 
 
 def cmd_search(args) -> int:
-    client = _build_client(args.via)
-    group_ids = [args.group] if args.group else [DEFAULT_GROUP]
+    client = _build_client(args.via, getattr(args, "lane", "platform"))
+    group_ids = [args.group] if args.group else [_lane(getattr(args, "lane", "platform"))["group"]]
     try:
         if args.nodes:
             result = client.call_tool(
@@ -295,8 +323,8 @@ def cmd_search(args) -> int:
 
 
 def cmd_add(args) -> int:
-    client = _build_client(args.via)
-    group_id = args.group or DEFAULT_GROUP
+    client = _build_client(args.via, getattr(args, "lane", "platform"))
+    group_id = args.group or _lane(getattr(args, "lane", "platform"))["group"]
     source_description = args.desc or f"grc CLI ({CLIENT_NAME}/{CLIENT_VERSION})"
     try:
         result = client.call_tool(
@@ -323,8 +351,8 @@ def cmd_add(args) -> int:
 
 
 def cmd_episodes(args) -> int:
-    client = _build_client(args.via)
-    group_id = args.group or DEFAULT_GROUP
+    client = _build_client(args.via, getattr(args, "lane", "platform"))
+    group_id = args.group or _lane(getattr(args, "lane", "platform"))["group"]
     try:
         # NOTE (verified live 2026-07-19): the real param names are
         # group_ids (array) + max_episodes — NOT group_id/last_n as a naive
@@ -355,7 +383,7 @@ def cmd_episodes(args) -> int:
 
 
 def cmd_raw(args) -> int:
-    client = _build_client(args.via)
+    client = _build_client(args.via, getattr(args, "lane", "platform"))
     try:
         arguments = json.loads(args.json_args) if args.json_args else {}
     except json.JSONDecodeError as e:
@@ -373,16 +401,23 @@ def cmd_raw(args) -> int:
 def cmd_doctor(args) -> int:
     rows = []  # (check, status, detail)
 
+    # Probe the group belonging to the lane under test. Using the global default
+    # here made `doctor --lane case` report "newest episode in 'platform'" while
+    # actually checking the case endpoint — misleading on the exact check meant to
+    # catch a stale graph.
+    _lane_name = getattr(args, "lane", "platform")
+    _lane_group = _lane(_lane_name)["group"]
+
     def row(check: str, ok: bool, detail: str = ""):
         rows.append((check, "PASS" if ok else "FAIL", detail))
 
     # 1. direct endpoint init
-    direct_client = McpClient(DIRECT_URL)
+    direct_client = McpClient(_lane(_lane_name)["url"])
     direct_ok = False
     try:
         t0 = time.time()
         direct_client.initialize()
-        row("direct init", True, f"{DIRECT_URL} ({(time.time() - t0) * 1000:.0f}ms, session={direct_client.session_id[:8] if direct_client.session_id else '?'})")
+        row("direct init", True, f"{_lane(_lane_name)['url']} ({(time.time() - t0) * 1000:.0f}ms, session={direct_client.session_id[:8] if direct_client.session_id else '?'})")
         direct_ok = True
     except GrcError as e:
         row("direct init", False, str(e)[:200])
@@ -432,7 +467,7 @@ def cmd_doctor(args) -> int:
             t0 = time.time()
             result = active.call_tool(
                 "search_memory_facts",
-                {"query": "grc doctor connectivity probe", "group_ids": [DEFAULT_GROUP], "max_facts": 1},
+                {"query": "grc doctor connectivity probe", "group_ids": [_lane_group], "max_facts": 1},
             )
             elapsed = (time.time() - t0) * 1000
             facts = result.get("facts", [])
@@ -452,7 +487,7 @@ def cmd_doctor(args) -> int:
         # return results in created_at order (verified live), so pull a
         # decent-sized batch and take the max created_at ourselves.
         try:
-            result = active.call_tool("get_episodes", {"group_ids": [DEFAULT_GROUP], "max_episodes": 50})
+            result = active.call_tool("get_episodes", {"group_ids": [_lane_group], "max_episodes": 50})
             episodes = result.get("episodes", [])
             if episodes:
                 newest = max(episodes, key=lambda e: e.get("created_at", ""))
@@ -464,13 +499,13 @@ def cmd_doctor(args) -> int:
                     row(
                         "episode freshness",
                         not stale,
-                        f"newest episode in '{DEFAULT_GROUP}' is {age_h:.1f}h old"
+                        f"newest episode in '{_lane_group}' is {age_h:.1f}h old"
                         + (" -- STALE (>72h, check for silent-stall)" if stale else ""),
                     )
                 except ValueError:
                     row("episode freshness", True, f"newest created_at={created} (unparsed)")
             else:
-                row("episode freshness", True, f"no episodes yet in group={DEFAULT_GROUP}")
+                row("episode freshness", True, f"no episodes yet in group={_lane_group}")
         except GrcError as e:
             row("episode freshness", False, str(e)[:200])
 
@@ -505,6 +540,12 @@ def build_parser() -> argparse.ArgumentParser:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--via", choices=["direct", "cf"], default="direct", help="transport: direct tailnet endpoint (default) or ContextForge fallback")
     common.add_argument("--json", action="store_true", help="raw JSON output where applicable")
+    common.add_argument(
+        "--lane",
+        choices=sorted(LANES),
+        default="platform",
+        help="memory lane: platform = build/dev graph (:8071, db neo4j); case = case/agent memory (:8073, db memory). Switches endpoint AND default group_id.",
+    )
 
     p = argparse.ArgumentParser(prog="grc", description="Graphiti client CLI — MCP streamable-HTTP JSON-RPC, no session-registered MCP required.")
     sub = p.add_subparsers(dest="command", required=True)
