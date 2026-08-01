@@ -18,9 +18,16 @@ OVHDATA_UUID_NEO4J=jfvnf0i45mmccxonv1p570au
 
 neo4j_pw=$(cf_get_env_value "$OVHDATA_UUID_NEO4J" NEO4J_PASSWORD)
 
+# python3 on this box is a native-Windows uv shim — it can't resolve Git
+# Bash's /c/... virtual paths, so convert with cygpath when available.
+SECRETS_HOME="$HOME"
+if command -v cygpath >/dev/null 2>&1; then
+  SECRETS_HOME="$(cygpath -w "$HOME")"
+fi
+
 milvus_token=$(python3 -c "
 import re
-text = open(r'$HOME/.secrets/memsearch.env').read()
+text = open(r'${SECRETS_HOME}\.secrets\memsearch.env').read()
 m = re.search(r'MEMSEARCH_MILVUS_TOKEN\s*=\s*(.+?)\s*$', text, re.M)
 print(m.group(1) if m else '')
 ")
