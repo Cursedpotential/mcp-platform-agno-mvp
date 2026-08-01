@@ -1,8 +1,10 @@
 # HANDOFF — Current task list (2026-07-30)
 
 > _Byline: Claude Code · Fable 5 · 2026-07-30_
+> _Correction: Claude Code · Opus 5 · 2026-08-01 — task 1 items 1/2/3/4 are DONE (commit `9a7e4ac`,
+> 2026-07-31); the "pending owner decision" below is superseded. See the dated block in task 1._
 STATUS: PARTIAL
-BUILD_STATUS: UNKNOWN
+BUILD_STATUS: PASSING (405 tests, 1 pre-existing agno tool-roster failure — verified 2026-07-31)
 
 Persisted snapshot of the active task list, owner order. Fuller technical state for task 1 lives in
 `docs/HANDOFF-2026-07-30-memory-knowledge-audit.md` — read that before working task 1.
@@ -11,18 +13,38 @@ Persisted snapshot of the active task list, owner order. Fuller technical state 
 
 ### 1. [in_progress] Memory/knowledge systems — AgentOS "broken on first open"
 Audit complete (read-only, 2026-07-30). Remaining, in order:
-1. Live checks (Option C): db-registry key count on running container (1 vs 2 confirms the
-   `DB_ID = "agentos-db"` collision root cause) · browser/network trace of exact failing UI call ·
-   was deployed image built before weaviate-client landed in requirements.txt (2026-07-29 ~07:37) ·
-   does Weaviate `Platform_knowledge` hold objects post-cutover · is `GRAPHITI_MCP_URL` set live.
-2. Apply fix #1 — distinct db ids (`agentos-admin-db` for the Postgres admin call) — PENDING OWNER
-   DECISION, confirm live first.
-3. Fix #2 — `uv lock` regen + rebuild local `.venv` (lock is stale, missing weaviate-client;
-   local import of `server.core.session` is broken — verified).
-4. Fix #4 — mechanical "Milvus-backed" doc-drift cleanup (providers.py:61, factory.py:144,
-   knowledge_handle.py docstring, main.py:149/166, settings.py:15).
+1. ~~Live checks (Option C)~~ **DONE 2026-07-31** — all five ran; live `/config` returned
+   `databases:["agentos-db"]` (1 key), confirming the collision root cause.
+2. ~~Apply fix #1 — distinct db ids (`agentos-admin-db` for the Postgres admin call) — PENDING OWNER
+   DECISION, confirm live first.~~ **DONE 2026-07-31** (`9a7e4ac`): SurrealDb keeps `agentos-db`,
+   admin plane → `agentos-admin-db`, Knowledge contents → `agentos-contents-db`. Same commit also
+   enabled `enable_user_memories` on Root Router + Project PAL (live check found `agno_memories`
+   empty in BOTH backends — nothing was ever capturing memories).
+   **NOT YET IN PROD** — live agentos-api still runs the 2026-07-23 image; reaches prod only via
+   merge + exec-tier redeploy. See the pre-deploy gate in the audit handoff.
+3. ~~Fix #2 — `uv lock` regen + rebuild local `.venv`~~ **RESOLVED 2026-07-31** — `uv.lock` already
+   carried `weaviate-client==4.22.0`; `uv sync --extra dev` fixed the venv and
+   `server.core.session` imports clean (re-verified 2026-08-01).
+   ~~**Residual:** the lock pins `agno==2.6.13` while `requirements.txt` (prod) pins `agno==2.8.0`.~~
+   **CLOSED 2026-08-01** — local venv pinned to prod's exact `agno==2.8.0`; suite re-run at that
+   version: **406 passed, 3 skipped, 0 failed**. The old "1 pre-existing tool-roster failure" was a
+   symptom of the version skew, not a defect. Run tests as `uv run --no-sync pytest -q`.
+4. ~~Fix #4 — mechanical "Milvus-backed" doc-drift cleanup~~ **DONE 2026-07-31** (`9a7e4ac`) —
+   main.py, factory.py, providers.py, knowledge_handle.py, settings.py, store.py, core/README.md,
+   evidence/AGENTS.md, server/AGENTS.md.
 5. Fix #5 — schedule ADR-0038 implementation (`graphiti-core` is accepted but nowhere in deps/code;
    Graphiti still MCP-only and silently skipped when `GRAPHITI_MCP_URL` unset).
+   ~~**Now blocked on the Graphiti image rebuild decision**~~ — **UNBLOCKED.** The rebuild was
+   approved, built, deployed and canary-verified on **2026-07-31** (parallel worktree
+   `_worktrees/gateway-litellm` → merged to `origin/main`, brought onto this branch 2026-08-01).
+   `ghcr.io/cursedpotential/graphiti-mcp:0.29.3` @ `sha256:fc64fd33…` runs on ovh-files with the
+   Neo4j `database=` fix, GLiNER2 enabled, 13 tools (was 9). ADR-0038's `graphiti-core` wiring is
+   now the only remaining piece. See the AS-BUILT section of
+   `docs/planning/graphiti-image-rebuild-plan.md`.
+
+6. **NEW — deploy gate before the #1 fix reaches prod.** The fix arms agno's multi-db guard; a
+   client that omits `db_id` gets a 400 instead of a silently-wrong 200 (proven by probe on agno
+   2.8.0). Decide the mitigation before redeploying — see the audit handoff's "Pre-deploy gate".
 
 ### 2. [pending] TraceIQ → Agno knowledge tie-in
 HANDOFF-2026-07-27 Phase 3 task 2: TraceIQ facts → Graphiti with provenance + node-count landing gate.
@@ -60,9 +82,15 @@ never by pre-compact summary instructions, which the platform does not support.
 
 ## Pending owner decisions
 
-- Fix #1 db-id split — WHAT: give admin Postgres db its own id · WHY: both backends currently merge
-  into one registry bucket, routing memory/session routes by luck · options: rename admin id
-  (recommended) vs rename SurrealDb id vs registry-level guard · confirm live (check 1) first.
+- ~~Fix #1 db-id split~~ — **DECIDED + APPLIED 2026-07-31** (`9a7e4ac`, option (a) rename the admin
+  id). Not yet deployed to prod.
+- **Graphiti image rebuild** (workstream 1 item 5, blocks ADR-0038) — WHAT: vendor `mcp_server/` at
+  a pinned ref into `docker/graphiti/`, apply the ~6-line Neo4j `database=` driver fix, build on
+  `graphiti-core 0.29.3`, publish to GHCR by digest, canary on `data-graphiti-case`. WHY: we run
+  `zepai/knowledge-graph-mcp:latest` built 2026-03-11 and unpinned, and the upstream driver drops
+  the `database` field, which is what forced the hotfix pile. OPTIONS + the two sub-questions
+  (GLiNER2 on/off, upstream PR identity) are at the foot of
+  `docs/planning/graphiti-image-rebuild-plan.md`.
 
 ## Owner working-style contract
 
