@@ -102,6 +102,69 @@ and it has a **behavioural edge the fix introduces**:
   Mitigation if needed: keep the admin/contents split but re-merge the two Postgres roles under a
   single id, leaving 2 keys, and pass `db_id` explicitly from our own callers.
 
+## RESOLVED + DEPLOYED 2026-08-01 — seven bugs, each masking the next
+
+The branch is merged to `main` and **live in prod**. Verified against the running
+instance, not inferred:
+
+| Surface | Before | After |
+|---|---|---|
+| `GET /memories` (no `db_id`) | 400 | **200** |
+| `GET /sessions` | 400 | **200**, 8 sessions |
+| agents / teams | served | **6 / 3** |
+| embedder | 400 "model does not exist" | **200, 4096-d vector** |
+| Weaviate objects | 7 (1 doc) | **59 (5 docs)** |
+| content rows | 2 false-COMPLETED, 2 FAILED | **7 completed / 1 failed** |
+| `ingest_all` | 500, wrote nothing | **`INGEST OK, files: 4`** |
+
+**The chain — fixing each one revealed the next:**
+
+1. **DB-id collision** (`9a7e4ac`) — one registry key, routes resolved by
+   registration-order lottery.
+2. **Missing transitive deps** (`e999dd2`) — `requirements.txt` pinned
+   `weaviate-client` but not `validators`/`authlib`/`joserfc`. `session.py`
+   imports Weaviate at module scope, so prod **crash-looped** (11 restarts).
+   agno masks the real `ModuleNotFoundError: validators` as "Weaviate is not
+   installed", which sent the first diagnosis the wrong way.
+3. **Middleware matched ZERO routes** (`a930114`) — the `db_id` guard scanned
+   `app.routes` for `APIRoute`, but under `base_app=` agno's routes are
+   `_IncludedRouter` objects one level down. The test built a bare
+   `AgentOS(agents=...)` and passed while prod 400'd.
+4. **`fetch_objects(where=)`** (`3e3813d`) — agno 2.8.0 uses the v3 kwarg;
+   weaviate-client 4.22.0 wants `filters=`. Fatal, not cosmetic: it runs AFTER
+   the write, so it aborted the whole reindex on file 1.
+5. **Async client → `localhost:8080`** (`5483d76`) — **the root cause of
+   "knowledge never populates"**. `Weaviate.__init__` has no `async_client`
+   param and `get_async_client()` falls back to `use_async_with_local()`. The
+   ingest path is fully async while search is sync, so every probe passed and
+   only WRITES failed, silently.
+6. **`meta_data` dict vs text** (`9bc142f`) — 422 "not a string, but
+   map[string]interface {}".
+7. **`filters` is `object`, not `text`** (`a3d897f`) — fix #6 serialized BOTH
+   properties and broke `filters`. Read the live schema instead of assuming:
+   `meta_data text`, `filters object`. Encoding is now a per-property table.
+
+**Standing lessons (all earned the hard way today):**
+- A library's error message can be a lie — agno reported "Weaviate is not
+  installed" for a missing *transitive* dep, and "Could not upsert embedding"
+  for a wrong *host*. Read the underlying traceback, never the wrapper's text.
+- Test the REAL topology. A guard verified against a simplified app is not
+  verified. #3 shipped green tests straight into a silent prod failure.
+- Sync-working ≠ async-working. #5 hid for weeks because every manual probe used
+  the sync path.
+- The honest-failure guard is what made #5 findable — it turned "COMPLETED with
+  zero vectors" into a loud FAILED. Build the tripwire first.
+
+**Still open (NOT fixed):**
+- **GitHub→Coolify webhook is dead.** Merges to `main` do not auto-deploy
+  despite `watch_paths` covering `server/**`; every deploy today was a manual
+  Coolify API call. Very likely why prod sat on the 2026-07-23 image for 9 days.
+- **`agentos:latest` is overwritten in place** — no rollback target existed
+  during the crash-loop. Deploy by digest, as the Graphiti image already does.
+- `PROJECT_CANON.md` remains the 1 failed content row (legacy; its file is no
+  longer under the ingest path).
+- OpenRouter key is out of credits (402). NOT rotated — owner's call.
+
 ### "NOTHING IN THE PLATFORM IS POPULATED" — answered against the live API (2026-08-01)
 
 Owner report, with 13 UI screenshots: *"really nothing in the platform is populated or functional,

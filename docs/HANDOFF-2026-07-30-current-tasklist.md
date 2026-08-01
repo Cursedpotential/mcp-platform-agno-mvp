@@ -3,7 +3,7 @@
 > _Byline: Claude Code · Fable 5 · 2026-07-30_
 > _Correction: Claude Code · Opus 5 · 2026-08-01 — task 1 items 1/2/3/4 are DONE (commit `9a7e4ac`,
 > 2026-07-31); the "pending owner decision" below is superseded. See the dated block in task 1._
-STATUS: PARTIAL
+STATUS: RESOLVED (workstream 1 complete + deployed 2026-08-01)
 BUILD_STATUS: PASSING (405 tests, 1 pre-existing agno tool-roster failure — verified 2026-07-31)
 
 Persisted snapshot of the active task list, owner order. Fuller technical state for task 1 lives in
@@ -47,13 +47,20 @@ Audit complete (read-only, 2026-07-30). Remaining, in order:
    db_id-accepting routes. Proven on agno 2.8.0: three ids without the middleware → 400; with it →
    200; explicit `db_id` still honoured. Suite 414 passed / 0 failed.
 
-7. **NEXT — the deploy itself.** Branch is ready; merge + exec-tier redeploy has NOT run. Prod is
-   still the 2026-07-23 Milvus-era image. Post-deploy: watch for `WeaviateClosedClientError`
-   (finding #3 goes live) and confirm `/config` shows three databases.
+7. ~~**NEXT — the deploy itself.**~~ **DONE 2026-08-01.** Merged to `main` and deployed. Took
+   seven fixes: the deploy exposed a crash-loop (missing transitive deps), then the middleware
+   matching zero routes under `base_app=`, then four separate ingest bugs. Full chain + standing
+   lessons in the audit handoff's "RESOLVED + DEPLOYED" section.
 
-8. **NEW — broken knowledge ingest.** 3 of 4 Knowledge content rows have NO vectors and
-   `PROJECT_CANON.md` hard-FAILED. This is the symptom visible in the UI today and is independent
-   of the deploy. Nobody has looked at the ingest/embed path yet.
+8. ~~**NEW — broken knowledge ingest.**~~ **FIXED + VERIFIED 2026-08-01.** Root cause was NOT the
+   embedder: agno's async client fell back to `localhost:8080`, so every WRITE failed while sync
+   reads worked. `ingest_all` now returns `INGEST OK, files: 4`; Weaviate 7 -> 59 objects across 5
+   documents; content rows 7 completed / 1 failed (the leftover `PROJECT_CANON.md`).
+
+9. **STILL OPEN — deploy plumbing.** (a) The GitHub->Coolify webhook does not fire; every deploy
+   today was a manual API call, and this is likely why prod sat 9 days stale. (b) `agentos:latest`
+   is overwritten in place, so there was NO rollback target during the crash-loop — deploy by
+   digest like the Graphiti image does.
 
 ### 2. [pending] TraceIQ → Agno knowledge tie-in
 HANDOFF-2026-07-27 Phase 3 task 2: TraceIQ facts → Graphiti with provenance + node-count landing gate.
