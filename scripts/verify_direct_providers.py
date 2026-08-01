@@ -260,10 +260,45 @@ def check_anthropic_api_key(api_key: str) -> dict[str, Any]:
     return result
 
 
+def agno_build_model_smoke_test(provider: str, env_overrides: dict[str, str]) -> dict[str, Any]:
+    """Construct a model via server.core.settings.build_model() with the
+    given env vars injected into os.environ (restored after), and run one
+    real minimal .run() call through agno's own model class — not this
+    script's raw-HTTP reimplementation. Proves the actual code path the app
+    uses, not just that the credential is valid in isolation."""
+    import sys as _sys
+
+    _sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from agno.agent import Agent  # type: ignore
+
+    from server.core.settings import build_model  # type: ignore
+
+    saved = {k: os.environ.get(k) for k in env_overrides}
+    os.environ.update(env_overrides)
+    try:
+        model = build_model(provider)
+        agent = Agent(model=model)
+        response = agent.run("Reply with exactly one word: OK")
+        return {"ok": True, "model_class": type(model).__name__, "model_id": getattr(model, "id", None), "content": str(response.content)[:80]}
+    except Exception as e:  # noqa: BLE001 - diagnostic script, report any failure
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+    finally:
+        for k, v in saved.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--json-out", default=None, help="Write full catalog (model ids/metadata, no secrets) to this path")
     parser.add_argument("--skip-live-chat", action="store_true", help="Skip minimal live completion calls, list-only")
+    parser.add_argument(
+        "--agno-smoke-test",
+        action="store_true",
+        help="Also run one real call through server.core.settings.build_model() + agno.Agent for each live provider",
+    )
     args = parser.parse_args()
 
     platform_env = load_dotenv(PLATFORM_ENV)
@@ -356,6 +391,21 @@ def main() -> int:
             print(f"FAIL: {r.get('error')}")
     else:
         print("CLAUDE_CODE_OAUTH_TOKEN not set — skipping OAuth-token checks")
+
+    if args.agno_smoke_test:
+        print("\n=== agno-native smoke tests (server.core.settings.build_model + Agent.run) ===")
+        if ollama_key:
+            r = agno_build_model_smoke_test("ollama", {"OLLAMA_API_KEY": ollama_key})
+            catalog.setdefault("agno_smoke", {})["ollama"] = r
+            print(f"ollama: {r}")
+        if nvidia_key:
+            r = agno_build_model_smoke_test("nvidia", {"NVIDIA_API_KEY": nvidia_key})
+            catalog.setdefault("agno_smoke", {})["nvidia"] = r
+            print(f"nvidia: {r}")
+        if anthropic_oauth:
+            r = agno_build_model_smoke_test("anthropic", {"ANTHROPIC_AUTH_TOKEN": anthropic_oauth})
+            catalog.setdefault("agno_smoke", {})["anthropic_via_auth_token"] = r
+            print(f"anthropic (ANTHROPIC_AUTH_TOKEN fallback): {r}")
 
     if args.json_out:
         Path(args.json_out).write_text(json.dumps(catalog, indent=2), encoding="utf-8")

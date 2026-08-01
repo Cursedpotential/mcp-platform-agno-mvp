@@ -22,10 +22,17 @@ Environment variables:
 - ``DEFAULT_MODEL_ID`` — force a specific model ID (overrides pinned defaults).
 - ``<PROVIDER>_MODEL_ID`` — per-provider model ID override.
 - ``<PROVIDER>_API_KEY`` — API key for the provider.
+- ``ANTHROPIC_AUTH_TOKEN`` — bearer-token fallback for "anthropic" (e.g. a
+  Claude Code subscription OAuth token from ``claude setup-token``) when no
+  standard ``ANTHROPIC_API_KEY`` is set. See ``_try_provider``.
 - Provider-specific: ``OLLAMA_HOST``, ``NVIDIA_BASE_URL``, ``MOONSHOT_BASE_URL``,
   ``NVIDIA_RERANK_URL``.
+
+Full enumerated model catalogs for Ollama Cloud and NVIDIA NIM (what the
+account can actually reach, not a guess) live in ``server/core/model_catalog.py``
+— data only, doesn't change the selection logic here.
 """
-# Byline: Claude Code · Fable 5 · 2026-07-31 (embedder docstring truth: nv-embed-v1 4096-d live contract; Weaviate store)
+# Byline: Claude Code · Sonnet (agent) · 2026-08-01 (direct-provider wiring: ANTHROPIC_AUTH_TOKEN fallback + model_catalog.py cross-ref)
 
 from __future__ import annotations
 
@@ -182,11 +189,25 @@ def _try_provider(provider: str) -> Optional[Any]:
 
     if provider == "anthropic":
         key = getenv("ANTHROPIC_API_KEY")
-        if not key:
+        # ANTHROPIC_AUTH_TOKEN fallback: agno.models.anthropic.Claude natively
+        # reads this env var (see agno/models/anthropic/claude.py
+        # _get_client_params) and passes it as the Anthropic SDK client's
+        # `auth_token` param -> `Authorization: Bearer <token>`, vs. `api_key`
+        # -> `x-api-key`. This lets a Claude Code subscription OAuth token
+        # (`claude setup-token`, stored as CLAUDE_CODE_OAUTH_TOKEN in
+        # ~/.secrets/anthropic.env) work here too — copy its value into
+        # ANTHROPIC_AUTH_TOKEN to use it. Verified live 2026-08-01: the
+        # bearer-token call succeeds against both /v1/models and
+        # /v1/messages with NO anthropic-beta header required. No separate
+        # ANTHROPIC_API_KEY exists in this platform's secrets as of that date
+        # — only the OAuth token, so this fallback is currently the only way
+        # the "anthropic" provider in this chain has live credentials.
+        auth_token = getenv("ANTHROPIC_AUTH_TOKEN")
+        if not (key or auth_token):
             return None
         from agno.models.anthropic import Claude
 
-        return Claude(id=_model_id("anthropic"), api_key=key)
+        return Claude(id=_model_id("anthropic"), api_key=key, auth_token=auth_token)
 
     if provider == "google":
         key = getenv("GOOGLE_API_KEY")
