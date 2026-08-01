@@ -69,25 +69,32 @@ def check_milvus() -> bool:
         client = MilvusClient(uri=uri, token=token)
         cols = client.list_collections()
         print(f"  collections: {cols}")
-        if "platform_knowledge" in cols:
+        # platform_knowledge was migrated to Weaviate and sidelined here per
+        # ADR-0040 (see migrate_milvus_to_weaviate.py) - the collection that
+        # matters on THIS instance now is agent_session_memory (memsearch's
+        # store; queried live on every message, verified live 2026-08-01).
+        for collection, vector_field, id_field in [
+            ("platform_knowledge", "dense_vector", "id"),
+            ("agent_session_memory", "embedding", "chunk_hash"),
+        ]:
+            if collection not in cols:
+                continue
             # Exact live count - NOT get_collection_stats()['row_count'],
             # which includes soft-deleted rows (lied 2x, verified live
             # 2026-08-01 per the migrate_milvus_to_weaviate.py precedent).
-            res = client.query(
-                collection_name="platform_knowledge", filter="", output_fields=["count(*)"]
-            )
+            res = client.query(collection_name=collection, filter="", output_fields=["count(*)"])
             count = int(str(res[0]["count(*)"]))
-            print(f"  platform_knowledge live row count: {count}")
+            print(f"  {collection} live row count: {count}")
             rows = client.query(
-                collection_name="platform_knowledge",
+                collection_name=collection,
                 filter="",
                 limit=1,
-                output_fields=["id", "dense_vector"],
+                output_fields=[id_field, vector_field],
             )
             if rows:
-                vec = rows[0].get("dense_vector")
+                vec = rows[0].get(vector_field)
                 dim = len(vec) if vec else 0
-                print(f"  spot-check row id={rows[0].get('id')} vector_dim={dim}")
+                print(f"  spot-check row {id_field}={rows[0].get(id_field)} vector_dim={dim}")
     return True
 
 
