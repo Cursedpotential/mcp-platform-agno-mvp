@@ -4,8 +4,8 @@
 > _Correction: Claude Code · Opus 5 · 2026-08-01 — findings #1, #2 and #4 are RESOLVED in commit
 > `9a7e4ac` (2026-07-31); all five live checks ran. A NEW pre-deploy gate was found while
 > re-verifying against agno 2.8.0 (the version prod actually runs) — see "Pre-deploy gate" below._
-STATUS: PARTIAL
-BUILD_STATUS: PASSING (405 tests, 1 pre-existing agno tool-roster failure that also fails on stash)
+STATUS: RESOLVED — merged to `main`, deployed, verified live 2026-08-01
+BUILD_STATUS: PASSING (444 passed / 3 skipped / 0 failed at prod's agno 2.8.0 — 2026-08-01)
 
 > Prior session ran in the WRONG cwd (`C:\Users\matts\.agents\skills\mineru`) — this handoff
 > moves the work here. Next session: run from THIS repo root, read this file top to bottom.
@@ -26,7 +26,7 @@ BUILD_STATUS: PASSING (405 tests, 1 pre-existing agno tool-roster failure that a
 
 Read-only audit completed 2026-07-30 (agno==2.6.13 in local venv; prod requirements pins 2.8.0). Findings ranked:
 
-### #1 — DB id collision (root cause, HIGH confidence — NOT yet fixed)
+### #1 — DB id collision (root cause — CONFIRMED LIVE, FIXED, DEPLOYED)
 - `server/core/session.py:40` `DB_ID = "agentos-db"` used by BOTH `get_agno_db()` (SurrealDb, line ~179) and `get_postgres_db()` (line ~165).
 - `main.py:179` agents get SurrealDb; `main.py:199` `admin_db = get_postgres_db()` → `AgentOS(db=admin_db)` (main.py:237).
 - agno `os/app.py:1325-1334` registers dbs keyed by `db.id` → both backends merge into ONE bucket `"agentos-db"`.
@@ -40,7 +40,7 @@ Read-only audit completed 2026-07-30 (agno==2.6.13 in local venv; prod requireme
 - Same commit set `enable_user_memories` on Root Router + Project PAL: the live check found
   `agno_memories` with **0 rows in BOTH backends**, so the memory panel was empty for a second,
   independent reason — nothing was ever extracting memories.
-- **NOT IN PROD YET** — live agentos-api still runs the 2026-07-23 image.
+- ~~**NOT IN PROD YET**~~ — **IN PROD 2026-08-01**, verified: `/memories` 200, `/sessions` 200.
 
 #### Pre-deploy gate (NEW — **PROVEN** 2026-08-01 by executable probe, not inference)
 
