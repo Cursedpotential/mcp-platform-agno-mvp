@@ -4,14 +4,14 @@
 > _Correction: Claude Code · Opus 5 · 2026-08-01 — task 1 items 1/2/3/4 are DONE (commit `9a7e4ac`,
 > 2026-07-31); the "pending owner decision" below is superseded. See the dated block in task 1._
 STATUS: RESOLVED (workstream 1 complete + deployed 2026-08-01)
-BUILD_STATUS: PASSING (405 tests, 1 pre-existing agno tool-roster failure — verified 2026-07-31)
+BUILD_STATUS: PASSING (441 passed / 3 skipped / 0 failed at prod's agno 2.8.0 — 2026-08-01)
 
 Persisted snapshot of the active task list, owner order. Fuller technical state for task 1 lives in
 `docs/HANDOFF-2026-07-30-memory-knowledge-audit.md` — read that before working task 1.
 
 ## Task list (owner order)
 
-### 1. [in_progress] Memory/knowledge systems — AgentOS "broken on first open"
+### 1. [COMPLETE 2026-08-01 — merged to `main`, deployed, verified live] Memory/knowledge systems
 Audit complete (read-only, 2026-07-30). Remaining, in order:
 1. ~~Live checks (Option C)~~ **DONE 2026-07-31** — all five ran; live `/config` returned
    `databases:["agentos-db"]` (1 key), confirming the collision root cause.
@@ -20,8 +20,7 @@ Audit complete (read-only, 2026-07-30). Remaining, in order:
    admin plane → `agentos-admin-db`, Knowledge contents → `agentos-contents-db`. Same commit also
    enabled `enable_user_memories` on Root Router + Project PAL (live check found `agno_memories`
    empty in BOTH backends — nothing was ever capturing memories).
-   **NOT YET IN PROD** — live agentos-api still runs the 2026-07-23 image; reaches prod only via
-   merge + exec-tier redeploy. See the pre-deploy gate in the audit handoff.
+   ~~**NOT YET IN PROD**~~ — **IN PROD 2026-08-01.** Merged to `main`, exec-tier redeployed.
 3. ~~Fix #2 — `uv lock` regen + rebuild local `.venv`~~ **RESOLVED 2026-07-31** — `uv.lock` already
    carried `weaviate-client==4.22.0`; `uv sync --extra dev` fixed the venv and
    `server.core.session` imports clean (re-verified 2026-08-01).
@@ -90,17 +89,19 @@ never by pre-compact summary instructions, which the platform does not support.
   PreCompact task-snapshot worked, PreCompact context-injection failed schema validation (see task 4),
   PostCompact + SessionStart succeeded. Hooks reload at session start, so the corrected PreCompact
   script takes effect from the next session onward.
-- BUILD_STATUS UNKNOWN — branch `fix/review-hardening-adr36-40` build/tests not run at handoff time;
-  local `.venv` is known-broken until fix #2 (stale uv.lock).
+- ~~BUILD_STATUS UNKNOWN~~ — RESOLVED 2026-08-01: 441 passed / 3 skipped / 0 failed at prod's
+  agno 2.8.0; ruff clean; mypy unchanged (2 pre-existing `server/evidence/cli.py` errors).
 - Uncommitted working-tree changes NOT covered by this handoff: `docs/PROJECT_CANON.md`,
   `docs/adr/0036-...md` (modified), `.migration-passes/` (untracked) — provenance unknown to this
   session; do not sweep into unrelated commits.
 
 ## Pending owner decisions
 
-- ~~Fix #1 db-id split~~ — **DECIDED + APPLIED 2026-07-31** (`9a7e4ac`, option (a) rename the admin
-  id). Not yet deployed to prod.
-- **Graphiti image rebuild** (workstream 1 item 5, blocks ADR-0038) — WHAT: vendor `mcp_server/` at
+- ~~Fix #1 db-id split~~ — **DECIDED, APPLIED, AND DEPLOYED** (`9a7e4ac`, option (a)); live in prod
+  2026-08-01 behind the `db_id` default middleware (`6bfb522`/`a930114`).
+- ~~**Graphiti image rebuild**~~ — **BUILT, DEPLOYED, CANARY-GREEN 2026-07-31**; all three owner
+  questions answered (rebuild approved, GLiNER2 enabled, no upstream PR). Original framing kept
+  below for history. WHAT: vendor `mcp_server/` at
   a pinned ref into `docker/graphiti/`, apply the ~6-line Neo4j `database=` driver fix, build on
   `graphiti-core 0.29.3`, publish to GHCR by digest, canary on `data-graphiti-case`. WHY: we run
   `zepai/knowledge-graph-mcp:latest` built 2026-03-11 and unpinned, and the upstream driver drops
