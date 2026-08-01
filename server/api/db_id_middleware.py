@@ -139,6 +139,19 @@ def install_db_id_default(app: FastAPI, default_db_id: str) -> int:
             return await call_next(request)
 
         path = request.scope.get("path", "")
+        # NEVER default db_id on knowledge routes. They resolve through the
+        # KNOWLEDGE registry (knowledge_id / auto-discovery), whose db_id is the
+        # CONTENTS db — `agentos-contents-db`, not the operational store. Forcing
+        # the operational id here turned a 400 into:
+        #     404 {"detail":"Knowledge instance with db_id 'agentos-db' not found"}
+        # i.e. this middleware broke every knowledge route it was meant to help
+        # (regression shipped 2026-08-01, caught live the same day). Agno's own
+        # docs are explicit that knowledge callers should use `knowledge_id`,
+        # which "uniquely identifies the instance even when multiple instances
+        # share the same database" — so leaving these alone is also the
+        # documented contract, not just the empirically safe choice.
+        if path.startswith("/knowledge"):
+            return await call_next(request)
         method = request.scope.get("method", "")
         if any(
             path.startswith(prefix) and pattern.match(path[len(prefix) :]) and (not allowed or method in allowed)
