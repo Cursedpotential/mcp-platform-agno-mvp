@@ -32,6 +32,7 @@ match this table exactly. Keep this current as part of every change.
 | Self-hosted evidence vector store (Qdrant/Milvus) | **resolved 2026-07-11** — Milvus is the locked platform-wide vector substrate (ADR-0026/ADR-0027), self-hosted + LIVE on the `data-vector` Coolify app; the "Qdrant" framing was stale. Evidence-text-embeddings *ingestion* at scale is still future work, tracked as "Evidence schemas populated by a real pipeline" above. | future → `docs/adr/0026-self-hosted-milvus-coolify-semantic-store.md`, `docs/adr/0027-milvus-platform-wide-vector-substrate.md` |
 | Part 2 multi-pass analysis engine | next round | future |
 | V2 slim Graphiti image; multi-user auth | deferred | future |
+| Knowledge text embedder (`nvidia/nv-embed-v1`) calls NVIDIA NIM **direct**, not through the Portkey gateway | owner decision 2026-08-01: direct for now, Portkey later | `server/core/session.py` — see the TODO above `_EMBED_TEXT_BASE_URL`; target config already exists and is verified live at `docker/gateway/portkey/configs/embed.json` (reused as-is by Graphiti's own Portkey cutover) |
 
 ## Agno-native audit (2026-06-11) — STOP reinventing; use native (no code written yet)
 

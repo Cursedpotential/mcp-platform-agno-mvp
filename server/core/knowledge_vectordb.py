@@ -272,3 +272,49 @@ class VerifiedWeaviate(Weaviate):
             len(query_result.objects),
             content_id,
         )
+
+    def get_search_results(self, response: Any) -> "List[Document]":
+        """Backfill ``Document.id`` from the Weaviate object UUID.
+
+        UPSTREAM BUG (agno 2.8.0), hit live 2026-08-01 against the now-populated
+        store (59 objects, 5 documents — search is only reachable once there is
+        real data to search, which is why this surfaced only after the embedder
+        + async-client fixes above): every call to ``POST /knowledge/search``
+        500s with::
+
+            pydantic_core._pydantic_core.ValidationError: 1 validation error
+            for VectorSearchResult
+            id
+              Input should be a valid string [type=string_type, input_value=None, ...]
+
+        Root cause: ``agno.vectordb.weaviate.Weaviate.get_search_results()``
+        (the shared helper behind vector/keyword/hybrid search, sync AND async —
+        6 call sites, all funnel through this one method) builds each result as::
+
+            Document(name=..., meta_data=..., content=..., embedder=...,
+                     embedding=..., content_id=...)
+
+        — it never sets ``id``, which defaults to ``None``. But
+        ``agno.os.routers.knowledge.schemas.VectorSearchResult.from_document()``
+        does ``id=document.id`` into a REQUIRED ``id: str`` field, so ANY
+        Weaviate-backed knowledge search 500s, unconditionally — not a
+        misconfiguration on our side, a real agno×weaviate-client integration
+        gap. This is exactly the API the AgentOS Studio/Chat retrieval tool and
+        ``/knowledge/search`` callers use to show the actual ingested text, so
+        until this is fixed there is no way to view raw chunk content through
+        AgentOS itself (only by querying Weaviate directly, which is how this
+        bug was found and confirmed live).
+
+        Fix: call the upstream implementation unchanged, then zip its output
+        1:1 against ``response.objects`` (identical order — both iterate the
+        same list once) and fill in each missing ``id`` from that object's own
+        Weaviate UUID: the exact identifier ``Weaviate.insert()``/``upsert()``
+        assigned at write time (``doc_uuid = uuid.UUID(hex=record_id[:32])``),
+        so it is a real, stable, per-chunk identifier — not a synthetic
+        placeholder — and searching the same content again returns the same id.
+        """
+        documents = super().get_search_results(response)
+        for document, obj in zip(documents, response.objects):
+            if document.id is None:
+                document.id = str(obj.uuid)
+        return documents

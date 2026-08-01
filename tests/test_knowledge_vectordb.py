@@ -333,3 +333,74 @@ def test_filters_is_a_dict_not_a_string():
     assert isinstance(_merged_dict('{"a":1}', {"b": 2}), dict)
     assert _merged_dict('{"a":1}', {"b": 2}) == {"a": 1, "b": 2}
     assert isinstance(_merged_json_property({"a": 1}, {"b": 2}), str)
+
+
+# --- get_search_results: agno's own Document never sets .id, but agno's own --
+# --- VectorSearchResult schema requires id: str -> every search 500s ---------
+# Byline: Claude Code · Sonnet (agent) · 2026-08-01
+
+
+class _FakeObj:
+    def __init__(self, uuid, properties, vector=None):
+        self.uuid = uuid
+        self.properties = properties
+        self.vector = vector if vector is not None else [0.1, 0.2, 0.3]
+
+
+class _FakeSearchResponse:
+    def __init__(self, objects):
+        self.objects = objects
+
+
+def test_get_search_results_backfills_missing_id_from_object_uuid():
+    """REGRESSION (live 2026-08-01, found via a real POST /knowledge/search
+    against the now-populated store — 59 objects, 5 documents): every search
+    call 500'd with a pydantic ValidationError, `id: Input should be a valid
+    string [type=string_type, input_value=None, ...]`. Traced to agno's own
+    Weaviate.get_search_results() building Document(...) without an `id`, while
+    agno's own VectorSearchResult.from_document() does `id=document.id` into a
+    REQUIRED `id: str` field. Not a config issue — reproduced against agno
+    2.8.0 + weaviate-client 4.22.0 exactly as pinned in requirements.txt.
+    """
+    db = _vw()
+    obj1 = _FakeObj(
+        uuid="11111111-1111-1111-1111-111111111111",
+        properties={"name": "doc-a", "content": "alpha content", "meta_data": None, "content_id": "content-a"},
+    )
+    obj2 = _FakeObj(
+        uuid="22222222-2222-2222-2222-222222222222",
+        properties={"name": "doc-b", "content": "beta content", "meta_data": None, "content_id": "content-b"},
+    )
+    response = _FakeSearchResponse([obj1, obj2])
+
+    results = db.get_search_results(response)
+
+    assert len(results) == 2
+    assert results[0].id == str(obj1.uuid), "must backfill id from the object's own Weaviate uuid"
+    assert results[1].id == str(obj2.uuid)
+    # content/name must still round-trip untouched — only `id` is being added.
+    assert results[0].content == "alpha content"
+    assert results[0].name == "doc-a"
+
+
+def test_get_search_results_does_not_clobber_an_id_agno_already_set(monkeypatch):
+    """If a future agno version DOES start setting Document.id, this override
+    must not overwrite it with the (possibly different) Weaviate uuid."""
+
+    def _fake_base_get_search_results(self, response):
+        return [Document(id="already-set-by-agno", content="x", name="n")]
+
+    monkeypatch.setattr(Weaviate, "get_search_results", _fake_base_get_search_results)
+
+    db = _vw()
+    response = _FakeSearchResponse([_FakeObj(uuid="33333333-3333-3333-3333-333333333333", properties={})])
+
+    results = db.get_search_results(response)
+
+    assert results[0].id == "already-set-by-agno"
+
+
+def test_get_search_results_empty_response_returns_empty_list():
+    db = _vw()
+    results = db.get_search_results(_FakeSearchResponse([]))
+    assert results == []

@@ -149,6 +149,26 @@ def get_weaviate_async_client():
 # to NVIDIA NIM (``NVIDIA_BASE_URL`` + ``NVIDIA_API_KEY``) for nv-embed-v1
 # verified live 2026-08-01: HTTP 200, real 4096-d vector, matching the store's
 # existing embedded rows exactly.
+#
+# TODO (owner decision 2026-08-01, tracked docs/DEBT.md): this hits NVIDIA NIM
+# DIRECT, not through the Portkey gateway. Direct is deliberate for now —
+# Portkey embeddings routing needs its own wiring pass. When that lands, this
+# is a straight repoint, no new mechanism required: agno's OpenAIEmbedder
+# already forwards ``client_params`` into the underlying OpenAI client
+# constructor, which accepts ``default_headers`` — the exact hook Portkey's
+# own `graphiti-portkeyfix` sidecar exists to work around for graphiti_core
+# (which has NO such hook; agno's client DOES, so we don't need a sidecar).
+# The target config already exists and is verified live: `docker/gateway/
+# portkey/configs/embed.json` (NVIDIA nv-embed-v1, 4096-d, dimension-locked,
+# same model/dim this module already pins) — reused as-is by Graphiti's own
+# Portkey cutover (docker/gateway/portkey/README.md, "Graphiti cutover" §).
+# Migration shape: point ``_EMBED_TEXT_BASE_URL`` at the Portkey gateway
+# (``http://100.72.169.40:8787/v1``, ADR-0042) and pass
+# ``client_params={"base_url": ..., "default_headers": {"x-portkey-config":
+# json.dumps(<embed.json contents>)}}`` from ``_embedder()``. Do this only
+# once Portkey's own embeddings passthrough is verified for OUR call shape
+# (not just Graphiti's), since Portkey is stateless/no-DB and every route is
+# a per-request header, not a stored config.
 _OR_BASE_URL = getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 _OR_API_KEY = getenv("OPENROUTER_API_KEY", "")
 _NVIDIA_BASE_URL = getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")
