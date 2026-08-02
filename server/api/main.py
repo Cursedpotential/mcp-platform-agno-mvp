@@ -207,7 +207,13 @@ def _build_app() -> Any:
     admin_db = get_postgres_db()
     _knowledge_handle.try_connect_now()  # never raises — see server/core/knowledge_handle.py
     knowledge = _knowledge_handle.instance  # may be None; agents/AgentOS get this ONE-TIME snapshot (see docstring)
-    learning = build_learning(db, model, knowledge)
+    # Learning MUST ride the Postgres admin db, never SurrealDb: agno's
+    # SurrealDb raises NotImplementedError on every learning method
+    # (get/upsert/delete/get_learnings), and LearningMachine catches broad
+    # Exception around every store call — so on SurrealDb every lane was a
+    # SILENT no-op (the long-documented prod bug, root-caused against agno
+    # 2.8.0 source 2026-08-02). PostgresDb implements the full protocol.
+    learning = build_learning(admin_db, model, knowledge)
 
     ctx = build_context(model, db, knowledge, learning, db_url)
     agents = build_agent_team(ctx)

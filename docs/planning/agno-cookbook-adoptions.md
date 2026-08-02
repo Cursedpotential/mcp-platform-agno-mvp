@@ -73,7 +73,58 @@ built — it composes entirely from adoptions #1-#3 plus `output_schema`, nothin
 new to invent. Docs index for deeper pages: https://docs.agno.com/llms.txt
 (agno-docs MCP server is wired for retrieval).
 
-## Pending
+## 05_agent_os + 08_learning walk (landed 2026-08-02, all verified at 2.8.0)
 
-The 05_agent_os + 08_learning walk lands in a separate report; append its
-verdicts here when it does.
+**DONE same day:**
+- ✅ LearningMachine db → PostgresDb (`main.py`): SurrealDb's learning methods
+  all `raise NotImplementedError`, swallowed by LearningMachine's broad
+  `except` — THE root cause of the silent-no-op prod bug. Fixed, not worked
+  around.
+- ✅ `available_models` populated (109 ids: ollama 18 + nvidia 91) via
+  `scripts/update_available_models.py` → `config.yaml` — fixes "only one
+  model available". Re-run the script after catalog changes.
+
+**ADOPT NOW (small, queued):**
+- `AgentOSTools(db=admin_db)` on an ops-facing agent (~5 lines,
+  `server/agents/factory.py`) — self-observability that routes around the
+  broken Studio traces pane (which is likely a Studio front-end bug: the
+  `/traces` REST backend verified working in the cookbook; smoke-test ours).
+- `DecisionLogConfig` — log motion-strategy/factor-analysis decisions with
+  reasoning, `record_outcome` closes the loop later. Near-perfect
+  legal-platform fit, present at 2.8.0.
+- Smoke-test `GET /learnings` live — now meaningful post-Postgres-swap; proves
+  the fix end-to-end.
+- `max_updates_per_run` caps on learning stores (cheap runaway valve).
+
+**ADOPT LATER (design decisions first):**
+- `@approval(type="required"/"audit")` on destructive tools + `/approvals`
+  REST. NOTE a verified nuance: `LearnedKnowledgeConfig(mode=PROPOSE)` is a
+  PROMPT-INJECTED soft gate, not framework-enforced — a confused model can
+  still call `save_learning`. Hard HITL on the built-in learning tools needs
+  a thin custom `LearningStore` proxy (08_custom_stores pattern).
+- Per-agent `namespace=` isolation — currently ALL 6 agents/3 teams share
+  `namespace="platform"`; dev_copilot and forensic_data_agent read/write the
+  same memory. Decide per-agent vs per-role first.
+- `AuthorizationConfig(user_isolation=True)` — the moment this goes multi-user.
+- `AgentFactory` + `RequestContext.trusted` tiered models — pairs with the
+  model catalog for a real picker UX.
+- Two conflicting walker claims on whether `@approval` is already used in
+  `factory.py` — reconcile by reading before adopting.
+
+## Golden-set eval (owner-flagged docs page, 2026-08-02)
+
+`analysis.human_label_gold` (1,918 hand-labelled rows, FK-free) IS the golden
+set for `AccuracyEval` over the detection pipeline: run detection → serialize →
+`eval.run_with_output()` with `db=` to store scores → compare across
+prompt/model changes. Per-field `ConfidentField` confidence + threshold
+routing maps onto the 0016 candidate confidence + review gate (application
+code owns the threshold). Approval-gated writes at the system boundary =
+exactly the 0016 promotion CHECK, plus `@approval` at the tool boundary.
+
+## Research pointers (owner-dropped, not yet walked)
+
+- https://docs.agno.com/reference/cli/agnoctl#agno-connect — agnoctl CLI
+- https://docs.agno.com/agent-os/multi-framework/claude-agent-sdk — Claude
+  Agent SDK inside AgentOS; bears on the parked ClaudeAgent
+  mount-and-compliance question (HANDOFF-2026-08-01 pending decisions)
+- https://docs.agno.com/llms.txt — full docs index (agno-docs MCP wired)

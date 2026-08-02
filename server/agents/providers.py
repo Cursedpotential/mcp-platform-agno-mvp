@@ -222,7 +222,12 @@ def build_learning(db: Any, model: Any, knowledge: Any) -> Any:
     Parameters
     ----------
     db:
-        Agno operational DB.
+        A db whose backend IMPLEMENTS agno's learning protocol — in this
+        platform that means ``get_postgres_db()`` (the admin-plane
+        PostgresDb). Never pass the SurrealDb operational store: its
+        learning methods all raise NotImplementedError, which
+        LearningMachine's broad exception handling turns into a silent
+        no-op on every lane (root-caused 2026-08-02).
     model:
         Agno model instance.
     knowledge:
