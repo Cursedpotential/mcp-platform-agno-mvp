@@ -36,12 +36,46 @@ dependencies = [
   "weaviate-client",
   "psycopg[binary]",
   "sqlalchemy",
+  # --- streaming repair layer (server/tools/repair/) ---
+  # Every one of these is imported LAZILY, inside a function, never at module
+  # import time. `registry.load_builtin_tools()` walks server/tools/ recursively
+  # and imports every non-underscore module, and that same tree is volume-mounted
+  # into the dep-light docker/tools facade — a module-level `import lxml` there
+  # would FATAL-loop the facade exactly the way ADR-0033 already paid for once.
+  # server/tools/repair/engines/__init__.py::available() reports which of these
+  # actually resolved, so a missing one degrades instead of crashing.
+  "lxml>=5",               # libxml2 recover=True: the ONLY XML repair that streams
+  "ijson>=3.2",            # streaming JSON item iteration (no whole-doc load)
+  "json-repair>=0.30,<1",  # semver: pin the major only (upstream ships frequent minors)
+  "clevercsv>=0.8",        # dialect detection for messy CSV
+  # charset-normalizer was present only TRANSITIVELY (via requests). The repair
+  # layer depends on it directly for streaming encoding detection, so it is
+  # declared here rather than relying on someone else's dependency tree.
+  "charset-normalizer>=3",
+  # pikepdf bundles libqpdf in its wheels, so structural PDF repair needs NO
+  # system package. QPDF rebuilds a damaged cross-reference table by scanning
+  # the file for object markers, which recovers PDFs that no reader will open.
+  # This is REPAIR (make the file parseable); extract_text.py is EXTRACTION
+  # (read text from a file that already parses). Different problems, both here.
+  "pikepdf>=9",
+  # native PDF text tiers used by server/tools/extractors/extract_text.py.
+  # OCR (pytesseract + pdf2image) is deliberately NOT here: it needs the system
+  # `tesseract-ocr` and `poppler` binaries, so it lives in the `ocr` extra.
+  "pypdf>=5",
+  "pdfplumber>=0.11",
+  # beautifulsoup4 was dev-ONLY until 2026-08-02, but parsers/messaging/
+  # facebook_messenger_html.py and imessage_html.py import it at RUNTIME. Any
+  # prod ingest touching an HTML export would have raised ImportError. It is a
+  # runtime dependency of shipped parsers, so it belongs in base.
+  "beautifulsoup4>=4.12",
 ]
 
 [project.optional-dependencies]
-# beautifulsoup4: needed to exercise the HTML evidence parsers in tests
-# (the tools import it lazily at runtime; it's optional for them, required to test them).
-dev = ["mypy", "ruff", "pytest", "pytest-cov", "beautifulsoup4"]
+dev = ["mypy", "ruff", "pytest", "pytest-cov"]
+# OCR tier. Both wheels are useless without system binaries — `tesseract-ocr`
+# for pytesseract and `poppler` for pdf2image — so this stays opt-in and the
+# container image must install those alongside it.
+ocr = ["pytesseract", "pdf2image", "pillow"]
 # claude-agent-sdk: powers agno.agents.claude.ClaudeAgent (runs Claude Code as
 # a subprocess — the SDK bundles its own native Claude Code binary, no
 # separate Node.js/CLI install needed). NOT a base dependency: it's a heavier
