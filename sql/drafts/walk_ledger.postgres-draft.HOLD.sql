@@ -1,3 +1,16 @@
+-- ============================================================================
+-- ON HOLD - WRONG ENGINE (parked 2026-08-02, was sql/0009_walk_ledger.sql)
+-- ============================================================================
+-- Its own commit (3f372dd) flagged this draft "0009 wrong engine": the walk
+-- ledger records the ignorant agent's traversal + belief state, and the
+-- 2026-08-02 owner ruling places the analysis graph (confirmed people/events/
+-- timelines, walk ledger, native vectors, horizon-filtered retrieval) in
+-- SURREALDB, not Postgres. Redesign as .surql under a SurrealKit database/
+-- tree; SurrealDB row-level permissions per agent identity are how the
+-- knowledge-horizon pre-filter gets enforced on that store. The Postgres
+-- draft below is kept verbatim as design input. Do NOT apply.
+-- ============================================================================
+
 -- 0009_walk_ledger.sql — the walk ledger: how each agent experienced the record.
 --
 -- Byline: Claude Code · Opus 5 · 2026-08-01

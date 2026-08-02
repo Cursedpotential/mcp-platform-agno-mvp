@@ -1,26 +1,41 @@
--- 0008_working_schema.sql — the WORKING layer: machine extraction, human gate.
+-- 0016_working_gate_layer.sql — the extraction gate inside `working`:
+-- machine candidates, human review, labelled promotion.
 --
--- Byline: Claude Code · Opus 5 · 2026-08-01
+-- Byline: Claude Code · Opus 5 · 2026-08-01 (drafted as 0008_working_schema.sql)
+--         renumbered + adapted to the post-0014 layout · Claude Code · Fable 5 · 2026-08-02
 --
 -- WHY THIS EXISTS
 -- ===============
 -- Owner ruling 2026-08-01: "there's gonna be raw, then there's going to be
 -- working tables, and then there's going to be the gated evidence."
 --
--- The platform already has the two OUTER layers and nothing between them:
+-- HISTORY OF THIS FILE: drafted 2026-08-01 as `0008_working_schema.sql`, before
+-- sql/0014 split the old `analysis` schema and CREATED `working` (spine,
+-- projections, links, resolved entities). That made this draft's number collide
+-- with the applied 0008_temporal_clocks_and_provenance.sql and its premise
+-- ("nothing between raw and court-facing") stale. Renumbered to 0016 and
+-- adapted 2026-08-02; the DESIGN is unchanged. DEPENDS ON 0014 having run.
 --
---   evidence.raw_*   as-ingested, immutable      (raw_sms alone holds 14,107 rows)
---   analysis.*       final, court-facing          (message/conversation: 0 rows)
+-- The layout this migration lands in:
 --
--- Everything machine-derived currently has nowhere to live that is neither
--- "untouched source" nor "settled fact". So extraction either does not happen
--- or would have to write straight into the court-facing tables. For a custody
--- case that is the wrong default: anything an LLM or NER pass inferred must be
--- HUMAN-APPROVED before it can be cited.
+--   evidence.raw_*   as-ingested, immutable        (raw_sms alone holds 14,107 rows)
+--   working.*        derived working set (0014):   spine normalized_record,
+--                    projections, links, resolved entities — plus, from THIS
+--                    migration, the extraction gate below
+--   analysis.*       human-gated conclusions only  (findings, labels, decisions)
+--   reference.*      hand-curated taxonomy
 --
--- This schema is that middle. Extractors write CANDIDATES here. A review pass
--- approves, rejects, or supersedes them. Only approved rows are promoted into
--- analysis.*/evidence.* and flow onward to SurrealDB and the Semantica graph.
+-- Anything an LLM or NER pass inferred must be HUMAN-APPROVED before it can be
+-- cited. Extractors write CANDIDATES here. A review pass approves, rejects, or
+-- supersedes them. Only approved rows are promoted — into the resolved
+-- `working.*` entity tables, the gated `analysis.*` conclusions, and onward to
+-- SurrealDB / the Semantica graph / Graphiti, each crossing labelled by lane.
+--
+-- SUPERSEDES (structurally, not by deletion): `working.extraction_candidate`
+-- and `working.record_observation` — the 0014-era staging placeholders, both
+-- verified 0 rows live on 2026-08-02. They stay in place per the never-delete
+-- rule; the candidate_* family below is the richer replacement. COMMENTs are
+-- stamped on them at the end of this file.
 --
 -- DESIGN NOTES
 -- ------------
@@ -83,11 +98,16 @@
 
 BEGIN;
 
+-- Schema exists since 0014; this guard only matters on a fresh database.
 CREATE SCHEMA IF NOT EXISTS working;
 
+-- Merges 0014's description (derived working set) with this layer's (the gate).
 COMMENT ON SCHEMA working IS
-  'Machine-extracted CANDIDATES awaiting human review. Never court-facing. '
-  'Promotion into analysis.*/evidence.* requires an approved review_decision.';
+  'Derived working set (0014: spine, projections, links, resolved entities — '
+  'rebuilt by re-deriving from evidence.raw_* without touching originals) plus '
+  'the extraction gate (0016: machine-extracted CANDIDATES awaiting human '
+  'review). Never court-facing; if it disagrees with evidence, evidence wins. '
+  'Promotion of candidates requires an approved review_decision.';
 
 -- Shared vocabulary. Kept as CHECK constraints (see design notes) and repeated
 -- per table rather than a domain, so a future table can diverge without an
@@ -495,5 +515,18 @@ CREATE VIEW working.review_queue AS
 COMMENT ON VIEW working.review_queue IS
   'Everything awaiting human judgement, lowest-confidence first is the intended '
   'read: ORDER BY confidence NULLS FIRST, created_at.';
+
+-- ---------------------------------------------------------------------------
+-- Supersession stamps on the 0014-era staging placeholders (both 0 rows,
+-- verified live 2026-08-02). Tables retained per the never-delete rule.
+-- These COMMENTs also make the 0014 dependency explicit: this migration
+-- fails loudly here if 0014 has not run.
+-- ---------------------------------------------------------------------------
+COMMENT ON TABLE working.extraction_candidate IS
+  'SUPERSEDED by working.candidate_entity / candidate_fact / candidate_event '
+  '(sql/0016, 2026-08-02). Was empty at supersession. Do not write here.';
+COMMENT ON TABLE working.record_observation IS
+  'SUPERSEDED by the working.candidate_* family + working.review_decision '
+  '(sql/0016, 2026-08-02). Was empty at supersession. Do not write here.';
 
 COMMIT;
