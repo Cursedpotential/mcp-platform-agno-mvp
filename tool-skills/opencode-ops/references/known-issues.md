@@ -1,6 +1,6 @@
 # opencode-ops — known issues / API-shape notes
 
-> _Byline: Claude Code · Sonnet · 2026-07-20_ — all verified live against the tailnet deployment
+> _Byline: Claude Code · Sonnet · 2026-07-20 (agno 2.8 MCP door migration added 2026-07-23)_ — all verified live against the tailnet deployment
 > on 2026-07-20. Re-verify before assuming these are still true if it's been a while.
 
 ## 1. Provider endpoints leak API keys in plaintext
@@ -127,6 +127,23 @@ argument only picks which endpoint to hit (`agentos` → direct `:8000/mcp` with
 underscore-style names like `run_agent`; `contextforge` → `:4444/mcp` with the catalog's own
 hyphenated names like `agno-platform-run-agent`). Always `oc tools list --server X` first to get the
 exact literal name before `oc tools call X:<name>`.
+
+## 7. agno 2.8 MCP door migration (2026-07-23): agentos-mcp :8001 RETIRED
+
+The standalone `agentos-mcp` container/port (`:8001`) that used to be the only way to reach
+AgentOS's tools over MCP is gone as of the agno 2.6.13 → 2.8.0 upgrade. AgentOS now mounts its own
+MCP server directly on agentos-api's port: `http://100.72.169.40:8000/mcp`, still streamable-HTTP,
+but now **REQUIRES `Authorization: Bearer <OS_SECURITY_KEY>`** (the old :8001 door was
+unauthenticated — this is a real behavior change, not just a port swap). Verified live 2026-07-23:
+`initialize` ok, `tools/list` returns **8 v2 tools**: `get_agentos_config`, `run_agent`, `run_team`,
+`run_workflow`, `continue_run`, `cancel_run`, `get_sessions`, `get_session_runs` — a much smaller,
+curated set than whatever the old :8001 door exposed (not independently diffed against the pre-
+migration tool list; if a tool you relied on is missing, it may have been intentionally dropped
+from the v2 surface, not a bug). `oc.py`'s `_mcp_client("agentos")` now attaches the same
+`OS_SECURITY_KEY` bearer the REST lane (`get_os_security_key()`) already parses — no separate
+credential to provision. If you see 401s against `:8000/mcp`, check that `infra-access.md` (or
+`OC_OS_SECURITY_KEY`) actually resolves — `oc doctor`'s "agentos-mcp" row now prints a
+`[key present/MISSING]` hint for exactly this reason.
 
 ## 6. OpenCode server API surface (162 paths from `/doc`, condensed)
 

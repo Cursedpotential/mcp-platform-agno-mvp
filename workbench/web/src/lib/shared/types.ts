@@ -1,4 +1,4 @@
-// Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: records, schemas, verify, parse-dryrun, flags)
+// Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: records, schemas, verify, parse-dryrun, flags; C4: knowledge search/browse + Graphiti pane types added 2026-07-23)
 /**
  * Types for the Knowledge Workbench staged-file record.
  *
@@ -521,4 +521,126 @@ export interface FlagUpdateRequest {
   status?: FlagStatus;
   notes?: string | null;
   link_artifact?: FlagLinkArtifact | null;
+}
+
+// ---------------------------------------------------------------------------
+// Knowledge (C4 — Milvus-backed search/browse, requirements sequencing §C4)
+// mirrors agno AgentOS's own built-in knowledge router
+// (agno/os/routers/knowledge/knowledge.py — POST /knowledge/search,
+// GET /knowledge/content), proxied read-only through app/service/knowledge.py
+// + app/runtime/knowledge.py. Field shapes verified against that agno source
+// directly (not the build brief's guess) — see app/service/knowledge.py's
+// module docstring for the full trace.
+// ---------------------------------------------------------------------------
+
+/** One hit from `GET /api/knowledge/search` — mirrors agno's `VectorSearchResult`. */
+export interface KnowledgeSearchHit {
+  id: string;
+  content: string;
+  name?: string | null;
+  /** Arbitrary metadata the knowledge doc was ingested with — includes
+   * "domain" for conversation docs (server/evidence/workflows.py sets it). */
+  meta_data?: Record<string, unknown> | null;
+  usage?: Record<string, unknown> | null;
+  reranking_score?: number | null;
+  content_id?: string | null;
+  content_origin?: string | null;
+  size?: number | null;
+}
+
+/** Shared pagination envelope agno's PaginatedResponse uses for both
+ * knowledge search and content-browse. */
+export interface KnowledgePageMeta {
+  page: number;
+  limit: number;
+  total_pages: number;
+  total_count: number;
+  search_time_ms?: number;
+}
+
+/** `GET /api/knowledge/search` response. */
+export interface KnowledgeSearchResponse {
+  data: KnowledgeSearchHit[];
+  meta: KnowledgePageMeta;
+}
+
+/** One row of `GET /api/knowledge/contents` — mirrors agno's `ContentResponseSchema`. */
+export interface KnowledgeContentRow {
+  id: string;
+  name?: string | null;
+  description?: string | null;
+  type?: string | null;
+  size?: string | null;
+  metadata?: Record<string, unknown> | null;
+  access_count?: number | null;
+  status?: string | null;
+  status_message?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+/** `GET /api/knowledge/contents` response. */
+export interface KnowledgeContentsResponse {
+  data: KnowledgeContentRow[];
+  meta: KnowledgePageMeta;
+}
+
+// ---------------------------------------------------------------------------
+// Graphiti (C4 — Graph memory pane, read-only knowledge-graph search)
+// mirrors the same three read tools the `grc` CLI (graphiti-client skill)
+// exposes over MCP (search_memory_facts / search_nodes / get_episodes),
+// proxied through app/service/graphiti.py + app/runtime/knowledge.py. This
+// is a parallel-verified contract (grc.py + its failure-modes.md were read
+// directly, not guessed) rather than an independently-built spine — same
+// posture as the Records types above re: "not independently verified" only
+// applies to spine-side contracts, NOT this one (Graphiti's tool shapes were
+// confirmed live 2026-07-19 per the graphiti-client skill).
+// ---------------------------------------------------------------------------
+
+/** One fact from `GET /api/graphiti/search?kind=facts`. */
+export interface GraphitiFact {
+  uuid: string;
+  fact: string;
+  valid_at?: string | null;
+  invalid_at?: string | null;
+  group_id?: string | null;
+  [key: string]: unknown;
+}
+
+/** `GET /api/graphiti/search?kind=facts` response. */
+export interface GraphitiFactsResponse {
+  facts: GraphitiFact[];
+  message?: string;
+}
+
+/** One entity node from `GET /api/graphiti/search?kind=nodes`. */
+export interface GraphitiNode {
+  uuid: string;
+  name: string;
+  labels?: string[];
+  summary?: string | null;
+  group_id?: string | null;
+  [key: string]: unknown;
+}
+
+/** `GET /api/graphiti/search?kind=nodes` response. */
+export interface GraphitiNodesResponse {
+  nodes: GraphitiNode[];
+  message?: string;
+}
+
+/** One episode from `GET /api/graphiti/episodes`. */
+export interface GraphitiEpisode {
+  uuid: string;
+  name?: string | null;
+  content?: string | null;
+  created_at?: string | null;
+  group_id?: string | null;
+  [key: string]: unknown;
+}
+
+/** `GET /api/graphiti/episodes` response. */
+export interface GraphitiEpisodesResponse {
+  episodes: GraphitiEpisode[];
+  message?: string;
 }

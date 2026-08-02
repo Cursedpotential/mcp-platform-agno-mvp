@@ -1,4 +1,4 @@
-// Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: records, schemas, verify, parse-dryrun, flags)
+// Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: records, schemas, verify, parse-dryrun, flags; C4: knowledge search/browse + Graphiti pane added 2026-07-23)
 /**
  * API client for the Knowledge Workbench.
  *
@@ -17,7 +17,12 @@ import type {
   FlagStatus,
   FlagTargetKind,
   FlagUpdateRequest,
+  GraphitiEpisodesResponse,
+  GraphitiFactsResponse,
+  GraphitiNodesResponse,
   HealthDepsResponse,
+  KnowledgeContentsResponse,
+  KnowledgeSearchResponse,
   ParseDryrunResponse,
   RecordMetaPatch,
   RecordRow,
@@ -340,6 +345,58 @@ export async function updateFlag(flagId: string, patch: FlagUpdateRequest) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(patch),
   });
+}
+
+// ---------------------------------------------------------------------------
+// Knowledge (C4 — Milvus-backed search/browse)
+// ---------------------------------------------------------------------------
+
+export interface SearchKnowledgeParams {
+  domain?: string;
+  limit?: number;
+}
+
+export async function searchKnowledge(query: string, params: SearchKnowledgeParams = {}) {
+  const qs = new URLSearchParams({ q: query });
+  if (params.domain) qs.set("domain", params.domain);
+  if (params.limit) qs.set("limit", String(params.limit));
+  return apiFetch<KnowledgeSearchResponse>(`/api/knowledge/search?${qs.toString()}`);
+}
+
+export interface ListKnowledgeContentsParams {
+  limit?: number;
+  offset?: number;
+}
+
+export async function listKnowledgeContents(params: ListKnowledgeContentsParams = {}) {
+  const qs = new URLSearchParams();
+  if (params.limit) qs.set("limit", String(params.limit));
+  if (params.offset) qs.set("offset", String(params.offset));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return apiFetch<KnowledgeContentsResponse>(`/api/knowledge/contents${suffix}`);
+}
+
+// ---------------------------------------------------------------------------
+// Graphiti (C4 — Graph memory pane, read-only)
+// ---------------------------------------------------------------------------
+
+export async function searchGraphitiFacts(query: string, limit?: number) {
+  const qs = new URLSearchParams({ q: query, kind: "facts" });
+  if (limit) qs.set("limit", String(limit));
+  return apiFetch<GraphitiFactsResponse>(`/api/graphiti/search?${qs.toString()}`);
+}
+
+export async function searchGraphitiNodes(query: string, limit?: number) {
+  const qs = new URLSearchParams({ q: query, kind: "nodes" });
+  if (limit) qs.set("limit", String(limit));
+  return apiFetch<GraphitiNodesResponse>(`/api/graphiti/search?${qs.toString()}`);
+}
+
+export async function listGraphitiEpisodes(last?: number) {
+  const qs = new URLSearchParams();
+  if (last) qs.set("last", String(last));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return apiFetch<GraphitiEpisodesResponse>(`/api/graphiti/episodes${suffix}`);
 }
 
 // ---------------------------------------------------------------------------

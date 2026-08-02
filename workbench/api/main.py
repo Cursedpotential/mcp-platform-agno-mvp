@@ -1,12 +1,14 @@
-# Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: inspect router — records/schemas/verify/flags)
-"""Knowledge Workbench API entrypoint — the C1-C3 Operator Console backend.
+# Byline: Claude Code · Sonnet (agent) · 2026-07-23 (C4: knowledge router — Knowledge browser + Graphiti pane)
+"""Knowledge Workbench API entrypoint — the C1-C4 Operator Console backend.
 
 Stages uploaded files locally (LanceDB whole-file store + object-store copy),
 starts/lists/inspects spine runs (custody -> parse -> store -> knowledge, via
 AGENTOS_API_URL's /v1/runs), proxies MCP tool servers for the Tool Explorer,
-and (C3) proxies the spine's record browser, PG/Milvus schema views, active
-hash verification, and corroboration flags. Never chunks, embeds, or writes
-Milvus/Postgres itself — see workbench/api/README.md.
+(C3) proxies the spine's record browser, PG/Milvus schema views, active hash
+verification, and corroboration flags, and (C4) proxies the spine's own
+Milvus-backed knowledge search/browse routes plus read-only Graphiti
+(knowledge-graph memory) search/episodes. Never chunks, embeds, or writes
+Milvus/Postgres/Neo4j itself — see workbench/api/README.md.
 """
 
 from __future__ import annotations
@@ -19,7 +21,19 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.config import settings
-from app.runtime import copilot, documents, files, health, inspect, metrics, promote, runs, tools, upload
+from app.runtime import (
+    copilot,
+    documents,
+    files,
+    health,
+    inspect,
+    knowledge,
+    metrics,
+    promote,
+    runs,
+    tools,
+    upload,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("workbench")
@@ -40,6 +54,7 @@ app.include_router(promote.router)
 app.include_router(documents.router)
 app.include_router(runs.router)
 app.include_router(inspect.router)
+app.include_router(knowledge.router)
 app.include_router(tools.router)
 app.include_router(copilot.router)
 app.include_router(metrics.router)

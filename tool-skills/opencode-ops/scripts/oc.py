@@ -14,7 +14,7 @@ Lanes NOT covered here (by design, avoid duplication):
 Never prints a full secret/token/provider-API-key -- only lengths/prefixes
 when diagnosing. See `oc doctor`.
 
-# Byline: Claude Code · Sonnet · 2026-07-20
+# Byline: Claude Code · Sonnet · 2026-07-20 (agno 2.8 MCP door migration :8001->:8000 + bearer, 2026-07-23)
 """
 from __future__ import annotations
 
@@ -57,6 +57,13 @@ OC_SERVER_PASSWORD = os.environ.get("OC_SERVER_PASSWORD")
 # behavior (shared default scope unless --directory is passed explicitly).
 OC_WORKSPACE = os.environ.get("OC_WORKSPACE")
 
+# agno 2.8 door migration (2026-07-23): agentos-mcp :8001 is RETIRED. The MCP
+# door is now mounted straight on agentos-api's own port -- streamable-HTTP,
+# REQUIRES Authorization: Bearer <OS_SECURITY_KEY> (verified live: initialize
+# ok, tools/list = 8 v2 tools: get_agentos_config, run_agent, run_team,
+# run_workflow, continue_run, cancel_run, get_sessions, get_session_runs).
+# _mcp_client("agentos") below attaches the same OS_SECURITY_KEY bearer
+# get_os_security_key() already parses for the REST agentos-api lane.
 AGENTOS_URL = os.environ.get("OC_AGENTOS_URL", "http://100.72.169.40:8000").rstrip("/")
 # agentos-mcp standalone service (:8001) retired 2026-07-23 — agno 2.8.0 fixed
 # the mounted-/mcp bug it worked around, so agentos-api's own :8000/mcp is now
@@ -314,7 +321,11 @@ class McpClient:
 
 def _mcp_client(server: str) -> McpClient:
     if server == "agentos":
-        return McpClient(AGENTOS_MCP_URL)
+        # agno 2.8: the mounted /mcp door requires the same OS_SECURITY_KEY
+        # bearer as every other gated route on agentos-api (see the
+        # AGENTOS_MCP_URL comment above) -- unlike the old agentos-mcp :8001
+        # door, which was unauthenticated.
+        return McpClient(AGENTOS_MCP_URL, bearer=get_os_security_key())
     if server == "contextforge":
         token = get_cf_token()
         if not token:
@@ -405,14 +416,19 @@ def cmd_doctor(args) -> int:
         except OcError as e:
             row("agentos-api: GET /info (bearer)", False, str(e)[:200])
 
-    # 5. agentos-mcp
+    # 5. agentos-mcp (agno 2.8: bearer-gated, same OS_SECURITY_KEY as /info)
+    mcp_key = get_os_security_key()
     try:
-        client = McpClient(AGENTOS_MCP_URL, timeout=args.timeout)
+        client = McpClient(AGENTOS_MCP_URL, bearer=mcp_key, timeout=args.timeout)
         t0 = time.time()
         client.initialize()
         tools = client.list_tools()
         ms = (time.time() - t0) * 1000
-        row("agentos-mcp: initialize + tools/list", len(tools) > 0, f"{AGENTOS_MCP_URL} -> {len(tools)} tools ({ms:.0f}ms)")
+        row(
+            "agentos-mcp: initialize + tools/list",
+            len(tools) > 0,
+            f"{AGENTOS_MCP_URL} -> {len(tools)} tools ({ms:.0f}ms) [key {_secret_hint(mcp_key)}]",
+        )
     except OcError as e:
         row("agentos-mcp: initialize + tools/list", False, str(e)[:200])
 

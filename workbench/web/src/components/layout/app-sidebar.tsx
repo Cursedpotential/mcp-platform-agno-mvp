@@ -1,9 +1,9 @@
-// Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: Records/Evidence Queue/Schemas nav entries + open-flags badge)
+// Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: Records/Evidence Queue/Schemas nav entries + open-flags badge; C4: Knowledge nav entry added 2026-07-23)
 "use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { PlayCircle, Wrench, Inbox, Brain, FileSearch, ListChecks, Database } from "lucide-react";
+import { PlayCircle, Wrench, Inbox, Brain, FileSearch, ListChecks, Database, BookOpen } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -20,15 +20,16 @@ import {
 import { useFailedRunsCount } from "@/lib/failed-runs-context";
 import { useOpenFlagsCount } from "@/lib/open-flags-context";
 
-// C1/C3 Operator Console nav: Runs (default landing) -> Records -> Tools ->
-// Intake -> Evidence Queue -> Schemas. "Files"/"Upload" retired — see
-// _stale/upload-page-pre-c1/ for the old route.
+// C1/C3/C4 Operator Console nav: Runs (default landing) -> Records -> Tools
+// -> Intake -> Evidence Queue -> Knowledge -> Schemas. "Files"/"Upload"
+// retired — see _stale/upload-page-pre-c1/ for the old route.
 const navItems = [
   { title: "Runs", href: "/runs", icon: PlayCircle },
   { title: "Records", href: "/records", icon: FileSearch },
   { title: "Tools", href: "/tools", icon: Wrench },
   { title: "Intake", href: "/intake", icon: Inbox },
   { title: "Evidence Queue", href: "/evidence-queue", icon: ListChecks },
+  { title: "Knowledge", href: "/knowledge", icon: BookOpen },
   { title: "Schemas", href: "/schemas", icon: Database },
 ];
 
