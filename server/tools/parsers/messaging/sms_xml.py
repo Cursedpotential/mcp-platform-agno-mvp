@@ -103,6 +103,13 @@ def _attachment_parts(elem: Element | None) -> list[dict[str, Any]]:
                 "ct": ct,
                 "name": part.attrib.get("cl") or part.attrib.get("name") or "",
                 "b64_len": len(data),
+                # Digest of the BASE64 TEXT, deliberately not the decoded bytes:
+                # an INTRA-EXPORT dedup key only. Not a durable attachment
+                # identity — the same bytes wrapped differently (76-col MIME vs
+                # unwrapped) hash differently, and we have NOT verified that
+                # SMS Backup & Restore emits canonical b64 across versions.
+                # Decode-then-hash when a cross-export identity is needed
+                # (2026-08-02 hashing audit, finding 3).
                 "b64_sha256": hashlib.sha256(data.encode("utf-8")).hexdigest() if data else None,
             }
         )

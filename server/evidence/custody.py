@@ -18,6 +18,7 @@ Pattern proven in extracted-code/sbv/sbv-ingestion.ts (hash -> insert -> rollbac
 from __future__ import annotations
 
 import hashlib
+import os
 import shutil
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -199,12 +200,24 @@ def ingest_artifact(src: str | Path, source_meta: dict | None = None, *, tier: s
             custody_tier=tier,
         )
 
-    # Write-once blob copy: <aa>/<sha256>/<original-name>
+    # Write-once blob copy: <aa>/<sha256>/<original-name>. Atomic + verified:
+    # copy to a temp name, re-hash the copy, os.replace() into place — a crash
+    # can never leave a partial file at the canonical sha-named path, and the
+    # post-copy hash proves the blob on disk IS the bytes the chain attests.
     blob_key = f"{sha_hex[:2]}/{sha_hex}/{path.name}"
     dest = blob_root() / blob_key
     if not dest.exists():
         dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(path, dest)
+        tmp = dest.with_name(dest.name + ".tmp-copy")
+        shutil.copyfile(path, tmp)
+        copied_hex = _sha256_file(tmp)
+        if copied_hex != sha_hex:
+            tmp.unlink(missing_ok=True)
+            raise RuntimeError(
+                f"blob copy verification failed for {path.name}: "
+                f"source {sha_hex[:12]}… vs copy {copied_hex[:12]}…"
+            )
+        os.replace(tmp, dest)
     # If it exists, content is identical by construction (path contains the sha).
 
     import json
@@ -213,9 +226,12 @@ def ingest_artifact(src: str | Path, source_meta: dict | None = None, *, tier: s
 
     with engine.begin() as conn:
         # 1) File-level SOURCE row FIRST. The evidence_hash_subject_ck CHECK
-        #    (migration 0005) requires every H1/H2 hash to carry source_id (or
-        #    file_node_id); only H3 chain hashes may omit it. Dedupe on the
-        #    UNIQUE(sha256) so re-ingest reuses the same source.
+        #    (live DDL captured in sql/_manual/20260802_reconcile_evidence_ddl.sql
+        #    — NOT in numbered migrations; the earlier "migration 0005" citation
+        #    here was wrong, 0005 is the workflow-run ledger) requires every
+        #    H1/H2 hash to carry source_id (or file_node_id); only H3 chain
+        #    hashes may omit it. Dedupe on the UNIQUE(sha256) so re-ingest
+        #    reuses the same source.
         source_id = conn.execute(
             text(
                 "INSERT INTO evidence.source "
@@ -295,10 +311,17 @@ def utcnow_iso() -> str:
 # unaltered file. See vendored/sbv/CUSTODY.md for the full H1/H2/H3 spec.
 # =====================================================================================
 
-# Canonicalization tags — MUST match vendored/sbv/internal/custody.go.
+# Canonicalization tags. H1/H2 match vendored/sbv/internal/custody.go.
+# H3 DIVERGES DELIBERATELY (2026-08-02 hashing audit): the bare "h3-chain-v1"
+# tag is ambiguous — the Case Bible vault writes an equally-valid H1-genesis
+# chain under the SAME tag. New rows written by THIS module carry a tag that
+# names the construction (SBV fold, genesis = empty string). Rows already
+# recorded with the legacy tag are NEVER relabelled (that would be tampering);
+# disambiguate legacy rows by writer, per docs/DECISION_LOG.md 2026-08-02.
 H1_CANON = "h1-rawbytes-v1"
 H2_CANON = "h2-rawelement-v1"
-H3_CANON = "h3-chain-v1"
+H3_CANON = "h3-chain-sbv-genesisempty-v1"
+H3_CANON_LEGACY = "h3-chain-v1"  # pre-2026-08-02 rows; ambiguous, read-only
 
 
 def _source_id_for_hash(conn, evidence_hash_id: str) -> str | None:

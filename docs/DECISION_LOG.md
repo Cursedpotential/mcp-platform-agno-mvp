@@ -75,3 +75,15 @@ Lanes: **A** = restructure · **B** = ingestion/table redesign · **C** = infra/
 use `→ author ADR-NNNN` when the decision is architecturally significant and needs its own ADR
 (then create it and keep the ref). A decision with no applicable ADR is fine — but the check
 is mandatory, not optional.
+
+## 2026-08-02 — H3 chain tags disambiguated (hashing audit finding 2)
+Two valid H3 constructions shared the tag `h3-chain-v1`: the SBV Go fold
+(genesis `""`, `sha256(prev + "\n" + h2)`) and the Case Bible chain (genesis
+`H1`, `sha256(prev_hex + h2_hex)`, 1,918 links live-verified). New rows
+written by `server/evidence/custody.py` now carry
+`h3-chain-sbv-genesisempty-v1`; the Case Bible writer (out-of-repo, case-bible
+vault tooling) should adopt `h3-chain-h1genesis-v1`. **Crosswalk:** rows
+tagged `h3-chain-v1` predate this decision and are disambiguated by WRITER
+(SBV import batches → SBV construction; Case Bible vault → H1-genesis), never
+by relabelling — recorded custody rows are append-only. _Byline: Claude Code ·
+Fable 5 · 2026-08-02._

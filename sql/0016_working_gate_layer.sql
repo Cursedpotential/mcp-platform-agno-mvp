@@ -264,7 +264,7 @@ CREATE TABLE working.candidate_entity (
                        CHECK (jsonb_typeof(attrs) = 'object'),
 
     -- Dedup key: same normalized entity from the same source row is one candidate.
-    content_sha256     TEXT NOT NULL,
+    content_sha256     BYTEA NOT NULL CHECK (octet_length(content_sha256) = 32),
 
     review_state       TEXT NOT NULL DEFAULT 'pending'
                        CHECK (review_state IN ('pending','approved','rejected',
@@ -317,7 +317,7 @@ CREATE TABLE working.candidate_fact (
     confidence         DOUBLE PRECISION CHECK (confidence >= 0 AND confidence <= 1),
     attrs              JSONB NOT NULL DEFAULT '{}'
                        CHECK (jsonb_typeof(attrs) = 'object'),
-    content_sha256     TEXT NOT NULL,
+    content_sha256     BYTEA NOT NULL CHECK (octet_length(content_sha256) = 32),
 
     review_state       TEXT NOT NULL DEFAULT 'pending'
                        CHECK (review_state IN ('pending','approved','rejected',
@@ -369,7 +369,7 @@ CREATE TABLE working.candidate_event (
     confidence         DOUBLE PRECISION CHECK (confidence >= 0 AND confidence <= 1),
     attrs              JSONB NOT NULL DEFAULT '{}'
                        CHECK (jsonb_typeof(attrs) = 'object'),
-    content_sha256     TEXT NOT NULL,
+    content_sha256     BYTEA NOT NULL CHECK (octet_length(content_sha256) = 32),
 
     review_state       TEXT NOT NULL DEFAULT 'pending'
                        CHECK (review_state IN ('pending','approved','rejected',

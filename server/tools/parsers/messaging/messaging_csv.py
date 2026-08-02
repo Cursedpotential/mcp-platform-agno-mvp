@@ -37,6 +37,8 @@ OWNER = "owner"
 # Header aliases (normalized: lowercased, whitespace-collapsed). First match wins.
 _TS_KEYS = (
     "message date",
+    "readable_date",  # SMS Backup & Restore CSV (human-readable; epoch is in "date")
+    "readable date",
     "date",
     "timestamp",
     "time",
@@ -48,7 +50,18 @@ _TS_KEYS = (
     "sent at",
 )
 _TEXT_KEYS = ("text", "message", "body", "content", "message text", "msg")
-_SENDER_KEYS = ("sender name", "sender", "from", "from name", "contact", "sender_name", "name", "author")
+_SENDER_KEYS = (
+    "sender name",
+    "sender",
+    "from",
+    "from name",
+    "contact",
+    "contact_name",  # SMS Backup & Restore CSV
+    "contact name",
+    "sender_name",
+    "name",
+    "author",
+)
 _SENDER_ID_KEYS = (
     "sender id",
     "from number",
@@ -150,6 +163,15 @@ def _direction(row: dict[str, str]) -> str | None:
         val = str(row[k]).strip().lower()
         if k in ("is from me", "fromme"):  # boolean column
             return "outbound" if val in ("1", "true", "yes") else "inbound"
+        if k == "type" and val.isdigit():
+            # SMS Backup & Restore numeric codes: 1=received, 2=sent,
+            # 4/5/6=outbox/failed/queued (all outbound-authored). 3=draft
+            # stays undirected rather than guessing.
+            if val == "1":
+                return "inbound"
+            if val in ("2", "4", "5", "6"):
+                return "outbound"
+            continue
         if val in _OUTBOUND_TOKENS or any(t in val.split() for t in _OUTBOUND_TOKENS):
             return "outbound"
         if val in _INBOUND_TOKENS or any(t in val.split() for t in _INBOUND_TOKENS):
