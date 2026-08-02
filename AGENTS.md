@@ -156,3 +156,9 @@ AI commits carry: `Co-Authored-By: <agent name and model> <noreply@anthropic.com
 - os.agno.com free tier accepts the remote instance via localhost trickery: the browser does the connecting, so `ssh -i ~/.ssh/ovh -N -L 7777:100.72.169.40:8000 root@100.72.169.40` makes the platform "http://localhost:7777" — CORS already allows the os.agno.com origin. One-click launcher: `C:\Users\matts\bin\agentos-control.cmd` (Desktop shortcut "AgentOS Control Plane").
 
 <!-- End claude-reflect section -->
+
+### Session Learnings 2026-08-02
+- Test data must never become canonical: design-phase ingests are disposable and re-runnable from originals; only reference.* and hand-labeled gold are precious. Wipe + re-ingest once the design settles (owner ruling; executed 2026-08-02).
+- Config accepted ≠ feature working: agno accepted `EntityMemoryConfig(mode=PROPOSE)` for months and silently did nothing. Verify features via docs + an observed write, never via config acceptance.
+- Custody canon tags name the exact construction: new H3 rows carry `h3-chain-sbv-genesisempty-v1`; legacy `h3-chain-v1` rows are read-only and disambiguated by writer (see docs/DECISION_LOG.md 2026-08-02).
+- Remove a worktree when its branch merges — 13 stale ones hid an unmerged security fix. Quarantine untracked remnants before `--force` removal.
