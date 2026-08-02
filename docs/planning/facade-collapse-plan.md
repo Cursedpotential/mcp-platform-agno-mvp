@@ -6,7 +6,7 @@
 > Tracked TODO: `docs/COORDINATION.md` line 98 ("FACADE COLLAPSE + SEMANTICA MOVE").
 > Supersedes the MCP-exposure decision in `docs/planning/sbv-mcp-integration-plan.md` (that plan's
 > "Facade + ContextForge REST-wrap" decision, line 15, is the thing this plan replaces — SBV's
-> other build tasks there, e.g. `sbv_sms.py` as primary SMS-XML parser, are unaffected and stay).
+> other build tasks there, e.g. `sbv_sms.py` as ~~primary~~ shadow SMS-XML parser (DEMOTED 2026-08-02 (gap-review P0-1: unscoped /api/activity)), are unaffected and stay).
 
 > ---
 > ## ⚠️ SUPERSEDED / PARTIALLY MOOT — corrected 2026-07-10

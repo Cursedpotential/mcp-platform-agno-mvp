@@ -143,7 +143,9 @@ def _map_sms(
     raw_type = attrib.get("type") or "0"
     direction = _SMS_TYPE.get(raw_type, "unknown")
     other = _counterparty(attrib)
-    role = OWNER if raw_type == "2" else other
+    # 2 sent / 4 outbox / 5 failed / 6 queued are all owner-authored
+    # (was "2" only; fixed 2026-08-02 for parity with messaging_csv + sbv_sms).
+    role = OWNER if raw_type in ("2", "4", "5", "6") else other
     attrs: dict[str, Any] = {
         "channel": channel,
         "direction": direction,

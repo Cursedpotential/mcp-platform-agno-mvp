@@ -13,7 +13,8 @@ Workflows registered here:
                     -> knowledge engine (domain-tagged). THE BOOTSTRAP VERTICAL.
 
   sms-xml         : "SMS Backup & Restore" XML (sms/mms/call) -> custody ->
-                    parse.sms-xml (SBV PRIMARY, sms_xml.py FALLBACK via registry
+                    parse.sms-xml (primary = first registry candidate; SBV DEMOTED 2026-08-02 (gap-review P0-1: unscoped /api/activity),
+                    so sms_xml.py is the effective primary
                     substitution) -> working.normalized_record -> knowledge.
                     Workflow A (the SBV vertical). Mirrors chat-transcript.
 
@@ -566,9 +567,10 @@ def build_sms_xml_workflow(
     parent_run_id: str | None = None,
 ) -> tuple[Workflow, dict[str, Any]]:
     """Workflow A — the SBV SMS-XML vertical. Same custody->parse->store->knowledge
-    spine as chat-transcript, but resolves capability `parse.sms-xml`: the
-    registry returns SBV first (messages.sms-xml-sbv) and the pure-Python parser
-    (messages.sms-xml) as fallback.
+    spine as chat-transcript, but resolves capability `parse.sms-xml` and takes the FIRST candidate as
+    primary. ~~The registry returns SBV first~~ — SBV is DEMOTED 2026-08-02 (gap-review P0-1: unscoped /api/activity),
+    gated out of resolve() unless SBV_PRIMARY_ENABLED is set, so the pure-Python
+    parser (messages.sms-xml) is the effective primary.
 
     NO SILENT SUBSTITUTION (owner mandate 2026-07-02): if the PRIMARY tool fails,
     the workflow STOPS by default and says exactly what failed. Passing
@@ -677,7 +679,7 @@ def build_sms_xml_workflow(
 
     wf = Workflow(
         name="sms-xml",
-        description="SMS-XML ingestion (SBV primary / custom fallback): custody -> parse -> store -> knowledge",
+        description="SMS-XML ingestion (pure-Python primary; SBV demoted to shadow 2026-08-02): custody -> parse -> store -> knowledge",
         steps=[
             # on_error="fail" overrides agno's actual Step default
             # (OnError.skip — see the C2.6 module-docstring note above) so an
@@ -795,7 +797,7 @@ async def run_sms_xml(
 
 NAMED_WORKFLOWS: dict[str, str] = {
     "chat-transcript": "AI-chat exports -> custody -> parse -> analysis + knowledge (bootstrap vertical)",
-    "sms-xml": "SMS Backup & Restore XML (SBV primary / custom fallback) -> custody -> parse -> analysis + knowledge (Workflow A)",
+    "sms-xml": "SMS Backup & Restore XML (pure-Python primary; SBV shadow since 2026-08-02) -> custody -> parse -> analysis + knowledge (Workflow A)",
 }
 
 # C0 operator console: seed order for ops.workflow_run_stage per named

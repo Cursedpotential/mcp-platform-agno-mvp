@@ -87,3 +87,18 @@ tagged `h3-chain-v1` predate this decision and are disambiguated by WRITER
 (SBV import batches → SBV construction; Case Bible vault → H1-genesis), never
 by relabelling — recorded custody rows are append-only. _Byline: Claude Code ·
 Fable 5 · 2026-08-02._
+
+## 2026-08-02 — SBV demoted from forensic-primary to shadow (gap-review P0)
+The parser-gap review (docs/HANDOFF-2026-08-02-sbv-chatminer-parser-gap-review.md)
+found the SBV adapter reads `GET /api/activity` after upload — the service
+account's ENTIRE persistent corpus, not the new import — so a second upload can
+attribute earlier records to the new artifact's custody event (false
+provenance). `accept()` now also requires `SBV_PRIMARY_ENABLED` (default
+unset); `messages.sms-xml` (pure-Python) is the effective primary and prod
+flips to it on next exec-tier deploy (intended). SBV stays callable by id for
+shadow/diagnostic runs. Its mapper was fixed in the same commit (bodyless
+retention + outbound role types 2/4/5/6) so shadow output is comparison-grade.
+**Restore conditions** = the review's acceptance criteria: upload returns an
+immutable import_id, activity reads scoped to it, primary/fallback equivalence
+on a golden corpus, mandatory custody binding. _Byline: Claude Code · Fable 5 ·
+2026-08-02._

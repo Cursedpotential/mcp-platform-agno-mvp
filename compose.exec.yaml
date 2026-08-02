@@ -101,6 +101,10 @@ services:
       # not through the tools-facade proxy. Value UNCHANGED from before the split.
       SBV_BASE_URL: ${SBV_BASE_URL:-http://platform-tools:8085}
       SBV_SERVICE_USER: ${SBV_SERVICE_USER:-mcp_service}
+      # SBV_PRIMARY_ENABLED: demotion override (2026-08-02 gap-review P0-1).
+      # Default UNSET -> pure-Python sms_xml is the auto-selected parser;
+      # setting this is an explicit owner decision, not deployment plumbing.
+      SBV_PRIMARY_ENABLED: ${SBV_PRIMARY_ENABLED:-}
       SBV_SERVICE_PASS: ${SBV_SERVICE_PASS:?set SBV_SERVICE_PASS in Coolify app env}
     # No depends_on agentos-db — it's on another box. WAIT_FOR_DB handles startup.
     # DOMAIN PHASE — main API. Re-enable + set API_DOMAIN to expose publicly:
