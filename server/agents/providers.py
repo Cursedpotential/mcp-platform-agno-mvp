@@ -251,8 +251,21 @@ def build_learning(db: Any, model: Any, knowledge: Any) -> Any:
         user_profile=UserProfileConfig(mode=LearningMode.ALWAYS),
         user_memory=UserMemoryConfig(mode=LearningMode.AGENTIC),
         session_context=SessionContextConfig(mode=LearningMode.ALWAYS, enable_planning=True),
-        entity_memory=EntityMemoryConfig(mode=LearningMode.PROPOSE),  # HITL
-        learned_knowledge=LearnedKnowledgeConfig(  # HITL
+        # AGENTIC is the ONLY mode entity memory supports. This was PROPOSE
+        # until 2026-08-01, intending a human gate — but there is no extraction
+        # pass behind entity memory, so PROPOSE could never have worked: the
+        # agent records entities through its tools or not at all. agno 2.8.0
+        # accepted the value and silently did nothing; 2.8.6 added a
+        # ``__post_init__`` that raises, which made ANY upgrade past 2.8.0 fail
+        # at import of ``server.api.main``. Verified against both versions.
+        # LearningMode.PROPOSE is documented "learned_knowledge only"
+        # (agno/learn/config.py:41); the entity-memory gate has to come from the
+        # working-layer review flow instead, not from this config.
+        entity_memory=EntityMemoryConfig(mode=LearningMode.AGENTIC),
+        # PROPOSE is genuinely implemented here — the store builds an approval
+        # prompt and LearningMachine keeps chat history for the confirmation
+        # turn. This one is a real human gate; leave it.
+        learned_knowledge=LearnedKnowledgeConfig(
             mode=LearningMode.PROPOSE,
             knowledge=knowledge,
             namespace="platform",
