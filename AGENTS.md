@@ -47,6 +47,12 @@ Consequences that are easy to get wrong:
   Graphiti, Neo4j. Vector search is the main leak: embeddings have no sense of time,
   so a future document scores exactly as similar as a contemporaneous one. Filtering
   after top-k silently shrinks k, sometimes to zero, with no error.
+  ⚠ **Weaviate-specific landmine (verified in agno 2.8.0 source, 2026-08-02):**
+  agno's Weaviate adapter SILENTLY DROPS `agno.filters` FilterExpr lists
+  (`log_warning` + `filters = None`) — only **dict filters**
+  (`{"domain": ..., "disclosure_tier": ...}`) are applied. A horizon filter
+  written as a FilterExpr passes tests on other vectordbs and applies ZERO
+  filters in prod. Dict filters only, always, on Weaviate.
 - **Contamination is silent.** One leaked future fact makes the ignorant agent merely
   *smarter*; nothing fails and the delta is quietly worthless.
 - **Graphiti holds the ignorant agent's own accumulating belief state** as it walks —
