@@ -32,7 +32,7 @@ browse knowledge. Manual access to registered tools/workflows is table stakes
   (entities/facts) both in v1 scope (C4).
 - **First light**: Run Console — real chat export watched stage-by-stage.
 
-## Stage telemetry (C0 ledger: analysis.workflow_run + workflow_run_stage)
+## Stage telemetry (C0 ledger: ops.workflow_run + workflow_run_stage)
 Typed per-stage outputs written AS stages execute:
 custody {sha256, artifact_id, duplicate, blob path} · parse {parser_id,
 attempts, schema_recognized, record_count, sample_records, parse_stats,
@@ -87,7 +87,7 @@ skipped}.
    D-034 + the chat-sample facet maps in docs/planning/chat-sample-analysis/,
    local/gitignored)**: the raw early dump IS C1–C5 (pour everything now;
    blobs immutable, records re-processable). Extraction = D-series post-store
-   passes over analysis.normalized_record (never file re-parses), one facet
+   passes over working.normalized_record (never file re-parses), one facet
    per workflow, each a ledger-tracked run visible in the console:
    - code extraction: fenced-block + tree-sitter/AST (smart-explore engine)
      → code knowledge collection (codestral-embed lane)

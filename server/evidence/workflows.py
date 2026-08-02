@@ -9,17 +9,17 @@ attempt — the substitution mechanic the mesh is built around.
 
 Workflows registered here:
   chat-transcript : AI-chat exports (ChatGPT / claude.ai / Claude Code JSONL /
-                    markdown) -> custody -> parse -> analysis.normalized_record
+                    markdown) -> custody -> parse -> working.normalized_record
                     -> knowledge engine (domain-tagged). THE BOOTSTRAP VERTICAL.
 
   sms-xml         : "SMS Backup & Restore" XML (sms/mms/call) -> custody ->
                     parse.sms-xml (SBV PRIMARY, sms_xml.py FALLBACK via registry
-                    substitution) -> analysis.normalized_record -> knowledge.
+                    substitution) -> working.normalized_record -> knowledge.
                     Workflow A (the SBV vertical). Mirrors chat-transcript.
 
 Both runners accept an optional `run_id` (C0 operator-console run ledger,
 server/evidence/run_ledger.py): when set, every step is wrapped so
-analysis.workflow_run_stage rows land AS STAGES EXECUTE instead of only in
+ops.workflow_run_stage rows land AS STAGES EXECUTE instead of only in
 the end-of-run summary dict. run_id=None (the CLI's path) is unchanged.
 
 C2 additions (`mode` + `custody_tier` params, sql/0006_run_gates_and_custody_tier.sql):
@@ -43,7 +43,7 @@ C2.6 additions (resilience + observability, 2026-07-20/21):
   `POST /v1/runs/{id}/retry {"from_stage": "knowledge"}`: a child run that
   SKIPS custody/parse/store (recorded 'skipped', content "inherited from
   parent") and re-runs ONLY the knowledge stage over the parent's already-
-  stored analysis.normalized_record rows.
+  stored working.normalized_record rows.
 - Every Step() below now sets `on_error="fail"` explicitly. agno's own
   `Step.on_error` field defaults to `OnError.skip` (its class docstring
   claims 'fail' is the default — it is not; verify against
@@ -96,7 +96,7 @@ logger = logging.getLogger("evidence.runs")
 #
 # Runners accept `run_id: str | None = None`. When it's set, every step
 # executor is wrapped (stage_start before / stage_finish after) so
-# analysis.workflow_run_stage fills in AS STAGES EXECUTE instead of only at
+# ops.workflow_run_stage fills in AS STAGES EXECUTE instead of only at
 # the end (the old black-box summary dict). When run_id is None (the CLI's
 # default path, unchanged), none of this runs — zero behavior change.
 # ---------------------------------------------------------------------------
@@ -133,7 +133,7 @@ def _ledger_stage_output(name: str | None, ctx: dict[str, Any]) -> dict[str, Any
     if name == "store":
         return {
             "rows_stored": ctx.get("stored"),
-            "table": "analysis.normalized_record",
+            "table": "working.normalized_record",
             # C2.6 requirement 2 — every store_records() DB-write attempt
             # (n, error truncated to 200 chars, waited_s); [] when the
             # insert succeeded on the first try or store was skipped.
@@ -210,7 +210,7 @@ def _wrap_step_for_ledger(step: Step, seq: int, run_id: str, ctx: dict[str, Any]
 
 # ---------------------------------------------------------------------------
 # C2 operator console: supervised gates + operator abort, keyed off
-# analysis.workflow_run.gate_state (sql/0006_run_gates_and_custody_tier.sql).
+# ops.workflow_run.gate_state (sql/0006_run_gates_and_custody_tier.sql).
 # ---------------------------------------------------------------------------
 
 _GATE_POLL_INTERVAL_S = 2
@@ -231,7 +231,7 @@ def _wrap_step_for_run_control(
     executor, so stage_start/stage_finish always run first, before any
     gate/abort logic below sees the stage as done.
 
-    Two behaviors, both keyed off analysis.workflow_run.gate_state:
+    Two behaviors, both keyed off ops.workflow_run.gate_state:
 
     1. Operator ABORT check — runs at EVERY stage boundary, in BOTH 'auto'
        and 'supervised' mode (one cheap read_gate() call): POST
@@ -308,7 +308,7 @@ def _wrap_step_for_run_control(
 
 
 # agno.run.base.RunStatus values ('PENDING'/'RUNNING'/'COMPLETED'/'PAUSED'/
-# 'CANCELLED'/'ERROR') -> analysis.workflow_run.status CHECK set ('running'/
+# 'CANCELLED'/'ERROR') -> ops.workflow_run.status CHECK set ('running'/
 # 'paused'/'completed'/'failed'). NOTE: none of agno's failure statuses
 # actually contain the substring "FAIL" (it's 'ERROR'/'CANCELLED') — mapping
 # by table, not by substring match.
@@ -397,7 +397,7 @@ def _store_step_impl(ctx: dict[str, Any]) -> StepOutput:
             msg = (
                 f"store: duplicate artifact — custody already had these bytes, 0 NEW rows stored, "
                 f"BUT parent run {parent_run_id}'s knowledge stage had FAILED — auto-routing "
-                f"{len(records)} existing record(s) from analysis.normalized_record into the "
+                f"{len(records)} existing record(s) from working.normalized_record into the "
                 f"knowledge stage so the docs are not silently dropped (see the knowledge stage's "
                 f"docs_ingested below)"
             )
@@ -439,7 +439,7 @@ def _store_step_impl(ctx: dict[str, Any]) -> StepOutput:
     ctx["store_attempts"] = attempts_log
     ctx["stored"] = store_records(records, artifact, attempts_log=attempts_log)
     note = " [ALT-PARSE — primary unavailable, see alt_parse_detail]" if ctx.get("alt_parse") else ""
-    return StepOutput(content=f"store: {ctx['stored']} rows -> analysis.normalized_record{note}", success=True)
+    return StepOutput(content=f"store: {ctx['stored']} rows -> working.normalized_record{note}", success=True)
 
 
 async def _knowledge_step_impl(ctx: dict[str, Any], knowledge: Any) -> StepOutput:
@@ -798,7 +798,7 @@ NAMED_WORKFLOWS: dict[str, str] = {
     "sms-xml": "SMS Backup & Restore XML (SBV primary / custom fallback) -> custody -> parse -> analysis + knowledge (Workflow A)",
 }
 
-# C0 operator console: seed order for analysis.workflow_run_stage per named
+# C0 operator console: seed order for ops.workflow_run_stage per named
 # workflow (both build_* functions above wire identical Step name/order —
 # custody -> parse -> store -> knowledge). Keep in lockstep with the two
 # build_*_workflow functions if their Step lists ever diverge.
@@ -913,7 +913,7 @@ async def run_knowledge_from_store(
     `_retry_from_knowledge`).
 
     Re-runs ONLY the knowledge stage, over the PARENT run's already-stored
-    analysis.normalized_record rows (`load_records_for_artifact`) — custody/
+    working.normalized_record rows (`load_records_for_artifact`) — custody/
     parse/store are never touched: this run's stages 1-3 are recorded
     'skipped' with content "inherited from parent" (seeded by the caller via
     seed_stages(run_id, WORKFLOW_STAGE_NAMES[workflow]) before this runs).
@@ -969,7 +969,7 @@ async def run_knowledge_from_store(
         if not records:
             error_message = (
                 f"knowledge: parent {parent_run_id}'s artifact {artifact_id} has 0 rows in "
-                "analysis.normalized_record — nothing to re-ingest"
+                "working.normalized_record — nothing to re-ingest"
             )
             logger.error("run %s: %s", run_id, error_message)
             stage_finish(

@@ -24,7 +24,7 @@
 
 ## Carried blockers (07-13 handoff)
 - **ContextForge transport check** — Streamable HTTP vs SSE-only upstream; closes ADR-0037 blocker (Graphiti auth door, retire no-auth nginx :8071).
-- **Identity-spine verification** — does resolution stamp entity keys onto `analysis.normalized_record` at write time? Read `normalize.py` + entity tables.
+- **Identity-spine verification** — does resolution stamp entity keys onto `working.normalized_record` at write time? Read `normalize.py` + entity tables.
 
 ## Housekeeping
 - Commit ADR drafts **0036–0041** + SESSION-HANDOFF-2026-07-13.md (all uncommitted on `docs/adr-graphiti-memory`).

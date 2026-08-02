@@ -10,7 +10,7 @@ sole-writer guarantee (this module never imports anything that writes to the
 `evidence` schema).
 
 Routes:
-  GET   /v1/records                        — paged analysis.normalized_record
+  GET   /v1/records                        — paged working.normalized_record
                                               browser (addendum 1).
   GET   /v1/inspect/schemas                 — live PG table/column + Milvus
                                               collection introspection.
@@ -116,12 +116,12 @@ def _jsonb(value: Any) -> Any:
 
 
 # =============================================================================
-# GET /v1/records — paged analysis.normalized_record browser (addendum 1)
+# GET /v1/records — paged working.normalized_record browser (addendum 1)
 # =============================================================================
 
 
 def _row_to_record(row: dict[str, Any]) -> dict[str, Any]:
-    """Shape one analysis.normalized_record row for the API response.
+    """Shape one working.normalized_record row for the API response.
 
     DEVIATION from the task spec's literal column list ("record id, idx/seq,
     record_type, role/participants, ts fields, text ... attrs") — read
@@ -164,7 +164,7 @@ def _row_to_record(row: dict[str, Any]) -> dict[str, Any]:
 
 def _resolve_artifact_id(artifact_id: str | None, run_id: str | None) -> str:
     """GET /v1/records' artifact_id resolution: explicit artifact_id wins;
-    otherwise resolve via run_id -> analysis.workflow_run.artifact_id (the
+    otherwise resolve via run_id -> ops.workflow_run.artifact_id (the
     run ledger's own `get_run`, so this stays consistent with run_routes.py's
     view of a run). 422 if neither is given; 404 if run_id doesn't resolve to
     an artifact yet (e.g. the run hasn't reached the custody stage)."""
@@ -203,7 +203,7 @@ def _register_records_routes(app: FastAPI) -> None:
 
         with _get_engine().connect() as conn:
             total = conn.execute(
-                text(f"SELECT count(*) FROM analysis.normalized_record WHERE {where_clause}"), params
+                text(f"SELECT count(*) FROM working.normalized_record WHERE {where_clause}"), params
             ).scalar()
             rows = (
                 conn.execute(
@@ -211,7 +211,7 @@ def _register_records_routes(app: FastAPI) -> None:
                         "SELECT id, artifact_id, record_type, source, conversation_id, role, participants, "
                         "content, occurred_at, knowledge_time, disclosure_tier, attrs, created_at, "
                         "row_number() OVER (PARTITION BY artifact_id ORDER BY occurred_at NULLS LAST, id) AS seq "
-                        f"FROM analysis.normalized_record WHERE {where_clause} "
+                        f"FROM working.normalized_record WHERE {where_clause} "
                         "ORDER BY occurred_at NULLS LAST, id "
                         "LIMIT :limit OFFSET :offset"
                     ),
@@ -617,7 +617,7 @@ def _register_record_meta_route(app: FastAPI) -> None:
             row = (
                 conn.execute(
                     text(
-                        "UPDATE analysis.normalized_record "
+                        "UPDATE working.normalized_record "
                         "SET attrs = attrs || CAST(:patch AS jsonb) "
                         "WHERE id = :id "
                         "RETURNING id, artifact_id, record_type, source, conversation_id, role, "

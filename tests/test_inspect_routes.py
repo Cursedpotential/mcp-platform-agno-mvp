@@ -50,7 +50,7 @@ def test_migration_0007_defines_corroboration_flag_idempotently():
     assert "CREATE INDEX IF NOT EXISTS idx_corroboration_flag_target" in sql_text
     assert "CREATE INDEX IF NOT EXISTS idx_normrec_attrs" in sql_text
     # No new columns on normalized_record — attrs is reused (see file header).
-    assert "ALTER TABLE analysis.normalized_record ADD COLUMN" not in sql_text
+    assert "ALTER TABLE working.normalized_record ADD COLUMN" not in sql_text
 
 
 # --- fake SQLAlchemy engine (mirrors tests/test_run_ledger.py's _FakeEngine) --

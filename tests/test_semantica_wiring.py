@@ -136,11 +136,11 @@ def test_seed_config_seeds_from_postgres_ontology(wiring: Callable[..., ModuleTy
     cfg = wiring().seed_config()
     assert cfg["seed_from"] == "postgres"
     assert set(cfg["ontology_tables"]) == {
-        "analysis.behavior_category",
-        "analysis.detection_pattern",
-        "analysis.pattern_lexicon",
+        "reference.behavior_category",
+        "reference.detection_pattern",
+        "reference.pattern_lexicon",
     }
-    assert cfg["entity_tables"] == ["analysis.entity", "analysis.entity_alias"]
+    assert cfg["entity_tables"] == ["working.entity", "working.entity_alias"]
     assert cfg["seal_policy"] == "skip_sealed_lexicon"  # sealed REDACTED rows never enter the graph
     assert cfg["extend_not_replace"] is True
 

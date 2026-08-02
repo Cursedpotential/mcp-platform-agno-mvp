@@ -20,7 +20,7 @@
 
 ```
 ingestion (custody-hashed evidence pipeline, agentos-api)
-  ├─ rows        → PG analysis.normalized_record (bitemporal, provenance)  [unchanged]
+  ├─ rows        → PG working.normalized_record (bitemporal, provenance)  [unchanged]
   ├─ embeddings  → WEAVIATE (replaces Milvus for all platform writes)
   ├─ entities    → Graphiti temporal KG (agent memory, Neo4j `memory` DB)
   └─ evidence KG → Semantica → Neo4j `evidence` DB (DozerDB split, ADR-0036)
@@ -47,7 +47,7 @@ retrieval / analysis
 > — cycle detection, alienation trajectories, community detection, bridge/anomaly analysis — are
 > whole-graph MAGE algorithms federation can't run). DuckDB is EMBEDDED in PG (pg_duckdb), so the
 > sync job's only relational source is PG.
-0. **RAM sizing check** on ovh-data first (Memgraph is in-memory; project node/edge counts from `analysis.normalized_record` + entity tables — expected small at ~20K events, but verify headroom). **data-memgql: KILLED entirely (owner 2026-07-28)** — Coolify app deleted; remove `deploy/data-memgql.yaml` from the branch (git history keeps it).
+0. **RAM sizing check** on ovh-data first (Memgraph is in-memory; project node/edge counts from `working.normalized_record` + entity tables — expected small at ~20K events, but verify headroom). **data-memgql: KILLED entirely (owner 2026-07-28)** — Coolify app deleted; remove `deploy/data-memgql.yaml` from the branch (git history keeps it).
 1. **Deploy `memgraph/memgraph-mage`** as `data-memgraph` on ovh-data — own Coolify app, tailnet-only, pinned tag, same deploy pattern/gotchas as data-weaviate.
 2. **Identity spine FIRST** (promoted from Phase 4 — gates everything): verify/fix entity-key stamping in `normalize.py` so one human = one node across phone/email/platform identities. Without it, community/centrality results are garbage.
 3. **Projection sync job**: PG → Memgraph, idempotent Cypher MERGE, incremental + full-rebuild capable, scheduled (5-min or on-ingest). **Event time** (valid_from/valid_to) on edges; PG record ids on every node/edge (ADR-0041 guardrails 2/5). Smoke-test Bolt driver + Memgraph-vs-Neo4j Cypher dialect first (guardrail 4).

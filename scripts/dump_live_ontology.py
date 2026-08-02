@@ -21,11 +21,11 @@ from sqlalchemy import create_engine, text  # noqa: E402
 from server.core.url import db_url  # noqa: E402
 
 TABLES = [
-    "analysis.detection_pattern_set",
-    "analysis.behavior_category",
-    "analysis.detection_pattern",
-    "analysis.pattern_lexicon",
-    "analysis.behavior_category_mcl",
+    "reference.detection_pattern_set",
+    "reference.behavior_category",
+    "reference.detection_pattern",
+    "reference.pattern_lexicon",
+    "reference.behavior_category_mcl",
 ]
 
 OUT_DIR = Path(__file__).resolve().parent.parent / "live-dumps"

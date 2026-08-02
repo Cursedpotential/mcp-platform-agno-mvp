@@ -28,7 +28,7 @@ DozerDB-vs-Neo4j connector compatibility.
 **Variant B — classic Memgraph as analytical projection** (fallback if Zero's licensing or
 maturity disqualifies it):
 
-- **Source of truth unchanged**: evidence graph (Semantica→Neo4j `evidence` DB), memory graph (Graphiti→Neo4j `memory` DB), rows in PG (`analysis.normalized_record`).
+- **Source of truth unchanged**: evidence graph (Semantica→Neo4j `evidence` DB), memory graph (Graphiti→Neo4j `memory` DB), rows in PG (`working.normalized_record`).
 - **Projection pipeline**: a one-way sync job materializes selected subgraphs + temporal edges (valid_from/valid_to from the bitemporal record) into Memgraph. Rebuildable from scratch at any time — Memgraph being in-memory-first is acceptable *because* it holds only derived data.
 - **What Memgraph buys**: MAGE algorithms (community detection, PageRank, dynamic/streaming algos), deep path traversals (WSP/ASP/KSP with filter lambdas), vector search (2.22+), and hybrid GraphRAG retrieval per the memgraph-graph-rag blueprint — i.e., the cycle-detection / antecedent-reconstruction analysis lane gets a fast graph-compute engine without touching evidence stores.
 - **Orchestration (settled 2026-07-27)**: **Agno-native** — everything still ties into Agno; no

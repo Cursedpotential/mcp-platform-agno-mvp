@@ -14,8 +14,8 @@ Placement decision (BOARD 2026-07-01, ADR ~0035), REVISED per ADR-0036
     are permission-isolated and MUST stay separate; neither writes through
     the other, and no Graphiti coupling exists on this path.
   * Seed-first    → before Semantica extracts, we SEED it from Postgres: the
-    behavioral ontology (analysis.behavior_category / detection_pattern) and any
-    resolved analysis.entity rows. Semantica extends the seeded ontology rather
+    behavioral ontology (reference.behavior_category / detection_pattern) and any
+    resolved working.entity rows. Semantica extends the seeded ontology rather
     than inventing a parallel one.
 
 NET-NEW VALUE Semantica adds (why wire it at all): cross-source CONFLICT
@@ -98,11 +98,11 @@ def seed_config() -> dict[str, Any]:
     return {
         "seed_from": "postgres",
         "ontology_tables": [
-            "analysis.behavior_category",  # 153 categories (polarity/severity/mcl)
-            "analysis.detection_pattern",  # 512 patterns
-            "analysis.pattern_lexicon",  # 51 terms (sealed stay REDACTED until out-of-band loader)
+            "reference.behavior_category",  # 153 categories (polarity/severity/mcl)
+            "reference.detection_pattern",  # 512 patterns
+            "reference.pattern_lexicon",  # 51 terms (sealed stay REDACTED until out-of-band loader)
         ],
-        "entity_tables": ["analysis.entity", "analysis.entity_alias"],
+        "entity_tables": ["working.entity", "working.entity_alias"],
         "seal_policy": "skip_sealed_lexicon",  # never pull REDACTED placeholders into the graph
         "extend_not_replace": True,
     }

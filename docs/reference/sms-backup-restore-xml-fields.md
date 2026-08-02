@@ -8,7 +8,7 @@ The contract for every SMS-XML parser (SBV primary, `sms_xml.py` fallback):
 capture guarantee), and the fields below additionally map to typed columns.
 Java `date` values are **epoch milliseconds** → `to_timestamp(date/1000.0)`.
 
-## `<sms>` → `analysis.message` (platform='sms')
+## `<sms>` → `working.message` (platform='sms')
 
 | XML field | Meaning (official) | Typed destination | Notes |
 |---|---|---|---|
@@ -26,7 +26,7 @@ Java `date` values are **epoch milliseconds** → `to_timestamp(date/1000.0)`.
 | `readable_date` | human-readable date | `raw_ts` | the original-format string, kept verbatim |
 | `contact_name` | contact name at export time | `platform_attrs.contact_name` | also future `entity_alias` evidence — name-as-saved at a point in time |
 
-## `<mms>` → `analysis.message` + `analysis.attachment` + `analysis.message_participant`
+## `<mms>` → `working.message` + `working.attachment` + `working.message_participant`
 
 | XML | Typed destination | Notes |
 |---|---|---|
@@ -43,7 +43,7 @@ Java `date` values are **epoch milliseconds** → `to_timestamp(date/1000.0)`.
 | `addr.type` **137=From · 151=To · 130=CC · 129=BCC** | `message_participant.role` `'from'/'to'/'cc'/'bcc'` | maps 1:1 onto the live CHECK set |
 | `addr.address` / `charset` | `participant_raw`+`participant_e164` / raw_data | |
 
-## `<call>` → `analysis.call_log`
+## `<call>` → `working.call_log`
 
 | XML field | Meaning | Typed destination | Notes |
 |---|---|---|---|
@@ -71,7 +71,7 @@ Java `date` values are **epoch milliseconds** → `to_timestamp(date/1000.0)`.
 4. **Parser contract**: SBV primary, fallback only via `allow_fallback=True`, and
    any fallback run + its records are flagged `alt_parse` (+`alt_parse_detail`)
    — no silent substitution (owner mandate 2026-07-02).
-5. This doc seeds `analysis.format_resolver` rows (migration 0008) for
+5. This doc seeds `reference.format_resolver` rows (migration 0008) for
    `sms-backup-restore-xml` sms/mms/call — the mapping above as data.
 6. **No record may be dropped for having no body** (added 2026-08-01 after a live
    run). A `<sms>`/`<mms>` with a timestamp and a counterparty is an event whether

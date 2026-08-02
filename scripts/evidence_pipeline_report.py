@@ -98,7 +98,7 @@ BLOCKS: list[tuple[str, str, str, str]] = [
         "Duplicates across devices or mediums are corroboration and are never deduped "
         "away.",
         "SELECT attestation_status, count(*) AS records "
-        "FROM analysis.vw_record_attestations GROUP BY 1 ORDER BY 2 DESC",
+        "FROM working.vw_record_attestations GROUP BY 1 ORDER BY 2 DESC",
     ),
     (
         "clocks",
@@ -119,7 +119,7 @@ BLOCKS: list[tuple[str, str, str, str]] = [
         "lineage should not exist.",
         "SELECT original_filename, raw_table, record_index, parser_version, "
         "deriver_version, record_type, occurred_at, acquisition_method, content_preview "
-        "FROM analysis.vw_derivation_lineage ORDER BY occurred_at DESC LIMIT :sample",
+        "FROM working.vw_derivation_lineage ORDER BY occurred_at DESC LIMIT :sample",
     ),
     (
         "orphans",
@@ -129,14 +129,14 @@ BLOCKS: list[tuple[str, str, str, str]] = [
         """
         SELECT 'spine rows with no raw lineage' AS check_name,
                count(*) AS found, 0 AS expected
-          FROM analysis.normalized_record WHERE derived_from_raw_id IS NULL
+          FROM working.normalized_record WHERE derived_from_raw_id IS NULL
         UNION ALL
         SELECT 'duplicate content_hash within one source',
                (SELECT count(*) FROM (SELECT source_id, content_hash
                   FROM evidence.raw_sms GROUP BY 1,2 HAVING count(*) > 1) d), 0
         UNION ALL
         SELECT 'attestations with neither event nor record',
-               (SELECT count(*) FROM analysis.event_source_record
+               (SELECT count(*) FROM working.event_source_record
                  WHERE event_id IS NULL AND record_id IS NULL), 0
         UNION ALL
         SELECT 'ingest runs still marked running',
@@ -146,7 +146,7 @@ BLOCKS: list[tuple[str, str, str, str]] = [
                (SELECT count(*) FROM evidence.vw_artifacts_without_claim), 0
         UNION ALL
         SELECT 'spine rows whose raw row is superseded',
-               (SELECT count(*) FROM analysis.normalized_record nr
+               (SELECT count(*) FROM working.normalized_record nr
                   JOIN evidence.vw_raw_all r ON r.id = nr.derived_from_raw_id
                  WHERE r.superseded_by IS NOT NULL), 0
         """,

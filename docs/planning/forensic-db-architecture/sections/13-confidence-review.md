@@ -72,7 +72,7 @@ CREATE TABLE analysis.score (
 | high | 0.65–0.84 | "well supported" |
 | very_high | 0.85–1.00 | "strongly supported / independently confirmed" |
 
-Thresholds live in `analysis.score_band_config` (a versioned table), **not** hard-coded in SQL — so the R5 `0.6` HIGH/MED/LOW cliff becomes an auditable, change-logged parameter (CONTEXT_PACK §2, `vw_forensic_evidence_package` → parameterized `evidence_export`).
+Thresholds live in `reference.score_band_config` (a versioned table), **not** hard-coded in SQL — so the R5 `0.6` HIGH/MED/LOW cliff becomes an auditable, change-logged parameter (CONTEXT_PACK §2, `vw_forensic_evidence_package` → parameterized `evidence_export`).
 
 **Calibration note:** all model-derived `value`s are stored *raw* and a calibrated value is recorded alongside in `method_detail.calibrated` once a labeled review set exists (see §7 feedback loop). Until calibration data exists, model scores are **capped at `high` band** for any court-export path — a model alone can never assert `very_high`.
 
@@ -95,8 +95,8 @@ CREATE TABLE analysis.scoring_run (
   status           text NOT NULL DEFAULT 'running'  -- 'running'|'ok'|'error'
 );
 
--- analysis.score_band_config : versioned thresholds — NO magic numbers in views (kills R5's 0.6 cliff).
-CREATE TABLE analysis.score_band_config (
+-- reference.score_band_config : versioned thresholds — NO magic numbers in views (kills R5's 0.6 cliff).
+CREATE TABLE reference.score_band_config (
   config_version   text PRIMARY KEY,
   bands            jsonb NOT NULL,       -- [{band, lo, hi, phrasing}, ...]
   effective_from   timestamptz NOT NULL DEFAULT now(),
@@ -344,7 +344,7 @@ Outcome: stored, fully scored, preserved with provenance — **not** promoted to
 
 ### 9. Implementation checklist (developer-facing)
 
-1. Create `analysis.score`, `analysis.scoring_run`, `analysis.review_task`, `analysis.review_decision`, `analysis.score_band_config` in the `agno-postgres:18-duckdb` image (ADR-0013); all append-only, `uuidv7()` PKs.
+1. Create `analysis.score`, `analysis.scoring_run`, `analysis.review_task`, `analysis.review_decision`, `reference.score_band_config` in the `agno-postgres:18-duckdb` image (ADR-0013); all append-only, `uuidv7()` PKs.
 2. Wire the 10 axes as pluggable scorers (rule modules + model calls via LiteLLM :4000 / glm-5.1; embeddings via Milvus per ADR-0026) with the floor/cap rules in §3 enforced as DB CHECK + service-layer guards.
 3. Implement triggers R1–R13 as the `review-gatekeeper` agent's blocking gates (ADR-0025); no write that hits a trigger advances assertion-type without a `review_decision`.
 4. Replace `vw_forensic_evidence_package`'s hard-coded `0.6` with the parameterized `evidence_export` reading `score_band_config` (CONTEXT_PACK §2).
