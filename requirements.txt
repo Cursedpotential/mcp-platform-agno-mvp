@@ -26,6 +26,18 @@ authlib==1.7.2
 joserfc==1.7.4  # HOTFIX 2026-08-01: unconditional dep of authlib (no marker)
 cachetools==7.1.5
 certifi==2026.7.22
+# HOTFIX 2026-08-02: fastmcp is required by agno's `AgentOS.get_app()` whenever
+# `mcp_server=True` (server/api/main.py), but NOTHING declares it — `pip show
+# fastmcp` in the live image reports an EMPTY `Required-by:`. It is an orphan
+# that got into the image once and was never captured here. Since deploys run
+# `uv pip sync requirements.txt --system`, which REMOVES anything unlisted, the
+# next clean rebuild would have deleted it and crash-looped agentos-api on
+# `ImportError: 'fastmcp' not installed. It is required for 'mcp_server=True'`.
+# Verified both ends 2026-08-02: prod has 3.4.5 with no dependents; the local
+# venv, which lacks it, fails `import server.api.main` with exactly that error.
+# Same failure class as the authlib/validators hotfix above, and the same root
+# cause — see that note on generate_requirements.sh missing --python-platform.
+fastmcp==3.4.5
 cffi==2.1.0
 charset-normalizer==3.4.9
 click==8.4.2
