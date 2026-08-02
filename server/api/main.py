@@ -226,6 +226,22 @@ def _build_app() -> Any:
     if digest is not None:
         agents["document_digest"] = digest
 
+    # Claude Code as an AgentOS agent (owner sign-off 2026-08-02: "integrate
+    # the Claude Code Agent SDK and use the long-lived OAuth token").
+    # Standalone solo agent, NOT inside the Router topology — least
+    # disruptive slot; promotion into Builder is a later ADR if wanted.
+    # Auth: the Claude Agent SDK subprocess inherits this process's env, and
+    # CLAUDE_CODE_OAUTH_TOKEN is the native long-lived subscription token
+    # (`claude setup-token`) the bundled binary consumes directly. Personal
+    # single-owner platform per the usage-scope decision; defaults stay
+    # read-only + permission_mode="plan" so the HITL posture holds.
+    import os as _os
+
+    from server.agents.claude_code_agent import build_claude_code_agent, claude_code_available
+
+    if claude_code_available() and _os.environ.get("CLAUDE_CODE_OAUTH_TOKEN"):
+        agents["claude_code"] = build_claude_code_agent(db=admin_db)
+
     app = FastAPI(title="MCP Platform Assistant — AgentOS")
     # These three registries get the LIVE HANDLE (not `knowledge`, the
     # one-time snapshot above) so they benefit from a later background

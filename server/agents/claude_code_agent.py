@@ -1,13 +1,12 @@
 """server/agents/claude_code_agent.py — Claude Code as an AgentOS agent.
 
-STATUS: staged, NOT mounted into the live topology. ``build_claude_code_agent``
-is importable and functional but is deliberately not called from
-``factory.build_agent_team()`` / ``server/api/main.py`` — wiring it into the
-Root Router is an architecture-level topology change (ADR-0006) that needs
-explicit owner sign-off, not something a config/audit task should do
-silently. This module is the concrete "file, call site, config" wiring plan
-made runnable, ready for a one-line addition to ``build_agent_team`` once
-approved.
+STATUS: MOUNTED 2026-08-02 (owner sign-off: "integrate the Claude Code Agent
+SDK and use the long-lived OAuth token") — wired in ``server/api/main.py`` as
+a standalone solo agent, gated on ``claude_code_available()`` AND
+``CLAUDE_CODE_OAUTH_TOKEN`` being present, so a box without the dep or the
+token boots identically to before. It sits OUTSIDE the Router topology;
+promoting it into Builder (vs alongside/replacing dev_copilot) remains an
+open ADR. ~~staged, NOT mounted~~ (2026-08-01 status, superseded).
 
 ## What this actually is
 
