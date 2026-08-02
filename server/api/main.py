@@ -43,6 +43,7 @@ from server.agents.providers import build_context, build_learning
 from server.core.knowledge_handle import KnowledgeHandle, resolve_knowledge
 from server.core.settings import build_model
 from server.core import create_knowledge, get_agno_db, get_postgres_db
+from server.api.workflow_registry import registered_workflows
 from server.core.session import DB_ID
 from server.core.url import db_url
 
@@ -250,6 +251,15 @@ def _build_app() -> Any:
         # `_auto_discover_knowledge_instances`'s isinstance(k, Knowledge)
         # filter doesn't have to special-case a None entry.
         knowledge=[knowledge] if knowledge is not None else [],
+        # The evidence workflows existed but were never handed to AgentOS, so
+        # `GET /workflows` returned [] and `POST /workflows/{id}/runs` did not
+        # exist — the Studio Workflows panel was empty and the only way to run
+        # an ingest was the CLI. Registered as WorkflowFactory (not Workflow)
+        # because the builders close over a per-request file path; agno invokes
+        # the factory per request with the caller's validated input.
+        # `registered_workflows` never raises — registration is a convenience
+        # surface and must not be able to crash-loop the boot path.
+        workflows=registered_workflows(db, knowledge),
         base_app=app,
         enable_mcp_server=True,  # serve the OS as an MCP server at /mcp (extracted standalone by app/mcp_main.py — mounted /mcp 500s, see that file)
         on_route_conflict="preserve_base_app",
