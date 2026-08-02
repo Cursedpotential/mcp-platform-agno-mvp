@@ -11,6 +11,46 @@ Pro se family-law evidence + analysis + legal-strategy platform on Agno AgentOS.
 Evidence custody → parse → normalize → store → export. Analysis over a
 bitemporal graph. AI Legal Team (to build).
 
+## WHY THIS EXISTS — the knowledge-horizon mechanism
+
+**Read this before proposing anything about storage, retrieval, memory, agents, or
+schema. It is the point of the project, and it is counter-intuitive enough that
+designs which ignore it come out subtly wrong.** Full text:
+`docs/PROJECT_CANON.md` §1. Owner, 2026-08-01: *"this is the single most important
+aspect of this whole project."*
+
+The platform reconstructs **how a person realizes they were abused**, by running the
+same evidence past agents with **different knowledge horizons** and diffing them.
+
+- **The ignorant agent** starts knowing nothing and walks forward, living events as
+  they were actually discovered. Its horizon **advances at each step** — this is a
+  walk over N horizons, not one query. Gaslighting works here, and only here.
+- **The hindsight agent** sees everything at once, including facts acquired years later.
+- **The delta between what those two agents experience IS the deceit, the manipulation,
+  and the gaslighting** — "what you were led to believe vs what was true vs when you
+  found out." That delta is the deliverable. Not a timeline; the delta.
+
+**A "pass" is a knowledge horizon — a retrieval filter bound to an agent, NOT a table,
+lane, or destination.** Owner, 2026-08-01: *"ultimately it's just a permissions thing,
+and which agents have hindsight."* How many passes exist is a workflow decision.
+
+Consequences that are easy to get wrong:
+
+- **One store, filtered per agent.** Do NOT design parallel as-lived / hindsight
+  stores. Everything is written once carrying `occurred_at` (valid time),
+  `knowledge_time`, and `disclosure_tier` — live enum `ai.disclosure_horizon`
+  (`contemporaneous` / `hindsight` / `discovered`) on `analysis.normalized_record`.
+- **Extraction is not analysis.** Semantica may read everything; it forms no beliefs.
+  The horizon discipline belongs at the AGENT layer, never the extraction layer.
+- **Enforce the horizon as a PRE-filter in every store** — Postgres, Weaviate,
+  Graphiti, Neo4j. Vector search is the main leak: embeddings have no sense of time,
+  so a future document scores exactly as similar as a contemporaneous one. Filtering
+  after top-k silently shrinks k, sometimes to zero, with no error.
+- **Contamination is silent.** One leaked future fact makes the ignorant agent merely
+  *smarter*; nothing fails and the delta is quietly worthless.
+- **Graphiti holds the ignorant agent's own accumulating belief state** as it walks —
+  it is not a filtered copy of the evidence.
+
 ## Stack
 
 Agno 2.8.0 · PostgreSQL 18 (pg_duckdb + pgvector + PostGIS) · Neo4j + Graphiti
