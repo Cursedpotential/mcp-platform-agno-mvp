@@ -47,6 +47,7 @@ DEFINE FIELD knowledge_time  ON entity TYPE datetime;
 DEFINE FIELD disclosure_tier ON entity TYPE string DEFAULT 'contemporaneous'
     ASSERT $value IN ['contemporaneous','hindsight','discovered'];
 DEFINE FIELD promoted_from   ON entity TYPE string;            -- working.candidate_* UUID
+DEFINE FIELD recorded_at     ON entity TYPE datetime DEFAULT time::now(); -- transaction time
 DEFINE FIELD attrs           ON entity FLEXIBLE TYPE object DEFAULT {};
 DEFINE INDEX entity_normalized ON entity FIELDS normalized_name;
 DEFINE INDEX entity_ktime      ON entity FIELDS knowledge_time;
@@ -64,6 +65,7 @@ DEFINE FIELD knowledge_time  ON event TYPE datetime;
 DEFINE FIELD disclosure_tier ON event TYPE string DEFAULT 'contemporaneous'
     ASSERT $value IN ['contemporaneous','hindsight','discovered'];
 DEFINE FIELD promoted_from   ON event TYPE string;
+DEFINE FIELD recorded_at     ON event TYPE datetime DEFAULT time::now(); -- transaction time
 DEFINE FIELD attrs           ON event FLEXIBLE TYPE object DEFAULT {};
 DEFINE INDEX event_occurred ON event FIELDS occurred_at;
 DEFINE INDEX event_ktime    ON event FIELDS knowledge_time;
@@ -80,6 +82,7 @@ DEFINE FIELD knowledge_time  ON fact TYPE datetime;
 DEFINE FIELD disclosure_tier ON fact TYPE string DEFAULT 'contemporaneous'
     ASSERT $value IN ['contemporaneous','hindsight','discovered'];
 DEFINE FIELD promoted_from   ON fact TYPE string;
+DEFINE FIELD recorded_at     ON fact TYPE datetime DEFAULT time::now(); -- transaction time
 DEFINE FIELD attrs           ON fact FLEXIBLE TYPE object DEFAULT {};
 -- Platform embedder is nvidia/nv-embed-v1 (4096-d). Changing embedder =
 -- re-embed the store; mixed dims hard-error.
@@ -153,9 +156,20 @@ DEFINE FIELD formed_at_step ON belief TYPE record<walk_step>;
 DEFINE FIELD statement      ON belief TYPE string;
 DEFINE FIELD confidence     ON belief TYPE option<float>
     ASSERT $value = NONE OR ($value >= 0.0 AND $value <= 1.0);
-DEFINE FIELD superseded_by  ON belief TYPE option<record<belief>>; -- NONE = current
+-- Bitemporal bounds (graphrag-temporal). held_from = the horizon at which the
+-- belief formed (valid time); held_to uses a FAR-FUTURE SENTINEL, never NULL,
+-- so "current beliefs" is a plain indexed range hit, not a null-scan.
+-- recorded_at = transaction time. Supersession SETS held_to + superseded_by;
+-- it never deletes — the invalidated belief IS the evidence of manipulation.
+DEFINE FIELD held_from      ON belief TYPE datetime;
+DEFINE FIELD held_to        ON belief TYPE datetime DEFAULT d'9999-12-31T00:00:00Z';
+DEFINE FIELD recorded_at    ON belief TYPE datetime DEFAULT time::now();
+DEFINE FIELD superseded_by  ON belief TYPE option<record<belief>>; -- set with held_to
 DEFINE FIELD based_on       ON belief TYPE option<array<record>>;  -- events/facts cited
 DEFINE INDEX belief_run ON belief FIELDS run;
+-- Current state per run: WHERE run = $run AND held_to = d'9999-12-31T00:00:00Z'.
+-- Belief-state as of horizon T: WHERE run = $run AND held_from <= T AND held_to > T.
+DEFINE INDEX belief_run_held ON belief FIELDS run, held_to;
 
 -- The deliverable is the DELTA: current beliefs of a completed ignorant run
 -- vs the hindsight facts over the same span. Computed by a hindsight-side
