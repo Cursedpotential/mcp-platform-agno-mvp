@@ -13,7 +13,7 @@ registry (`tools/`) and the G4 gateway (`tool_finder/`) both moved out to
 |---|---|
 | `custody.py` | THE single entry gate. `ingest_artifact()`: sha256 (H1) → dedupe → write-once blob → append-only `evidence` schema row. Also cross-checks SBV's independently-derived H1/H2/H3 chain hashes (`verify_sbv_import`). **The ONLY writer of the `evidence` schema.** H1/H2/H3 hashing happens BEFORE normalize — custody is upstream of everything. |
 | `normalize.py` | **Deprecated re-export shim** (ADR-0035) — `from server.contracts.records import *`. Do not add new code here; import `server.contracts.records` directly. Kept for stragglers, nothing deleted. |
-| `store.py` | Persists normalized records to `analysis.normalized_record` + feeds the knowledge engine (Weaviate `Platform_knowledge`, ADR-0040, domain-tagged). |
+| `store.py` | Persists normalized records to `working.normalized_record` + feeds the knowledge engine (Weaviate `Platform_knowledge`, ADR-0040, domain-tagged). |
 | `workflows.py` | Named, custody-gated workflows on native `agno.workflow` (`chat-transcript`, `sms-xml`). Each parse step resolves the best-fit tool from `server.tools.registry` by capability, with automatic substitution on rejection. |
 | `cli.py` | `python -m server.evidence ...` — `import`, `tools`, `workflows`, `verify`. |
 | `config/` | Evidence-domain config. |

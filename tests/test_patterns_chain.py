@@ -137,14 +137,14 @@ def test_validation_flags_bad_rows(tmp_path):
     bad = tmp_path / "0009_bad.sql"
     bad.write_text(
         """
-INSERT INTO analysis.behavior_category (...)
+INSERT INTO reference.behavior_category (...)
 SELECT ... FROM (VALUES
  ('dup_cat','Dup','negative',5,'{j}','{}',false,'x'),
  ('dup_cat','Dup again','sideways',99,'{z}','{}',false,'x')
 ) AS v(category_id, label, polarity, default_severity, mcl_factors, aliases, is_case_specific, source)
 ON CONFLICT DO NOTHING;
 
-INSERT INTO analysis.detection_pattern (...)
+INSERT INTO reference.detection_pattern (...)
 SELECT ... CROSS JOIN (VALUES
  ('ghost_cat','regex','([unclosed',7,'x')
 ) AS v(category_id, match_type, pattern, severity, source)

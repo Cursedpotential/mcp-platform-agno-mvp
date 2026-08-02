@@ -1,8 +1,8 @@
 """
 evidence/detection.py — behavioral DETECTION RUNNER.
 
-Scans every ``analysis.normalized_record`` against the seeded behavioral
-ontology (``analysis.detection_pattern`` + ``analysis.behavior_category``,
+Scans every ``working.normalized_record`` against the seeded behavioral
+ontology (``reference.detection_pattern`` + ``reference.behavior_category``,
 migration 0006: 512 patterns / 153 categories / 51 lexicon terms) and writes
 one ``analysis.pattern_finding`` per (record × pattern-match), so downstream
 review/scoring can work off structured hits instead of raw text.
@@ -33,8 +33,8 @@ The runner is:
   * dry-run-first  — run(dry_run=True) wraps the whole pass in one transaction
                      and ROLLS BACK, reporting exactly what *would* be written.
 
-This module reads analysis.normalized_record and writes analysis.pattern_finding
-(+ one analysis.processing_run provenance row). It is PIPELINE-owned evidence/*
+This module reads working.normalized_record and writes analysis.pattern_finding
+(+ one ops.processing_run provenance row). It is PIPELINE-owned evidence/*
 machinery; the live write is HITL/APPROVALS-gated.
 """
 
@@ -69,7 +69,7 @@ _RECORD_TYPE_TO_SUBJECT = {
 
 
 # ---------------------------------------------------------------------------
-# Pattern model (mirrors analysis.detection_pattern ⋈ behavior_category)
+# Pattern model (mirrors reference.detection_pattern ⋈ behavior_category)
 # ---------------------------------------------------------------------------
 @dataclass(frozen=True)
 class Pattern:
@@ -231,8 +231,8 @@ _LOAD_PATTERNS_SQL = """
 SELECT dp.id, dp.pattern_set_id, dp.category_id, dp.subcategory,
        dp.match_type::text AS match_type, dp.pattern, dp.keywords,
        dp.severity, dp.score, dp.bias_caution, dp.authored_perspective, dp.source
-FROM analysis.detection_pattern dp
-JOIN analysis.detection_pattern_set ps ON ps.id = dp.pattern_set_id
+FROM reference.detection_pattern dp
+JOIN reference.detection_pattern_set ps ON ps.id = dp.pattern_set_id
 WHERE dp.is_active AND ps.is_active
 """
 
@@ -335,7 +335,7 @@ def run(dry_run: bool = True, limit: Optional[int] = None, actor: str = "evidenc
         # replayable=true — pin the module + git HEAD so the run is replayable.
         prov = conn.execute(
             text(
-                "INSERT INTO analysis.processing_run "
+                "INSERT INTO ops.processing_run "
                 "(run_type, run_purpose, status, actor, tool_or_model, code_ref, "
                 " ran_local_only, cloud_exposure, human_review_requirement, "
                 " replayable, started_at) "
@@ -350,7 +350,7 @@ def run(dry_run: bool = True, limit: Optional[int] = None, actor: str = "evidenc
             },
         ).scalar()
 
-        q = "SELECT id, record_type, content FROM analysis.normalized_record WHERE content IS NOT NULL ORDER BY id"
+        q = "SELECT id, record_type, content FROM working.normalized_record WHERE content IS NOT NULL ORDER BY id"
         if limit is not None:
             q += f" LIMIT {int(limit)}"
 
@@ -375,7 +375,7 @@ def run(dry_run: bool = True, limit: Optional[int] = None, actor: str = "evidenc
 
         conn.execute(
             text(
-                "UPDATE analysis.processing_run SET status = :st, finished_at = now(), "
+                "UPDATE ops.processing_run SET status = :st, finished_at = now(), "
                 "counts_processed = :n, summary = :sm WHERE run_id = :rid"
             ),
             {

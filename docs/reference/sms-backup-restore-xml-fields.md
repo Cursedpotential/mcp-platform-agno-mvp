@@ -1,13 +1,14 @@
 # SMS Backup & Restore XML — field reference & schema mapping (AUTHORITATIVE)
 
 > _Byline: Claude Code · Fable 5 · 2026-07-02 · Source: official SyncTech field documentation (provided by owner 2026-07-02)_
+> _Amended: Claude Code · Opus 5 (1M) · 2026-08-01 — cross-cutting rules 6 and 7 added after a real 636 MiB export was ingested end to end._
 
 The contract for every SMS-XML parser (SBV primary, `sms_xml.py` fallback):
 **every XML attribute lands in `raw_data` verbatim under its original name** (the
 capture guarantee), and the fields below additionally map to typed columns.
 Java `date` values are **epoch milliseconds** → `to_timestamp(date/1000.0)`.
 
-## `<sms>` → `analysis.message` (platform='sms')
+## `<sms>` → `working.message` (platform='sms')
 
 | XML field | Meaning (official) | Typed destination | Notes |
 |---|---|---|---|
@@ -25,7 +26,7 @@ Java `date` values are **epoch milliseconds** → `to_timestamp(date/1000.0)`.
 | `readable_date` | human-readable date | `raw_ts` | the original-format string, kept verbatim |
 | `contact_name` | contact name at export time | `platform_attrs.contact_name` | also future `entity_alias` evidence — name-as-saved at a point in time |
 
-## `<mms>` → `analysis.message` + `analysis.attachment` + `analysis.message_participant`
+## `<mms>` → `working.message` + `working.attachment` + `working.message_participant`
 
 | XML | Typed destination | Notes |
 |---|---|---|
@@ -42,7 +43,7 @@ Java `date` values are **epoch milliseconds** → `to_timestamp(date/1000.0)`.
 | `addr.type` **137=From · 151=To · 130=CC · 129=BCC** | `message_participant.role` `'from'/'to'/'cc'/'bcc'` | maps 1:1 onto the live CHECK set |
 | `addr.address` / `charset` | `participant_raw`+`participant_e164` / raw_data | |
 
-## `<call>` → `analysis.call_log`
+## `<call>` → `working.call_log`
 
 | XML field | Meaning | Typed destination | Notes |
 |---|---|---|---|
@@ -70,5 +71,20 @@ Java `date` values are **epoch milliseconds** → `to_timestamp(date/1000.0)`.
 4. **Parser contract**: SBV primary, fallback only via `allow_fallback=True`, and
    any fallback run + its records are flagged `alt_parse` (+`alt_parse_detail`)
    — no silent substitution (owner mandate 2026-07-02).
-5. This doc seeds `analysis.format_resolver` rows (migration 0008) for
+5. This doc seeds `reference.format_resolver` rows (migration 0008) for
    `sms-backup-restore-xml` sms/mms/call — the mapping above as data.
+6. **No record may be dropped for having no body** (added 2026-08-01 after a live
+   run). A `<sms>`/`<mms>` with a timestamp and a counterparty is an event whether
+   or not it carries text. Attachment-only MMS — a photo, video, or voice note sent
+   with no caption — are the common case: **516 of 7,815 MMS** in
+   `sms-20260709205641.xml`. Keep them with empty content, flag `body_present=false`,
+   and record each non-SMIL part's content type, filename, byte length and a
+   **digest of its base64** — never the payload. That digest is the record's only
+   identity: without it, two captionless photos to the same number in the same
+   second are byte-identical and the raw dedup index collapses one away.
+7. **Reconcile against the count the export declares about itself.** The root
+   element carries `count`; store it as `evidence.artifact_metadata.record_count_claimed`
+   and compare on every ingest. That comparison is what exposed rule 6 — the parser
+   had reported 13,148 for a file declaring 13,664, with no error. A shortfall is a
+   QC finding, not a rounding difference; a surplus over `parsed - dedup_collapses`
+   is unexplained loss and must roll the batch back.

@@ -2,7 +2,7 @@
 evidence/store.py — persist normalized records + feed the knowledge engine.
 
 Two sinks (P2 scope):
-  1. analysis.normalized_record — the relational home of every canonical record,
+  1. working.normalized_record — the relational home of every canonical record,
      carrying the bitemporal fields (occurred_at / knowledge_time / disclosure_tier).
   2. The domain-partitioned KNOWLEDGE engine (Weaviate collection `Platform_knowledge`,
      ADR-0040 — vectors in Weaviate, contents in Postgres): transcripts are re-rendered
@@ -234,7 +234,7 @@ def store_records(
     artifact: ArtifactRef,
     attempts_log: list[dict[str, Any]] | None = None,
 ) -> int:
-    """Batch-insert canonical records into analysis.normalized_record.
+    """Batch-insert canonical records into working.normalized_record.
 
     `attempts_log` (C2.6 requirement 2, optional — default None preserves
     the exact pre-C2.6 behavior for any other caller): when given, the
@@ -268,7 +268,7 @@ def store_records(
         with _get_engine().begin() as conn:
             conn.execute(
                 text(
-                    "INSERT INTO analysis.normalized_record "
+                    "INSERT INTO working.normalized_record "
                     "(artifact_id, record_type, source, conversation_id, role, participants, "
                     " content, occurred_at, knowledge_time, disclosure_tier, attrs) "
                     "VALUES (:artifact_id, :record_type, :source, :conversation_id, :role, "
@@ -283,7 +283,7 @@ def store_records(
 
 
 def load_records_for_artifact(artifact_id: str) -> list[NormalizedRecord]:
-    """Rebuild NormalizedRecord objects from analysis.normalized_record for
+    """Rebuild NormalizedRecord objects from working.normalized_record for
     one artifact — the read-side counterpart to `store_records()`.
 
     Used by the knowledge-from-store retry path (C2.6 requirement 1,
@@ -301,7 +301,7 @@ def load_records_for_artifact(artifact_id: str) -> list[NormalizedRecord]:
                 text(
                     "SELECT record_type, source, conversation_id, role, participants, "
                     "content, occurred_at, knowledge_time, disclosure_tier, attrs "
-                    "FROM analysis.normalized_record WHERE artifact_id = :a "
+                    "FROM working.normalized_record WHERE artifact_id = :a "
                     "ORDER BY occurred_at NULLS LAST"
                 ),
                 {"a": artifact_id},
@@ -414,7 +414,7 @@ def record_counts(artifact_id: str) -> dict[str, Any]:
             conn.execute(
                 text(
                     "SELECT count(*) AS records, count(DISTINCT conversation_id) AS conversations "
-                    "FROM analysis.normalized_record WHERE artifact_id = :a"
+                    "FROM working.normalized_record WHERE artifact_id = :a"
                 ),
                 {"a": artifact_id},
             )

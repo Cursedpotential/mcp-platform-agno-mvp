@@ -99,3 +99,9 @@ live-dumps/
 .env.bak*
 # chat-sample breakdowns (real case PII; owner rule 2026-07-11: local + gitignored)
 docs/planning/chat-sample-analysis/
+
+# generated evidence-pipeline reports — they embed real message content (one sample
+# row in the first generated report contained a name, DOB and SSN). The GENERATOR is
+# tracked (scripts/evidence_pipeline_report.py); its output never is.
+docs/reports/*
+!docs/reports/README.md

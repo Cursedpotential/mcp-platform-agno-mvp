@@ -131,8 +131,13 @@ def _unquote(raw: str) -> str:
     return raw
 
 
+# Either schema. The ontology seed migrations were written before 0014 moved these
+# taxonomy tables from `analysis` to `reference`, and an applied migration is never
+# edited — so the historical files legitimately say `analysis.` forever while
+# anything new says `reference.`. Matching both is the only correct behaviour here.
 _BLOCK_RE = re.compile(
-    r"INSERT INTO analysis\.(?P<table>behavior_category|detection_pattern)\b.*?"
+    r"INSERT INTO (?:analysis|reference)\."
+    r"(?P<table>behavior_category|detection_pattern)\b.*?"
     r"\(VALUES(?P<body>.*?)\)\s*AS v\((?P<cols>[^)]*)\)",
     re.DOTALL | re.IGNORECASE,
 )

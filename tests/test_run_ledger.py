@@ -413,7 +413,7 @@ def test_ledger_stage_output_store_and_knowledge():
     # both store and knowledge stage output — the retry/backoff audit trail.
     assert workflows_mod._ledger_stage_output("store", {"stored": 5}) == {
         "rows_stored": 5,
-        "table": "analysis.normalized_record",
+        "table": "working.normalized_record",
         "attempts": [],
     }
     assert workflows_mod._ledger_stage_output(

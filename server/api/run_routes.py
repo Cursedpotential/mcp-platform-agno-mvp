@@ -22,7 +22,7 @@ registration convention as register_knowledge_routes / register_evidence_routes
   GET  /v1/health/deps            — cheap parallel pg + Milvus connectivity
                                      check, 3s timeout each (C2.6 requirement 4).
 
-The caller polls GET /v1/runs/{run_id} to watch analysis.workflow_run_stage
+The caller polls GET /v1/runs/{run_id} to watch ops.workflow_run_stage
 rows fill in as server/evidence/workflows.py executes (server/evidence/
 run_ledger.py is the write side; this module never touches the DB directly).
 
@@ -31,7 +31,7 @@ C2 supervised gates (server/evidence/workflows.py's
 every non-final stage and waits on POST .../continue or .../abort. The
 run's own background asyncio task (`_execute_run` below, still alive for as
 long as the process is) is the ONLY thing that ever calls finish_run() —
-these control endpoints only flip analysis.workflow_run.gate_state (and, for
+these control endpoints only flip ops.workflow_run.gate_state (and, for
 /continue and a /abort-while-paused, also flip status directly so the HTTP
 response is truthful immediately); single-writer discipline for run
 termination is preserved exactly the way custody.py is the sole writer of
@@ -45,7 +45,7 @@ step then saw an empty `ctx['records']` and reported a false success with
 docs_ingested=0. `{"from_stage": "knowledge"}` sidesteps that trap entirely:
 it creates a child run that skips custody/parse/store (recorded 'skipped',
 content "inherited from parent") and re-runs ONLY the knowledge stage over
-the parent's already-stored analysis.normalized_record rows
+the parent's already-stored working.normalized_record rows
 (server/evidence/workflows.py's `run_knowledge_from_store`). A plain retry
 (no body / from_stage omitted) ALSO got safer this task: if its custody
 step dedupes AND the parent's knowledge stage had failed, `_store_step_impl`
@@ -144,7 +144,7 @@ def register_run_routes(app: FastAPI, knowledge: Any) -> None:
         This same task is what stays alive to service a supervised-mode run's
         gate poll loop (server/evidence/workflows.py's
         `_wrap_step_for_run_control`) — POST .../continue and .../abort below
-        only flip analysis.workflow_run.gate_state; THIS coroutine is what
+        only flip ops.workflow_run.gate_state; THIS coroutine is what
         actually observes it and resumes/halts the workflow.
 
         parent_run_id (C2.6, optional): only set for a FULL rerun kicked off
@@ -185,7 +185,7 @@ def register_run_routes(app: FastAPI, knowledge: Any) -> None:
             raise HTTPException(
                 409,
                 f"run {run_id!r} has no artifact_id/sha256 recorded — cannot retry "
-                "from_stage='knowledge' (nothing to reload from analysis.normalized_record)",
+                "from_stage='knowledge' (nothing to reload from working.normalized_record)",
             )
         stage_by_name = {s["name"]: s for s in run["stages"]}
         for name in ("custody", "parse", "store"):
@@ -515,7 +515,7 @@ def register_run_routes(app: FastAPI, knowledge: Any) -> None:
             # COMPLETED parent (not only 'failed') when the knowledge
             # collection can be shown to LACK the parent's doc — e.g. Milvus
             # collection was recreated after a completed run already landed
-            # its rows in analysis.normalized_record. This closes the
+            # its rows in working.normalized_record. This closes the
             # "reingest after collection loss" hole: before this, the ONLY
             # way to re-ingest into knowledge was a full custody/parse/store
             # rerun even though the source rows were already safely stored.
@@ -561,7 +561,7 @@ def register_run_routes(app: FastAPI, knowledge: Any) -> None:
 
         # PREFERRED path: read the pristine write-once blob back the same way
         # custody.py's ingest_artifact() wrote it (blob_root() / blob_key) —
-        # the custody stage's typed output (analysis.workflow_run_stage.output,
+        # the custody stage's typed output (ops.workflow_run_stage.output,
         # server/evidence/workflows.py's `_ledger_stage_output`) carries
         # blob_key for exactly this reason. FALLBACK (only if the blob isn't
         # there): the original upload's source_path, if that private temp

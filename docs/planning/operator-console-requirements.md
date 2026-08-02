@@ -32,7 +32,7 @@ browse knowledge. Manual access to registered tools/workflows is table stakes
   (entities/facts) both in v1 scope (C4).
 - **First light**: Run Console — real chat export watched stage-by-stage.
 
-## Stage telemetry (C0 ledger: analysis.workflow_run + workflow_run_stage)
+## Stage telemetry (C0 ledger: ops.workflow_run + workflow_run_stage)
 Typed per-stage outputs written AS stages execute:
 custody {sha256, artifact_id, duplicate, blob path} · parse {parser_id,
 attempts, schema_recognized, record_count, sample_records, parse_stats,
@@ -48,11 +48,17 @@ skipped}.
 2. **Hash verification (active)**: custody drawer "Verify" action → spine
    endpoint re-fetches blob, recomputes sha256, and for evidence-tier runs
    walks the H3 chain, returns intact/broken + failing link. Verification
-   logic lives spine-side. **H3 canon CORRECTED 2026-07-22** (C3 spine agent,
-   ground truth = vendored/sbv/CUSTODY.md + custody.go, test-proven): chain_0
-   = "" (empty string, NOT H1) and chain_i = sha256(chain_{i-1} + "\n" +
-   H2_i) — H1 never enters the fold. The earlier "H3 = sha256(prev_hex +
-   h2_hex), genesis = H1" formula (also in the custody memory) was WRONG.
+   logic lives spine-side. **H3 canon re-corrected 2026-08-02** (owner-verified
+   2026-08-01): TWO H3 constructions coexist and are BOTH correct. The SBV Go
+   chain (vendored/sbv/CUSTODY.md + custody.go, test-proven): chain_0 = ""
+   and chain_i = sha256(chain_{i-1} + "\n" + H2_i), H1 never enters the fold —
+   this is what SBV import batches store and what spine verification recomputes
+   for them. The Case Bible chain: genesis = H1, chain_i = sha256(prev_hex +
+   h2_hex), live-verified over 1,918 links. ~~The earlier "H3 = sha256(prev_hex
+   + h2_hex), genesis = H1" formula (also in the custody memory) was WRONG.~~
+   (2026-07-22 claim — itself wrong: it assumed a single canon. Both chains
+   share tag `h3-chain-v1`, which does not disambiguate; give them distinct
+   tags before further chain writes.)
    Note: only reconcile_sbv_import batches carry H2/H3 rows; plain
    ingest_artifact custody is sha256-only → verify reports 'hash-only-ok',
    never 'broken', when no chain exists.
@@ -87,7 +93,7 @@ skipped}.
    D-034 + the chat-sample facet maps in docs/planning/chat-sample-analysis/,
    local/gitignored)**: the raw early dump IS C1–C5 (pour everything now;
    blobs immutable, records re-processable). Extraction = D-series post-store
-   passes over analysis.normalized_record (never file re-parses), one facet
+   passes over working.normalized_record (never file re-parses), one facet
    per workflow, each a ledger-tracked run visible in the console:
    - code extraction: fenced-block + tree-sitter/AST (smart-explore engine)
      → code knowledge collection (codestral-embed lane)

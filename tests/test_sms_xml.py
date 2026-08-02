@@ -16,7 +16,7 @@ def _run(tmp_path, name, xml):
     return parse({"path": str(p)})
 
 
-def test_sms_messages_roles_mms_and_skips(tmp_path):
+def test_sms_messages_roles_mms_and_empty_bodies(tmp_path):
     xml = """<smses count="4">
       <sms address="+15551234567" contact_name="Ex Partner" date="1700000000000" type="1" body="why are you late"/>
       <sms address="+15551234567" contact_name="Ex Partner" date="1700000100000" type="2" body="I am on my way"/>
@@ -27,17 +27,56 @@ def test_sms_messages_roles_mms_and_skips(tmp_path):
     </smses>"""
     result = _run(tmp_path, "sms.xml", xml)
 
-    # null-body sms dropped -> 2 sms + 1 mms.
-    assert result["stats"]["messages"] == 3
+    # A body-less record is KEPT and flagged, not dropped. This test previously
+    # asserted the opposite; that behaviour silently discarded 516 attachment-only
+    # MMS from a real 636 MiB export (2026-08-01). A message with a timestamp and a
+    # counterparty is an event whether or not it carries text.
+    assert result["stats"]["messages"] == 4
     assert result["stats"]["calls"] == 0
     recs = result["records"]
-    assert [r["content"] for r in recs] == ["why are you late", "I am on my way", "see the photo"]
+    assert [r["content"] for r in recs] == [
+        "why are you late", "I am on my way", "", "see the photo",
+    ]
 
-    received, sent, mms = recs
+    received, sent, empty, mms = recs
     assert received["attrs"]["direction"] == "received" and received["role"] == "Ex Partner"
     assert sent["attrs"]["direction"] == "sent" and sent["role"] == "owner"
     assert received["occurred_at"] and received["occurred_at"].startswith("2023")
-    assert mms["attrs"]["channel"] == "sms"
+    assert empty["attrs"]["body_present"] is False and empty["attrs"]["empty_body"] is True
+    assert mms["attrs"]["channel"] == "mms"
+
+
+def test_attachment_only_mms_is_kept_and_identifiable(tmp_path):
+    """An image-only MMS must survive parsing and stay distinguishable from another.
+
+    Identity comes from the attachment digest — without it, two captionless photos
+    sent to the same number in the same second are byte-identical records and the
+    raw-layer dedup index would collapse one of them away.
+    """
+    xml = """<smses count="2">
+      <mms address="+15551234567" date="1700000000000" type="1">
+        <parts>
+          <part ct="application/smil" text="&lt;smil/&gt;"/>
+          <part ct="image/jpeg" cl="a.jpg" data="QUJDREVGRw=="/>
+        </parts>
+      </mms>
+      <mms address="+15551234567" date="1700000000000" type="1">
+        <parts><part ct="image/jpeg" cl="b.jpg" data="WllYV1ZVVA=="/></parts>
+      </mms>
+    </smses>"""
+    result = _run(tmp_path, "mms.xml", xml)
+
+    assert result["stats"]["messages"] == 2
+    first, second = result["records"]
+    for r in (first, second):
+        assert r["content"] == ""
+        assert r["attrs"]["body_present"] is False
+        # the SMIL layout part is not an attachment
+        assert r["attrs"]["attachment_count"] == 1
+        # the base64 payload is never retained on the record
+        assert "data" not in r["attrs"]["attachments"][0]
+    assert (first["attrs"]["attachments"][0]["b64_sha256"]
+            != second["attrs"]["attachments"][0]["b64_sha256"])
 
 
 def test_call_block_forensic_flags(tmp_path):

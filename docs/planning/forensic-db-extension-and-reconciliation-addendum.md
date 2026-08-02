@@ -21,7 +21,7 @@
 
 The live schema is **small but deliberate**, and the paper draft (§03/§04) invented *parallel* structures instead of building on it. Reconciliation must MERGE into the as-built, not beside it.
 - **Security boundary:** schemas `evidence` (agents read-only, connection-enforced) · `analysis` (writes only after recorded approval) · `public` (HITL audit + Agno-managed). The paper draft's `core/raw/extracted/geo/legal/…` top-level schemas must be re-homed under this boundary.
-- **Tables:** `agent_run`,`approval_request` (LEGACY — superseded by native `agno_approvals`), `evidence.evidence_hash` (custody: `digest BYTEA`, `blob_key`, `meta`), `analysis.normalized_record` (bitemporal: `occurred_at` valid-time, `knowledge_time`, `disclosure_tier`), `transcript_insight`.
+- **Tables:** `agent_run`,`approval_request` (LEGACY — superseded by native `agno_approvals`), `evidence.evidence_hash` (custody: `digest BYTEA`, `blob_key`, `meta`), `working.normalized_record` (bitemporal: `occurred_at` valid-time, `knowledge_time`, `disclosure_tier`), `transcript_insight`.
 - **Custom types (`0004`):** enums `entity_type`,`temporal_class`,`event_type`,`mcl_factor (a–l)`,`source_system (postgres/neo4j/milvus/surrealdb)`,`match_method`; domains `confidence numeric(4,3)`,`canonical_id uuid`,`geo_point geography(Point,4326)`; composite `source_ref(system,native_id,locator)`. Reuse these — don't redefine.
 - **🐞 As-built bug to fix in reconciliation:** `disclosure_tier` is defined **two incompatible ways** — `0003` text CHECK `('contemporaneous','hindsight','discovered')` vs `0004` ENUM `('public','restricted','sealed')`. Pick one meaning (the bitemporal one in 0003 is the substantive one; rename the 0004 enum, e.g. `sensitivity_tier`).
 

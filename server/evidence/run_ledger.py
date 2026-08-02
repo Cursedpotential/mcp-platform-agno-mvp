@@ -1,8 +1,8 @@
 """
 evidence/run_ledger.py — C0 run ledger: persist per-run + per-stage state as
 the evidence workflows (server/evidence/workflows.py) execute, so a run is a
-first-class, inspectable DB object (analysis.workflow_run /
-analysis.workflow_run_stage, sql/0005_workflow_run_ledger.sql) instead of a
+first-class, inspectable DB object (ops.workflow_run /
+ops.workflow_run_stage, sql/0005_workflow_run_ledger.sql) instead of a
 black box whose only telemetry is the final in-memory step_log.
 
 Engine pattern mirrors server/evidence/store.py exactly (module-level lazy
@@ -63,7 +63,7 @@ def create_run(
     parent_run_id: str | None = None,
     custody_tier: str = "full",
 ) -> str:
-    """Insert a new analysis.workflow_run row (status='running'). Returns run_id.
+    """Insert a new ops.workflow_run row (status='running'). Returns run_id.
 
     parent_run_id (C2 retry lineage, sql/0006): set when this run was created
     by POST /v1/runs/{id}/retry — links back to the terminal-failed run it
@@ -74,7 +74,7 @@ def create_run(
     with _get_engine().begin() as conn:
         run_id = conn.execute(
             text(
-                "INSERT INTO analysis.workflow_run "
+                "INSERT INTO ops.workflow_run "
                 "(workflow, mode, source_name, source_path, domain, parent_run_id, custody_tier) "
                 "VALUES (:workflow, :mode, :source_name, :source_path, :domain, :parent_run_id, :custody_tier) "
                 "RETURNING run_id"
@@ -100,7 +100,7 @@ def seed_stages(run_id: str, names: list[str]) -> None:
     rows = [{"run_id": run_id, "seq": i, "name": name} for i, name in enumerate(names, start=1)]
     with _get_engine().begin() as conn:
         conn.execute(
-            text("INSERT INTO analysis.workflow_run_stage (run_id, seq, name) VALUES (:run_id, :seq, :name)"),
+            text("INSERT INTO ops.workflow_run_stage (run_id, seq, name) VALUES (:run_id, :seq, :name)"),
             rows,
         )
 
@@ -110,7 +110,7 @@ def stage_start(run_id: str, seq: int) -> None:
     with _get_engine().begin() as conn:
         conn.execute(
             text(
-                "UPDATE analysis.workflow_run_stage "
+                "UPDATE ops.workflow_run_stage "
                 "SET status = 'running', started_at = now() "
                 "WHERE run_id = :run_id AND seq = :seq"
             ),
@@ -133,7 +133,7 @@ def stage_finish(
     with _get_engine().begin() as conn:
         conn.execute(
             text(
-                "UPDATE analysis.workflow_run_stage "
+                "UPDATE ops.workflow_run_stage "
                 "SET status = :status, content = :content, "
                 "    output = CAST(:output AS jsonb), finished_at = now() "
                 "WHERE run_id = :run_id AND seq = :seq"
@@ -149,7 +149,7 @@ def stage_finish(
 
 
 def set_gate(run_id: str, state: str | None, status: str | None = None) -> None:
-    """Set analysis.workflow_run.gate_state (C2 supervised gates, sql/0006).
+    """Set ops.workflow_run.gate_state (C2 supervised gates, sql/0006).
 
     state: 'waiting' | 'released' | 'abort' | None (None clears the gate —
     used when a release lets the run resume).
@@ -166,7 +166,7 @@ def set_gate(run_id: str, state: str | None, status: str | None = None) -> None:
         if status is not None:
             conn.execute(
                 text(
-                    "UPDATE analysis.workflow_run "
+                    "UPDATE ops.workflow_run "
                     "SET gate_state = :state, status = :status, updated_at = now() "
                     "WHERE run_id = :run_id"
                 ),
@@ -175,7 +175,7 @@ def set_gate(run_id: str, state: str | None, status: str | None = None) -> None:
         else:
             conn.execute(
                 text(
-                    "UPDATE analysis.workflow_run "
+                    "UPDATE ops.workflow_run "
                     "SET gate_state = :state, updated_at = now() "
                     "WHERE run_id = :run_id"
                 ),
@@ -191,7 +191,7 @@ def read_gate(run_id: str) -> str | None:
     gate open."""
     with _get_engine().connect() as conn:
         row = conn.execute(
-            text("SELECT gate_state FROM analysis.workflow_run WHERE run_id = :run_id"),
+            text("SELECT gate_state FROM ops.workflow_run WHERE run_id = :run_id"),
             {"run_id": run_id},
         ).first()
     return row[0] if row is not None else None
@@ -207,7 +207,7 @@ def skip_remaining_stages(run_id: str, from_seq: int = 0) -> None:
     with _get_engine().begin() as conn:
         conn.execute(
             text(
-                "UPDATE analysis.workflow_run_stage "
+                "UPDATE ops.workflow_run_stage "
                 "SET status = 'skipped' "
                 "WHERE run_id = :run_id AND seq > :from_seq AND status = 'pending'"
             ),
@@ -231,7 +231,7 @@ def finish_run(
     with _get_engine().begin() as conn:
         conn.execute(
             text(
-                "UPDATE analysis.workflow_run "
+                "UPDATE ops.workflow_run "
                 "SET status = :status, summary = CAST(:summary AS jsonb), error = :error, "
                 "    sha256 = COALESCE(:sha256, sha256), "
                 "    artifact_id = COALESCE(:artifact_id, artifact_id), "
@@ -254,7 +254,7 @@ def get_run(run_id: str) -> dict[str, Any] | None:
     with _get_engine().connect() as conn:
         run_row = (
             conn.execute(
-                text("SELECT * FROM analysis.workflow_run WHERE run_id = :run_id"),
+                text("SELECT * FROM ops.workflow_run WHERE run_id = :run_id"),
                 {"run_id": run_id},
             )
             .mappings()
@@ -264,7 +264,7 @@ def get_run(run_id: str) -> dict[str, Any] | None:
             return None
         stage_rows = (
             conn.execute(
-                text("SELECT * FROM analysis.workflow_run_stage WHERE run_id = :run_id ORDER BY seq"),
+                text("SELECT * FROM ops.workflow_run_stage WHERE run_id = :run_id ORDER BY seq"),
                 {"run_id": run_id},
             )
             .mappings()
@@ -306,9 +306,9 @@ def list_runs(limit: int = 50, status: str | None = None) -> list[dict[str, Any]
         "       r.artifact_id, r.domain, r.status, r.summary, r.error, r.created_at, r.updated_at, "
         "       r.gate_state, r.parent_run_id, r.custody_tier, "
         "       s.seq, s.name AS stage_name, s.status AS stage_status, s.content AS stage_content "
-        f"FROM (SELECT * FROM analysis.workflow_run {where_clause} "
+        f"FROM (SELECT * FROM ops.workflow_run {where_clause} "
         "       ORDER BY created_at DESC LIMIT :limit) r "
-        "LEFT JOIN analysis.workflow_run_stage s ON s.run_id = r.run_id "
+        "LEFT JOIN ops.workflow_run_stage s ON s.run_id = r.run_id "
         "ORDER BY r.created_at DESC, s.seq"
     )
     params: dict[str, Any] = {"limit": limit}

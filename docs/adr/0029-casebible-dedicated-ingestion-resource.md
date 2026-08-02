@@ -19,7 +19,7 @@ Run CaseBible ingestion as a **dedicated, separately-deployable Coolify resource
 container (reusing the existing `agentos:latest` image so it shares the evidence/knowledge code),
 **joined to the Agno docker network** (`rz41…_agentos`) for DB/Milvus/Graphiti reachability, with
 **`casebible-sorted` rclone-mounted read-only** (ADR-0030). It executes the evidence vertical against
-the platform's shared evidence spine (`evidence.evidence_hash`, `analysis.normalized_record`) and an
+the platform's shared evidence spine (`evidence.evidence_hash`, `working.normalized_record`) and an
 **isolated CaseBible knowledge collection** (own Milvus collection, ADR-0026/0027). It **never mutates
 the `exec-tier` stack**. Carry-forward of ADR-0028's still-sound sub-decisions: rclone as the
 off-the-shelf mover/hasher, DuckDB MD5 dedupe (not raw R2 ETag), Postgres ledger, the non-destructive

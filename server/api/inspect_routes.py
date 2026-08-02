@@ -10,7 +10,7 @@ sole-writer guarantee (this module never imports anything that writes to the
 `evidence` schema).
 
 Routes:
-  GET   /v1/records                        — paged analysis.normalized_record
+  GET   /v1/records                        — paged working.normalized_record
                                               browser (addendum 1).
   GET   /v1/inspect/schemas                 — live PG table/column + Milvus
                                               collection introspection.
@@ -64,7 +64,7 @@ _CAPABILITY_FOR_WORKFLOW = {
 # and reltuples is only ever an ANALYZE-time estimate (0 for a never-
 # vacuumed/analyzed table even when it has rows).
 _EXACT_COUNT_THRESHOLD = 100_000
-_INSPECT_SCHEMAS = ("evidence", "analysis")
+_INSPECT_SCHEMAS = ("evidence", "working", "analysis", "reference", "ops")
 
 # GET /v1/records' `text` field (task spec's name; the actual DB column is
 # `content` — see the docstring on `_row_to_record` for the rename decision).
@@ -76,11 +76,15 @@ _TEXT_TRUNCATE_CHARS = 2000
 _SAMPLE_RECORD_CHARS = 500
 
 # vendored/sbv/CUSTODY.md's H3 canonicalization (verified against
-# vendored/sbv/internal/custody.go, NOT assumed from the requirements doc —
-# see this module's own POST /v1/verify/{sha256} docstring for the full
-# correction note): chain_0 = "" (empty string — NOT H1; the requirements
-# doc's addendum 2 says "genesis = H1", which is INCORRECT per the actual
-# spec/implementation), chain_i = sha256(chain_{i-1} + "\n" + H2_i_hex).
+# vendored/sbv/internal/custody.go): chain_0 = "" (empty string),
+# chain_i = sha256(chain_{i-1} + "\n" + H2_i_hex). This is the SBV chain
+# and is what reconcile_sbv_import batches store, so it is what this module
+# must recompute. NOTE (2026-08-02, owner-verified 2026-08-01): the Case
+# Bible chain (genesis = H1, chain_i = sha256(prev_hex + h2_hex)) is a
+# SECOND, equally valid construction used by the Case Bible vault — the
+# earlier claim here that "genesis = H1 is INCORRECT" was itself wrong.
+# Both currently share tag h3-chain-v1; match the construction to the
+# writer that produced the batch being verified.
 _H3_GENESIS = ""
 _H3_SEPARATOR = "\n"
 
@@ -116,12 +120,12 @@ def _jsonb(value: Any) -> Any:
 
 
 # =============================================================================
-# GET /v1/records — paged analysis.normalized_record browser (addendum 1)
+# GET /v1/records — paged working.normalized_record browser (addendum 1)
 # =============================================================================
 
 
 def _row_to_record(row: dict[str, Any]) -> dict[str, Any]:
-    """Shape one analysis.normalized_record row for the API response.
+    """Shape one working.normalized_record row for the API response.
 
     DEVIATION from the task spec's literal column list ("record id, idx/seq,
     record_type, role/participants, ts fields, text ... attrs") — read
@@ -164,7 +168,7 @@ def _row_to_record(row: dict[str, Any]) -> dict[str, Any]:
 
 def _resolve_artifact_id(artifact_id: str | None, run_id: str | None) -> str:
     """GET /v1/records' artifact_id resolution: explicit artifact_id wins;
-    otherwise resolve via run_id -> analysis.workflow_run.artifact_id (the
+    otherwise resolve via run_id -> ops.workflow_run.artifact_id (the
     run ledger's own `get_run`, so this stays consistent with run_routes.py's
     view of a run). 422 if neither is given; 404 if run_id doesn't resolve to
     an artifact yet (e.g. the run hasn't reached the custody stage)."""
@@ -203,7 +207,7 @@ def _register_records_routes(app: FastAPI) -> None:
 
         with _get_engine().connect() as conn:
             total = conn.execute(
-                text(f"SELECT count(*) FROM analysis.normalized_record WHERE {where_clause}"), params
+                text(f"SELECT count(*) FROM working.normalized_record WHERE {where_clause}"), params
             ).scalar()
             rows = (
                 conn.execute(
@@ -211,7 +215,7 @@ def _register_records_routes(app: FastAPI) -> None:
                         "SELECT id, artifact_id, record_type, source, conversation_id, role, participants, "
                         "content, occurred_at, knowledge_time, disclosure_tier, attrs, created_at, "
                         "row_number() OVER (PARTITION BY artifact_id ORDER BY occurred_at NULLS LAST, id) AS seq "
-                        f"FROM analysis.normalized_record WHERE {where_clause} "
+                        f"FROM working.normalized_record WHERE {where_clause} "
                         "ORDER BY occurred_at NULLS LAST, id "
                         "LIMIT :limit OFFSET :offset"
                     ),
@@ -358,10 +362,12 @@ def _lookup_h1(conn, sha256_hex: str) -> dict[str, Any] | None:
 
 def _walk_h3_chain(h2_hexes_in_order: list[str], stored_h3_hex: str | None) -> list[dict[str, Any]]:
     """Recompute the H3 chain over an ordered list of H2 hex digests using
-    the REAL canonicalization (vendored/sbv/CUSTODY.md, cross-checked against
-    vendored/sbv/internal/custody.go — NOT the requirements doc's addendum 2
-    note, which claims "genesis = H1"; that is WRONG. The actual spec:
-    ``chain_0 = "" ; chain_i = sha256(chain_{i-1} + "\\n" + H2_i)``, folded
+    the SBV canonicalization (vendored/sbv/CUSTODY.md, cross-checked against
+    vendored/sbv/internal/custody.go), which is what reconcile_sbv_import
+    batches store: ``chain_0 = "" ; chain_i = sha256(chain_{i-1} + "\\n" +
+    H2_i)``. (The Case Bible vault uses a different, equally valid H1-genesis
+    construction — owner-verified 2026-08-01; do not "correct" one to the
+    other. Match the construction to the batch's writer.) Folded
     left-to-right in raw source/parse order (record_locator->>'record_index'
     ASC) — H1 never enters the H3 computation at all.
 
@@ -617,7 +623,7 @@ def _register_record_meta_route(app: FastAPI) -> None:
             row = (
                 conn.execute(
                     text(
-                        "UPDATE analysis.normalized_record "
+                        "UPDATE working.normalized_record "
                         "SET attrs = attrs || CAST(:patch AS jsonb) "
                         "WHERE id = :id "
                         "RETURNING id, artifact_id, record_type, source, conversation_id, role, "

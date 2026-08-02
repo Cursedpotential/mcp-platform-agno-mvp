@@ -58,8 +58,8 @@ def smoke_pg() -> None:
 
             prefixes = chain_prefix_counts()
             live = (
-                conn.execute(text("SELECT count(*) FROM analysis.behavior_category")).scalar(),
-                conn.execute(text("SELECT count(*) FROM analysis.detection_pattern")).scalar(),
+                conn.execute(text("SELECT count(*) FROM reference.behavior_category")).scalar(),
+                conn.execute(text("SELECT count(*) FROM reference.detection_pattern")).scalar(),
             )
             match = next(
                 (p for p in prefixes if (p["categories"], p["patterns"]) == live),

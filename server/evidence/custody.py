@@ -146,7 +146,7 @@ def ingest_artifact(src: str | Path, source_meta: dict | None = None, *, tier: s
     custody step does not call) — so 'light' has nothing extra to skip at
     THIS call site. tier is still threaded through and stamped into
     meta['custody_tier'] (-> evidence.source.original_metadata) so: (a) the
-    workflow's custody stage output and analysis.workflow_run.custody_tier
+    workflow's custody stage output and ops.workflow_run.custody_tier
     column can report it, and (b) any FUTURE per-record hashing hook added
     here can branch on it — 'light' must never call such a hook, 'full' may.
     The sole-writer boundary is unchanged: this function is still the only
