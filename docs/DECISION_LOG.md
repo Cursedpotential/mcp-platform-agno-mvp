@@ -102,3 +102,13 @@ retention + outbound role types 2/4/5/6) so shadow output is comparison-grade.
 immutable import_id, activity reads scoped to it, primary/fallback equivalence
 on a golden corpus, mandatory custody binding. _Byline: Claude Code · Fable 5 ·
 2026-08-02._
+
+## 2026-08-02 — PG moved to ovh-files (wave 1 of the ovh-data retirement)
+Platform PostgreSQL now runs on ovh-files as Coolify app `data-pg-files`
+(PG 18.1, pg_duckdb+postgis+pgvector, BIND_IP 100.91.190.107:5432). All four
+databases transferred (pg_dumpall) and count-verified; exec-tier repointed via
+the new `PG_HOST` env (`DB_HOST: ${PG_HOST:-${OVH3_HOST}}`); live API verified
+connected to the new host with zero clients left on the old; old `data-pg` app
+STOPPED, never deleted (datadir intact at /data/agno/volumes/pgdata).
+Remaining on ovh-data for waves 2-4: SurrealDB, Weaviate, Neo4j-dev + graphiti
+trio. _Byline: Claude Code · Fable 5 · 2026-08-02._
