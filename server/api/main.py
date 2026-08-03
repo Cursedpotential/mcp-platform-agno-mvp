@@ -35,12 +35,14 @@ from typing import Any
 from fastapi import FastAPI
 
 from agno.os import AgentOS
+from agno.registry import Registry
 from agno.team.team import Team
 from agno.utils.log import log_info, log_warning
 
 from server.agents.factory import build_agent_team
 from server.agents.providers import build_context, build_learning
 from server.core.knowledge_handle import KnowledgeHandle, resolve_knowledge
+from server.core.model_registry import build_catalog_models, load_available_models
 from server.core.settings import build_model
 from server.core import create_knowledge, get_agno_db, get_postgres_db
 from server.api.workflow_registry import registered_workflows
@@ -298,6 +300,27 @@ def _build_app() -> Any:
     # Router first: it is the primary entry point.
     teams.sort(key=lambda t: t.name != "MCP Platform Router")
 
+    # --- Studio model picker -------------------------------------------------
+    # `GET /models` is agno's *usage report* — the distinct models already
+    # attached to agents/teams (agno/os/router.py::get_models, unchanged in
+    # 2.8.0). All our agents share one `build_model()` object, so it returns a
+    # single entry and there is no config-driven path into it.
+    #
+    # The documented Studio picker source is the Registry: Studio's agent
+    # builder shows "Model: select from registered models"
+    # (docs.agno.com /agent-os/studio/agents) and the Registry is documented as
+    # the home for "model provider instances" Studio depends on
+    # (/agent-os/studio/registry), served at `GET /registry?resource_type=model`.
+    # So we hand agno a Registry built from the SAME verified catalog that
+    # `AgentOSConfig.available_models` (config.yaml) publishes — one source of
+    # truth, and the agent roster the user sees is untouched.
+    config_path = Path(__file__).parent / "config.yaml"
+    registry = Registry(
+        name="Platform Model Catalog",
+        description="Verified-reachable models for this deployment (see scripts/update_available_models.py).",
+        models=build_catalog_models(load_available_models(config_path)),
+    )
+
     agent_os = AgentOS(
         name="AgentOS",
         id="mcp-forensic-platform",
@@ -327,7 +350,10 @@ def _build_app() -> Any:
         tracing=True,
         authorization=False,  # local/dev; JWT when multi-user
         lifespan=lifespan,
-        config=str(Path(__file__).parent / "config.yaml"),
+        config=str(config_path),
+        # Feeds `GET /registry?resource_type=model` — the Studio picker. See
+        # the block above `agent_os = AgentOS(` for why this, not `/models`.
+        registry=registry,
     )
     final_app = agent_os.get_app()
 

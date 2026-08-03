@@ -79,22 +79,28 @@ _EMBEDDER_IDS: dict[str, str] = {
 }
 
 
-def _model_id(provider: str) -> str:
+def _model_id(provider: str, model_id: Optional[str] = None) -> str:
     """Resolve a model ID for *provider*.
 
-    Resolution order: ``<PROVIDER>_MODEL_ID`` env → ``DEFAULT_MODEL_ID`` env →
-    pinned default from ``_PINNED``.
+    Resolution order: explicit *model_id* argument → ``<PROVIDER>_MODEL_ID``
+    env → ``DEFAULT_MODEL_ID`` env → pinned default from ``_PINNED``.
 
     Parameters
     ----------
     provider:
         Provider key (e.g. ``"ollama"``, ``"nvidia"``).
+    model_id:
+        Caller-supplied model ID. When given it wins over every env override
+        — a caller naming an exact id (e.g. the model-catalog registry
+        builder) is asking for THAT model, not the deployment default.
 
     Returns
     -------
     str
         The resolved model ID.
     """
+    if model_id:
+        return model_id
     per = getenv(f"{provider.upper()}_MODEL_ID")
     if per:
         return per
@@ -116,7 +122,7 @@ def _provider_order() -> list[str]:
     return [forced.strip().lower()] if forced else list(_DEFAULT_ORDER)
 
 
-def _try_provider(provider: str) -> Optional[Any]:
+def _try_provider(provider: str, model_id: Optional[str] = None) -> Optional[Any]:
     """Construct an Agno model for *provider* if its credentials exist.
 
     Returns ``None`` when the provider has no credentials configured — the
@@ -126,6 +132,9 @@ def _try_provider(provider: str) -> Optional[Any]:
     ----------
     provider:
         Provider key (e.g. ``"ollama"``, ``"nvidia"``, ``"kimi"``).
+    model_id:
+        Exact model ID to construct. When ``None`` the provider's usual
+        env-override/pinned-default resolution applies (unchanged behaviour).
 
     Returns
     -------
@@ -140,7 +149,7 @@ def _try_provider(provider: str) -> Optional[Any]:
             return None
         from agno.models.openai.like import OpenAILike
 
-        return OpenAILike(id=_model_id("nvidia"), api_key=nvidia_key, base_url=nvidia_base)
+        return OpenAILike(id=_model_id("nvidia", model_id), api_key=nvidia_key, base_url=nvidia_base)
 
     if provider == "kimi":
         # Prefer Moonshot direct if a key is set; else ride NVIDIA NIM.
@@ -150,12 +159,12 @@ def _try_provider(provider: str) -> Optional[Any]:
         if moonshot_key:
             base = getenv("MOONSHOT_BASE_URL", "https://api.moonshot.ai/v1")
             return OpenAILike(
-                id=getenv("KIMI_MODEL_ID", "kimi-k2.6"),
+                id=model_id or getenv("KIMI_MODEL_ID", "kimi-k2.6"),
                 api_key=moonshot_key,
                 base_url=base,
             )
         if nvidia_key:
-            return OpenAILike(id=_model_id("kimi"), api_key=nvidia_key, base_url=nvidia_base)
+            return OpenAILike(id=_model_id("kimi", model_id), api_key=nvidia_key, base_url=nvidia_base)
         return None
 
     if provider == "openrouter":
@@ -164,7 +173,7 @@ def _try_provider(provider: str) -> Optional[Any]:
             return None
         from agno.models.openai.like import OpenAILike
 
-        return OpenAILike(id=_model_id("openrouter"), api_key=key, base_url="https://openrouter.ai/api/v1")
+        return OpenAILike(id=_model_id("openrouter", model_id), api_key=key, base_url="https://openrouter.ai/api/v1")
 
     if provider == "ollama":
         # Ollama Cloud: OLLAMA_API_KEY makes host default to https://ollama.com.
@@ -176,8 +185,8 @@ def _try_provider(provider: str) -> Optional[Any]:
         from agno.models.ollama import Ollama
 
         if ollama_host:
-            return Ollama(id=_model_id("ollama"), host=ollama_host)
-        return Ollama(id=_model_id("ollama"), api_key=ollama_key)
+            return Ollama(id=_model_id("ollama", model_id), host=ollama_host)
+        return Ollama(id=_model_id("ollama", model_id), api_key=ollama_key)
 
     if provider == "openai":
         key = getenv("OPENAI_API_KEY")
@@ -185,7 +194,7 @@ def _try_provider(provider: str) -> Optional[Any]:
             return None
         from agno.models.openai import OpenAIChat
 
-        return OpenAIChat(id=_model_id("openai"), api_key=key)
+        return OpenAIChat(id=_model_id("openai", model_id), api_key=key)
 
     if provider == "anthropic":
         key = getenv("ANTHROPIC_API_KEY")
@@ -207,7 +216,7 @@ def _try_provider(provider: str) -> Optional[Any]:
             return None
         from agno.models.anthropic import Claude
 
-        return Claude(id=_model_id("anthropic"), api_key=key, auth_token=auth_token)
+        return Claude(id=_model_id("anthropic", model_id), api_key=key, auth_token=auth_token)
 
     if provider == "google":
         key = getenv("GOOGLE_API_KEY")
@@ -215,7 +224,7 @@ def _try_provider(provider: str) -> Optional[Any]:
             return None
         from agno.models.google import Gemini
 
-        return Gemini(id=_model_id("google"), api_key=key)
+        return Gemini(id=_model_id("google", model_id), api_key=key)
 
     if provider == "groq":
         key = getenv("GROQ_API_KEY")
@@ -223,12 +232,12 @@ def _try_provider(provider: str) -> Optional[Any]:
             return None
         from agno.models.groq import Groq
 
-        return Groq(id=_model_id("groq"), api_key=key)
+        return Groq(id=_model_id("groq", model_id), api_key=key)
 
     return None
 
 
-def build_model(provider: Optional[str] = None) -> Any:
+def build_model(provider: Optional[str] = None, model_id: Optional[str] = None) -> Any:
     """Select and construct a model by available credentials.
 
     Creates a fresh model instance on every call — do NOT cache. Each agent
@@ -239,6 +248,10 @@ def build_model(provider: Optional[str] = None) -> Any:
     provider:
         Force a specific provider. When ``None``, tries each provider in
         priority order until one succeeds.
+    model_id:
+        Force a specific model ID for the chosen provider. Only meaningful
+        together with *provider* (the chain would otherwise apply one id to
+        whichever provider happens to answer first).
 
     Returns
     -------
@@ -252,7 +265,7 @@ def build_model(provider: Optional[str] = None) -> Any:
     """
     order = [provider.strip().lower()] if provider else _provider_order()
     for p in order:
-        model = _try_provider(p)
+        model = _try_provider(p, model_id)
         if model is not None:
             return model
     raise ValueError(
