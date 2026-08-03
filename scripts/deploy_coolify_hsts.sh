@@ -94,12 +94,34 @@ PY
   echo "    $0 restart"
 }
 
+#: Compose identity, read off the running container's labels.
+PROJECT="coolify-proxy"
+PROJDIR="/data/coolify/proxy"
+
+# `docker restart` does NOT apply a command-arg change: args are baked into the
+# container at CREATION, so a restart re-runs the old config and reports
+# healthy while changing nothing. Same shape as Coolify's env-var trap (values
+# are rendered into the container at deploy; editing them does not reach a
+# running container). The container has to be RECREATED.
+#
+# $PROJDIR is root-only and sudo is password-gated on this box, so the compose
+# file is streamed out of the container and fed to `docker compose -f -`.
+recreate() {
+  echo "recreating coolify-proxy from its compose (args apply at creation) ..."
+  ssh_do "docker exec coolify-proxy cat $COMPOSE | docker compose -p $PROJECT --project-directory $PROJDIR -f - up -d --force-recreate 2>&1 | tail -5"
+  _await_healthy_or_rollback
+}
+
 restart() {
   # A bad arg stops Traefik booting, which takes every HTTPS route on this box
   # with it -- including the dashboard needed to fix it. So: restart, poll for
   # health, and put the backup back automatically if it does not recover.
   echo "restarting coolify-proxy ..."
   ssh_do "docker restart coolify-proxy >/dev/null 2>&1"
+  _await_healthy_or_rollback
+}
+
+_await_healthy_or_rollback() {
   local ok=""
   for i in $(seq 1 15); do
     sleep 2
@@ -109,9 +131,14 @@ restart() {
   done
 
   if [[ -z "$ok" ]]; then
-    echo "PROXY DID NOT COME BACK HEALTHY -- restoring the backup and restarting"
-    ssh_do "docker exec coolify-proxy sh -c 'cp ${COMPOSE}.bak-hsts $COMPOSE' 2>/dev/null || true"
-    ssh_do "docker restart coolify-proxy >/dev/null 2>&1 || true"
+    echo "PROXY DID NOT COME BACK HEALTHY -- restoring the backup and recreating"
+    # Restore via a still-running container if there is one; otherwise the
+    # backup lives on the host bind mount and compose can be fed from a
+    # throwaway container that mounts the same directory.
+    ssh_do "docker exec coolify-proxy sh -c 'cp ${COMPOSE}.bak-hsts $COMPOSE' 2>/dev/null \
+      || docker run --rm -v $PROJDIR:/traefik alpine sh -c 'cp /traefik/docker-compose.yml.bak-hsts /traefik/docker-compose.yml'"
+    ssh_do "docker run --rm -v $PROJDIR:/t alpine cat /t/docker-compose.yml \
+      | docker compose -p $PROJECT --project-directory $PROJDIR -f - up -d --force-recreate >/dev/null 2>&1 || true"
     echo "rolled back. Check: docker logs coolify-proxy --tail 50"
     exit 1
   fi
@@ -144,6 +171,7 @@ case "${1:-}" in
   verify) verify ;;
   attach) attach ;;
   restart) restart ;;
+  recreate) recreate ;;
   maxage) shift; maxage "$@" ;;
   rollback) rollback ;;
   *) sed -n '2,20p' "$0"; exit 1 ;;
