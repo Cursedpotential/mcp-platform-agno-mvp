@@ -305,12 +305,24 @@ def test_pdf_damaged_xref_is_reported_not_swallowed(tmp_path):
     assert health.needs_repair
 
 
-def test_pdf_status_keys_on_any_warning(tmp_path):
-    """REGRESSION: gating on a reconstruction-keyword allowlist let a file that
-    made qpdf say "can't find PDF header" through as healthy."""
+def test_pdf_mangled_header_is_caught_before_qpdf(tmp_path):
+    """A broken %PDF- header is a content problem, not a structure problem.
+
+    This started life asserting RECONSTRUCTED — gating status on a
+    reconstruction-keyword allowlist had let "can't find PDF header" through as
+    `healthy`. The content check now catches it earlier and more precisely: the
+    file is not a PDF, so it needs re-acquisition rather than a repair attempt.
+    The any-warning rule it originally guarded is still exercised by
+    test_pdf_damaged_xref_is_reported_not_swallowed.
+    """
+    from server.tools.repair.pdf import NOT_PDF
+
     p = _tiny_pdf(tmp_path)
     p.write_bytes(b"%PDX-1.4" + p.read_bytes()[8:])
-    assert inspect_pdf(p).status == RECONSTRUCTED
+    health = inspect_pdf(p)
+    assert health.status == NOT_PDF
+    assert health.status != HEALTHY
+    assert health.needs_reacquisition
 
 
 def test_pdf_truncated_is_never_reported_healthy(tmp_path):
@@ -344,6 +356,48 @@ def test_pdf_repair_produces_an_openable_file(tmp_path):
     assert result.pages_after == pages_before
     assert inspect_pdf(dest).status == HEALTHY
     assert result.source_sha256 != result.repaired_sha256
+
+
+def test_zero_byte_pdf_is_empty_not_unrecoverable(tmp_path):
+    """REGRESSION: 130 zero-byte files were reported as `unrecoverable`.
+
+    True, but useless: it implies a repair attempt is worth making when there
+    are no bytes to repair. These need RE-ACQUISITION, not QPDF.
+    """
+    from server.tools.repair.pdf import EMPTY
+
+    p = tmp_path / "empty.pdf"
+    p.write_bytes(b"")
+    health = inspect_pdf(p)
+    assert health.status == EMPTY
+    assert health.needs_reacquisition
+    assert not health.needs_repair
+
+
+def test_html_saved_as_pdf_is_reported_as_wrong_content(tmp_path):
+    """REGRESSION: downloads that returned an HTML error page, saved as .pdf.
+
+    Three benchbooks in the corpus were exactly this. No repair can turn an
+    HTML page into the PDF it was supposed to be.
+    """
+    from server.tools.repair.pdf import NOT_PDF
+
+    p = tmp_path / "benchbook.pdf"
+    p.write_bytes(b"\r\n<!DOCTYPE HTML>\r\n<html><body>Access denied</body></html>")
+    health = inspect_pdf(p)
+    assert health.status == NOT_PDF
+    assert "html" in (health.error or "").lower()
+    assert health.needs_reacquisition
+
+
+def test_nul_filled_file_is_reported_as_wrong_content(tmp_path):
+    from server.tools.repair.pdf import NOT_PDF
+
+    p = tmp_path / "nul.pdf"
+    p.write_bytes(b"\x00" * 4096)
+    health = inspect_pdf(p)
+    assert health.status == NOT_PDF
+    assert "NUL" in (health.error or "")
 
 
 def test_pdf_repair_refuses_to_overwrite_its_input(tmp_path):

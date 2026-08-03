@@ -84,8 +84,15 @@ from server.tools.repair.pdf import (
     scan_pdfs,
     sha256_file,
 )
+from server.tools.repair.cloud import (
+    hydration_summary,
+    is_cloud_only,
+    partition_by_locality,
+)
 from server.tools.repair.quarantine import (
     DEFAULT_LEDGER,
+    DEFAULT_REPORT_DIR,
+    write_recovery_report,
     DamageEntry,
     DamageLedger,
     QuarantinePlan,
@@ -111,6 +118,12 @@ __all__ = [
     "DamageEntry",
     "QuarantinePlan",
     "DEFAULT_LEDGER",
+    "write_recovery_report",
+    "DEFAULT_REPORT_DIR",
+    # cloud placeholders — never hydrate a OneDrive tree by accident
+    "is_cloud_only",
+    "partition_by_locality",
+    "hydration_summary",
     # structural PDF repair (QPDF/pikepdf) — distinct from text extraction
     "inspect_pdf",
     "repair_pdf",
