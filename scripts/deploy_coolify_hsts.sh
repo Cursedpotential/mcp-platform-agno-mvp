@@ -5,7 +5,8 @@
 #
 #   scripts/deploy_coolify_hsts.sh stage    # copy the middleware file only (no effect yet)
 #   scripts/deploy_coolify_hsts.sh verify   # is the file loaded / is the header live?
-#   scripts/deploy_coolify_hsts.sh attach   # wire it to the https entrypoint (RESTARTS PROXY)
+#   scripts/deploy_coolify_hsts.sh attach   # wire it to the https entrypoint (no effect yet)
+#   scripts/deploy_coolify_hsts.sh restart  # apply it; auto-rolls-back if unhealthy
 #   scripts/deploy_coolify_hsts.sh maxage N # change stsSeconds to N and hot-reload
 #   scripts/deploy_coolify_hsts.sh rollback # remove the file + the entrypoint arg
 #
@@ -54,16 +55,72 @@ verify() {
 }
 
 attach() {
-  echo "backing up $COMPOSE then adding: $ARG"
-  ssh_do "docker exec coolify-proxy sh -c '
-    grep -q \"middlewares=hsts@file\" $COMPOSE && { echo \"already attached\"; exit 0; }
-    cp $COMPOSE ${COMPOSE}.bak-hsts &&
-    sed -i \"s|- '\\''--entrypoints.https.address=:443'\\''|- '\\''--entrypoints.https.address=:443'\\''\\n      - '\\''$ARG'\\''|\" $COMPOSE &&
-    grep -n \"hsts@file\\|entrypoints.https.address\" $COMPOSE'"
+  # Fetch, edit HERE, push the whole file back. In-container sed/awk needs the
+  # replacement escaped through ssh -> docker exec -> sh -> sed, four quoting
+  # layers deep, on the file that decides whether the control plane's proxy
+  # starts at all. Not worth it.
+  local tmp="${TMPDIR:-/tmp}/coolify-proxy-compose.$$"
+  ssh_do "docker exec coolify-proxy cat $COMPOSE" > "$tmp"
+  [[ -s "$tmp" ]] || { echo "could not read $COMPOSE" >&2; rm -f "$tmp"; exit 1; }
+
+  if grep -q 'hsts@file' "$tmp"; then
+    echo "already attached"; rm -f "$tmp"; return 0
+  fi
+
+  python3 - "$tmp" "$ARG" <<'PY'
+import sys
+path, arg = sys.argv[1], sys.argv[2]
+lines = open(path, encoding="utf-8").read().splitlines(keepends=True)
+out, done = [], False
+for line in lines:
+    out.append(line)
+    if not done and "--entrypoints.https.address=:443" in line:
+        indent = line[: len(line) - len(line.lstrip())]
+        out.append(f"{indent}- '{arg}'\n")
+        done = True
+if not done:
+    sys.exit("anchor '--entrypoints.https.address=:443' not found; aborting")
+open(path, "w", encoding="utf-8", newline="").writelines(out)
+print("inserted after the https entrypoint definition")
+PY
+
+  echo "backing up on the box, then writing the modified compose"
+  ssh_do "docker exec coolify-proxy sh -c 'cp $COMPOSE ${COMPOSE}.bak-hsts'"
+  base64 -w0 < "$tmp" | ssh_do "base64 -d | docker exec -i coolify-proxy sh -c 'cat > $COMPOSE'"
+  rm -f "$tmp"
+  ssh_do "docker exec coolify-proxy grep -n 'hsts@file' $COMPOSE"
   echo
-  echo "NOTE: the proxy must be restarted for a command-arg change to take effect."
-  echo "Do it from the Coolify UI (Server -> Proxy -> Restart) so Coolify stays"
-  echo "the owner of the container lifecycle. Then re-run: $0 verify"
+  echo "compose updated. Nothing has changed yet -- args apply on restart:"
+  echo "    $0 restart"
+}
+
+restart() {
+  # A bad arg stops Traefik booting, which takes every HTTPS route on this box
+  # with it -- including the dashboard needed to fix it. So: restart, poll for
+  # health, and put the backup back automatically if it does not recover.
+  echo "restarting coolify-proxy ..."
+  ssh_do "docker restart coolify-proxy >/dev/null 2>&1"
+  local ok=""
+  for i in $(seq 1 15); do
+    sleep 2
+    if ssh_do "docker inspect coolify-proxy --format '{{.State.Health.Status}}' 2>/dev/null" | grep -q healthy; then
+      ok=yes; break
+    fi
+  done
+
+  if [[ -z "$ok" ]]; then
+    echo "PROXY DID NOT COME BACK HEALTHY -- restoring the backup and restarting"
+    ssh_do "docker exec coolify-proxy sh -c 'cp ${COMPOSE}.bak-hsts $COMPOSE' 2>/dev/null || true"
+    ssh_do "docker restart coolify-proxy >/dev/null 2>&1 || true"
+    echo "rolled back. Check: docker logs coolify-proxy --tail 50"
+    exit 1
+  fi
+
+  echo "proxy healthy."
+  local code
+  code=$(curl -s -o /dev/null --max-time 20 -w '%{http_code}' "https://$FQDN/login" || echo 000)
+  echo "https://$FQDN/login -> $code"
+  [[ "$code" == "200" ]] || echo "WARNING: dashboard not returning 200 -- consider '$0 rollback'"
 }
 
 maxage() {
@@ -86,6 +143,7 @@ case "${1:-}" in
   stage) stage ;;
   verify) verify ;;
   attach) attach ;;
+  restart) restart ;;
   maxage) shift; maxage "$@" ;;
   rollback) rollback ;;
   *) sed -n '2,20p' "$0"; exit 1 ;;
