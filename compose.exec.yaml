@@ -64,9 +64,11 @@ services:
       AGNO_DEBUG: "True"
       WAIT_FOR_DB: "True"
       AGENTOS_URL: http://127.0.0.1:8000
-      # Data tier lives on OVH-3 — reach it by tailnet IP (default), not a docker
-      # name. ${OVH3_HOST} default 100.119.96.29 (tailnet); salem alt 10.1.2.101.
-      DB_HOST: ${OVH3_HOST}
+      # Data tier WAS all on OVH-3; PG moved to ovh-files 2026-08-02 (app
+      # data-pg-files, BIND_IP 100.91.190.107) as wave 1 of the ovh-data
+      # retirement. PG_HOST overrides just the Postgres hop; services still on
+      # OVH-3 keep riding ${OVH3_HOST} (100.119.96.29; salem alt 10.1.2.101).
+      DB_HOST: ${PG_HOST:-${OVH3_HOST}}
       DB_PORT: 5432
       DB_USER: ${DB_USER:-ai}
       DB_PASS: ${DB_PASS:-ai}
