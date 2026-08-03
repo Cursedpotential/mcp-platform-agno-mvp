@@ -147,6 +147,42 @@ def register_knowledge_routes(app: FastAPI, knowledge: Any) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _assert_agno_version() -> None:
+    """One authoritative answer to "which agno is running" (Codex A-01).
+
+    requirements.txt pins the deployed agno; uv.lock and the local venv have
+    both been observed drifting (2.8.0 declared vs 2.8.6 imported), and 2.8.6
+    changes LearningMachine validation. A silent skew means every behavior we
+    verified was verified against the wrong wheel. Logged as CRITICAL rather
+    than raised: the local venv drifts deliberately (`uv run --no-sync` is the
+    documented workaround), so a hard crash would break dev; in prod the
+    container installs from requirements.txt, so a mismatch there is a real
+    build problem this line makes impossible to miss.
+    """
+    import logging
+    import re
+
+    import agno
+
+    req = Path(__file__).resolve().parents[2] / "requirements.txt"
+    pinned = ""
+    try:
+        m = re.search(r"^agno==([0-9][\w.]*)$", req.read_text(encoding="utf-8"), re.M)
+        pinned = m.group(1) if m else ""
+    except OSError:
+        pass
+    running = getattr(agno, "__version__", "unknown")
+    if pinned and running != pinned:
+        logging.getLogger(__name__).critical(
+            "AGNO VERSION SKEW: running %s but requirements.txt pins %s — "
+            "behavior verified against the pin does NOT transfer. "
+            "(Local dev: use `uv run --no-sync`. Prod: rebuild the image.)",
+            running, pinned,
+        )
+    else:
+        logging.getLogger(__name__).info("agno %s (matches requirements pin)", running)
+
+
 def _build_app() -> Any:
     """Build and return the AgentOS-wrapped FastAPI application.
 
@@ -183,6 +219,7 @@ def _build_app() -> Any:
     so runs/evidence-imports/reindex started AFTER a background reconnect
     succeeds see the real knowledge engine without a process restart.
     """
+    _assert_agno_version()
     model = build_model()
     db = get_agno_db()
     # AgentOS's OWN admin-plane db (agno 2.7+: service accounts, schedules,
