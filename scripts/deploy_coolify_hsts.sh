@@ -108,7 +108,11 @@ PROJDIR="/data/coolify/proxy"
 # file is streamed out of the container and fed to `docker compose -f -`.
 recreate() {
   echo "recreating coolify-proxy from its compose (args apply at creation) ..."
-  ssh_do "docker exec coolify-proxy cat $COMPOSE | docker compose -p $PROJECT --project-directory $PROJDIR -f - up -d --force-recreate 2>&1 | tail -5"
+  # --env-file /dev/null: compose otherwise stats $PROJDIR/.env, which is
+  # root-only here, and fails the whole run with "permission denied" while
+  # leaving the old container up (so it silently does nothing). All volume
+  # paths in this compose are absolute, so no .env is needed.
+  ssh_do "docker exec coolify-proxy cat $COMPOSE | docker compose -p $PROJECT --project-directory $PROJDIR --env-file /dev/null -f - up -d --force-recreate 2>&1 | tail -5"
   _await_healthy_or_rollback
 }
 

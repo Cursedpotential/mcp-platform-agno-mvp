@@ -44,6 +44,14 @@ http:
   middlewares:
     hsts:
       headers:
-        stsSeconds: 300
+        # 15768000 = 6 months, the usual recommended value. Raised from the
+        # initial 300 only AFTER the header was confirmed live and the
+        # dashboard, websocket routes and http->https redirect were all
+        # re-verified against their pre-change behaviour.
+        stsSeconds: 15768000
+        # false: coolify.mitechconsult.com has no subdomains, and asserting
+        # over subdomains you do not control is how HSTS breaks siblings.
         stsIncludeSubdomains: false
+        # false, permanently. Preload submission is effectively irreversible
+        # and is baked into browser binaries.
         stsPreload: false
