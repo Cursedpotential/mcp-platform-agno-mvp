@@ -335,12 +335,64 @@ def load_records_for_artifact(artifact_id: str) -> list[NormalizedRecord]:
     return records
 
 
-def render_conversations_markdown(records: list[NormalizedRecord]) -> dict[str, str]:
-    """Group records by conversation and render readable markdown per conversation
-    (the document shape the knowledge engine chunks/embeds best)."""
+def horizon_axes(recs: list[NormalizedRecord], case_id: str = "primary") -> dict[str, Any]:
+    """The horizon axes for ONE retrievable document, computed conservatively.
+
+    C-01 (Codex deep analysis): vector documents carried no temporal axes at
+    all, so no vector read could pre-filter by horizon — and embeddings have no
+    sense of time, so a future document scores exactly as similar as a
+    contemporaneous one (AGENTS.md WHY THIS EXISTS).
+
+    A conversation document bundles many records, so its axes must be the
+    SAFE aggregate, not an average:
+
+    * ``knowledge_time`` = the MAXIMUM across the bundle. The document is not
+      knowable until its last piece was; taking the minimum would expose a
+      future message hidden inside an older thread.
+    * ``disclosure_tier`` = ``hindsight`` if ANY record is hindsight. One
+      contaminating record taints the whole document.
+    * ``occurred_at_min``/``max`` describe the span for display and for
+      valid-time queries; they are NOT the horizon filter.
+
+    Emitted as flat scalars — epoch ints alongside ISO text — because agno's
+    Weaviate adapter applies DICT filters only (FilterExpr lists are silently
+    dropped, AGENTS.md landmine) and dict filters need comparable primitives.
+    """
+    ktimes = [r.knowledge_time for r in recs if r.knowledge_time]
+    otimes = [r.occurred_at for r in recs if r.occurred_at]
+    tiers = {str(getattr(r.disclosure_tier, "value", r.disclosure_tier) or "contemporaneous") for r in recs}
+    tier = "hindsight" if "hindsight" in tiers else ("discovered" if "discovered" in tiers else "contemporaneous")
+    kmax = max(ktimes) if ktimes else None
+    actors = {str(r.attrs.get("knowledge_actor") or "owner") for r in recs}
+    axes: dict[str, Any] = {
+        "case_id": case_id,
+        "disclosure_tier": tier,
+        "knowledge_actor": actors.pop() if len(actors) == 1 else "multiple",
+        "record_count": len(recs),
+    }
+    if kmax is not None:
+        axes["knowledge_time"] = kmax.isoformat()
+        axes["knowledge_time_epoch"] = int(kmax.timestamp())
+    if otimes:
+        axes["occurred_at_min"] = min(otimes).isoformat()
+        axes["occurred_at_max"] = max(otimes).isoformat()
+        axes["occurred_at_min_epoch"] = int(min(otimes).timestamp())
+    return axes
+
+
+def group_by_conversation(records: list[NormalizedRecord]) -> dict[str, list[NormalizedRecord]]:
+    """Conversation grouping, shared by the renderer and the axis computation
+    so a document's text and its horizon metadata can never disagree."""
     by_conv: dict[str, list[NormalizedRecord]] = defaultdict(list)
     for r in records:
         by_conv[r.conversation_id or "untitled"].append(r)
+    return by_conv
+
+
+def render_conversations_markdown(records: list[NormalizedRecord]) -> dict[str, str]:
+    """Group records by conversation and render readable markdown per conversation
+    (the document shape the knowledge engine chunks/embeds best)."""
+    by_conv = group_by_conversation(records)
 
     docs: dict[str, str] = {}
     for conv_id, recs in by_conv.items():
@@ -363,6 +415,7 @@ async def ingest_into_knowledge(
     domain: str,
     derived_dir: str | Path = "knowledge/platform/transcripts",
     attempts_log: list[dict[str, Any]] | None = None,
+    case_id: str = "primary",
 ) -> int:
     """Render per-conversation markdown, persist under knowledge/, and ainsert
     into the engine with the domain tag (agents filter on metadata.domain).
@@ -380,6 +433,7 @@ async def ingest_into_knowledge(
     if domain not in KNOWLEDGE_DOMAINS:
         raise ValueError(f"unknown knowledge domain {domain!r}; expected one of {KNOWLEDGE_DOMAINS}")
     docs = render_conversations_markdown(records)
+    by_conv = group_by_conversation(records)
     out_dir = Path(derived_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -388,8 +442,14 @@ async def ingest_into_knowledge(
         safe = "".join(c if c.isalnum() or c in "-_" else "-" for c in conv_id)[:80] or "conv"
         doc_path = out_dir / f"{artifact.sha256[:12]}-{safe}.md"
         doc_path.write_text(markdown, encoding="utf-8")
+        # C-01: every vector document carries the horizon axes, or no agent
+        # read can pre-filter on them. Computed from THIS conversation's own
+        # records so text and metadata can never disagree.
+        axes = horizon_axes(by_conv.get(conv_id, []), case_id=case_id)
 
-        async def _do_insert(doc_path: Path = doc_path, conv_id: str = conv_id) -> None:
+        async def _do_insert(
+            doc_path: Path = doc_path, conv_id: str = conv_id, axes: dict[str, Any] = axes
+        ) -> None:
             await knowledge.ainsert(
                 name=doc_path.stem,
                 path=str(doc_path),
@@ -399,6 +459,7 @@ async def ingest_into_knowledge(
                     "artifact_id": artifact.artifact_id,
                     "sha256": artifact.sha256,
                     "conversation_id": conv_id,
+                    **axes,
                 },
             )
 
