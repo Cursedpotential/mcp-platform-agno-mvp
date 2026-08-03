@@ -44,6 +44,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterator
 
+from server.tools.repair.encoding import read_head
 from server.tools.repair.types import LOSSY, STRUCTURAL, RepairEvent
 
 #: Status values, worst last.
@@ -51,6 +52,27 @@ HEALTHY = "healthy"
 RECONSTRUCTED = "reconstructed"  # opens, but QPDF had to rebuild something
 ENCRYPTED = "encrypted"  # not damage — needs a password
 UNRECOVERABLE = "unrecoverable"
+CLOUD_ONLY = "cloud_only"  # not inspected: reading it would force a download
+EMPTY = "empty"  # zero bytes — nothing to repair, must be re-acquired
+NOT_PDF = "not_pdf"  # real content, but not a PDF (HTML error page, NULs, ...)
+
+#: What a file actually is, when it is not the PDF its extension claims.
+#: A first sweep reported 135 files as `unrecoverable` and that was true but
+#: useless: 130 were zero bytes, 3 were saved HTML error pages, and the rest
+#: were NUL-filled. QPDF cannot repair ANY of those — there is no PDF data to
+#: rebuild. They need RE-ACQUISITION, not repair, and lumping them in with
+#: genuinely damaged PDFs hides that completely.
+_CONTENT_SIGS: tuple[tuple[bytes, str], ...] = (
+    (b"%PDF-", "pdf"),
+    (b"<!DOCTYPE", "html document"),
+    (b"<!doctype", "html document"),
+    (b"<html", "html document"),
+    (b"<?xml", "xml document"),
+    (b"PK\x03\x04", "zip/office document"),
+    (b"\x89PNG", "png image"),
+    (b"\xff\xd8\xff", "jpeg image"),
+    (b"{", "json document"),
+)
 
 #: Substrings QPDF emits when it has had to rebuild rather than read.
 _RECONSTRUCTION_MARKERS = (
@@ -81,7 +103,17 @@ class PdfHealth:
 
     @property
     def needs_repair(self) -> bool:
+        """Repair could plausibly help — there is PDF structure to rebuild."""
         return self.status in (RECONSTRUCTED, UNRECOVERABLE)
+
+    @property
+    def needs_reacquisition(self) -> bool:
+        """No repair can help; the bytes must come from the source again.
+
+        Kept separate from `needs_repair` because conflating them sends a
+        re-download problem to a repair tool that will always fail on it.
+        """
+        return self.status in (EMPTY, NOT_PDF)
 
     @property
     def openable(self) -> bool:
@@ -212,6 +244,33 @@ def inspect_pdf(path: Path, password: str = "") -> PdfHealth:
         health.error = f"unreadable: {exc}"
         return health
 
+    # Classify BEFORE handing anything to qpdf. A file that is not a PDF cannot
+    # be repaired into one, and calling it `unrecoverable` implies a repair
+    # attempt is worth making when the real answer is "re-acquire this file".
+    if health.size == 0:
+        health.status = EMPTY
+        health.error = "zero bytes — no data to repair; the file must be re-acquired"
+        health.events.append(
+            RepairEvent(kind="pdf_empty_file", detail="file is 0 bytes", severity=LOSSY)
+        )
+        return health
+
+    head = read_head(path, 1024)
+    if not head.lstrip()[:5].startswith(b"%PDF-"):
+        kind = next((label for sig, label in _CONTENT_SIGS if head.lstrip().startswith(sig)), None)
+        if kind is None:
+            kind = "all NUL bytes" if set(head) == {0} else "unrecognised binary"
+        health.status = NOT_PDF
+        health.error = f"not a PDF — content looks like {kind}; re-acquire from the source"
+        health.events.append(
+            RepairEvent(
+                kind="pdf_wrong_content_type",
+                detail=f"extension says .pdf but the bytes are {kind}",
+                severity=LOSSY,
+            )
+        )
+        return health
+
     try:
         import pikepdf
     except ImportError:
@@ -332,13 +391,39 @@ def repair_pdf(
     return result
 
 
-def scan_pdfs(root: Path, recursive: bool = True, password: str = "") -> Iterator[PdfHealth]:
-    """Triage every PDF under `root`. Read-only — repairs nothing."""
+def scan_pdfs(
+    root: Path,
+    recursive: bool = True,
+    password: str = "",
+    hydrate: bool = False,
+) -> Iterator[PdfHealth]:
+    """Triage every PDF under `root`. Read-only — repairs nothing.
+
+    CLOUD-ONLY FILES ARE SKIPPED BY DEFAULT. Opening a OneDrive placeholder
+    forces a download, so an unguarded sweep of a cloud-backed tree silently
+    hydrates the entire corpus onto local disk — which is exactly what happened
+    to a 1,903-file / 3.5 GiB Case Bible sweep before it was killed at ~110
+    files. `os.stat` never hydrates, so the check itself is free.
+
+    Pass `hydrate=True` only when downloading the corpus is the intent.
+    """
+    from server.tools.repair.cloud import is_cloud_only
+
     root = Path(root)
     paths = root.rglob("*.pdf") if recursive else root.glob("*.pdf")
     if root.is_file():
         paths = iter([root])
     for p in sorted(paths):
+        if not hydrate and is_cloud_only(p):
+            try:
+                size = p.stat().st_size
+            except OSError:
+                size = 0
+            yield PdfHealth(
+                path=p, status=CLOUD_ONLY, size=size,
+                error="cloud-only placeholder; reading it would force a download",
+            )
+            continue
         try:
             yield inspect_pdf(p, password=password)
         except Exception as exc:  # noqa: BLE001 - a triage sweep never dies on one file

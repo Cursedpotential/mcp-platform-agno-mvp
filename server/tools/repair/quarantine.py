@@ -311,6 +311,95 @@ def flag_damaged(
     return ledger.append(entry)
 
 
+# -------------------------------------------------------- recovery reports
+
+
+DEFAULT_REPORT_DIR = Path("docs/reports/recovery")
+
+
+def write_recovery_report(
+    src: Path,
+    status: str,
+    events: list[Any],
+    out_dir: Path | str = DEFAULT_REPORT_DIR,
+    sha256: str = "",
+    repaired_path: Path | None = None,
+    repaired_sha256: str = "",
+    extra: dict[str, Any] | None = None,
+) -> Path:
+    """Write ONE report file per recovered artifact.
+
+    Owner directive 2026-08-02: *"recovery should not be silent — I should
+    create a new file in the report."* A console line scrolls away and a JSONL
+    ledger is for machines; a recovery that altered how an exhibit reads needs a
+    standalone, human-readable artifact that says what was changed and why.
+
+    One file per artifact, named with the source stem plus a hash prefix, so two
+    files with the same name in different folders cannot overwrite each other's
+    report.
+    """
+    src = Path(src)
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    digest = sha256 or sha256_file(src)
+    dest = out_dir / f"{src.stem}.{digest[:12]}.recovery.md"
+
+    lines: list[str] = [
+        f"# Recovery report — {src.name}",
+        "",
+        f"> _Byline: server/tools/repair · {_now()}_",
+        "",
+        "## Artifact",
+        "",
+        f"- **Source:** `{src}`",
+        f"- **sha256:** `{digest}`",
+        f"- **Size:** {src.stat().st_size:,} bytes",
+        f"- **Status:** **{status}**",
+    ]
+    if repaired_path:
+        lines += [
+            f"- **Repaired copy:** `{repaired_path}`",
+            f"- **Repaired sha256:** `{repaired_sha256}`",
+            "",
+            "> The original is unmodified and remains the evidence of record.",
+            "> The repaired copy is a RECONSTRUCTION and does not inherit its authority.",
+        ]
+    for key, value in (extra or {}).items():
+        lines.append(f"- **{key}:** {value}")
+
+    lines += ["", "## What was reconstructed", ""]
+    if not events:
+        lines.append("_No repair events recorded._")
+    else:
+        lines += ["| Severity | Kind | Detail |", "|---|---|---|"]
+        for e in events:
+            row = e.as_row() if hasattr(e, "as_row") else dict(e)
+            detail = str(row.get("detail", "")).replace("|", "\\|")[:300]
+            lines.append(f"| {row.get('severity','')} | `{row.get('kind','')}` | {detail} |")
+
+    lossy = sum(
+        1
+        for e in events
+        if (e.as_row() if hasattr(e, "as_row") else dict(e)).get("severity") == "lossy"
+    )
+    lines += [
+        "",
+        "## Verdict",
+        "",
+        (
+            f"**{lossy} lossy event(s).** Content may have been discarded or "
+            "machine-reconstructed; review before relying on this artifact."
+            if lossy
+            else "No lossy events — repairs were structural only, no content discarded."
+        ),
+        "",
+    ]
+
+    dest.write_text("\n".join(lines), encoding="utf-8")
+    return dest
+
+
 # --------------------------------------------------------------- quarantine
 
 
