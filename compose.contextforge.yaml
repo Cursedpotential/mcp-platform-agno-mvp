@@ -60,6 +60,12 @@ services:
       SECURE_COOKIES: "false"
       CSRF_ENABLED: "false"                          # 1.0.x CSRF -> CSRF_TOKEN_INVALID for header-token API clients; tailnet-only + Bearer auth
       PASSWORD_CHANGE_ENFORCEMENT_ENABLED: "false"    # 1.0.x forces admin password change on first login (403)
+      # Owner-chosen admin password (2026-08-03) is shorter than v1.0.4's 22-char
+      # privileged floor and has no special char — relax the policy for this
+      # tailnet-only, basic-auth-fronted gateway (change was 400-rejected otherwise).
+      PASSWORD_POLICY_ENABLED: "false"                # disables complexity rules (upper/lower/special)
+      PASSWORD_MIN_LENGTH_PRIVILEGED: "10"            # v1.0.4 default 22; owner password is 10 chars
+      PASSWORD_MAX_AGE_DAYS: "36500"                  # default 90 would silently expire the headless admin login
       GUNICORN_WORKERS: "1"
     volumes:
       # SAME absolute bind as the bundle — reattaches the live mcp.db, no migration.
@@ -90,3 +96,4 @@ networks:
     external: true   # shared cross-app network on OVH-1, mirrors OVH-3's `agno` net (data-vector precedent)
 
 # Byline: Claude Code · Sonnet · 2026-07-19 (split out of compose.exec.yaml, exec-tier split, owner order 2026-07-19)
+# Byline: Claude Code · Fable 5 · 2026-08-03 (password-policy relax: PASSWORD_POLICY_ENABLED=false + MIN_LENGTH_PRIVILEGED=10 + MAX_AGE_DAYS=36500, so the owner-chosen admin password can be set via /auth/email/change-password)
