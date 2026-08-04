@@ -299,7 +299,7 @@ def build_dev_copilot(
     )
 
 
-def build_project_pal(model: Any, db: Any, learning: Any) -> Agent:
+def build_project_pal(model: Any, db: Any, learning: Any, knowledge: Any = None) -> Agent:
     """Build the Project PAL — maintains rolling memory of goals and blockers.
 
     Parameters
@@ -310,6 +310,15 @@ def build_project_pal(model: Any, db: Any, learning: Any) -> Agent:
         Agno operational DB.
     learning:
         Agno LearningMachine (Session Context + User Memory).
+    knowledge:
+        Knowledge base (optional, added 2026-08-04 per Codex A-09). PAL is
+        configured with "what's the current project status / summarize recent
+        decisions" quick-prompts, but had ONLY a db and the LearningMachine —
+        no retrieval surface at all — so it could answer those only from what
+        was already in session context or memory. With the platform knowledge
+        base it can actually read the project's own docs. None is accepted so a
+        boot-time vector-store outage degrades PAL rather than failing the
+        build.
     """
     return Agent(
         id="project-pal",
@@ -317,6 +326,8 @@ def build_project_pal(model: Any, db: Any, learning: Any) -> Agent:
         role=("Maintain rolling memory of goals, blockers, decisions, preferences, session context."),
         model=model,
         db=db,
+        knowledge=knowledge,
+        search_knowledge=knowledge is not None,
         learning=learning,
         add_history_to_context=True,
         num_history_runs=10,
@@ -461,8 +472,23 @@ def build_agent_team(ctx: Any) -> dict[str, Any]:
     gatekeeper = build_review_gatekeeper(m, db)
     ops_team = build_platform_ops_team(m, db, [ingestion, analysis, gatekeeper])
 
+    # Transcript Miner: the module and its config quick-prompts existed since
+    # 2026-07, but build_agent_team never returned it — so config.yaml
+    # advertised `transcript-miner` prompts pointing at an agent that was not
+    # in the runtime roster (Codex A-08: "configuration must not advertise
+    # absent agents"). Mounted 2026-08-04 under Platform Ops, where its
+    # custody->parse->store pipeline belongs.
+    from server.agents.transcript_miner import build_transcript_miner
+
+    miner = build_transcript_miner(m, db, ctx.knowledge, ctx.learning, ctx.source_tools)
+    ops_team = build_platform_ops_team(m, db, [ingestion, analysis, gatekeeper, miner])
+
     dev = build_dev_copilot(m, db, ctx.knowledge, ctx.learning, ctx.code_tools)
-    pal = build_project_pal(m, db, ctx.learning)
+    # PAL gets the knowledge handle (Codex A-09): it is configured to answer
+    # "what's the project status / what decisions were made", but had only a db
+    # and the LearningMachine — no way to retrieve anything not already in
+    # session context or memory, so those quick-prompts could not be honored.
+    pal = build_project_pal(m, db, ctx.learning, ctx.knowledge)
     forensic = build_forensic_data_agent(m, db, ctx.learning, ctx.readonly_db_tools)
     builder_team = build_builder_team(m, db, [dev, pal, forensic])
 
@@ -473,6 +499,7 @@ def build_agent_team(ctx: Any) -> dict[str, Any]:
         "ingestion_orchestrator": ingestion,
         "analysis_orchestrator": analysis,
         "review_gatekeeper": gatekeeper,
+        "transcript_miner": miner,
         "platform_ops_team": ops_team,
         # Builder
         "dev_copilot": dev,
