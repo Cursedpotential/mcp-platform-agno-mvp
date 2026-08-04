@@ -262,18 +262,41 @@ def ensure_duckdb_r2_secret() -> bool:
         engine.dispose()
 
 
-def get_postgres_db(contents_table: str | None = None) -> PostgresDb:
-    """THE database. One PostgresDb behind every AgentOS domain.
+# The knowledge-contents table the single db instance is built with. Matches
+# create_knowledge("platform", "platform_knowledge") -> "<table>_contents".
+_CONTENTS_TABLE = "platform_knowledge_contents"
+_PG_DB: PostgresDb | None = None
 
-    Pass ``contents_table`` only when this instance is the ``contents_db`` of a
-    Knowledge base — it tells agno which table holds document contents. Every
-    instance carries the SAME registry id (``DB_ID``) by design since the
-    2026-08-04 flatten: one backend, so there is no lottery to lose, and one
-    registered id, so agno's multi-db 400 gate never arms.
+
+def get_postgres_db(contents_table: str | None = None) -> PostgresDb:
+    """THE database. ONE PostgresDb instance behind every AgentOS domain.
+
+    Returns the same object every call — a genuine singleton, not merely a
+    shared id. Both matter: sharing an id across two *distinct* PostgresDb
+    objects (one carrying ``knowledge_table``, one not) makes agno log
+    "multiple distinct databases share id ...; keeping the first" and silently
+    drop one, which is the same shadowing hazard the old three-id split
+    existed to avoid. One object cannot shadow itself.
+
+    ``contents_table`` is accepted for call-site compatibility. The singleton
+    is already built with the platform contents table; a request for a
+    DIFFERENT table is logged rather than silently ignored, because it would
+    mean a second knowledge base needs its own db instance and id — a real
+    decision, not something to paper over.
     """
-    if contents_table is not None:
-        return PostgresDb(id=DB_ID, db_url=db_url, knowledge_table=contents_table)
-    return PostgresDb(id=DB_ID, db_url=db_url)
+    global _PG_DB
+    if _PG_DB is None:
+        _PG_DB = PostgresDb(id=DB_ID, db_url=db_url, knowledge_table=_CONTENTS_TABLE)
+    if contents_table is not None and contents_table != _CONTENTS_TABLE:
+        from agno.utils.log import log_warning
+
+        log_warning(
+            f"get_postgres_db(contents_table={contents_table!r}) but the single "
+            f"db instance is built with {_CONTENTS_TABLE!r}. Returning the "
+            "singleton; a second knowledge base needs its own db id (see the "
+            "2026-08-04 flatten note above)."
+        )
+    return _PG_DB
 
 
 def get_agno_db() -> PostgresDb:
