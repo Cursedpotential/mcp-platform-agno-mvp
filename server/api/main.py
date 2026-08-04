@@ -66,6 +66,29 @@ scheduler_base_url: str = getenv("AGENTOS_URL", "http://127.0.0.1:8000")
 # the background retry loop after the app object exists.
 _knowledge_handle = KnowledgeHandle(lambda: create_knowledge("platform", "platform_knowledge"))
 
+# Named knowledge bases (2026-08-04). The platform ran ONE instance, so
+# "platform" was the only selectable knowledge base in the UI — even though
+# knowledge/legal/ has been on disk for weeks and evidence is the point of the
+# product. AgentOS takes a LIST; each entry becomes its own selectable base.
+#
+# Storage split, deliberately: all bases share the single contents db (one
+# PostgresDb since the 2026-08-04 flatten) because agno's contents table
+# carries a `linked_to` column that attributes each row to its own instance.
+# Vectors do NOT share — one Weaviate collection per base, since the embedder
+# is a pinned per-collection contract (ADR-0010) and mixing corpora in one
+# collection silently destroys retrieval margin.
+#
+# Each base gets its OWN handle so a vector-store outage degrades one base
+# instead of all three (same boot-resilience contract as the platform handle).
+_KNOWLEDGE_BASES: dict[str, str] = {
+    "legal": "legal_knowledge",        # knowledge/legal — coercive-control rubrics, MCL
+    "evidence": "evidence_knowledge",  # case corpus; horizon-filtered at retrieval
+}
+_extra_knowledge_handles: dict[str, KnowledgeHandle] = {
+    name: KnowledgeHandle(lambda n=name, t=table: create_knowledge(n, t))
+    for name, table in _KNOWLEDGE_BASES.items()
+}
+
 
 # ---------------------------------------------------------------------------
 # Lifespan
@@ -81,16 +104,18 @@ async def lifespan(app: Any) -> Any:
     from server.core import ensure_duckdb_r2_secret
 
     log_info(f"pg_duckdb R2 secret ensured: {ensure_duckdb_r2_secret()}")
-    if not _knowledge_handle.ready:
-        log_info(
-            f"knowledge store was NOT ready at boot ({_knowledge_handle.last_error}) — "
-            "starting background reconnect (retries every 60s)"
-        )
-        _knowledge_handle.start_background_retry()
+    for label, handle in (("platform", _knowledge_handle), *_extra_knowledge_handles.items()):
+        if not handle.ready:
+            log_info(
+                f"knowledge base {label!r} was NOT ready at boot ({handle.last_error}) — "
+                "starting background reconnect (retries every 60s)"
+            )
+            handle.start_background_retry()
     try:
         yield
     finally:
-        _knowledge_handle.stop_background_retry()
+        for handle in (_knowledge_handle, *_extra_knowledge_handles.values()):
+            handle.stop_background_retry()
         log_info("AgentOS lifespan: shutdown")
 
 
@@ -246,6 +271,14 @@ def _build_app() -> Any:
     admin_db = get_postgres_db()
     _knowledge_handle.try_connect_now()  # never raises — see server/core/knowledge_handle.py
     knowledge = _knowledge_handle.instance  # may be None; agents/AgentOS get this ONE-TIME snapshot (see docstring)
+    # The named bases connect the same guarded way — one failing base cannot
+    # take down the others or the process.
+    for _label, _handle in _extra_knowledge_handles.items():
+        _handle.try_connect_now()
+        log_info(
+            f"knowledge base {_label!r}: "
+            + ("connected" if _handle.ready else f"NOT ready ({_handle.last_error})")
+        )
     # Learning MUST ride the Postgres admin db, never SurrealDb: agno's
     # SurrealDb raises NotImplementedError on every learning method
     # (get/upsert/delete/get_learnings), and LearningMachine catches broad
@@ -332,7 +365,15 @@ def _build_app() -> Any:
         # note above). AgentOS wants a list; pass [] rather than [None] so
         # `_auto_discover_knowledge_instances`'s isinstance(k, Knowledge)
         # filter doesn't have to special-case a None entry.
-        knowledge=[knowledge] if knowledge is not None else [],
+        # Every connected base is registered, so the UI lists Platform, Legal
+        # and Evidence as separate selectable knowledge bases rather than the
+        # single "platform" entry the owner kept hitting. A base that failed to
+        # connect is simply absent until its background retry succeeds.
+        knowledge=[
+            k
+            for k in (knowledge, *(h.instance for h in _extra_knowledge_handles.values()))
+            if k is not None
+        ],
         # The evidence workflows existed but were never handed to AgentOS, so
         # `GET /workflows` returned [] and `POST /workflows/{id}/runs` did not
         # exist — the Studio Workflows panel was empty and the only way to run
