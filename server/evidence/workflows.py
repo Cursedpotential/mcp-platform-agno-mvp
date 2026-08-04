@@ -466,6 +466,27 @@ async def _knowledge_step_impl(ctx: dict[str, Any], knowledge: Any) -> StepOutpu
     return StepOutput(content=f"knowledge: {n} conversation doc(s) -> domain={domain}", success=True)
 
 
+def attach_ledger(wf: Workflow, ctx: dict[str, Any], run_id: str, mode: str = "auto") -> None:
+    """Wire a built workflow into the platform run ledger + run controls.
+
+    Extracted 2026-08-04 (Codex C-03). ``run_chat_transcript``/``run_sms_xml``
+    always did this inline, but the AgentOS ``WorkflowFactory`` path called
+    ``build_*_workflow`` directly — so workflows launched from the Studio
+    produced no ``ops.workflow_run`` row, ignored ``mode='supervised'``, and
+    could not be aborted, continued or retried through ``/v1/runs``. Two
+    execution paths, one of them silently weaker. Both now call this.
+
+    Idempotent per step: the wrappers replace ``step.executor`` once; calling
+    twice on the same workflow would double-wrap, so callers attach exactly
+    once immediately after building.
+    """
+    steps = cast("list[Step]", wf.steps)
+    total = len(steps)
+    for seq, step in enumerate(steps, start=1):
+        _wrap_step_for_ledger(step, seq, run_id, ctx)
+        _wrap_step_for_run_control(step, seq, total, run_id, ctx, mode)
+
+
 def build_chat_transcript_workflow(
     path: str,
     source_meta: dict[str, Any] | None = None,
@@ -744,11 +765,7 @@ async def run_sms_xml(
         # wf.steps is always the plain list[Step] we just built above (agno's
         # own declared type is a broad union that also covers Loop/Parallel/
         # Router/Workflow-as-step, none of which build_*_workflow() uses).
-        steps = cast("list[Step]", wf.steps)
-        total = len(steps)
-        for seq, step in enumerate(steps, start=1):
-            _wrap_step_for_ledger(step, seq, run_id, ctx)
-            _wrap_step_for_run_control(step, seq, total, run_id, ctx, mode)
+        attach_ledger(wf, ctx, run_id, mode)
 
     summary: dict[str, Any] | None = None
     result: Any = None
@@ -848,11 +865,7 @@ async def run_chat_transcript(
         # wf.steps is always the plain list[Step] we just built above (agno's
         # own declared type is a broad union that also covers Loop/Parallel/
         # Router/Workflow-as-step, none of which build_*_workflow() uses).
-        steps = cast("list[Step]", wf.steps)
-        total = len(steps)
-        for seq, step in enumerate(steps, start=1):
-            _wrap_step_for_ledger(step, seq, run_id, ctx)
-            _wrap_step_for_run_control(step, seq, total, run_id, ctx, mode)
+        attach_ledger(wf, ctx, run_id, mode)
 
     summary: dict[str, Any] | None = None
     result: Any = None
