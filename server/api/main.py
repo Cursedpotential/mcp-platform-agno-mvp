@@ -165,8 +165,15 @@ def register_knowledge_routes(app: FastAPI, knowledge: Any) -> None:
             raise HTTPException(503, "knowledge store unavailable")
         from scripts.ingest_knowledge import ingest_all
 
-        count = await ingest_all(live_knowledge)
-        return {"indexedDocumentCount": count, "status": "completed"}
+        # Route each domain to its own base — knowledge/legal/ must land in the
+        # legal base, not inside the platform collection (2026-08-04).
+        bases = {
+            name: h.instance
+            for name, h in _extra_knowledge_handles.items()
+            if h.instance is not None
+        }
+        count = await ingest_all(live_knowledge, bases=bases)
+        return {"indexedDocumentCount": count, "status": "completed", "bases": sorted(bases) or ["platform"]}
 
 
 # ---------------------------------------------------------------------------
