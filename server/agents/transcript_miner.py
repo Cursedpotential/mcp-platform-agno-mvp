@@ -25,11 +25,21 @@ def build_transcript_miner(
     """Build the Transcript Miner agent.
 
     Currently delegates to ``build_ingestion_orchestrator`` — transcript mining
-    uses the same custody → parse → normalize → store pipeline. This function
+    uses the same custody -> parse -> normalize -> store pipeline. This function
     exists as the extension point when transcript-specific logic is needed.
+
+    The delegate returns an agent carrying the ORCHESTRATOR's id/name, so the
+    identity must be overridden here. AgentOS rejects a roster containing
+    duplicate ids outright (``ValueError: Duplicate IDs found in AgentOS``) and
+    the process then crash-loops — verified the hard way on 2026-08-04, the
+    first time this agent was mounted.
 
     See ``agents.factory`` for parameter descriptions.
     """
     from server.agents.factory import build_ingestion_orchestrator
 
-    return build_ingestion_orchestrator(model, db, knowledge, learning, source_tools)
+    agent = build_ingestion_orchestrator(model, db, knowledge, learning, source_tools)
+    agent.id = "transcript-miner"
+    agent.name = "Transcript Miner"
+    agent.role = "Mine AI-chat transcripts for decisions, code artifacts and blockers."
+    return agent

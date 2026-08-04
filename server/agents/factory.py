@@ -494,6 +494,23 @@ def build_agent_team(ctx: Any) -> dict[str, Any]:
 
     router = build_root_router(m, db, ops_team, builder_team)
 
+    # AgentOS raises `ValueError: Duplicate IDs found in AgentOS` and the
+    # process crash-loops if two entries share an id — which is exactly what
+    # happened on 2026-08-04 when Transcript Miner was mounted while still
+    # carrying the Ingestion Orchestrator's id (it delegates to that builder).
+    # Fail HERE, at assembly, with the offending id named, instead of after
+    # AgentOS has been constructed: the message is actionable and the failure
+    # surfaces in tests rather than in a restart loop.
+    _built = [ingestion, analysis, gatekeeper, miner, dev, pal, forensic]
+    _ids = [getattr(a, "id", None) for a in _built]
+    _dupes = {i for i in _ids if i and _ids.count(i) > 1}
+    if _dupes:
+        raise ValueError(
+            f"duplicate agent id(s) in the roster: {sorted(_dupes)} — every agent "
+            "needs its own stable id (a builder that delegates to another must "
+            "override id/name)"
+        )
+
     return {
         # Platform Ops
         "ingestion_orchestrator": ingestion,
