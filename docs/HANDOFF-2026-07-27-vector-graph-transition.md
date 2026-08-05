@@ -63,7 +63,10 @@ retrieval / analysis
 ### Phase 4 — carried items (unchanged priority)
 - Detection matcher fix (`server/analysis/detection.py`) — Unicode apostrophes/word boundaries/`deflection_of_accountability` category. Cheapest high-value; gates cycle detection quality.
 - Identity-spine verification (`normalize.py` — do entity keys stamp onto records at write time?).
-- ADR-0034 stranded on `docs/adr-0033-0034-evidence-model` — merge or re-home.
+- ~~ADR-0034 stranded on `docs/adr-0033-0034-evidence-model` — merge or re-home.~~
+  **RESOLVED 2026-08-05:** merged. ADR-0034 (custody hashing) kept its number;
+  its sibling was renumbered 0033 → **0044** because `main` had shipped a
+  different ADR-0033 in the meantime.
 - Root compose cleanup: migrate 19 root-level `compose.*.yaml` → `deploy/` (owner hates the root mess; each move = app config change + redeploy, do deliberately).
 - Merge `infra/data-weaviate-memgql` → main when the data apps are settled.
 - Rotations: Coolify API token, OS_SECURITY_KEY.

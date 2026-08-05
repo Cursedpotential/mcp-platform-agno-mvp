@@ -44,6 +44,7 @@ guarantee gets an ADR. One short record. Supersede (don't edit) when a decision 
 | 0031 | CaseBible entity/temporal-graph layer = Neo4j + Graphiti, isolated by group_id | Accepted (extends 0014/0018) |
 | 0032 | Drop the PG Multicorn FDW federation hub; cross-source reach = pg_duckdb + native drivers | Accepted (supersedes 2026-06-14 federation-hub stance) |
 | 0033 | `server/` package layout (Option A repack) | Accepted (merged + deployed; amended 2026-07-09 — tools promoted to `server/tools/`, `vendored/` scope broadened) |
+| 0034 | Multi-level custody hashing + signed/timestamped chain of custody | **Accepted** (2026-06-27; merged 2026-08-05 — was the "STRANDED" gap in this ledger) |
 | 0035 | Tools sub-namespacing, tool_finder extraction, and the record contract's home | Accepted & Implemented (merged `8240205`, deployed + verified 2026-07-10; supersedes/relates ADR-0033) |
 | 0036 | DozerDB multi-DB RBAC — memory/evidence isolation | Accepted (owner 2026-07-29; execution pending) |
 | 0037 | Graphiti MCP via ContextForge, write-enabled | Accepted (owner 2026-07-29; blocker cleared per D-028; retire `:8071` door pending) |
@@ -52,6 +53,8 @@ guarantee gets an ADR. One short record. Supersede (don't edit) when a decision 
 | 0040 | Vector substrate revisit — Weaviate LOCKED (vs pgvector / keep-Milvus) | Accepted (2026-07-27; supersedes 0026/0027 engine choice; migration pending, Milvus sidelined) |
 | 0041 | Memgraph = additive temporal GraphRAG layer, read-side only (Neo4j/DozerDB stays) | Accepted (2026-07-28; Variant B) |
 | 0042 | Portkey replaces LiteLLM as THE model gateway; LiteLLM retired | Accepted (2026-07-29; supersedes 0015; teardown pending) |
+| 0043 | Semantica as a governed extraction worker (pinned fork); SurrealDB exits the critical path | Accepted (2026-08-02; index row backfilled 2026-08-05 — the file shipped without one) |
+| 0044 | Evidence-vs-Context boundary + forensic transcript data model | **Accepted** (2026-06-27; merged 2026-08-05, renumbered from ~~0033~~ — `main` had already shipped a different ADR-0033) |
 
 > The full vision, current stack, roadmap, access, and gotchas live in
 > [`docs/PROJECT_CANON.md`](../PROJECT_CANON.md) (the durable source of truth).
