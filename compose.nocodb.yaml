@@ -1,11 +1,18 @@
 # NocoDB — owner planning/notes/tables front-end + Case Bible review UI (ADR-0029)
 # _Byline: Claude Code · Fable 5 · 2026-07-12_
-# Host: ovh-data. Tailnet-only bind (BIND_IP). Bind-mount volume per owner rule (no named volumes).
+# _Byline: Claude Code · Opus 5 · 2026-08-05 (conformed to live reality: host, PG name, digest pin)_
+# Host: ~~ovh-data~~ **ovh-files** (100.91.190.107) — corrected 2026-08-05 from the live
+# `docker ps` inventory; two nocodb containers have run there for 3 days.
+# Tailnet-only bind (BIND_IP). Bind-mount volume per owner rule (no named volumes).
 # Metadata store = SQLite on the bind mount; casebible PG attaches later as an EXTERNAL data source
-# in the NocoDB UI (reachable as agno-pg via the shared `agno` docker network).
+# in the NocoDB UI, reachable over the shared `agno` docker network as ~~`agno-pg`~~
+# **`data-pg-files`** (PG moved to ovh-files 2026-08-02, wave 1 of the ovh-data retirement).
 services:
   nocodb:
-    image: nocodb/nocodb:latest
+    # Pinned by DIGEST, not `:latest` — this is production, and a redeploy on a
+    # floating tag silently swaps the version. This digest IS the image running
+    # since 2026-08-02; the app reports version 2026.07.0. Bump deliberately.
+    image: nocodb/nocodb@sha256:fb359673c42fb69058e880710e446f8039afeb64632ca8d8dfcfdcc407ebb058
     restart: unless-stopped
     ports:
       - "${BIND_IP}:8570:8080"

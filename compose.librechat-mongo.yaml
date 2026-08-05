@@ -14,10 +14,13 @@
 #   docker network inspect agno >/dev/null 2>&1 || docker network create agno
 # =============================================================================
 # Byline: Claude Code · Fable 5 · 2026-07-20
+# Byline: Claude Code · Opus 5 · 2026-08-05 (digest pin)
 
 services:
   librechat-mongo:
-    image: mongo:7
+    # `mongo:7` was already a sane major pin; the digest makes it exact. This is
+    # the image running since 2026-07-29. Bump deliberately.
+    image: mongo:7@sha256:340c1c56fb10e95cf79ff547f8664b96bc6ead9909bc355238cbf865a9695a6f
     container_name: librechat-mongo
     restart: unless-stopped
     command: mongod --quiet

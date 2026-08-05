@@ -2,7 +2,9 @@
 # LIBRECHAT — deploy as its OWN Coolify app on ovh-files (OVH-2, tailnet
 # 100.91.190.107), project "Case Bible". Minimal profile: app + mongo ONLY —
 # NO Meilisearch (SEARCH=false), NO rag_api/vector store (knowledge lives in
-# the platform spine → Milvus; a second RAG lane would violate single-writer).
+# the platform spine → ~~Milvus~~ **Weaviate** (ADR-0040 locked it 2026-07-27,
+# Milvus sidelined; corrected 2026-08-05); a second RAG lane would violate
+# single-writer either way.
 #
 # Model backend = Portkey gateway (ovh-app :8787) via the chat.json failover
 # lane, sent per-request as the x-portkey-config header (see
@@ -12,8 +14,11 @@
 # header at request time (config file itself stays secret-free).
 #
 # Agents: mcpServers.agentos in librechat.yaml points at the AgentOS MCP door
-# (tailnet http://100.72.169.40:8001/mcp, no basic-auth on the direct port) so
-# any chat model can invoke platform agents/workflows as tools.
+# (tailnet ~~http://100.72.169.40:8001/mcp~~ → **http://100.72.169.40:8000/mcp**
+# with an `Authorization: Bearer` header) so any chat model can invoke platform
+# agents/workflows as tools. The standalone agentos-mcp service on :8001 was
+# retired in agno 2.8; the door is now mounted on the api. This header comment
+# had drifted — docker/librechat/librechat.yaml itself was already correct.
 #
 # HOST-PREP (once, before first deploy):
 #   mkdir -p /data/agno/volumes/librechat/{config,images,uploads,logs}
@@ -25,10 +30,14 @@
 # flip ALLOW_REGISTRATION=false + redeploy.
 # =============================================================================
 # Byline: Claude Code · Fable 5 · 2026-07-20
+# Byline: Claude Code · Opus 5 · 2026-08-05 (digest pin + stale-comment corrections)
 
 services:
   librechat:
-    image: ghcr.io/danny-avila/librechat:latest
+    # Pinned by DIGEST, not `:latest` — this is production, and a redeploy on a
+    # floating tag silently swaps the version. This digest IS the image running
+    # since 2026-07-29; the app reports version v0.8.7. Bump deliberately.
+    image: ghcr.io/danny-avila/librechat@sha256:c5db3331b845e1f289f8d04c0c77936c4bbe372f76730a804abc1c37e44d23a9
     container_name: librechat
     restart: unless-stopped
     ports:
