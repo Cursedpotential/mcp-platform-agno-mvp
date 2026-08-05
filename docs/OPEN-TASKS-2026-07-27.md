@@ -28,7 +28,9 @@
 
 ## Housekeeping
 - Commit ADR drafts **0036–0041** + SESSION-HANDOFF-2026-07-13.md (all uncommitted on `docs/adr-graphiti-memory`).
-- **ADR-0034 stranded** on unmerged `docs/adr-0033-0034-evidence-model` — merge or re-home.
+- ~~**ADR-0034 stranded** on unmerged `docs/adr-0033-0034-evidence-model` — merge or re-home.~~
+  **DONE 2026-08-05:** merged to `main`. 0034 kept its number (it was a real gap
+  in the ledger); the sibling ADR became **0044** to clear a number collision.
 - Verify traceIQ PR push landed (repo slimmed 3.4 GB→276 MB, push in flight 07-27 ~10:04).
 - Standing rotations: Coolify API token, OS_SECURITY_KEY.
 

@@ -45,7 +45,11 @@ Conversation got long/expensive. Full state dump. Read, then continue.
 
 **ADRs housekeeping:**
 - Commit 0036-0039 (drafts, `docs/adr-graphiti-memory` branch).
-- **ADR-0034 is STRANDED** on unmerged branch `docs/adr-0033-0034-evidence-model` (evidence/context boundary + transcript model) — the gap in the ledger. Merge or re-home it.
+- ~~**ADR-0034 is STRANDED** on unmerged branch `docs/adr-0033-0034-evidence-model` (evidence/context boundary + transcript model) — the gap in the ledger. Merge or re-home it.~~
+  **RESOLVED 2026-08-05:** both ADRs merged to `main`. ADR-0034 (multi-level
+  custody hashing) kept its number and closed the ledger gap; the evidence/context
+  boundary ADR was renumbered ~~0033~~ → **0044**, since `main` had independently
+  shipped `0033-server-package-layout-repack.md` under the same number.
 - Verify `ai-workspace` monorepo push landed.
 
 **Vector/embedding decision + detection fix are the two highest-value next moves. Detection fix is cheap, measurable (dry-run diff), and gates cycle detection.**
