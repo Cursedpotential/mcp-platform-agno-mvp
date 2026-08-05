@@ -25,9 +25,17 @@
 
 services:
   # ---------------------------------------------------------------------------
-  # SurrealDB — the Agno OPERATIONAL store (sessions/memory/metrics/eval/
-  # knowledge-content/culture/traces/spans). Persistent rocksdb on an absolute
-  # host bind. Reached by agentos-api on OVH-1 over the tailnet/salem link.
+  # SurrealDB — ~~the Agno OPERATIONAL store~~ **PARKED / READ-ONLY as of the
+  # 2026-08-04 flatten (ADR-0043 decision 3)**. The operational store
+  # (sessions/memory/metrics/eval/knowledge-content/culture/traces/spans) is
+  # now PostgresDb — see server/core/session.py::get_agno_db. Nothing in the
+  # app connects here any more: get_surrealdb_legacy() exists purely so a
+  # parity check can read the container without resurrecting the dependency,
+  # and it has no callers. The durable copy is the sha256-manifested export at
+  # _stale/surreal-export-20260804 plus /data/agno/backups/.
+  # ⚠ DO NOT DELETE — ADR-0043 makes the retirement reversible and reserves
+  # deletion to the owner. Still running on ovh-data (100.119.96.29), healthy.
+  # Persistent rocksdb on an absolute host bind.
   # WS transport on /rpc; raw TCP, tailnet-only — NEVER proxied, NEVER 0.0.0.0.
   # ---------------------------------------------------------------------------
   surrealdb:

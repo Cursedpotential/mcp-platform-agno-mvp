@@ -151,7 +151,7 @@ is preserved in git history + `docs/planning/`.)
 |---|---|---|
 | `ion-control` (Ionos 3.8 GB) | Coolify control plane | — (Coolify itself) |
 | `ovh-app` `100.72.169.40` | Exec tier (the old exec bundle split into independent apps, owner rule "separate everything separable") | `exec-tier` (agentos-api + db rump) · `exec-gateway` (OpenCode; LiteLLM deprecated → teardown pending, ADR-0042) · `exec-contextforge` (tool gateway) · `exec-platform-tools` (SBV forensic fork + tools-facade) · `exec-sandbox` · `exec-desktop` (Kasm) · `portkey` (THE model gateway, ADR-0042) · `knowledge-workbench` (staged-ingest console, :8020) · `agent-ui` · `browser` · `coolify-mcp` |
-| `ovh-data` `100.119.96.29` | Data tier — independent apps on the shared external `agno` docker network (172.30.0.0/16; cross-app DNS — `neo4j:7687`, `milvus:19530`, …) | `data-pg` (PG18: pg_duckdb + pgvector + PostGIS; tailnet `DB_HOST=100.119.96.29`) · `data-neo4j` (Graphiti's graph) · `data-graphiti` (Graphiti MCP) · `data-surreal` · `data-weaviate` (ADR-0040 substrate — deployed & healthy, cutover pending) · `data-vector` (Milvus — sidelined per ADR-0040) · `nocodb` (review front-end, ADR-0029 lineage) |
+| `ovh-data` `100.119.96.29` | Data tier — independent apps on the shared external `agno` docker network (172.30.0.0/16; cross-app DNS — `neo4j:7687`, `milvus:19530`, …) | `data-pg` (PG18: pg_duckdb + pgvector + PostGIS; tailnet `DB_HOST=100.119.96.29`) · `data-neo4j` (Graphiti's graph) · `data-graphiti` (Graphiti MCP) · `data-surreal` (PARKED read-only since 2026-08-04, ADR-0043 — owner-gated deletion) · `data-weaviate` (ADR-0040 substrate — deployed & healthy, cutover pending) · `data-vector` (Milvus — sidelined per ADR-0040) · `nocodb` (review front-end, ADR-0029 lineage) |
 | `ovh-files` `100.91.190.107` | Files + chat surfaces | `librechat` (:3080) · `librechat-mongo` (real Mongo — owner waiver of the FerretDB rule) · file services (Cloudreve, casebible rclone lane) |
 
 **Off-Coolify:** Homepage dashboard `http://100.72.169.40:3010` (plain compose,
@@ -218,11 +218,19 @@ S3 API + pg_duckdb httpfs (`read_text('s3://nexus/...')`).
   on demand → `invoke_tool` → `get_ref` (paged); start with a search tool + name-only catalog, never dump all
   schemas into context (dial-stack `gateway.ts` pattern; ADR-0023, Phase C). (Implements minimize-custom +
   the serve/consume topology; registry + ContextForge carry it. Workflow *design* = a future brainstorm — see HANDOFFS.)
-- **SurrealDB = store/session/memory + bitemporal-record layer (LOCKED 2026-06-13; ADR-0024, amended by ADR-0027).**
-  Consolidate AgentOS sessions+state + memory + the **bitemporal evidence-record store** (native valid+transaction
-  time) onto **SurrealDB**. ⚠ **The vector/Knowledge role moved to Milvus (ADR-0027)** — SurrealDB is NOT the vector
-  store; semantic search lives in Milvus. **Custom Graphiti STAYS** the bitemporal *cognition* substrate (VIP — NOT
-  replaced; different altitude). Migrate off pg_duckdb deliberately vs the live ADR-0013 stack; sequence in Phase D.
+- ~~**SurrealDB = store/session/memory + bitemporal-record layer (LOCKED 2026-06-13; ADR-0024, amended by ADR-0027).**~~
+  **SUPERSEDED by ADR-0043 (2026-08-02 accepted; flatten executed 2026-08-04): SurrealDB exits the critical path.**
+  The Agno operational store (sessions/memory/metrics/eval/traces/spans) is **PostgresDb** — `server/core/session.py::get_agno_db`
+  delegates to `get_postgres_db()`. Two drivers of the reversal: agno's SurrealDb backend implements none of the
+  learning protocol (every memory lane was a silent no-op), and a second registered `db.id` armed agno's multi-db
+  gate so any route omitting `db_id` returned 400. SurrealDB is now **parked read-only** — reversible by design,
+  exported with sha256 manifests to `_stale/surreal-export-20260804` + `/data/agno/backups/`, container still
+  healthy on ovh-data, **only the owner deletes**. `get_surrealdb_legacy()` exists for read-only reconciliation
+  and has no callers.
+  _Recorded unchanged below for provenance — it was true when locked on 2026-06-13:_ consolidate AgentOS
+  sessions+state + memory + the **bitemporal evidence-record store** (native valid+transaction time) onto
+  **SurrealDB**. ⚠ The vector/Knowledge role moved to Milvus (ADR-0027) — and has since moved again to **Weaviate**
+  (ADR-0040). **Custom Graphiti STAYS** the bitemporal *cognition* substrate (VIP — NOT replaced; different altitude).
 - **Milvus = the platform-wide VECTOR/ANN substrate (LOCKED 2026-06-13; ADR-0026 + ADR-0027). LIVE on ovh2.**
   Self-hosted **Milvus 3.0 standalone (embedded etcd + local storage + WoodPecker) + Attu v3**, Coolify-deployed
   on ovh2 from the `milvus-coolify` repo — **off** the managed Zilliz `aws-eu-central-1` cluster. **Everything

@@ -20,6 +20,9 @@ Hard rules:
 # Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3 spine boot resilience — KnowledgeHandle wired in place of a direct create_knowledge() call; register_inspect_routes added)
 # Byline: Claude Code · Sonnet · 2026-07-23 (agno 2.8 service accounts — AgentOS admin-plane db switched from SurrealDb to a dedicated PostgresDb; agents/teams keep SurrealDb unchanged)
 # Byline: Claude Code · Fable 5 · 2026-07-31 (Milvus→Weaviate doc-drift cleanup (ADR-0040))
+# Byline: Claude Code · Opus 5 · 2026-08-05 (SurrealDB→Postgres doc-drift cleanup — the
+#   2026-08-04 flatten (ADR-0043 decision 3) moved the operational store to Postgres, but
+#   these comments still described the pre-flatten two-backend split)
 # DEPLOY NOTE (2026-08-01): exec-tier auto-deploys from `main` via the Coolify
 # GitHub App (`cursedpotential`, app_id 4047891, installation 140142795;
 # Coolify source_id=2). Watch paths are `compose.exec.yaml`, `Dockerfile`,
@@ -222,7 +225,8 @@ def _build_app() -> Any:
 
     Assembly order:
     1. Build model (provider-agnostic, credential-driven).
-    2. Build Agno DB connections (SurrealDB operational store).
+    2. Build Agno DB connections (**Postgres** operational store — was
+       ~~SurrealDB~~ until the 2026-08-04 flatten, ADR-0043 decision 3).
     3. Build Knowledge instance (Weaviate-backed, ADR-0040) — via
        `_knowledge_handle` (C3 addendum 9, spine boot resilience): a single
        guarded connect attempt that CANNOT raise (see
@@ -257,24 +261,30 @@ def _build_app() -> Any:
     model = build_model()
     db = get_agno_db()
     # AgentOS's OWN admin-plane db (agno 2.7+: service accounts, schedules,
-    # approvals, components; also the tracing write-sink) — separate from
-    # `db` above, which is what every agent/team explicitly sets as ITS OWN
-    # `db=` (SurrealDb, the operational store; unaffected by this). agno's
-    # admin routers (agno/os/routers/service_accounts, schedules, approvals,
-    # components) all key off `AgentOS(db=...)` alone via `os_db=self.db`
-    # — there is no per-feature override — and SurrealDb's backend does not
-    # implement the service-account methods (`create_service_account` etc.
-    # simply don't exist on it), so the router 503s with "Service accounts
-    # not supported by the configured database". PostgresDb does implement
-    # them, and agno's own `_create_all_tables()` (auto_provision_dbs=True,
-    # the default) already provisions `ai.agno_service_accounts` natively —
-    # no hand-DDL — via the SAME auto-provisioning pass already triggered by
-    # the Knowledge contents_db below (verified live: table exists, 0 rows,
-    # columns match `agno.db.schemas.service_accounts.ServiceAccount`).
-    # Sessions/traces stay visible: their routers aggregate across every
-    # registered db (`self.dbs`), and SurrealDb stays registered because
-    # each agent/team keeps its own explicit `db=db` (SurrealDb) below —
-    # this only redirects the OS-level admin surface + future trace writes.
+    # approvals, components; also the tracing write-sink).
+    #
+    # ⚠ POST-FLATTEN (2026-08-04, ADR-0043 decision 3): this is now the SAME
+    # PostgresDb singleton as `db` above — `get_agno_db()` delegates to
+    # `get_postgres_db()`. Both names are kept because they express different
+    # ROLES (operational store vs admin plane) and agno takes them in
+    # different parameters, but they are one object and one `db.id`. That is
+    # deliberate: agno keys its db registry by `db.id` and counts KEYS, so
+    # two ids would arm the multi-db gate and make every route that omits
+    # `db_id` return 400.
+    #
+    # ~~Pre-flatten rationale, kept because it is why the admin plane had to
+    # be Postgres in the first place:~~ agno's admin routers
+    # (agno/os/routers/service_accounts, schedules, approvals, components)
+    # all key off `AgentOS(db=...)` alone via `os_db=self.db` — there is no
+    # per-feature override — and SurrealDb's backend does not implement the
+    # service-account methods (`create_service_account` etc. simply don't
+    # exist on it), so the router 503s with "Service accounts not supported
+    # by the configured database". PostgresDb does implement them, and agno's
+    # own `_create_all_tables()` (auto_provision_dbs=True, the default)
+    # provisions `ai.agno_service_accounts` natively — no hand-DDL — via the
+    # SAME auto-provisioning pass already triggered by the Knowledge
+    # contents_db below (verified live: table exists, columns match
+    # `agno.db.schemas.service_accounts.ServiceAccount`).
     admin_db = get_postgres_db()
     _knowledge_handle.try_connect_now()  # never raises — see server/core/knowledge_handle.py
     knowledge = _knowledge_handle.instance  # may be None; agents/AgentOS get this ONE-TIME snapshot (see docstring)
@@ -405,13 +415,17 @@ def _build_app() -> Any:
     )
     final_app = agent_os.get_app()
 
-    # The registry now holds THREE ids (agentos-db / agentos-admin-db /
-    # agentos-contents-db, see server/core/session.py). That is correct, but it
-    # arms agno's `len(dbs) > 1` guard: `db_id` is optional on every route that
-    # takes one, so a client omitting it would get a 400 instead of the
-    # silently-wrong 200 it used to get. Neither is right — default it to the
-    # SurrealDb operational store so routing is DELIBERATE. Clients that send
-    # their own `db_id` (or `knowledge_id`) are untouched.
+    # ~~The registry now holds THREE ids (agentos-db / agentos-admin-db /
+    # agentos-contents-db)~~ — since the 2026-08-04 flatten (ADR-0043 decision
+    # 3) `DB_ID`, `ADMIN_DB_ID` and `CONTENTS_DB_ID` are all the SAME string
+    # ("agentos-db") backed by ONE PostgresDb, so agno's `len(dbs) > 1` guard
+    # is no longer armed and no route can 400 for a missing `db_id`.
+    #
+    # The default is kept anyway, deliberately: it is now a cheap no-op that
+    # makes routing EXPLICIT rather than implicit, and it is the guard that
+    # keeps a future second db (a second Knowledge base needs its own id — see
+    # the flatten note in server/core/session.py) from silently re-arming the
+    # 400. Clients that send their own `db_id`/`knowledge_id` are untouched.
     from server.api.db_id_middleware import install_db_id_default
 
     defaulted = install_db_id_default(final_app, DB_ID)

@@ -1,7 +1,20 @@
 # ADR-0024: SurrealDB as the store / session / Knowledge / memory layer
-- Status: Accepted
+- Status: ~~Accepted~~ **Superseded** — vector/Knowledge role by ADR-0027 (2026-06-16, then
+  ADR-0040 → Weaviate); store/session/memory role by **ADR-0043 decision 3** (accepted
+  2026-08-02, flatten executed 2026-08-04). SurrealDB is now parked read-only and off the
+  critical path; the Agno operational store is PostgresDb. **Nothing of this ADR remains in
+  force.** Kept in full for provenance — it was correct when decided.
 - Date: 2026-06-13
 - _Byline: Claude Code · Opus 4.8 · 2026-06-13_
+- _Superseded-marking byline: Claude Code · Opus 5 · 2026-08-05_
+
+> **Why it was reversed** (short version; full reasoning in ADR-0043 and
+> `docs/reference/agno-memory-and-storage/07-platform-mapping.md`): agno's SurrealDb backend
+> raises `NotImplementedError` on every LearningMachine method, and LearningMachine swallows
+> the exception — so `user_profile` / `user_memory` / `session_context` / `entity_memory` were
+> **silent no-ops in production for months**. Separately, registering a second `db.id` armed
+> agno's multi-db gate, making every route that omitted `db_id` return 400. The consolidation
+> this ADR sought was real, but it landed on Postgres, not SurrealDB.
 
 ## Context
 The platform currently splits state across pg_duckdb/pgvector (sessions, Knowledge vectors), plus Agno

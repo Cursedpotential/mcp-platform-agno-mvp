@@ -140,7 +140,9 @@ def build_ingestion_orchestrator(
     model:
         Agno model instance (from ``app/settings.build_model()``).
     db:
-        Agno operational DB (SurrealDB).
+        Agno operational DB — **PostgresDb** since the 2026-08-04 flatten
+        (ADR-0043 decision 3). Was ~~SurrealDB~~; see
+        ``server.core.session.get_agno_db``.
     knowledge:
         Agno Knowledge instance (Weaviate-backed, ADR-0040).
     learning:
@@ -433,7 +435,8 @@ def build_root_router(model: Any, db: Any, ops_team: Team, builder_team: Team) -
         # Memory capture lives HERE (plus Project PAL) and nowhere else: the
         # router sees every user message, so one enable = one memory-extraction
         # pass per user run instead of one per member agent. Memories persist
-        # to `db` (SurrealDb, agno_memories) and feed the AgentOS memory panel
+        # to `db` (PostgresDb since the 2026-08-04 flatten, ADR-0043 decision 3;
+        # was ~~SurrealDb~~ — table role `agno_memories`) and feed the panel
         # — which stayed empty because nothing ever wrote memories
         # (HANDOFF-2026-07-30 audit, confirmed live 2026-07-31).
         enable_user_memories=True,

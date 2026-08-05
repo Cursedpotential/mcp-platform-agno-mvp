@@ -67,10 +67,16 @@ DB_ID = "agentos-db"  # THE database id — one PostgresDb behind every domain
 ADMIN_DB_ID = DB_ID  # retained as a readable alias; same id, same instance
 CONTENTS_DB_ID = DB_ID  # Knowledge contents ride the same db (own table)
 
-# --- SurrealDB: the Agno OPERATIONAL store (sessions/memory/metrics/eval/
-# knowledge-content/culture/traces/spans). Reached from the exec tier on OVH-1 ->
-# data tier on OVH-3. Default = OVH-3 tailnet IP (matches compose OVH3_HOST);
-# salem private fast-path alt = ws://10.1.2.101:8000/rpc. WS transport, /rpc path.
+# --- SurrealDB: ~~the Agno OPERATIONAL store~~ **PARKED / READ-ONLY** since the
+# 2026-08-04 flatten (ADR-0043 decision 3). Those roles (sessions/memory/metrics/
+# eval/knowledge-content/culture/traces/spans) all moved to PostgresDb above.
+# These settings survive ONLY to construct get_surrealdb_legacy() for a
+# read-only parity check — which currently has no callers. Retirement is
+# deliberately reversible and DELETION IS THE OWNER'S CALL, so neither the vars
+# nor the container are removed here.
+# Reached from the exec tier on OVH-1 -> data tier on OVH-3. Default = OVH-3
+# tailnet IP (matches compose OVH3_HOST); salem private fast-path alt =
+# ws://10.1.2.101:8000/rpc. WS transport, /rpc path.
 SURREALDB_URL = getenv("SURREALDB_URL", "ws://100.119.96.29:8000/rpc")
 SURREALDB_USER = getenv("SURREALDB_USER", "root")
 SURREALDB_PASS = getenv("SURREALDB_PASS", "root")

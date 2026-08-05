@@ -77,7 +77,11 @@ services:
       # gRPC port over the tailnet. Override MILVUS_ADDRESS/TOKEN in env if needed.
       MILVUS_ADDRESS: ${MILVUS_ADDRESS:-http://${OVH3_HOST}:19530}
       MILVUS_TOKEN: ${MILVUS_TOKEN:-}
-      # SurrealDB (Agno operational store) on OVH-3 — WS transport, /rpc path.
+      # SurrealDB on OVH-3 — WS transport, /rpc path. ~~Agno operational
+      # store~~ → PARKED read-only since the 2026-08-04 flatten (ADR-0043
+      # decision 3); the operational store is Postgres now. These vars are
+      # retained ONLY to feed get_surrealdb_legacy() for a read-only parity
+      # check — no runtime path uses them. Do not delete (owner-gated).
       SURREALDB_URL: ${SURREALDB_URL:-ws://${OVH3_HOST}:8000/rpc}
       SURREALDB_USER: ${SURREALDB_USER:-root}
       SURREALDB_PASS: ${SURREALDB_PASS:-root}

@@ -57,7 +57,9 @@ class PlatformContext:
     model:
         Agno model instance.
     db:
-        Agno operational DB (SurrealDB).
+        Agno operational DB — **PostgresDb** since the 2026-08-04 flatten
+        (ADR-0043 decision 3). Was ~~SurrealDB~~; see
+        ``server.core.session.get_agno_db``.
     knowledge:
         Agno Knowledge instance (Weaviate-backed, ADR-0040).
     learning:

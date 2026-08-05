@@ -98,8 +98,10 @@ def _input_of(ctx: Any, schema: type[_InputModel]) -> _InputModel:
 def build_workflow_factories(db: Any, knowledge: Any) -> List[WorkflowFactory]:
     """Build the WorkflowFactory list for ``AgentOS(workflows=...)``.
 
-    ``db`` is the operational store (SurrealDb) — the same db the agents use, so
-    workflow runs land beside agent sessions rather than in the admin plane.
+    ``db`` is the operational store (**PostgresDb** since the 2026-08-04
+    flatten, ADR-0043 decision 3; was ~~SurrealDb~~) — the same db the agents
+    use, so workflow runs land beside agent sessions rather than in the admin
+    plane.
     ``knowledge`` is the one-time boot snapshot from ``_knowledge_handle``; it
     may be None, in which case the knowledge Step self-skips (it already handles
     a None engine by design).

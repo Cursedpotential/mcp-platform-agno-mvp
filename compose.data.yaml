@@ -25,7 +25,7 @@
 #   data-pg       /compose.data-pg.yaml       5432          PG18 + pg_duckdb/PostGIS/pgvector
 #   data-neo4j    /compose.data-neo4j.yaml     7474 + 7687   neo4j:5-community (browser + bolt)
 #   data-graphiti /compose.data-graphiti.yaml  8071 MCP      graphiti->neo4j via tailnet bolt (rewired)
-#   data-surreal  /compose.data-surreal.yaml   8000          SurrealDB v3.1.4 (operational store, rocksdb)
+#   data-surreal  /compose.data-surreal.yaml   8000          SurrealDB v3.1.4 (~~operational store~~ PARKED read-only since 2026-08-04, ADR-0043; rocksdb)
 #   data-vector   /compose.data-vector.yaml    19530 + 9091  Milvus + Attu (split earlier, 18c42d2)
 #
 # This file is kept as HISTORICAL documentation of the original bundled tier

@@ -60,10 +60,14 @@ Consequences that are easy to get wrong:
 
 ## Stack
 
-Agno 2.8.0 · PostgreSQL 18 (pg_duckdb + pgvector + PostGIS) · Neo4j + Graphiti
-· Portkey gateway (Ollama Cloud primary; LiteLLM retired, ADR-0042) · Weaviate
-vectors (locked ADR-0040, cutover pending — Milvus sidelined) · SurrealDB
-operational store · FastAPI base_app pattern.
+Agno 2.8.0 · PostgreSQL 18 (pg_duckdb + pgvector + PostGIS) — **also the Agno
+operational store** since the 2026-08-04 flatten (ADR-0043 decision 3) ·
+Neo4j + Graphiti · Portkey gateway (Ollama Cloud primary; LiteLLM retired,
+ADR-0042) · Weaviate vectors (locked ADR-0040, cutover pending — Milvus
+sidelined) · ~~SurrealDB operational store~~ **SurrealDB parked read-only,
+off the critical path** (ADR-0043; container still up on ovh-data, export at
+`_stale/surreal-export-20260804` — only the owner deletes) · FastAPI
+base_app pattern.
 
 ## Repository Layout
 

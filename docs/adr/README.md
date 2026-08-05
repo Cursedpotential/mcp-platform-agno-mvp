@@ -34,7 +34,7 @@ guarantee gets an ADR. One short record. Supersede (don't edit) when a decision 
 | 0021 | Engineering conventions — no-stub discipline, harness-first tests | Accepted |
 | 0022 | Comprehensive living wiki — dual-purpose (AI + human), covers everything | Accepted (vision; build deferred) |
 | 0023 | Universal exposure — API-first, MCP-wrapped (every tool/agent/workflow) | Accepted (pairs with 0017) |
-| 0024 | SurrealDB = store/session/Knowledge/memory layer; Graphiti stays cognition | Accepted (vector/Knowledge role moved to Milvus by 0027) |
+| 0024 | SurrealDB = store/session/Knowledge/memory layer; Graphiti stays cognition | ~~Accepted~~ **Superseded** — vector/Knowledge role by 0027 (then 0040 → Weaviate); store/session/memory role by **0043** (flatten executed 2026-08-04, operational store is Postgres). Nothing remains in force. |
 | 0025 | Topology: Agno core + IBM ContextForge tool gateway + LiteLLM model gateway; minimize custom | Accepted (clarifies 0015; reinforces 0017) |
 | 0026 | Self-hosted Milvus (Coolify) = shared semantic store (code + Case Bible); off managed EU Zilliz | Accepted (LIVE on ovh2; extended by 0027) |
 | 0027 | Milvus = platform-wide vector/ANN substrate (Knowledge engine included) | Accepted (supersedes-in-part 0024 + 0010/0011 vector storage) |
