@@ -108,12 +108,21 @@ python ~/.claude/hooks/memory_index_guard.py --check   # auto-memory index only
 Run it when resuming, or any time a lane feels stale. It is read-only.
 
 ## Known-broken (as of 2026-08-05)
-- 🔴 **memsearch indexing dead.** `embedding.provider = "onnx"` but `embedding.model =
-  "gemini-embedding-001"` — a Gemini API name, so the ONNX path tries to fetch a HuggingFace repo
-  that doesn't exist and 401s. Journaling/capture still work, which is why it looked fine. Milvus
-  itself is reachable. Fix is one line (`provider = "gemini"`, reusing the configured key) **but
-  changing an embed model means re-embedding the store** — owner sign-off required. The Claude Code
-  memsearch plugin is also 11 versions behind (0.4.6 vs 0.4.17).
+- 🔴 **memsearch indexing dead — TWO stacked faults.**
+  1. ~~`embedding.provider = "onnx"` with `model = "gemini-embedding-001"`~~ **FIXED 2026-08-05**:
+     provider set to **`google`** (not `gemini` — that string isn't in memsearch's `_PROVIDERS`
+     registry and raises `Unknown embedding provider`). Verified standalone: init 1.8s, embed 0.3s,
+     **dim 768**, which matches every existing collection, so no re-embed was needed.
+  2. 🔴 **STILL BROKEN — Milvus.** With the embedder fixed, indexing now hangs instead of erroring.
+     Thread-stack dump: `store.py:_load_collection` → `pymilvus.load_collection` →
+     `wait_for_loading_collection` → `time.sleep` forever. `get_load_state` shows **3 of 6
+     collections stuck at `Loading, progress: 0`** (`agent_session_memory`,
+     `ms_agno_mcp_platform_9e350219`, `ms_double_shot_latte_4080276b`); the other 3 load fine.
+     Milvus accepts the connection and lists collections instantly — it just never finishes loading
+     these three. **This is the live argument for ADR-0040's Weaviate cutover**, which already
+     locked Weaviate and sidelined Milvus; memsearch still pointing at Milvus is drift from canon
+     *and* is now the thing blocking semantic recall.
+  The Claude Code memsearch plugin is also 11 versions behind (0.4.6 vs 0.4.17).
 - ⚠️ **Auto-memory fragmented across 10 stores** (Rule 0). 27 orphans outside the active store,
   including a store with no `MEMORY.md` at all. Several are `*.from-*.md` sync artifacts — decide
   what those are before indexing them.
