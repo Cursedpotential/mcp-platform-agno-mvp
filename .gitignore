@@ -105,3 +105,44 @@ docs/planning/chat-sample-analysis/
 # tracked (scripts/evidence_pipeline_report.py); its output never is.
 docs/reports/*
 !docs/reports/README.md
+
+# --- per-session agent scratch (2026-08-05) -------------------------------
+# One-off memory-consolidation / inspection scripts written straight into the
+# repo root by tooling sessions. They are session artifacts, not platform code:
+# never imported, never tested, superseded by the next session's copy. Ignored
+# rather than deleted (owner rule: never delete — these stay on disk).
+.cleanup/
+.consolidate.py
+.consolidate_cnf.py
+.inspect.py
+consolidate_memories.py
+scripts/_cnf_consolidate.py
+scripts/_cnf_inspect.py
+scripts/_inspect_mem.py
+scripts/_e*.txt
+
+# Codex CLI's per-repo config + hooks. Tool-specific setup lives in that tool's
+# own config, never in this repo (AGENTS.md, "Further Reading").
+.codex/
+
+# vendored upstream clones pulled in for reading only (semantica et al). These
+# carry their own .git; they are a research checkout, not a dependency.
+.research/
+
+# local DuckDB scratch DB for Iceberg/lakehouse poking (regenerable).
+iceberg
+
+# TODO snapshots emitted by the session tooling — a point-in-time dump of the
+# in-flight task list, superseded on every run. The durable lane is
+# docs/COORDINATION.md; HANDOFF-*.md carries what must survive.
+docs/TODO-SNAPSHOT-*.json
+
+# Auto-generated compaction summaries. These transcribe whole sessions VERBATIM,
+# so anything the session handled in the clear lands in them — the 2026-08-02 and
+# -08-03 files each carry live Cloudflare R2 API tokens (`cfat_…`) and the account
+# id, 44 occurrences between them. Same reasoning as docs/reports/* above: the
+# artifact embeds real secrets even though the process producing it is fine.
+# HANDOFF-*.md stays tracked — it is written deliberately, not transcribed.
+# COMPACT-SUMMARY-2026-08-01.md predates this rule, is already tracked, and was
+# verified token-free; a tracked file is unaffected by this pattern either way.
+docs/COMPACT-SUMMARY-*.md

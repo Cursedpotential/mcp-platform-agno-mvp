@@ -12,6 +12,12 @@ Lanes: **A** = restructure · **B** = ingestion/table redesign · **C** = infra/
 
 ---
 
+## 2026-08-02
+
+| # | Decision | Lane | Status | Rationale / notes |
+|---|---|---|---|---|
+| D-032 | **Studio's model picker is fed by the AgentOS `Registry`, NOT `GET /models`** | C | done | Owner-visible bug: the os.agno.com Studio picker offered one model. Root cause read from agno source (`agno/os/router.py::get_models`, byte-identical in 2.8.0 and 2.8.6): `/models` returns the DISTINCT models already **attached** to registered agents/teams — a usage report, not a catalog. All 6 agents + 3 teams share the one object `build_model()` returns, so the set collapses to 1. There is no config path into it, and growing it would mean attaching decoy agents to the roster the user sees. Docs give the supported path instead: Studio's agent builder shows "Model: select from registered models" (`/agent-os/studio/agents`) and the `Registry` is documented as the home for "model provider instances … that Studio depends on" (`/agent-os/studio/registry`), served at `GET /registry?resource_type=model`. So `AgentOS(registry=Registry(models=…))` is now built from the SAME verified list `AgentOSConfig.available_models` publishes (`server/api/config.yaml`, 37 probe-verified ids from `scripts/update_available_models.py`) — one source of truth, no roster pollution. New `server/core/model_registry.py`; `build_model()`/`_try_provider()`/`_model_id()` gained an optional exact-`model_id` argument (selection behaviour unchanged when omitted). **`/models` still returns 1 by design** — that is agno's documented semantics for that endpoint, not a residual bug. rel: `server/core/model_registry.py`, `server/api/main.py`, `tests/test_model_registry.py`. |
+
 ## 2026-07-29
 
 | # | Decision | Lane | Status | Rationale / notes |

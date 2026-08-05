@@ -138,6 +138,16 @@ module = [
   "pdf2image.*",
   "PIL.*",
   "bs4.*",
+  # streaming repair layer (server/tools/repair/). All lazy-imported inside
+  # functions, so mypy sees them but the dep-light tools facade never does.
+  # lxml ships no py.typed (lxml-stubs is a separate, partial package); the
+  # rest are untyped upstream.
+  "lxml.*",
+  "ijson.*",
+  "clevercsv.*",
+  "json_repair.*",
+  "pikepdf.*",
+  "charset_normalizer.*",
 ]
 ignore_missing_imports = true
 
