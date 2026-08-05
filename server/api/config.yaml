@@ -66,3 +66,47 @@ available_models:
 - nvidia:stepfun-ai/step-3.7-flash
 - nvidia:thinkingmachines/inkling
 - nvidia:z-ai/glm-5.2
+knowledge:
+  display_name: Platform Knowledge
+  dbs:
+  - db_id: agentos-db
+    domain_config:
+      display_name: Platform Knowledge
+    tables:
+    - platform_knowledge_contents
+memory:
+  display_name: Agent Memory
+  dbs:
+  - db_id: agentos-db
+    domain_config:
+      display_name: Agent Memory
+learning:
+  display_name: Learning
+  dbs:
+  - db_id: agentos-db
+    domain_config:
+      display_name: Learning
+session:
+  display_name: Sessions
+  dbs:
+  - db_id: agentos-db
+    domain_config:
+      display_name: Sessions
+metrics:
+  display_name: Metrics
+  dbs:
+  - db_id: agentos-db
+    domain_config:
+      display_name: Metrics
+traces:
+  display_name: Traces
+  dbs:
+  - db_id: agentos-db
+    domain_config:
+      display_name: Traces
+evals:
+  display_name: Evaluation
+  dbs:
+  - db_id: agentos-db
+    domain_config:
+      display_name: Evaluation

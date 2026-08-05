@@ -40,6 +40,7 @@ gate.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, List, TypeVar
 
 from agno.utils.log import log_info, log_warning
@@ -112,25 +113,62 @@ def build_workflow_factories(db: Any, knowledge: Any) -> List[WorkflowFactory]:
         build_sms_xml_workflow,
     )
 
+    def _ledgered(workflow_id: str, args: Any, wf: Any, wf_ctx: dict[str, Any]) -> Any:
+        """Give an AgentOS-launched workflow the SAME ledger + controls as
+        ``/v1/runs`` (Codex C-03, fixed 2026-08-04).
+
+        These factories used to return the bare workflow: no
+        ``ops.workflow_run`` row, so a Studio-launched ingest was invisible to
+        the operator console and could not be aborted/continued/retried; and
+        the parsed ``mode`` was discarded, so ``mode='supervised'`` validated
+        fine and then ran straight through without ever pausing for approval —
+        a HITL gate that silently was not one.
+
+        Ledger creation must never block the ingest: if Postgres is
+        unreachable the workflow still runs, unledgered, with a loud warning —
+        same rule that keeps ``registered_workflows`` from crash-looping boot.
+        """
+        from server.evidence.workflows import attach_ledger
+
+        try:
+            from server.evidence.run_ledger import create_run
+
+            run_id = create_run(
+                workflow=workflow_id,
+                mode=args.mode,
+                source_name=Path(args.path).name,
+                source_path=args.path,
+                domain=args.domain,
+                custody_tier=args.custody_tier,
+            )
+            attach_ledger(wf, wf_ctx, run_id, args.mode)
+            log_info(f"workflow {workflow_id}: ledger run {run_id} (mode={args.mode})")
+        except Exception as exc:  # noqa: BLE001 — never block the ingest
+            log_warning(
+                f"workflow {workflow_id}: could not create a ledger run ({exc!r}); "
+                "running WITHOUT ledger or supervised gates"
+            )
+        return wf
+
     def _chat_factory(ctx: Any):
         args = _input_of(ctx, ChatTranscriptInput)
-        wf, _ = build_chat_transcript_workflow(
+        wf, wf_ctx = build_chat_transcript_workflow(
             path=args.path,
             domain=args.domain,
             knowledge=knowledge,
             custody_tier=args.custody_tier,
         )
-        return wf
+        return _ledgered("chat-transcript", args, wf, wf_ctx)
 
     def _sms_factory(ctx: Any):
         args = _input_of(ctx, SmsXmlInput)
-        wf, _ = build_sms_xml_workflow(
+        wf, wf_ctx = build_sms_xml_workflow(
             path=args.path,
             domain=args.domain,
             knowledge=knowledge,
             custody_tier=args.custody_tier,
         )
-        return wf
+        return _ledgered("sms-xml", args, wf, wf_ctx)
 
     return [
         WorkflowFactory(

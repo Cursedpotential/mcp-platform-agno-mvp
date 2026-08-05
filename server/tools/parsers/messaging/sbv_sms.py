@@ -1,21 +1,36 @@
-"""Atomic tool: SMS backup XML -> NormalizedRecords via SBV (PRIMARY parser).
+"""Atomic tool: SMS backup XML -> NormalizedRecords via SBV.
+~~(PRIMARY parser)~~ — DEMOTED to shadow/diagnostic 2026-08-02.
 
-SBV ("SMS Backup Viewer", ghcr.io/lowcarbdev/sbv) is the owner-chosen primary
-SMS-XML engine: a Go service that parses "SMS Backup & Restore" XML (sms/mms +
-call logs), converts MMS media (HEIC/3GP/AMR), and serves the result over a
-session-authenticated REST API. This module uploads the XML to SBV, waits for
-processing, fetches the parsed messages + calls, and maps them into the SAME
-NormalizedRecord shape (incl. forensic call-block flags) that the pure-Python
-fallback server/tools/sms_xml.py produces — so Workflow A, store, and the
-knowledge engine never care which parser ran.
+DEMOTION (2026-08-02, parser-gap review P0-1 —
+docs/HANDOFF-2026-08-02-sbv-chatminer-parser-gap-review.md): after upload this
+adapter reads `GET /api/activity`, which returns the service account's ENTIRE
+persistent corpus, not the records of the new import — a second upload can
+attribute the first upload's records to the new artifact's custody event
+(affirmative false provenance). Until SBV's upload returns an immutable
+import_id and an import-scoped activity read exists, this tool must not be the
+auto-selected parser. It stays registered and callable BY ID
+(`registry.get("messages.sms-xml-sbv")`) for shadow comparison and diagnostics,
+but `accept()` additionally requires the env `SBV_PRIMARY_ENABLED` — default
+unset — so `registry.resolve("parse.sms-xml")` returns the pure-Python
+`messages.sms-xml` first. Restore conditions = the review's acceptance
+criteria (import-scoped results, primary/fallback equivalence on the golden
+corpus, mandatory custody binding).
+
+SBV ("SMS Backup Viewer", ghcr.io/lowcarbdev/sbv) is a Go service that parses
+"SMS Backup & Restore" XML (sms/mms + call logs), converts MMS media
+(HEIC/3GP/AMR), and serves the result over a session-authenticated REST API.
+This module uploads the XML to SBV, waits for processing, fetches the parsed
+messages + calls, and maps them into the SAME NormalizedRecord shape (incl.
+forensic call-block flags) that the pure-Python server/tools/parsers/messaging/
+sms_xml.py produces — so Workflow A, store, and the knowledge engine never
+care which parser ran.
 
 DUAL-PARSER / MESH SUBSTITUTION (ADR-0023, owner architecture): this tool and
 sms_xml.py BOTH register capability `parse.sms-xml`. The registry returns them
-in registration order, so importing this module FIRST makes SBV the preferred
-parser and sms_xml.py the automatic fallback when SBV is unreachable/unhealthy
-or rejects the input. Import order is enforced in server/tools/__init__... no —
-auto-discovery imports modules alphabetically, and "sbv_sms" sorts before
-"sms_xml", so SBV registers first naturally. (Verified: `sbv_sms` < `sms_xml`.)
+in registration order ("sbv_sms" sorts before "sms_xml" under alphabetical
+auto-discovery), ~~so SBV registers first naturally and is preferred~~ — but
+since the 2026-08-02 demotion the accept() gate keeps SBV out of resolve()
+unless SBV_PRIMARY_ENABLED is set, making sms_xml.py the effective primary.
 
 Auth + endpoints: see server/tools/_sbv_client.py (session-cookie, /api/...).
 
@@ -70,13 +85,48 @@ def _counterparty(msg: dict[str, Any]) -> str:
 
 def _map_message(msg: dict[str, Any]) -> NormalizedRecord | None:
     text = (msg.get("body") or msg.get("text") or "").strip()
-    if not text or text == "null":
-        return None
+    if text == "null":
+        text = ""
+    has_media = bool(msg.get("media_type") or msg.get("content_type") or msg.get("message_type"))
+    # Keep-rule mirrors sms_xml._map_sms (the 516-dropped-MMS lesson): a
+    # bodyless record is still an EVENT. Drop only when there is nothing to
+    # anchor it — no timestamp, no counterparty, no media.
+    if not text:
+        has_counterparty = _counterparty(msg) != "unknown"
+        if not msg.get("date") and not has_counterparty and not has_media:
+            return None
     raw_type = _as_int(msg.get("type"), 0)
     direction = _SMS_TYPE.get(raw_type, "unknown")
     other = _counterparty(msg)
-    role = OWNER if raw_type == 2 else other
-    channel = "mms" if (msg.get("media_type") or msg.get("content_type") or msg.get("message_type")) else "sms"
+    # Outbound-authored types per SMS Backup & Restore: 2 sent, 4 outbox,
+    # 5 failed, 6 queued — all written by the owner (messaging_csv precedent;
+    # was `raw_type == 2` only, fixed 2026-08-02 for primary/fallback parity).
+    role = OWNER if raw_type in (2, 4, 5, 6) else other
+    channel = "mms" if has_media else "sms"
+    attrs: dict[str, Any] = {
+        "channel": channel,
+        "direction": direction,
+        "raw_type": str(raw_type),
+        "address": msg.get("address") or msg.get("number") or "",
+        "contact_name": msg.get("contact_name") or "",
+        "parser": "sbv",
+        "media_type": msg.get("media_type") or "",
+        "thread_id": msg.get("thread_id"),
+        # H2 per-record custody hash (sha256 of the RAW source XML element,
+        # h2-rawelement-v1) as computed by SBV BEFORE normalization. This is
+        # the evidence hash — NOT a hash of this NormalizedRecord.
+        "content_hash": msg.get("content_hash") or "",
+    }
+    if not text:
+        # Same keys as sms_xml.py so downstream never cares which parser ran.
+        # Transport-only divergence (documented, review §2): SBV's activity
+        # shape has no per-<part> list, so no attachments[]/b64_sha256 here —
+        # attachment_count=1 is the minimum honest signal that media exists.
+        attrs["body_present"] = False
+        if has_media:
+            attrs["attachment_count"] = 1
+        else:
+            attrs["empty_body"] = True
     return NormalizedRecord(
         record_type=RecordType.message,
         source="sms-xml",
@@ -86,20 +136,7 @@ def _map_message(msg: dict[str, Any]) -> NormalizedRecord | None:
         content=text,
         occurred_at=_to_dt(msg.get("date")),
         disclosure_tier=DisclosureTier.contemporaneous,
-        attrs={
-            "channel": channel,
-            "direction": direction,
-            "raw_type": str(raw_type),
-            "address": msg.get("address") or msg.get("number") or "",
-            "contact_name": msg.get("contact_name") or "",
-            "parser": "sbv",
-            "media_type": msg.get("media_type") or "",
-            "thread_id": msg.get("thread_id"),
-            # H2 per-record custody hash (sha256 of the RAW source XML element,
-            # h2-rawelement-v1) as computed by SBV BEFORE normalization. This is
-            # the evidence hash — NOT a hash of this NormalizedRecord.
-            "content_hash": msg.get("content_hash") or "",
-        },
+        attrs=attrs,
     )
 
 
@@ -193,20 +230,29 @@ def _reconcile_custody(
 
 
 def _sbv_enabled() -> bool:
-    """SBV is the primary ONLY when explicitly wired (URL reachable + service
-    creds present). Without creds, accept() returns False so the registry falls
-    straight through to the pure-Python sms_xml.py fallback — no hard dep on a
-    running SBV for SMS-XML to work."""
-    return bool(os.getenv("SBV_SERVICE_PASS"))
+    """SBV may be auto-selected ONLY when BOTH hold:
+
+    * ``SBV_SERVICE_PASS`` — the service is actually wired (as before), and
+    * ``SBV_PRIMARY_ENABLED`` — the 2026-08-02 demotion override. Default
+      UNSET: the parser-gap review's P0-1 (unscoped ``/api/activity`` can
+      attribute another import's records to this artifact) bars SBV from
+      forensic-primary eligibility until import-scoped reads exist. Setting
+      this env is an explicit owner decision, not deployment plumbing.
+
+    With either missing, accept() returns False and registry.resolve() falls
+    straight through to the pure-Python sms_xml.py. The tool remains fetchable
+    by id for shadow/diagnostic runs regardless."""
+    return bool(os.getenv("SBV_SERVICE_PASS")) and bool(os.getenv("SBV_PRIMARY_ENABLED"))
 
 
 @register(
     id="messages.sms-xml-sbv",
     capability="parse.sms-xml",
-    description="SMS Backup & Restore XML via SBV (primary) -> normalized message + call records, with forensic call-block flags + MMS media handling",
-    # Only accept .xml AND only when SBV is wired; else defer to sms_xml.py.
+    description="SMS Backup & Restore XML via SBV (shadow/diagnostic; demoted from primary 2026-08-02 pending import-scoped reads) -> normalized message + call records, with forensic call-block flags + MMS media handling",
+    # Only accept .xml AND only when SBV is wired AND the demotion override is
+    # explicitly set; else defer to sms_xml.py.
     accept=lambda hint, size: hint.lower().endswith(".xml") and _sbv_enabled(),
-    provenance="SBV REST API wrapper (lowcarbdev/sbv) — primary SMS-XML parser; sms_xml.py is the pure-Python fallback",
+    provenance="SBV REST API wrapper (lowcarbdev/sbv) — demoted to shadow 2026-08-02 (gap-review P0-1); sms_xml.py is the effective primary",
 )
 def parse(payload: dict[str, Any]) -> dict[str, Any]:
     path = Path(payload["path"])

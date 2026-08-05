@@ -3,7 +3,8 @@
 > _Byline: Claude Code · Fable 5 · 2026-07-02 · Source: official SyncTech field documentation (provided by owner 2026-07-02)_
 > _Amended: Claude Code · Opus 5 (1M) · 2026-08-01 — cross-cutting rules 6 and 7 added after a real 636 MiB export was ingested end to end._
 
-The contract for every SMS-XML parser (SBV primary, `sms_xml.py` fallback):
+The contract for every SMS-XML parser (~~SBV primary, `sms_xml.py` fallback~~ —
+SBV DEMOTED 2026-08-02 (gap-review P0-1: unscoped /api/activity); `sms_xml.py` is the effective primary):
 **every XML attribute lands in `raw_data` verbatim under its original name** (the
 capture guarantee), and the fields below additionally map to typed columns.
 Java `date` values are **epoch milliseconds** → `to_timestamp(date/1000.0)`.
@@ -68,7 +69,8 @@ Java `date` values are **epoch milliseconds** → `to_timestamp(date/1000.0)`.
 3. **Acceptance check per ingest batch**: count of XML attributes present in source
    vs keys present in `raw_data` must match, per element type — "did we capture
    everything" is verified, not assumed.
-4. **Parser contract**: SBV primary, fallback only via `allow_fallback=True`, and
+4. **Parser contract**: ~~SBV primary~~ (DEMOTED 2026-08-02 (gap-review P0-1: unscoped /api/activity); pure-Python is primary,
+   SBV shadow-only until import-scoped reads exist), fallback only via `allow_fallback=True`, and
    any fallback run + its records are flagged `alt_parse` (+`alt_parse_detail`)
    — no silent substitution (owner mandate 2026-07-02).
 5. This doc seeds `reference.format_resolver` rows (migration 0008) for

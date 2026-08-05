@@ -2,7 +2,7 @@
 
 > _Byline: Claude Code · Opus 4.8 · 2026-06-25 (PIPELINE lane)_
 > Goal (owner): SBV usable as a **viewer/exporter** AND **every SBV function callable** from a
-> workflow, an agent, another user, or any surface (API → MCP, ADR-0023). SBV is the **primary**
+> workflow, an agent, another user, or any surface (API → MCP, ADR-0023). SBV ~~is~~ was the **primary** (DEMOTED 2026-08-02 (gap-review P0-1: unscoped /api/activity) — shadow until import-scoped reads)
 > SMS-XML parser; the custom `evidence/tools/sms_xml.py` is the **fallback**.
 
 ## Live state (verified 2026-06-25, OVH-1 `platform-tools` container)

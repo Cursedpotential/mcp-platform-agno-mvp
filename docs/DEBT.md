@@ -67,3 +67,31 @@ base P2/P3 workflows on native Workflow; P5 evals on `agno.eval`. Updates ADR-00
 | HITL row persist + decision→continue (P1) | NATIVE: agno upgraded 2.6.9→2.6.13; `apply_db_modification` = `@approval` + `@tool(requires_confirmation=True)` — pause persists a pending row (`agno.run.approval`), `POST /approvals/{id}/resolve` records the decision, run-continue is gated by `require_approval_resolved`. Custom `approval_request` table+routes removed (`app/main.py`); legacy tables marked in `sql/0002_schema.sql` | 2026-06-12 |
 | `apply_db_modification` was `NotImplementedError` | Real write: executes ONE statement against an allowlisted schema (`DB_WRITE_SCHEMAS` env, default `analysis`; `evidence` hard-denied regardless of config), search_path pinned to the validated target, rejects `evidence.*` references, rolls back on error (`agents/factory.py`; allowlist added 2026-07-29) | 2026-06-12 |
 | `trash_cloud_file` stub + Cloud Drive Cleanup agent | Removed from active topology entirely (owner decision) — separate future feature | 2026-06-12 |
+
+## Parser-lane follow-ups (from the 2026-08-02 gap review — owner: "ensure these go on a list")
+
+Source: docs/HANDOFF-2026-08-02-sbv-chatminer-parser-gap-review.md (phases + acceptance criteria there).
+
+1. **Go-side import-scoping (review Phase 1):** SBV upload returns
+   `{job_id, import_id}`; messages/calls carry import_id; add
+   `GET /api/imports/:id/activity`; bind progress + hashes to the same id;
+   custody reconciliation becomes mandatory for the forensic tier. This is the
+   restore condition for the 2026-08-02 SBV demotion (DECISION_LOG).
+2. **Streaming/batch ingestion contract (review Phase 2):** iterator/batch
+   parser protocol with backpressure; wire the ALREADY-BUILT funnel schema —
+   `evidence.raw_rejected` writer, `record_count_claimed` capture,
+   claimed = accepted + rejected + accounted-duplicate gate; replace the
+   in-memory multipart upload.
+3. **Registry priority/quality metadata (review Phase 3):** explicit
+   `priority` / `quality_tier` / `streaming` / `custody_capabilities` /
+   `max_safe_size` on the tool contract; golden corpora per format;
+   primary/fallback equivalence tests; SBV shadow-comparison harness.
+4. **ChatMiner hardening (review Phase 4):** rename `message_hash` →
+   `content_fingerprint` (full digest, never custody); deterministic IDs from
+   (artifact H1, parser version, source indices); tz-aware UTC timestamps;
+   bounded detection probes instead of whole-file reads.
+5. **Repair-layer wiring:** adopt `server/tools/repair/` one format at a time
+   (SMS XML first, then CSV) only AFTER the ledger/rejection/reconciliation
+   writers of item 2 exist — the observability contract is the acceptance
+   criterion. Coordinate with the repair-layer chat (their branch:
+   feat/stream-repair-layer).

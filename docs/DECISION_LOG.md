@@ -87,3 +87,28 @@ tagged `h3-chain-v1` predate this decision and are disambiguated by WRITER
 (SBV import batches → SBV construction; Case Bible vault → H1-genesis), never
 by relabelling — recorded custody rows are append-only. _Byline: Claude Code ·
 Fable 5 · 2026-08-02._
+
+## 2026-08-02 — SBV demoted from forensic-primary to shadow (gap-review P0)
+The parser-gap review (docs/HANDOFF-2026-08-02-sbv-chatminer-parser-gap-review.md)
+found the SBV adapter reads `GET /api/activity` after upload — the service
+account's ENTIRE persistent corpus, not the new import — so a second upload can
+attribute earlier records to the new artifact's custody event (false
+provenance). `accept()` now also requires `SBV_PRIMARY_ENABLED` (default
+unset); `messages.sms-xml` (pure-Python) is the effective primary and prod
+flips to it on next exec-tier deploy (intended). SBV stays callable by id for
+shadow/diagnostic runs. Its mapper was fixed in the same commit (bodyless
+retention + outbound role types 2/4/5/6) so shadow output is comparison-grade.
+**Restore conditions** = the review's acceptance criteria: upload returns an
+immutable import_id, activity reads scoped to it, primary/fallback equivalence
+on a golden corpus, mandatory custody binding. _Byline: Claude Code · Fable 5 ·
+2026-08-02._
+
+## 2026-08-02 — PG moved to ovh-files (wave 1 of the ovh-data retirement)
+Platform PostgreSQL now runs on ovh-files as Coolify app `data-pg-files`
+(PG 18.1, pg_duckdb+postgis+pgvector, BIND_IP 100.91.190.107:5432). All four
+databases transferred (pg_dumpall) and count-verified; exec-tier repointed via
+the new `PG_HOST` env (`DB_HOST: ${PG_HOST:-${OVH3_HOST}}`); live API verified
+connected to the new host with zero clients left on the old; old `data-pg` app
+STOPPED, never deleted (datadir intact at /data/agno/volumes/pgdata).
+Remaining on ovh-data for waves 2-4: SurrealDB, Weaviate, Neo4j-dev + graphiti
+trio. _Byline: Claude Code · Fable 5 · 2026-08-02._

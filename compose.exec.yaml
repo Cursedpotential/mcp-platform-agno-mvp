@@ -64,9 +64,11 @@ services:
       AGNO_DEBUG: "True"
       WAIT_FOR_DB: "True"
       AGENTOS_URL: http://127.0.0.1:8000
-      # Data tier lives on OVH-3 — reach it by tailnet IP (default), not a docker
-      # name. ${OVH3_HOST} default 100.119.96.29 (tailnet); salem alt 10.1.2.101.
-      DB_HOST: ${OVH3_HOST}
+      # Data tier WAS all on OVH-3; PG moved to ovh-files 2026-08-02 (app
+      # data-pg-files, BIND_IP 100.91.190.107) as wave 1 of the ovh-data
+      # retirement. PG_HOST overrides just the Postgres hop; services still on
+      # OVH-3 keep riding ${OVH3_HOST} (100.119.96.29; salem alt 10.1.2.101).
+      DB_HOST: ${PG_HOST:-${OVH3_HOST}}
       DB_PORT: 5432
       DB_USER: ${DB_USER:-ai}
       DB_PASS: ${DB_PASS:-ai}
@@ -101,6 +103,10 @@ services:
       # not through the tools-facade proxy. Value UNCHANGED from before the split.
       SBV_BASE_URL: ${SBV_BASE_URL:-http://platform-tools:8085}
       SBV_SERVICE_USER: ${SBV_SERVICE_USER:-mcp_service}
+      # SBV_PRIMARY_ENABLED: demotion override (2026-08-02 gap-review P0-1).
+      # Default UNSET -> pure-Python sms_xml is the auto-selected parser;
+      # setting this is an explicit owner decision, not deployment plumbing.
+      SBV_PRIMARY_ENABLED: ${SBV_PRIMARY_ENABLED:-}
       SBV_SERVICE_PASS: ${SBV_SERVICE_PASS:?set SBV_SERVICE_PASS in Coolify app env}
     # No depends_on agentos-db — it's on another box. WAIT_FOR_DB handles startup.
     # DOMAIN PHASE — main API. Re-enable + set API_DOMAIN to expose publicly:

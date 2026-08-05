@@ -53,10 +53,22 @@ def _safe_name(stem: str) -> str:
     return (name or "unnamed")[:127]
 
 
-async def ingest_all(knowledge) -> int:
+async def ingest_all(knowledge, bases: dict | None = None) -> int:
+    """Ingest every knowledge root.
+
+    ``bases`` maps a domain to ITS OWN Knowledge instance (2026-08-04). Without
+    it, every domain lands in the single ``knowledge`` argument — which is how
+    the legal rubrics ended up inside the platform collection, and why "legal"
+    read as empty the moment it became a selectable base. A domain absent from
+    ``bases`` falls back to ``knowledge``, so single-base callers are unchanged.
+    """
     count = 0
     skipped: list[str] = []
     for domain, root in KNOWLEDGE_ROOTS.items():
+        target = (bases or {}).get(domain) or knowledge
+        if target is None:
+            print(f"  no knowledge base available for [{domain}], skipping")
+            continue
         if not root.is_dir():
             print(f"  root missing, skipping: [{domain}] {root}")
             continue
@@ -71,8 +83,8 @@ async def ingest_all(knowledge) -> int:
             # the domain rather than repeating the folder name.
             category = path.parent.name if path.parent != root else domain
             name = _safe_name(path.stem)
-            print(f"  inserting [{domain}/{category}] {name}")
-            await knowledge.ainsert(
+            print(f"  inserting [{domain}/{category}] {name} -> base {getattr(target, 'name', '?')!r}")
+            await target.ainsert(
                 name=name,
                 path=str(path),
                 metadata={
@@ -91,9 +103,11 @@ async def main() -> None:
     from server.core import create_knowledge
 
     knowledge = create_knowledge("platform", "platform_knowledge")
+    # Route each domain to its own base (registered in server/api/main.py).
+    bases = {"legal": create_knowledge("legal", "legal_knowledge")}
     roots = ", ".join(f"{d}={p}" for d, p in KNOWLEDGE_ROOTS.items())
     print(f"Ingesting from {roots} ...")
-    n = await ingest_all(knowledge)
+    n = await ingest_all(knowledge, bases=bases)
     print(f"Done. {n} document(s) indexed.")
 
 

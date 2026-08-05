@@ -44,15 +44,28 @@ from agno.vectordb.search import SearchType
 from server.core.knowledge_vectordb import VerifiedWeaviate
 from server.core.url import db_url
 
-# Distinct registry ids per backend (fix 2026-07-31, HANDOFF-2026-07-30 audit #1):
-# agno's AgentOS registers dbs keyed by `db.id` (os/app.py) and its route resolver
-# only detects a multi-db setup by counting registry KEYS (os/utils.py). Sharing
-# one id across SurrealDb + PostgresDb merged both backends into a single bucket,
-# so memory/session/knowledge routes hit whichever backend won registration —
-# the root cause of the "memory/knowledge broken on first open" breakage.
-DB_ID = "agentos-db"  # SurrealDb — the operational store (sessions/memory/traces)
-ADMIN_DB_ID = "agentos-admin-db"  # PostgresDb — AgentOS admin plane
-CONTENTS_DB_ID = "agentos-contents-db"  # PostgresDb — Knowledge contents rows
+# ONE registry id, ONE backend (2026-08-04 flatten — ADR-0043 decision 3, plus
+# Codex: "consolidate AgentOS operational/admin/content/learning state behind one
+# PostgreSQL-backed Agno database object").
+#
+# History, so the reversal is understood rather than repeated: three ids existed
+# because agno registers dbs keyed by `db.id` (os/app.py) and its resolver counts
+# registry KEYS (os/utils.py) — sharing ONE id across a SurrealDb and a PostgresDb
+# merged two different backends into one bucket and made memory/session/knowledge
+# routes resolve by registration lottery (HANDOFF-2026-07-30 audit #1). Splitting
+# the ids fixed that but left three registered, which armed agno's `len(dbs) > 1`
+# gate: every route omitting `db_id` returned 400, papered over by
+# install_db_id_default().
+#
+# Collapsing onto ONE PostgresDb removes the whole class of problem: one backend
+# cannot lose a lottery, and one id cannot arm the multi-db gate. SurrealDB leaves
+# the critical path — its 359 operational rows (200 spans, 139 traces, 17
+# sessions, 3 memories, 0 users) were exported with sha256 manifests to
+# _stale/surreal-export-20260804 and /data/agno/backups/ on 2026-08-04; the
+# container keeps running, read-only. Nothing deleted.
+DB_ID = "agentos-db"  # THE database id — one PostgresDb behind every domain
+ADMIN_DB_ID = DB_ID  # retained as a readable alias; same id, same instance
+CONTENTS_DB_ID = DB_ID  # Knowledge contents ride the same db (own table)
 
 # --- SurrealDB: the Agno OPERATIONAL store (sessions/memory/metrics/eval/
 # knowledge-content/culture/traces/spans). Reached from the exec tier on OVH-1 ->
@@ -249,27 +262,63 @@ def ensure_duckdb_r2_secret() -> bool:
         engine.dispose()
 
 
+# The knowledge-contents table the single db instance is built with. Matches
+# create_knowledge("platform", "platform_knowledge") -> "<table>_contents".
+_CONTENTS_TABLE = "platform_knowledge_contents"
+_PG_DB: PostgresDb | None = None
+
+
 def get_postgres_db(contents_table: str | None = None) -> PostgresDb:
-    """Create a PostgresDb instance.
+    """THE database. ONE PostgresDb instance behind every AgentOS domain.
 
-    Pass ``contents_table`` only when this database is the ``contents_db``
-    of a Knowledge base — it tells agno where to persist document contents.
-    Without it, the instance is the AgentOS admin-plane db.
+    Returns the same object every call — a genuine singleton, not merely a
+    shared id. Both matter: sharing an id across two *distinct* PostgresDb
+    objects (one carrying ``knowledge_table``, one not) makes agno log
+    "multiple distinct databases share id ...; keeping the first" and silently
+    drop one, which is the same shadowing hazard the old three-id split
+    existed to avoid. One object cannot shadow itself.
 
-    Each role gets its OWN registry id (never ``DB_ID``): agno's AgentOS
-    resolver merges same-id dbs into one bucket, and sharing SurrealDb's id
-    here made memory/session/knowledge routes resolve to a backend lottery
-    (HANDOFF-2026-07-30 audit #1, confirmed live 2026-07-31).
+    ``contents_table`` is accepted for call-site compatibility. The singleton
+    is already built with the platform contents table; a request for a
+    DIFFERENT table is logged rather than silently ignored, because it would
+    mean a second knowledge base needs its own db instance and id — a real
+    decision, not something to paper over.
     """
-    if contents_table is not None:
-        return PostgresDb(id=CONTENTS_DB_ID, db_url=db_url, knowledge_table=contents_table)
-    return PostgresDb(id=ADMIN_DB_ID, db_url=db_url)
+    global _PG_DB
+    if _PG_DB is None:
+        _PG_DB = PostgresDb(id=DB_ID, db_url=db_url, knowledge_table=_CONTENTS_TABLE)
+    if contents_table is not None and contents_table != _CONTENTS_TABLE:
+        from agno.utils.log import log_warning
+
+        log_warning(
+            f"get_postgres_db(contents_table={contents_table!r}) but the single "
+            f"db instance is built with {_CONTENTS_TABLE!r}. Returning the "
+            "singleton; a second knowledge base needs its own db id (see the "
+            "2026-08-04 flatten note above)."
+        )
+    return _PG_DB
 
 
-def get_agno_db() -> SurrealDb:
-    """Agno operational store on SurrealDB (sessions/memory/metrics/eval/traces/
-    spans/culture/knowledge-content). client=None -> agno builds the WS connection
-    from db_url/db_creds/db_ns/db_db on first use (agno.db.surrealdb.utils.build_client).
+def get_agno_db() -> PostgresDb:
+    """Agno operational store — sessions/memory/metrics/eval/traces/spans.
+
+    Postgres since the 2026-08-04 flatten (ADR-0043 decision 3). Was SurrealDb,
+    which is now off the critical path: its learning methods raise
+    NotImplementedError (silently swallowed, the long-standing memory-lane
+    no-op), and keeping a second backend registered bought nothing but the
+    db_id gate. ``get_surrealdb_legacy()`` below still constructs the old
+    handle for read-only reconciliation — it is not wired into AgentOS.
+    """
+    return get_postgres_db()
+
+
+def get_surrealdb_legacy() -> SurrealDb:
+    """The retired SurrealDb handle, kept for read-only reconciliation only.
+
+    NOT registered with AgentOS. The 2026-08-04 export
+    (_stale/surreal-export-20260804, sha256-manifested) is the durable copy;
+    this exists so a future parity check can query the live container without
+    resurrecting it as a dependency. Deleting SurrealDB is an owner decision.
     """
     return SurrealDb(
         client=None,
@@ -277,7 +326,7 @@ def get_agno_db() -> SurrealDb:
         db_creds={"username": SURREALDB_USER, "password": SURREALDB_PASS},
         db_ns=SURREALDB_NS,
         db_db=SURREALDB_DB,
-        id=DB_ID,
+        id="agentos-surreal-legacy",
     )
 
 

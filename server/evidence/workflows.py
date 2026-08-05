@@ -13,7 +13,8 @@ Workflows registered here:
                     -> knowledge engine (domain-tagged). THE BOOTSTRAP VERTICAL.
 
   sms-xml         : "SMS Backup & Restore" XML (sms/mms/call) -> custody ->
-                    parse.sms-xml (SBV PRIMARY, sms_xml.py FALLBACK via registry
+                    parse.sms-xml (primary = first registry candidate; SBV DEMOTED 2026-08-02 (gap-review P0-1: unscoped /api/activity),
+                    so sms_xml.py is the effective primary
                     substitution) -> working.normalized_record -> knowledge.
                     Workflow A (the SBV vertical). Mirrors chat-transcript.
 
@@ -465,6 +466,27 @@ async def _knowledge_step_impl(ctx: dict[str, Any], knowledge: Any) -> StepOutpu
     return StepOutput(content=f"knowledge: {n} conversation doc(s) -> domain={domain}", success=True)
 
 
+def attach_ledger(wf: Workflow, ctx: dict[str, Any], run_id: str, mode: str = "auto") -> None:
+    """Wire a built workflow into the platform run ledger + run controls.
+
+    Extracted 2026-08-04 (Codex C-03). ``run_chat_transcript``/``run_sms_xml``
+    always did this inline, but the AgentOS ``WorkflowFactory`` path called
+    ``build_*_workflow`` directly — so workflows launched from the Studio
+    produced no ``ops.workflow_run`` row, ignored ``mode='supervised'``, and
+    could not be aborted, continued or retried through ``/v1/runs``. Two
+    execution paths, one of them silently weaker. Both now call this.
+
+    Idempotent per step: the wrappers replace ``step.executor`` once; calling
+    twice on the same workflow would double-wrap, so callers attach exactly
+    once immediately after building.
+    """
+    steps = cast("list[Step]", wf.steps)
+    total = len(steps)
+    for seq, step in enumerate(steps, start=1):
+        _wrap_step_for_ledger(step, seq, run_id, ctx)
+        _wrap_step_for_run_control(step, seq, total, run_id, ctx, mode)
+
+
 def build_chat_transcript_workflow(
     path: str,
     source_meta: dict[str, Any] | None = None,
@@ -566,9 +588,10 @@ def build_sms_xml_workflow(
     parent_run_id: str | None = None,
 ) -> tuple[Workflow, dict[str, Any]]:
     """Workflow A — the SBV SMS-XML vertical. Same custody->parse->store->knowledge
-    spine as chat-transcript, but resolves capability `parse.sms-xml`: the
-    registry returns SBV first (messages.sms-xml-sbv) and the pure-Python parser
-    (messages.sms-xml) as fallback.
+    spine as chat-transcript, but resolves capability `parse.sms-xml` and takes the FIRST candidate as
+    primary. ~~The registry returns SBV first~~ — SBV is DEMOTED 2026-08-02 (gap-review P0-1: unscoped /api/activity),
+    gated out of resolve() unless SBV_PRIMARY_ENABLED is set, so the pure-Python
+    parser (messages.sms-xml) is the effective primary.
 
     NO SILENT SUBSTITUTION (owner mandate 2026-07-02): if the PRIMARY tool fails,
     the workflow STOPS by default and says exactly what failed. Passing
@@ -677,7 +700,7 @@ def build_sms_xml_workflow(
 
     wf = Workflow(
         name="sms-xml",
-        description="SMS-XML ingestion (SBV primary / custom fallback): custody -> parse -> store -> knowledge",
+        description="SMS-XML ingestion (pure-Python primary; SBV demoted to shadow 2026-08-02): custody -> parse -> store -> knowledge",
         steps=[
             # on_error="fail" overrides agno's actual Step default
             # (OnError.skip — see the C2.6 module-docstring note above) so an
@@ -742,11 +765,7 @@ async def run_sms_xml(
         # wf.steps is always the plain list[Step] we just built above (agno's
         # own declared type is a broad union that also covers Loop/Parallel/
         # Router/Workflow-as-step, none of which build_*_workflow() uses).
-        steps = cast("list[Step]", wf.steps)
-        total = len(steps)
-        for seq, step in enumerate(steps, start=1):
-            _wrap_step_for_ledger(step, seq, run_id, ctx)
-            _wrap_step_for_run_control(step, seq, total, run_id, ctx, mode)
+        attach_ledger(wf, ctx, run_id, mode)
 
     summary: dict[str, Any] | None = None
     result: Any = None
@@ -795,7 +814,7 @@ async def run_sms_xml(
 
 NAMED_WORKFLOWS: dict[str, str] = {
     "chat-transcript": "AI-chat exports -> custody -> parse -> analysis + knowledge (bootstrap vertical)",
-    "sms-xml": "SMS Backup & Restore XML (SBV primary / custom fallback) -> custody -> parse -> analysis + knowledge (Workflow A)",
+    "sms-xml": "SMS Backup & Restore XML (pure-Python primary; SBV shadow since 2026-08-02) -> custody -> parse -> analysis + knowledge (Workflow A)",
 }
 
 # C0 operator console: seed order for ops.workflow_run_stage per named
@@ -846,11 +865,7 @@ async def run_chat_transcript(
         # wf.steps is always the plain list[Step] we just built above (agno's
         # own declared type is a broad union that also covers Loop/Parallel/
         # Router/Workflow-as-step, none of which build_*_workflow() uses).
-        steps = cast("list[Step]", wf.steps)
-        total = len(steps)
-        for seq, step in enumerate(steps, start=1):
-            _wrap_step_for_ledger(step, seq, run_id, ctx)
-            _wrap_step_for_run_control(step, seq, total, run_id, ctx, mode)
+        attach_ledger(wf, ctx, run_id, mode)
 
     summary: dict[str, Any] | None = None
     result: Any = None
