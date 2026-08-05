@@ -80,7 +80,7 @@ function CustodyView({ output }: { output: CustodyOutput }) {
           </Badge>
         </Field>
       )}
-      {output.blob_key != null && (
+      {output.blob_key !== null && output.blob_key !== undefined && (
         <Field label="Blob key">
           <span className="font-mono text-xs">{String(output.blob_key)}</span>
         </Field>
@@ -162,7 +162,7 @@ function KnowledgeView({ output }: { output: KnowledgeOutput }) {
 }
 
 export function StageOutputView({ stageName, output }: { stageName: string; output: unknown }) {
-  if (output == null) {
+  if (output === null || output === undefined) {
     return <p className="text-sm text-muted-foreground">No output recorded for this stage.</p>;
   }
   switch (stageName.toLowerCase()) {

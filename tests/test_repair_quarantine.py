@@ -181,7 +181,7 @@ def test_quarantine_executes_only_when_explicitly_told(tmp_path):
     entry = quarantine_file(plan, ledger=ledger, dry_run=False)
 
     assert entry is not None and entry.status == "quarantined"
-    assert not src.exists(), "the original was moved"
+    assert src.exists(), "the custody original must remain for owner-controlled disposition"
     assert plan.dest.exists()
     assert sha256_file(plan.dest) == original, "quarantine must be byte-identical"
 

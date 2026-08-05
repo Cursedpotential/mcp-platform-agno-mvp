@@ -15,8 +15,9 @@ shells out / calls HTTP — same contract, different transport.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 
 @runtime_checkable
@@ -26,6 +27,8 @@ class ToolPlugin(Protocol):
     id: str
     capability: str  # e.g. 'parse.transcript', 'parse.sms-xml'
     description: str
+    execution_policy: str
+    side_effect: str
 
     def accepts(self, media_hint: str, size_bytes: int) -> bool: ...
     def run(self, payload: dict[str, Any]) -> dict[str, Any]: ...
@@ -41,6 +44,8 @@ class FunctionTool:
     fn: Callable[[dict[str, Any]], dict[str, Any]]
     accept: Callable[[str, int], bool] = field(default=lambda hint, size: True)
     provenance: str = ""  # where the implementation came from (port source)
+    execution_policy: str = "manual_or_auto"
+    side_effect: str = "read_only"
 
     def accepts(self, media_hint: str, size_bytes: int) -> bool:
         return self.accept(media_hint, size_bytes)
@@ -79,6 +84,8 @@ class ToolRegistry:
                 "capability": t.capability,
                 "description": t.description,
                 "provenance": getattr(t, "provenance", ""),
+                "execution_policy": getattr(t, "execution_policy", "manual_or_auto"),
+                "side_effect": getattr(t, "side_effect", "read_only"),
             }
             for t in self._tools.values()
         ]
@@ -95,6 +102,8 @@ def register(
     description: str,
     accept: Callable[[str, int], bool] | None = None,
     provenance: str = "",
+    execution_policy: str = "manual_or_auto",
+    side_effect: str = "read_only",
 ) -> Callable:
     """Decorator: register a payload->payload function as an atomic tool."""
 
@@ -107,6 +116,8 @@ def register(
                 fn=fn,
                 accept=accept or (lambda hint, size: True),
                 provenance=provenance,
+                execution_policy=execution_policy,
+                side_effect=side_effect,
             )
         )
         return fn

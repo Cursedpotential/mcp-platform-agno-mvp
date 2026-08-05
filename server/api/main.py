@@ -32,19 +32,18 @@ from os import getenv
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI
-
 from agno.os import AgentOS
 from agno.team.team import Team
 from agno.utils.log import log_info, log_warning
+from fastapi import FastAPI
 
 from server.agents.factory import build_agent_team
 from server.agents.providers import build_context, build_learning
-from server.core.knowledge_handle import KnowledgeHandle, resolve_knowledge
-from server.core.settings import build_model
-from server.core import create_knowledge, get_agno_db, get_postgres_db
 from server.api.workflow_registry import registered_workflows
+from server.core import create_knowledge, get_agno_db, get_postgres_db
+from server.core.knowledge_handle import KnowledgeHandle, resolve_knowledge
 from server.core.session import DB_ID
+from server.core.settings import build_model
 from server.core.url import db_url
 
 # ---------------------------------------------------------------------------
@@ -250,11 +249,13 @@ def _build_app() -> Any:
 
     from server.api.evidence_routes import register_evidence_routes
     from server.api.inspect_routes import register_inspect_routes
+    from server.api.repair_routes import router as repair_router
     from server.api.run_routes import register_run_routes
 
     register_evidence_routes(app, _knowledge_handle)
     register_run_routes(app, _knowledge_handle)
     register_inspect_routes(app, _knowledge_handle)
+    app.include_router(repair_router)
 
     teams = [v for v in agents.values() if isinstance(v, Team)]
     solo_agents = [v for v in agents.values() if not isinstance(v, Team)]

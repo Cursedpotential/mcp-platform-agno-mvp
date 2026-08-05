@@ -63,7 +63,7 @@ export function ToolExplorer() {
 
   useEffect(() => {
     fetchServers().finally(() => setLoading(false));
-    setRecent(getRecentTools());
+    queueMicrotask(() => setRecent(getRecentTools()));
   }, []);
 
   const handleRetry = () => {

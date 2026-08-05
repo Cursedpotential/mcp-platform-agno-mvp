@@ -24,9 +24,10 @@ from __future__ import annotations
 
 import importlib.metadata
 import importlib.util
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Iterator
+from typing import Any
 
 from server.tools.repair import chunkers
 from server.tools.repair.types import Chunk, RepairReport

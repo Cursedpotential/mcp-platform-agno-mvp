@@ -93,7 +93,7 @@ export function IntakeTable() {
   }, [statusFilter, typeFilter]);
 
   useEffect(() => {
-    fetchFiles();
+    queueMicrotask(fetchFiles);
   }, [fetchFiles, refreshKey]);
 
   const handleOpenDetail = (file: StagedFile) => {

@@ -42,13 +42,13 @@ continue being parsed out."* Three escalating actions, safest default first:
 |---|---|---|
 | `flag_damaged()` | ledger only | **default.** Ingest calls `DamageLedger.should_skip()` and stops re-parsing a known-bad file every run |
 | `write_repaired()` | writes a NEW file | streaming rewrite to a clean, re-parsable file |
-| `quarantine_file()` | **MOVES the original** | opt-in, `dry_run=True` by default, manifest via `plan_quarantine()` first |
+| `quarantine_file()` | verified copy + ledger | opt-in, `dry_run=True` by default, manifest via `plan_quarantine()` first; original remains owner-controlled |
 
 Quarantine is not the default because two standing rules constrain it: never
-delete (so it moves, never unlinks), and a full manifest precedes any move job
-with approval explicit rather than inferred. Moving an artifact also breaks
-every recorded path pointing at it — flagging, which changes nothing, is what
-ingest actually needs.
+delete, and a full manifest precedes any copy job with approval explicit rather
+than inferred. The verified copy is additive; the original remains in place
+and the SHA-keyed ledger prevents re-ingestion until the owner decides its
+final disposition.
 
 The ledger is **keyed by sha256**, not path: paths move, content does not, so a
 flagged artifact stays flagged across a reorganisation. It is append-only —

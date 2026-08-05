@@ -55,17 +55,19 @@ export function FilePreviewDialog({ file, open, onOpenChange }: FilePreviewDialo
 
   useEffect(() => {
     if (!open || !file) return;
-    setText("");
-    setAnalysis(null);
-    setDryrun(null);
-    setLoading(true);
-    getFileText(file.id)
-      .then((res) => setText(res.text))
-      .catch((err) => {
-        const detail = err instanceof ApiError ? err.message : "Failed to load file text";
-        toast.error(detail);
-      })
-      .finally(() => setLoading(false));
+    queueMicrotask(() => {
+      setText("");
+      setAnalysis(null);
+      setDryrun(null);
+      setLoading(true);
+      getFileText(file.id)
+        .then((res) => setText(res.text))
+        .catch((err) => {
+          const detail = err instanceof ApiError ? err.message : "Failed to load file text";
+          toast.error(detail);
+        })
+        .finally(() => setLoading(false));
+    });
   }, [open, file]);
 
   if (!file) return null;

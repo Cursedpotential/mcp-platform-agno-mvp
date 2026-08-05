@@ -57,11 +57,13 @@ export function FlagDialog({
 
   useEffect(() => {
     if (!open) return;
-    setClaim(claimPrefill ?? "");
-    setDateStart("");
-    setDateEnd("");
-    setEvidenceWanted([]);
-    setNotes("");
+    queueMicrotask(() => {
+      setClaim(claimPrefill ?? "");
+      setDateStart("");
+      setDateEnd("");
+      setEvidenceWanted([]);
+      setNotes("");
+    });
   }, [open, claimPrefill]);
 
   const toggleEvidence = (type: EvidenceWantedType) => {

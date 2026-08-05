@@ -77,16 +77,18 @@ export function NewRunDialog() {
   // Reset on open, and seed from a row-action prefill if present.
   useEffect(() => {
     if (!open) return;
-    setSourceMode("staged");
-    setSelectedStagedId(prefill?.stagedId ?? "");
-    setUploadFile(null);
-    setWorkflow("chat-transcript");
-    setDomain("");
-    setMode("auto");
-    setCustodyTier(defaultCustodyTierFor("chat-transcript"));
-    listFiles({ status: "staged" })
-      .then(setStagedFiles)
-      .catch(() => setStagedFiles([]));
+    queueMicrotask(() => {
+      setSourceMode("staged");
+      setSelectedStagedId(prefill?.stagedId ?? "");
+      setUploadFile(null);
+      setWorkflow("chat-transcript");
+      setDomain("");
+      setMode("auto");
+      setCustodyTier(defaultCustodyTierFor("chat-transcript"));
+      listFiles({ status: "staged" })
+        .then(setStagedFiles)
+        .catch(() => setStagedFiles([]));
+    });
   }, [open, prefill]);
 
   // Re-default the custody tier whenever the workflow changes, mirroring

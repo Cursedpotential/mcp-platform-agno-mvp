@@ -85,6 +85,7 @@ export function RunDetailDialog({ runId, open, onOpenChange, onNavigateToRun }: 
   const [selectedSeq, setSelectedSeq] = useState<number | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [actionPending, setActionPending] = useState(false);
+  const [abortConfirmOpen, setAbortConfirmOpen] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const { triggerRefresh } = useRefresh();
 
@@ -98,7 +99,7 @@ export function RunDetailDialog({ runId, open, onOpenChange, onNavigateToRun }: 
   useEffect(() => {
     if (!open || !runId) {
       stopPolling();
-      setRun(null);
+      queueMicrotask(() => setRun(null));
       return;
     }
 
@@ -124,7 +125,6 @@ export function RunDetailDialog({ runId, open, onOpenChange, onNavigateToRun }: 
       cancelled = true;
       stopPolling();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, runId]);
 
   const handleSelectStage = (seq: number) => {
@@ -169,7 +169,7 @@ export function RunDetailDialog({ runId, open, onOpenChange, onNavigateToRun }: 
 
   const handleAbort = async () => {
     if (!runId) return;
-    if (!window.confirm("Abort this run? This cannot be undone.")) return;
+    setAbortConfirmOpen(false);
     setActionPending(true);
     try {
       await abortRun(runId);
@@ -202,7 +202,7 @@ export function RunDetailDialog({ runId, open, onOpenChange, onNavigateToRun }: 
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <Dialog open={open} onOpenChange={(next) => { if (!next) setAbortConfirmOpen(false); onOpenChange(next); }}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 truncate">
@@ -255,6 +255,19 @@ export function RunDetailDialog({ runId, open, onOpenChange, onNavigateToRun }: 
                 </div>
               )}
 
+              {abortConfirmOpen && (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border-2 border-destructive bg-destructive/10 p-3">
+                  <div>
+                    <p className="text-sm font-semibold text-destructive">Confirm run abort</p>
+                    <p className="text-xs text-muted-foreground">This stops the run at its next safe stage boundary and cannot be undone.</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" onClick={() => setAbortConfirmOpen(false)}>Cancel</Button>
+                    <Button size="sm" variant="destructive" onClick={handleAbort} disabled={actionPending}>Confirm abort</Button>
+                  </div>
+                </div>
+              )}
+
               {isGated && (
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-2">
                   <div className="flex items-center gap-2 text-sm">
@@ -267,7 +280,7 @@ export function RunDetailDialog({ runId, open, onOpenChange, onNavigateToRun }: 
                     <Button size="sm" onClick={handleContinue} disabled={actionPending}>
                       Continue
                     </Button>
-                    <Button size="sm" variant="destructive" onClick={handleAbort} disabled={actionPending}>
+                    <Button size="sm" variant="destructive" onClick={() => setAbortConfirmOpen(true)} disabled={actionPending}>
                       Abort
                     </Button>
                   </div>
@@ -286,7 +299,7 @@ export function RunDetailDialog({ runId, open, onOpenChange, onNavigateToRun }: 
                 <div className="flex justify-end">
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button size="sm" variant="outline" onClick={handleAbort} disabled={actionPending}>
+                      <Button size="sm" variant="outline" onClick={() => setAbortConfirmOpen(true)} disabled={actionPending}>
                         Abort
                       </Button>
                     </TooltipTrigger>

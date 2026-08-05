@@ -30,8 +30,11 @@ tools-facade image (which has just fastapi/uvicorn/pydantic).
 
 from __future__ import annotations
 
+import hashlib
+import http.client
 import json
 import os
+import re
 import time
 import urllib.error
 import urllib.parse
@@ -50,6 +53,31 @@ SBV_SERVICE_USER = os.getenv("SBV_SERVICE_USER", "mcp_service")
 SBV_SERVICE_PASS = os.getenv("SBV_SERVICE_PASS", "")  # set in env at cutover
 
 DEFAULT_TIMEOUT = float(os.getenv("SBV_TIMEOUT", "60"))
+DEFAULT_IMPORT_PAGE = 500
+MAX_IMPORT_PAGE = 1000
+_SAFE_ATTACHMENT_NAME = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+def _safe_attachment_name(name: str, attachment_id: int) -> str:
+    """Turn an untrusted manifest name into one local filename component."""
+    base = os.path.basename(name or "")
+    base = _SAFE_ATTACHMENT_NAME.sub("_", base).strip("._")
+    return base[:180] or f"attachment-{attachment_id}"
+
+
+def _check_attachment_destination(dest: str, destination_root: str | None) -> None:
+    """Reject traversal and symlink destinations before opening a child file."""
+    if os.path.lexists(dest) and os.path.islink(dest):
+        raise ValueError("attachment destination must not be a symlink")
+    if destination_root is None:
+        return
+    root = os.path.realpath(destination_root)
+    parent = os.path.realpath(os.path.dirname(dest))
+    try:
+        if os.path.commonpath((root, parent)) != root:
+            raise ValueError("attachment destination escapes destination_root")
+    except ValueError as exc:
+        raise ValueError("attachment destination escapes destination_root") from exc
 
 
 class SBVError(RuntimeError):
@@ -141,6 +169,91 @@ class SBVClient:
         except urllib.error.URLError as exc:
             raise SBVError(f"SBV {method} {path} -> transport error: {exc.reason}") from exc
 
+    def _stream_request(
+        self,
+        method: str,
+        path: str,
+        *,
+        file_path: str,
+        filename: str,
+        form_fields: dict[str, str] | None = None,
+        _retry: bool = True,
+    ) -> tuple[int, bytes, dict[str, str]]:
+        """Send a multipart request without materializing the source file.
+
+        ``urllib.request`` only accepts bytes for request bodies.  The universal
+        import endpoint is explicitly intended for multi-gigabyte sources, so
+        use the stdlib HTTP connection directly and copy the file in bounded
+        chunks.  The JSON response remains bounded and is read normally.
+        """
+        if not os.path.isfile(file_path):
+            raise FileNotFoundError(file_path)
+        if self._session_id is None:
+            self.login()
+        fields = form_fields or {}
+        boundary = f"----sbvmcp{uuid.uuid4().hex}"
+        safe_name = _safe_attachment_name(filename, 0)
+        prefix = bytearray()
+        for key, value in fields.items():
+            prefix.extend(f'--{boundary}\r\nContent-Disposition: form-data; name="{key}"\r\n\r\n{value}\r\n'.encode())
+        prefix.extend(
+            (
+                f"--{boundary}\r\n"
+                f'Content-Disposition: form-data; name="file"; filename="{safe_name}"\r\n'
+                "Content-Type: application/octet-stream\r\n\r\n"
+            ).encode()
+        )
+        suffix = f"\r\n--{boundary}--\r\n".encode("ascii")
+        size = os.path.getsize(file_path)
+        parsed = urllib.parse.urlsplit(f"{self.api}{path}")
+        connection_cls = http.client.HTTPSConnection if parsed.scheme == "https" else http.client.HTTPConnection
+        conn = connection_cls(parsed.netloc, timeout=self.timeout)
+        target = parsed.path or "/"
+        if parsed.query:
+            target += f"?{parsed.query}"
+        headers = {
+            "Content-Type": f"multipart/form-data; boundary={boundary}",
+            "Content-Length": str(len(prefix) + size + len(suffix)),
+            "Cookie": f"session_id={self._session_id}",
+        }
+        try:
+            conn.putrequest(method, target)
+            for key, value in headers.items():
+                conn.putheader(key, value)
+            conn.endheaders()
+            conn.send(prefix)
+            with open(file_path, "rb") as source:
+                while True:
+                    chunk = source.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    conn.send(chunk)
+            conn.send(suffix)
+            response = conn.getresponse()
+            raw = response.read()
+            response_headers = {str(k): str(v) for k, v in response.getheaders()}
+            if response.status == 401 and _retry:
+                self._session_id = None
+                self.login()
+                return self._stream_request(
+                    method,
+                    path,
+                    file_path=file_path,
+                    filename=filename,
+                    form_fields=form_fields,
+                    _retry=False,
+                )
+            if response.status < 200 or response.status >= 300:
+                raise SBVError(
+                    f"SBV {method} {path} -> HTTP {response.status}: {raw[:300].decode('utf-8', 'replace')}",
+                    status=response.status,
+                )
+            return response.status, raw, response_headers
+        except (OSError, http.client.HTTPException) as exc:
+            raise SBVError(f"SBV {method} {path} -> transport error: {exc}") from exc
+        finally:
+            conn.close()
+
     @staticmethod
     def _json(raw: bytes) -> Any:
         if not raw:
@@ -175,7 +288,7 @@ class SBVClient:
             raise SBVError("SBV service password not set (SBV_SERVICE_PASS) — cannot authenticate")
         # try login
         try:
-            status, raw, headers = self._request(
+            _status, raw, headers = self._request(
                 "POST",
                 "/auth/login",
                 json_body={"username": self.username, "password": self.password},
@@ -193,7 +306,7 @@ class SBVClient:
             if exc.status not in (401,):
                 raise
         # register (idempotent bootstrap) then it returns a session directly
-        status, raw, headers = self._request(
+        _status, raw, headers = self._request(
             "POST",
             "/auth/register",
             json_body={"username": self.username, "password": self.password},
@@ -208,7 +321,7 @@ class SBVClient:
     # -- public surface ----------------------------------------------------
 
     def health(self) -> bool:
-        status, raw, _ = self._request("GET", "/health", auth=False)
+        status, _raw, _ = self._request("GET", "/health", auth=False)
         return status == 200
 
     def version(self) -> dict[str, Any]:
@@ -218,27 +331,37 @@ class SBVClient:
     # -- protected surface -------------------------------------------------
 
     def upload(self, file_path: str, filename: str | None = None) -> dict[str, Any]:
-        """Upload an SMS backup XML as multipart/form-data (field name `file`)."""
-        with open(file_path, "rb") as fh:
-            content = fh.read()
-        name = filename or os.path.basename(file_path)
-        boundary = f"----sbvmcp{uuid.uuid4().hex}"
-        body = (
-            (
-                f"--{boundary}\r\n"
-                f'Content-Disposition: form-data; name="file"; filename="{name}"\r\n'
-                f"Content-Type: application/octet-stream\r\n\r\n"
-            ).encode("utf-8")
-            + content
-            + f"\r\n--{boundary}--\r\n".encode("utf-8")
-        )
-        _, raw, _ = self._request(
-            "POST",
-            "/upload",
-            data=body,
-            content_type=f"multipart/form-data; boundary={boundary}",
+        """Legacy ``/api/upload`` wrapper, now streamed from disk."""
+        _, raw, _ = self._stream_request(
+            "POST", "/upload", file_path=file_path, filename=filename or os.path.basename(file_path)
         )
         return self._json(raw)
+
+    def import_file(self, file_path: str, filename: str | None = None, format: str | None = None) -> dict[str, Any]:
+        """Create one universal, immutable SBV import and return its ID."""
+        fields = {"format": format} if format else None
+        _, raw, _ = self._stream_request(
+            "POST",
+            "/imports",
+            file_path=file_path,
+            filename=filename or os.path.basename(file_path),
+            form_fields=fields,
+        )
+        result = self._json(raw)
+        if not isinstance(result, dict):
+            raise SBVError("SBV universal import returned a non-object response")
+        import_id = result.get("import_id")
+        if not isinstance(import_id, int) or import_id <= 0:
+            nested = result.get("import")
+            if isinstance(nested, dict):
+                result = {**nested, **result}
+                import_id = result.get("import_id")
+        if not isinstance(import_id, int) or import_id <= 0:
+            raise SBVError("SBV universal import response did not include a valid import_id")
+        return result
+
+    # Explicit spelling for callers that prefer the API term.
+    universal_import = import_file
 
     def progress(self) -> dict[str, Any]:
         _, raw, _ = self._request("GET", "/progress")
@@ -352,6 +475,152 @@ class SBVClient:
         _, raw, _ = self._request("GET", f"/hashes/{import_id}")
         data = self._json(raw)
         return data if isinstance(data, dict) else {}
+
+    def import_detail(self, import_id: int) -> dict[str, Any]:
+        """Fetch custody/accounting status for one explicit import ID."""
+        if int(import_id) <= 0:
+            raise ValueError("import_id must be positive")
+        _, raw, _ = self._request("GET", f"/imports/{int(import_id)}")
+        data = self._json(raw)
+        if not isinstance(data, dict):
+            raise SBVError(f"SBV import {import_id} returned a non-object detail")
+        return data
+
+    @staticmethod
+    def _page_size(page: int) -> int:
+        return max(1, min(int(page), MAX_IMPORT_PAGE))
+
+    def import_records(self, import_id: int, *, page: int = DEFAULT_IMPORT_PAGE) -> list[dict[str, Any]]:
+        """Read every canonical record by import ID, using bounded pages."""
+        page = self._page_size(page)
+        out: list[dict[str, Any]] = []
+        offset = 0
+        while True:
+            _, raw, _ = self._request(
+                "GET", f"/imports/{int(import_id)}/records", params={"limit": page, "offset": offset}
+            )
+            data = self._json(raw)
+            rows = data.get("records", []) if isinstance(data, dict) else data
+            if not isinstance(rows, list):
+                raise SBVError(f"SBV import {import_id} records response was not a list")
+            out.extend(row for row in rows if isinstance(row, dict))
+            total = data.get("total") if isinstance(data, dict) else None
+            if len(rows) < page or (isinstance(total, int) and len(out) >= total):
+                return out
+            offset += len(rows)
+
+    def import_rejections(self, import_id: int, *, page: int = DEFAULT_IMPORT_PAGE) -> list[dict[str, Any]]:
+        """Read every rejection by import ID, using bounded pages."""
+        page = self._page_size(page)
+        out: list[dict[str, Any]] = []
+        offset = 0
+        while True:
+            _, raw, _ = self._request(
+                "GET", f"/imports/{int(import_id)}/rejections", params={"limit": page, "offset": offset}
+            )
+            data = self._json(raw)
+            rows = data.get("rejections", []) if isinstance(data, dict) else data
+            if not isinstance(rows, list):
+                raise SBVError(f"SBV import {import_id} rejections response was not a list")
+            out.extend(row for row in rows if isinstance(row, dict))
+            total = data.get("total") if isinstance(data, dict) else None
+            if len(rows) < page or (isinstance(total, int) and len(out) >= total):
+                return out
+            offset += len(rows)
+
+    def import_attachments(self, import_id: int) -> list[dict[str, Any]]:
+        _, raw, _ = self._request("GET", f"/imports/{int(import_id)}/attachments")
+        data = self._json(raw)
+        rows = data.get("attachments", []) if isinstance(data, dict) else data
+        if not isinstance(rows, list):
+            raise SBVError(f"SBV import {import_id} attachments response was not a list")
+        return [row for row in rows if isinstance(row, dict)]
+
+    def download_attachment(
+        self, import_id: int, attachment_id: int, destination: str, *, destination_root: str | None = None
+    ) -> dict[str, Any]:
+        """Stream one import-scoped attachment to ``destination`` safely.
+
+        The server binds the attachment ID to the import.  The client additionally
+        requires a plain destination filename/path and verifies the returned
+        byte count and SHA-256 when the manifest provides them.
+        """
+        if int(import_id) <= 0 or int(attachment_id) <= 0:
+            raise ValueError("import_id and attachment_id must be positive")
+        dest = os.path.abspath(destination)
+        _check_attachment_destination(dest, destination_root)
+        return self.download_attachment_stream(import_id, attachment_id, dest)
+
+    def download_attachment_to_dir(self, import_id: int, attachment_id: int, destination_root: str) -> dict[str, Any]:
+        """Resolve a manifest filename under ``destination_root`` then stream it."""
+        manifest = next(
+            (item for item in self.import_attachments(import_id) if str(item.get("id")) == str(attachment_id)),
+            None,
+        )
+        if manifest is None:
+            raise SBVError(f"attachment {attachment_id} is not part of import {import_id}")
+        root = os.path.abspath(destination_root)
+        os.makedirs(root, exist_ok=True)
+        dest = os.path.join(root, _safe_attachment_name(str(manifest.get("original_name") or ""), attachment_id))
+        result = self.download_attachment_stream(import_id, attachment_id, dest, destination_root=root)
+        expected_count = manifest.get("byte_count")
+        expected_hash = str(manifest.get("decoded_hash") or "").lower()
+        count_ok = not isinstance(expected_count, int) or result["byte_count"] == expected_count
+        hash_ok = not expected_hash or result["sha256"].lower() == expected_hash
+        if not count_ok or not hash_ok:
+            quarantine = os.path.join(root, "to_be_deleted")
+            os.makedirs(quarantine, exist_ok=True)
+            quarantined = os.path.join(quarantine, os.path.basename(dest) + ".integrity-mismatch")
+            os.replace(dest, quarantined)
+            raise SBVError(
+                f"attachment {attachment_id} integrity mismatch; quarantined at {quarantined}"
+            )
+        result["verified"] = bool(isinstance(expected_count, int) and expected_hash)
+        return result
+
+    def download_attachment_stream(
+        self, import_id: int, attachment_id: int, destination: str, *, destination_root: str | None = None
+    ) -> dict[str, Any]:
+        """Stream an attachment response directly to disk and hash it."""
+        if int(import_id) <= 0 or int(attachment_id) <= 0:
+            raise ValueError("import_id and attachment_id must be positive")
+        dest = os.path.abspath(destination)
+        _check_attachment_destination(dest, destination_root)
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        if self._session_id is None:
+            self.login()
+        parsed = urllib.parse.urlsplit(f"{self.api}/imports/{int(import_id)}/attachments/{int(attachment_id)}")
+        cls = http.client.HTTPSConnection if parsed.scheme == "https" else http.client.HTTPConnection
+        conn = cls(parsed.netloc, timeout=self.timeout)
+        target = parsed.path or "/"
+        try:
+            conn.request("GET", target, headers={"Cookie": f"session_id={self._session_id}"})
+            response = conn.getresponse()
+            if response.status == 401:
+                self._session_id = None
+                self.login()
+                return self.download_attachment_stream(import_id, attachment_id, destination)
+            if response.status < 200 or response.status >= 300:
+                detail = response.read(300).decode("utf-8", "replace")
+                raise SBVError(
+                    f"SBV GET /imports/{import_id}/attachments/{attachment_id} -> HTTP {response.status}: {detail}",
+                    status=response.status,
+                )
+            digest = hashlib.sha256()
+            count = 0
+            with open(dest, "wb") as fh:
+                while True:
+                    chunk = response.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    fh.write(chunk)
+                    digest.update(chunk)
+                    count += len(chunk)
+            return {"path": dest, "byte_count": count, "sha256": digest.hexdigest()}
+        except (OSError, http.client.HTTPException) as exc:
+            raise SBVError(f"SBV attachment download transport error: {exc}") from exc
+        finally:
+            conn.close()
 
     def search(self, query: str, limit: int | None = None) -> Any:
         _, raw, _ = self._request("GET", "/search", params={"q": query, "limit": limit})

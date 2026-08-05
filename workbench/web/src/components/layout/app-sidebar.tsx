@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { PlayCircle, Wrench, Inbox, Brain, FileSearch, ListChecks, Database, BookOpen } from "lucide-react";
+import { PlayCircle, Wrench, Inbox, Brain, FileSearch, ListChecks, Database, BookOpen, ShieldCheck } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -27,6 +27,7 @@ const navItems = [
   { title: "Runs", href: "/runs", icon: PlayCircle },
   { title: "Records", href: "/records", icon: FileSearch },
   { title: "Tools", href: "/tools", icon: Wrench },
+  { title: "Repair Lab", href: "/repairs", icon: ShieldCheck },
   { title: "Intake", href: "/intake", icon: Inbox },
   { title: "Evidence Queue", href: "/evidence-queue", icon: ListChecks },
   { title: "Knowledge", href: "/knowledge", icon: BookOpen },
