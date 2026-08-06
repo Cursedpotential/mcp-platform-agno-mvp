@@ -83,7 +83,9 @@ base_app pattern.
 | `server/tools/` | Cross-domain parser/extractor/gateway registry | `server/tools/AGENTS.md` |
 | `server/agents/` | Agent/team constructors, providers, `@tool` wrappers | `server/agents/AGENTS.md` |
 | `server/api/`, `server/core/`, `server/analysis/` | Entrypoint/config, DB session/model factory, behavioral analysis | see `server/AGENTS.md` |
-| `server/vendored/` | Third-party projects (chatminer, semantica) — not ours to lint | — |
+| `server/vendored/` | Third-party Python projects (chatminer, semantica) — not ours to lint | — |
+| `vendored/` | Third-party **non-Python** projects we do actively develop — currently `vendored/sbv` (Go). Distinct from `server/vendored/`; both are real. | `vendored/sbv/DEVELOPMENT.md` |
+| `workbench/` | Operator Workbench — `workbench/api` (FastAPI) + `workbench/web` (Next.js) | — |
 | `sql/` | Numbered PostgreSQL migrations (`NNNN_name.sql`, never edit an applied one) | — |
 | `docker/` | One folder per service image (`tools/`, `gateway/`, `postgres/`, ...) | — |
 | `docs/` | Canon, ADRs, decision log, plans, wiki | `docs/PROJECT_CANON.md` |
@@ -100,6 +102,11 @@ base_app pattern.
 | Test (default, unit) | `uv run pytest -q` |
 | Test (one file) | `uv run pytest -q tests/test_<name>.py` |
 | Integration tests (opt-in, live services) | `uv run pytest -m integration` |
+| Go build/test (`vendored/sbv`) | `go build -tags fts5 ./...` / `go test -tags fts5 ./...` |
+
+⚠ The `fts5` build tag is **mandatory** for `vendored/sbv`. A plain `go test ./...`
+fails every DB-backed test with `no such module: fts5` — that is a missing build
+tag, not a code defect. Use the `Makefile` targets, which set it for you.
 
 All Python is `uv`-managed — never invoke a bare `python`/`pip`/`pytest`.
 

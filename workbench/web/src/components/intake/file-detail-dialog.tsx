@@ -49,9 +49,11 @@ export function FileDetailDialog({
 
   useEffect(() => {
     if (file) {
-      setDomain(file.meta?.domain ?? "");
-      setCategory(file.meta?.category ?? "");
-      setSourcePlatform(file.meta?.source_platform ?? "");
+      queueMicrotask(() => {
+        setDomain(file.meta?.domain ?? "");
+        setCategory(file.meta?.category ?? "");
+        setSourcePlatform(file.meta?.source_platform ?? "");
+      });
     }
   }, [file]);
 

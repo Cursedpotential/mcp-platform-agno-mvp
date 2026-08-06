@@ -79,6 +79,8 @@ def test_manifest_shape():
         "capability": "parse.transcript",
         "description": "m tool",
         "provenance": "test",
+        "execution_policy": "manual_or_auto",
+        "side_effect": "read_only",
     }
 
 

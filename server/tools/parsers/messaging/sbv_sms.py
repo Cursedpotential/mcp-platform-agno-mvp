@@ -1,36 +1,21 @@
-"""Atomic tool: SMS backup XML -> NormalizedRecords via SBV.
-~~(PRIMARY parser)~~ — DEMOTED to shadow/diagnostic 2026-08-02.
+"""Atomic tool: SMS backup XML -> NormalizedRecords via SBV (PRIMARY parser).
 
-DEMOTION (2026-08-02, parser-gap review P0-1 —
-docs/HANDOFF-2026-08-02-sbv-chatminer-parser-gap-review.md): after upload this
-adapter reads `GET /api/activity`, which returns the service account's ENTIRE
-persistent corpus, not the records of the new import — a second upload can
-attribute the first upload's records to the new artifact's custody event
-(affirmative false provenance). Until SBV's upload returns an immutable
-import_id and an import-scoped activity read exists, this tool must not be the
-auto-selected parser. It stays registered and callable BY ID
-(`registry.get("messages.sms-xml-sbv")`) for shadow comparison and diagnostics,
-but `accept()` additionally requires the env `SBV_PRIMARY_ENABLED` — default
-unset — so `registry.resolve("parse.sms-xml")` returns the pure-Python
-`messages.sms-xml` first. Restore conditions = the review's acceptance
-criteria (import-scoped results, primary/fallback equivalence on the golden
-corpus, mandatory custody binding).
-
-SBV ("SMS Backup Viewer", ghcr.io/lowcarbdev/sbv) is a Go service that parses
-"SMS Backup & Restore" XML (sms/mms + call logs), converts MMS media
-(HEIC/3GP/AMR), and serves the result over a session-authenticated REST API.
-This module uploads the XML to SBV, waits for processing, fetches the parsed
-messages + calls, and maps them into the SAME NormalizedRecord shape (incl.
-forensic call-block flags) that the pure-Python server/tools/parsers/messaging/
-sms_xml.py produces — so Workflow A, store, and the knowledge engine never
-care which parser ran.
+SBV ("SMS Backup Viewer", ghcr.io/lowcarbdev/sbv) is the owner-chosen primary
+SMS-XML engine: a Go service that parses "SMS Backup & Restore" XML (sms/mms +
+call logs), converts MMS media (HEIC/3GP/AMR), and serves the result over a
+session-authenticated REST API. This module streams the XML into one universal
+import, validates import-scoped custody/accounting, fetches canonical records,
+and maps them into the SAME NormalizedRecord shape (incl. forensic call-block flags) that the pure-Python
+fallback server/tools/sms_xml.py produces — so Workflow A, store, and the
+knowledge engine never care which parser ran.
 
 DUAL-PARSER / MESH SUBSTITUTION (ADR-0023, owner architecture): this tool and
 sms_xml.py BOTH register capability `parse.sms-xml`. The registry returns them
-in registration order ("sbv_sms" sorts before "sms_xml" under alphabetical
-auto-discovery), ~~so SBV registers first naturally and is preferred~~ — but
-since the 2026-08-02 demotion the accept() gate keeps SBV out of resolve()
-unless SBV_PRIMARY_ENABLED is set, making sms_xml.py the effective primary.
+in registration order, so importing this module FIRST makes SBV the preferred
+parser and sms_xml.py the automatic fallback when SBV is unreachable/unhealthy
+or rejects the input. Import order is enforced in server/tools/__init__... no —
+auto-discovery imports modules alphabetically, and "sbv_sms" sorts before
+"sms_xml", so SBV registers first naturally. (Verified: `sbv_sms` < `sms_xml`.)
 
 Auth + endpoints: see server/tools/_sbv_client.py (session-cookie, /api/...).
 
@@ -41,14 +26,15 @@ SBV_MCP_INTEGRATION.md). Forensic call-block logic mirrors sms_xml.py
 
 from __future__ import annotations
 
+import hashlib
 import os
 from pathlib import Path
 from typing import Any
 
 from server.contracts.records import DisclosureTier, NormalizedRecord, RecordType
-from server.tools.registry import register
 from server.tools._common import parse_timestamp, records_out
 from server.tools._sbv_client import SBVClient, SBVError
+from server.tools.registry import register
 
 OWNER = "owner"
 
@@ -85,48 +71,13 @@ def _counterparty(msg: dict[str, Any]) -> str:
 
 def _map_message(msg: dict[str, Any]) -> NormalizedRecord | None:
     text = (msg.get("body") or msg.get("text") or "").strip()
-    if text == "null":
-        text = ""
-    has_media = bool(msg.get("media_type") or msg.get("content_type") or msg.get("message_type"))
-    # Keep-rule mirrors sms_xml._map_sms (the 516-dropped-MMS lesson): a
-    # bodyless record is still an EVENT. Drop only when there is nothing to
-    # anchor it — no timestamp, no counterparty, no media.
-    if not text:
-        has_counterparty = _counterparty(msg) != "unknown"
-        if not msg.get("date") and not has_counterparty and not has_media:
-            return None
+    if not text or text == "null":
+        return None
     raw_type = _as_int(msg.get("type"), 0)
     direction = _SMS_TYPE.get(raw_type, "unknown")
     other = _counterparty(msg)
-    # Outbound-authored types per SMS Backup & Restore: 2 sent, 4 outbox,
-    # 5 failed, 6 queued — all written by the owner (messaging_csv precedent;
-    # was `raw_type == 2` only, fixed 2026-08-02 for primary/fallback parity).
-    role = OWNER if raw_type in (2, 4, 5, 6) else other
-    channel = "mms" if has_media else "sms"
-    attrs: dict[str, Any] = {
-        "channel": channel,
-        "direction": direction,
-        "raw_type": str(raw_type),
-        "address": msg.get("address") or msg.get("number") or "",
-        "contact_name": msg.get("contact_name") or "",
-        "parser": "sbv",
-        "media_type": msg.get("media_type") or "",
-        "thread_id": msg.get("thread_id"),
-        # H2 per-record custody hash (sha256 of the RAW source XML element,
-        # h2-rawelement-v1) as computed by SBV BEFORE normalization. This is
-        # the evidence hash — NOT a hash of this NormalizedRecord.
-        "content_hash": msg.get("content_hash") or "",
-    }
-    if not text:
-        # Same keys as sms_xml.py so downstream never cares which parser ran.
-        # Transport-only divergence (documented, review §2): SBV's activity
-        # shape has no per-<part> list, so no attachments[]/b64_sha256 here —
-        # attachment_count=1 is the minimum honest signal that media exists.
-        attrs["body_present"] = False
-        if has_media:
-            attrs["attachment_count"] = 1
-        else:
-            attrs["empty_body"] = True
+    role = OWNER if raw_type == 2 else other
+    channel = "mms" if (msg.get("media_type") or msg.get("content_type") or msg.get("message_type")) else "sms"
     return NormalizedRecord(
         record_type=RecordType.message,
         source="sms-xml",
@@ -136,7 +87,20 @@ def _map_message(msg: dict[str, Any]) -> NormalizedRecord | None:
         content=text,
         occurred_at=_to_dt(msg.get("date")),
         disclosure_tier=DisclosureTier.contemporaneous,
-        attrs=attrs,
+        attrs={
+            "channel": channel,
+            "direction": direction,
+            "raw_type": str(raw_type),
+            "address": msg.get("address") or msg.get("number") or "",
+            "contact_name": msg.get("contact_name") or "",
+            "parser": "sbv",
+            "media_type": msg.get("media_type") or "",
+            "thread_id": msg.get("thread_id"),
+            # H2 per-record custody hash (sha256 of the RAW source XML element,
+            # h2-rawelement-v1) as computed by SBV BEFORE normalization. This is
+            # the evidence hash — NOT a hash of this NormalizedRecord.
+            "content_hash": msg.get("content_hash") or "",
+        },
     )
 
 
@@ -186,8 +150,143 @@ def _map_call(call: dict[str, Any]) -> NormalizedRecord:
     )
 
 
+def _map_universal_record(
+    row: dict[str, Any], import_id: int, attachments_by_seq: dict[int, list[dict[str, Any]]]
+) -> NormalizedRecord:
+    """Project one import-scoped neutral SBV record after custody validation."""
+    metadata_raw = row.get("metadata")
+    metadata: dict[str, Any] = dict(metadata_raw) if isinstance(metadata_raw, dict) else {}
+    kind = str(row.get("kind") or "message").lower()
+    participants = row.get("participants")
+    if not isinstance(participants, list):
+        participants = []
+    participants = [str(value) for value in participants if value not in (None, "")]
+    role = str(metadata.get("role") or metadata.get("sender") or (participants[0] if participants else "unknown"))
+    occurred = row.get("occurred_at")
+    occurred_at = parse_timestamp(occurred) if occurred not in (None, "") else None
+    attrs: dict[str, Any] = {
+        "parser": "sbv-universal",
+        "import_id": import_id,
+        "source_pos": row.get("source_pos"),
+        "record_hash": row.get("record_hash") or "",
+        "record_hash_canon": row.get("record_hash_canon") or "",
+        "format": row.get("format") or "smsbackuprestore-xml",
+        "status": row.get("status") or "accepted",
+        **metadata,
+    }
+    seq = row.get("seq")
+    if isinstance(seq, int) and seq in attachments_by_seq:
+        attrs["attachments"] = attachments_by_seq[seq]
+        attrs["attachment_count"] = len(attachments_by_seq[seq])
+    record_type = RecordType.call if kind == "call" else RecordType.message
+    return NormalizedRecord(
+        record_type=record_type,
+        source="sms-xml",
+        conversation_id=str(metadata.get("conversation_id") or metadata.get("address") or "unknown"),
+        role=role,
+        participants=participants,
+        content=str(row.get("content") or ""),
+        occurred_at=occurred_at,
+        disclosure_tier=DisclosureTier.contemporaneous,
+        attrs=attrs,
+    )
+
+
+def _local_h1(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        while True:
+            chunk = source.read(1024 * 1024)
+            if not chunk:
+                break
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _validate_universal_import(
+    path: Path, summary: dict[str, Any], client: SBVClient
+) -> tuple[int, dict[str, Any], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Fetch by-ID pages and verify custody/accounting before projection."""
+    raw_id = summary.get("import_id")
+    if not isinstance(raw_id, int) or raw_id <= 0:
+        raise SBVError("SBV universal upload did not return a valid import_id")
+    import_id = raw_id
+    detail = client.import_detail(import_id)
+    detail_id = detail.get("import_id")
+    if str(detail_id) != str(import_id):
+        raise SBVError(f"SBV import identity mismatch: requested {import_id}, got {detail_id!r}")
+    if detail.get("status") == "error":
+        raise SBVError(f"SBV import {import_id} failed: {detail.get('error') or 'unknown error'}")
+    if detail.get("status") not in (None, "completed"):
+        raise SBVError(f"SBV import {import_id} is not terminal: {detail.get('status')!r}")
+    h1 = str(detail.get("file_hash") or summary.get("file_hash") or "").lower()
+    if h1 != _local_h1(path):
+        raise SBVError(f"SBV H1 mismatch for import {import_id}")
+
+    expected_h1 = "h1-rawbytes-v1"
+    expected_h2 = "h2-rawelement-v1"
+    expected_h3 = "h3-chain-sbv-genesisempty-v1"
+    if detail.get("file_hash_canon") != expected_h1:
+        raise SBVError(f"SBV import {import_id} has unexpected H1 canon")
+    if detail.get("record_hash_canon") != expected_h2:
+        raise SBVError(f"SBV import {import_id} has unexpected H2 canon")
+    if detail.get("chain_canon") != expected_h3:
+        raise SBVError(f"SBV import {import_id} has unexpected H3 canon")
+
+    records = client.import_records(import_id)
+    rejections = client.import_rejections(import_id)
+    attachments = client.import_attachments(import_id)
+    all_rows = [*records, *rejections]
+    for row in all_rows:
+        if str(row.get("import_id")) != str(import_id):
+            raise SBVError(f"SBV import {import_id} returned a row bound to another import")
+    accepted = sum(1 for row in records if row.get("status", "accepted") == "accepted")
+    dedup = sum(1 for row in records if row.get("status") == "deduplicated")
+    rejected = len(rejections)
+    encountered = accepted + dedup + rejected
+    expected_encountered = detail.get("encountered_count")
+    if isinstance(expected_encountered, int) and expected_encountered != encountered:
+        raise SBVError(f"SBV import {import_id} encountered count mismatch")
+    for field, actual in (
+        ("accepted_count", accepted),
+        ("rejected_count", rejected),
+        ("deduplicated_count", dedup),
+    ):
+        expected = detail.get(field)
+        if isinstance(expected, int) and expected != actual:
+            raise SBVError(f"SBV import {import_id} {field} mismatch")
+    claimed = detail.get("claimed_count")
+    if isinstance(claimed, int) and claimed != encountered:
+        raise SBVError(f"SBV import {import_id} claimed count mismatch")
+    if detail.get("reconciliation") == "discrepancy":
+        raise SBVError(f"SBV import {import_id} reports reconciliation discrepancy")
+    if encountered != accepted + dedup + rejected:
+        raise SBVError(f"SBV import {import_id} count reconciliation failed")
+
+    h2_rows = sorted((row for row in all_rows if row.get("record_hash")), key=lambda row: _as_int(row.get("seq"), 0))
+    for row in h2_rows:
+        canon = row.get("record_hash_canon")
+        if canon != expected_h2:
+            raise SBVError(f"SBV import {import_id} contains an unexpected record canon")
+    chain = ""
+    for row in h2_rows:
+        h2 = str(row["record_hash"]).lower()
+        chain = hashlib.sha256((chain + "\n" + h2).encode("utf-8")).hexdigest()
+    expected_chain = str(detail.get("chain_hash") or summary.get("chain_hash") or "").lower()
+    if chain != expected_chain:
+        raise SBVError(f"SBV H3 mismatch for import {import_id}")
+    hashed_count = detail.get("record_count")
+    if isinstance(hashed_count, int) and hashed_count != len(h2_rows):
+        raise SBVError(f"SBV import {import_id} hashed count mismatch")
+    return import_id, detail, records, rejections, attachments
+
+
 def _reconcile_custody(
-    path: Path, payload: dict[str, Any], client: SBVClient, records: list[NormalizedRecord]
+    path: Path,
+    payload: dict[str, Any],
+    client: SBVClient,
+    records: list[NormalizedRecord],
+    import_id: int | None = None,
 ) -> dict[str, Any] | None:
     """Forensic custody cross-check (Phase 4): pull SBV's independently-computed
     H1/H3 for this import + the per-record H2s, and reconcile against our OWN H1
@@ -202,11 +301,17 @@ def _reconcile_custody(
         return None
     try:
         from server.evidence import custody  # lazy: pulls in sqlalchemy — facade lacks it
-    except Exception:
+    except Exception:  # noqa: BLE001 - facade intentionally degrades without SQLAlchemy
         return None
 
     try:
-        hashes = client.hashes("latest")
+        # Universal imports are always attributed by their returned ID.  The
+        # ``latest`` fallback remains only for old callers that invoke this
+        # opt-in helper directly before the universal cutover.
+        requested_id = import_id or payload.get("import_id")
+        if requested_id is None:
+            requested_id = "latest"
+        hashes = client.hashes(requested_id)
     except SBVError:
         return None
     sbv_file_hash = (hashes or {}).get("file_hash")
@@ -214,7 +319,11 @@ def _reconcile_custody(
     # Per-record H2s SBV computed over the raw source elements (from the records
     # we just built). These are recorded as-is; H3 is stored from SBV, not
     # re-derived here, so record order does not need to match the chain order.
-    sbv_record_hashes = [str(r.attrs.get("content_hash")) for r in records if r.attrs.get("content_hash")]
+    sbv_record_hashes = [
+        str(r.attrs.get("record_hash") or r.attrs.get("content_hash"))
+        for r in records
+        if r.attrs.get("record_hash") or r.attrs.get("content_hash")
+    ]
 
     source_meta = dict(payload.get("source_meta") or {})
     source_meta.setdefault("source_type", "chat_export")
@@ -230,29 +339,20 @@ def _reconcile_custody(
 
 
 def _sbv_enabled() -> bool:
-    """SBV may be auto-selected ONLY when BOTH hold:
-
-    * ``SBV_SERVICE_PASS`` — the service is actually wired (as before), and
-    * ``SBV_PRIMARY_ENABLED`` — the 2026-08-02 demotion override. Default
-      UNSET: the parser-gap review's P0-1 (unscoped ``/api/activity`` can
-      attribute another import's records to this artifact) bars SBV from
-      forensic-primary eligibility until import-scoped reads exist. Setting
-      this env is an explicit owner decision, not deployment plumbing.
-
-    With either missing, accept() returns False and registry.resolve() falls
-    straight through to the pure-Python sms_xml.py. The tool remains fetchable
-    by id for shadow/diagnostic runs regardless."""
-    return bool(os.getenv("SBV_SERVICE_PASS")) and bool(os.getenv("SBV_PRIMARY_ENABLED"))
+    """SBV is the primary ONLY when explicitly wired (URL reachable + service
+    creds present). Without creds, accept() returns False so the registry falls
+    straight through to the pure-Python sms_xml.py fallback — no hard dep on a
+    running SBV for SMS-XML to work."""
+    return bool(os.getenv("SBV_SERVICE_PASS"))
 
 
 @register(
     id="messages.sms-xml-sbv",
     capability="parse.sms-xml",
-    description="SMS Backup & Restore XML via SBV (shadow/diagnostic; demoted from primary 2026-08-02 pending import-scoped reads) -> normalized message + call records, with forensic call-block flags + MMS media handling",
-    # Only accept .xml AND only when SBV is wired AND the demotion override is
-    # explicitly set; else defer to sms_xml.py.
+    description="SMS Backup & Restore XML via SBV (primary) -> normalized message + call records, with forensic call-block flags + MMS media handling",
+    # Only accept .xml AND only when SBV is wired; else defer to sms_xml.py.
     accept=lambda hint, size: hint.lower().endswith(".xml") and _sbv_enabled(),
-    provenance="SBV REST API wrapper (lowcarbdev/sbv) — demoted to shadow 2026-08-02 (gap-review P0-1); sms_xml.py is the effective primary",
+    provenance="SBV REST API wrapper (lowcarbdev/sbv) — primary SMS-XML parser; sms_xml.py is the pure-Python fallback",
 )
 def parse(payload: dict[str, Any]) -> dict[str, Any]:
     path = Path(payload["path"])
@@ -269,38 +369,47 @@ def parse(payload: dict[str, Any]) -> dict[str, Any]:
     if not client.health():
         raise SBVError("SBV not healthy/reachable — falling back to pure-Python parser")
 
-    client.upload(str(path))
-    # SBV ALWAYS processes asynchronously (HandleUpload returns immediately with
-    # processing=true and parses in a background goroutine) — so always wait.
-    client.wait_for_processing()
+    summary = client.import_file(str(path), filename=path.name, format="smsbackuprestore-xml")
+    import_id, detail, rows, rejections, attachments = _validate_universal_import(path, summary, client)
+    attachments_by_seq: dict[int, list[dict[str, Any]]] = {}
+    for item in attachments:
+        raw_seq = item.get("record_seq")
+        if raw_seq in (None, ""):
+            continue
+        seq = _as_int(raw_seq, -1)
+        if seq < 0:
+            continue
+        # Only safe manifest metadata crosses into the normalized projection;
+        # binary bytes are available through SBVClient.download_attachment_stream.
+        attachments_by_seq.setdefault(seq, []).append(
+            {
+                "id": item.get("id"),
+                "original_name": item.get("original_name"),
+                "mime_type": item.get("mime_type"),
+                "decoded_hash": item.get("decoded_hash"),
+                "byte_count": item.get("byte_count"),
+                "record_hash": item.get("record_hash"),
+            }
+        )
 
-    # /api/activity is SBV's "everything" stream: []ActivityItem, each wrapping
-    # either a `message` or a `call` (there is no list-all-messages endpoint —
-    # /api/messages requires an address). This avoids per-conversation fan-out.
-    records: list[NormalizedRecord] = []
-    for item in client.all_activity():
-        kind = (item.get("type") or "").lower()
-        if kind == "call":
-            call = item.get("call") or item  # call fields may be nested or flat
-            records.append(_map_call(call))
-        else:
-            msg = item.get("message") or item  # message fields nested or flat
-            rec = _map_message(msg)
-            if rec is not None:
-                records.append(rec)
-
-    if not records:
-        # Empty result from SBV on a non-empty file is suspicious -> let the
-        # workflow try the fallback rather than silently storing nothing.
-        raise SBVError("SBV returned 0 records — falling back to pure-Python parser")
+    records = [_map_universal_record(row, import_id, attachments_by_seq) for row in rows]
+    if not records and not rejections:
+        raise SBVError("SBV returned no canonical records or rejections for a non-empty import")
 
     # Forensic custody cross-check (opt-in; no-op where custody/DB is unavailable).
-    custody_result = _reconcile_custody(path, payload, client, records)
+    custody_result = _reconcile_custody(path, payload, client, records, import_id)
 
     messages = sum(1 for r in records if r.record_type == RecordType.message)
     calls = sum(1 for r in records if r.record_type == RecordType.call)
     blocked = sum(1 for r in records if r.attrs.get("blocked"))
-    extra: dict[str, Any] = {"parser": "sbv"}
+    extra: dict[str, Any] = {
+        "parser": "sbv-universal",
+        "import_id": import_id,
+        "rejections": len(rejections),
+        "attachments": len(attachments),
+        "reconciliation": detail.get("reconciliation"),
+        "chain_hash": detail.get("chain_hash") or summary.get("chain_hash"),
+    }
     if custody_result is not None:
         extra["custody"] = custody_result
     return records_out(records, messages=messages, calls=calls, blocked_calls=blocked, **extra)

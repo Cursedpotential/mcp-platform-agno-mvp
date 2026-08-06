@@ -163,7 +163,7 @@ export function FlagsQueue() {
   };
 
   useEffect(() => {
-    fetchFlags();
+    queueMicrotask(fetchFlags);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter]);
 

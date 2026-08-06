@@ -82,7 +82,7 @@ export function RecordDetailDrawer({
   const next = index >= 0 && index < records.length - 1 ? records[index + 1] : null;
 
   useEffect(() => {
-    setTitleDraft(record ? titleOf(record) : "");
+    queueMicrotask(() => setTitleDraft(record ? titleOf(record) : ""));
   }, [record]);
 
   if (!record) return null;

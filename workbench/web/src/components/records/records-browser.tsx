@@ -82,12 +82,12 @@ export function RecordsBrowser() {
   }, [runId, artifactSha, query, offset]);
 
   useEffect(() => {
-    fetchRecords();
+    queueMicrotask(fetchRecords);
   }, [fetchRecords]);
 
   // Reset to page 1 whenever the scope/search changes.
   useEffect(() => {
-    setOffset(0);
+    queueMicrotask(() => setOffset(0));
   }, [runId, artifactSha, query]);
 
   const handleRecordUpdated = (updated: RecordRow) => {

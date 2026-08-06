@@ -136,7 +136,7 @@ export function RunsTable() {
   }, [statusFilter]);
 
   useEffect(() => {
-    fetchRuns();
+    queueMicrotask(fetchRuns);
   }, [fetchRuns, refreshKey]);
 
   // Keep the mini stage rails fresh while anything is in flight.
@@ -152,7 +152,6 @@ export function RunsTable() {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runs, fetchRuns]);
 
   const handleOpenDetail = (run: RunSummary) => {

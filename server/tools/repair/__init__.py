@@ -32,26 +32,12 @@ so binding `chunkers` first keeps the package's own partial initialisation from
 mattering.
 """
 
+# Public exports are grouped by repair lifecycle, not alphabetically.
+# ruff: noqa: RUF022
+
 from __future__ import annotations
 
-from server.tools.repair import types as types  # noqa: F401  (re-export namespace)
-from server.tools.repair.types import (
-    COSMETIC,
-    LOSSY,
-    STRUCTURAL,
-    Chunk,
-    Detection,
-    RepairEvent,
-    RepairReport,
-    Severity,
-)
-from server.tools.repair.encoding import (
-    HEAD_BYTES,
-    detect_encoding,
-    open_binary,
-    open_text,
-    read_head,
-)
+from server.tools.repair import types as types
 from server.tools.repair.chunkers import (
     JSON_REPAIR_MAX_BYTES,
     iter_csv,
@@ -59,6 +45,19 @@ from server.tools.repair.chunkers import (
     iter_json,
     iter_ndjson,
     iter_xml,
+)
+from server.tools.repair.cloud import (
+    hydration_summary,
+    is_cloud_only,
+    partition_by_locality,
+)
+from server.tools.repair.detect import detect
+from server.tools.repair.encoding import (
+    HEAD_BYTES,
+    detect_encoding,
+    open_binary,
+    open_text,
+    read_head,
 )
 from server.tools.repair.engines import (
     ENGINES,
@@ -84,15 +83,9 @@ from server.tools.repair.pdf import (
     scan_pdfs,
     sha256_file,
 )
-from server.tools.repair.cloud import (
-    hydration_summary,
-    is_cloud_only,
-    partition_by_locality,
-)
 from server.tools.repair.quarantine import (
     DEFAULT_LEDGER,
     DEFAULT_REPORT_DIR,
-    write_recovery_report,
     DamageEntry,
     DamageLedger,
     QuarantinePlan,
@@ -100,9 +93,19 @@ from server.tools.repair.quarantine import (
     handle_damaged,
     plan_quarantine,
     quarantine_file,
+    write_recovery_report,
     write_repaired,
 )
-from server.tools.repair.detect import detect
+from server.tools.repair.types import (
+    COSMETIC,
+    LOSSY,
+    STRUCTURAL,
+    Chunk,
+    Detection,
+    RepairEvent,
+    RepairReport,
+    Severity,
+)
 
 __all__ = [
     # routing / entry points

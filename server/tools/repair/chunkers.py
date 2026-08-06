@@ -32,8 +32,9 @@ loop body. This mirrors stdlib `iterparse` semantics.
 from __future__ import annotations
 
 import copy
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 from server.tools.repair.encoding import open_binary, open_text
 from server.tools.repair.types import (
@@ -167,7 +168,7 @@ def _drain_xml_error_log(ctx: Any, rep: RepairReport) -> None:
     """
     try:
         entries = list(ctx.error_log)
-    except Exception:
+    except Exception:  # noqa: BLE001 - lxml error-log proxies vary by build
         return
     if not entries:
         return
@@ -243,7 +244,7 @@ def _array_candidates(path: Path) -> list[tuple[str, bool]]:
                     found.append((prefix, n - open_at.pop(prefix) == 1))
                 if n > _PREFIX_PROBE_EVENTS:
                     break
-    except Exception:
+    except Exception:  # noqa: BLE001, S110 - malformed probe is a negative signal
         pass
     found.extend((prefix, False) for prefix in open_at)
     return found
@@ -274,7 +275,7 @@ def _choose_array_prefix(path: Path) -> tuple[str | None, str]:
         last = prefix.rsplit(".", 1)[-1].lower() if prefix else ""
         return (last not in _RECORD_KEYS, empty, prefix.count("."), order)
 
-    order, (prefix, _empty) = min(enumerate(cands), key=rank)
+    _order, (prefix, _empty) = min(enumerate(cands), key=rank)
     resolved = f"{prefix}.item" if prefix else "item"
     others = [p or "<root>" for p, _ in cands if p != prefix]
     reason = f"selected array {prefix or '<root>'!r}"
@@ -323,7 +324,7 @@ def iter_json(
                 rep.record(chunk)
                 yield chunk
                 index += 1
-    except Exception as exc:  # ijson raises IncompleteJSONError / JSONError
+    except Exception as exc:  # noqa: BLE001 - optional ijson versions expose different errors
         rep.events.append(
             RepairEvent(
                 kind="json_stream_broke",
@@ -449,7 +450,7 @@ def iter_ndjson(path: Path, report: RepairReport | None = None) -> Iterator[Chun
                             chunk_index=index,
                         )
                     )
-                except Exception as exc2:
+                except Exception as exc2:  # noqa: BLE001 - optional json-repair error surface
                     chunk = Chunk(
                         index=index, kind="object", node=None, ok=False,
                         error=f"line {lineno}: {exc2}",
@@ -478,13 +479,13 @@ def _sniff_dialect(sample: str) -> tuple[Any, list[RepairEvent]]:
 
     events: list[RepairEvent] = []
     try:
-        from clevercsv.wrappers import detect_dialect  # noqa: F401  (import probe)
         from clevercsv.detect import Detector
+        from clevercsv.wrappers import detect_dialect  # noqa: F401  (import probe)
 
         simple = Detector().detect(sample)
         if simple is not None:
             return simple.to_csv_dialect(), events
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - optional CleverCSV versions vary
         events.append(
             RepairEvent(
                 kind="dialect_detector_fallback",
@@ -634,7 +635,7 @@ def iter_pdf(
 
     try:
         out = tool.run({"path": str(path), "ocr": ocr})
-    except Exception as exc:  # missing OCR stack surfaces as RuntimeError here
+    except Exception as exc:  # noqa: BLE001 - registry tool boundaries may raise any failure
         rep.events.append(
             RepairEvent(
                 kind="pdf_extract_failed",

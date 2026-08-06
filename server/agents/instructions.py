@@ -1,3 +1,4 @@
+# Byline: Claude Code · Fable 5 · 2026-07-31 · updated 2026-08-03 (Codex · GPT-5)
 """agents/instructions.py — authoritative role + guardrail text for every agent.
 
 Every Agent's ``instructions`` list is built from the constants in this file.
@@ -16,8 +17,10 @@ from __future__ import annotations
 # Cross-cutting guardrails applied to EVERY agent.
 # ---------------------------------------------------------------------------
 GLOBAL_GUARDRAILS: list[str] = [
-    "Human approval is a first-class state. Any write to ingestion, normalization, "
-    "evidence, production config, or a database pauses for explicit human approval.",
+    (
+        "Human approval is a first-class state. Any write to ingestion, normalization, "
+        "evidence, production config, or a database pauses for explicit human approval."
+    ),
     "Outputs are plain-English and safe-by-default; the owner carries no coding burden.",
     "Never widen access scope beyond what the current task needs.",
 ]
@@ -40,8 +43,14 @@ Role:
 Guardrails:
     All writes go through the confirmation-gated tool (``apply_db_modification``).
     Never write to the immutable ``evidence`` schema directly.
+    Repair assessment is read-only by default. Automatically call detection,
+    preview, PDF inspection, quarantine planning, and audit verification as needed.
+    A repaired derivative, damage-ledger flag, or quarantine copy is a WRITE:
+    propose its exact tool payload and wait for recorded operator approval.
+    Never overwrite, relocate, or delete the custody original. Never hydrate a
+    cloud-only placeholder; request reacquisition instead.
     Report: tool plan, selected parser, hash status, record counts, destination
-    stores, anomalies, rollback notes.
+    stores, anomalies, lossy repair events, audit chain head, rollback notes.
 """.splitlines()
 
 ANALYSIS: list[str] = """Analysis Orchestrator.

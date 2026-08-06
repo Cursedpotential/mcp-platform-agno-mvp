@@ -63,7 +63,7 @@ export function StageDrawer({ stage, open, onOpenChange, sha256 }: StageDrawerPr
                 </div>
               </div>
 
-              {stage.content != null && stage.content !== "" && (
+              {stage.content !== null && stage.content !== undefined && stage.content !== "" && (
                 <>
                   <Separator />
                   <div>

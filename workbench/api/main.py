@@ -16,10 +16,6 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
-from starlette.middleware.base import BaseHTTPMiddleware
-
 from app.config import settings
 from app.runtime import (
     copilot,
@@ -30,10 +26,14 @@ from app.runtime import (
     knowledge,
     metrics,
     promote,
+    repairs,
     runs,
     tools,
     upload,
 )
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("workbench")
@@ -56,6 +56,7 @@ app.include_router(runs.router)
 app.include_router(inspect.router)
 app.include_router(knowledge.router)
 app.include_router(tools.router)
+app.include_router(repairs.router)
 app.include_router(copilot.router)
 app.include_router(metrics.router)
 

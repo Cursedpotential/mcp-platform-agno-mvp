@@ -38,11 +38,10 @@ from __future__ import annotations
 
 import hashlib
 import io
-
-
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 from server.tools.repair.encoding import read_head
 from server.tools.repair.types import LOSSY, STRUCTURAL, RepairEvent
@@ -175,7 +174,7 @@ def qpdf_version() -> str:
         import pikepdf
 
         return str(pikepdf.__libqpdf_version__)
-    except Exception:
+    except Exception:  # noqa: BLE001 - optional pikepdf ABI/version probe
         return "unavailable"
 
 
@@ -196,7 +195,7 @@ def _warnings_of(pdf: Any) -> list[str]:
     """
     try:
         return [str(w) for w in pdf.get_warnings()]
-    except Exception:
+    except Exception:  # noqa: BLE001 - pikepdf warning proxy varies by version
         return []
 
 
@@ -289,7 +288,7 @@ def inspect_pdf(path: Path, password: str = "") -> PdfHealth:
             health.encrypted = bool(pdf.is_encrypted)
             try:
                 health.linearized = bool(pdf.is_linearized)
-            except Exception:
+            except Exception:  # noqa: BLE001 - optional pikepdf property probe
                 health.linearized = None
             # Read INSIDE the context manager — the warnings go away with the Pdf.
             health.warnings = _warnings_of(pdf)
@@ -298,7 +297,7 @@ def inspect_pdf(path: Path, password: str = "") -> PdfHealth:
         health.encrypted = True
         health.error = "password required"
         return health
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - qpdf reports structural failures heterogeneously
         health.status = UNRECOVERABLE
         health.error = f"{type(exc).__name__}: {exc}"
         return health
@@ -366,7 +365,7 @@ def repair_pdf(
             pdf.save(str(dest), linearize=linearize, fix_metadata_version=True)
             result.pages_after = len(pdf.pages)
             save_warnings = _warnings_of(pdf)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - qpdf write failures are provenance outcomes
         result.error = f"{type(exc).__name__}: {exc}"
         result.dest = None
         return result

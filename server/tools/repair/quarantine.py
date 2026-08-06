@@ -13,21 +13,19 @@ Three escalating actions, and the DEFAULT IS THE SAFEST ONE:
                damaged file stops being silently re-parsed on every run.
     rewrite    stream the repaired chunks into a NEW clean file elsewhere.
                The original is not modified.
-    quarantine MOVE the damaged original into a quarantine tree. Opt-in,
-               dry-run by default, manifest first — see below.
+    quarantine create a verified copy in a quarantine tree and ledger-block
+               the retained original. Opt-in, dry-run by default.
 
 WHY QUARANTINE IS NOT THE DEFAULT
 ---------------------------------
-Two standing rules collide with moving evidence around:
-  * never delete — quarantine, never remove (so this MOVES, never unlinks);
-  * a full recursive manifest precedes any move job, and approval is explicit
+Two standing rules govern quarantining evidence:
+  * never delete — the original remains under owner control;
+  * a full recursive manifest precedes any copy job, and approval is explicit
     and never inferred.
 So `quarantine_file()` refuses to act unless `dry_run=False` is passed
 deliberately, and `plan_quarantine()` exists to produce the manifest first.
 
-Moving an artifact also breaks every recorded path that points at it, which is
-why flagging — which changes nothing — is what ingest actually needs in order
-to stop re-parsing a known-bad file.
+The SHA-keyed flag is what stops re-parsing; no recorded source path is broken.
 
 THE LEDGER IS KEYED BY sha256
 -----------------------------
@@ -39,12 +37,12 @@ updates one entry rather than creating a phantom second damaged file.
 from __future__ import annotations
 
 import json
-import os
 import shutil
+from collections.abc import Iterator
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 from server.tools.repair.encoding import read_head
 from server.tools.repair.pdf import sha256_file
@@ -56,7 +54,7 @@ DEFAULT_LEDGER = Path("docs/reports/damaged-artifacts.jsonl")
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 @dataclass(slots=True)
@@ -437,14 +435,14 @@ def quarantine_file(
     ledger: DamageLedger | None = None,
     dry_run: bool = True,
 ) -> DamageEntry | None:
-    """MOVE a damaged original into the quarantine tree. Never deletes.
+    """Create a verified quarantine copy and retain the custody original.
 
     `dry_run=True` is the default and returns None without touching anything.
     Pass dry_run=False only against a reviewed manifest.
 
-    The move is copy-then-verify-then-remove, not `os.replace`: the source and
-    quarantine tree are routinely on different drives here, and a failed move
-    that has already unlinked the source is unrecoverable.
+    The SHA-keyed ledger prevents the retained original from being re-ingested.
+    Keeping both copies obeys the project-wide no-permanent-delete rule and
+    leaves final deletion exclusively to the owner.
     """
     if dry_run:
         return None
@@ -457,7 +455,8 @@ def quarantine_file(
     shutil.copy2(plan.src, plan.dest)
     moved_sha = sha256_file(plan.dest)
     if moved_sha != plan.sha256:
-        os.unlink(plan.dest)  # remove the bad COPY, never the source
+        mismatch = plan.dest.with_name(plan.dest.name + ".hash-mismatch")
+        plan.dest.rename(mismatch)
         raise OSError(f"quarantine copy mismatch for {plan.src}; source left untouched")
 
     entry = DamageEntry(
@@ -467,10 +466,9 @@ def quarantine_file(
         fmt="",
         status="quarantined",
         quarantined_to=str(plan.dest.resolve()),
-        note="original moved to quarantine after verified copy",
+        note="verified quarantine copy created; original retained and blocked by SHA ledger",
     )
     ledger.append(entry)
-    os.unlink(plan.src)  # only after the copy is byte-verified
     return entry
 
 

@@ -143,6 +143,76 @@ export async function analyzeFile(id: string) {
 }
 
 // ---------------------------------------------------------------------------
+// Repair control surface
+// ---------------------------------------------------------------------------
+
+export interface RepairToolCard {
+  id: string;
+  category: string;
+  description: string;
+  execution_policy: "manual_or_auto" | "manual_approval_required" | string;
+  side_effect: string;
+}
+
+export interface RepairParticipant {
+  type: "agent" | "team";
+  id: string;
+  name: string;
+  role: string;
+  recommended: boolean;
+  is_factory: boolean;
+}
+
+export async function listRepairTools() {
+  return apiFetch<RepairToolCard[]>("/api/repairs/tools");
+}
+
+export async function listRepairParticipants() {
+  return apiFetch<RepairParticipant[]>("/api/repairs/participants");
+}
+
+export async function runAutomaticRepairAssessment(path: string, format?: string) {
+  return apiFetch<Record<string, unknown>>("/api/repairs/automatic-assessment", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path, format: format || null, sample_limit: 25 }),
+  });
+}
+
+export async function executeRepairTool(
+  toolId: string,
+  payload: Record<string, unknown>,
+  approved = false,
+) {
+  return apiFetch<Record<string, unknown>>("/api/repairs/execute", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tool_id: toolId, payload, approved }),
+  });
+}
+
+export async function runRepairAgentReview(params: {
+  participant: RepairParticipant;
+  path: string;
+  task: string;
+  assessment?: Record<string, unknown>;
+  sessionId?: string;
+}) {
+  return apiFetch<Record<string, unknown>>("/api/repairs/agent-review", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      participant_type: params.participant.type,
+      participant_id: params.participant.id,
+      path: params.path,
+      task: params.task,
+      assessment: params.assessment ?? null,
+      session_id: params.sessionId ?? null,
+    }),
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Runs (C1 Operator Console)
 // ---------------------------------------------------------------------------
 

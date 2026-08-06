@@ -158,7 +158,7 @@ export function SchemasView() {
   };
 
   useEffect(() => {
-    fetchSchemas();
+    queueMicrotask(fetchSchemas);
   }, []);
 
   return (

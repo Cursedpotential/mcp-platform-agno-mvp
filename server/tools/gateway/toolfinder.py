@@ -12,10 +12,13 @@ the same role the `category.action` name prefix played in the old platform.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
-from server.tools.registry import load_builtin_tools, registry
 from server.tools.gateway.content_store import ContentStore, parse_ref
+from server.tools.gateway.execution_audit import append_execution_event, content_sha256
+from server.tools.registry import load_builtin_tools, registry
 
 INLINE_THRESHOLD_BYTES = 4096
 
@@ -33,6 +36,8 @@ def _card(tool: Any) -> dict[str, Any]:
         "id": tool.id,
         "category": tool.capability,
         "description": tool.description,
+        "execution_policy": getattr(tool, "execution_policy", "manual_or_auto"),
+        "side_effect": getattr(tool, "side_effect", "read_only"),
     }
 
 
@@ -86,23 +91,110 @@ def execute_tool(
     payload: dict[str, Any],
     store: ContentStore | None = None,
     inline_threshold: int = INLINE_THRESHOLD_BYTES,
+    *,
+    approval_granted: bool = False,
 ) -> dict[str, Any]:
     """Invoke a tool. Small results return inline; large ones return a REF
     envelope (retrieve with get_ref) so callers never swallow a 50 MB parse."""
     _ensure_loaded()
     tool = registry.get(tool_id)
-    result = tool.run(payload)
+    store = store or ContentStore()
+    operation_id = str(payload.get("_operation_id") or uuid4())
+    execution_mode = str(payload.get("_execution_mode") or "unspecified")
+    execution_policy = getattr(tool, "execution_policy", "manual_or_auto")
+    side_effect = getattr(tool, "side_effect", "read_only")
+    audit_path = Path(store.root) / "audit" / "tool-executions.jsonl"
+    payload_hash = content_sha256(payload)
+    input_hash = payload.get("_input_sha256")
+    if execution_policy == "manual_approval_required" and not approval_granted:
+        rejected = append_execution_event(
+            audit_path,
+            operation_id=operation_id,
+            phase="completed",
+            tool_id=tool_id,
+            capability=tool.capability,
+            execution_policy=execution_policy,
+            side_effect=side_effect,
+            execution_mode=execution_mode,
+            payload_sha256=payload_hash,
+            input_sha256=str(input_hash) if input_hash else None,
+            status="rejected",
+            error_type="ApprovalRequired",
+        )
+        raise PermissionError(
+            f"{tool_id} requires the authenticated operator approval endpoint "
+            f"(audit_chain_head={rejected['event_hash']})"
+        )
+    append_execution_event(
+        audit_path,
+        operation_id=operation_id,
+        phase="started",
+        tool_id=tool_id,
+        capability=tool.capability,
+        execution_policy=execution_policy,
+        side_effect=side_effect,
+        execution_mode=execution_mode,
+        payload_sha256=payload_hash,
+        input_sha256=str(input_hash) if input_hash else None,
+        status="started",
+    )
+    try:
+        result = tool.run(payload)
+    except Exception as exc:
+        append_execution_event(
+            audit_path,
+            operation_id=operation_id,
+            phase="completed",
+            tool_id=tool_id,
+            capability=tool.capability,
+            execution_policy=execution_policy,
+            side_effect=side_effect,
+            execution_mode=execution_mode,
+            payload_sha256=payload_hash,
+            input_sha256=str(input_hash) if input_hash else None,
+            status="failed",
+            error_type=type(exc).__name__,
+        )
+        raise
     body = json.dumps(result, ensure_ascii=False, default=str)
+    result_hash = content_sha256(result)
+    result_input_hash = result.get("source_sha256") if isinstance(result, dict) else None
+    completed = append_execution_event(
+        audit_path,
+        operation_id=operation_id,
+        phase="completed",
+        tool_id=tool_id,
+        capability=tool.capability,
+        execution_policy=execution_policy,
+        side_effect=side_effect,
+        execution_mode=execution_mode,
+        payload_sha256=payload_hash,
+        input_sha256=str(input_hash or result_input_hash) if (input_hash or result_input_hash) else None,
+        result_sha256=result_hash,
+        status="completed",
+    )
 
     if len(body.encode("utf-8")) <= inline_threshold:
-        return {"tool_id": tool_id, "inline": True, "result": result}
+        return {
+            "tool_id": tool_id,
+            "operation_id": operation_id,
+            "audit_chain_head": completed["event_hash"],
+            "inline": True,
+            "result": result,
+        }
 
-    store = store or ContentStore()
     envelope = store.put(body, mime="application/json")
     summary: dict[str, Any] = {}
     if isinstance(result, dict) and isinstance(result.get("stats"), dict):
         summary = result["stats"]  # parsers: record_count etc. ride along
-    return {"tool_id": tool_id, "inline": False, **envelope, "stats": summary}
+    return {
+        "tool_id": tool_id,
+        "operation_id": operation_id,
+        "audit_chain_head": completed["event_hash"],
+        "inline": False,
+        **envelope,
+        "stats": summary,
+    }
 
 
 def get_ref(ref: str, page: int = 0, page_size: int | None = None, store: ContentStore | None = None) -> dict[str, Any]:

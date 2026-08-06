@@ -62,10 +62,12 @@ export function ToolForm({ serverKey, tool, onResult }: ToolFormProps) {
 
   // Reset whenever a different tool is selected.
   useEffect(() => {
-    setValues({});
-    setJsonFields({});
-    setRawJson("{}");
-    setFieldError(null);
+    queueMicrotask(() => {
+      setValues({});
+      setJsonFields({});
+      setRawJson("{}");
+      setFieldError(null);
+    });
   }, [tool.name, serverKey]);
 
   const setValue = (key: string, value: FieldValue) =>

@@ -278,7 +278,8 @@ def test_manifest_reports_every_format():
 
 def test_available_reports_versions_not_booleans():
     caps = available()
-    assert "lxml" in caps and "pikepdf" not in caps or True  # lxml is the core one
+    assert "lxml" in caps
+    assert caps["lxml"] is None or isinstance(caps["lxml"], str)
     assert engine_for("xml") is not None
     assert engine_for("nonsense-format") is None
 

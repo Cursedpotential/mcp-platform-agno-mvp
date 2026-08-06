@@ -9,6 +9,11 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "export",
+  turbopack: {
+    // Keep dependency tracing inside this app even when an unrelated parent
+    // workspace also has a lockfile.
+    root: process.cwd(),
+  },
   images: {
     unoptimized: true,
   },
