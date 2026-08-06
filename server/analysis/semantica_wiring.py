@@ -43,11 +43,17 @@ EMBED_PLATFORM_DIM = int(getenv("EMBED_PLATFORM_DIM", "4096"))
 
 
 def _weaviate_host_ports() -> tuple[str, int, int]:
-    """Host + REST/gRPC ports for data-weaviate (compose exposes 8081/50051)."""
-    url = getenv("WEAVIATE_URL", "http://100.119.96.29:8081")
+    """Host + REST/gRPC ports for data-weaviate (compose exposes 8081/50051).
+
+    Defaults corrected 2026-08-06: ~~100.119.96.29 (ovh-data)~~ -> 100.91.190.107
+    (ovh-files). Same stale-host bug that silently broke the platform Weaviate
+    client — `data-weaviate` on ovh-data is exited:unhealthy, `data-weaviate-files`
+    on ovh-files is the live one. See server/core/session.py::WEAVIATE_HTTP_HOST.
+    """
+    url = getenv("WEAVIATE_URL", "http://100.91.190.107:8081")
     hostport = url.split("://", 1)[-1].split("/", 1)[0]
     host, _, port = hostport.partition(":")
-    return host or "100.119.96.29", int(port or "8081"), int(getenv("WEAVIATE_GRPC_PORT", "50051"))
+    return host or "100.91.190.107", int(port or "8081"), int(getenv("WEAVIATE_GRPC_PORT", "50051"))
 
 
 def vector_store_config() -> dict[str, Any]:
@@ -83,8 +89,12 @@ def graph_store_config() -> dict[str, Any]:
     """
     return {
         "backend": "neo4j",  # DozerDB = Neo4j Community + multi-DB/RBAC plugin
-        # Tailnet bolt to the ovh3 data-tier Neo4j (compose exposes 7687).
-        "uri": getenv("NEO4J_URI", "bolt://100.119.96.29:7687"),
+        # Tailnet bolt to the data-tier Neo4j (compose exposes 7687).
+        # Default corrected 2026-08-06: ~~100.119.96.29 (ovh-data)~~ ->
+        # 100.91.190.107 (ovh-files). Verified live from inside agentos-api the
+        # same day: ovh-data:7687 UNREACHABLE, ovh-files:7687 OPEN. `data-neo4j`
+        # on ovh-data is exited:unhealthy; the healthy one runs on ovh-files.
+        "uri": getenv("NEO4J_URI", "bolt://100.91.190.107:7687"),
         "database": getenv("SEMANTICA_NEO4J_DATABASE", "evidence"),  # ADR-0036 split
         "user": getenv("SEMANTICA_NEO4J_USER", "semantica_writer"),  # RBAC-scoped writer
         "password_env": "SEMANTICA_NEO4J_PASSWORD",  # SECRET read at runtime, never inlined
