@@ -77,6 +77,10 @@ CONTENTS_DB_ID = DB_ID  # Knowledge contents ride the same db (own table)
 # Reached from the exec tier on OVH-1 -> data tier on OVH-3. Default = OVH-3
 # tailnet IP (matches compose OVH3_HOST); salem private fast-path alt =
 # ws://10.1.2.101:8000/rpc. WS transport, /rpc path.
+# NOTE: this is the ONE host default that legitimately still points at ovh-data
+# (100.119.96.29). Everything else in the data tier moved to ovh-files, but the
+# parked SurrealDB container stayed put — verified reachable 2026-08-06. Do not
+# "consistency-fix" it to 100.91.190.107; there is no Surreal there.
 SURREALDB_URL = getenv("SURREALDB_URL", "ws://100.119.96.29:8000/rpc")
 SURREALDB_USER = getenv("SURREALDB_USER", "root")
 SURREALDB_PASS = getenv("SURREALDB_PASS", "root")
@@ -89,7 +93,16 @@ SURREALDB_DB = getenv("SURREALDB_DB", "platform")
 # (WEAVIATE_API_KEY wired here already — empty = anonymous). agno's Weaviate
 # `local=True` hardcodes connect_to_local() (localhost), so we always hand it a
 # preconstructed connect_to_custom() client.
-WEAVIATE_HTTP_HOST = getenv("WEAVIATE_HTTP_HOST", "100.119.96.29")
+# ⚠ Default corrected 2026-08-06: ~~100.119.96.29 (ovh-data)~~ -> 100.91.190.107
+# (ovh-files). The data tier migrated and `data-weaviate` on ovh-data is
+# exited:unhealthy, so this default pointed at a dead host. Nothing overrode it,
+# and `skip_init_checks` below means the client CONSTRUCTS fine and only fails on
+# first real use — which KnowledgeHandle then swallows. Net effect: the boot log
+# said "knowledge base 'legal': connected" while every vector op failed. Proven
+# live from inside agentos-api, and fixed by adding WEAVIATE_HTTP_HOST to the
+# exec-tier Coolify env (the env is what production actually reads; this default
+# is the safety net for a fresh deploy).
+WEAVIATE_HTTP_HOST = getenv("WEAVIATE_HTTP_HOST", "100.91.190.107")
 WEAVIATE_HTTP_PORT = int(getenv("WEAVIATE_HTTP_PORT", "8081"))
 WEAVIATE_GRPC_PORT = int(getenv("WEAVIATE_GRPC_PORT", "50051"))
 WEAVIATE_API_KEY = getenv("WEAVIATE_API_KEY", "")
