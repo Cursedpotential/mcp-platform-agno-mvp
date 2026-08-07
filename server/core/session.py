@@ -77,10 +77,16 @@ CONTENTS_DB_ID = DB_ID  # Knowledge contents ride the same db (own table)
 # Reached from the exec tier on OVH-1 -> data tier on OVH-3. Default = OVH-3
 # tailnet IP (matches compose OVH3_HOST); salem private fast-path alt =
 # ws://10.1.2.101:8000/rpc. WS transport, /rpc path.
-# NOTE: this is the ONE host default that legitimately still points at ovh-data
-# (100.119.96.29). Everything else in the data tier moved to ovh-files, but the
-# parked SurrealDB container stayed put — verified reachable 2026-08-06. Do not
-# "consistency-fix" it to 100.91.190.107; there is no Surreal there.
+# NOTE (owner ruling 2026-08-06): SurrealDB is RETIRED. Nothing in the platform
+# uses it — get_agno_db() is Postgres, and get_surrealdb_legacy() below has ZERO
+# callers. These five settings exist only so that legacy handle can still be
+# constructed for a one-off read-only reconciliation against the parked
+# container. That container happens to still answer on ovh-data (100.119.96.29,
+# verified 2026-08-06) — the ONE host default that legitimately still points
+# there, since Surreal never moved to ovh-files with the rest of the data tier.
+# Do not "consistency-fix" the IP (there is no Surreal on ovh-files), and do not
+# read this note as "Surreal is alive": dead dependency, parked container,
+# owner-gated deletion (ADR-0043).
 SURREALDB_URL = getenv("SURREALDB_URL", "ws://100.119.96.29:8000/rpc")
 SURREALDB_USER = getenv("SURREALDB_USER", "root")
 SURREALDB_PASS = getenv("SURREALDB_PASS", "root")
