@@ -111,8 +111,15 @@ are Linux and do not carry a Windows PG client), reaching the live host
 over the tailnet. It is NOT safely runnable from a sandboxed/CI environment
 that cannot reach the production database.
 
-**C1 PENDING — run against live.** The exact command the owner/coordinator
-must run device-side to regenerate and verify the baseline:
+**~~C1 PENDING~~ C1 DONE — executed against live 2026-08-10 (Claude Code · Fable 5).**
+Ran from the owner's workstation over the tailnet: `verify: PASS — clean bootstrap
+reproduces the live schema`. Per-schema table counts all matched (ai 23 · analysis 31 ·
+evidence 19 · ops 5 · public 17 · reference 14 · working 47 = 156 tables); the
+regenerated baseline carries `horizon_visible` (×5) and the
+vw_spine_horizon/retrieval-axis/realization_event objects the stale baseline lacked.
+**This also resolves the 2026-08-09 triage doc's UNVERIFIED #1: the live DB is fully
+migrated — ops (audit ledger), working (0016 gate layer), and 0018 retrieval axes are
+all present live.** The command, kept for the next regen:
 
 ```
 # Prerequisites on the machine running this (NOT a container):

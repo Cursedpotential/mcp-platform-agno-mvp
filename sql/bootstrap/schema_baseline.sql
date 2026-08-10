@@ -1,5 +1,5 @@
 -- sql/bootstrap/schema_baseline.sql — REPRODUCIBLE BOOTSTRAP (Codex C-02).
--- Captured 2026-08-02 22:28 from the live database by scripts/capture_bootstrap_ddl.py.
+-- Captured 2026-08-10 01:13 from the live database by scripts/capture_bootstrap_ddl.py.
 -- Apply to an EMPTY database to reproduce the full live schema. The numbered
 -- sql/NNNN chain remains the historical record; regenerate this file after
 -- applying any new numbered migration. Structure only — never data.
@@ -8,7 +8,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict PgmxeYSLboA6I69iw0ehnBFGitjepaGyOrSsOzDUn8QyH0bUkEwhtOx14dzignS
+\restrict AN3heiIngjiXbRkuyiNRBKjHgTp2eDWijtBhXcYsjwTwEcne1dwY187Y39S0N2e
 
 -- Dumped from database version 18.1 (Debian 18.1-1.pgdg12+2)
 -- Dumped by pg_dump version 18.4
@@ -917,6 +917,31 @@ BEGIN
         TG_TABLE_NAME, TG_OP;
 END
 $$;
+
+
+--
+-- Name: horizon_visible(text, timestamp with time zone, text, text, text, timestamp with time zone, text); Type: FUNCTION; Schema: working; Owner: -
+--
+
+CREATE FUNCTION working.horizon_visible(row_case_id text, row_knowledge_time timestamp with time zone, row_disclosure text, row_actor text, p_case_id text, p_horizon timestamp with time zone, p_actor text DEFAULT 'owner'::text) RETURNS boolean
+    LANGUAGE sql IMMUTABLE PARALLEL SAFE
+    AS $$
+    SELECT row_case_id = p_case_id
+       AND (
+            p_horizon IS NULL                       -- hindsight: no cutoff
+            OR (row_knowledge_time IS NOT NULL
+                AND row_knowledge_time <= p_horizon
+                AND row_actor = p_actor
+                AND row_disclosure <> 'hindsight')  -- never leaks backwards
+       );
+$$;
+
+
+--
+-- Name: FUNCTION horizon_visible(row_case_id text, row_knowledge_time timestamp with time zone, row_disclosure text, row_actor text, p_case_id text, p_horizon timestamp with time zone, p_actor text); Type: COMMENT; Schema: working; Owner: -
+--
+
+COMMENT ON FUNCTION working.horizon_visible(row_case_id text, row_knowledge_time timestamp with time zone, row_disclosure text, row_actor text, p_case_id text, p_horizon timestamp with time zone, p_actor text) IS 'THE horizon pre-filter for Postgres readers. p_horizon NULL = hindsight agent (whole case); otherwise the ignorant agent sees only rows knowable to p_actor at or before p_horizon, excluding hindsight-tagged rows. Every Postgres query that feeds an agent MUST apply this — filtering after top-k silently shrinks k and leaks future facts.';
 
 
 --
@@ -2277,6 +2302,26 @@ CREATE USER MAPPING FOR ai SERVER simple_s3_secret_68 OPTIONS (
 
 
 --
+-- Name: simple_s3_secret_69; Type: SERVER; Schema: -; Owner: -
+--
+
+CREATE SERVER simple_s3_secret_69 TYPE 'S3' FOREIGN DATA WRAPPER duckdb OPTIONS (
+    endpoint '1a7406c497493a52128bb282f499e7b8.r2.cloudflarestorage.com',
+    region 'auto'
+);
+
+
+--
+-- Name: USER MAPPING ai SERVER simple_s3_secret_69; Type: USER MAPPING; Schema: -; Owner: -
+--
+
+CREATE USER MAPPING FOR ai SERVER simple_s3_secret_69 OPTIONS (
+    key_id '9e9eb4a1f55d967f83c42dc041e37313',
+    secret 'f64180b5668fedd0db791c2d2688154a5613b66c2ff1ac12fe7b27a6896e0878'
+);
+
+
+--
 -- Name: simple_s3_secret_7; Type: SERVER; Schema: -; Owner: -
 --
 
@@ -2291,6 +2336,206 @@ CREATE SERVER simple_s3_secret_7 TYPE 'S3' FOREIGN DATA WRAPPER duckdb OPTIONS (
 --
 
 CREATE USER MAPPING FOR ai SERVER simple_s3_secret_7 OPTIONS (
+    key_id '9e9eb4a1f55d967f83c42dc041e37313',
+    secret 'f64180b5668fedd0db791c2d2688154a5613b66c2ff1ac12fe7b27a6896e0878'
+);
+
+
+--
+-- Name: simple_s3_secret_70; Type: SERVER; Schema: -; Owner: -
+--
+
+CREATE SERVER simple_s3_secret_70 TYPE 'S3' FOREIGN DATA WRAPPER duckdb OPTIONS (
+    endpoint '1a7406c497493a52128bb282f499e7b8.r2.cloudflarestorage.com',
+    region 'auto'
+);
+
+
+--
+-- Name: USER MAPPING ai SERVER simple_s3_secret_70; Type: USER MAPPING; Schema: -; Owner: -
+--
+
+CREATE USER MAPPING FOR ai SERVER simple_s3_secret_70 OPTIONS (
+    key_id '9e9eb4a1f55d967f83c42dc041e37313',
+    secret 'f64180b5668fedd0db791c2d2688154a5613b66c2ff1ac12fe7b27a6896e0878'
+);
+
+
+--
+-- Name: simple_s3_secret_71; Type: SERVER; Schema: -; Owner: -
+--
+
+CREATE SERVER simple_s3_secret_71 TYPE 'S3' FOREIGN DATA WRAPPER duckdb OPTIONS (
+    endpoint '1a7406c497493a52128bb282f499e7b8.r2.cloudflarestorage.com',
+    region 'auto'
+);
+
+
+--
+-- Name: USER MAPPING ai SERVER simple_s3_secret_71; Type: USER MAPPING; Schema: -; Owner: -
+--
+
+CREATE USER MAPPING FOR ai SERVER simple_s3_secret_71 OPTIONS (
+    key_id '9e9eb4a1f55d967f83c42dc041e37313',
+    secret 'f64180b5668fedd0db791c2d2688154a5613b66c2ff1ac12fe7b27a6896e0878'
+);
+
+
+--
+-- Name: simple_s3_secret_72; Type: SERVER; Schema: -; Owner: -
+--
+
+CREATE SERVER simple_s3_secret_72 TYPE 'S3' FOREIGN DATA WRAPPER duckdb OPTIONS (
+    endpoint '1a7406c497493a52128bb282f499e7b8.r2.cloudflarestorage.com',
+    region 'auto'
+);
+
+
+--
+-- Name: USER MAPPING ai SERVER simple_s3_secret_72; Type: USER MAPPING; Schema: -; Owner: -
+--
+
+CREATE USER MAPPING FOR ai SERVER simple_s3_secret_72 OPTIONS (
+    key_id '9e9eb4a1f55d967f83c42dc041e37313',
+    secret 'f64180b5668fedd0db791c2d2688154a5613b66c2ff1ac12fe7b27a6896e0878'
+);
+
+
+--
+-- Name: simple_s3_secret_73; Type: SERVER; Schema: -; Owner: -
+--
+
+CREATE SERVER simple_s3_secret_73 TYPE 'S3' FOREIGN DATA WRAPPER duckdb OPTIONS (
+    endpoint '1a7406c497493a52128bb282f499e7b8.r2.cloudflarestorage.com',
+    region 'auto'
+);
+
+
+--
+-- Name: USER MAPPING ai SERVER simple_s3_secret_73; Type: USER MAPPING; Schema: -; Owner: -
+--
+
+CREATE USER MAPPING FOR ai SERVER simple_s3_secret_73 OPTIONS (
+    key_id '9e9eb4a1f55d967f83c42dc041e37313',
+    secret 'f64180b5668fedd0db791c2d2688154a5613b66c2ff1ac12fe7b27a6896e0878'
+);
+
+
+--
+-- Name: simple_s3_secret_74; Type: SERVER; Schema: -; Owner: -
+--
+
+CREATE SERVER simple_s3_secret_74 TYPE 'S3' FOREIGN DATA WRAPPER duckdb OPTIONS (
+    endpoint '1a7406c497493a52128bb282f499e7b8.r2.cloudflarestorage.com',
+    region 'auto'
+);
+
+
+--
+-- Name: USER MAPPING ai SERVER simple_s3_secret_74; Type: USER MAPPING; Schema: -; Owner: -
+--
+
+CREATE USER MAPPING FOR ai SERVER simple_s3_secret_74 OPTIONS (
+    key_id '9e9eb4a1f55d967f83c42dc041e37313',
+    secret 'f64180b5668fedd0db791c2d2688154a5613b66c2ff1ac12fe7b27a6896e0878'
+);
+
+
+--
+-- Name: simple_s3_secret_75; Type: SERVER; Schema: -; Owner: -
+--
+
+CREATE SERVER simple_s3_secret_75 TYPE 'S3' FOREIGN DATA WRAPPER duckdb OPTIONS (
+    endpoint '1a7406c497493a52128bb282f499e7b8.r2.cloudflarestorage.com',
+    region 'auto'
+);
+
+
+--
+-- Name: USER MAPPING ai SERVER simple_s3_secret_75; Type: USER MAPPING; Schema: -; Owner: -
+--
+
+CREATE USER MAPPING FOR ai SERVER simple_s3_secret_75 OPTIONS (
+    key_id '9e9eb4a1f55d967f83c42dc041e37313',
+    secret 'f64180b5668fedd0db791c2d2688154a5613b66c2ff1ac12fe7b27a6896e0878'
+);
+
+
+--
+-- Name: simple_s3_secret_76; Type: SERVER; Schema: -; Owner: -
+--
+
+CREATE SERVER simple_s3_secret_76 TYPE 'S3' FOREIGN DATA WRAPPER duckdb OPTIONS (
+    endpoint '1a7406c497493a52128bb282f499e7b8.r2.cloudflarestorage.com',
+    region 'auto'
+);
+
+
+--
+-- Name: USER MAPPING ai SERVER simple_s3_secret_76; Type: USER MAPPING; Schema: -; Owner: -
+--
+
+CREATE USER MAPPING FOR ai SERVER simple_s3_secret_76 OPTIONS (
+    key_id '9e9eb4a1f55d967f83c42dc041e37313',
+    secret 'f64180b5668fedd0db791c2d2688154a5613b66c2ff1ac12fe7b27a6896e0878'
+);
+
+
+--
+-- Name: simple_s3_secret_77; Type: SERVER; Schema: -; Owner: -
+--
+
+CREATE SERVER simple_s3_secret_77 TYPE 'S3' FOREIGN DATA WRAPPER duckdb OPTIONS (
+    endpoint '1a7406c497493a52128bb282f499e7b8.r2.cloudflarestorage.com',
+    region 'auto'
+);
+
+
+--
+-- Name: USER MAPPING ai SERVER simple_s3_secret_77; Type: USER MAPPING; Schema: -; Owner: -
+--
+
+CREATE USER MAPPING FOR ai SERVER simple_s3_secret_77 OPTIONS (
+    key_id '9e9eb4a1f55d967f83c42dc041e37313',
+    secret 'f64180b5668fedd0db791c2d2688154a5613b66c2ff1ac12fe7b27a6896e0878'
+);
+
+
+--
+-- Name: simple_s3_secret_78; Type: SERVER; Schema: -; Owner: -
+--
+
+CREATE SERVER simple_s3_secret_78 TYPE 'S3' FOREIGN DATA WRAPPER duckdb OPTIONS (
+    endpoint '1a7406c497493a52128bb282f499e7b8.r2.cloudflarestorage.com',
+    region 'auto'
+);
+
+
+--
+-- Name: USER MAPPING ai SERVER simple_s3_secret_78; Type: USER MAPPING; Schema: -; Owner: -
+--
+
+CREATE USER MAPPING FOR ai SERVER simple_s3_secret_78 OPTIONS (
+    key_id '9e9eb4a1f55d967f83c42dc041e37313',
+    secret 'f64180b5668fedd0db791c2d2688154a5613b66c2ff1ac12fe7b27a6896e0878'
+);
+
+
+--
+-- Name: simple_s3_secret_79; Type: SERVER; Schema: -; Owner: -
+--
+
+CREATE SERVER simple_s3_secret_79 TYPE 'S3' FOREIGN DATA WRAPPER duckdb OPTIONS (
+    endpoint '1a7406c497493a52128bb282f499e7b8.r2.cloudflarestorage.com',
+    region 'auto'
+);
+
+
+--
+-- Name: USER MAPPING ai SERVER simple_s3_secret_79; Type: USER MAPPING; Schema: -; Owner: -
+--
+
+CREATE USER MAPPING FOR ai SERVER simple_s3_secret_79 OPTIONS (
     key_id '9e9eb4a1f55d967f83c42dc041e37313',
     secret 'f64180b5668fedd0db791c2d2688154a5613b66c2ff1ac12fe7b27a6896e0878'
 );
@@ -2317,6 +2562,206 @@ CREATE USER MAPPING FOR ai SERVER simple_s3_secret_8 OPTIONS (
 
 
 --
+-- Name: simple_s3_secret_80; Type: SERVER; Schema: -; Owner: -
+--
+
+CREATE SERVER simple_s3_secret_80 TYPE 'S3' FOREIGN DATA WRAPPER duckdb OPTIONS (
+    endpoint '1a7406c497493a52128bb282f499e7b8.r2.cloudflarestorage.com',
+    region 'auto'
+);
+
+
+--
+-- Name: USER MAPPING ai SERVER simple_s3_secret_80; Type: USER MAPPING; Schema: -; Owner: -
+--
+
+CREATE USER MAPPING FOR ai SERVER simple_s3_secret_80 OPTIONS (
+    key_id '9e9eb4a1f55d967f83c42dc041e37313',
+    secret 'f64180b5668fedd0db791c2d2688154a5613b66c2ff1ac12fe7b27a6896e0878'
+);
+
+
+--
+-- Name: simple_s3_secret_81; Type: SERVER; Schema: -; Owner: -
+--
+
+CREATE SERVER simple_s3_secret_81 TYPE 'S3' FOREIGN DATA WRAPPER duckdb OPTIONS (
+    endpoint '1a7406c497493a52128bb282f499e7b8.r2.cloudflarestorage.com',
+    region 'auto'
+);
+
+
+--
+-- Name: USER MAPPING ai SERVER simple_s3_secret_81; Type: USER MAPPING; Schema: -; Owner: -
+--
+
+CREATE USER MAPPING FOR ai SERVER simple_s3_secret_81 OPTIONS (
+    key_id '9e9eb4a1f55d967f83c42dc041e37313',
+    secret 'f64180b5668fedd0db791c2d2688154a5613b66c2ff1ac12fe7b27a6896e0878'
+);
+
+
+--
+-- Name: simple_s3_secret_82; Type: SERVER; Schema: -; Owner: -
+--
+
+CREATE SERVER simple_s3_secret_82 TYPE 'S3' FOREIGN DATA WRAPPER duckdb OPTIONS (
+    endpoint '1a7406c497493a52128bb282f499e7b8.r2.cloudflarestorage.com',
+    region 'auto'
+);
+
+
+--
+-- Name: USER MAPPING ai SERVER simple_s3_secret_82; Type: USER MAPPING; Schema: -; Owner: -
+--
+
+CREATE USER MAPPING FOR ai SERVER simple_s3_secret_82 OPTIONS (
+    key_id '9e9eb4a1f55d967f83c42dc041e37313',
+    secret 'f64180b5668fedd0db791c2d2688154a5613b66c2ff1ac12fe7b27a6896e0878'
+);
+
+
+--
+-- Name: simple_s3_secret_83; Type: SERVER; Schema: -; Owner: -
+--
+
+CREATE SERVER simple_s3_secret_83 TYPE 'S3' FOREIGN DATA WRAPPER duckdb OPTIONS (
+    endpoint '1a7406c497493a52128bb282f499e7b8.r2.cloudflarestorage.com',
+    region 'auto'
+);
+
+
+--
+-- Name: USER MAPPING ai SERVER simple_s3_secret_83; Type: USER MAPPING; Schema: -; Owner: -
+--
+
+CREATE USER MAPPING FOR ai SERVER simple_s3_secret_83 OPTIONS (
+    key_id '9e9eb4a1f55d967f83c42dc041e37313',
+    secret 'f64180b5668fedd0db791c2d2688154a5613b66c2ff1ac12fe7b27a6896e0878'
+);
+
+
+--
+-- Name: simple_s3_secret_84; Type: SERVER; Schema: -; Owner: -
+--
+
+CREATE SERVER simple_s3_secret_84 TYPE 'S3' FOREIGN DATA WRAPPER duckdb OPTIONS (
+    endpoint '1a7406c497493a52128bb282f499e7b8.r2.cloudflarestorage.com',
+    region 'auto'
+);
+
+
+--
+-- Name: USER MAPPING ai SERVER simple_s3_secret_84; Type: USER MAPPING; Schema: -; Owner: -
+--
+
+CREATE USER MAPPING FOR ai SERVER simple_s3_secret_84 OPTIONS (
+    key_id '9e9eb4a1f55d967f83c42dc041e37313',
+    secret 'f64180b5668fedd0db791c2d2688154a5613b66c2ff1ac12fe7b27a6896e0878'
+);
+
+
+--
+-- Name: simple_s3_secret_85; Type: SERVER; Schema: -; Owner: -
+--
+
+CREATE SERVER simple_s3_secret_85 TYPE 'S3' FOREIGN DATA WRAPPER duckdb OPTIONS (
+    endpoint '1a7406c497493a52128bb282f499e7b8.r2.cloudflarestorage.com',
+    region 'auto'
+);
+
+
+--
+-- Name: USER MAPPING ai SERVER simple_s3_secret_85; Type: USER MAPPING; Schema: -; Owner: -
+--
+
+CREATE USER MAPPING FOR ai SERVER simple_s3_secret_85 OPTIONS (
+    key_id '9e9eb4a1f55d967f83c42dc041e37313',
+    secret 'f64180b5668fedd0db791c2d2688154a5613b66c2ff1ac12fe7b27a6896e0878'
+);
+
+
+--
+-- Name: simple_s3_secret_86; Type: SERVER; Schema: -; Owner: -
+--
+
+CREATE SERVER simple_s3_secret_86 TYPE 'S3' FOREIGN DATA WRAPPER duckdb OPTIONS (
+    endpoint '1a7406c497493a52128bb282f499e7b8.r2.cloudflarestorage.com',
+    region 'auto'
+);
+
+
+--
+-- Name: USER MAPPING ai SERVER simple_s3_secret_86; Type: USER MAPPING; Schema: -; Owner: -
+--
+
+CREATE USER MAPPING FOR ai SERVER simple_s3_secret_86 OPTIONS (
+    key_id '9e9eb4a1f55d967f83c42dc041e37313',
+    secret 'f64180b5668fedd0db791c2d2688154a5613b66c2ff1ac12fe7b27a6896e0878'
+);
+
+
+--
+-- Name: simple_s3_secret_87; Type: SERVER; Schema: -; Owner: -
+--
+
+CREATE SERVER simple_s3_secret_87 TYPE 'S3' FOREIGN DATA WRAPPER duckdb OPTIONS (
+    endpoint '1a7406c497493a52128bb282f499e7b8.r2.cloudflarestorage.com',
+    region 'auto'
+);
+
+
+--
+-- Name: USER MAPPING ai SERVER simple_s3_secret_87; Type: USER MAPPING; Schema: -; Owner: -
+--
+
+CREATE USER MAPPING FOR ai SERVER simple_s3_secret_87 OPTIONS (
+    key_id '9e9eb4a1f55d967f83c42dc041e37313',
+    secret 'f64180b5668fedd0db791c2d2688154a5613b66c2ff1ac12fe7b27a6896e0878'
+);
+
+
+--
+-- Name: simple_s3_secret_88; Type: SERVER; Schema: -; Owner: -
+--
+
+CREATE SERVER simple_s3_secret_88 TYPE 'S3' FOREIGN DATA WRAPPER duckdb OPTIONS (
+    endpoint '1a7406c497493a52128bb282f499e7b8.r2.cloudflarestorage.com',
+    region 'auto'
+);
+
+
+--
+-- Name: USER MAPPING ai SERVER simple_s3_secret_88; Type: USER MAPPING; Schema: -; Owner: -
+--
+
+CREATE USER MAPPING FOR ai SERVER simple_s3_secret_88 OPTIONS (
+    key_id '9e9eb4a1f55d967f83c42dc041e37313',
+    secret 'f64180b5668fedd0db791c2d2688154a5613b66c2ff1ac12fe7b27a6896e0878'
+);
+
+
+--
+-- Name: simple_s3_secret_89; Type: SERVER; Schema: -; Owner: -
+--
+
+CREATE SERVER simple_s3_secret_89 TYPE 'S3' FOREIGN DATA WRAPPER duckdb OPTIONS (
+    endpoint '1a7406c497493a52128bb282f499e7b8.r2.cloudflarestorage.com',
+    region 'auto'
+);
+
+
+--
+-- Name: USER MAPPING ai SERVER simple_s3_secret_89; Type: USER MAPPING; Schema: -; Owner: -
+--
+
+CREATE USER MAPPING FOR ai SERVER simple_s3_secret_89 OPTIONS (
+    key_id '9e9eb4a1f55d967f83c42dc041e37313',
+    secret 'f64180b5668fedd0db791c2d2688154a5613b66c2ff1ac12fe7b27a6896e0878'
+);
+
+
+--
 -- Name: simple_s3_secret_9; Type: SERVER; Schema: -; Owner: -
 --
 
@@ -2331,6 +2776,66 @@ CREATE SERVER simple_s3_secret_9 TYPE 'S3' FOREIGN DATA WRAPPER duckdb OPTIONS (
 --
 
 CREATE USER MAPPING FOR ai SERVER simple_s3_secret_9 OPTIONS (
+    key_id '9e9eb4a1f55d967f83c42dc041e37313',
+    secret 'f64180b5668fedd0db791c2d2688154a5613b66c2ff1ac12fe7b27a6896e0878'
+);
+
+
+--
+-- Name: simple_s3_secret_90; Type: SERVER; Schema: -; Owner: -
+--
+
+CREATE SERVER simple_s3_secret_90 TYPE 'S3' FOREIGN DATA WRAPPER duckdb OPTIONS (
+    endpoint '1a7406c497493a52128bb282f499e7b8.r2.cloudflarestorage.com',
+    region 'auto'
+);
+
+
+--
+-- Name: USER MAPPING ai SERVER simple_s3_secret_90; Type: USER MAPPING; Schema: -; Owner: -
+--
+
+CREATE USER MAPPING FOR ai SERVER simple_s3_secret_90 OPTIONS (
+    key_id '9e9eb4a1f55d967f83c42dc041e37313',
+    secret 'f64180b5668fedd0db791c2d2688154a5613b66c2ff1ac12fe7b27a6896e0878'
+);
+
+
+--
+-- Name: simple_s3_secret_91; Type: SERVER; Schema: -; Owner: -
+--
+
+CREATE SERVER simple_s3_secret_91 TYPE 'S3' FOREIGN DATA WRAPPER duckdb OPTIONS (
+    endpoint '1a7406c497493a52128bb282f499e7b8.r2.cloudflarestorage.com',
+    region 'auto'
+);
+
+
+--
+-- Name: USER MAPPING ai SERVER simple_s3_secret_91; Type: USER MAPPING; Schema: -; Owner: -
+--
+
+CREATE USER MAPPING FOR ai SERVER simple_s3_secret_91 OPTIONS (
+    key_id '9e9eb4a1f55d967f83c42dc041e37313',
+    secret 'f64180b5668fedd0db791c2d2688154a5613b66c2ff1ac12fe7b27a6896e0878'
+);
+
+
+--
+-- Name: simple_s3_secret_92; Type: SERVER; Schema: -; Owner: -
+--
+
+CREATE SERVER simple_s3_secret_92 TYPE 'S3' FOREIGN DATA WRAPPER duckdb OPTIONS (
+    endpoint '1a7406c497493a52128bb282f499e7b8.r2.cloudflarestorage.com',
+    region 'auto'
+);
+
+
+--
+-- Name: USER MAPPING ai SERVER simple_s3_secret_92; Type: USER MAPPING; Schema: -; Owner: -
+--
+
+CREATE USER MAPPING FOR ai SERVER simple_s3_secret_92 OPTIONS (
     key_id '9e9eb4a1f55d967f83c42dc041e37313',
     secret 'f64180b5668fedd0db791c2d2688154a5613b66c2ff1ac12fe7b27a6896e0878'
 );
@@ -5264,7 +5769,14 @@ CREATE TABLE working.normalized_record (
     deriver_version text,
     derived_at timestamp with time zone,
     attestation_count integer DEFAULT 0 NOT NULL,
+    case_id text DEFAULT 'primary'::text NOT NULL,
+    domain text DEFAULT 'evidence'::text NOT NULL,
+    topic_tags text[] DEFAULT '{}'::text[] NOT NULL,
+    knowledge_actor text DEFAULT 'owner'::text NOT NULL,
+    ontology_version text,
+    CONSTRAINT normalized_record_case_id_ck CHECK ((length(case_id) > 0)),
     CONSTRAINT normalized_record_disclosure_tier_check CHECK ((disclosure_tier = ANY (ARRAY['contemporaneous'::text, 'hindsight'::text, 'discovered'::text]))),
+    CONSTRAINT normalized_record_domain_ck CHECK ((domain = ANY (ARRAY['evidence'::text, 'legal'::text, 'behavioral'::text, 'platform_design'::text, 'context'::text]))),
     CONSTRAINT normalized_record_record_type_check CHECK ((record_type = ANY (ARRAY['message'::text, 'call'::text, 'event'::text, 'media'::text])))
 );
 
@@ -6262,9 +6774,17 @@ CREATE TABLE working.candidate_entity (
     promoted_to_id text,
     promoted_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    case_id text DEFAULT 'primary'::text NOT NULL,
+    domain text DEFAULT 'evidence'::text NOT NULL,
+    topic_tags text[] DEFAULT '{}'::text[] NOT NULL,
+    knowledge_actor text DEFAULT 'owner'::text NOT NULL,
+    ontology_version text,
+    knowledge_time timestamp with time zone,
     CONSTRAINT candidate_entity_attrs_check CHECK ((jsonb_typeof(attrs) = 'object'::text)),
+    CONSTRAINT candidate_entity_case_id_ck CHECK ((length(case_id) > 0)),
     CONSTRAINT candidate_entity_confidence_check CHECK (((confidence >= (0)::double precision) AND (confidence <= (1)::double precision))),
     CONSTRAINT candidate_entity_content_sha256_check CHECK ((octet_length(content_sha256) = 32)),
+    CONSTRAINT candidate_entity_domain_ck CHECK ((domain = ANY (ARRAY['evidence'::text, 'legal'::text, 'behavioral'::text, 'platform_design'::text, 'context'::text]))),
     CONSTRAINT candidate_entity_entity_type_check CHECK ((entity_type = ANY (ARRAY['person'::text, 'organization'::text, 'location'::text, 'device'::text, 'account'::text, 'other'::text]))),
     CONSTRAINT candidate_entity_name_check CHECK ((length(name) > 0)),
     CONSTRAINT candidate_entity_normalized_name_check CHECK ((length(normalized_name) > 0)),
@@ -6297,9 +6817,17 @@ CREATE TABLE working.candidate_event (
     promoted_to_id text,
     promoted_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    case_id text DEFAULT 'primary'::text NOT NULL,
+    domain text DEFAULT 'evidence'::text NOT NULL,
+    topic_tags text[] DEFAULT '{}'::text[] NOT NULL,
+    knowledge_actor text DEFAULT 'owner'::text NOT NULL,
+    ontology_version text,
+    knowledge_time timestamp with time zone,
     CONSTRAINT candidate_event_attrs_check CHECK ((jsonb_typeof(attrs) = 'object'::text)),
+    CONSTRAINT candidate_event_case_id_ck CHECK ((length(case_id) > 0)),
     CONSTRAINT candidate_event_confidence_check CHECK (((confidence >= (0)::double precision) AND (confidence <= (1)::double precision))),
     CONSTRAINT candidate_event_content_sha256_check CHECK ((octet_length(content_sha256) = 32)),
+    CONSTRAINT candidate_event_domain_ck CHECK ((domain = ANY (ARRAY['evidence'::text, 'legal'::text, 'behavioral'::text, 'platform_design'::text, 'context'::text]))),
     CONSTRAINT candidate_event_event_type_check CHECK ((length(event_type) > 0)),
     CONSTRAINT candidate_event_has_some_time CHECK (((occurred_at IS NOT NULL) OR (validity IS NOT NULL))),
     CONSTRAINT candidate_event_promotion_is_complete CHECK ((((promoted_at IS NULL) AND (promoted_to_table IS NULL) AND (promoted_to_id IS NULL)) OR ((promoted_at IS NOT NULL) AND (promoted_to_table IS NOT NULL) AND (promoted_to_id IS NOT NULL)))),
@@ -6332,9 +6860,17 @@ CREATE TABLE working.candidate_fact (
     promoted_to_id text,
     promoted_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    case_id text DEFAULT 'primary'::text NOT NULL,
+    domain text DEFAULT 'evidence'::text NOT NULL,
+    topic_tags text[] DEFAULT '{}'::text[] NOT NULL,
+    knowledge_actor text DEFAULT 'owner'::text NOT NULL,
+    ontology_version text,
+    knowledge_time timestamp with time zone,
     CONSTRAINT candidate_fact_attrs_check CHECK ((jsonb_typeof(attrs) = 'object'::text)),
+    CONSTRAINT candidate_fact_case_id_ck CHECK ((length(case_id) > 0)),
     CONSTRAINT candidate_fact_confidence_check CHECK (((confidence >= (0)::double precision) AND (confidence <= (1)::double precision))),
     CONSTRAINT candidate_fact_content_sha256_check CHECK ((octet_length(content_sha256) = 32)),
+    CONSTRAINT candidate_fact_domain_ck CHECK ((domain = ANY (ARRAY['evidence'::text, 'legal'::text, 'behavioral'::text, 'platform_design'::text, 'context'::text]))),
     CONSTRAINT candidate_fact_predicate_check CHECK ((length(predicate) > 0)),
     CONSTRAINT candidate_fact_promotion_is_complete CHECK ((((promoted_at IS NULL) AND (promoted_to_table IS NULL) AND (promoted_to_id IS NULL)) OR ((promoted_at IS NOT NULL) AND (promoted_to_table IS NOT NULL) AND (promoted_to_id IS NOT NULL)))),
     CONSTRAINT candidate_fact_promotion_requires_approval CHECK (((promoted_at IS NULL) OR (review_state = 'approved'::text))),
@@ -7260,6 +7796,60 @@ CREATE VIEW working.vw_record_sender_resolution AS
 --
 
 COMMENT ON VIEW working.vw_record_sender_resolution IS 'Cross-checks stored sender against the time-scoped ownership timeline. attribution_status = MISMATCH means an outbound record is attributed to someone who did not hold the device when it was sent — the hand-me-down failure mode.';
+
+
+--
+-- Name: vw_spine_horizon; Type: VIEW; Schema: working; Owner: -
+--
+
+CREATE VIEW working.vw_spine_horizon AS
+ SELECT id,
+    artifact_id,
+    record_type,
+    source,
+    conversation_id,
+    role,
+    participants,
+    content,
+    occurred_at,
+    knowledge_time,
+    disclosure_tier,
+    attrs,
+    created_at,
+    conversation_ref,
+    ts_precision,
+    sensitivity_tier,
+    data_tier,
+    review_status,
+    safe_for_legal_use,
+    provenance_id,
+    export_created_at,
+    acquired_at,
+    ingested_at,
+    realized_at,
+    realized_evidence,
+    acquisition_id,
+    device_id,
+    sender_entity_id,
+    derived_from_raw_table,
+    derived_from_raw_id,
+    deriver_version,
+    derived_at,
+    attestation_count,
+    case_id,
+    domain,
+    topic_tags,
+    knowledge_actor,
+    ontology_version
+   FROM working.normalized_record r
+  WHERE working.horizon_visible(case_id, knowledge_time, disclosure_tier, knowledge_actor, current_setting('app.case_id'::text, true), (NULLIF(current_setting('app.horizon'::text, true), ''::text))::timestamp with time zone, COALESCE(NULLIF(current_setting('app.actor'::text, true), ''::text), 'owner'::text));
+
+
+--
+-- Name: VIEW vw_spine_horizon; Type: COMMENT; Schema: working; Owner: -
+--
+
+COMMENT ON VIEW working.vw_spine_horizon IS 'Spine filtered by the session horizon: SET app.case_id / app.horizon / app.actor first. app.horizon unset or empty = hindsight.';
 
 
 --
@@ -10257,6 +10847,20 @@ CREATE UNIQUE INDEX candidate_entity_dedup_idx ON working.candidate_entity USING
 
 
 --
+-- Name: candidate_entity_domain_idx; Type: INDEX; Schema: working; Owner: -
+--
+
+CREATE INDEX candidate_entity_domain_idx ON working.candidate_entity USING btree (case_id, domain);
+
+
+--
+-- Name: candidate_entity_horizon_idx; Type: INDEX; Schema: working; Owner: -
+--
+
+CREATE INDEX candidate_entity_horizon_idx ON working.candidate_entity USING btree (case_id, knowledge_time);
+
+
+--
 -- Name: candidate_entity_normalized_idx; Type: INDEX; Schema: working; Owner: -
 --
 
@@ -10285,6 +10889,13 @@ CREATE INDEX candidate_entity_source_idx ON working.candidate_entity USING btree
 
 
 --
+-- Name: candidate_entity_topics_gin; Type: INDEX; Schema: working; Owner: -
+--
+
+CREATE INDEX candidate_entity_topics_gin ON working.candidate_entity USING gin (topic_tags);
+
+
+--
 -- Name: candidate_event_attrs_gin; Type: INDEX; Schema: working; Owner: -
 --
 
@@ -10299,10 +10910,24 @@ CREATE UNIQUE INDEX candidate_event_dedup_idx ON working.candidate_event USING b
 
 
 --
+-- Name: candidate_event_domain_idx; Type: INDEX; Schema: working; Owner: -
+--
+
+CREATE INDEX candidate_event_domain_idx ON working.candidate_event USING btree (case_id, domain);
+
+
+--
 -- Name: candidate_event_entity_idx; Type: INDEX; Schema: working; Owner: -
 --
 
 CREATE INDEX candidate_event_entity_idx ON working.candidate_event USING btree (primary_entity_id);
+
+
+--
+-- Name: candidate_event_horizon_idx; Type: INDEX; Schema: working; Owner: -
+--
+
+CREATE INDEX candidate_event_horizon_idx ON working.candidate_event USING btree (case_id, knowledge_time);
 
 
 --
@@ -10327,6 +10952,13 @@ CREATE INDEX candidate_event_run_idx ON working.candidate_event USING btree (ext
 
 
 --
+-- Name: candidate_event_topics_gin; Type: INDEX; Schema: working; Owner: -
+--
+
+CREATE INDEX candidate_event_topics_gin ON working.candidate_event USING gin (topic_tags);
+
+
+--
 -- Name: candidate_event_validity_gist; Type: INDEX; Schema: working; Owner: -
 --
 
@@ -10345,6 +10977,20 @@ CREATE INDEX candidate_fact_attrs_gin ON working.candidate_fact USING gin (attrs
 --
 
 CREATE UNIQUE INDEX candidate_fact_dedup_idx ON working.candidate_fact USING btree (source_raw_table, source_raw_id, content_sha256);
+
+
+--
+-- Name: candidate_fact_domain_idx; Type: INDEX; Schema: working; Owner: -
+--
+
+CREATE INDEX candidate_fact_domain_idx ON working.candidate_fact USING btree (case_id, domain);
+
+
+--
+-- Name: candidate_fact_horizon_idx; Type: INDEX; Schema: working; Owner: -
+--
+
+CREATE INDEX candidate_fact_horizon_idx ON working.candidate_fact USING btree (case_id, knowledge_time);
 
 
 --
@@ -10373,6 +11019,13 @@ CREATE INDEX candidate_fact_run_idx ON working.candidate_fact USING btree (extra
 --
 
 CREATE INDEX candidate_fact_subject_idx ON working.candidate_fact USING btree (subject_entity_id);
+
+
+--
+-- Name: candidate_fact_topics_gin; Type: INDEX; Schema: working; Owner: -
+--
+
+CREATE INDEX candidate_fact_topics_gin ON working.candidate_fact USING gin (topic_tags);
 
 
 --
@@ -10996,6 +11649,27 @@ CREATE INDEX idx_xref_b ON working.id_xref USING btree (system_b, native_id_b);
 --
 
 CREATE INDEX idx_xref_entity ON working.id_xref USING btree (canonical_entity_id);
+
+
+--
+-- Name: normalized_record_domain_idx; Type: INDEX; Schema: working; Owner: -
+--
+
+CREATE INDEX normalized_record_domain_idx ON working.normalized_record USING btree (case_id, domain);
+
+
+--
+-- Name: normalized_record_horizon_idx; Type: INDEX; Schema: working; Owner: -
+--
+
+CREATE INDEX normalized_record_horizon_idx ON working.normalized_record USING btree (case_id, knowledge_time);
+
+
+--
+-- Name: normalized_record_topics_gin; Type: INDEX; Schema: working; Owner: -
+--
+
+CREATE INDEX normalized_record_topics_gin ON working.normalized_record USING gin (topic_tags);
 
 
 --
@@ -13341,5 +14015,5 @@ ALTER TABLE ONLY working.waypoint_device_split
 -- PostgreSQL database dump complete
 --
 
-\unrestrict PgmxeYSLboA6I69iw0ehnBFGitjepaGyOrSsOzDUn8QyH0bUkEwhtOx14dzignS
+\unrestrict AN3heiIngjiXbRkuyiNRBKjHgTp2eDWijtBhXcYsjwTwEcne1dwY187Y39S0N2e
 
