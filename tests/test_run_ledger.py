@@ -58,7 +58,7 @@ def test_migration_defines_both_tables_idempotently_with_uuidv7_pk():
     assert "REFERENCES analysis.workflow_run(run_id)" in sql_text
 
 
-# STUB: minimal fake SQLAlchemy engine used as a test double (no real DB) ---
+# TEST-DOUBLE: minimal fake SQLAlchemy engine used as a test double (no real DB) ---
 # Mirrors tests/test_custody.py's _FakeEngine/_FakeConn/_FakeResult pattern.
 
 

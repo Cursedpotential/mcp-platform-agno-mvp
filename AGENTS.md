@@ -1,5 +1,8 @@
 # AGENTS.md — Universal Entry Point
 
+> _Byline: Claude Code · Sonnet 5 · 2026-08-09 (docs/registers true-up: custody.go path, disclosure_tier
+> type correction, docker/ subdir paths, `_stale/`/Makefile path precision)_
+
 > **This is the first file any agent (Claude Code, Codex, Gemini CLI, opencode) reads.**
 > Keep it short: universal context + navigation index. **Closest file wins** — nested
 > `AGENTS.md` files below override this one for their subtree; read the nested map
@@ -38,9 +41,16 @@ Consequences that are easy to get wrong:
 
 - **One store, filtered per agent.** Do NOT design parallel as-lived / hindsight
   stores. Everything is written once carrying `occurred_at` (valid time),
-  `knowledge_time`, and `disclosure_tier` — live enum `ai.disclosure_horizon`
-  (`contemporaneous` / `hindsight` / `discovered`) on `working.normalized_record`
-  (~~`analysis.normalized_record`~~ until the 2026-08-02 schema split, sql/0014).
+  `knowledge_time`, and `disclosure_tier` on `working.normalized_record`
+  (~~`analysis.normalized_record`~~ until the 2026-08-02 schema split, sql/0014) —
+  ~~live enum `ai.disclosure_horizon`~~ **corrected 2026-08-09: as-built,
+  `working.normalized_record.disclosure_tier` is `TEXT NOT NULL` + a CHECK
+  constraint** (`contemporaneous` / `hindsight` / `discovered`), not an enum.
+  The `ai.disclosure_horizon` enum is real, but lives elsewhere — on
+  `analysis.time_assertion.disclosure_horizon` and
+  `analysis.timeline_event.disclosure_horizon` only. See ADR-0045 (Decision C,
+  drafted 2026-08-09) for the derivation-architecture amendment this feeds;
+  TEXT+CHECK is recommended to stand as-built pending that ADR's signature.
 - **Extraction is not analysis.** Semantica may read everything; it forms no beliefs.
   The horizon discipline belongs at the AGENT layer, never the extraction layer.
 - **Enforce the horizon as a PRE-filter in every store** — Postgres, Weaviate,
@@ -64,10 +74,11 @@ Agno 2.8.0 · PostgreSQL 18 (pg_duckdb + pgvector + PostGIS) — **also the Agno
 operational store** since the 2026-08-04 flatten (ADR-0043 decision 3) ·
 Neo4j + Graphiti · Portkey gateway (Ollama Cloud primary; LiteLLM retired,
 ADR-0042) · Weaviate vectors (locked ADR-0040, cutover pending — Milvus
-sidelined) · ~~SurrealDB operational store~~ **SurrealDB parked read-only,
-off the critical path** (ADR-0043; container still up on ovh-data, export at
-`_stale/surreal-export-20260804` — only the owner deletes) · FastAPI
-base_app pattern.
+sidelined) · ~~SurrealDB operational store~~ **SurrealDB RETIRED, zero callers,
+parked read-only** (owner ruling 2026-08-06; ADR-0043; container still up on
+ovh-data, export at `_stale/surreal-export-20260804` — **WORKSPACE-ROOT-relative**,
+the `_stale/` archive is a sibling of this repo under the workspace root, not a
+path inside it — only the owner deletes) · FastAPI base_app pattern.
 
 ## Repository Layout
 
@@ -87,7 +98,7 @@ base_app pattern.
 | `vendored/` | Third-party **non-Python** projects we do actively develop — currently `vendored/sbv` (Go). Distinct from `server/vendored/`; both are real. | `vendored/sbv/DEVELOPMENT.md` |
 | `workbench/` | Operator Workbench — `workbench/api` (FastAPI) + `workbench/web` (Next.js) | — |
 | `sql/` | Numbered PostgreSQL migrations (`NNNN_name.sql`, never edit an applied one) | — |
-| `docker/` | One folder per service image (`tools/`, `gateway/`, `postgres/`, ...) | — |
+| `docker/` | One folder per service image (`docker/tools/`, `docker/gateway/`, `docker/postgres/`, ...) | — |
 | `docs/` | Canon, ADRs, decision log, plans, wiki | `docs/PROJECT_CANON.md` |
 | `tests/` | The pytest suite | — |
 | `scripts/` | format/validate/ingest/entrypoint | — |
@@ -106,7 +117,7 @@ base_app pattern.
 
 ⚠ The `fts5` build tag is **mandatory** for `vendored/sbv`. A plain `go test ./...`
 fails every DB-backed test with `no such module: fts5` — that is a missing build
-tag, not a code defect. Use the `Makefile` targets, which set it for you.
+tag, not a code defect. Use the `vendored/sbv/Makefile` targets, which set it for you.
 
 All Python is `uv`-managed — never invoke a bare `python`/`pip`/`pytest`.
 
@@ -167,7 +178,7 @@ AI commits carry: `Co-Authored-By: <agent name and model> <noreply@anthropic.com
 - Milvus standalone boot: embedded etcd defaults (100ms heartbeat/1s election) + slow VPS disk = "etcdserver: leader changed" panic loop (exit 134). Fixed via milvus-coolify/embedEtcd.yaml heartbeat-interval 1000 / election-timeout 10000 (host copy: ovh-data /data/agno/config/milvus/embedEtcd.yaml, ro-mounted — edit host file and the next restart picks it up).
 - After dropping a Milvus collection externally, RESTART agentos-api — agno's client caches the numeric collection ID and 500s with code=100 collection-not-found on the next insert.
 - agno `Step.on_error` REALLY defaults to skip (docstring claims fail) — always set on_error="fail" explicitly or failed stages report run-completed.
-- H3 custody chain: TWO constructions coexist and are BOTH correct (owner-verified 2026-08-01; the 2026-07-22 "correction" declaring the first WRONG was itself wrong). (a) **SBV Go chain** (vendored/sbv/CUSTODY.md + custody.go, test-proven): chain_0 = "" and chain_i = sha256(chain_{i-1} + "<LF>" + H2_i) — H1 never enters the fold. (b) **Case Bible chain** (live-verified, 1,918 links): genesis = H1, chain_i = sha256(prev_hex + h2_hex). Both currently share tag `h3-chain-v1`, which does NOT disambiguate — give them distinct tags before further chain writes.
+- H3 custody chain: TWO constructions coexist and are BOTH correct (owner-verified 2026-08-01; the 2026-07-22 "correction" declaring the first WRONG was itself wrong). (a) **SBV Go chain** (vendored/sbv/CUSTODY.md + `vendored/sbv/internal/custody.go`, test-proven): chain_0 = "" and chain_i = sha256(chain_{i-1} + "<LF>" + H2_i) — H1 never enters the fold. (b) **Case Bible chain** (live-verified, 1,918 links): genesis = H1, chain_i = sha256(prev_hex + h2_hex). Both currently share tag `h3-chain-v1`, which does NOT disambiguate — give them distinct tags before further chain writes.
 
 ### Control Surfaces
 - os.agno.com free tier accepts the remote instance via localhost trickery: the browser does the connecting, so `ssh -i ~/.ssh/ovh -N -L 7777:100.72.169.40:8000 root@100.72.169.40` makes the platform "http://localhost:7777" — CORS already allows the os.agno.com origin. One-click launcher: `C:\Users\matts\bin\agentos-control.cmd` (Desktop shortcut "AgentOS Control Plane").

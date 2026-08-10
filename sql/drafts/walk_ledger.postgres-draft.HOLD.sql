@@ -1,14 +1,31 @@
 -- ============================================================================
--- ON HOLD - WRONG ENGINE (parked 2026-08-02, was sql/0009_walk_ledger.sql)
+-- SUPERSEDED (2026-08-09) — the "wrong engine" HOLD below is VOID.
+-- Kept as design history only. Do NOT apply as-is.
 -- ============================================================================
--- Its own commit (3f372dd) flagged this draft "0009 wrong engine": the walk
--- ledger records the ignorant agent's traversal + belief state, and the
--- 2026-08-02 owner ruling places the analysis graph (confirmed people/events/
--- timelines, walk ledger, native vectors, horizon-filtered retrieval) in
--- SURREALDB, not Postgres. Redesign as .surql under a SurrealKit database/
--- tree; SurrealDB row-level permissions per agent identity are how the
--- knowledge-horizon pre-filter gets enforced on that store. The Postgres
--- draft below is kept verbatim as design input. Do NOT apply.
+-- Originally parked 2026-08-02 (was sql/0009_walk_ledger.sql; own commit
+-- 3f372dd flagged it "0009 wrong engine") on the theory that the walk
+-- ledger belonged in SurrealDB alongside the rest of the analysis graph.
+-- That theory no longer holds: ADR-0043 (2026-08-02, same day) retired
+-- SurrealDB from the critical path — "SurrealDB exits the critical path...
+-- freeze Surreal-specific feature work... only the owner deletes" — so the
+-- SurrealKit/.surql redesign this file called for is not happening.
+--
+-- ADR-0045 Decision B (checkpoint-derivation architecture, 2026-08-09)
+-- supersedes this file's placement question directly: the as-lived pass is
+-- built by ONE grant-locked refresher appending the newly-visible slice at
+-- each walk step, chain-hashing each step against the previous (prev_hash).
+-- "These step records ARE the walk-ledger (working.walk_ledger) — this
+-- closes OQ-1 and supersedes the SurrealDB rationale on
+-- sql/drafts/walk_ledger.postgres-draft.HOLD.sql" (ADR-0045 §B). Postgres
+-- `working.*` is therefore the correct engine after all — the walk-ledger
+-- is the as-lived derivation log, chain-hashed and append-only, to be built
+-- in segment S6 (HANDOFF-2026-08-09-S6-horizon-spine-derivation-engine).
+--
+-- The body below is KEPT VERBATIM as design input for S6, not promoted
+-- as-is: S6 must reconcile it against ADR-0045's refresher/derivation
+-- contract (sole-writer refresher, base-version pinning, chain-hash per
+-- step) rather than lifting this file's schema unmodified. Do not delete;
+-- do not apply.
 -- ============================================================================
 
 -- 0009_walk_ledger.sql — the walk ledger: how each agent experienced the record.

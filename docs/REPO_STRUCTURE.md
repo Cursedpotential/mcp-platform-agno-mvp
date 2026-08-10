@@ -2,11 +2,14 @@
 
 > **Authoritative for:** where every kind of file goes. Entry point: `docs/PROJECT_CANON.md` (§0).
 > The point of this doc: a new capability has exactly ONE correct home, so iterations never scatter
-> into competing architectures again. Last updated: 2026-07-10 (ADR-0035: `server/tools/`
-> sub-namespaced by capability, `tool_finder/` → `server/tools/gateway/`, record contract →
-> `server/contracts/records.py`). Progressive-disclosure detail for each package now lives in that
-> package's own `AGENTS.md` (root map: `../AGENTS.md`) — this doc stays the single structural index.
-> _Byline: Claude Code · Opus 4.8 · 2026-06-13 (D-026 update: Claude Sonnet 5 · 2026-07-09; ADR-0035 update: Claude Opus 4.8 · 2026-07-10)_
+> into competing architectures again. Last updated: 2026-08-09 (docs/registers true-up: added the
+> `analytics/`, `deploy/`, `tool-skills/`, `database/` top-level rows the tree was missing; prior:
+> 2026-07-10, ADR-0035: `server/tools/` sub-namespaced by capability, `tool_finder/` →
+> `server/tools/gateway/`, record contract → `server/contracts/records.py`). Progressive-disclosure
+> detail for each package now lives in that package's own `AGENTS.md` (root map: `../AGENTS.md`) —
+> this doc stays the single structural index.
+> _Byline: Claude Code · Opus 4.8 · 2026-06-13 (D-026 update: Claude Sonnet 5 · 2026-07-09; ADR-0035
+> update: Claude Opus 4.8 · 2026-07-10; 2026-08-09 update: Claude Code · Sonnet 5)_
 
 ## The one active build
 
@@ -48,6 +51,18 @@ scripts/        format.sh, validate.sh, ingest_*, generate_requirements.sh, repa
 knowledge/      curated knowledge inputs (NEVER secrets/case-data)
 docs/           canon + the authoritative docs + adr/ + planning/ + wiki/ + visualizations/
 tests/          the pytest suite (208)
+analytics/      standalone Evidence.dev (evidence.dev) reporting projects, one subdir each
+                (e.g. analytics/visit-locations/) — NOT server/, NOT imported by app code
+deploy/         per-app Coolify deploy notes/compose fragments outside the compose*.yaml
+                tiers (e.g. deploy/data-weaviate.yaml) — host-prep + security-fix history
+tool-skills/    agent-tool "skill" bundles (SKILL.md + scripts/) consumed by CLI agents
+                directly, e.g. tool-skills/graphiti-client/ (`grc`), tool-skills/opencode-ops/
+database/       (being retired) held SurrealDB schema DRAFTS, never applied. Its one file,
+                00_analysis_graph.surql, was reviewed 2026-08-09 (~~TODO(OQ-7)~~, D-042):
+                its design — horizon as row-level permissions bound to the agent record,
+                an agent that can never widen its own horizon — was already absorbed in
+                stronger form by ADR-0045/S6 (grants + derived pass corpora). Archived to
+                `_stale/00_analysis_graph.surql.SUPERSEDED`; nothing left to port.
 ```
 
 Progressive-disclosure detail (files, dependency direction, "how do I add X") for `server/` and
@@ -133,13 +148,21 @@ docstring for the full mount<->import contract.
 
 ## Reference / read-only (never edit, never build inside)
 
+> **WORKSPACE-ROOT-relative** — every path in this block is a sibling of this repo under the
+> workspace root (see the workspace-root `CLAUDE.md`), reached via `../`, NOT a path inside this
+> repo. Verified 2026-08-09: none of `dev-resources/`, `Agno-MCP-Platform-alpha/`, or
+> `extracted-code/` exist under this repo's own root.
+
 ```
 ../dev-resources/Archives/
   dial-stack/                         TS forensic/analysis/gateway DONOR (DIAL runtime dropped; mine capabilities)
     utilities/                        DEFERRED external libs — "good stuff, dig later" (incl. apps/ml-nlp/Tether = Part-2 ML)
     docs/, .plannotator/, .planning/  CONTEXT only (markdown/prompts) — not code
   Agno-MCP-Platform-alpha/chatminer/  Python PARSER CORE to vendor into server/tools/
-../extracted-code/                    mined reusable code (+ MANIFEST.md)
+../extracted-code/                    mined reusable code (+ MANIFEST.md) — VERIFIED
+                                       2026-08-09 (~~TODO(OQ-2)~~, D-042): exists at
+                                       the-platform-workspace/extracted-code/, sibling
+                                       of this repo; backup extracted-code.zip beside it
 ```
 
 **Never ingest** `Secrets/` or case-data directories into Knowledge. Secrets live only in gitignored `.env` (local + VPS).

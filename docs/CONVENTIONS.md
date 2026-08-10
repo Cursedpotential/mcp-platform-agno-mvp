@@ -2,8 +2,11 @@
 
 > **Authoritative for:** how we write code. Entry point: `docs/PROJECT_CANON.md` (§0).
 > The *decision* behind the discipline is **ADR-0021**; this doc is the concrete *how*.
-> Last updated: 2026-07-29 (agno version ref synced to 2.8.0). One language style, one tool contract, one data shape — no exceptions without an ADR.
-> _Byline: OWL · openrouter/owl-alpha · 2026-06-14 · updated 2026-07-29 (Claude Code · Fable 5)_
+> Last updated: 2026-08-09 (added the ADR-NNNN/D-NNN citation convention, mechanically checked by
+> `scripts/validate.sh`; prior: 2026-07-29, agno version ref synced to 2.8.0). One language style,
+> one tool contract, one data shape — no exceptions without an ADR.
+> _Byline: OWL · openrouter/owl-alpha · 2026-06-14 · updated 2026-07-29 (Claude Code · Fable 5);
+> updated 2026-08-09 (Claude Code · Sonnet 5)_
 
 ## Artifact byline — provenance on EVERYTHING (required)
 
@@ -86,6 +89,23 @@ docstring. This prevents context rot in LLM-based agents.
 
 - Numbered, append-only: `sql/NNNN_name.sql`. Never edit an applied migration — add a new one.
 - `evidence` schema is read-only except via `custody.py`; derived data lands in `analysis`.
+
+## Citation convention (added 2026-08-09)
+
+Code and docs cite decisions by ID, not by re-explaining them inline:
+
+- **`ADR-NNNN`** (4 digits, e.g. `ADR-0035`) — cite for an **architecture** decision: a design,
+  dependency, data-boundary, or security/HITL guarantee locked in `docs/adr/`.
+- **`D-NNN`** (3 digits, e.g. `D-008`) — cite for an **owner ruling** recorded in
+  `docs/DECISION_LOG.md` (a specific decision entry, not necessarily architecturally significant
+  enough for its own ADR).
+- Both forms are **mechanically checked**: `scripts/validate.sh` greps `server/`, `sql/`, and
+  `docs/` for every `ADR-\d{4}` / `D-\d{3}` reference and confirms it resolves to a real ADR file
+  / DECISION_LOG entry. A citation that doesn't resolve fails validation — don't invent an id, and
+  don't renumber an existing one out from under a citation.
+- This is a **going-forward convention, not a retroactive annotation pass** — existing code is not
+  swept to add citations it lacks (see `docs/DEBT.md`'s traceability register for that scope, if
+  one exists; no blanket pass is authorized here).
 
 ## Commit discipline
 

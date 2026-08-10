@@ -1,3 +1,9 @@
+-- ARCHIVED 2026-08-09 (D-042, owner ruling): SUPERSEDED by ADR-0045 / segment S6.
+-- The mechanism this draft pioneered (horizon enforced as store-level permissions bound
+-- to the agent record; an agent can never widen its own horizon) is implemented in
+-- stronger form via Postgres grants + derived pass corpora. SurrealDB retired (ADR-0043).
+-- Nothing left to port. Preserved verbatim below per never-delete rule.
+--
 -- 00_analysis_graph.surql — the SurrealDB analysis graph + walk ledger. DRAFT.
 --
 -- Byline: Claude Code · Fable 5 · 2026-08-02

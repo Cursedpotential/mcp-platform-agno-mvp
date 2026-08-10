@@ -41,6 +41,17 @@ from typing import Any
 EMBED_PLATFORM_ID = getenv("EMBED_PLATFORM_ID", "nvidia/nv-embed-v1")
 EMBED_PLATFORM_DIM = int(getenv("EMBED_PLATFORM_DIM", "4096"))
 
+# Named default-host constants (2026-08-09, S2 build-and-test-green task 3):
+# extracted out of the getenv() calls below so tests can assert AGAINST these
+# constants instead of hardcoding the IP a second time. The prior test file
+# hardcoded the RETIRED host (100.119.96.29, ovh-data) and went stale silently
+# when the defaults below were corrected to ovh-files on 2026-08-06 — the same
+# stale-host failure shape this module's own docstrings warn about. Asserting
+# against the constant means a future host move is a one-line change here with
+# zero test edits, instead of re-arming the same trap with a second literal.
+_DEFAULT_WEAVIATE_HOST = "100.91.190.107"  # ovh-files (data-weaviate-files)
+_DEFAULT_NEO4J_HOST = "100.91.190.107"  # ovh-files (data-neo4j-files)
+
 
 def _weaviate_host_ports() -> tuple[str, int, int]:
     """Host + REST/gRPC ports for data-weaviate (compose exposes 8081/50051).
@@ -50,10 +61,10 @@ def _weaviate_host_ports() -> tuple[str, int, int]:
     client — `data-weaviate` on ovh-data is exited:unhealthy, `data-weaviate-files`
     on ovh-files is the live one. See server/core/session.py::WEAVIATE_HTTP_HOST.
     """
-    url = getenv("WEAVIATE_URL", "http://100.91.190.107:8081")
+    url = getenv("WEAVIATE_URL", f"http://{_DEFAULT_WEAVIATE_HOST}:8081")
     hostport = url.split("://", 1)[-1].split("/", 1)[0]
     host, _, port = hostport.partition(":")
-    return host or "100.91.190.107", int(port or "8081"), int(getenv("WEAVIATE_GRPC_PORT", "50051"))
+    return host or _DEFAULT_WEAVIATE_HOST, int(port or "8081"), int(getenv("WEAVIATE_GRPC_PORT", "50051"))
 
 
 def vector_store_config() -> dict[str, Any]:
@@ -94,7 +105,7 @@ def graph_store_config() -> dict[str, Any]:
         # 100.91.190.107 (ovh-files). Verified live from inside agentos-api the
         # same day: ovh-data:7687 UNREACHABLE, ovh-files:7687 OPEN. `data-neo4j`
         # on ovh-data is exited:unhealthy; the healthy one runs on ovh-files.
-        "uri": getenv("NEO4J_URI", "bolt://100.91.190.107:7687"),
+        "uri": getenv("NEO4J_URI", f"bolt://{_DEFAULT_NEO4J_HOST}:7687"),
         "database": getenv("SEMANTICA_NEO4J_DATABASE", "evidence"),  # ADR-0036 split
         "user": getenv("SEMANTICA_NEO4J_USER", "semantica_writer"),  # RBAC-scoped writer
         "password_env": "SEMANTICA_NEO4J_PASSWORD",  # SECRET read at runtime, never inlined

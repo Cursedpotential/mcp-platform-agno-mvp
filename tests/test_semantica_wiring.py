@@ -58,17 +58,35 @@ def wiring(monkeypatch: pytest.MonkeyPatch) -> Iterator[Callable[..., ModuleType
 
 
 def test_vector_store_targets_our_weaviate_with_defaults(wiring: Callable[..., ModuleType]) -> None:
-    cfg = wiring().vector_store_config()
+    # Host/port assert AGAINST the module's own default constant (not a second
+    # hardcoded IP literal here) — see server/analysis/semantica_wiring.py's
+    # _DEFAULT_WEAVIATE_HOST docstring: the previous version of this test
+    # hardcoded the RETIRED ovh-data IP (100.119.96.29) and silently drifted
+    # when the module's default moved to ovh-files on 2026-08-06. Asserting
+    # against the constant means a future host move needs zero test edits.
+    m = wiring()
+    cfg = m.vector_store_config()
     assert cfg["default_backend"] == "weaviate"
     assert cfg["dimension"] == 4096  # nv-embed-v1, NOT Semantica's 768 default
     assert cfg["embedding_model"] == "nvidia/nv-embed-v1"
     assert cfg["metric"] == "cosine"
     assert cfg["enable_hybrid_search"] is True
-    assert (cfg["weaviate_host"], cfg["weaviate_rest_port"]) == ("100.119.96.29", 8081)
+    assert (cfg["weaviate_host"], cfg["weaviate_rest_port"]) == (m._DEFAULT_WEAVIATE_HOST, 8081)
     assert cfg["weaviate_grpc_port"] == 50051
     assert cfg["weaviate_api_key_env"] == "WEAVIATE_API_KEY"  # name, not value
     assert cfg["target_collections"] == ["forensic_records", "forensic_findings", "forensic_patterns"]
     assert cfg["namespace"] == "casebible"
+
+
+def test_vector_store_env_override_wins_over_module_default(wiring: Callable[..., ModuleType]) -> None:
+    """Monkeypatched env-override path: WEAVIATE_URL must beat the module
+    default host, proving the default is a fallback and not the only thing
+    ever asserted (2026-08-09 S2 build-and-test-green task 3)."""
+    m = wiring(WEAVIATE_URL="http://weaviate-override.example:9999")
+    cfg = m.vector_store_config()
+    assert cfg["weaviate_host"] == "weaviate-override.example"
+    assert cfg["weaviate_host"] != m._DEFAULT_WEAVIATE_HOST
+    assert cfg["weaviate_rest_port"] == 9999
 
 
 def test_weaviate_url_to_host_port_parsing(wiring: Callable[..., ModuleType]) -> None:
@@ -84,9 +102,11 @@ def test_weaviate_url_to_host_port_parsing(wiring: Callable[..., ModuleType]) ->
     m = wiring(WEAVIATE_URL="http://bare-host")
     assert m._weaviate_host_ports() == ("bare-host", 8081, 50051)
 
-    # empty/hostless URL -> default tailnet host + port
+    # empty/hostless URL -> default tailnet host + port (asserted against the
+    # module's own default constant — see test_vector_store_targets_our_
+    # weaviate_with_defaults above for why this isn't a second IP literal)
     m = wiring(WEAVIATE_URL="")
-    assert m._weaviate_host_ports() == ("100.119.96.29", 8081, 50051)
+    assert m._weaviate_host_ports() == (m._DEFAULT_WEAVIATE_HOST, 8081, 50051)
 
     # trailing slash / path must not poison the port
     m = wiring(WEAVIATE_URL="http://weaviate.internal:8081/")
@@ -110,9 +130,13 @@ def test_dimension_follows_platform_embed_contract(wiring: Callable[..., ModuleT
 
 
 def test_graph_store_defaults_and_isolation(wiring: Callable[..., ModuleType]) -> None:
-    cfg = wiring().graph_store_config()
+    # uri asserted AGAINST the module's own default constant — see
+    # test_vector_store_targets_our_weaviate_with_defaults above for why this
+    # isn't a second hardcoded IP literal.
+    m = wiring()
+    cfg = m.graph_store_config()
     assert cfg["backend"] == "neo4j"  # DozerDB = Neo4j Community + multi-DB/RBAC
-    assert cfg["uri"] == "bolt://100.119.96.29:7687"
+    assert cfg["uri"] == f"bolt://{m._DEFAULT_NEO4J_HOST}:7687"
     assert cfg["database"] == "evidence"  # ADR-0036 split — NOT graphiti's memory DB
     assert cfg["user"] == "semantica_writer"  # RBAC-scoped writer role
     assert cfg["password_env"] == "SEMANTICA_NEO4J_PASSWORD"  # name, not value

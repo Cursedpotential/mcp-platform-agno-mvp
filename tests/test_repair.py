@@ -137,14 +137,31 @@ def test_xml_streams_all_records(tmp_path):
 def test_xml_recovery_loss_is_reported_not_silent(tmp_path):
     """REGRESSION: recover=True DISCARDS what it cannot parse and never raises.
 
-    A control character inside an attribute cost one of ten records while the
-    iteration completed normally — the identical silent-loss shape as the 516
-    dropped body-less MMS. The loss is only visible in `ctx.error_log`, so the
-    contract is that a short read MUST come with lossy events.
+    A truncated element (attribute value cut off mid-tag, no closing `/>`)
+    costs records while the iteration completed normally — the identical
+    silent-loss shape as the 516 dropped body-less MMS. The loss is only
+    visible in `ctx.error_log`, so the contract is that a short read MUST
+    come with lossy events.
+
+    NOTE 2026-08-09 (S2 requirements-regen task): the original fixture used a
+    bare control character (\\x0b\\x1f) inside an attribute value. Under
+    lxml 6.1.1 / libxml2 2.14.6 (pulled in by the requirements.txt regen that
+    fixed the missing lxml/beautifulsoup4/pikepdf/etc. pins — see
+    scripts/generate_requirements.sh), libxml2's recover=True now sanitises
+    that specific damage in place instead of dropping the record, so the old
+    fixture stopped exercising the loss path (which is exactly what its own
+    assertion message told the next person to do: "pick harsher damage").
+    Truncating the element itself (no closing `/>`) still forces libxml2 to
+    skip past unparsable content and drop records under this and presumably
+    future libxml2 versions, so it re-pins the guarantee this test protects.
     """
     body = "\n".join(ROW.format(n=i) for i in range(10))
     p = _xml(tmp_path, body)
-    p.write_bytes(p.read_bytes().replace(b'body="hello 3"', b'body="Tom & Jerry \x0b\x1f"', 1))
+    p.write_bytes(p.read_bytes().replace(
+        b'<sms address="+15550001" date="1700000000000" type="1" body="hello 3" />',
+        b'<sms address="+15550001" date="1700000000000" type="1" body="hello 3',
+        1,
+    ))
 
     rep = RepairReport()
     chunks = list(iter_chunks(p, fmt="xml", report=rep))

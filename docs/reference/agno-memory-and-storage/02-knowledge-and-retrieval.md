@@ -1,5 +1,13 @@
 > _Byline: Claude Code · Sonnet (R1b) · 2026-07-11_
 
+> **Freshness note (added 2026-08-09, Claude Code · Fable 5):** platform-specific passages in
+> this audit (Milvus as the platform vector DB; `baai/bge-m3` 1024-d text lane; "symmetric
+> models only") describe the as-built state of 2026-07-11 and are **superseded**: Weaviate is
+> the platform vector store since the 2026-07-29 cutover (ADR-0040), the live text embedder is
+> `nvidia/nv-embed-v1` (4096-d), and "symmetric-only" was a per-client workaround, not a rule —
+> asymmetric NIM embedqa models are not banned, they just require per-call `input_type`
+> (owner correction 2026-08-07). Agno-internals content remains valid for `agno==2.6.13`.
+
 # Agno Knowledge & Retrieval — Expert Reference
 
 Covers Agno's `Knowledge` subsystem as of `agno==2.6.13`: content ingestion,

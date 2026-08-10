@@ -514,7 +514,7 @@ def build_agent_team(ctx: Any) -> dict[str, Any]:
             "override id/name)"
         )
 
-    return {
+    roster = {
         # Platform Ops
         "ingestion_orchestrator": ingestion,
         "analysis_orchestrator": analysis,
@@ -529,3 +529,26 @@ def build_agent_team(ctx: Any) -> dict[str, Any]:
         # Root
         "router": router,
     }
+
+    # ===========================================================================
+    # S5 AUDIT-EVERYTHING INTEGRATION POINT (ADR-0047 / D-042) — every tool
+    # call made by every Agent/Team this factory builds gets logged to
+    # ops.audit_ledger. ONE agno-native tool_hooks wrapper
+    # (server/core/audit.py::audit_tool_hook), attached here rather than
+    # threaded through every build_*() constructor above: agno reads
+    # `Agent.tool_hooks` / `Team.tool_hooks` when it resolves each object's
+    # tools into Function objects (agno/agent/_tools.py, agno/team/_tools.py
+    # — verified against installed agno==2.8.7), and that resolution reads
+    # the attribute fresh, so setting it post-construction here is
+    # equivalent to passing `tool_hooks=[audit_tool_hook]` into every
+    # constructor call without touching any of them. `roster` already holds
+    # every Agent/Team this function builds (agents WITHOUT tools simply
+    # never trigger the hook — it only fires on an actual tool call).
+    # Appends rather than overwrites so a future builder that sets its own
+    # tool_hooks is not silently clobbered.
+    from server.core.audit import audit_tool_hook
+
+    for _obj in roster.values():
+        _obj.tool_hooks = [*(getattr(_obj, "tool_hooks", None) or []), audit_tool_hook]
+
+    return roster

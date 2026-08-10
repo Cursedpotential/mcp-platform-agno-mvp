@@ -3,7 +3,9 @@ Database Session
 ================
 
 ``get_agno_db()``  — Agno OPERATIONAL store (sessions/memory/metrics/eval/culture/traces/spans)
-                     on **SurrealDB** (WS transport, /rpc, lazy-connect via agno.db.surrealdb).
+                     on **PostgresDb** (ONE ``db_id="agentos-db"``; flatten executed 2026-08-04
+                     per ADR-0043 decision 3). SurrealDB is parked read-only, off the critical
+                     path (docstring corrected 2026-08-09 to match the code below).
 ``get_postgres_db()`` — Postgres for Knowledge *contents* rows and pg_duckdb / evidence work.
 ``create_knowledge()`` — agent Knowledge vectors. CURRENT CONTRACT (ADR-0040, owner-locked
 2026-07; HANDOFF-2026-07-27): **Weaviate is the platform vector store** — CUTOVER DONE
@@ -11,16 +13,18 @@ Database Session
 SIDELINED for memsearch only and no longer referenced here. pgvector remains in the PG
 image but is NOT the Knowledge store.
 
-Embedder: **SYMMETRIC models only** — no query/passage modes (asymmetric NIM embedqa models
-silently degrade retrieval; owner rule). LIVE contract since 2026-07-19: ``nvidia/nv-embed-v1``
+Embedder: the live text contract is a symmetric model, so no query/passage modes are sent
+here. (Asymmetric NIM embedqa models are NOT banned — owner correction 2026-08-07: they
+require a per-call ``input_type``; this Agno client path cannot pass one, so they are
+inapplicable *here* only.) LIVE contract since 2026-07-19: ``nvidia/nv-embed-v1``
 (4096-d) for text — the live store already holds 4096-d nv-embed-v1 vectors (handoff
 verified-live table). Code = ``codestral-embed-2505`` (1536-d). One collection per embedder
 (ADR-0010); the embedder/dim is fixed at collection creation — changing it means dropping +
 re-creating (re-embedding) the collection. (NVIDIA ``NimEmbedder`` fallback retained.)
 
 Config via env:
-  SurrealDB (operational): ``SURREALDB_URL`` / ``SURREALDB_USER`` / ``SURREALDB_PASS`` /
-    ``SURREALDB_NS`` / ``SURREALDB_DB``.
+  SurrealDB (parked read-only since 2026-08-04, legacy access only): ``SURREALDB_URL`` /
+    ``SURREALDB_USER`` / ``SURREALDB_PASS`` / ``SURREALDB_NS`` / ``SURREALDB_DB``.
   Weaviate (vectors): ``WEAVIATE_HTTP_HOST`` / ``WEAVIATE_HTTP_PORT`` / ``WEAVIATE_GRPC_PORT``
     / ``WEAVIATE_API_KEY`` (empty = anonymous until Phase-1 task 5).
   Embedder: text defaults to NVIDIA NIM (``NVIDIA_BASE_URL`` / ``NVIDIA_API_KEY``); code

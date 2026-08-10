@@ -1,6 +1,10 @@
 # ADR-0011: NVIDIA NIM is the MVP provider; embedder dimension contract = text 2048-d / code 4096-d
-- Status: Accepted
+- Status: Accepted (the dimension-contract *shape* remains in force). **Text-model choice
+  amended 2026-08-09**: the live text embedder is `nvidia/nv-embed-v1` (4096-d, symmetric;
+  LIVE since 2026-07-19 per the `server/core/session.py` contract), superseding the
+  `llama-nemotron-embed-vl-1b-v2` (2048-d) pick below.
 - Date: 2026-06-07
+- _Amended byline: Claude Code · Fable 5 · 2026-08-09_
 - Supersedes: the embedder/provider specifics of ADR-0003 (VECTOR(1536) ↔ text-embedding-3-small),
   ADR-0008 open decision D7, and ADR-0010's text-embedder choice (nv-embedqa-e5-v5). The *shapes*
   those ADRs lock (provider-agnostic factory, one-collection-per-embedder, raw docs = source of truth)

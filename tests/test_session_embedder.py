@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
+from unittest.mock import MagicMock
 
 _SESSION_PATH = Path(__file__).resolve().parents[1] / "server" / "core" / "session.py"
 
@@ -48,6 +49,29 @@ def _load_module(monkeypatch, **env):
     assert spec and spec.loader
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
+    return mod
+
+
+def _load_module_no_live_weaviate(monkeypatch, **env):
+    """Same as :func:`_load_module`, but with the Weaviate client factories
+    stubbed out.
+
+    ``create_knowledge()`` calls ``get_weaviate_client()`` (a *connecting*
+    ``weaviate.connect_to_custom()`` call — see server/core/session.py) as a
+    side effect of building the ``Knowledge`` object, even though these
+    tests' actual intent is routing/wiring coverage (which embedder got
+    picked, which VectorDb subclass got wired), never live Weaviate behavior.
+    Without this stub the test suite opens a real socket to whatever
+    WEAVIATE_HTTP_HOST resolves to and hangs/fails offline (2026-08-09 S2
+    build-and-test-green task 2). ``VerifiedWeaviate.__init__`` (and agno's
+    ``Weaviate.__init__`` beneath it) only *stores* the client it's given, but
+    agno's ``Knowledge.__init__``/``get_client()`` path probes
+    ``client.is_connected()`` during construction, so a plain sentinel object
+    is not enough — a ``MagicMock`` (truthy, any-attribute) is.
+    """
+    mod = _load_module(monkeypatch, **env)
+    monkeypatch.setattr(mod, "get_weaviate_client", lambda: MagicMock(name="fake_weaviate_client"))
+    monkeypatch.setattr(mod, "get_weaviate_async_client", lambda: MagicMock(name="fake_weaviate_async_client"))
     return mod
 
 
@@ -123,7 +147,10 @@ def test_embedder_builds_openai_embedder_with_given_base_url_and_key(monkeypatch
 
 
 def test_create_knowledge_text_embedder_uses_nvidia_routing(monkeypatch):
-    mod = _load_module(monkeypatch, NVIDIA_API_KEY="nim-key")
+    # Routing/wiring coverage only — the Weaviate client factories are stubbed
+    # (see _load_module_no_live_weaviate) so this stays a fast unit test and
+    # never opens a real socket to Weaviate.
+    mod = _load_module_no_live_weaviate(monkeypatch, NVIDIA_API_KEY="nim-key")
     knowledge = mod.create_knowledge("platform", "platform_knowledge")
 
     embedder = knowledge.vector_db.embedder
@@ -133,7 +160,9 @@ def test_create_knowledge_text_embedder_uses_nvidia_routing(monkeypatch):
 
 
 def test_create_knowledge_code_embedder_uses_openrouter_routing(monkeypatch):
-    mod = _load_module(monkeypatch, OPENROUTER_API_KEY="or-key")
+    # Routing/wiring coverage only — see test_create_knowledge_text_embedder_
+    # uses_nvidia_routing above for why the Weaviate client is stubbed.
+    mod = _load_module_no_live_weaviate(monkeypatch, OPENROUTER_API_KEY="or-key")
     knowledge = mod.create_knowledge("platform_code", "platform_code_knowledge", use_code_embedder=True)
 
     embedder = knowledge.vector_db.embedder
@@ -146,7 +175,9 @@ def test_create_knowledge_uses_verified_weaviate(monkeypatch):
     # Regression guard for the "COMPLETED with zero vectors" bug: create_knowledge()
     # must wire VerifiedWeaviate (server/core/knowledge_vectordb.py), not the raw
     # agno Weaviate class, or a dead embedder silently reports success again.
-    mod = _load_module(monkeypatch)
+    # This only checks the WIRED TYPE, not live behavior, so the Weaviate
+    # client factories are stubbed (see _load_module_no_live_weaviate).
+    mod = _load_module_no_live_weaviate(monkeypatch)
     knowledge = mod.create_knowledge("platform", "platform_knowledge")
 
     assert type(knowledge.vector_db).__name__ == "VerifiedWeaviate"

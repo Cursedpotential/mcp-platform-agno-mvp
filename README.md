@@ -1,5 +1,7 @@
 # Agno MCP Platform — Evidence, Analysis & Legal-Strategy
 
+> _Byline: Claude Code · Sonnet 5 · 2026-08-09 (docs/registers true-up — plan-link fix)_
+
 A pro se family-law (custody) **evidence-processing, analysis, and legal-strategy
 platform** built on **Agno AgentOS** (FastAPI + PostgreSQL). Everything runs on the
 owner's infrastructure, behind HITL approval, with evidence held under chain-of-custody.
@@ -7,7 +9,7 @@ owner's infrastructure, behind HITL approval, with evidence held under chain-of-
 > **Start here:** [`docs/PROJECT_CANON.md`](docs/PROJECT_CANON.md) — the durable source of
 > truth (vision, decisions, roadmap, access, gotchas). Orientation for agents:
 > [`AGENTS.md`](AGENTS.md). Decisions: [`docs/adr/`](docs/adr/). Active plan:
-> [`plans/`](plans/). Debt register: [`docs/DEBT.md`](docs/DEBT.md).
+> [`docs/BUILD_PLAN.md`](docs/BUILD_PLAN.md). Debt register: [`docs/DEBT.md`](docs/DEBT.md).
 
 ## The three-part arc
 1. **Evidence** — custody (sha256 + manifest) → parse → normalize → store → court-ready export,

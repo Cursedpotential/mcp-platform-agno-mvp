@@ -55,6 +55,9 @@ guarantee gets an ADR. One short record. Supersede (don't edit) when a decision 
 | 0042 | Portkey replaces LiteLLM as THE model gateway; LiteLLM retired | Accepted (2026-07-29; supersedes 0015; teardown pending) |
 | 0043 | Semantica as a governed extraction worker (pinned fork); SurrealDB exits the critical path | Accepted (2026-08-02; index row backfilled 2026-08-05 — the file shipped without one) |
 | 0044 | Evidence-vs-Context boundary + forensic transcript data model | **Accepted** (2026-06-27; merged 2026-08-05, renumbered from ~~0033~~ — `main` had already shipped a different ADR-0033) |
+| 0045 | Horizon clocks (visible_from, computed live) + checkpoint-derivation architecture + A.4 realization_event amendment (found-out knowledge in its own table; contradiction events = the lie register); ratifies the six-clock ruling; amends canon §1; closes OQ-1 | **Accepted** (owner signed 2026-08-09, Option A + A.4; D-042 — S6 unblocked) |
+| 0046 | Universal MCP exposure contract: progressive disclosure, annotations, pagination, server-side horizon binding (pays canon §5's "needs ADR") | **Accepted** (owner signed 2026-08-09; D-042) |
+| 0047 | Audit-everything ledger: ops.audit_ledger, hash-chained, append-only, READS included | **Accepted** (owner signed 2026-08-09; D-042) |
 
 > The full vision, current stack, roadmap, access, and gotchas live in
 > [`docs/PROJECT_CANON.md`](../PROJECT_CANON.md) (the durable source of truth).

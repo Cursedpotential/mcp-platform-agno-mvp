@@ -27,16 +27,124 @@ sql/
 - On existing `pgdata` volumes, apply new migrations manually:
   `psql -U "$DB_USER" -d "$DB_DATABASE" -f sql/NNNN_name.sql`
 
-## Bootstrap contract (2026-08-02, Codex C-02)
+## Bootstrap contract (2026-08-02, Codex C-02; honesty pass 2026-08-09, handoff S3f)
 
-Two artifacts, two jobs:
+Two artifacts, two jobs — and only ONE of them is a working bootstrap path.
 
+- **`sql/bootstrap/schema_baseline.sql`** — THE reproducible bootstrap, and
+  the ONLY one. A structure-only `pg_dump --schema-only` capture of the
+  ENTIRE live schema. Apply this one file to an empty database to reproduce
+  production. Regenerate after any applied migration (see "Regenerating the
+  baseline" below) — a stale baseline is worse than no baseline, because it
+  looks trustworthy.
 - **`sql/NNNN_*.sql`** — the historical, append-only chain. Never edit an
-  applied file; future schema changes keep landing here. The chain is NOT
-  guaranteed to replay from an empty database (early custody/analysis DDL was
-  applied out-of-band and 0012/0015 reference it).
-- **`sql/bootstrap/schema_baseline.sql`** — the reproducible bootstrap: a
-  structure-only capture of the ENTIRE live schema. Apply this one file to an
-  empty database to reproduce production (verified 2026-08-02: 156 tables
-  across 7 schemas reproduce exactly). Regenerate after any applied migration:
-  `uv run python scripts/capture_bootstrap_ddl.py --host <pg-host> --verify`
+  applied file; future schema changes keep landing here. Read it for HISTORY
+  and INTENT (every table's WHY is documented inline, the baseline has none
+  of that). **Do NOT expect it to replay from an empty database — it does
+  not, and has not since 0008.** See "Why the chain does not replay" below.
+
+### Why the chain does not replay
+
+Early custody/evidence DDL (`evidence.source`, `evidence.acquisition`'s
+downstream consumers, `analysis.device`, `analysis.event_source_record`,
+`analysis.entity`, `working.timeline_event`, `working.location`,
+`working.location_assertion`, `working.time_assertion`, and more) was
+applied directly to the live database and is captured only in
+`sql/_manual/20260802_reconcile_evidence_ddl.sql` (a partial capture) and in
+`sql/bootstrap/schema_baseline.sql` (the full one) — never in a numbered
+migration. Every migration from 0008 onward references at least one of
+these out-of-band objects, so a `psql -f 0001..0018` replay against an
+empty database fails partway through. Verified by a scratch-container
+replay, 2026-08-09 (evidence below is the exact failing statement per file;
+"cascades" means the failure is a downstream consequence of an earlier one,
+not a new missing object):
+
+| Migration | Fails at | Cause |
+|---|---|---|
+| `0008_temporal_clocks_and_provenance.sql` | line 131 | `ALTER TABLE evidence.source ...` — `evidence.source` does not exist (out-of-band) |
+| `0009_raw_layer_and_derivation.sql` | dynamic raw-table loop (~line 96) | the per-source `CREATE TABLE evidence.raw_<src>` template FKs to `evidence.source(id)` and `analysis.device(id)`, neither of which exist |
+| `0010_extraction_candidate_and_acquisition_reconcile.sql` | line 85 | `CREATE TABLE analysis.extraction_candidate` FKs to `evidence.source(id)` |
+| `0011_attestation_without_event.sql` | line 29 | `ALTER TABLE analysis.event_source_record ...` — the table does not exist (out-of-band) |
+| `0012_pipeline_visibility.sql` | line 79 | `CREATE TABLE evidence.ingest_run` FKs to `evidence.source(id)` |
+| `0013_raw_all_and_funnel_across_formats.sql` | line 54 | `evidence.vw_raw_all` unions the six `evidence.raw_*` tables, none of which exist (0009 never got to create them) |
+| `0014_split_analysis_into_working_reference_ops.sql` | — | does NOT error; **silently no-ops instead** (see below) |
+| `0015_layer_map_after_schema_split.sql` | line 72 | `evidence.vw_layer_map` reads `ops.workflow_run` / `ops.processing_run` / `ops.tool_call_ledger`, which 0014's no-op left uncreated |
+| `0016_working_gate_layer.sql` | line 527 | `COMMENT ON TABLE working.extraction_candidate` — the table doesn't exist because 0014 no-op'd the move that was supposed to put it there |
+| `0017_append_only_guards.sql` | line 36 | trigger on `working.source_provenance`, uncreated because 0016 already failed |
+| `0018_retrieval_axes.sql` | line 85 | dynamic GIN-index loop over `working.*` tables that were never created |
+
+**0014 does not fail — it silently no-ops.** Its three `DO $$` blocks move
+tables/views/functions from `analysis` into the new `working` / `reference`
+/ `ops` schemas, but every move is guarded by
+`IF EXISTS (... WHERE table_schema='analysis' AND table_name=t)`. On the
+LIVE database those tables exist in `analysis` (out-of-band history), so the
+guard passes and the move runs. On a fresh chain-only replay none of those
+tables were ever created in `analysis` in the first place (upstream
+failures, or never created by the chain at all), so the guard is false for
+every single entry, the loop body never executes, and `0014` commits
+successfully having done nothing but create three empty schemas. Nothing in
+`0014`'s own output distinguishes "moved 43 tables" from "moved zero
+tables" — that is what "silently" means here.
+
+**[F-B] cosmetic note, no action needed:** `0004:32` creates
+`CREATE TYPE disclosure_tier AS ENUM (...)`, and `0008:548` runs
+`DROP TYPE IF EXISTS public.disclosure_tier` as part of resolving a name
+collision with `analysis.normalized_record.disclosure_tier` (a live TEXT
+column, unrelated to the enum). On a full replay this means the type is
+created by 0004 and then dropped six migrations later by 0008 — cosmetic
+churn, not a defect, and 0008:515-548 documents the collision and the
+resolution inline. No fix required.
+
+**Bottom line:** the numbered chain is a truthful, append-only RECORD of
+design decisions (read it for the "why"). It is not, and per the above
+cannot currently be, a bootstrap path. `sql/bootstrap/schema_baseline.sql`
+is the only file that reproduces a working database from empty. If you need
+a fresh dev/test database: apply the baseline, not the chain.
+
+### Regenerating the baseline
+
+`scripts/capture_bootstrap_ddl.py` captures the baseline from the LIVE
+database. It shells out to `pg_dump.exe` / `psql.exe` from a local
+PostgreSQL 18 client install and is written to run from the owner's
+workstation (not from inside a container — the platform's own containers
+are Linux and do not carry a Windows PG client), reaching the live host
+over the tailnet. It is NOT safely runnable from a sandboxed/CI environment
+that cannot reach the production database.
+
+**C1 PENDING — run against live.** The exact command the owner/coordinator
+must run device-side to regenerate and verify the baseline:
+
+```
+# Prerequisites on the machine running this (NOT a container):
+#   - Tailscale connected, so 100.91.190.107 (ovh-files, live Postgres host
+#     per compose.exec.yaml's PG_HOST override) is reachable
+#   - PostgreSQL 18 client tools installed at
+#     C:\Program Files\PostgreSQL\18\bin  (pg_dump.exe / psql.exe — must be
+#     v18 to match the server; scripts/capture_bootstrap_ddl.py:38 hardcodes
+#     this path)
+#   - Python env with `uv` and the repo's deps synced
+#     (uv pip sync requirements.txt — pulls in psycopg[binary] + sqlalchemy,
+#     already pinned there)
+#   - Repo checked out locally, with .env (or exported env vars)
+#     carrying DB_USER / DB_PASS / DB_DATABASE for the live database
+#     (matching the credentials the data-pg-files Coolify app runs with)
+
+cd <repo-root>
+uv run python scripts/capture_bootstrap_ddl.py --host 100.91.190.107 --verify
+```
+
+`--verify` restores the fresh capture into a scratch database on the same
+server, compares per-schema table counts against live, and drops the
+scratch DB — no data ever moves, structure only. After it reports `PASS`:
+
+```
+grep -c horizon_visible sql/bootstrap/schema_baseline.sql   # expect > 0
+```
+
+(the current committed baseline predates `0018_retrieval_axes.sql` — verified
+by git ancestry, `6ecb2de` @22:33 vs `71a4f53` @22:59 — and contains no
+`horizon_visible` / `vw_spine_horizon` / retrieval-axis objects; this
+command is how the owner/coordinator confirms the regenerated baseline
+fixes that). This step could not be performed in this pass: it requires a
+route to the live production database, which is unreachable from a sandbox
+by design.

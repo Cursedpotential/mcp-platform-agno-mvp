@@ -22,6 +22,10 @@ Auth + endpoints: see server/tools/_sbv_client.py (session-cookie, /api/...).
 Provenance: new module wrapping the SBV REST API (sbv-client.ts blueprint +
 SBV_MCP_INTEGRATION.md). Forensic call-block logic mirrors sms_xml.py
 (ported from dial-stack ConflictAnalysisApp).
+
+RETIRED 2026-08-09: the pre-universal-import `_map_message` mapper moved to
+_stale/sbv_sms_map_message_legacy.py (zero production callers; see that
+file's docstring) — this module's live path is `_map_universal_record`.
 """
 
 from __future__ import annotations
@@ -38,9 +42,9 @@ from server.tools.registry import register
 
 OWNER = "owner"
 
-# SBV message `type` (Android SMS Backup & Restore convention; same integers as
-# sms_xml.py): meaning differs sms vs call.
-_SMS_TYPE = {1: "received", 2: "sent", 3: "draft", 4: "outbox", 5: "failed", 6: "queued"}
+# SBV call `type` (Android SMS Backup & Restore convention; same integers as
+# sms_xml.py). _SMS_TYPE (the message-side twin) retired with _map_message —
+# see _stale/sbv_sms_map_message_legacy.py; _map_call still needs this one.
 _CALL_TYPE = {1: "incoming", 2: "outgoing", 3: "missed", 4: "voicemail", 5: "rejected", 6: "refused_list"}
 
 
@@ -69,39 +73,13 @@ def _counterparty(msg: dict[str, Any]) -> str:
     return (msg.get("address") or msg.get("number") or "unknown").strip() or "unknown"
 
 
-def _map_message(msg: dict[str, Any]) -> NormalizedRecord | None:
-    text = (msg.get("body") or msg.get("text") or "").strip()
-    if not text or text == "null":
-        return None
-    raw_type = _as_int(msg.get("type"), 0)
-    direction = _SMS_TYPE.get(raw_type, "unknown")
-    other = _counterparty(msg)
-    role = OWNER if raw_type == 2 else other
-    channel = "mms" if (msg.get("media_type") or msg.get("content_type") or msg.get("message_type")) else "sms"
-    return NormalizedRecord(
-        record_type=RecordType.message,
-        source="sms-xml",
-        conversation_id=other,
-        role=role,
-        participants=[OWNER, other],
-        content=text,
-        occurred_at=_to_dt(msg.get("date")),
-        disclosure_tier=DisclosureTier.contemporaneous,
-        attrs={
-            "channel": channel,
-            "direction": direction,
-            "raw_type": str(raw_type),
-            "address": msg.get("address") or msg.get("number") or "",
-            "contact_name": msg.get("contact_name") or "",
-            "parser": "sbv",
-            "media_type": msg.get("media_type") or "",
-            "thread_id": msg.get("thread_id"),
-            # H2 per-record custody hash (sha256 of the RAW source XML element,
-            # h2-rawelement-v1) as computed by SBV BEFORE normalization. This is
-            # the evidence hash — NOT a hash of this NormalizedRecord.
-            "content_hash": msg.get("content_hash") or "",
-        },
-    )
+# _map_message (per-record mapper for the pre-universal-import SBV path) was
+# retired to _stale/sbv_sms_map_message_legacy.py on 2026-08-09 (S2
+# build-and-test-green task 4c): zero production callers (parse() below has
+# called _map_universal_record exclusively since the universal import engine
+# landed, PR #18), and it carried two known bugs (bodyless-media drop,
+# outbound-role gap on types 4/5/6) that the 2026-08-02 parser-gap review
+# flagged — see the archived file's docstring for the full trace.
 
 
 def _map_call(call: dict[str, Any]) -> NormalizedRecord:
@@ -150,6 +128,48 @@ def _map_call(call: dict[str, Any]) -> NormalizedRecord:
     )
 
 
+# Owner-authored type codes for the universal-import role fallback (see
+# _role_for_universal_record). Same convention as sms_xml.py's _SMS_TYPE/
+# _CALL_TYPE tables and the (retired, see _stale/) legacy _map_message: for
+# messages 2/sent, 4/outbox, 5/failed, 6/queued are all owner-authored; for
+# calls only 2/outgoing is.
+_UNIVERSAL_SMS_OWNER_TYPES = {"2", "4", "5", "6"}
+_UNIVERSAL_CALL_OWNER_TYPES = {"2"}
+
+
+def _role_for_universal_record(kind: str, metadata: dict[str, Any], participants: list[str]) -> str:
+    """Derive authorship role for one universal-import row.
+
+    FIX 2026-08-09 (S2 build-and-test-green task 4 — RE-PIN outbound-role
+    guarantee): prefers an explicit "role"/"sender" key from SBV's metadata,
+    but SBV's SMS-XML importer (vendored/sbv/internal/sms_xml_importer.go
+    `messageSourceRecord`/`callSourceRecord`) projects `Metadata` straight from
+    the RAW XML entry struct (`structMetadata(source)`) — for this format that
+    metadata has NO "role"/"sender" key at all, only the raw attributes
+    (`Type`, `Address`, `Body`, ...). Falling through unconditionally to
+    ``participants[0]`` (the prior behavior) therefore resolved EVERY message
+    and call to the counterparty regardless of direction, because SMS Backup &
+    Restore's `address`/`number` attribute is the OTHER party's identifier on
+    BOTH received and sent records — there is no address-based signal for "who
+    sent it". That silently demoted every owner-authored SMS/MMS/call (types
+    2/4/5/6) to counterparty-authored: the exact bug the 2026-08-02
+    parser-gap review found and fixed in the legacy `_map_message()` (now
+    retired to _stale/, see sbv_sms.py header), just reappearing on the
+    universal-import path that superseded it. This falls back to the same
+    type-code -> OWNER mapping as sms_xml.py's `_map_sms`/`_map_call` before
+    finally using the first participant (still the correct outcome when the
+    row genuinely IS inbound/counterparty-authored).
+    """
+    explicit = metadata.get("role") or metadata.get("sender")
+    if explicit:
+        return str(explicit)
+    raw_type = str(metadata.get("Type") or metadata.get("type") or "")
+    owner_types = _UNIVERSAL_CALL_OWNER_TYPES if kind == "call" else _UNIVERSAL_SMS_OWNER_TYPES
+    if raw_type in owner_types:
+        return OWNER
+    return str(participants[0]) if participants else "unknown"
+
+
 def _map_universal_record(
     row: dict[str, Any], import_id: int, attachments_by_seq: dict[int, list[dict[str, Any]]]
 ) -> NormalizedRecord:
@@ -161,7 +181,7 @@ def _map_universal_record(
     if not isinstance(participants, list):
         participants = []
     participants = [str(value) for value in participants if value not in (None, "")]
-    role = str(metadata.get("role") or metadata.get("sender") or (participants[0] if participants else "unknown"))
+    role = _role_for_universal_record(kind, metadata, participants)
     occurred = row.get("occurred_at")
     occurred_at = parse_timestamp(occurred) if occurred not in (None, "") else None
     attrs: dict[str, Any] = {

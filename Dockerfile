@@ -18,7 +18,11 @@ WORKDIR /app
 ENV PYTHONPATH=/app
 COPY requirements.txt ./
 RUN uv pip sync requirements.txt --system
-RUN uv pip install --system "pymilvus>=2.5.0" fastmcp  # fastmcp: required by AgentOS enable_mcp_server=True  # uv pip sync skips pymilvus transitive deps (grpcio/protobuf); install resolves them (ported from hotfix branch 2026-07-08)
+RUN uv pip install --system fastmcp  # fastmcp: required by AgentOS enable_mcp_server=True
+# pymilvus REMOVED 2026-08-09 (D-042): owner ruled the Milvus->Weaviate cutover verified
+# (ADR-0040), and its transitive grpcio pin was what made requirements.txt unsatisfiable.
+# Legacy Milvus paths (server/analysis/milvus_forensic.py, vendored semantica milvus_store)
+# import pymilvus lazily and raise a helpful install message if ever invoked.
 COPY . .
 
 # ---------------------------------------------------------------------------

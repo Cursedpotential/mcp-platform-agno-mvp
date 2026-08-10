@@ -4,12 +4,16 @@
 > repeated compaction never loses the vision, decisions, or plan. It is kept
 > current as decisions are made. If something here conflicts with an older ADR,
 > this file's "Locked Decisions" section wins and the ADR should be updated.
-> Last updated: 2026-07-29 (§4 rewritten to the 4-box Coolify fleet from live inventory;
-> §5/§6/§7/§8 doc-sync — ADR-0040 Weaviate, ADR-0041 Memgraph, ADR-0042 Portkey/LiteLLM-retired,
-> agno 2.8.0; ADR-0036–0039 accepted same day; prior: 2026-06-13, §6 refresh 2026-07-11).
+> Last updated: 2026-08-09 (docs/registers true-up — §4 data-tier host defaults corrected to
+> ovh-files per commits 5e829ab/a68fabd; §5 SurrealDB entry restated RETIRED/zero-callers;
+> §6 P4 updated for PR #18 (universal import engine + SBV promotion) — exact Phase-5a wording
+> pends OQ-9, see the marked TODO below; prior: 2026-07-29, §4 rewritten to the 4-box Coolify
+> fleet from live inventory; §5/§6/§7/§8 doc-sync — ADR-0040 Weaviate, ADR-0041 Memgraph,
+> ADR-0042 Portkey/LiteLLM-retired, agno 2.8.0; ADR-0036–0039 accepted same day; before that:
+> 2026-06-13, §6 refresh 2026-07-11).
 > _Byline: Claude Code · Opus 4.8 · 2026-06-13 (created 2026-06; this revision Opus 4.8;
 > §6 status refresh 2026-07-11 Claude Code · Sonnet 5; §5/§6/§8 sync 2026-07-29
-> Claude Code · Fable 5)_
+> Claude Code · Fable 5; §4/§5/§6 sync 2026-08-09 Claude Code · Sonnet 5)_
 
 ---
 
@@ -151,8 +155,8 @@ is preserved in git history + `docs/planning/`.)
 |---|---|---|
 | `ion-control` (Ionos 3.8 GB) | Coolify control plane | — (Coolify itself) |
 | `ovh-app` `100.72.169.40` | Exec tier (the old exec bundle split into independent apps, owner rule "separate everything separable") | `exec-tier` (agentos-api + db rump) · `exec-gateway` (OpenCode; LiteLLM deprecated → teardown pending, ADR-0042) · `exec-contextforge` (tool gateway) · `exec-platform-tools` (SBV forensic fork + tools-facade) · `exec-sandbox` · `exec-desktop` (Kasm) · `portkey` (THE model gateway, ADR-0042) · `knowledge-workbench` (staged-ingest console, :8020) · `agent-ui` · `browser` · `coolify-mcp` |
-| `ovh-data` `100.119.96.29` | Data tier — independent apps on the shared external `agno` docker network (172.30.0.0/16; cross-app DNS — `neo4j:7687`, `milvus:19530`, …) | `data-pg` (PG18: pg_duckdb + pgvector + PostGIS; tailnet `DB_HOST=100.119.96.29`) · `data-neo4j` (Graphiti's graph) · `data-graphiti` (Graphiti MCP) · `data-surreal` (PARKED read-only since 2026-08-04, ADR-0043 — owner-gated deletion) · `data-weaviate` (ADR-0040 substrate — deployed & healthy, cutover pending) · `data-vector` (Milvus — sidelined per ADR-0040) · `nocodb` (review front-end, ADR-0029 lineage) |
-| `ovh-files` `100.91.190.107` | Files + chat surfaces | `librechat` (:3080) · `librechat-mongo` (real Mongo — owner waiver of the FerretDB rule) · file services (Cloudreve, casebible rclone lane) |
+| `ovh-data` `100.119.96.29` | Data tier — independent apps on the shared external `agno` docker network (172.30.0.0/16; cross-app DNS — `neo4j:7687`, `milvus:19530`, …). **Stale as of 2026-08-06/07** (see the ovh-files row): the `data-neo4j`/`data-weaviate` apps here went `exited:unhealthy` and code defaults were repointed away from them; do not treat this row as live for those two. | `data-surreal` (the ONE app that legitimately stays here — PARKED read-only since 2026-08-04, ADR-0043, RETIRED/zero-callers per `server/core/session.py`, owner-gated deletion) · `data-neo4j` (⚠ unhealthy since ≥2026-08-06, superseded by its ovh-files twin) · `data-weaviate` (⚠ unhealthy since ≥2026-08-06, superseded by its ovh-files twin; sidelined-Milvus framing below is otherwise unaffected) · `data-vector` (Milvus — sidelined per ADR-0040) · `nocodb` (review front-end, ADR-0029 lineage) |
+| `ovh-files` `100.91.190.107` | Files + chat surfaces — **also now the live data-tier host for PG/Neo4j/Weaviate**, migrated off ovh-data in two waves: PG (`data-pg-files`, PG18: pg_duckdb + pgvector + PostGIS; tailnet `DB_HOST=100.91.190.107`) moved 2026-08-02 (`docs/DECISION_LOG.md`); Neo4j (Graphiti's graph, `bolt://100.91.190.107:7687`) + Weaviate (ADR-0040 substrate, `http://100.91.190.107:8081`) defaults corrected 2026-08-06/07 after their ovh-data twins went unhealthy — verified live from inside agentos-api, commits `75ec196`/`5e829ab`/`a68fabd` (`server/core/session.py`, `server/analysis/semantica_wiring.py`) | `data-pg-files` · `data-neo4j` (live twin) · `data-graphiti` (Graphiti MCP) · `data-weaviate` (live twin) · `librechat` (:3080) · `librechat-mongo` (real Mongo — owner waiver of the FerretDB rule) · file services (Cloudreve, casebible rclone lane) |
 
 **Off-Coolify:** Homepage dashboard `http://100.72.169.40:3010` (plain compose,
 `/data/dashboards` on ovh-app); n8n on its own server (tailnet `100.98.98.38`); AgentOS
@@ -223,10 +227,13 @@ S3 API + pg_duckdb httpfs (`read_text('s3://nexus/...')`).
   The Agno operational store (sessions/memory/metrics/eval/traces/spans) is **PostgresDb** — `server/core/session.py::get_agno_db`
   delegates to `get_postgres_db()`. Two drivers of the reversal: agno's SurrealDb backend implements none of the
   learning protocol (every memory lane was a silent no-op), and a second registered `db.id` armed agno's multi-db
-  gate so any route omitting `db_id` returned 400. SurrealDB is now **parked read-only** — reversible by design,
+  gate so any route omitting `db_id` returned 400. **SurrealDB is RETIRED, zero callers** (owner ruling
+  2026-08-06, stated plainly in `server/core/session.py`'s `SURREALDB_*` comment — nothing in the platform
+  uses it: `get_agno_db()` is Postgres, and `get_surrealdb_legacy()` has ZERO callers) — reversible by design,
   exported with sha256 manifests to `_stale/surreal-export-20260804` + `/data/agno/backups/`, container still
-  healthy on ovh-data, **only the owner deletes**. `get_surrealdb_legacy()` exists for read-only reconciliation
-  and has no callers.
+  answering read-only on ovh-data (100.119.96.29 — the one data-tier host default that legitimately did NOT
+  move to ovh-files, since the parked container itself never moved), **only the owner deletes**.
+  `get_surrealdb_legacy()` exists solely to construct a one-off read-only reconciliation handle.
   _Recorded unchanged below for provenance — it was true when locked on 2026-06-13:_ consolidate AgentOS
   sessions+state + memory + the **bitemporal evidence-record store** (native valid+transaction time) onto
   **SurrealDB**. ⚠ The vector/Knowledge role moved to Milvus (ADR-0027) — and has since moved again to **Weaviate**
@@ -306,7 +313,9 @@ S3 API + pg_duckdb httpfs (`read_text('s3://nexus/...')`).
 
 ## 6. Roadmap
 
-**This round (plan: `plans/logical-herding-forest.md`) — Part 1 complete + memory substrate:**
+**This round (~~plan: `plans/logical-herding-forest.md`~~ — that file/dir never
+shipped into this repo; forward planning lives in `docs/BUILD_PLAN.md`, see the
+pointer below — corrected 2026-08-09) — Part 1 complete + memory substrate:**
 - P0 ✅ debt register + embedding query-mode fix + persistent duckdb R2 secret
 - P1 ✅ (2026-06-12) HITL fully NATIVE on agno 2.6.13: `@approval` +
   `requires_confirmation` → pause persists pending row; `POST /approvals/{id}/resolve`
@@ -327,14 +336,30 @@ S3 API + pg_duckdb httpfs (`read_text('s3://nexus/...')`).
   + `file_custody` anchor, h1/h2/h3 as row columns) is DRAFT awaiting owner sign-off (D-008,
   `docs/DECISION_LOG.md`) and the old ingestion schema is DEAD per owner.
 - P3 bitemporal substrate (valid/knowledge-time + disclosure-tier; Semantica stand-up)
-- P4 SBV as Workflow A (custody-gated vertical + iframe + CLI + export) 🟡 **largely landed**
-  (as of 2026-07-11): forensic fork LIVE in prod with H1/H2/H3 custody hashing
+- P4 SBV as Workflow A (custody-gated vertical + iframe + CLI + export) 🟡 **largely landed,
+  updated 2026-08-09**: forensic fork LIVE in prod with H1/H2/H3 custody hashing
   (`ghcr.io/cursedpotential/sbv-forensic:0.2.3-forensic`, deployed 2026-07-09); all 14 facade
-  tools registered in ContextForge virtual server `platform_tools` (2026-07-10). Open:
-  Phase 5a native Go automation endpoints (`POST /api/automation/extract`+`status`/`export`/
-  `backups`) are BUILT on fork branch `worktree-agent-abe280ccbefefe136` (`813f3b2`) but not
-  yet shipped through the subtree→fork→CI→tag-bump sequence (`docs/COORDINATION.md`); Phase
-  5b `/x/sbv/` UI embed is DEFERRED to the G2/VPS window (see `docs/planning/sbv-fork-plan.md`).
+  tools registered in ContextForge virtual server `platform_tools` (2026-07-10). **PR #18
+  merged 2026-08-06 (`aacf21c`, landing `feat/sbv-universal-parser`, 19 commits) — the
+  universal import engine + governed repair slice**: `vendored/sbv` (Go) becomes a plugin
+  import engine (Facebook JSON, Google Chat, Google Voice HTML, messaging CSV/HTML/TXT,
+  NDJSON, SMS XML, email .eml/.mbox importers); the platform client moved from whole-corpus
+  reads to import-scoped records/rejections/custody/attachments (`server/tools/_sbv_client.py`
+  — closes the false-provenance risk behind the 2026-08-02 SBV demotion, `docs/DECISION_LOG.md`);
+  `server/tools/gateway/execution_audit.py` writes an append-only SHA-256 hash chain of
+  operation metadata; `server/api/repair_routes.py` keeps approval-required writes
+  operator-authenticated; the Operator Workbench gained a Repair Lab (`/repairs`). **SBV
+  promoted from shadow back to primary** on this basis (owner directive 2026-08-05: "sbv
+  lives inside the Agno mono repo"; D-040). Still open, tracked in `docs/DEBT.md`'s
+  parser-lane queue: streaming/batch ingestion contract (item 2), registry priority/quality
+  metadata (item 3), ChatMiner hardening (item 4), repair-layer wiring sequencing (item 5).
+  Phase 5a: **SHIPPED** (verified 2026-08-09, D-042): the automation branch was merged in the
+  fork, tagged `v0.2.4-forensic` (fork `main` == tag head), CI published the image, and
+  `docker/tools/Dockerfile` pins `ghcr.io/cursedpotential/sbv-forensic:0.2.4-forensic`.
+  ~~TODO(OQ-9)~~ resolved. The stale "not yet pushed through subtree→fork→CI→tag-bump" note in
+  `docs/COORDINATION.md` predates this. Residual (minor): confirm whether v0.2.4 restored the
+  `heic` build tag dropped in v0.2.3, or HEIC stays routed around. Phase 5b `/x/sbv/` UI embed
+  remains deferred to the G2/VPS window.
 - P5 harness-first tests + backups to R2
 
 > **Forward build sequencing now lives in `docs/BUILD_PLAN.md`** (Phases A–E + Part 2/3),
@@ -399,12 +424,27 @@ S3 API + pg_duckdb httpfs (`read_text('s3://nexus/...')`).
   history `docs/planning/*`; living wiki `docs/wiki/` (ADR-0022, deferred); glossary.
 - Mined reusable code: `extracted-code/` (+ `MANIFEST.md`) — SBV, parsers,
   extractors, schemas, ontologies (MCL 722.23, behavioral patterns).
+  **LOCATED** (~~TODO(OQ-2)~~ resolved 2026-08-09, owner ruling + device
+  verification): lives at `E:\AI_Workspace\Projects\the-platform-workspace\extracted-code\`
+  — sibling of this repo, one level up — with a backup `extracted-code.zip`
+  beside it (25 MB, fresh as of 2026-08-06). Reference is workspace-relative
+  (`../extracted-code/` from this repo's root).
 - **Donor archives (READ-ONLY)**: `dev-resources/Archives/` — `dial-stack` (TS
   forensic/analysis/gateway donor, DIAL dropped), `Agno-MCP-Platform-alpha/chatminer`
   (parser core to vendor). **Part-2 behavioral ML "Tether"** lives at
   `dial-stack/utilities/apps/ml-nlp/Tether/` (deferred external-libs area;
   `SamanthaStorm/tether-*` HF models — dig in when Part 2 is built).
+  **All three paths above (`dev-resources/Archives/`, `Agno-MCP-Platform-alpha/chatminer`,
+  `dial-stack/…/Tether/`) are WORKSPACE-ROOT-relative** — siblings of this repo under the
+  workspace root (see the workspace-root `CLAUDE.md`: `dev-resources/` = read-only donors),
+  NOT paths inside this repo. Verified 2026-08-09: none of them resolve under this repo's root.
 - Agent auto-memory (loads on session start): `C:\Users\matts\.claude\projects\E--AI-Workspace\memory\`.
+- **case_id (added 2026-08-09):** `TEXT NOT NULL DEFAULT 'primary'` (`sql/0018_retrieval_axes.sql`)
+  is the ONE canonical form platform-wide — owner ruling 2026-08-09, "never multi-case / never
+  multi-user" (R-2 / D-041, `docs/DECISION_LOG.md`; also closes OQ-5). The `case_id uuid` columns
+  still present in `sql/bootstrap/schema_baseline.sql` (several tables) are historical/legacy — no
+  unification migration is planned; they are not being retired, just no longer the pattern for
+  new work.
 
 ---
 

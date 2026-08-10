@@ -16,7 +16,7 @@ import pytest
 from server.evidence import custody
 
 
-# STUB: minimal fake SQLAlchemy engine used as a test double (no real DB) ---
+# TEST-DOUBLE: minimal fake SQLAlchemy engine used as a test double (no real DB) ---
 
 
 class _FakeResult:

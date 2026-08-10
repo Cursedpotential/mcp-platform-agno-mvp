@@ -71,8 +71,9 @@ _DEFAULT_ORDER: list[str] = [
 # LEGACY/NIM-fallback embedder IDs — these do NOT mirror the live contract and never did
 # ("db/session.py" here means server/core/session.py, the actual source of truth).
 # Current platform truth: nv-embed-v1 4096-d text (LIVE since 2026-07-19, symmetric —
-# see session.py EMBED_TEXT_ID). nemotron-embed-vl is an ASYMMETRIC NIM embedqa model
-# (owner rule: avoid — silently degrades retrieval without per-call input_type).
+# see session.py EMBED_TEXT_ID). nemotron-embed-vl is an ASYMMETRIC NIM embedqa model —
+# NOT banned (owner correction 2026-08-07): it requires a per-call input_type, which this
+# fallback path cannot send, so it is inapplicable HERE only.
 _EMBEDDER_IDS: dict[str, str] = {
     "text": "nvidia/llama-nemotron-embed-vl-1b-v2",  # legacy NIM fallback — 2048-d, asymmetric
     "code": "nvidia/nv-embedcode-7b-v1",  # code artifacts — 4096-d

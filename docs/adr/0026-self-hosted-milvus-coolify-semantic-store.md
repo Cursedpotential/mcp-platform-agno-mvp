@@ -1,7 +1,11 @@
 # ADR-0026: Self-hosted Milvus (Coolify) = shared semantic-search store; off managed EU Zilliz
-- Status: Accepted
+- Status: ~~Accepted~~ **Amended by ADR-0040 (owner-locked 2026-07-27)**: Weaviate is the
+  platform vector store (cutover done 2026-07-29); Milvus is SIDELINED to the memsearch lane
+  only (one MCP consumer). The "shared semantic-search store" role in the title no longer
+  holds; the self-hosted Milvus deployment itself remains live on Coolify.
 - Date: 2026-06-13
 - _Byline: Claude Code · Opus 4.8 · 2026-06-13_
+- _Amended byline: Claude Code · Fable 5 · 2026-08-09_
 
 ## Context
 `claude-context` (code/knowledge semantic indexing) was backed by a **managed Zilliz

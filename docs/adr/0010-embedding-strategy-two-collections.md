@@ -1,6 +1,10 @@
 # ADR-0010: Per-task embeddings = one vector collection per embedder; raw docs are the source of truth
-- Status: Accepted
+- Status: Accepted (the one-collection-per-embedder pattern remains in force). **Model names
+  amended 2026-08-09**: the live text embedder is `nvidia/nv-embed-v1` (4096-d, symmetric;
+  LIVE since 2026-07-19 per the `server/core/session.py` contract, re-verified 2026-08-08) —
+  not the embedqa model named below.
 - Date: 2026-06-01
+- _Amended byline: Claude Code · Fable 5 · 2026-08-09_
 
 ## Context
 Embedding vectors from different models are not interchangeable: models output **different
@@ -11,7 +15,10 @@ for a corpus requires **re-embedding the entire corpus** into a new table. We wa
 
 ## Decision
 **One vector collection per embedder**, never mixed:
-- `knowledge_text` → `nvidia/nv-embedqa-e5-v5` — documents, legal/forensic text, chat transcripts.
+- `knowledge_text` → ~~`nvidia/nv-embedqa-e5-v5`~~ **`nvidia/nv-embed-v1`** (amended 2026-08-09;
+  the asymmetric embedqa pick was never shipped live — inapplicable for this client path because
+  it cannot send per-call `input_type`, NOT because such models are banned) — documents,
+  legal/forensic text, chat transcripts.
 - `knowledge_code` → `nvidia/nv-embedcode-7b-v1` — code artifacts (codebase, ChatMiner code blocks).
 
 Each table is internally consistent (single model, single dimension, single index). Agents query the
