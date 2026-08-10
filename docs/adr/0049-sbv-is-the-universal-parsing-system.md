@@ -130,8 +130,35 @@ The codebase already names the hazard. `sms_xml.py:252-255`: the malformed-XML f
 `path.read_text()` on the whole file, which is exactly what streaming exists to avoid … rather than
 silently ballooning to multi-GB."*
 
+### The memory-safety job is mostly ROUTING, not new decoders (verified 2026-08-10)
+
+**Seven of those nine risky parsers already have a streaming Go decoder.** Every Go decoder takes
+`Run(sink ImportSink, r *bufio.Reader)` — all 12 confirmed. The only `io.ReadAll` calls in the
+engine are on a **bounded** `limited` reader, which is the safe pattern.
+
+| Risky Python parser (whole-file) | Go decoder that already exists | Go detection |
+|---|---|---|
+| `sms_xml.py:294` | `smsXMLImporter` | `.xml` + `<smses`/`<calls` |
+| `facebook_messenger_json.py:134` | `facebookJSONImporter` | `.json` + `"participants"` |
+| `facebook_messenger_html.py:132` | `facebookHTMLImporter` | html + `_a6-g`/`_a6-h` |
+| `imessage_html.py:399` | `imessageHTMLImporter` | html + `class="message"` + sent/received |
+| `imessage_txt.py:479` | `imessageTXTImporter` | `.txt` + `imessageHeaderRE` |
+| `messaging_csv.py:184` | `messagingCSVImporter` | `.csv` + header sniff |
+| `messaging_transcript.py:69` | `transcriptImporter` | `.txt`/`.csv` + `transcriptMarkerRE` |
+| `claude_ai_export.py:28` | **none** | — |
+| `whole_file_fallback.py:34` | **none** | — |
+
+**So Gap 1 and Gap 3 are the same problem.** The safe Go decoders exist, but the Python registry
+resolves format independently, so the whole-file Python path still gets selected. Fixing the
+routing fixes the memory risk for seven of nine — no new decoder needed.
+
+**Only two need real work:** `claude_ai_export` (a genuinely new AI-chat decoder) and
+`whole_file_fallback` (which is already DEBT item 0 — ADR-0044 bans it from evidence and the ban is
+unenforced; a routing fix may close both at once).
+
 **Consequence for sequencing:** the repair call seam is an integration job, not a rescue. The
-memory-safety work is moving these nine parsers behind Go streaming decoders.
+memory-safety work is mostly re-pointing routing at decoders that already stream, plus two new
+pieces — far smaller than "port nine parsers to Go."
 
 ## The gap — four items, none of them Takeout
 
