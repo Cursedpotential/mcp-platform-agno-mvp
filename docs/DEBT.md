@@ -122,6 +122,40 @@ Source: docs/HANDOFF-2026-08-02-sbv-chatminer-parser-gap-review.md (phases + acc
    `parser_id == "transcripts.markdown"` (ban enforced where the harm happens). Either way add
    the guard TEST: fail if `transcripts.markdown` is reachable from an evidence-lane workflow.
 
+0b. **Python SMS-XML parser must go iterative and spill to a FILE, not memory (owner directive,
+   2026-08-10: "the python sms parser still needs to be fixed at some point — it's supposed to be
+   iterative and it's supposed to write directly to a file and not into memory … even though it's
+   a backup").** Two distinct defects in
+   `server/tools/parsers/messaging/sms_xml.py`:
+
+   - **(i) Records accumulate in memory even on the happy path.** `_collect()` (`:279`) streams the
+     *XML* correctly — `iterparse` + `elem.clear()` — but appends every record to an `out` list.
+     `parse()` (`:311`) then hands that whole list to `records_out()` (`:321`). Memory scales with
+     record count, not file size. **The streaming generator already exists** — `iter_records()`
+     (`:238`) yields, and its docstring says it exists "so a caller can batch straight into the raw
+     layer with flat memory." `parse()` simply does not use it.
+   - **(ii) The malformed-XML fallback is the worst case.** `:291-301` does
+     `ET.fromstring(_sanitize_xml(path.read_text(...)))` — the whole file as a string *plus* a full
+     DOM. The code already admits it: the inline comment says "more RAM, last resort," and
+     `iter_records`' own docstring (`:252-255`) calls it "exactly what streaming exists to avoid …
+     rather than silently ballooning to multi-GB."
+
+   **Required shape:** `parse()` drives `iter_records()` and writes records straight to a file
+   (NDJSON spill), returning a path + counts rather than an inline list. The malformed path must
+   sanitize incrementally instead of materializing the document.
+
+   **Contract implication — do not skip.** `records_out()` returns records inline, so a spill-to-file
+   mode changes the atomic tool's output contract. Per ADR-0049 the tool must stay callable **both**
+   in a workflow **and** atomically over the API, so both callers need to handle the new shape.
+
+   **This is NOT closed by the ADR-0049 routing fix.** Routing sends normal traffic to the Go
+   `smsXMLImporter`; this parser remains the fallback, and a fallback that exhausts memory is not a
+   real fallback. **Unverified, check before assuming otherwise:** whether the Go decoder handles
+   *malformed* dumps at all — its `Detect` only requires `.xml` plus `<smses`/`<calls` in the head,
+   so it may accept a malformed file and fail differently. If Go cannot repair them, this Python
+   path is load-bearing rather than a backup. rel: ADR-0049 (memory criterion), owner statement
+   "go is critical for files that could blow out a memory store".
+
 1. ~~**Go-side import-scoping (review Phase 1):** SBV upload returns
    `{job_id, import_id}`; messages/calls carry import_id; add
    `GET /api/imports/:id/activity`; bind progress + hashes to the same id;

@@ -156,6 +156,13 @@ routing fixes the memory risk for seven of nine — no new decoder needed.
 `whole_file_fallback` (which is already DEBT item 0 — ADR-0044 bans it from evidence and the ban is
 unenforced; a routing fix may close both at once).
 
+**Routing does not retire the Python fallbacks — they still have to be fixed.** Owner, 2026-08-10:
+the Python SMS parser "is supposed to be iterative and it's supposed to write directly to a file
+and not into memory … even though it's a backup." A fallback that exhausts memory is not a real
+fallback. Tracked as **DEBT item 0b**, which also records the contract wrinkle: spilling to a file
+changes the atomic tool's output shape, and per the dual-invocation rule both the workflow caller
+and the API caller must handle it.
+
 **Consequence for sequencing:** the repair call seam is an integration job, not a rescue. The
 memory-safety work is mostly re-pointing routing at decoders that already stream, plus two new
 pieces — far smaller than "port nine parsers to Go."
