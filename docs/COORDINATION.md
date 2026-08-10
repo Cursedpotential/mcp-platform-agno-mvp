@@ -177,7 +177,7 @@ tag → CI builds → bump the tag in `docker/tools/Dockerfile`. Image name MUST
   string-prefixed `"ERROR: ..."` return instead, but that's a different tool shape (a
   HITL-approval-gated write reporting a tri-state OK/REJECTED/ERROR outcome), not a precedent
   for these read-only, dict/list-returning tools.
-  `compose.exec.yaml` (`agentos-api` + `agentos-mcp` env blocks) and `compose.yaml`
+  `deploy/exec.yaml` (S10 path; `agentos-api` + `agentos-mcp` env blocks) and `compose.yaml`
   (`agentos-api` only — no `agentos-mcp` service exists in the local/dev compose) both get
   `SBV_BASE_URL` (defaults to `http://platform-tools:8085`, the docker-network hostname —
   `_sbv_client.py`'s own default of `localhost:8085` is wrong from inside these containers),
@@ -230,7 +230,7 @@ tag → CI builds → bump the tag in `docker/tools/Dockerfile`. Image name MUST
   analysis, agents, workflows, and the CLI all consume it). `git mv server/evidence/tools
   server/tools`; `git mv server/evidence/registry.py server/tools/registry.py`; registry
   auto-discovery made package-name-agnostic + intra-package imports relativized. Also fixed a
-  LIVE mount regression: `compose.yaml`/`compose.exec.yaml` still mounted
+  LIVE mount regression: `compose.yaml`/`deploy/exec.yaml` (S10 path) still mounted
   `./evidence:/opt/tools/evidence:ro` for the `docker/tools` platform-tools facade — that host
   dir stopped existing the moment the D-025 repack landed, so the facade was serving **zero**
   parser modules. Now mounts the WHOLE `server/` tree (`./server:/opt/tools/server:ro`, not just
@@ -267,7 +267,7 @@ tag → CI builds → bump the tag in `docker/tools/Dockerfile`. Image name MUST
   YOUR infra directives (ContextForge/SurrealDB/DNS/Traefik/topology) — reconcile against what's
   now live (CF v1.0.4, Portkey, coolify-mcp), capture deltas as ADRs. Not archive, not stale.
 - **2026-07-08 late (C):** coolify-write MCP deployed as HTTP service. NEW Lane-C files on
-  `main`: `compose.coolify-mcp.yaml` + `docker/coolify-mcp/` (server.py/requirements/Dockerfile
+  `main`: `deploy/coolify-mcp.yaml` (S10 path) + `docker/coolify-mcp/` (server.py/requirements/Dockerfile
   — patched repo copy of the local stdio skill; keep paths stable through the repack, same as
   `docker/gateway`). Commits `82cd8c8` + `c6e3e66` (Host-check fix). New Coolify app
   `coolify-mcp` (uuid `oyzznioap03u34xz125l90oq`, ovh-app, tailnet-only 100.72.169.40:8765,

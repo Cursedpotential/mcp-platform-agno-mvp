@@ -1,4 +1,12 @@
 # =============================================================================
+# *** PARKED — DO NOT DEPLOY, DO NOT DELETE (S10 annotation, 2026-08-10) ***
+# SurrealDB is RETIRED (ADR-0043 d3, flatten executed 2026-08-04; D-042 OQ-7).
+# The container is deliberately PARKED read-only on ovh-data (100.119.96.29),
+# NOT Coolify-managed; only the owner deletes it. This file stays at repo root
+# as the parked container's record — it was intentionally NOT moved to deploy/
+# in the S10 consolidation because no Coolify app references it.
+# =============================================================================
+# =============================================================================
 # DATA TIER — SURREALDB SUBSET, split out of compose.data.yaml.
 # Reason: 2026-06-25 incident + owner mandate 2026-07-05 — every DB must be its
 # own Coolify app so any one crashing / being updated never takes down the

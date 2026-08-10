@@ -45,7 +45,14 @@ ui/             CopilotKit shell (G1) — DEFERRED, not built yet
 shared/         cross-boundary contracts — created only when ui/ needs them (DEFERRED)
 sql/            numbered migrations only: NNNN_name.sql (e.g. 0003_normalized_records.sql)
 docker/         one folder per service image: postgres/ (pg_duckdb), tools/, sandbox/, gateway/, milvus/, n8n/, coolify-mcp/
-compose*.yaml   the stack, split by tier (compose.yaml / compose.exec.yaml / compose.data*.yaml)
+compose.yaml    local/dev core ONLY. All per-app Coolify compose files live in deploy/ (S10
+                consolidation 2026-08-10, D-043): deploy/<app>.yaml, one file per Coolify
+                application. Root also keeps compose.data-surreal.yaml (PARKED marker, see its
+                header). Dead tiers (browser/ui/data) → _stale/*.SUPERSEDED.
+                ⚠ Branch-scoped apps (librechat*, nocodb → infra/* branches; workbench →
+                workbench/sprint) still deploy root-path compose files FROM THEIR BRANCHES —
+                before merging main into any of those branches, update the app's
+                docker_compose_location in Coolify or the deploy breaks silently.
 evals/          agno-eval cases (harness-first)
 scripts/        format.sh, validate.sh, ingest_*, generate_requirements.sh, repack_to_server_layout.py
 knowledge/      curated knowledge inputs (NEVER secrets/case-data)
@@ -53,8 +60,12 @@ docs/           canon + the authoritative docs + adr/ + planning/ + wiki/ + visu
 tests/          the pytest suite (208)
 analytics/      standalone Evidence.dev (evidence.dev) reporting projects, one subdir each
                 (e.g. analytics/visit-locations/) — NOT server/, NOT imported by app code
-deploy/         per-app Coolify deploy notes/compose fragments outside the compose*.yaml
-                tiers (e.g. deploy/data-weaviate.yaml) — host-prep + security-fix history
+deploy/         ONE compose file per Coolify application (S10, 2026-08-10, D-043): exec, gateway,
+                contextforge, platform-tools, sandbox, desktop, portkey, coolify-mcp, data-pg,
+                data-neo4j, data-graphiti, data-graphiti-case, data-vector, data-weaviate,
+                librechat, librechat-mongo, nocodb, workbench (.yaml each) — plus host-prep +
+                security-fix history. Old root paths compose.<name>.yaml are dead on main;
+                13 main-branch Coolify apps were repointed live the same day.
 tool-skills/    agent-tool "skill" bundles (SKILL.md + scripts/) consumed by CLI agents
                 directly, e.g. tool-skills/graphiti-client/ (`grc`), tool-skills/opencode-ops/
 database/       (being retired) held SurrealDB schema DRAFTS, never applied. Its one file,
@@ -126,7 +137,7 @@ Full file inventory, the capability model, and "how to add a parser" live in
 `server/tools/AGENTS.md` — not restated here.
 
 The `docker/tools` platform-tools facade (`docker/tools/tools/facade.py`) volume-mounts the
-**whole `server/` tree** read-only at `/opt/tools/server` (`compose.yaml`/`compose.exec.yaml`:
+**whole `server/` tree** read-only at `/opt/tools/server` (`compose.yaml`/`deploy/exec.yaml`:
 `./server:/opt/tools/server:ro`) — not just `server/tools/` — because `server.tools.*` has real
 transitive deps outside itself (`server.contracts.records` for the record schema,
 `server.vendored.chatminer` for the parser core; both lightweight, no sqlalchemy/agno at import

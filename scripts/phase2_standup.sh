@@ -2,7 +2,7 @@
 # PHASE 2 — stand up data-neo4j, data-vector (milvus+attu), and nocodb on
 # ovh-files: push the phase1b tarballs, restore the volumes, create (or
 # reuse) a Coolify app pointed at ovh-files for each, start, and probe
-# liveness. Mirrors the compose.data-graphiti-case.yaml precedent (own
+# liveness. Mirrors the deploy/data-graphiti-case.yaml precedent (S10 path, 2026-08-10) (own
 # Coolify app per store on ovh-files, same repo/compose file, tailnet-only
 # ports) — see that file's header for the pattern this follows.
 #
@@ -39,9 +39,9 @@ SERVER_UUID=cn89l8801u8gsginw1rxq5qt   # ovh-files
 
 declare -A APP_TARBALL=([data-neo4j]=data-neo4j [data-vector]=data-vector [nocodb]=nocodb)
 declare -A APP_COMPOSE=(
-  [data-neo4j]=/compose.data-neo4j.yaml
-  [data-vector]=/compose.data-vector.yaml
-  [nocodb]=/compose.nocodb.yaml
+  [data-neo4j]=/deploy/data-neo4j.yaml
+  [data-vector]=/deploy/data-vector.yaml
+  [nocodb]=/deploy/nocodb.yaml
 )
 declare -A APP_BRANCH=([data-neo4j]=main [data-vector]=main [nocodb]=infra/nocodb)
 declare -A APP_HEALTHCHECK=(
