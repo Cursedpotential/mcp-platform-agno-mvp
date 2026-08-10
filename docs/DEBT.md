@@ -108,6 +108,20 @@ base P2/P3 workflows on native Workflow; P5 evals on `agno.eval`. Updates ADR-00
 
 Source: docs/HANDOFF-2026-08-02-sbv-chatminer-parser-gap-review.md (phases + acceptance criteria there).
 
+0. **ADR-0044 §4 blob ban is UNENFORCED in code (found 2026-08-10 pre-mortem sweep; assign to
+   S7's registry/contract task).** `transcripts.markdown`
+   (`server/tools/parsers/generic/whole_file_fallback.py:25`) registers plain
+   `capability="parse.transcript"`, so the whole-file speaker-blending fallback is resolvable
+   by `build_chat_transcript_workflow.parse_step` (`server/evidence/workflows.py:533`) — a
+   workflow that runs custody + store steps. ADR-0044 says the whole-file parser is
+   "last resort only and BANNED for evidence." Fix options, decide inside S7 (the right gate
+   depends on the chat-transcript workflow's lane semantics, which S7 owns): (a) capability
+   split — fallback moves to `parse.context_transcript`, context lane
+   (`server/analysis/context_chat_ingest.py:118`) resolves both, evidence workflows resolve
+   only `parse.transcript`; or (b) store-boundary guard — evidence/store rejects records whose
+   `parser_id == "transcripts.markdown"` (ban enforced where the harm happens). Either way add
+   the guard TEST: fail if `transcripts.markdown` is reachable from an evidence-lane workflow.
+
 1. ~~**Go-side import-scoping (review Phase 1):** SBV upload returns
    `{job_id, import_id}`; messages/calls carry import_id; add
    `GET /api/imports/:id/activity`; bind progress + hashes to the same id;
