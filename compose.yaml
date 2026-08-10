@@ -73,10 +73,11 @@ services:
       # compose.exec.yaml runs it), so only agentos-api needs this here.
       SBV_BASE_URL: ${SBV_BASE_URL:-http://platform-tools:8085}
       SBV_SERVICE_USER: ${SBV_SERVICE_USER:-mcp_service}
-      # SBV_PRIMARY_ENABLED: demotion override (2026-08-02 gap-review P0-1).
-      # Default UNSET -> pure-Python sms_xml is the auto-selected parser;
-      # setting this is an explicit owner decision, not deployment plumbing.
-      SBV_PRIMARY_ENABLED: ${SBV_PRIMARY_ENABLED:-}
+      # SBV_PRIMARY_ENABLED removed 2026-08-10 (owner call): dead knob. The
+      # 2026-08-02 demotion was LIFTED by PR #18 (aacf21c) -> SBV is PRIMARY again
+      # (DECISION_LOG D-040). _sbv_enabled() gates solely on SBV_SERVICE_PASS, and
+      # tests/test_sbv_demotion.py pins that this var gates nothing. Setting it in
+      # any env is now a no-op and safe to delete there too.
       SBV_SERVICE_PASS: ${SBV_SERVICE_PASS:-}
     depends_on:
       agentos-db:

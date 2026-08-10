@@ -58,7 +58,10 @@
 ### `google_timeline_parser`
 - **Description:** Parse Google Timeline location data
 - **Legacy Source:** `Evidence_Analysis/Scripts/parser.py`
-- **Status:** ⏳ Planned
+- **Status:** 🅿️ **PARKED — not planned.** Owner directive, emphatic, 2026-07-03 and again
+  2026-08-09 (~87 prior iterations); the messaging/transcript lane goes first. Do not propose
+  Timeline work until the owner raises it. See ADR-0048. Corrected from "⏳ Planned"
+  2026-08-10 — _Claude Code · Opus 5_
 
 ---
 

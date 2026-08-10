@@ -589,9 +589,14 @@ def build_sms_xml_workflow(
 ) -> tuple[Workflow, dict[str, Any]]:
     """Workflow A — the SBV SMS-XML vertical. Same custody->parse->store->knowledge
     spine as chat-transcript, but resolves capability `parse.sms-xml` and takes the FIRST candidate as
-    primary. ~~The registry returns SBV first~~ — SBV is DEMOTED 2026-08-02 (gap-review P0-1: unscoped /api/activity),
-    gated out of resolve() unless SBV_PRIMARY_ENABLED is set, so the pure-Python
-    parser (messages.sms-xml) is the effective primary.
+    primary. ~~The registry returns SBV first~~ ~~— SBV is DEMOTED 2026-08-02 (gap-review P0-1:
+    unscoped /api/activity), gated out of resolve() unless SBV_PRIMARY_ENABLED is set, so the
+    pure-Python parser (messages.sms-xml) is the effective primary.~~
+    CORRECTED 2026-08-10: the demotion was LIFTED. Its restore condition (import-scoped reads)
+    was delivered by PR #18 (aacf21c, 2026-08-06), so SBV is PRIMARY again — see DECISION_LOG
+    D-040. SBV_PRIMARY_ENABLED is gone; messages.sms-xml-sbv accepts .xml whenever
+    _sbv_enabled() finds SBV_SERVICE_PASS wired, and the pure-Python messages.sms-xml is the
+    FALLBACK for when SBV is unwired or unreachable.
 
     NO SILENT SUBSTITUTION (owner mandate 2026-07-02): if the PRIMARY tool fails,
     the workflow STOPS by default and says exactly what failed. Passing

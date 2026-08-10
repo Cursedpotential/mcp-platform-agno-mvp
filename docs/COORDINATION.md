@@ -181,7 +181,16 @@ tag → CI builds → bump the tag in `docker/tools/Dockerfile`. Image name MUST
   (`agentos-api` only — no `agentos-mcp` service exists in the local/dev compose) both get
   `SBV_BASE_URL` (defaults to `http://platform-tools:8085`, the docker-network hostname —
   `_sbv_client.py`'s own default of `localhost:8085` is wrong from inside these containers),
-  `SBV_SERVICE_USER`, `SBV_SERVICE_PASS`, `SBV_PRIMARY_ENABLED` (default UNSET — SBV demoted to shadow 2026-08-02, gap-review P0-1; setting it re-enables SBV auto-selection and is an owner decision). On the exec tier `SBV_SERVICE_PASS` is a **hard**
+  `SBV_SERVICE_USER`, `SBV_SERVICE_PASS`, ~~`SBV_PRIMARY_ENABLED` (default UNSET — SBV demoted to
+  shadow 2026-08-02, gap-review P0-1; setting it re-enables SBV auto-selection and is an owner
+  decision)~~ — **CORRECTED 2026-08-10: `SBV_PRIMARY_ENABLED` is INERT.** The 2026-08-02 demotion
+  was lifted when PR #18 (`aacf21c`, 2026-08-06) delivered its restore condition; SBV is PRIMARY
+  again per DECISION_LOG D-040, `_sbv_enabled()` gates only on `SBV_SERVICE_PASS`, and
+  `tests/test_sbv_demotion.py` pins that this env var no longer gates anything. It is still
+  declared in `compose.yaml` / `deploy/exec.yaml` but has no effect — removing it is an owner
+  call (deploy-config change). `SBV_SERVICE_PASS` is now the only switch that decides whether
+  SBV is selected. — _Claude Code · Opus 5 · 2026-08-10_
+  On the exec tier `SBV_SERVICE_PASS` is a **hard**
   `${SBV_SERVICE_PASS:?...}` per the plan (unset = container won't start, checked BEFORE
   merging); on local/dev it's a soft `${SBV_SERVICE_PASS:-}` default (matches every other
   local-compose secret, none of which are hard-required there) — a judgment call, not

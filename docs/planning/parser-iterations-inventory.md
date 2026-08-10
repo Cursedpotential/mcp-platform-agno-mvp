@@ -1,5 +1,15 @@
 > _Byline: Claude Code · Opus 4.8 · 2026-07-10_
 
+> ⏸️ **FROZEN HISTORICAL SNAPSHOT — paths accurate as of 2026-07-10, NOT current.**
+> This is a point-in-time catalogue, deliberately preserved (owner: "catalog EVERYTHING, preserve
+> variants"). Do **not** use it to locate code. Module paths here pre-date the ADR-0035 tools
+> subnamespacing — e.g. it says `server/tools/sbv_sms.py`, but the live module is
+> `server/tools/parsers/messaging/sbv_sms.py`; likewise `messaging_transcript.py` now lives under
+> `server/tools/parsers/messaging/`. For current locations read the live tree
+> (`server/tools/parsers/{messaging,ai_chat,generic}/`). Status columns are also frozen — SBV's
+> primary/shadow state in particular changed twice after this date (see DECISION_LOG D-040).
+> Frozen 2026-08-10 — _Claude Code · Opus 5_
+
 # Messaging & Social-Media Parser Iterations — Exhaustive Inventory
 
 **Scope:** Every messaging / social-media evidence-source parser reachable from this machine, across all

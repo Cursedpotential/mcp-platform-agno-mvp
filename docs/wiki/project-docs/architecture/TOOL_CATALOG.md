@@ -120,7 +120,13 @@ This document catalogs every tool exposed across all three MCP servers. AI DIAL 
 | `docling_convert` | Convert documents via Docling API | ⏳ Planned | — |
 | `pandoc_convert` | Convert between document formats via Pandoc | ⏳ Planned | — |
 | `chatgpt_json_parser` | Parse ChatGPT conversation exports | ⏳ Planned | `Evidence_Analysis/Scripts/chatgpt_parser.py` |
-| `google_timeline_parser` | Parse Google Timeline location data | ⏳ Planned | `Evidence_Analysis/Scripts/parser.py` |
+| `google_timeline_parser` | Parse Google Timeline location data | 🅿️ **PARKED** (not planned) | `Evidence_Analysis/Scripts/parser.py` |
+
+> **Timeline is PARKED, not planned** (owner directive, emphatic, 2026-07-03 and again
+> 2026-08-09; ~87 prior iterations). The messaging/transcript lane goes first. No agent should
+> propose Google Takeout Timeline work until the owner raises it. See ADR-0048 §"Scope".
+> Status corrected here 2026-08-10 — the row previously read "⏳ Planned", which contradicted
+> the standing directive. — _Claude Code · Opus 5 · 2026-08-10_
 
 ---
 

@@ -1,7 +1,24 @@
 # ADR-0048: Go worker layer = the SBV universal import engine; messaging lane first (Timeline parked)
 
-- Status: **PROPOSED** — direction chosen by owner 2026-08-09 ("Option B"); awaiting sign-off on
-  this written scope before implementation.
+- Status: ~~**PROPOSED** — direction chosen by owner 2026-08-09 ("Option B"); awaiting sign-off on
+  this written scope before implementation.~~
+  **ACCEPTED / REALIZED — corrected 2026-08-10.** The PROPOSED status was misleading: it implied
+  the whole ADR was unbuilt and blocked on sign-off. It is not. This ADR has two halves and they
+  are in different states:
+  - **The architecture (Option B) is DONE and in production.** The SBV universal import engine
+    landed in PR #18 (`aacf21c`, 2026-08-06) — `vendored/sbv/internal/{importer,engine,custody}.go`
+    plus **nine** working decoder modules already built against it (`sms_xml`, `facebook_json`,
+    `google_chat`, `google_voice_html`, `messaging_csv`, `messaging_html`, `messaging_txt`,
+    `ndjson`, `email`), with `universal_engine_test.go` covering the core. Nothing is waiting on
+    sign-off; the messaging lane already ships on this architecture.
+  - **The unbuilt part is Google Takeout — and it is PARKED, not pending approval.** Confirmed
+    with the owner 2026-08-10: **Timeline JSON and Takeout are pushed out the same way; the rest
+    of this ADR is complete.** So the parking is not Timeline-only — it covers the Google
+    Takeout family (Timeline/location JSON, Takeout mbox variants, and the other Takeout
+    exports). `internal/google_timeline_importer.go` was confirmed absent from the tree
+    2026-08-10. The "Scope" section below is a parked reference only — do not read it as queued
+    work, and do not propose Takeout work until the owner raises it.
+  — _Claude Code · Opus 5 · 2026-08-10_
 - Date: 2026-08-09
 - _Byline: Claude Code · Fable 5 · 2026-08-09_
 - Records (retroactively) the July decision that never got an ADR, plus the 2026-08-09 direction.
@@ -74,10 +91,22 @@ forensic fidelity, not a bug; document it in `UNIVERSAL_IMPORTS.md`.
 ## Consequences
 
 - Every future evidence format (Takeout mbox variants, more messaging exports, media manifests)
-  is a decoder module against a core we already trust — no new projects.
-- SBV remains **shadow/comparison-grade** for SMS provenance (de1ca9f gate,
+  is a decoder module against a core we already trust — no new projects. **Note (2026-08-10): the
+  Takeout examples here are PARKED work, not a queue.** Timeline JSON and Takeout are pushed out
+  together by owner directive; only non-Takeout formats are live candidates.
+- ~~SBV remains **shadow/comparison-grade** for SMS provenance (de1ca9f gate,
   `SBV_PRIMARY_ENABLED`); this ADR does not change that. Whether Timeline imports run SBV-primary
-  or shadow is decided at deploy time by the same flag discipline.
+  or shadow is decided at deploy time by the same flag discipline.~~
+  **CORRECTED 2026-08-10 — this bullet was already stale when written.** SBV is the
+  **PRIMARY** SMS-XML parser, not shadow. The 2026-08-02 demotion (`de1ca9f`) set an explicit
+  restore condition — import-scoped reads — and PR #18 (`aacf21c`, merged 2026-08-06) delivered
+  exactly that, which promoted SBV back. Authority: `docs/DECISION_LOG.md` D-040 (decided
+  2026-08-05, backfilled 2026-08-09). Confirmed in live code: `_sbv_enabled()`
+  (`server/tools/parsers/messaging/sbv_sms.py:361`) gates only on `SBV_SERVICE_PASS`, and
+  **`SBV_PRIMARY_ENABLED` no longer exists anywhere in `server/`** — `sms_xml.py` is now the
+  pure-Python *fallback*, not the effective primary. Timeline-import parser selection therefore
+  follows normal capability resolution, not a demotion flag.
+  — _Claude Code · Opus 5 · 2026-08-10_
 - The three-level platform caching / processing-integrity design (Semantica vs PG) is a
   **separate future ADR** — blocked on owner decision.
 - TraceIQ (Python) is not retired by this ADR; it becomes a candidate for mining/retirement only
