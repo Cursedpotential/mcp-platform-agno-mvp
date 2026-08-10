@@ -85,7 +85,55 @@ Python stops being a second parsing implementation.
   (`SPEC.md`, `CUSTODY.md`, `UNIVERSAL_IMPORTS.md`, `DEVELOPMENT.md`) are part of the deliverable
   and drift the same way repo docs do.
 
-## The gap — three items, none of them Takeout
+## What decides Go vs Python (owner, 2026-08-10)
+
+The split is **not** a language preference. Two owner statements set the rule:
+
+> "go is critical for files that could blow out a memory store if not handled correctly"
+
+> "it can have python features if they function as part of the app and can be called on both by
+> the app in a workflow and by API atomically"
+
+**The criterion: Go owns anything that must ingest unbounded input.** If a component can be handed
+a multi-GB file and has to survive it, it belongs in Go with real streaming. Everything else may
+stay Python.
+
+**The Python contract — dual invocation.** A Python component qualifies only if it is callable
+**both** ways:
+
+1. **In a workflow** — as a step the app drives end to end.
+2. **Atomically over the API** — one call, one job, standalone, no workflow required.
+
+A Python helper reachable only from inside a workflow does not meet the bar.
+
+### Verified against the criterion, 2026-08-10 — this inverts the priority
+
+**The repair layer already complies.** It streams throughout (38 streaming constructs), and
+`repair/encoding.py:5` states the rule outright: *"There is exactly one rule in this module: never
+call `path.read_text()`."* Repair is not the memory risk.
+
+**The parsers are the memory risk.** Nine Python parsers load whole files into memory:
+
+| Parser | Site |
+|---|---|
+| `sms_xml` (malformed-XML fallback) | `messaging/sms_xml.py:294` |
+| `claude_ai_export` | `ai_chat/claude_ai_export.py:28` |
+| `facebook_messenger_html` | `messaging/facebook_messenger_html.py:132` (BeautifulSoup, whole file) |
+| `facebook_messenger_json` | `messaging/facebook_messenger_json.py:134` |
+| `imessage_html` | `messaging/imessage_html.py:399` (BeautifulSoup, whole file) |
+| `imessage_txt` | `messaging/imessage_txt.py:479` |
+| `messaging_csv` | `messaging/messaging_csv.py:184` |
+| `messaging_transcript` | `messaging/messaging_transcript.py:69` |
+| `whole_file_fallback` | `generic/whole_file_fallback.py:34` |
+
+The codebase already names the hazard. `sms_xml.py:252-255`: the malformed-XML fallback *"calls
+`path.read_text()` on the whole file, which is exactly what streaming exists to avoid … rather than
+silently ballooning to multi-GB."*
+
+**Consequence for sequencing:** the repair call seam is an integration job, not a rescue. The
+memory-safety work is moving these nine parsers behind Go streaming decoders.
+
+## The gap — four items, none of them Takeout
 
 **Gap 1 — the Go app cannot call the repair engine.** ~~Port repair to Go.~~ **Corrected
 2026-08-10 by owner: a port is NOT required.** The repair engine may remain Python. The actual gap
@@ -135,8 +183,10 @@ carries a frontend slice, and "ported" without GUI surface does not count as don
 
 1. **ADR-0044 boundary.** If AI chats parse through the Go custody engine, does the
    evidence-schema ban still hold on the storage side alone? Owner ruling needed.
-2. **Sequencing.** Repair call seam first (unblocks every format) or AI-chat decoders first
-   (closes the visible coverage hole)?
+2. **Sequencing — three candidates, and the memory one may outrank the rest.** (a) Move the nine
+   whole-file parsers behind Go streaming decoders, closing the "blow out a memory store" risk;
+   (b) build the repair call seam; (c) close AI-chat/transcript coverage. (a) is the only one that
+   is currently a live failure mode rather than a missing feature.
 3. **Duplicate messaging parsers.** Retire the Python nine after Go parity is proven, or keep them
    as a comparison lane the way SBV itself was kept during its demotion?
 4. **Repair call mechanism.** How does the Go app invoke Python repair — subprocess per file, a
@@ -149,6 +199,9 @@ carries a frontend slice, and "ported" without GUI surface does not count as don
 6. **Fork divergence budget.** How far may the fork drift from `lowcarbdev/sbv` before upstream
    syncs stop being practical? A universal parser plus a repair layer is a large addition to a
    stock SMS viewer.
+7. **Dual-invocation contract — retroactive or forward-only?** Every Python component must be
+   callable both in a workflow and atomically over the API. Do the existing Python tools have to
+   be audited and brought up to that bar now, or does it bind only new work?
 
 ## Consequences
 
