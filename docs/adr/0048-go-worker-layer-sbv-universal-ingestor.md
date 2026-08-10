@@ -13,11 +13,13 @@
     sign-off; the messaging lane already ships on this architecture.
   - **The unbuilt part is Google Takeout — and it is PARKED, not pending approval.** Confirmed
     with the owner 2026-08-10: **Timeline JSON and Takeout are pushed out the same way; the rest
-    of this ADR is complete.** So the parking is not Timeline-only — it covers the Google
-    Takeout family (Timeline/location JSON, Takeout mbox variants, and the other Takeout
-    exports). `internal/google_timeline_importer.go` was confirmed absent from the tree
-    2026-08-10. The "Scope" section below is a parked reference only — do not read it as queued
-    work, and do not propose Takeout work until the owner raises it.
+    of this ADR is complete.** `internal/google_timeline_importer.go` was confirmed absent from
+    the tree 2026-08-10. The "Scope" section below is a parked reference only — do not read it as
+    queued work, and do not propose new Takeout work until the owner raises it.
+    **Precision added 2026-08-10 (my earlier wording here was too broad):** parking applies to
+    *remaining* Takeout work, chiefly Timeline — it does **not** un-ship Takeout decoders that
+    already exist. `google_chat` emits `format = "takeout-messages-json"`
+    (`google_chat_importer.go:212`); `google_voice_html` and `mbox` are registered and live.
   — _Claude Code · Opus 5 · 2026-08-10_
 - Date: 2026-08-09
 - _Byline: Claude Code · Fable 5 · 2026-08-09_
@@ -92,8 +94,13 @@ forensic fidelity, not a bug; document it in `UNIVERSAL_IMPORTS.md`.
 
 - Every future evidence format (Takeout mbox variants, more messaging exports, media manifests)
   is a decoder module against a core we already trust — no new projects. **Note (2026-08-10): the
-  Takeout examples here are PARKED work, not a queue.** Timeline JSON and Takeout are pushed out
-  together by owner directive; only non-Takeout formats are live candidates.
+  Takeout examples here are PARKED work, not a queue.** Timeline JSON and remaining Takeout work
+  are pushed out by owner directive. Already-shipped Takeout decoders (`google_chat`,
+  `google_voice_html`, `mbox`) are unaffected and stay live.
+- **Widened by ADR-0049 (2026-08-10, PROPOSED):** the owner's target is SBV as the universal
+  parser for **all** parsing — including AI chats — with the repair layer in Go and the SBV app's
+  functional GUI retained. ADR-0049 inventories the gap. Until it is signed, this ADR remains the
+  operative statement and SBV stays a messaging/email engine.
 - ~~SBV remains **shadow/comparison-grade** for SMS provenance (de1ca9f gate,
   `SBV_PRIMARY_ENABLED`); this ADR does not change that. Whether Timeline imports run SBV-primary
   or shadow is decided at deploy time by the same flag discipline.~~

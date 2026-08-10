@@ -1,0 +1,179 @@
+# ADR-0049: SBV is the universal parsing system — all transcripts, all parsing, mostly Go, repair reachable, SBV GUI retained
+
+- Status: **PROPOSED** — owner stated the target 2026-08-10; this ADR writes down the gap between
+  that target and the code. **No port starts until this is signed.**
+- Date: 2026-08-10
+- _Byline: Claude Code · Opus 5 · 2026-08-10_
+- Extends ADR-0048 (which established the Go engine as the ingestor core). Where ADR-0048 said
+  "every future *evidence* format is a decoder module," this ADR widens the target to **all
+  parsing** and names what is missing.
+
+## Context
+
+Owner statement, 2026-08-10, verbatim:
+
+> "sbv is supposed to be the universal parsing system / rewritten in Go / adapted for all parsing /
+> with repair and hashing"
+
+That is the target. The code does not meet it yet. ADR-0048 is easy to misread as "done" because
+its engine half genuinely shipped in PR #18 (`aacf21c`, 2026-08-06) — but the engine covers
+**messaging and email only**, and the repair layer it is credited with is not in Go at all.
+
+This ADR exists so the gap is written down once, in a citable place, instead of being rediscovered
+by each new agent. A `/smart-explore` pass on 2026-08-10 was already misled twice by stale claims
+in this area.
+
+## Current state (verified 2026-08-10, not inherited from a prior report)
+
+| Capability | Go (`vendored/sbv/internal/`) | Python (`server/tools/`) |
+|---|---|---|
+| Detection / routing | ✓ `DetectImporter` priority registry (`importer.go:180`) | ✓ **separate** registry — `@register` + capability (`registry.py:57`) |
+| Messaging + email decoders | ✓ **12** registered | ✓ 9 — **duplicate coverage** |
+| AI-chat decoders | ✗ **zero** | ✓ 11 (`parsers/ai_chat/`) |
+| Generic / blob fallback | ✗ | ✓ 2 (`parsers/generic/`) |
+| Custody hashing H1/H2/H3 | ✓ `custody.go` (`HashFileH1`, `HashRecordH2`, `ChainH3`) | partial — own H1 + reconcile against SBV |
+| **Repair layer** | ✗ **none** | ✓ **full** — `detect`, `chunkers`, `engines`, `pdf`, `quarantine`, `encoding`, `cloud` |
+
+The 12 registered Go decoders: `mbox`, `eml`, `facebook_json`, `google_chat`, `google_voice_html`,
+`messaging_csv`, `imessage_html`, `facebook_html`, `imessage_txt`, `transcript`, `ndjson`,
+`sms_xml`.
+
+**Correction to ADR-0048:** its "Alternatives considered" section rejects a second Go binary on the
+grounds that the merged SBV engine "already provides streaming core, custody hashing, storage,
+dedup, reconciliation, **and a repair lane**." The repair lane claim is **false**. Repair lives in
+Python at `server/tools/repair/`. The only repair-shaped code in Go is a narrow reversible mojibake
+fix inside one importer (`facebook_json_importer.go:610`). The rejection still stands on the other
+four grounds; only the repair claim is wrong.
+
+## Decision (proposed)
+
+**SBV becomes the single all-encompassing parsing application — based mostly in Go** — handling
+**all transcripts and all parsing**: messaging, email, AI chats, documents, and whatever comes
+next, behind one detection registry with custody hashing.
+
+**"Mostly Go" is deliberate, and the repair engine may stay Python.** Owner, 2026-08-10:
+
+> "if the repair engine can be called on and utilized inside of the go application and still be
+> python then it's fine"
+
+So repair needs a **call seam**, not a rewrite. What matters is that the Go app invokes repair as
+part of its own pipeline and records the repair events in the same ledger. Implementation language
+is not the requirement — reachability and governance are.
+
+**It stays the SBV *app*, with its functional GUI — not a headless library.** Owner, 2026-08-10:
+"it's supposed to be modelled after the SBV app with the functional GUI / remember it's a fork of
+sorts." The deliverable is the running application, extended; a decoder that parses correctly but
+never appears in the UI is not done.
+
+Python keeps orchestration (Agno/AgentOS), workflow gating, and the evidence/context lane policy.
+Python stops being a second parsing implementation.
+
+### Fork and app-shape constraints (verified 2026-08-10)
+
+- **It is a fork, vendored as a git subtree** at `vendored/sbv/`, Go module
+  `github.com/lowcarbdev/sbv`. History shows subtree squashes plus a real upstream sync
+  (`b3c2d1e`, 12 upstream commits). `UPSTREAM.md` tracks the relationship.
+- **Remote naming is a trap — do not guess.** `sbv-real` → `lowcarbdev/sbv` (the true upstream).
+  `sbv-fork` **and** `sbv-upstream` both → `Cursedpotential/sbv-forensic` (our fork). A future
+  agent reading "sbv-upstream" as upstream will pull the fork.
+- **Full stack, both halves in scope:** Go backend (`main.go`, `internal/`, `backend/`) and a
+  Vite/React frontend (`frontend/` — `package.json`, `vite.config.js`, `src/`).
+- **Every new decoder owes GUI surface**, not just an API route: import visible in the run/progress
+  view, records browsable and searchable, custody hashes inspectable. This is what the fork already
+  does for SMS/MMS.
+- **Fork discipline holds.** Changes must stay rebasable onto `lowcarbdev/sbv`; the in-app docs
+  (`SPEC.md`, `CUSTODY.md`, `UNIVERSAL_IMPORTS.md`, `DEVELOPMENT.md`) are part of the deliverable
+  and drift the same way repo docs do.
+
+## The gap — three items, none of them Takeout
+
+**Gap 1 — the Go app cannot call the repair engine.** ~~Port repair to Go.~~ **Corrected
+2026-08-10 by owner: a port is NOT required.** The repair engine may remain Python. The actual gap
+is that **no call seam exists** — `server/tools/repair/` is invoked only from the Python workflow,
+and nothing in `vendored/sbv/internal/` reaches it. Today a file imported through the SBV app gets
+no repair pass at all.
+
+What this needs is an integration decision, not a rewrite: how the Go engine calls out to Python
+repair mid-stream (subprocess, local HTTP service, sidecar), how repair events flow back into the
+import ledger and custody record, and what happens when repair is unavailable. Keeping repair in
+Python preserves the libraries it depends on — `lxml recover=True`, `ijson`, `json-repair`,
+CleverCSV, QPDF — which was the main cost of a port.
+
+**Gap 2 — no AI-chat decoders in Go.** Eleven Python parsers have no Go counterpart:
+`chatgpt_official`, `chatgpt_share`, `claude_ai_export`, `claude_code`, `claude_code_jsonl`,
+`claude_md`, `gemini_chrome`, `gemini_json`, `perplexity_gdpr`, `perplexity_md`,
+`perplexity_plugin`. **This collides with ADR-0044**, which bars AI chats from the evidence schema.
+Routing them through the custody engine is not automatically the same as promoting them to
+evidence — but the boundary has to be restated explicitly before any port, or the ADR-0044 ban
+becomes ambiguous.
+
+**Gap 3 — two detection systems run in parallel.** Go `DetectImporter` and Python
+`registry.resolve()` each decide format independently, and messaging is covered by both. Until one
+is authoritative, "which parser ran?" has two possible answers. Retirement of the duplicate Python
+messaging parsers is a mining exercise, not a delete — several carry forensic guarantees earned
+the hard way (bodyless-MMS retention, outbound roles 2/4/5/6).
+
+**Gap 4 — everything parsed in Python is invisible to the GUI.** The SBV frontend shows what the
+Go engine imported. The 11 AI-chat parsers, the whole repair layer, and the Python messaging
+parsers produce records the app cannot display, browse, or hash-inspect. Each port item therefore
+carries a frontend slice, and "ported" without GUI surface does not count as done.
+
+## Explicitly OUT of scope
+
+- **Google Timeline / location JSON — PARKED** by owner directive (2026-07-03, restated
+  2026-08-09 and 2026-08-10). `internal/google_timeline_importer.go` does not exist and must not be
+  proposed until the owner raises it.
+- **New Google Takeout work generally — parked.** Note the precise boundary: Takeout decoders that
+  **already ship** stay live and are not being un-shipped — `google_chat` emits
+  `format = "takeout-messages-json"` (`google_chat_importer.go:212`), and `google_voice_html` and
+  `mbox` are registered. Parking applies to *remaining* Takeout work, chiefly Timeline.
+- None of the four gaps above is Timeline or Takeout work.
+- **Rewriting the repair engine in Go** — explicitly ruled out by the owner 2026-08-10. Python is
+  fine provided the Go app can call it.
+
+## Open questions (blocking sign-off)
+
+1. **ADR-0044 boundary.** If AI chats parse through the Go custody engine, does the
+   evidence-schema ban still hold on the storage side alone? Owner ruling needed.
+2. **Sequencing.** Repair call seam first (unblocks every format) or AI-chat decoders first
+   (closes the visible coverage hole)?
+3. **Duplicate messaging parsers.** Retire the Python nine after Go parity is proven, or keep them
+   as a comparison lane the way SBV itself was kept during its demotion?
+4. **Repair call mechanism.** How does the Go app invoke Python repair — subprocess per file, a
+   long-running local HTTP service, or a sidecar container? Each differs on latency, streaming
+   support, deployment complexity, and what happens when repair is down (fail the import, or
+   import unrepaired and flag it?).
+5. **GUI depth per format.** Does every format need the full SMS/MMS treatment (thread browse,
+   search, media, custody inspect), or a generic record view first with format-specific views
+   added later?
+6. **Fork divergence budget.** How far may the fork drift from `lowcarbdev/sbv` before upstream
+   syncs stop being practical? A universal parser plus a repair layer is a large addition to a
+   stock SMS viewer.
+
+## Consequences
+
+- One parsing implementation, one detection registry, one custody chain — the "which parser ran?"
+  ambiguity disappears.
+- Every format gains repair and hashing for free, including AI chats and documents.
+- Cost is real, but **smaller than a full port**: repair stays Python, so the bulk of the work is
+  the call seam, the AI-chat/transcript decoders, and the GUI slices. Forensic guarantees pinned by
+  Python tests must be re-pinned wherever their parser moves.
+- A cross-language call seam is a new operational dependency: the Go app now needs Python repair
+  present and healthy, which is a deployment and failure-mode concern the current split avoids.
+- Until signed, **ADR-0048 remains the operative statement** and SBV stays a messaging/email
+  engine. Nothing here authorises code changes.
+
+## Alternatives considered
+
+- **Leave the split as-is** (Go = evidence messaging, Python = everything else) — rejected by the
+  owner's 2026-08-10 statement; also leaves AI chats permanently without custody hashing, and
+  leaves SBV-imported files with no repair pass at all.
+- ~~**Port the parsers but leave repair in Python** — rejected: a Go parser calling back into
+  Python for repair reintroduces the two-system problem.~~ **REVERSED 2026-08-10 by the owner:
+  this is the chosen approach.** "if the repair engine can be called on and utilized inside of the
+  go application and still be python then it's fine." The two-system objection does not apply —
+  one *application* owns the pipeline, and repair is a called component inside it.
+- **Rewrite the repair engine in Go** — rejected by the owner 2026-08-10; also discards the
+  mature Python repair libraries for no functional gain.
+- **Rewrite parsing in Python instead of Go** — rejected: discards a shipped, tested Go engine with
+  custody hashing already in it, and abandons the SBV app the GUI is modelled on.

@@ -58,6 +58,8 @@ guarantee gets an ADR. One short record. Supersede (don't edit) when a decision 
 | 0045 | Horizon clocks (visible_from, computed live) + checkpoint-derivation architecture + A.4 realization_event amendment (found-out knowledge in its own table; contradiction events = the lie register); ratifies the six-clock ruling; amends canon §1; closes OQ-1 | **Accepted** (owner signed 2026-08-09, Option A + A.4; D-042 — S6 unblocked) |
 | 0046 | Universal MCP exposure contract: progressive disclosure, annotations, pagination, server-side horizon binding (pays canon §5's "needs ADR") | **Accepted** (owner signed 2026-08-09; D-042) |
 | 0047 | Audit-everything ledger: ops.audit_ledger, hash-chained, append-only, READS included | **Accepted** (owner signed 2026-08-09; D-042) |
+| 0048 | Go worker layer = the SBV universal import engine (not a second binary); messaging lane first, Google Timeline parked | **Accepted / Realized** (architecture shipped in PR #18 `aacf21c` 2026-08-06; status corrected from ~~PROPOSED~~ 2026-08-10, D-044 — index row backfilled the same day, the file shipped without one) |
+| 0049 | SBV is the universal parsing system — all transcripts + all parsing, **mostly** Go, repair reachable (may stay Python), custody hashing, SBV app GUI retained (it's a fork of `lowcarbdev/sbv`) | **Proposed** (owner target stated 2026-08-10; writes down 4 gaps: Go app can't call the repair engine, zero AI-chat decoders in Go, two competing detection registries, no GUI surface for Python-parsed records. Timeline/Takeout explicitly out of scope. No code until signed) |
 
 > The full vision, current stack, roadmap, access, and gotchas live in
 > [`docs/PROJECT_CANON.md`](../PROJECT_CANON.md) (the durable source of truth).
