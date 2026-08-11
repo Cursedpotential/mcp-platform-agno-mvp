@@ -52,6 +52,59 @@ listed here so Lane A can carry it through the repack:
 - In flight: exec-tier redeploy-from-main verification (background watcher);
   Portkey routing configs pending an owner planning session.
 
+### LANE D — "Knowledge/Memory redesign (ADR-0050)" — ACTIVE 2026-08-10→11 (smart-explore session)
+**Scope:** the six-lane knowledge architecture + memory namespaces, owner-approved plan
+(ADR-0050 Accepted). Executing phases in order; each phase ships to `main` when its tests pass.
+- **SHIPPED on main already (pull before you commit):**
+  - `e5297a9` audit(2026-08-09) S1-S5 + tonight's doc reconciliation
+  - `106aacb` **S10 compose consolidation (D-043): root `compose.<name>.yaml` files MOVED to
+    `deploy/<name>.yaml`** — 13 Coolify apps repointed live via API; root keeps only
+    `compose.yaml` + `compose.data-surreal.yaml` (PARKED marker). Any doc/script that
+    references old root compose paths is stale.
+  - `2b37a4b` C1 done — `sql/bootstrap/schema_baseline.sql` regenerated from LIVE (verify
+    PASS, 156 tables; live DB is FULLY migrated incl. ops.audit_ledger + working gate layer —
+    the June "only 0001-0003 applied" fear is dead)
+  - `5c27336` DEBT parser-lane **item 0**: ADR-0044 blob ban unenforced
+    (`whole_file_fallback` reachable from evidence workflows) — assigned to **S7**; if your
+    lane is the SBV/parser lane (ADR-0049), item 0 is probably yours — both fix options are
+    written in `docs/DEBT.md`.
+  - `a5e67d1` ADR-0050 Accepted + ADR-0020/0030 amendments (rclone = transport ONLY —
+    owner emphatic; pg_duckdb = bulk-ingestion point)
+  - `0b0402a` **Phase 1**: `get_postgres_db(contents_table=…)` now HONORED (per-table
+    PostgresDb cache, all `id="agentos-db"`); `register_run_routes` grew an
+    `evidence_knowledge=` param — **sms-xml workflow now vectors into `evidence_knowledge`,
+    not the platform collection**; `store.py` `derived_dir` default moved to
+    `data/derived/transcripts` (out of the ingest roots).
+- **IN FLIGHT (Lane D owns these files — coordinate here before editing):**
+  `server/core/session.py` · `server/api/main.py` · `server/api/run_routes.py` ·
+  `server/evidence/store.py` · `scripts/ingest_knowledge.py` ·
+  `server/analysis/context_chat_ingest.py` · (Phases 4-5) `server/agents/factory.py`,
+  `server/agents/providers.py` · `docs/adr/0050-*`
+- **Phase queue:** 2 = six-lane registry + unified `lane` vocabulary + re-ingest (drops +
+  recreates ALL Weaviate collections — flag here before you rely on current vector contents);
+  3 = evidence horizon-gated retrieval seam (`server/evidence/retrieval.py`, new);
+  4 = agent→lane wiring; 5 = memory namespaces; 6 = chunking baseline; 7 = pg_duckdb staging.
+- **Lane D does NOT touch:** SBV Go code (`vendored/sbv/`), parser modules
+  (`server/tools/parsers/**`), ADR-0049 scope, sql/ migrations (additive staging migration in
+  Phase 7 only).
+
+## Hazards / heads-up board (2026-08-10→11 additions, Lane D)
+- **Milvus (`data-vector`) is DOWN DELIBERATELY** — 6th embedded-etcd corruption 2026-08-10;
+  owner ruling: "leave it down." Do NOT restart the app; it will crash-loop. memsearch lane
+  offline. Volume untouched at `/data/agno/volumes/milvus` on ovh2.
+- **exec-tier is DOWN (OVH VPS 40.160.5.19 unreachable — bill)** — all exec Coolify apps
+  `exited`; live end-to-end verification of anything API-side is blocked until the box
+  returns. Phase 1 live verification is queued on this.
+- **Weaviate/PG/Neo4j on ovh-files are UP and healthy** (verified 2026-08-10, incl. after the
+  S10 push auto-redeployed the data apps on their new `deploy/` paths).
+- **`get_postgres_db` semantics changed** (Phase 1): passing `contents_table` now returns a
+  per-table instance instead of warning + returning the platform singleton. If your lane
+  constructs PostgresDb or relies on the old warning behavior, re-check.
+- Coolify apps now point at `deploy/<name>.yaml` on main — **merging main into
+  `infra/librechat`, `infra/nocodb`, or `workbench/sprint` will silently break those
+  branch-scoped deploys** unless their Coolify `docker_compose_location` is updated first
+  (warning also in REPO_STRUCTURE.md, D-043).
+
 ## FROZEN (owner mandate, 2026-07-08)
 - Live PG data: unchanged until the Lane-B brainstorm lands
 - Ingestion + detection logic: as-is (structure moves it; behavior identical)
