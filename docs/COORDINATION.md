@@ -89,8 +89,9 @@ listed here so Lane A can carry it through the repack:
   WIRED + LIVE-VERIFIED** — chunks land ≤1500 (RecursiveChunking baseline); note agno 2.8.6
   gotcha we hit: readers are lazy (`Knowledge._get_reader` caches on first use), so the
   wire-up pre-warms the reader cache — mutating `knowledge.readers` post-construction is a
-  silent no-op. 3 = evidence horizon-gated retrieval seam (`server/evidence/retrieval.py`,
-  new) — NEXT; 4 = agent→lane wiring; 5 = memory namespaces; ~~6 = chunking baseline~~
+  silent no-op. ~~3 = evidence horizon-gated retrieval seam~~ **DONE 2026-08-11** (`b283958` —
+  `server/evidence/retrieval.py`, first live caller of audit.record_read; 7 tests);
+  4 = agent→lane wiring — NEXT; 5 = memory namespaces; ~~6 = chunking baseline~~
   (your seam + our wire-up = shipped; the evals A/B harness remains); 7 = pg_duckdb staging.
 - **Lane D does NOT touch:** SBV Go code (`vendored/sbv/`), parser modules
   (`server/tools/parsers/**`), ADR-0049 scope, sql/ migrations (additive staging migration in
