@@ -13,10 +13,11 @@ Workflows registered here:
                     -> knowledge engine (domain-tagged). THE BOOTSTRAP VERTICAL.
 
   sms-xml         : "SMS Backup & Restore" XML (sms/mms/call) -> custody ->
-                    parse.sms-xml (primary = first registry candidate; SBV DEMOTED 2026-08-02 (gap-review P0-1: unscoped /api/activity),
-                    so sms_xml.py is the effective primary
-                    substitution) -> working.normalized_record -> knowledge.
-                    Workflow A (the SBV vertical). Mirrors chat-transcript.
+                    parse.sms-xml (primary = SBV since PR #18 / aacf21c 2026-08-06;
+                    the 2026-08-02 demotion was LIFTED once import-scoped reads
+                    landed — DECISION_LOG D-040; sms_xml.py is the pure-Python
+                    FALLBACK when SBV is unwired) -> working.normalized_record ->
+                    knowledge. Workflow A (the SBV vertical). Mirrors chat-transcript.
 
 Both runners accept an optional `run_id` (C0 operator-console run ledger,
 server/evidence/run_ledger.py): when set, every step is wrapped so
@@ -705,7 +706,7 @@ def build_sms_xml_workflow(
 
     wf = Workflow(
         name="sms-xml",
-        description="SMS-XML ingestion (pure-Python primary; SBV demoted to shadow 2026-08-02): custody -> parse -> store -> knowledge",
+        description="SMS-XML ingestion (SBV primary since PR #18 2026-08-06, D-040; sms_xml.py is the pure-Python fallback): custody -> parse -> store -> knowledge",
         steps=[
             # on_error="fail" overrides agno's actual Step default
             # (OnError.skip — see the C2.6 module-docstring note above) so an
@@ -819,7 +820,7 @@ async def run_sms_xml(
 
 NAMED_WORKFLOWS: dict[str, str] = {
     "chat-transcript": "AI-chat exports -> custody -> parse -> analysis + knowledge (bootstrap vertical)",
-    "sms-xml": "SMS Backup & Restore XML (pure-Python primary; SBV shadow since 2026-08-02) -> custody -> parse -> analysis + knowledge (Workflow A)",
+    "sms-xml": "SMS Backup & Restore XML (SBV primary since PR #18 2026-08-06, D-040; sms_xml.py fallback) -> custody -> parse -> analysis + knowledge (Workflow A)",
 }
 
 # C0 operator console: seed order for ops.workflow_run_stage per named

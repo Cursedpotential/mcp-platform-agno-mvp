@@ -34,7 +34,7 @@ Inventory complete (`EVIDENCE_MERGE_MAP.md`).
 ## Phase B — Knowledge ingestion + bootstrap loop
 
 **Goal:** parsed+segmented transcripts land in the domain-partitioned knowledge engine so agents can answer "what did we decide/plan."
-- Route segments into the four domains (`platform_design` / `legal_strategy` / `timeline_relationship` / `personal_history`) by segment-level tags, `MIXED`/`UNKNOWN` catch-alls; domains stay separate (CANON §3).
+- Route segments into ~~the four domains (`platform_design` / `legal_strategy` / `timeline_relationship` / `personal_history`)~~ **the SIX lanes (`platform` · `legal` · `personal_history` · `relationship_timeline` · `context` · `evidence`) — superseded 2026-08-10 by ADR-0050** by segment-level tags, `MIXED`/`UNKNOWN` catch-alls; lanes stay structurally separate (one Weaviate collection each, ADR-0050 §1; CANON §3). Migration map: `platform_design`→`platform`, `legal_strategy`→`legal`, `timeline_relationship`→`relationship_timeline`, `personal_history`→`personal_history`. One conversation routes into MULTIPLE lanes at the segment level (ADR-0051 invariant 5). — _corrected Claude Code · Opus 4.8 · 2026-08-10_
 - Ingest the platform-design + legal-strategy conversation history first (fuels the bootstrap loop).
 - **Done when:** a Builder agent answers a grounded question about a past design decision, citing the source transcript.
 
