@@ -377,7 +377,7 @@ def create_knowledge(name: str, table_name: str, use_code_embedder: bool = False
     else:
         embedder = _embedder(EMBED_TEXT_ID, EMBED_TEXT_DIM, _EMBED_TEXT_BASE_URL, _EMBED_TEXT_API_KEY)
 
-    return Knowledge(
+    knowledge = Knowledge(
         name=name,
         # VerifiedWeaviate (not the raw agno Weaviate class): agno's Weaviate
         # silently skips documents whose embedding is None and still reports
@@ -400,3 +400,19 @@ def create_knowledge(name: str, table_name: str, use_code_embedder: bool = False
         ),
         contents_db=get_postgres_db(contents_table=f"{table_name}_contents"),
     )
+
+    # ADR-0050 Phase 6 wire-up (seam built by the chunking lane —
+    # server/analysis/chunking_policy.py): every reader gets the lane's
+    # chunker, baseline RecursiveChunking today (tuned=False; the Chonkie
+    # transcript hybrid is a gated opt-in after the evals A/B). ``name`` is
+    # the lane for the six ADR-0050 bases; non-lane names (tests, ad-hoc
+    # bases) keep agno's default chunking untouched.
+    try:
+        from server.analysis.chunking_policy import LANES, lane_chunker
+    except Exception:  # pragma: no cover — seam module absent in stripped envs
+        return knowledge
+    if name in LANES:
+        chunker = lane_chunker(name)
+        for reader in (knowledge.readers or {}).values():
+            reader.chunking_strategy = chunker
+    return knowledge

@@ -318,7 +318,10 @@ async def write_chunks_to_weaviate(
                 name=_weaviate_name(chunk),
                 text_content=chunk.text,
                 metadata={
-                    "tier": "context",
+                    "lane": "context",  # ADR-0050 §3 unified vocabulary
+                    "doc_type": "chat",
+                    "case_id": "primary",
+                    "tier": "context",  # legacy key retained — docs/filters reference it
                     "disclaimer": "unverified lead - verify against primary evidence",
                     "source": chunk.source,
                     "conversation_id": chunk.conversation_id,

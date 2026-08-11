@@ -71,23 +71,25 @@ scheduler_base_url: str = getenv("AGENTOS_URL", "http://127.0.0.1:8000")
 # the background retry loop after the app object exists.
 _knowledge_handle = KnowledgeHandle(lambda: create_knowledge("platform", "platform_knowledge"))
 
-# Named knowledge bases (2026-08-04). The platform ran ONE instance, so
-# "platform" was the only selectable knowledge base in the UI — even though
-# knowledge/legal/ has been on disk for weeks and evidence is the point of the
-# product. AgentOS takes a LIST; each entry becomes its own selectable base.
+# Named knowledge bases — the SIX-LANE architecture (ADR-0050, 2026-08-10).
+# AgentOS takes a LIST; each entry becomes its own selectable base.
 #
-# Storage split, deliberately: all bases share the single contents db (one
-# PostgresDb since the 2026-08-04 flatten) because agno's contents table
-# carries a `linked_to` column that attributes each row to its own instance.
-# Vectors do NOT share — one Weaviate collection per base, since the embedder
-# is a pinned per-collection contract (ADR-0010) and mixing corpora in one
-# collection silently destroys retrieval margin.
+# Storage (ADR-0050 Phase 1): each base gets its OWN contents table (per-table
+# PostgresDb cache in session.py, all sharing id="agentos-db") AND its own
+# Weaviate collection — the embedder is a pinned per-collection contract
+# (ADR-0010; all lanes currently nv-embed-v1 per owner ruling 2026-08-10,
+# per-lane embedders are a future experiment) and mixing corpora in one
+# collection silently destroys retrieval margin. Evidence isolation is
+# STRUCTURAL: a missed filter can never leak evidence into other lanes.
 #
 # Each base gets its OWN handle so a vector-store outage degrades one base
-# instead of all three (same boot-resilience contract as the platform handle).
+# instead of all of them (same boot-resilience contract as the platform handle).
 _KNOWLEDGE_BASES: dict[str, str] = {
-    "legal": "legal_knowledge",        # knowledge/legal — coercive-control rubrics, MCL
-    "evidence": "evidence_knowledge",  # case corpus; horizon-filtered at retrieval
+    "legal": "legal_knowledge",        # strategy + documents ONLY (owner 2026-08-10)
+    "evidence": "evidence_knowledge",  # custody-approved records ONLY; horizon-gated retrieval
+    "personal_history": "personal_history_knowledge",          # ADR-0050: own lane
+    "relationship_timeline": "relationship_timeline_knowledge",  # ADR-0050: own lane, ≠ personal_history
+    "context": "platform_context",     # AI chats (ADR-0044 context corpus; existing collection)
 }
 _extra_knowledge_handles: dict[str, KnowledgeHandle] = {
     name: KnowledgeHandle(lambda n=name, t=table: create_knowledge(n, t))

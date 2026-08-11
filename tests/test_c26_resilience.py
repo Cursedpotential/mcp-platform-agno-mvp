@@ -389,7 +389,7 @@ def test_ingest_into_knowledge_retries_transient_then_succeeds(monkeypatch, tmp_
     attempts: list[dict] = []
     n = asyncio.run(
         store_mod.ingest_into_knowledge(
-            _FakeKnowledge(), [rec], _artifact(), "platform_design", derived_dir=tmp_path, attempts_log=attempts
+            _FakeKnowledge(), [rec], _artifact(), "context", derived_dir=tmp_path, attempts_log=attempts
         )
     )
 

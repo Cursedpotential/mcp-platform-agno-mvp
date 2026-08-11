@@ -36,12 +36,19 @@ from pathlib import Path
 ALLOWED_EXT = {".md", ".txt", ".json", ".csv", ".pdf", ".docx"}
 MAX_SIZE = 50 * 1024 * 1024  # 50 MB
 
-# domain -> root. KNOWLEDGE_BASE_PATH still overrides the platform root so the
-# existing env contract keeps working; KNOWLEDGE_LEGAL_PATH does the same for
-# legal. A root that does not exist is skipped, not fatal.
+# lane -> root (ADR-0050 six-lane vocabulary). KNOWLEDGE_BASE_PATH still
+# overrides the platform root so the existing env contract keeps working;
+# KNOWLEDGE_LEGAL_PATH does the same for legal. A root that does not exist is
+# skipped, not fatal. NOTE deliberate absences: `evidence` has NO folder-walk
+# root, ever — its only writer is the custody path (ADR-0050 §4); `context`
+# ingests via server/analysis/context_chat_ingest.py, not a folder walk.
 KNOWLEDGE_ROOTS: dict[str, Path] = {
     "platform": Path(getenv("KNOWLEDGE_BASE_PATH", "/app/knowledge/platform")),
     "legal": Path(getenv("KNOWLEDGE_LEGAL_PATH", "/app/knowledge/legal")),
+    "personal_history": Path(getenv("KNOWLEDGE_PERSONAL_HISTORY_PATH", "/app/knowledge/personal_history")),
+    "relationship_timeline": Path(
+        getenv("KNOWLEDGE_RELATIONSHIP_TIMELINE_PATH", "/app/knowledge/relationship_timeline")
+    ),
 }
 
 _SAFE = re.compile(r"[^a-z0-9\-_.]+")
@@ -87,10 +94,14 @@ async def ingest_all(knowledge, bases: dict | None = None) -> int:
             await target.ainsert(
                 name=name,
                 path=str(path),
+                # ADR-0050 §3 unified flat-scalar metadata: `lane` replaces the
+                # legacy `domain` key; `doc_type` carries the folder facet
+                # (was `category`). All scalars — Weaviate dict filters only.
                 metadata={
-                    "domain": domain,
-                    "category": category,
-                    "source_path": str(path),
+                    "lane": domain,
+                    "doc_type": category,
+                    "source": str(path),
+                    "case_id": "primary",
                 },
             )
             count += 1
@@ -103,8 +114,14 @@ async def main() -> None:
     from server.core import create_knowledge
 
     knowledge = create_knowledge("platform", "platform_knowledge")
-    # Route each domain to its own base (registered in server/api/main.py).
-    bases = {"legal": create_knowledge("legal", "legal_knowledge")}
+    # Route each lane to its own base (registered in server/api/main.py).
+    bases = {
+        "legal": create_knowledge("legal", "legal_knowledge"),
+        "personal_history": create_knowledge("personal_history", "personal_history_knowledge"),
+        "relationship_timeline": create_knowledge(
+            "relationship_timeline", "relationship_timeline_knowledge"
+        ),
+    }
     roots = ", ".join(f"{d}={p}" for d, p in KNOWLEDGE_ROOTS.items())
     print(f"Ingesting from {roots} ...")
     n = await ingest_all(knowledge, bases=bases)

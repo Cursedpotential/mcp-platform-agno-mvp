@@ -1,0 +1,1 @@
+Relationship-timeline knowledge lane (ADR-0050) — SEPARATE from personal_history (owner ruling 2026-08-10). Drop curated relationship/timeline source docs here; scripts/ingest_knowledge.py walks this root into relationship_timeline_knowledge. NEVER case evidence — that goes through custody.

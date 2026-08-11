@@ -52,7 +52,7 @@ def register_evidence_routes(app: FastAPI, knowledge: Any) -> None:
     async def import_evidence(
         file: UploadFile = File(...),
         workflow: str = Form("chat-transcript"),
-        domain: str = Form("platform_design"),
+        domain: str = Form("context"),  # ADR-0050: AI chats = context lane (was platform_design)
         source_meta: str = Form("{}"),
     ) -> dict[str, Any]:
         """Run an evidence workflow on an uploaded artifact; return its summary.

@@ -73,11 +73,15 @@ from server.evidence.run_ledger import create_run, get_run, list_runs, ping, see
 
 logger = logging.getLogger("evidence.runs")  # same logger name workflows.py/store.py use
 
+# ADR-0050 (2026-08-10): unified lane vocabulary (was the legacy four-domain
+# set — old values now 422 by design; migration map in ADR-0050 §3).
 _ALLOWED_DOMAINS = {
-    "timeline_relationship",
+    "platform",
+    "legal",
     "personal_history",
-    "platform_design",
-    "legal_strategy",
+    "relationship_timeline",
+    "context",
+    "evidence",
 }
 _ALLOWED_WORKFLOWS = {"chat-transcript", "sms-xml"}
 _ALLOWED_MODES = {"auto", "supervised"}
@@ -89,9 +93,12 @@ _ALLOWED_RETRY_FROM_STAGES = {"knowledge"}
 # C2.6 requirement 4: per-check timeout for GET /v1/health/deps.
 _HEALTH_DEPS_TIMEOUT_S = 3.0
 
+# ADR-0050 lane defaults: AI chats are CONTEXT (ADR-0044 §1); SMS/MMS custody
+# imports are EVIDENCE (they vector into evidence_knowledge via
+# `_knowledge_for` above — the lane tag and the destination handle agree).
 _DEFAULT_DOMAIN: dict[str, str] = {
-    "chat-transcript": "platform_design",
-    "sms-xml": "timeline_relationship",
+    "chat-transcript": "context",
+    "sms-xml": "evidence",
 }
 
 # Two-tier custody (operator-console-requirements.md addendum 2): the

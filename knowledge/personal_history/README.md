@@ -1,0 +1,1 @@
+Personal-history knowledge lane (ADR-0050). Drop curated personal-history source docs here; scripts/ingest_knowledge.py walks this root into personal_history_knowledge. NEVER case evidence — that goes through custody.

@@ -47,11 +47,18 @@ _engine = None
 
 logger = logging.getLogger("evidence.runs")
 
+# ADR-0050 (2026-08-10): the unified LANE vocabulary — replaces the legacy
+# four-domain set (timeline_relationship / personal_history / platform_design /
+# legal_strategy). Migration map lives in ADR-0050 §3. `lane` is written to
+# vector metadata alongside `doc_type` / `source` / `case_id` (flat scalars —
+# Weaviate dict filters only).
 KNOWLEDGE_DOMAINS = (
-    "timeline_relationship",
+    "platform",
+    "legal",
     "personal_history",
-    "platform_design",
-    "legal_strategy",
+    "relationship_timeline",
+    "context",
+    "evidence",
 )
 
 # ---------------------------------------------------------------------------
@@ -461,9 +468,13 @@ async def ingest_into_knowledge(
             await knowledge.ainsert(
                 name=doc_path.stem,
                 path=str(doc_path),
+                # ADR-0050 §3 unified flat-scalar metadata: `lane` replaces the
+                # legacy `domain` key; doc_type/source/case_id are the shared
+                # facets; horizon axes ride along for the evidence lane.
                 metadata={
-                    "domain": domain,
-                    "category": "transcripts",
+                    "lane": domain,
+                    "doc_type": "transcript",
+                    "source": conv_id,
                     "artifact_id": artifact.artifact_id,
                     "sha256": artifact.sha256,
                     "conversation_id": conv_id,
