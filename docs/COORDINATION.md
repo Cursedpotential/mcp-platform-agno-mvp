@@ -360,3 +360,37 @@ tag → CI builds → bump the tag in `docker/tools/Dockerfile`. Image name MUST
   recall fragments → `../_stale/repo-recall-fragments-2026-07-08/`, goals/.planning/plans
   consolidated into `docs/planning/`). Next: seed reconciliation (read-only vs live), then
   Tier 3 repack. Final deliverable: illustrated HTML report in `docs/planning/`.
+
+## 2026-08-11 — Lanes now: KB-STRUCTURE chat + PARSER/CHUNKING chat (this one)
+
+> Owner 2026-08-10/11: "the team is you + me + the other chat." The other chat is **strictly
+> KB-based structure** (six-lane ADR-0050 build). THIS chat owns the **parser + chunking** lane.
+> Nothing is live yet — correctness first, get it deployable soon. Owner will have the KB chat log
+> its own entry; below is the parser/chunking lane so we don't collide.
+
+### KB-STRUCTURE lane (the other chat) — DO NOT edit these from the parser/chunking chat
+Owns the six-lane KB build (ADR-0050 + `plans/…glittery-summit`): `server/core/session.py`
+(per-contents-table PG cache — DONE `0b0402a`), `server/api/main.py` knowledge handles,
+`server/evidence/store.py` lane vocabulary + `ingest_into_knowledge`, `create_knowledge` /
+`KnowledgeHandle`, evidence retrieval seam, agent→lane wiring. **Committed so far:** Phase 0
+`a5e67d1` (ADR-0050 accepted), Phase 1 `0b0402a` (stop evidence/platform conflation). Phases 2–4
+(six-lane vocab in store.py, re-ingest, retrieval seam, agent→lane) are theirs and NOT done yet.
+
+### PARSER / CHUNKING lane (this chat) — what I own + committed
+- **Parser lane (ADR-0049/0048 docs):** SBV = universal parser; corrected SBV-shadow drift;
+  ADR-0051 (ingest pipeline: parse→[PG change-detection]→extract→HITL); DEBT 0b (Python SMS parser
+  iterative+spill). Commits `3a156bf`→`9c8d329`, D-045.
+- **Chunking lane (Phase 6 — independent):** Chonkie installed torch-free (`chonkie 1.7.0`,
+  `chonkie[semantic,code,table]`, model2vec, NO torch); wrapped as Agno `ChunkingStrategy` in
+  `server/analysis/chonkie_chunkers.py` (CPU-friendly local; Neural/Late/Slumber = remote-MCP
+  stubs that RAISE, never local torch — D-046). Commits `1c7e95b`+`849c1d0`.
+- **THE SEAM for the KB lane to consume:** `server/analysis/chunking_policy.py` →
+  `lane_chunker(lane, tuned=False)`. Baseline = Agno-native `RecursiveChunking` (**no chonkie
+  dep** — adopt today); `tuned=True` gives transcript lanes (context, relationship_timeline) the
+  Chonkie semantic+fixed hybrid. **KB chat: import this in `create_knowledge` for Phase 6 instead
+  of hardcoding a chunker** — that's the clean handoff, no file collision.
+- **Not colliding:** I only touch `server/analysis/{chonkie_chunkers,chunking_policy}.py`, `tests/`,
+  and parser/chunking docs. I do NOT edit the KB-structure files above.
+- **Next in my lane (non-colliding):** chonkie[api]→MCP tool; remote GPU executor (Colab/RunPod
+  scale-to-zero) for the heavy chunkers; add `chonkie[semantic,code,table]` to requirements via
+  proper lockfile regen. Follow-up: Docling (separate).
