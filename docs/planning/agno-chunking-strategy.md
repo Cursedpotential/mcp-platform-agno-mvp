@@ -247,3 +247,70 @@ Net: build the `SemanticFixedHybridChunking` custom strategy in §3, start at th
 ### Source index
 - Installed source (authoritative): `.venv/Lib/site-packages/agno/knowledge/chunking/{strategy,fixed,recursive,document,markdown,semantic,agentic,code,row}.py`; embedder base `.../knowledge/embedder/base.py`; version `agno-2.6.13.dist-info`.
 - Live docs (agno-docs MCP): `knowledge/concepts/chunking/overview`, `.../semantic-chunking`, `.../fixed-size-chunking`, `.../recursive-chunking`, `.../document-chunking`, `.../markdown-chunking`, `.../agentic-chunking`, `.../code-chunking`, `.../csv-row-chunking`, `.../custom-chunking`, `knowledge/concepts/performance-tips`, `examples/knowledge/chunking/custom-strategy-example`.
+
+---
+
+## 8. Chonkie direct integration — decision + verified state (2026-08-10)
+
+> _Section byline: Claude Code · Opus 4.8 · 2026-08-10._ Owner directive this session: wrap Chonkie
+> directly (not only the 2 chunkers Agno surfaces) and build it into the platform, with a
+> CPU-friendly-local / heavy-remote split. GUI claim was checked and **corrected**: Chonkie has NO
+> GUI — its `Visualizer` is a terminal (Rich console) component. Chonkie ships a REST API
+> (`chonkie[api]`), so **any GUI we want, we build ourselves** on that API (or surface chunk
+> previews in the SBV GUI, which already exists per ADR-0049).
+
+### 8.1 Verified install (torch-free)
+
+`uv pip install "chonkie[semantic,code,table]"` → **chonkie 1.7.0**, 18 packages, **NO torch /
+nvidia / transformers** (confirmed via `uv pip list`). Semantic embeddings come from **model2vec**
+(static, numpy-based `potion` models) — CPU-fast, no torch. Runtime smoke test passed torch-free:
+`RecursiveChunker`, `SentenceChunker`, and `SemanticChunker` (model2vec potion-base-8M, auto-
+downloaded once, cached) all produced chunks on a transcript snippet.
+
+### 8.2 Execution split — the load-bearing decision
+
+Chonkie 1.7.0 ships **11 chunkers**. All classes *import* torch-free; the heavy ones only need their
+backend at **runtime** (instantiation/inference). Split accordingly:
+
+| Chunker | Where it runs | Backend |
+|---|---|---|
+| `SemanticChunker` (model2vec), `RecursiveChunker`, `SentenceChunker`, `TokenChunker`, `FastChunker`, `CodeChunker` (tree-sitter), `TableChunker` | **LOCAL, in-process** | torch-free |
+| `NeuralChunker` (BERT) | **REMOTE MCP** (Colab now; scale-to-zero GPU rental e.g. RunPod as durable) | torch/transformers |
+| `LateChunker` | **REMOTE MCP** | long-context embedder |
+| `SlumberChunker` (LLM/agentic) | **REMOTE MCP** or skip for bulk | LLM (cost/non-deterministic — §2/§6: out for bulk ingest) |
+| `TeraflopAIChunker` | external TeraflopAI API | not ours; skip unless needed |
+
+**Rationale:** CPU-only box (hardware constraint) — never install torch locally just to have it
+importable. The heavy inference power (Neural/Late + other future ML) is rented on demand and
+driven over MCP, scale-to-zero so it costs nothing idle.
+
+### 8.3 Build plan
+
+1. **Local wrappers** — `server/analysis/chonkie_chunkers.py`: each CPU-friendly Chonkie chunker
+   wrapped as a custom Agno `ChunkingStrategy` (subclass, implement `chunk()`), following the §3
+   pattern. Re-verify the Agno base-class signature against the LIVE version (platform is agno
+   **2.8.x**; this report's §1 was verified on 2.6.13 — classes still present, confirm ctor args).
+2. **`chonkie[api]` as an MCP tool** — stand up Chonkie's REST API, wrap as an MCP server (use the
+   `mcp-server-dev:build-mcp-server` skill) so chunking is callable CLI→MCP→agents (platform
+   contract). This is also the seam a future custom GUI would call.
+3. **Remote heavy executor** — a Colab notebook (driven via MCP) for Neural/Late now; design a
+   scale-to-zero GPU rental (RunPod or similar) as the durable path, shared with other inference
+   needs. The local wrappers for heavy chunkers become thin MCP clients to this executor.
+4. **requirements.txt** — add `chonkie[semantic,code,table]` to the PROD lockfile (torch-free);
+   heavy chunkers are NOT added to the prod image (they live remote).
+5. **Preview** — chunk previews surface in the SBV GUI (ADR-0049 parse+preview), or a custom GUI
+   on the Chonkie REST API.
+
+### 8.4 Related follow-up
+
+**Docling** (owner flagged "probably need docling"): a separate library (document → markdown:
+PDF/DOCX/PPTX/XLSX). Not Chonkie. It has its own heavier deps and overlaps the doc-processing
+mega-plugin target. Track as its own decision; do NOT fold into the Chonkie install.
+
+### 8.5 Where chunking sits in the pipeline (ties to ADR-0051)
+
+Chunking is the **head of Stage 2 (extraction)**, after SBV parse+preview → PG, triggered by PG
+change-detection: `segment (turn-aware) → CHUNK (Chonkie semantic+fixed) → multipass classify →
+lane → Semantica extract → Graphiti timeline → 6 lanes`. The chunk is the unit the **multipass
+classifier routes to lanes** AND the unit stored/retrieved — so chunk quality directly sets
+lane-routing quality (the segment→lane step the current stopgap lacks, per D-045).
