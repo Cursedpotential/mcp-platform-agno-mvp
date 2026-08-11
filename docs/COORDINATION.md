@@ -80,10 +80,18 @@ listed here so Lane A can carry it through the repack:
   `server/evidence/store.py` · `scripts/ingest_knowledge.py` ·
   `server/analysis/context_chat_ingest.py` · (Phases 4-5) `server/agents/factory.py`,
   `server/agents/providers.py` · `docs/adr/0050-*`
-- **Phase queue:** 2 = six-lane registry + unified `lane` vocabulary + re-ingest (drops +
-  recreates ALL Weaviate collections — flag here before you rely on current vector contents);
-  3 = evidence horizon-gated retrieval seam (`server/evidence/retrieval.py`, new);
-  4 = agent→lane wiring; 5 = memory namespaces; 6 = chunking baseline; 7 = pg_duckdb staging.
+- **Phase queue:** ~~2 = six-lane registry + unified `lane` vocabulary + re-ingest~~ **DONE
+  2026-08-11** (`11929ed` + `8327bcb`): 6 lanes registered; `lane` vocabulary live (old domain
+  values 422/raise); platform+legal collections dropped + re-ingested with new metadata
+  (Platform_knowledge=208, Legal_knowledge=30 objects, live-verified); evidence stays 0 until
+  the exec tier returns (custody is its only writer); Platform_context untouched (its ledgered
+  ingest re-run is coordinated separately). **Your `chunking_policy.lane_chunker` seam is
+  WIRED + LIVE-VERIFIED** — chunks land ≤1500 (RecursiveChunking baseline); note agno 2.8.6
+  gotcha we hit: readers are lazy (`Knowledge._get_reader` caches on first use), so the
+  wire-up pre-warms the reader cache — mutating `knowledge.readers` post-construction is a
+  silent no-op. 3 = evidence horizon-gated retrieval seam (`server/evidence/retrieval.py`,
+  new) — NEXT; 4 = agent→lane wiring; 5 = memory namespaces; ~~6 = chunking baseline~~
+  (your seam + our wire-up = shipped; the evals A/B harness remains); 7 = pg_duckdb staging.
 - **Lane D does NOT touch:** SBV Go code (`vendored/sbv/`), parser modules
   (`server/tools/parsers/**`), ADR-0049 scope, sql/ migrations (additive staging migration in
   Phase 7 only).
