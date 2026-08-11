@@ -407,12 +407,23 @@ def create_knowledge(name: str, table_name: str, use_code_embedder: bool = False
     # transcript hybrid is a gated opt-in after the evals A/B). ``name`` is
     # the lane for the six ADR-0050 bases; non-lane names (tests, ad-hoc
     # bases) keep agno's default chunking untouched.
+    #
+    # agno 2.8.6 creates readers LAZILY (`Knowledge._get_reader` builds and
+    # caches on first use — knowledge.py:947), so mutating `knowledge.readers`
+    # right after construction touches an EMPTY dict and silently does nothing
+    # (caught live 2026-08-11: chunks landed at the FixedSize-5000 default).
+    # Pre-warm the ingestible reader types through the same `_get_reader`
+    # cache, then set the chunker on each — lazy lookups at ainsert time get
+    # the cached, chunker-equipped reader. `_get_reader` is private but it IS
+    # the cache: building readers any other way would bypass what ainsert uses.
     try:
         from server.analysis.chunking_policy import LANES, lane_chunker
     except Exception:  # pragma: no cover — seam module absent in stripped envs
         return knowledge
     if name in LANES:
         chunker = lane_chunker(name)
-        for reader in (knowledge.readers or {}).values():
-            reader.chunking_strategy = chunker
+        for reader_type in ("text", "markdown", "pdf", "json", "csv", "docx"):
+            reader = knowledge._get_reader(reader_type)  # creates + caches; None if dep missing
+            if reader is not None:
+                reader.chunking_strategy = chunker
     return knowledge
