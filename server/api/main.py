@@ -344,8 +344,13 @@ def _build_app() -> Any:
     from server.api.repair_routes import router as repair_router
     from server.api.run_routes import register_run_routes
 
+    # ADR-0050 Phase 1: messaging evidence (sms-xml) vectors into the EVIDENCE
+    # lane's handle — evidence_knowledge gets its first writer and stops
+    # leaking into the platform collection. evidence_routes is the
+    # chat-transcript vertical (CONTEXT per ADR-0044 §1) and stays on the
+    # platform handle until Phase 2 routes it to the context lane.
     register_evidence_routes(app, _knowledge_handle)
-    register_run_routes(app, _knowledge_handle)
+    register_run_routes(app, _knowledge_handle, evidence_knowledge=_extra_knowledge_handles["evidence"])
     register_inspect_routes(app, _knowledge_handle)
     app.include_router(repair_router)
 

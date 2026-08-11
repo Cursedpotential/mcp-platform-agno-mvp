@@ -291,41 +291,40 @@ def ensure_duckdb_r2_secret() -> bool:
         engine.dispose()
 
 
-# The knowledge-contents table the single db instance is built with. Matches
+# Default knowledge-contents table (the operational/platform instance). Matches
 # create_knowledge("platform", "platform_knowledge") -> "<table>_contents".
 _CONTENTS_TABLE = "platform_knowledge_contents"
-_PG_DB: PostgresDb | None = None
+# One PostgresDb per contents table, ALL sharing id=DB_ID (ADR-0050 Phase 1).
+_PG_DBS: dict[str, PostgresDb] = {}
 
 
 def get_postgres_db(contents_table: str | None = None) -> PostgresDb:
-    """THE database. ONE PostgresDb instance behind every AgentOS domain.
+    """THE database — one PostgresDb per knowledge-contents table, one shared id.
 
-    Returns the same object every call — a genuine singleton, not merely a
-    shared id. Both matter: sharing an id across two *distinct* PostgresDb
-    objects (one carrying ``knowledge_table``, one not) makes agno log
-    "multiple distinct databases share id ...; keeping the first" and silently
-    drop one, which is the same shadowing hazard the old three-id split
-    existed to avoid. One object cannot shadow itself.
+    ADR-0050 (2026-08-10): each knowledge lane gets its OWN contents table, so
+    ``contents_table`` is now honored — a cached instance per table, every one
+    constructed with the same explicit ``id=DB_ID`` and default schema.
 
-    ``contents_table`` is accepted for call-site compatibility. The singleton
-    is already built with the platform contents table; a request for a
-    DIFFERENT table is logged rather than silently ignored, because it would
-    mean a second knowledge base needs its own db instance and id — a real
-    decision, not something to paper over.
+    Why the shared id is safe (verified against the INSTALLED agno 2.8.6, not
+    docs): AgentOS appends same-id instances under one registry key
+    (``os/app.py _register_db_with_validation``) and resolves per ``table=``;
+    the multi-db 400 gate counts distinct *ids*, not instances
+    (``os/utils.py get_db``); and Knowledge ``contents_db`` instances land in
+    the separate ``knowledge_dbs`` dict, which the gate never counts. The
+    pre-2026-08-10 docstring here claimed agno logs "multiple distinct
+    databases share id ...; keeping the first" — that string does not exist in
+    2.8.6; the claim was stale and is retracted.
+
+    ``get_postgres_db()`` (no arg) returns the platform-table instance — the
+    Agno OPERATIONAL store (sessions/memory/learnings/metrics) — unchanged
+    behavior for every existing caller.
     """
-    global _PG_DB
-    if _PG_DB is None:
-        _PG_DB = PostgresDb(id=DB_ID, db_url=db_url, knowledge_table=_CONTENTS_TABLE)
-    if contents_table is not None and contents_table != _CONTENTS_TABLE:
-        from agno.utils.log import log_warning
-
-        log_warning(
-            f"get_postgres_db(contents_table={contents_table!r}) but the single "
-            f"db instance is built with {_CONTENTS_TABLE!r}. Returning the "
-            "singleton; a second knowledge base needs its own db id (see the "
-            "2026-08-04 flatten note above)."
-        )
-    return _PG_DB
+    table = contents_table or _CONTENTS_TABLE
+    db = _PG_DBS.get(table)
+    if db is None:
+        db = PostgresDb(id=DB_ID, db_url=db_url, knowledge_table=table)
+        _PG_DBS[table] = db
+    return db
 
 
 def get_agno_db() -> PostgresDb:

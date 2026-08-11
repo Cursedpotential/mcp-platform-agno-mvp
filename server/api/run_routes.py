@@ -106,7 +106,7 @@ _DEFAULT_CUSTODY_TIER: dict[str, str] = {
 _TERMINAL_STATUSES = {"completed", "failed"}
 
 
-def register_run_routes(app: FastAPI, knowledge: Any) -> None:
+def register_run_routes(app: FastAPI, knowledge: Any, evidence_knowledge: Any | None = None) -> None:
     """Register the C0 run-ledger REST surface on the FastAPI app.
 
     Parameters
@@ -122,7 +122,22 @@ def register_run_routes(app: FastAPI, knowledge: Any) -> None:
         background reconnect succeeds sees the real knowledge engine even
         though this module was only ever registered once. A raw Knowledge
         instance or None (every pre-C3 caller/test) passes through unchanged.
+    evidence_knowledge:
+        ADR-0050 Phase 1 (2026-08-10): the EVIDENCE lane's handle. Messaging
+        evidence (the sms-xml workflow) vectors into `evidence_knowledge`, not
+        the platform collection — evidence and platform/legal must never mix.
+        chat-transcript stays on `knowledge` (AI chats are CONTEXT per
+        ADR-0044 §1 and move to the context lane in Phase 2 — handing them
+        the evidence handle would violate the evidence-vs-context boundary).
+        None (CLI/test callers) falls back to `knowledge`, preserving pre-0050
+        behavior.
     """
+
+    def _knowledge_for(workflow: str) -> Any:
+        # ADR-0050 lane routing, Phase 1 scope: sms-xml -> evidence lane.
+        if workflow == "sms-xml" and evidence_knowledge is not None:
+            return resolve_knowledge(evidence_knowledge)
+        return resolve_knowledge(knowledge)
 
     async def _execute_run(
         run_id: str,
@@ -160,7 +175,7 @@ def register_run_routes(app: FastAPI, knowledge: Any) -> None:
                 str(tmp_path),
                 source_meta=meta,
                 domain=domain,
-                knowledge=resolve_knowledge(knowledge),
+                knowledge=_knowledge_for(workflow),
                 run_id=run_id,
                 mode=mode,
                 custody_tier=custody_tier,
@@ -223,7 +238,7 @@ def register_run_routes(app: FastAPI, knowledge: Any) -> None:
                 run_id=new_run_id,
                 workflow=workflow,
                 domain=domain,
-                knowledge=resolve_knowledge(knowledge),
+                knowledge=_knowledge_for(workflow),
                 artifact_id=run["artifact_id"],
                 sha256=run["sha256"],
                 blob_key=blob_key,

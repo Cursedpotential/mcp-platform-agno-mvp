@@ -413,12 +413,20 @@ async def ingest_into_knowledge(
     records: list[NormalizedRecord],
     artifact: ArtifactRef,
     domain: str,
-    derived_dir: str | Path = "knowledge/platform/transcripts",
+    derived_dir: str | Path = "data/derived/transcripts",
     attempts_log: list[dict[str, Any]] | None = None,
     case_id: str = "primary",
 ) -> int:
-    """Render per-conversation markdown, persist under knowledge/, and ainsert
-    into the engine with the domain tag (agents filter on metadata.domain).
+    """Render per-conversation markdown, persist under ``derived_dir``, and
+    ainsert into the engine with the domain tag (agents filter on
+    metadata.domain).
+
+    ``derived_dir`` default moved OUT of the knowledge/ ingest roots
+    (ADR-0050 Phase 1, was ``knowledge/platform/transcripts``): the old
+    location was re-walked by ``scripts/ingest_knowledge.py`` and
+    double-indexed every evidence-derived transcript under a second,
+    incompatible domain tag. Derived artifacts are pipeline output, never
+    folder-walk ingest input.
 
     `attempts_log` (C2.6 requirement 2, optional): when given, each
     document's `knowledge.ainsert()` call is retried with bounded
