@@ -1,6 +1,13 @@
 # ADR-0020: Multi-domain knowledge engine — domain-separated, any-agent queryable
-- Status: Accepted
+- Status: Accepted (the domain-separation *shape* remains in force). **Taxonomy + storage
+  superseded by ADR-0050 (2026-08-10)**: six lanes (platform · legal · personal_history ·
+  relationship_timeline · context · evidence — owner: personal history and relationship history
+  are TWO different knowledge bases; evidence is its own horizon-gated lane, never conflated
+  with legal), one Weaviate collection per lane (not pgvector — ADR-0040), unified `lane`
+  flat-scalar metadata replacing this ADR's four `domain` values, and the agent-family mapping
+  updated in ADR-0050 §7. The below is kept for provenance.
 - Date: 2026-06-11
+- _Amended byline: Claude Code · Fable 5 · 2026-08-10_
 - Extends: ADR-0010 (one vector collection per embedder) and ADR-0011 (NIM embedder).
 
 ## Context

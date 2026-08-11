@@ -1,6 +1,13 @@
 # ADR-0030: Agno R2 access = pg_duckdb account-wide S3 secret (SQL) + rclone bucket mount (files); creds in Coolify
-- Status: **Accepted (2026-06-23)** — extends ADR-0007 (R2 landing zone) and ADR-0013 (pg_duckdb)
+- Status: **Accepted (2026-06-23)** — extends ADR-0007 (R2 landing zone) and ADR-0013 (pg_duckdb).
+  **AMENDED 2026-08-10 (owner ruling, emphatic; ADR-0050 §6): rclone is FILE TRANSPORT ONLY —
+  it moves/mounts bytes, it does not own "ingestion." The bulk-data INGESTION POINT is
+  pg_duckdb** (`read_parquet`/`read_csv`/`read_json` → `staging.*` tables → normalize →
+  custody). This ADR's phrase ~~"file-level ingestion → rclone"~~ should be read as
+  "file-level *access/transport* → rclone"; the ingestion role assignment is corrected here
+  rather than rewritten below (provenance).
 - Date: 2026-06-23
+- _Amended byline: Claude Code · Fable 5 · 2026-08-10_
 - _Byline: Claude Code · Opus 4.8 · 2026-06-23_
 - _Handoff 2026-06-25: drafted by the CaseBible ingestion workstream; ownership/maintenance transferred to the platform workstream (owner of this repo). File stays in place; revise as you see fit._
 
