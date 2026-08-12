@@ -194,3 +194,9 @@ AI commits carry: `Co-Authored-By: <agent name and model> <noreply@anthropic.com
 - Config accepted ≠ feature working: agno accepted `EntityMemoryConfig(mode=PROPOSE)` for months and silently did nothing. Verify features via docs + an observed write, never via config acceptance.
 - Custody canon tags name the exact construction: new H3 rows carry `h3-chain-sbv-genesisempty-v1`; legacy `h3-chain-v1` rows are read-only and disambiguated by writer (see docs/DECISION_LOG.md 2026-08-02).
 - Remove a worktree when its branch merges — 13 stale ones hid an unmerged security fix. Quarantine untracked remnants before `--force` removal.
+
+### Session Learnings 2026-08-12
+- Root `compose.yaml` is the stack definition that GETS MIRRORED TO THE VPS — never describe its comments/docs as "local dev" or "laptop-only" (owner correction 2026-08-12). Compose-file changes to live sections are production-facing edits.
+- Owner vocabulary: "artifact" = created WORKS (AI chats, generated documents/code). Never name extraction output tables/columns `artifact_*` — fact-claims are `claim_candidate` (entities can be merged/deduped; claims accumulate and are NEVER rewritten). Locked in ADR-0052 ruling Q6 / D-054.
+- Parent-workspace worktrees (E:/AI_Workspace/.claude/worktrees/*) materialize this repo as an EMPTY directory — it's a gitlink (mode 160000) in the parent tree, not files. Cross-tree drift checks must compare gitlink pins and main's log, not file contents; a pinned worktree is always an ancestor check away from proving divergence.
+- Engine-split routing is COVERAGE-based, never size-based (ADR-0052 ruling Q3): Go parses every format it has a decoder for, any size; Python serves uncovered formats or logged failure-fallback only. No byte thresholds anywhere in the router.
