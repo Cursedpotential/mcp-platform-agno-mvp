@@ -313,7 +313,6 @@ def store_context_records(records: list[NormalizedRecord]) -> int:
             "content": r.content,
             "occurred_at": r.occurred_at,
             "knowledge_time": r.knowledge_time,
-            "disclosure_tier": r.disclosure_tier.value,
             "content_hash": _record_content_hash(r),
             "attrs": json.dumps(r.attrs),
         }
@@ -324,10 +323,10 @@ def store_context_records(records: list[NormalizedRecord]) -> int:
             text(
                 "INSERT INTO working.context_record "
                 "(record_type, source, conversation_id, conversation_title, role, participants, "
-                " content, occurred_at, knowledge_time, disclosure_tier, content_hash, attrs) "
+                " content, occurred_at, knowledge_time, content_hash, attrs) "
                 "VALUES (:record_type, :source, :conversation_id, :conversation_title, :role, "
                 " CAST(:participants AS jsonb), :content, :occurred_at, :knowledge_time, "
-                " :disclosure_tier, :content_hash, CAST(:attrs AS jsonb)) "
+                " :content_hash, CAST(:attrs AS jsonb)) "
                 "ON CONFLICT (content_hash) DO NOTHING"
             ),
             rows,
@@ -365,7 +364,7 @@ def load_pending_context(sink: str) -> list[PendingRecord]:
             conn.execute(
                 text(
                     "SELECT id, record_type, source, conversation_id, conversation_title, role, "
-                    "participants, content, occurred_at, knowledge_time, disclosure_tier, attrs "
+                    "participants, content, occurred_at, knowledge_time, attrs "
                     f"FROM working.context_record WHERE {col} IS NULL "
                     "ORDER BY conversation_id NULLS LAST, occurred_at NULLS LAST"
                 )
@@ -394,7 +393,6 @@ def load_pending_context(sink: str) -> list[PendingRecord]:
                     content=row["content"] or "",
                     occurred_at=row["occurred_at"],
                     knowledge_time=row["knowledge_time"],
-                    disclosure_tier=row["disclosure_tier"],
                     attrs={**(attrs or {}), "conversation_title": row["conversation_title"]}
                     if row["conversation_title"]
                     else (attrs or {}),

@@ -72,9 +72,20 @@ lives in its OWN table, `working.realization_event`, not as columns updated on e
   both the assertion date and the found-out date — the courtroom artifact, catalogued for free.
 - **Workflow**: algorithm (Part 2 analysis, later) or any ingest lane PROPOSES events; the owner
   approves in batches through the native `@approval` queue. Nothing becomes visible-from-truth
-  unapproved. Per the OQ-8 ruling (D-042): HITL-only, with ONE exception — the AI-chat context
+  unapproved. ~~Per the OQ-8 ruling (D-042): HITL-only, with ONE exception — the AI-chat context
   lane auto-asserts `hindsight` tier at write (it is retrospective by nature); everything else
-  waits for the owner.
+  waits for the owner.~~ **REVISED 2026-08-12 (D-056, owner correction): OQ-8 is REVERSED for the
+  AI-chat context lane — it asserts NO tier at write. `working.context_record` carries no
+  `disclosure_tier` column at all (migration `sql/0023`, applied live 2026-08-12); the context
+  lane writes ONLY normalized data (`occurred_at` / `role` / `content` / `participants`). The
+  as-lived / how-I-saw-it / discovered / hindsight horizon is a QUERY-level distinction derived
+  from the clocks + HITL realization events — this ADR's A.4 `working.realization_event` + the
+  derived `vw_record_disclosure` view — never a stamp on the normalized row: not `contemporaneous`
+  (the old hardcode, which made every row a false as-lived assertion) and not `hindsight` (which
+  would re-introduce horizon logic at the ingest layer). `working.normalized_record` (the
+  evidence spine) KEEPS `disclosure_tier` as an asserted hint per Decision C — that is unchanged.
+  Owner verbatim (2026-08-12): "Normalized data just normalized fucking data … all that stuff
+  is a different fucking table just add the normalized fucking data ingest the fucking data."**
 
 ### B. Checkpoint-derivation architecture (amends canon §1)
 
