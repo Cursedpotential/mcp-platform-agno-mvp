@@ -1,9 +1,10 @@
 # ADR-0052: The PG-CDC spine, end-to-end AI-chat ingest with coverage-based engine split, and Stage-2 extraction (tools, not agents)
 
-> _Byline: Claude Code · Opus 4.x (draft) · 2026-08-12; amended Kimi K3 · 2026-08-12 (owner rulings on all 8 open questions — format/size split replaced by coverage-based Go-primary)_
+> _Byline: Claude Code · Opus 4.x (draft) · 2026-08-12; amended + SIGNED per owner · Kimi K3 · 2026-08-12 (owner rulings on all 8 open questions — format/size split replaced by coverage-based Go-primary)_
 
-- Status: DRAFT — all 8 open questions RULED by owner 2026-08-12 (see "Owner rulings" below);
-  awaiting final sign-off; no code until then
+- Status: **ACCEPTED — owner sign-off 2026-08-12 (15:50 EDT)** ("sign 52"), all 8 open questions
+  ruled same day (see "Owner rulings" / D-054). Phases 1+ may now be built (Phase 0 already
+  shipped as D-048).
 - Date: 2026-08-12 ~~(title said "size-based engine split")~~ **Corrected 2026-08-12, owner
   ruling Q3:** the engine axis is COVERAGE, not size — Go-primary wherever a Go decoder exists;
   Python only when no Go decoder exists for the format, or as failure-fallback (see Part 2).
