@@ -88,76 +88,52 @@ class ChonkieChunkingStrategy(ChunkingStrategy):
 
 
 # ---------------------------------------------------------------------------
-# CPU-friendly factories (torch-free) — transcript-sane defaults
+# CPU-friendly chunkers (torch-free) — one table-driven factory, no per-chunker boilerplate
 # ---------------------------------------------------------------------------
-# chunk_size units differ by chunker (Chonkie: tokens for most; Table: rows/chars).
-# Defaults are starting points to tune per docs/planning/agno-chunking-strategy.md §4.
+# Each spec is (chonkie class name, default chunk_size | None for chunkers that don't take one).
+# chunk_size units differ by chunker (Chonkie: tokens for most; Table: rows/chars). Defaults are
+# starting points to tune per docs/planning/agno-chunking-strategy.md §4.
+_CPU_SPECS: dict[str, tuple[str, int | None]] = {
+    "recursive": ("RecursiveChunker", 512),
+    "sentence": ("SentenceChunker", 512),
+    "token": ("TokenChunker", 512),
+    "semantic": ("SemanticChunker", 512),  # model2vec (static, torch-free)
+    "code": ("CodeChunker", 1500),
+    "table": ("TableChunker", None),
+}
 
 
-def recursive(chunk_size: int = 512, **kw: Any) -> ChonkieChunkingStrategy:
+def cpu_chunker(name: str, chunk_size: int | None = None, **kw: Any) -> ChonkieChunkingStrategy:
+    """Build a CPU-friendly (torch-free) Chonkie chunker as an Agno ChunkingStrategy, by short name.
+
+    The chonkie class is imported lazily inside the returned strategy so importing this module
+    stays torch-free (D-046). ``chunk_size=None`` uses the per-chunker default from ``_CPU_SPECS``.
+    """
+    cls_name, default = _CPU_SPECS[name]
+    size = default if chunk_size is None else chunk_size
+
     def _f() -> Any:
-        from chonkie import RecursiveChunker
+        import chonkie
 
-        return RecursiveChunker(chunk_size=chunk_size, **kw)
+        cls = getattr(chonkie, cls_name)
+        return cls(**({} if size is None else {"chunk_size": size}), **kw)
 
-    return ChonkieChunkingStrategy(_f, label="chonkie.recursive")
-
-
-def sentence(chunk_size: int = 512, **kw: Any) -> ChonkieChunkingStrategy:
-    def _f() -> Any:
-        from chonkie import SentenceChunker
-
-        return SentenceChunker(chunk_size=chunk_size, **kw)
-
-    return ChonkieChunkingStrategy(_f, label="chonkie.sentence")
-
-
-def token(chunk_size: int = 512, **kw: Any) -> ChonkieChunkingStrategy:
-    def _f() -> Any:
-        from chonkie import TokenChunker
-
-        return TokenChunker(chunk_size=chunk_size, **kw)
-
-    return ChonkieChunkingStrategy(_f, label="chonkie.token")
+    return ChonkieChunkingStrategy(_f, label=f"chonkie.{name}")
 
 
 def semantic(chunk_size: int = 512, **kw: Any) -> ChonkieChunkingStrategy:
-    """SemanticChunker on model2vec (static, torch-free). Downloads a small potion model once."""
+    """SemanticChunker on model2vec (static, torch-free) — the transcript hybrid's primary pass.
 
-    def _f() -> Any:
-        from chonkie import SemanticChunker
-
-        return SemanticChunker(chunk_size=chunk_size, **kw)
-
-    return ChonkieChunkingStrategy(_f, label="chonkie.semantic")
+    Kept as a named alias because it is the one CPU chunker with a production caller
+    (``TranscriptSemanticHybridChunking``). Downloads a small potion model once, then caches.
+    """
+    return cpu_chunker("semantic", chunk_size, **kw)
 
 
-def code(chunk_size: int = 1500, **kw: Any) -> ChonkieChunkingStrategy:
-    def _f() -> Any:
-        from chonkie import CodeChunker
-
-        return CodeChunker(chunk_size=chunk_size, **kw)
-
-    return ChonkieChunkingStrategy(_f, label="chonkie.code")
-
-
-def table(**kw: Any) -> ChonkieChunkingStrategy:
-    def _f() -> Any:
-        from chonkie import TableChunker
-
-        return TableChunker(**kw)
-
-    return ChonkieChunkingStrategy(_f, label="chonkie.table")
-
-
-#: CPU-friendly chunkers, addressable by short name (for a registry / config).
+#: CPU-friendly chunkers addressable by short name — DERIVED from _CPU_SPECS so the registry and
+#: the factory can never drift apart (each value builds that chunker with its default size).
 CPU_FRIENDLY: dict[str, Callable[..., ChonkieChunkingStrategy]] = {
-    "recursive": recursive,
-    "sentence": sentence,
-    "token": token,
-    "semantic": semantic,
-    "code": code,
-    "table": table,
+    name: (lambda n=name, **kw: cpu_chunker(n, **kw)) for name in _CPU_SPECS
 }
 
 
@@ -223,21 +199,21 @@ class _RemoteChunkerStub(ChunkingStrategy):
         raise NotImplementedError(_REMOTE_MSG.format(name=self.name, backend=self.backend))
 
 
-def neural() -> _RemoteChunkerStub:
-    return _RemoteChunkerStub("NeuralChunker", "torch/transformers")
+# Heavy chunkers: short name -> the backend they need (only relevant at runtime, on the remote box).
+_REMOTE_BACKENDS: dict[str, str] = {
+    "neural": "torch/transformers",
+    "late": "a long-context embedder",
+    "slumber": "an LLM",
+}
 
 
-def late() -> _RemoteChunkerStub:
-    return _RemoteChunkerStub("LateChunker", "a long-context embedder")
+def remote_chunker(name: str) -> _RemoteChunkerStub:
+    """A heavy chunker stub by short name — raises until the remote GPU executor lands (D-046)."""
+    return _RemoteChunkerStub(name.capitalize() + "Chunker", _REMOTE_BACKENDS[name])
 
 
-def slumber() -> _RemoteChunkerStub:
-    return _RemoteChunkerStub("SlumberChunker", "an LLM")
-
-
-#: Heavy chunkers, addressable by short name (all raise until the remote MCP executor lands).
+#: Heavy chunkers addressable by short name — DERIVED from _REMOTE_BACKENDS so the registry can't
+#: drift from the stubs. All raise until the remote MCP executor exists.
 REMOTE: dict[str, Callable[[], _RemoteChunkerStub]] = {
-    "neural": neural,
-    "late": late,
-    "slumber": slumber,
+    name: (lambda n=name: remote_chunker(n)) for name in _REMOTE_BACKENDS
 }

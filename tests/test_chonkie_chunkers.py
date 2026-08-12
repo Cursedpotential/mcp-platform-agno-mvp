@@ -28,7 +28,7 @@ def _doc() -> Document:
 
 
 def test_recursive_returns_agno_documents_with_provenance():
-    out = cc.recursive(chunk_size=128).chunk(_doc())
+    out = cc.cpu_chunker("recursive", 128).chunk(_doc())
     assert len(out) > 1
     assert all(isinstance(d, Document) for d in out)
     d0 = out[0]
@@ -41,7 +41,7 @@ def test_recursive_returns_agno_documents_with_provenance():
 
 def test_empty_document_passthrough():
     empty = Document(content="   ", name="empty", meta_data={})
-    assert cc.recursive().chunk(empty) == [empty]
+    assert cc.cpu_chunker("recursive").chunk(empty) == [empty]
 
 
 def test_cpu_registry_names():
