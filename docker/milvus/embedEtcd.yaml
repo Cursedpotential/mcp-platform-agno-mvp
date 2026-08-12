@@ -7,3 +7,12 @@ advertise-client-urls: http://0.0.0.0:2379
 quota-backend-bytes: 4294967296
 auto-compaction-mode: revision
 auto-compaction-retention: "1000"
+# Boot-race fix (2026-07-22): single-member embedded etcd on a busy VPS sees
+# 1.5s+ apply latencies at Milvus boot; default 100ms heartbeat / 1000ms
+# election flaps leadership -> Milvus sessionutil panics ("etcdserver: leader
+# changed") -> exit 134 crash loop (observed 3x). One-member cluster = no real
+# elections; these only govern self-leadership stability under I/O stall.
+# DRIFT-FIX 2026-08-12: repo copy was missing these two lines (host copy at
+# /data/agno/config/milvus/embedEtcd.yaml had them) — synced repo -> host.
+heartbeat-interval: 1000
+election-timeout: 10000

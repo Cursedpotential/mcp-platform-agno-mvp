@@ -98,9 +98,14 @@ listed here so Lane A can carry it through the repack:
   Phase 7 only).
 
 ## Hazards / heads-up board (2026-08-10→11 additions, Lane D)
-- **Milvus (`data-vector`) is DOWN DELIBERATELY** — 6th embedded-etcd corruption 2026-08-10;
-  owner ruling: "leave it down." Do NOT restart the app; it will crash-loop. memsearch lane
-  offline. Volume untouched at `/data/agno/volumes/milvus` on ovh2.
+- **Milvus (`data-vector`) — REBUILD IN PROGRESS (memsearch-only), 2026-08-12:** owner
+  reframed the 08-10 "leave it down" ruling — Milvus is memsearch-ONLY (Agno stays on
+  Weaviate, ADR-0040). Fresh Milvus v3 + Cloudflare R2 object store, image
+  3.0-20260811-7169df25-amd64, fresh volume /data/agno/volumes/milvus-memsearch on ovh-files
+  (ovh2). Do NOT restart the OLD app/config — it will crash-loop (6th etcd corruption,
+  08-10); the rebuild uses a fresh volume + R2. See Lane C ledger entry (2026-08-12).
+  Old volume /data/agno/volumes/milvus retired in place, NOT deleted. memsearch lane
+  offline until re-index (task #6).
 - **exec-tier is DOWN (OVH VPS 40.160.5.19 unreachable — bill)** — all exec Coolify apps
   `exited`; live end-to-end verification of anything API-side is blocked until the box
   returns. Phase 1 live verification is queued on this.
@@ -186,6 +191,19 @@ tag → CI builds → bump the tag in `docker/tools/Dockerfile`. Image name MUST
 `cursedpotential/sbv-forensic` in the workflow — `${{ github.repository }}`'s capital C breaks the push).
 
 ## Ledger (append below; newest on top)
+- **2026-08-12 — LANE C: Milvus memsearch-only REBUILD (gated → deploying):** owner
+  reframed the 08-10 "leave it down" ruling — Milvus is **memsearch ONLY** (Agno platform
+  stays on Weaviate, ADR-0040). Fresh Milvus v3 standalone (embedded etcd, fresh) +
+  Cloudflare R2 object store, on ovh-files (100.91.190.107). Image pinned to
+  3.0-20260811-7169df25-amd64 (dated, explicit amd64). Compose config embedded via
+  `configs:` (no host bind-mount → no SSH to edit). R2 bucket `milvus-memsearch` created;
+  creds set as Coolify app envs. LOCAL access = claude-context stdio MCP hits Milvus
+  DIRECTLY over tailnet (bypasses ContextForge); embeddings via NVIDIA OpenAI-compatible
+  endpoint (not OpenAI). Web/ContextForge facade DEFERRED. Commit: deploy/data-vector.yaml
+  + docker/milvus/{embedEtcd,user}.yaml only — no schema/ingestion/structure files.
+  Follow-on (separate gates): #6 repoint+re-index memsearch from ~89 journals; #7 fix the
+  broken claude-context stdio entry (MILVUS_ADDRESS=100.91.190.107:19530 + token +
+  OPENAI_BASE_URL=integrate.api.nvidia.com/v1). — _Claude Code · Fable 5 · 2026-08-12_
 - **2026-08-12 — CONTEXT ingest went PG-first (PARSER/CHUNKING lane · D-048):** owner ruling
   "it's all supposed to go back into pg And then change detection will move it into vector db."
   `server/analysis/context_chat_ingest.py` no longer dual-writes chat chunks straight to Weaviate/
