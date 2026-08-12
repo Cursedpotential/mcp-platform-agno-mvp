@@ -4,6 +4,9 @@ Covers the wrapper glue, not the parsers themselves (chatminer parse_content
 is exercised in test_parsers*.py): registration roster, substitution order
 (whole-file fallback LAST), and a real file -> records pass per transport shape
 (.json mapping tree, simple .jsonl, .md with role markers).
+
+_Byline: Claude Code · Kimi K3 · 2026-08-12 (stale roster fix: count 13→14 for the
+D-051 perplexity-contexts wrapper; de-numbered the test name so it stops rotting)_
 """
 
 from __future__ import annotations
@@ -33,14 +36,18 @@ def _builtins():
     load_builtin_tools()
 
 
-def test_all_ten_chatminer_wrappers_register():
+def test_all_chatminer_wrappers_register():
     ids = {t.id for t in registry.all() if t.capability == "parse.transcript"}
     assert CHATMINER_WRAPPER_IDS <= ids
     # Kept for unique coverage (HA.4 amendment) + the whole-file fallback:
     assert {"transcripts.claude-ai-export", "transcripts.claude-code-jsonl", "transcripts.markdown"} <= ids
     # Retired duplicate (chatminer chatgpt_official covers the format):
     assert "transcripts.chatgpt-export" not in ids
-    assert len(ids) == 13
+    # D-051 (2026-08-12, 57ec156): Perplexity contexts parser is wrapper #14 —
+    # the count below was stale at 13 (and the old `test_all_ten_...` name staler
+    # still); renamed so a wrapper add can't silently rot the roster again.
+    assert "transcripts.perplexity-contexts" in ids
+    assert len(ids) == 14
 
 
 def test_whole_file_fallback_resolves_last_for_md():

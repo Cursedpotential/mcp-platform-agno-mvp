@@ -26,6 +26,7 @@ explicit owner sign-off per the task brief: "Do NOT bulk-ingest until the
 owner sees the single-file result").
 """
 # Byline: Claude Code · Sonnet (agent) · 2026-08-01
+# Byline: Claude Code · Fable 5 · 2026-08-12 (D-053: --format now strict/bypasses the detection router; fail-fast exit 2 with a clear error)
 
 from __future__ import annotations
 
@@ -65,12 +66,16 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--engine",
         choices=["auto", "python", "go"],
         default="auto",
-        help="which parse engine: 'python' (in-process registry), 'go' (SBV service), or 'auto' (MVP=python)",
+        help="which parse engine: 'python' (in-process registry), 'go' (SBV service), "
+        "or 'auto' (detection router, Go-primary — the default)",
     )
     ap.add_argument(
         "--format",
         default=None,
-        help="parser/importer OVERRIDE, e.g. 'chatgpt-official-json' — skip detection (MVP; router deferred)",
+        help="force this FORMAT and bypass detection entirely: a router format id ('claude-ai-export', "
+        "'perplexity-contexts', 'chatgpt-official'), a Go SBV importer id ('chatgpt-official-json', ...), "
+        "or a Python parser id ('transcripts.<name>'). STRICT (D-053): a format the selected --engine "
+        "cannot handle, or one the parser rejects, errors with exit 2 — no fallback.",
     )
     ap.add_argument("--db-host", default=None, help="override DB_HOST for this process (Postgres source of truth + contents_db)")
     return ap.parse_args(argv)
@@ -83,37 +88,43 @@ def main(argv: list[str] | None = None) -> int:
 
     conversation_ids = set(args.conversation_ids) if args.conversation_ids else None
 
-    if args.path.lower().endswith(".zip"):
-        # Real exports arrive as a ZIP (conversations*.json + metadata + assets/).
-        from server.analysis.chat_archive import ingest_chat_archive
+    # Fail fast (exit 2) with a one-line error for operator mistakes — a bad
+    # --format/--engine combination, an unparsable file under an explicit
+    # override, a missing path — instead of a traceback (D-053: an explicit
+    # override must error LOUDLY, never silently fall back).
+    try:
+        if args.path.lower().endswith(".zip"):
+            # Real exports arrive as a ZIP (conversations*.json + metadata + assets/).
+            from server.analysis.chat_archive import ingest_chat_archive
 
-        report = asyncio.run(
-            ingest_chat_archive(
-                args.path,
-                engine=args.engine,
-                format=args.format,
-                conversation_ids=conversation_ids,
-                max_chars=args.max_chars,
-                dry_run=args.dry_run,
-                project=args.project,
+            report = asyncio.run(
+                ingest_chat_archive(
+                    args.path,
+                    engine=args.engine,
+                    format=args.format,
+                    conversation_ids=conversation_ids,
+                    max_chars=args.max_chars,
+                    dry_run=args.dry_run,
+                    project=args.project,
+                )
             )
-        )
-        print(json.dumps(asdict(report), indent=2, default=str))
-        return 0
+        else:
+            from server.analysis.context_chat_ingest import ingest_chat_file
 
-    from server.analysis.context_chat_ingest import ingest_chat_file
-
-    report = asyncio.run(
-        ingest_chat_file(
-            args.path,
-            conversation_ids=conversation_ids,
-            max_chars=args.max_chars,
-            dry_run=args.dry_run,
-            project=args.project,
-            engine=args.engine,
-            format=args.format,
-        )
-    )
+            report = asyncio.run(
+                ingest_chat_file(
+                    args.path,
+                    conversation_ids=conversation_ids,
+                    max_chars=args.max_chars,
+                    dry_run=args.dry_run,
+                    project=args.project,
+                    engine=args.engine,
+                    format=args.format,
+                )
+            )
+    except (ValueError, FileNotFoundError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
     print(json.dumps(asdict(report), indent=2, default=str))
     return 0
 

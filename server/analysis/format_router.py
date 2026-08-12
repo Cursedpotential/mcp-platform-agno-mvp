@@ -13,12 +13,16 @@ routed to the SBV Go engine whenever a Go decoder exists for it (memory-safe);
 otherwise Python. As Go decoders are added (a `go_format` below), that format
 auto-upgrades to Go with no caller change.
 
-Detection is only the DEFAULT (`engine="auto"`); an explicit `engine=`/`format=`
-override always wins (the MVP escape hatch). On no match, the caller falls back
+Detection is only the DEFAULT (`engine="auto"`, no explicit `format`); an
+explicit `engine=`/`format=` override always wins (the MVP escape hatch). An
+explicit `format=` BYPASSES this router entirely (D-053) via
+`resolve_format_override()` — strictly, so an unresolvable override errors
+loudly instead of silently falling back. On no match, the caller falls back
 to the full registry mesh as a last resort — so an unknown format still gets a
 best-effort parse, it just isn't the primary path.
 """
 # Byline: Claude Code · Opus 4.8 · 2026-08-12
+# Byline: Claude Code · Fable 5 · 2026-08-12 (D-053: explicit format/engine override resolver + GO_IMPORTER_FORMATS mirror)
 
 from __future__ import annotations
 
@@ -46,6 +50,28 @@ SIGNATURES: tuple[FormatSig, ...] = (
     FormatSig("chatgpt-official", ('"mapping"', '"create_time"'), "transcripts.chatgpt-official", "chatgpt-official-json"),
     FormatSig("perplexity-contexts", ('"context_uuid"', '"entries"', '"query"', '"answer"'), "transcripts.perplexity-contexts"),
     FormatSig("claude-ai-export", ('"chat_messages"',), "transcripts.claude-ai-export"),
+)
+
+# Stable SBV Go importer ids an explicit `format` override may name — a MIRROR
+# of the Format* const block in `vendored/sbv/internal/importer.go` (Python
+# cannot read the Go registry, and the SBV service's own /imports validation is
+# a network round-trip away; this list enables LOCAL fail-fast validation,
+# D-053). MAINTENANCE CONTRACT: when a Go decoder lands in importer.go, add its
+# id here in the SAME change.
+GO_IMPORTER_FORMATS: tuple[str, ...] = (
+    "chatgpt-official-json",  # the only AI-chat Go decoder so far (D-047/D-049)
+    "smsbackuprestore-xml",
+    "facebook-messenger-json",
+    "facebook-messenger-html",
+    "google-chat-json",
+    "google-voice-html",
+    "imessage-txt",
+    "imessage-html",
+    "messages-transcript",
+    "email-eml",
+    "email-mbox",
+    "ndjson",
+    "csv",
 )
 
 
@@ -83,3 +109,57 @@ def detect_format(path: str | Path, *, head: str | None = None) -> Detection:
                 matched_markers=sig.markers,
             )
     return Detection(format_id=None, python_parser_id=None, engine="python", parse_format=None, confidence=0.0)
+
+
+# ---------------------------------------------------------------------------
+# Explicit override (D-053): operator-named format, NO detection involved
+# ---------------------------------------------------------------------------
+
+
+def resolve_format_override(format: str, engine: str = "auto") -> tuple[str, str | None, str | None]:
+    """Resolve an EXPLICIT format override (the operator's `--format`, D-053)
+    into `(engine, go_format_id, python_tool_id)` — WITHOUT running detection.
+
+    The override is STRICT by contract: the operator named the parser, so an
+    unresolvable combination raises ValueError here rather than silently
+    falling back to detection, to the registry mesh, or to the other engine.
+
+    Accepted spellings:
+      * a SIGNATURES `format_id` ('chatgpt-official', 'claude-ai-export', ...)
+      * a Go importer id (GO_IMPORTER_FORMATS, e.g. 'chatgpt-official-json')
+      * a Python registry tool id ('transcripts.<name>'; registry validity is
+        checked by the caller, which owns `load_builtin_tools()`)
+
+    `engine="go"` / `"python"` constrains the resolution to that engine —
+    a format the chosen engine has no decoder/parser for raises ValueError
+    listing the valid values. `engine="auto"` resolves Go-primary, the same
+    preference `detect_format` encodes (a Go decoder wins when one exists).
+    """
+    sig = next((s for s in SIGNATURES if s.format_id == format), None)
+    go_id = format if format in GO_IMPORTER_FORMATS else (sig.go_format if sig else None)
+    py_id = format if format.startswith("transcripts.") else (sig.python_parser_id if sig else None)
+
+    if engine == "go":
+        if go_id is None:
+            raise ValueError(
+                f"engine 'go' has no SBV decoder for format {format!r}; "
+                f"Go decoders exist for: {sorted(GO_IMPORTER_FORMATS)}"
+            )
+        return "go", go_id, None
+    if engine == "python":
+        if py_id is None:
+            raise ValueError(
+                f"engine 'python' has no parser for format {format!r}; known python formats: "
+                f"{sorted(s.format_id for s in SIGNATURES)} (or a 'transcripts.<name>' registry tool id)"
+            )
+        return "python", None, py_id
+    # auto: Go-primary — the same engine preference the router encodes.
+    if go_id is not None:
+        return "go", go_id, None
+    if py_id is not None:
+        return "python", None, py_id
+    raise ValueError(
+        f"unknown format override {format!r}; known: router formats "
+        f"{sorted(s.format_id for s in SIGNATURES)}, Go importer ids {sorted(GO_IMPORTER_FORMATS)}, "
+        "or a 'transcripts.<name>' registry tool id"
+    )

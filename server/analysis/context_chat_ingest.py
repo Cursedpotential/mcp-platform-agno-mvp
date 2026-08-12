@@ -49,6 +49,7 @@ surface as "unverified lead - verify against primary evidence", never as fact.
 """
 # Byline: Claude Code · Sonnet (agent) · 2026-08-01
 # Byline: Claude Code · Opus 4.8 · 2026-08-12 (PG-first rewrite: context_record source of truth + change-detection sync, ADR-0051 / owner ruling)
+# Byline: Claude Code · Fable 5 · 2026-08-12 (D-053: explicit format override is strict — bypasses router, never falls back)
 
 from __future__ import annotations
 
@@ -56,7 +57,7 @@ import hashlib
 import json
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -152,20 +153,37 @@ def parse_chat_export(
         et al.), try-next-candidate by priority.
       * "go" — hand the file to the SBV Go service (memory-safe universal
         decoder, ADR-0049) via `server.analysis.sbv_transcript.parse_via_sbv`.
-      * "auto" (default) — MVP: Python registry. The detection ROUTER (pick the
-        engine automatically, e.g. Go for huge files) is deferred until after
-        the POC (owner: "We will work on detection after we have a proof of
-        concept"); until then use the explicit `engine=`/`format=` override.
+      * "auto" (default) — the detection ROUTER (`format_router.detect_format`,
+        D-051): detect once, route to the winning format's preferred engine
+        (Go-primary) with graceful fallbacks.
 
-    `format` is the MVP OVERRIDE — force a specific parser/importer (e.g.
-    'chatgpt-official-json') instead of detection. For the Python engine it is
-    currently advisory (the registry self-detects); for the Go engine it is
-    passed straight to SBV's importer selection.
+    `format` is the EXPLICIT operator override (D-053): when given, it BYPASSES
+    the detection router entirely and is STRICT — the named parser engine
+    (`format_router.resolve_format_override`) is used directly, and an
+    unresolvable or rejected combination raises ValueError instead of falling
+    back to detection, to the registry mesh, or to the other engine. Accepted
+    spellings: a router format_id ('claude-ai-export'), a Go importer id
+    ('chatgpt-official-json'), or a Python registry tool id ('transcripts.<name>').
     """
     if engine not in VALID_ENGINES:
         raise ValueError(f"unknown engine {engine!r} (expected one of {VALID_ENGINES})")
     if not path.is_file():
         raise FileNotFoundError(path)
+
+    # Explicit --format override (D-053): bypass the detection router entirely.
+    # STRICT — the operator named the parser, so nothing falls back: a format
+    # the chosen engine cannot handle, an unknown parser id, or a rejecting
+    # parser is a loud ValueError (the CLI turns it into exit 2).
+    if format is not None:
+        from server.analysis.format_router import resolve_format_override
+
+        engaged, go_id, py_id = resolve_format_override(format, engine)
+        if engaged == "go":
+            from server.analysis.sbv_transcript import parse_via_sbv
+
+            return parse_via_sbv(path, format=go_id, source_meta=source_meta)
+        assert py_id is not None  # resolve_format_override guarantees one side
+        return _parse_via_pinned_tool(path, source_meta, py_id)
 
     # Explicit engine override always wins (the MVP escape hatch).
     if engine == "go":
@@ -223,6 +241,32 @@ def _parse_via_registry(
             attempts.append({"tool": tool.id, "ok": False, "error": str(exc)})
             last_err = exc
     raise ValueError(f"all parse.transcript candidates failed for {path.name!r}: {attempts} (last: {last_err})")
+
+
+def _parse_via_pinned_tool(
+    path: Path, source_meta: dict[str, Any] | None, tool_id: str
+) -> tuple[list[NormalizedRecord], str, list[dict[str, Any]]]:
+    """The PYTHON engine under an EXPLICIT format override (D-053): run exactly
+    ONE named `parse.transcript` tool. Unlike `_parse_via_registry` there is NO
+    substitution mesh — an unknown tool id, a non-transcript capability, or a
+    rejecting parser raises ValueError immediately (an explicit override must
+    never silently turn into a different parse)."""
+    load_builtin_tools()
+    try:
+        tool = registry.get(tool_id)
+    except KeyError:
+        known = sorted(t.id for t in registry.all() if t.capability == "parse.transcript")
+        raise ValueError(f"unknown python parser {tool_id!r}; registered parse.transcript tools: {known}") from None
+    if tool.capability != "parse.transcript":
+        raise ValueError(f"tool {tool_id!r} is capability {tool.capability!r}, not 'parse.transcript'")
+    try:
+        result = tool.run({"path": str(path), "source_meta": source_meta or {}})
+    except Exception as exc:
+        raise ValueError(
+            f"parser {tool_id!r} rejected {path.name!r} under the explicit format override (no fallback): {exc}"
+        ) from exc
+    records = [NormalizedRecord.model_validate(r) for r in result["records"]]
+    return records, tool.id, [{"tool": tool.id, "ok": True}]
 
 
 def filter_conversations(records: list[NormalizedRecord], conversation_ids: set[str] | None) -> list[NormalizedRecord]:
