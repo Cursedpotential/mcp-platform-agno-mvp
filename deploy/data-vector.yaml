@@ -106,7 +106,10 @@ services:
       - "${BIND_IP:-127.0.0.1}:3001:3000"     # Attu UI — tailnet-only
     depends_on:
       milvus:
-        condition: service_healthy
+        condition: service_started   # DIAGNOSTIC: was service_healthy — lets the deploy
+                                       # succeed so Coolify /logs returns Milvus boot output
+                                       # even if it crash-loops. Revert to service_healthy
+                                       # once Milvus boots cleanly.
     networks:
       - vector
       - agno                # shared external net — so other ovh-files containers can
