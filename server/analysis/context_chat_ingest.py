@@ -131,18 +131,58 @@ def create_context_knowledge():
 # ---------------------------------------------------------------------------
 
 
+VALID_ENGINES = ("auto", "python", "go")
+
+
 def parse_chat_export(
-    path: Path, source_meta: dict[str, Any] | None = None
+    path: Path,
+    source_meta: dict[str, Any] | None = None,
+    *,
+    engine: str = "auto",
+    format: str | None = None,
 ) -> tuple[list[NormalizedRecord], str, list[dict[str, Any]]]:
-    """Resolve `parse.transcript` candidates for `path` and try each in
-    registration order until one succeeds — the identical pattern
-    `evidence/workflows.py`'s chat-transcript workflow uses, minus the custody/
-    store wiring. Returns (records, winning_tool_id, attempts_log). Raises
-    ValueError if every candidate rejects the file.
+    """Parse a chat export into NormalizedRecords — ENGINE-DYNAMIC dispatcher
+    (owner 2026-08-12: "the pipeline needs to be dynamic ... it shouldn't be
+    dedicated to one format or the other"). Returns (records, parser_id,
+    attempts_log). The engine choice changes ONLY who parses; the
+    NormalizedRecord output and everything downstream are identical.
+
+    engine:
+      * "python" — the in-process registry `parse.transcript` mesh (chatminer
+        et al.), try-next-candidate by priority.
+      * "go" — hand the file to the SBV Go service (memory-safe universal
+        decoder, ADR-0049) via `server.analysis.sbv_transcript.parse_via_sbv`.
+      * "auto" (default) — MVP: Python registry. The detection ROUTER (pick the
+        engine automatically, e.g. Go for huge files) is deferred until after
+        the POC (owner: "We will work on detection after we have a proof of
+        concept"); until then use the explicit `engine=`/`format=` override.
+
+    `format` is the MVP OVERRIDE — force a specific parser/importer (e.g.
+    'chatgpt-official-json') instead of detection. For the Python engine it is
+    currently advisory (the registry self-detects); for the Go engine it is
+    passed straight to SBV's importer selection.
     """
-    load_builtin_tools()
+    if engine not in VALID_ENGINES:
+        raise ValueError(f"unknown engine {engine!r} (expected one of {VALID_ENGINES})")
     if not path.is_file():
         raise FileNotFoundError(path)
+
+    if engine == "go":
+        from server.analysis.sbv_transcript import parse_via_sbv
+
+        return parse_via_sbv(path, format=format, source_meta=source_meta)
+
+    # "python" and (for the MVP) "auto" both run the in-process registry mesh.
+    return _parse_via_registry(path, source_meta)
+
+
+def _parse_via_registry(
+    path: Path, source_meta: dict[str, Any] | None = None
+) -> tuple[list[NormalizedRecord], str, list[dict[str, Any]]]:
+    """The PYTHON parse engine: resolve `parse.transcript` candidates for
+    `path` and try each in registration order until one succeeds. Raises
+    ValueError if every candidate rejects the file."""
+    load_builtin_tools()
     candidates = registry.resolve("parse.transcript", media_hint=path.name.lower(), size_bytes=path.stat().st_size)
     if not candidates:
         raise ValueError(f"no parse.transcript tool accepts {path.name!r}")
@@ -525,23 +565,27 @@ async def ingest_chat_file(
     max_chars: int = DEFAULT_MAX_CHARS,
     dry_run: bool = False,
     project: bool = True,
+    engine: str = "auto",
+    format: str | None = None,
     knowledge: Any | None = None,
     graphiti_client: GraphitiCaseClient | None = None,
 ) -> IngestReport:
     """The whole pipeline for ONE chat-export file, PG-first:
 
-        parse -> (optional conversation filter) -> finalize
+        parse (engine=auto|python|go) -> (optional conversation filter) -> finalize
               -> store_context_records()   [Postgres SOURCE OF TRUTH]
               -> sync_pending_context('weaviate' / 'graphiti')   [projection]
 
-    The projection step reads PENDING rows from Postgres, so it naturally
-    projects anything left pending by a prior crashed run too, not only this
-    file's rows — that is the change-detection contract, not a quirk. Pass
-    `project=False` to write Postgres only and let a separate worker drain the
-    projections. `dry_run=True` stores nothing and only counts.
+    `engine`/`format` pick the PARSER dynamically (Python registry vs SBV Go),
+    without changing anything downstream — see `parse_chat_export`. The
+    projection step reads PENDING rows from Postgres, so it naturally projects
+    anything left pending by a prior crashed run too, not only this file's rows
+    — that is the change-detection contract, not a quirk. Pass `project=False`
+    to write Postgres only and let a separate worker drain the projections.
+    `dry_run=True` stores nothing and only counts.
     """
     p = Path(path)
-    records, parser_id, attempts = parse_chat_export(p, source_meta)
+    records, parser_id, attempts = parse_chat_export(p, source_meta, engine=engine, format=format)
     records = filter_conversations(records, conversation_ids)
     records = finalize(records)
 

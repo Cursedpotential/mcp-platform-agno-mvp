@@ -61,6 +61,17 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="write the PG source of truth only; leave Weaviate/Graphiti projection for a later worker",
     )
     ap.add_argument("--max-chars", type=int, default=6000, help="per-chunk character budget (default 6000)")
+    ap.add_argument(
+        "--engine",
+        choices=["auto", "python", "go"],
+        default="auto",
+        help="which parse engine: 'python' (in-process registry), 'go' (SBV service), or 'auto' (MVP=python)",
+    )
+    ap.add_argument(
+        "--format",
+        default=None,
+        help="parser/importer OVERRIDE, e.g. 'chatgpt-official-json' — skip detection (MVP; router deferred)",
+    )
     ap.add_argument("--db-host", default=None, help="override DB_HOST for this process (Postgres source of truth + contents_db)")
     return ap.parse_args(argv)
 
@@ -80,6 +91,8 @@ def main(argv: list[str] | None = None) -> int:
             max_chars=args.max_chars,
             dry_run=args.dry_run,
             project=args.project,
+            engine=args.engine,
+            format=args.format,
         )
     )
     print(json.dumps(asdict(report), indent=2, default=str))

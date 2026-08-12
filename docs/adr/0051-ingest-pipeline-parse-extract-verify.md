@@ -110,9 +110,13 @@ This is what exists TODAY. None of it should be read as the target above being b
   (invariant 4 for ALL paths, ADR-0052) — today the consumer is polled (inline after an ingest, or
   the drain tool / `--no-project`), not fired by a DB trigger. The evidence workflow still writes its
   Weaviate insert inline.
-- **AI chats do NOT go through SBV.** The SBV Go engine (`vendored/sbv/internal/`) has 12 decoders
-  (messaging/email) and ZERO AI-chat decoders; AI chats run through the Python context path. (This
-  is ADR-0049 Gap 2.)
+- ~~**AI chats do NOT go through SBV.**~~ **Update 2026-08-12 (D-049):** the parse step is now
+  **engine-dynamic** — `parse_chat_export(engine="python"|"go"|"auto", format=...)` can route AI
+  chats to the SBV Go service (`server/analysis/sbv_transcript.py`) OR the Python registry, per an
+  explicit override (owner: "it shouldn't be dedicated to one format or the other"). The Go engine
+  now has a ChatGPT decoder (D-047/4accbf2). **Still true:** `auto` defaults to Python for the MVP
+  (detection router deferred), and only ChatGPT has a Go decoder so far (Claude/Perplexity/Gemini
+  still Python-only). So AI chats *can* go through SBV on request, but don't by default yet.
 - **HITL is native and works for writes (ADR-0002), but there is no HITL gate positioned AFTER an
   extraction stage** — because there is no extraction stage in the workflow yet.
 - **SBV large-file upload + 0-message parse** need fixing before SBV can be the real front door
