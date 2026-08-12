@@ -1,5 +1,7 @@
 # =============================================================================
 # Custom PostgreSQL 18 image — the extension contract (handoff §10.2, ADR-0013)
+# Byline: Claude Code · Kimi K3 (drift-fix) · 2026-08-12 — ADR-0024 Surreal-sink
+#         comment corrected (SurrealDB RETIRED, ADR-0043); Windmill citation noted dead.
 # =============================================================================
 # Base: official pg_duckdb image (PG18 + DuckDB engine embedded in Postgres —
 # owner decision 2026-06-10, supersedes ADR-0003's no-DuckDB stance).
@@ -30,9 +32,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # FDW (compiled neo4j-fdw + REST wrappers). DROPPED 2026-06-26 — see ADR-0032.
 #
 # Why it's gone: that plan existed because PG was meant to be the analysis
-# TARGET, so every source had to be queryable IN PG. SurrealDB is now the
+# TARGET, so every source had to be queryable IN PG. ~~SurrealDB is now the
 # downstream analysis sink (ADR-0024): processed data flows PG -> Surreal and
-# analysis happens THERE. With no in-PG cross-source analysis requirement, the
+# analysis happens THERE.~~ Corrected 2026-08-12: SurrealDB is RETIRED
+# (ADR-0043, owner ruling 2026-08-06), zero callers — there is NO downstream
+# Surreal sink; PG itself is the operational + working store since the
+# 2026-08-04 flatten (ADR-0043 decision 3). With no in-PG cross-source
+# analysis requirement, the
 # live FDW hub was custom build glue for a capability nothing calls — and it was
 # never build-verified. Removing it deletes a brittle compile step (minimize
 # custom code; default off-the-shelf).
@@ -42,9 +48,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 #     ATTACH Postgres/SQLite) — already embedded in the base image.
 #   * graph (Neo4j)  -> native Cypher driver at the agent/orchestration tier
 #     (graph <-> SQL through an FDW is an impedance mismatch).
-#   * vectors (Milvus) -> Milvus SDK (vectors don't federate via SQL).
-#   * the source -> process -> Surreal pipeline -> orchestration substrate
-#     (ADR-0028/0029), not query-time federation.
+#   * vectors (Weaviate) -> Weaviate SDK (vectors don't federate via SQL).
+#     (Corrected 2026-08-12: was Milvus — superseded by ADR-0040; Milvus
+#     data-vector app DOWN deliberately since 2026-08-10.)
+#   * the source -> process pipeline -> orchestration substrate
+#     (~~ADR-0028/0029~~ Corrected 2026-08-12: the Windmill lane is DEAD —
+#     ADR-0029 supersedes ADR-0028), not query-time federation.
 # core postgres_fdw + file_fdw still ship with the base image if a plain
 # Postgres-to-Postgres link is ever needed (CREATE EXTENSION only, no build).
 

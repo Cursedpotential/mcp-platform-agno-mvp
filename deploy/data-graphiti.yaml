@@ -1,4 +1,8 @@
 # =============================================================================
+# Byline: Claude Code · Kimi K3 (drift-fix) · 2026-08-12 — stale "LiteLLM stays
+#         the active path" doors-policy comment corrected (cutover long done);
+#         OVH1_HOST/LITELLM_MASTER_KEY env-list labels marked rollback-only.
+# =============================================================================
 # DATA TIER — GRAPHITI MCP SUBSET, split out of compose.data.yaml.
 # Reason: 2026-06-25 incident + owner mandate 2026-07-05 — every service must be
 # its own Coolify app so any one crashing / being updated never takes down the
@@ -10,9 +14,13 @@
 # Env (copy from existing data-tier app):
 #   BIND_IP=100.119.96.29      (OVH-3 tailnet — ports bind here, never 0.0.0.0)
 #   OVH3_HOST=100.119.96.29    (used for NEO4J_URI now that neo4j is cross-app)
-#   OVH1_HOST=100.72.169.40    (LiteLLM gateway on the exec box, over tailnet)
+#   OVH1_HOST=100.72.169.40    (~~LiteLLM gateway on the exec box, over tailnet~~
+#      Corrected 2026-08-12: historical/rollback-only — LiteLLM RETIRED (ADR-0042);
+#      OVH1_HOST matters now only for the pre-cutover rollback path at :68-76 below.
+#      graphiti-mcp currently reaches PORTKEY via the graphiti-portkeyfix sidecar.)
 #   NEO4J_PASSWORD             (must match data-neo4j app)
-#   LITELLM_MASTER_KEY         (gateway auth)
+#   LITELLM_MASTER_KEY         (~~gateway auth~~ Corrected 2026-08-12: rollback-only —
+#      LiteLLM retired ADR-0042; only read if the :68-76 rollback path is ever taken)
 #
 # Same absolute config mount as the original — NO data migration: graphiti-mcp
 # is stateless (state lives in Neo4j, which is now its own app). It reattaches
@@ -125,10 +133,14 @@ services:
   # bodies inlined with the real key substituted, staged at
   # /data/agno/config/graphiti/portkeyfix.conf (same host-mount convention as
   # hostfix.conf). Internal-only (no host port) — only graphiti-mcp talks to it.
-  # NOT yet wired into graphiti-mcp's config.yaml as of this commit — this
+  # ~~NOT yet wired into graphiti-mcp's config.yaml as of this commit — this
   # stands the sidecar up standalone so it can be verified in isolation
   # BEFORE graphiti-mcp's OPENAI_API_URL is repointed at it (doors policy:
-  # LiteLLM stays the active path for graphiti-mcp until Portkey is proven).
+  # LiteLLM stays the active path for graphiti-mcp until Portkey is proven).~~
+  # Corrected 2026-08-12: STALE — the wiring it describes as pending is DONE
+  # (cutover 2026-07-19): graphiti-mcp above already runs
+  # OPENAI_API_URL/OPENAI_BASE_URL=http://graphiti-portkeyfix:8072/v1 (see the
+  # graphiti-mcp env block in THIS FILE), and LiteLLM is RETIRED (ADR-0042).
   # -----------------------------------------------------------------------
   graphiti-portkeyfix:
     image: nginx:alpine

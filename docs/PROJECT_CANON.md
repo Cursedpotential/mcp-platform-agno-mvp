@@ -12,7 +12,10 @@
 > ADR-0042 Portkey/LiteLLM-retired, agno 2.8.0; ADR-0036–0039 accepted same day; before that:
 > 2026-06-13, §6 refresh 2026-07-11).
 > _Byline: Claude Code · Opus 4.8 · 2026-06-13 (created 2026-06; this revision Opus 4.8;
+> drift-fix 2026-08-12: §5 LiteLLM-gateway/embedder/Milvus rows + §10 SurrealDB row corrected
+> against ADR-0040/0042/0043 and D-042 (Claude Code · Kimi K3);
 > §6 status refresh 2026-07-11 Claude Code · Sonnet 5; §5/§6/§8 sync 2026-07-29
+> (drift-fix 2026-08-12 round 2, Claude Code · Kimi K3: §4 data-vector down-note + §6 OpenCode LiteLLM mention corrected)
 > Claude Code · Fable 5; §4/§5/§6 sync 2026-08-09 Claude Code · Sonnet 5)_
 
 ---
@@ -155,7 +158,7 @@ is preserved in git history + `docs/planning/`.)
 |---|---|---|
 | `ion-control` (Ionos 3.8 GB) | Coolify control plane | — (Coolify itself) |
 | `ovh-app` `100.72.169.40` | Exec tier (the old exec bundle split into independent apps, owner rule "separate everything separable") | `exec-tier` (agentos-api + db rump) · `exec-gateway` (OpenCode; LiteLLM deprecated → teardown pending, ADR-0042) · `exec-contextforge` (tool gateway) · `exec-platform-tools` (SBV forensic fork + tools-facade) · `exec-sandbox` · `exec-desktop` (Kasm) · `portkey` (THE model gateway, ADR-0042) · `knowledge-workbench` (staged-ingest console, :8020) · `agent-ui` · `browser` · `coolify-mcp` |
-| `ovh-data` `100.119.96.29` | Data tier — independent apps on the shared external `agno` docker network (172.30.0.0/16; cross-app DNS — `neo4j:7687`, `milvus:19530`, …). **Stale as of 2026-08-06/07** (see the ovh-files row): the `data-neo4j`/`data-weaviate` apps here went `exited:unhealthy` and code defaults were repointed away from them; do not treat this row as live for those two. | `data-surreal` (the ONE app that legitimately stays here — PARKED read-only since 2026-08-04, ADR-0043, RETIRED/zero-callers per `server/core/session.py`, owner-gated deletion) · `data-neo4j` (⚠ unhealthy since ≥2026-08-06, superseded by its ovh-files twin) · `data-weaviate` (⚠ unhealthy since ≥2026-08-06, superseded by its ovh-files twin; sidelined-Milvus framing below is otherwise unaffected) · `data-vector` (Milvus — sidelined per ADR-0040) · `nocodb` (review front-end, ADR-0029 lineage) |
+| `ovh-data` `100.119.96.29` | Data tier — independent apps on the shared external `agno` docker network (172.30.0.0/16; cross-app DNS — `neo4j:7687`, `milvus:19530`, …). **Stale as of 2026-08-06/07** (see the ovh-files row): the `data-neo4j`/`data-weaviate` apps here went `exited:unhealthy` and code defaults were repointed away from them; do not treat this row as live for those two. | `data-surreal` (the ONE app that legitimately stays here — PARKED read-only since 2026-08-04, ADR-0043, RETIRED/zero-callers per `server/core/session.py`, owner-gated deletion) · `data-neo4j` (⚠ unhealthy since ≥2026-08-06, superseded by its ovh-files twin) · `data-weaviate` (⚠ unhealthy since ≥2026-08-06, superseded by its ovh-files twin; sidelined-Milvus framing below is otherwise unaffected) · `data-vector` (Milvus — sidelined per ADR-0040; **DOWN deliberately since 2026-08-10** — 6th embedded-etcd corruption, docs/COORDINATION.md; D-042 cutover verified 2026-08-09) · `nocodb` (review front-end, ADR-0029 lineage) |
 | `ovh-files` `100.91.190.107` | Files + chat surfaces — **also now the live data-tier host for PG/Neo4j/Weaviate**, migrated off ovh-data in two waves: PG (`data-pg-files`, PG18: pg_duckdb + pgvector + PostGIS; tailnet `DB_HOST=100.91.190.107`) moved 2026-08-02 (`docs/DECISION_LOG.md`); Neo4j (Graphiti's graph, `bolt://100.91.190.107:7687`) + Weaviate (ADR-0040 substrate, `http://100.91.190.107:8081`) defaults corrected 2026-08-06/07 after their ovh-data twins went unhealthy — verified live from inside agentos-api, commits `75ec196`/`5e829ab`/`a68fabd` (`server/core/session.py`, `server/analysis/semantica_wiring.py`) | `data-pg-files` · `data-neo4j` (live twin) · `data-graphiti` (Graphiti MCP) · `data-weaviate` (live twin) · `librechat` (:3080) · `librechat-mongo` (real Mongo — owner waiver of the FerretDB rule) · file services (Cloudreve, casebible rclone lane) |
 
 **Off-Coolify:** Homepage dashboard `http://100.72.169.40:3010` (plain compose,
@@ -171,10 +174,17 @@ S3 API + pg_duckdb httpfs (`read_text('s3://nexus/...')`).
 - **Deploy on the VPS** (ADR-0009), not local podman. n8n on its own server.
 - **pg_duckdb inside Postgres** (ADR-0013, supersedes ADR-0003 no-DuckDB).
 - **Neo4j for Graphiti** (ADR-0014, supersedes FalkorDB). Bitemporal cognition substrate.
-- **Ollama Cloud `glm-5.1` = PRIMARY LLM** via LiteLLM gateway. NVIDIA NIM =
+- **Ollama Cloud `glm-5.1` = PRIMARY LLM** ~~via LiteLLM gateway~~ **via Portkey
+  (Corrected 2026-08-12: LiteLLM RETIRED — ADR-0042, owner ruling 2026-07-29; see
+  the Portkey entry below; glm-5.1 stays primary).** NVIDIA NIM =
   embeddings + rerank + LLM backup only (NVIDIA rate-limited the owner).
-- **Models:** embedder `nvidia/llama-nemotron-embed-vl-1b-v2` (2048-d, asymmetric —
-  query vs passage modes, `server/core/embedder.py`); reranker `nvidia/rerank-qa-mistral-4b`
+- **Models:** ~~embedder `nvidia/llama-nemotron-embed-vl-1b-v2` (2048-d, asymmetric —
+  query vs passage modes, `server/core/embedder.py`)~~ **Corrected 2026-08-12: the LIVE
+  text embedder is `nvidia/nv-embed-v1` (4096-d, symmetric) — live contract since
+  2026-07-19 (`server/core/settings.py:71-80`, `server/core/session.py`, docs/DEBT.md);
+  the nemotron asymmetric models are FALLBACK-only and NOT banned (owner correction
+  2026-08-07 — they need a per-call `input_type`, usable wherever the caller can send it)**;
+  reranker `nvidia/rerank-qa-mistral-4b`
   (`server/core/reranker.py`, custom — Agno's CohereReranker leaks to Cohere). Gemini 2.5 Pro
   for Document Digest. Groq/OpenRouter in reserve.
 - **Memory = LearningMachine (operational) + Graphiti/Neo4j (evidentiary, bitemporal)
@@ -202,7 +212,8 @@ S3 API + pg_duckdb httpfs (`read_text('s3://nexus/...')`).
   - **Agent runtime + OUTBOUND serving = Agno AgentOS**: serves our agents/workflows out via
     **MCP-server + A2A + AG-UI (CopilotKit) + REST** → consumable by other LLMs/agents/frontends.
   - **OpenCode** (`gateway` container) = coding agent / builder surface — **consumes** our MCP
-    tools (through ContextForge) and uses **LiteLLM** models. An in-stack consumer — KEEP.
+    tools (through ContextForge) and ~~uses **LiteLLM** models~~ **Corrected 2026-08-12:
+    is served by the Portkey-era gateway — LiteLLM is disabled/retired (ADR-0042)**. An in-stack consumer — KEEP.
   - **agent-sandbox** = isolated code-exec for agent re-composition (no secrets, no ports). KEEP.
   - **Kasm desktop** (`desktop` profile) = **persistent** browser desktop for agent/human GUI work. KEEP (persistence matters).
   - **Cognition = custom Graphiti** (bitemporal KG, VIP). **Store/session/Knowledge/memory =
@@ -249,7 +260,11 @@ S3 API + pg_duckdb httpfs (`read_text('s3://nexus/...')`).
   1536-d). Beta-aware: code/Case-Bible now; **Knowledge-engine migration off pgvector = Phase B/D** (accept beta or
   pin GA then). Deploy gotchas recorded in [[milvus-coolify-decision]] memory.
   ⚠ **Engine choice superseded by ADR-0040 (2026-07-27): Weaviate LOCKED** — see the next entry;
-  Milvus stays sidelined-but-up until cutover is verified, then parks (FalkorDB status).
+  ~~Milvus stays sidelined-but-up until cutover is verified, then parks (FalkorDB status).~~
+  **Corrected 2026-08-12:** the Milvus→Weaviate cutover was ruled **VERIFIED 2026-08-09**
+  (D-042; pymilvus removed from the image, Dockerfile) and the `data-vector` app has been
+  **DOWN deliberately since 2026-08-10** (6th embedded-etcd corruption — docs/COORDINATION.md).
+  The "LOCKED / LIVE on ovh2" claims above are historical; **Weaviate is THE vector store.**
 - **Weaviate = the platform-wide VECTOR/ANN substrate (LOCKED 2026-07-27; ADR-0040 — supersedes
   ADR-0026/ADR-0027 on the engine choice).** Single Go binary on the data tier replaces the
   Milvus 4-container convoy (etcd fragility — lived 07-21→23 outage — plus data corruption and
@@ -453,7 +468,10 @@ pointer below — corrected 2026-08-09) — Part 1 complete + memory substrate:*
 - Owner had one more idea that slipped away (2026-06-11) — to be added when recalled.
 - Knowledge-engine domain separation: finalize collection scheme + ingestion routing.
 - Legal Team: inventory the Gemini Gems personas to port.
-- **SurrealDB — strong consolidation candidate (validated 2026-06-13).** Multi-model
+- ~~**SurrealDB — strong consolidation candidate (validated 2026-06-13).**~~ **Corrected
+  2026-08-12: SUPERSEDED by ADR-0043 (owner ruling 2026-08-06) — SurrealDB is RETIRED, zero
+  callers, parked read-only; §5 Locked Decisions already carries the ruling.** Historical
+  rationale, kept for provenance: Multi-model
   (document + relational + vector + graph + live queries), AND **Agno supports it natively
   as a database (agent/team/workflow sessions+state) + vector store (Knowledge/RAG) + memory
   backend** (`/database/providers/surrealdb`, `/knowledge/vector-stores/surrealdb`,

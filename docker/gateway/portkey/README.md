@@ -1,4 +1,5 @@
-> _Byline: Claude Code · Sonnet · 2026-07-19_
+> _Byline: Claude Code · Sonnet · 2026-07-19
+> (drift-fix 2026-08-12 Claude Code · Kimi K3: doors-policy soak narrative annotated as pre-retirement history; LiteLLM disabled 2026-07-29 per ADR-0042)_
 
 # Portkey gateway configs
 
@@ -177,3 +178,9 @@ path per the workspace's doors policy. Graphiti has been cut over to Portkey and
 as of 2026-07-19; the owner's stated soak-period recommendation before considering LiteLLM retirement
 still applies (see `docker/gateway/litellm-config.yaml`'s own header and the "Retire LiteLLM" section
 of the originating proposal doc).
+
+> **Corrected 2026-08-12 (doc drift):** the soak-period framing above is pre-retirement HISTORY.
+> LiteLLM was disabled/retired by owner ruling 2026-07-29 (ADR-0042): `docker/gateway/supervisord.conf`
+> pins `autostart=false`, so nothing listens behind :4000 in the gateway container. The "live as of
+> 2026-07-19" health-check line reflects that date only; the working fallback it describes no longer
+> exists unless litellm is deliberately re-enabled. Portkey is THE model gateway.

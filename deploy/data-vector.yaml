@@ -1,4 +1,12 @@
 # =============================================================================
+# Byline: Claude Code · Kimi K3 (drift-fix) · 2026-08-12 — DOWN-deliberate marker added.
+# =============================================================================
+# NB 2026-08-12: this app is DOWN DELIBERATELY — the `data-vector` Coolify app
+# has been off since 2026-08-10 (6th embedded-etcd corruption; docs/COORDINATION.md).
+# Milvus is sidelined per ADR-0040 (Weaviate locked 2026-07-27; cutover verified
+# 2026-08-09, D-042). Kept defined-but-off — the volume at /data/agno/volumes/milvus
+# is untouched. Do NOT deploy/restart without owner sign-off.
+# =============================================================================
 # DATA TIER — VECTOR SUBSET (Milvus + Attu), split out of compose.data.yaml.
 # Reason: 2026-06-25 incident — all 6 DBs were ONE Coolify app, so a Milvus
 # crash-loop (exit 134, corrupt embedded-etcd/WAL after an unclean kill) blew

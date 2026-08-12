@@ -38,7 +38,8 @@ C2.6 additions (resilience + observability, 2026-07-20/21):
   FAILED, store_step auto-routes to the same "load records from Postgres,
   re-run knowledge" path `run_knowledge_from_store` uses below, instead of
   silently reporting `docs_ingested=0` as a false success — this was a real
-  prod bug (Milvus 503 fails knowledge -> operator retries -> custody
+  prod bug (knowledge-stage failure — Weaviate since ADR-0040; historically
+  Milvus 503 pre-cutover — fails knowledge -> operator retries -> custody
   dedupes -> store sees 0 NEW rows -> knowledge sees no records -> run
   reports COMPLETED with docs_ingested=0 and the knowledge docs never land).
 - `run_knowledge_from_store()` — the explicit counterpart, wired off
@@ -65,7 +66,7 @@ C2.6 additions (resilience + observability, 2026-07-20/21):
   finish and every stage start/finish, with duration_s per stage and
   duration_ms in the run's finish summary.
 """
-# Byline: Claude Code · Sonnet (agent) · 2026-07-21 (C0 run-ledger instrumentation 2026-07-20; C2 gates+retry+custody_tier 2026-07-20; C2.6 resilience+observability 2026-07-21)
+# Byline: Claude Code · Sonnet (agent) · 2026-07-21 (C0 run-ledger instrumentation 2026-07-20; C2 gates+retry+custody_tier 2026-07-20; C2.6 resilience+observability 2026-07-21; drift-fix 2026-08-12 Claude Code · Kimi K3: Milvus-503 comments → Weaviate/historical per ADR-0040)
 
 from __future__ import annotations
 
@@ -378,7 +379,8 @@ def _store_step_impl(ctx: dict[str, Any]) -> StepOutput:
     no-silent-substitution pause chat-transcript doesn't need).
 
     THE REAL BUG (C2.6 requirement 1): a run stores N rows, the knowledge
-    stage fails (e.g. Milvus 503). A plain retry re-ingests from the same
+    stage fails (e.g. a Weaviate outage today; historically Milvus 503
+    pre-ADR-0040). A plain retry re-ingests from the same
     blob -> custody dedupes (duplicate=True, this is the SAME artifact) ->
     parse succeeds again -> this function used to just report "0 new rows,
     skipped re-store" -> the knowledge step then saw ctx['records'] empty

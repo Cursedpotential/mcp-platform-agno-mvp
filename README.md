@@ -1,6 +1,7 @@
 # Agno MCP Platform — Evidence, Analysis & Legal-Strategy
 
-> _Byline: Claude Code · Sonnet 5 · 2026-08-09 (docs/registers true-up — plan-link fix)_
+> _Byline: Claude Code · Sonnet 5 · 2026-08-09 (docs/registers true-up — plan-link fix;
+> drift-fix 2026-08-12 Claude Code · Kimi K3: stack line LiteLLM→Portkey/Weaviate per ADR-0040/0042; deploy section marked pre-4-box)_
 
 A pro se family-law (custody) **evidence-processing, analysis, and legal-strategy
 platform** built on **Agno AgentOS** (FastAPI + PostgreSQL). Everything runs on the
@@ -21,14 +22,18 @@ owner's infrastructure, behind HITL approval, with evidence held under chain-of-
 
 ## Stack
 AgentOS (router + 3 agent families) · PostgreSQL 18 (pg_duckdb + pgvector + PostGIS, dual
-evidence/analysis schema) · Neo4j + Graphiti (bitemporal temporal graph) · LiteLLM gateway
-(Ollama Cloud primary, NVIDIA embed/rerank/backup) · OpenCode · Cloudflare R2 (blob storage)
-· isolated agent sandbox · Kasm desktop · n8n (separate server). Deployed on an OVH VPS;
-linked by Tailscale. See the canon for the full service map and access.
+evidence/analysis schema) · Neo4j + Graphiti (bitemporal temporal graph) · Portkey model
+gateway (Ollama Cloud primary, NVIDIA embed/rerank/backup; LiteLLM RETIRED 2026-07-29,
+ADR-0042) · Weaviate vectors (locked ADR-0040) · OpenCode · Cloudflare R2 (blob storage)
+· isolated agent sandbox · Kasm desktop · n8n (separate server). Deployed on an OVH VPS
+fleet; linked by Tailscale. See the canon for the full service map and access.
 
 ## Develop
-Containerized — never a host venv. On the VPS (`ssh -i ~/.ssh/ovh debian@40.160.5.19`,
-`~/agno-mvp`):
+Containerized — never a host venv. ~~On the VPS (`ssh -i ~/.ssh/ovh debian@40.160.5.19`,
+`~/agno-mvp`)~~ — Corrected 2026-08-12: that address/`~/agno-mvp` checkout is the
+pre-flatten single-VPS topology; current = the 4-box Coolify fleet (ovh-app exec tier,
+ovh-files data tier incl. `data-pg-files`) per `AGENTS.md` + `docs/PROJECT_CANON.md` §4.
+Local dev/test runs `uv`-managed on the workstation (see `AGENTS.md` Commands):
 ```bash
 docker compose --profile graph --profile tools up -d --build
 ```

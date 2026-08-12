@@ -1,6 +1,14 @@
 # =============================================================================
-# GATEWAY — LiteLLM proxy (OpenAI-compatible) + OpenCode server, split out of
+# Byline: Claude Code · Kimi K3 (drift-fix) · 2026-08-12 — LiteLLM labels
+#         corrected (RETIRED per ADR-0042; nothing listens behind :4000).
+# =============================================================================
+# GATEWAY — ~~LiteLLM proxy (OpenAI-compatible)~~ + OpenCode server, split out of
 # the exec-tier bundle (compose.exec.yaml), owner order 2026-07-19: "separate
+# — Corrected 2026-08-12: LiteLLM is RETIRED (ADR-0042, owner 2026-07-29); the
+# binary/config stay baked into the image but supervisord has autostart=false
+# (docker/gateway/supervisord.conf), so NOTHING listens behind :4000 in this
+# app. The live model gateway is PORTKEY — its own Coolify app
+# (deploy/portkey.yaml). Original header continued:
 # anything that can be separated." Mirrors the proven data-tier split (commit
 # 18c42d2): one compose file per Coolify app.
 #
@@ -64,7 +72,11 @@ services:
     container_name: gateway
     restart: unless-stopped
     ports:
-      - "${BIND_IP:-127.0.0.1}:4000:4000"   # LiteLLM proxy (OpenAI-compatible)
+      - "${BIND_IP:-127.0.0.1}:4000:4000"   # ~~LiteLLM proxy (OpenAI-compatible)~~ Corrected
+                                            # 2026-08-12: LiteLLM RETIRED (ADR-0042) — this port
+                                            # is published but serves NOTHING until litellm is
+                                            # deliberately re-enabled (supervisord autostart=true)
+                                            # or removed for real. Portkey is the model gateway.
       - "${BIND_IP:-127.0.0.1}:4096:4096"   # OpenCode server
     environment:
       NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}

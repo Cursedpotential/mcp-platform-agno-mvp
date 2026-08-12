@@ -6,7 +6,8 @@
 > `scripts/validate.sh`; prior: 2026-07-29, agno version ref synced to 2.8.0). One language style,
 > one tool contract, one data shape — no exceptions without an ADR.
 > _Byline: OWL · openrouter/owl-alpha · 2026-06-14 · updated 2026-07-29 (Claude Code · Fable 5);
-> updated 2026-08-09 (Claude Code · Sonnet 5)_
+> updated 2026-08-09 (Claude Code · Sonnet 5);
+> drift-fix 2026-08-12 (Claude Code · Kimi K3: pin reference 2.8.0 → 2.8.7 per requirements.txt:3)_
 
 ## Artifact byline — provenance on EVERYTHING (required)
 
@@ -56,7 +57,7 @@ docstring. This prevents context rot in LLM-based agents.
 - **No silent stubs (ADR-0021).** Unavoidable stub → grep-able `# STUB: <tag>` in code **and** a row in `docs/DEBT.md`. `grep -rn "# STUB:"` must match the register exactly. Prefer *removing* an unfinished tool over shipping a silent `NotImplementedError`.
 - **Doc-debt flagging — circle back, don't block (ADR-0022).** As you code, flag anything needing documentation with a grep-able **`# DOC: <what>`** (Python) / **`// DOC: <what>`** (TS) AND a row in **`docs/DOC_DEBT.md`**. `grep -rn "# DOC:"` ↔ `docs/DOC_DEBT.md`. Standing goal (feeds the living wiki, ADR-0022): **every function, plugin, app, tool, and 3rd-party library** documented **human-readable AND LLM-readable**. Do NOT write full docs inline mid-build — flag + register, circle back in a docs pass.
 - **Harness-first tests.** `pytest` + `python -m evals` must run green; write paths (custody/HITL/normalize) aren't trusted until governance/boundary evals pass.
-- **Verify Agno against the pinned wheel/image** via the agno skill + agno docs MCP — never from memory. (Current: agno **2.8.0**.)
+- **Verify Agno against the pinned wheel/image** via the agno skill + agno docs MCP — never from memory. (Current: agno **2.8.7** ~~2.8.0~~ — corrected 2026-08-12 per `requirements.txt:3`.)
 - **HITL is first-class.** Every write (ingestion/normalize/evidence/config/db) pauses for recorded approval (native `@approval` + `requires_confirmation`; ADR-0002).
 - **Owner-comms:** the owner does **not** code. Explain schemas/format/functions in **plain English**, no code dumps, when discussing design.
 - **One canonical data shape:** everything a tool emits normalizes to **`NormalizedRecord`** (`occurred_at` / `knowledge_time` / `disclosure_tier` / `attrs`). Don't invent parallel record types.

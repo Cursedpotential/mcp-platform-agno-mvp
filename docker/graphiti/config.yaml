@@ -1,6 +1,7 @@
-# Graphiti MCP server config (ADR-0014) — Neo4j backend, LiteLLM gateway models.
+# Graphiti MCP server config (ADR-0014) — Neo4j backend, gateway models via
+# Portkey (~~LiteLLM gateway models~~ — LiteLLM RETIRED, ADR-0042; corrected 2026-08-12).
 # Mounted over the image default; selected via CONFIG_PATH.
-# Byline: Claude Code · Fable 5 · 2026-07-04 (LLM glm-5.1 → nemotron: schema-conformant JSON required)
+# Byline: Claude Code · Fable 5 · 2026-07-04 (LLM glm-5.1 → nemotron: schema-conformant JSON required; drift-fix 2026-08-12 Claude Code · Kimi K3: LiteLLM-gateway label → Portkey per ADR-0042; direct-NIM lane 2026-08-12 · Kimi K3: llm.model → nvidia/nemotron-3-super-120b-a12b, embedder.model → nvidia/nv-embed-v1, api_url defaults → integrate.api.nvidia.com — gateway aliases removed; owner ruling + both models probe-verified 200)
 server:
   transport: "http"
   host: "0.0.0.0"
@@ -8,22 +9,27 @@ server:
 
 llm:
   provider: "openai"
-  model: "nemotron"          # NIM guided-json; glm-5.1 cannot emit schema-conformant
-                             # structured output -> every add_memory failed (fixed 2026-07-04)
+  model: "nvidia/nemotron-3-super-120b-a12b"  # real NIM id for the direct-NIM lane
+                             # (owner 2026-08-12; prod's portkeyfix sidecar selects this
+                             # exact model via override_params). ~~was "nemotron" — a
+                             # LiteLLM-gateway alias that direct NIM rejects.~~
+                             # Guided-json capable; glm-5.1 is NOT schema-conformant
+                             # -> every add_memory failed (fixed 2026-07-04).
   max_tokens: 4096
   providers:
     openai:
       api_key: ${OPENAI_API_KEY}
-      api_url: ${OPENAI_API_URL:http://gateway:4000/v1}
+      api_url: ${OPENAI_API_URL:https://integrate.api.nvidia.com/v1}  # direct NIM since 2026-08-12 (was gateway:4000)
 
 embedder:
   provider: "openai"
-  model: "embed-text"        # nvidia nv-embed-v1 via gateway (symmetric, 2026-07-04)
+  model: "nvidia/nv-embed-v1"  # real NIM id (~~"embed-text" gateway alias~~);
+                               # symmetric, 4096-d = Neo4j index ceiling (2026-07-04)
   dimensions: 4096
   providers:
     openai:
       api_key: ${OPENAI_API_KEY}
-      api_url: ${OPENAI_API_URL:http://gateway:4000/v1}
+      api_url: ${OPENAI_API_URL:https://integrate.api.nvidia.com/v1}  # direct NIM since 2026-08-12 (was gateway:4000)
 
 database:
   provider: "neo4j"

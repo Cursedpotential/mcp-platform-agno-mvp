@@ -1,3 +1,11 @@
+# Byline: Claude Code · Kimi K3 (drift-fix, comments only) · 2026-08-12 —
+#         LiteLLM labels marked stale (ADR-0042). No values/ports changed.
+#         2026-08-12b — FUNCTIONAL (owner ruling): graphiti-mcp LLM+embeddings
+#         rewired gateway:4000 → direct NVIDIA NIM (integrate.api.nvidia.com,
+#         NVIDIA_API_KEY); model ids fixed in docker/graphiti/config.yaml; prod
+#         chain verified equivalent (portkeyfix injects same custom_host+models),
+#         both models probe-verified 200. Ports/other services unchanged.
+
 services:
   agentos-db:
     # Custom PG18 image: pg_duckdb + PostGIS + pgvector + pg_stat_statements
@@ -162,7 +170,10 @@ services:
     profiles: ["tools"]
     restart: unless-stopped
     ports:
-      - "4000:4000"   # LiteLLM proxy (OpenAI-compatible)
+      - "4000:4000"   # ~~LiteLLM proxy (OpenAI-compatible)~~ STALE LABEL 2026-08-12:
+                      # LiteLLM is RETIRED (ADR-0042) — the gateway image has litellm
+                      # autostart=false (docker/gateway/supervisord.conf), so nothing
+                      # listens behind :4000 in this stack. Label only; port mapping unchanged.
       - "4096:4096"   # OpenCode server
     environment:
       NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
@@ -176,7 +187,17 @@ services:
 
   # ---------------------------------------------------------------------------
   # Temporal graph memory (ADR-0014): Neo4j + Graphiti MCP, pulled forward.
-  # Graphiti's LLM + embeddings ride the LiteLLM gateway — no extra keys.
+  # ~~Graphiti's LLM + embeddings ride the LiteLLM gateway — no extra keys.~~
+  # RESOLVED 2026-08-12 (owner ruling): LiteLLM is RETIRED (ADR-0042) and
+  # graphiti-mcp below now goes DIRECT to NVIDIA NIM (integrate.api.nvidia.com)
+  # using the exact model IDs prod selects. NB: this compose file is NOT dev-only —
+  # it is the stack definition that gets mirrored to the VPS, so this is the
+  # deployed-elsewhere lane, not a laptop-local one. Verified against the live prod chain
+  # (ovh-files /data/agno/config/graphiti-case/portkeyfix.conf): prod's portkeyfix
+  # sidecar injects x-portkey-config whose targets are custom_host=integrate.api.nvidia.
+  # com with override_params models — Portkey is a pass-through there, so direct
+  # NIM locally is equivalent, and Portkey is bypassed temporarily by design.
+  # Both model IDs probe-verified HTTP 200 from this repo's NVIDIA_API_KEY 2026-08-12.
   # ---------------------------------------------------------------------------
   neo4j:
     image: neo4j:5-community
@@ -215,13 +236,19 @@ services:
       NEO4J_URI: bolt://neo4j:7687
       NEO4J_USER: neo4j
       NEO4J_PASSWORD: ${NEO4J_PASSWORD:-graphiti-dev-password}
-      # LLM + embeddings via the LiteLLM gateway (OpenAI-compatible).
+      # LLM + embeddings DIRECT to NVIDIA NIM (OpenAI-compatible) — see the
+      # section header above for the 2026-08-12 owner ruling + prod verification.
+      # ~~was: LiteLLM gateway http://gateway:4000/v1 (retired ADR-0042; dead in
+      # this stack — litellm autostart=false in the gateway image)~~
       # OPENAI_API_URL feeds the config yaml (embedder path); OPENAI_BASE_URL
       # is read natively by the openai SDK — needed because the image's LLM
       # factory drops api_url (upstream bug, verified 2026-06-10).
-      OPENAI_API_KEY: ${LITELLM_MASTER_KEY:-changeme-dev-key}
-      OPENAI_API_URL: http://gateway:4000/v1
-      OPENAI_BASE_URL: http://gateway:4000/v1
+      # Model IDs live in docker/graphiti/config.yaml (llm.model / embedder.model)
+      # and MUST be real NIM ids — the old "nemotron"/"embed-text" names were
+      # LiteLLM-gateway aliases that direct NIM rejects.
+      OPENAI_API_KEY: ${NVIDIA_API_KEY:?NVIDIA_API_KEY must be set in .env (direct-NIM lane, 2026-08-12)}
+      OPENAI_API_URL: https://integrate.api.nvidia.com/v1
+      OPENAI_BASE_URL: https://integrate.api.nvidia.com/v1
     volumes:
       # mounted OVER the image's default config path — main.py's argparse
       # default outranks the CONFIG_PATH env, so we replace the file itself

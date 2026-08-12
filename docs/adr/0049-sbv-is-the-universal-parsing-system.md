@@ -1,9 +1,17 @@
 # ADR-0049: SBV is the universal parsing system — all transcripts, all parsing, mostly Go, repair reachable, SBV GUI retained
 
-- Status: **PROPOSED** — owner stated the target 2026-08-10; this ADR writes down the gap between
-  that target and the code. **No port starts until this is signed.**
+- Status: ~~**PROPOSED** — owner stated the target 2026-08-10; this ADR writes down the gap between
+  that target and the code. **No port starts until this is signed.**~~ **ACCEPTED with amendment.
+  Amended 2026-08-12 (owner rulings; DECISION_LOG D-049/D-051):** the universal-parser DIRECTION
+  stands, but the parse step is **engine-DYNAMIC** — Go (SBV) OR Python (chatminer registry) with
+  explicit `--engine`/`--format` override; it is NOT dedicated to either. Code shipped: `2605fa5`
+  (engine-dynamic parse), `57ec156` (detection router, Go-primary), `4accbf2` (first SBV AI-chat
+  decoder). The "**mostly** Go" reading is amended: Go-primary *via the detection router*, Python
+  remains a first-class engine. The 4 gaps below (repair engine in Go, Go AI-chat decoders,
+  two detection registries, GUI surface) still stand.
 - Date: 2026-08-10
-- _Byline: Claude Code · Opus 5 · 2026-08-10_
+- _Byline: Claude Code · Opus 5 · 2026-08-10 (drift-fix 2026-08-12 Claude Code · Kimi K3:
+  status amended PROPOSED → ACCEPTED-with-amendment per D-049/D-051)_
 - Extends ADR-0048 (which established the Go engine as the ingestor core). Where ADR-0048 said
   "every future *evidence* format is a decoder module," this ADR widens the target to **all
   parsing** and names what is missing.

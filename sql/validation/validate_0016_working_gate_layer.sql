@@ -3,6 +3,11 @@
 --
 -- Byline: Claude Code · Opus 5 · 2026-08-01 (drafted as 0008_working_schema.sql)
 --         renumbered + adapted to the post-0014 layout · Claude Code · Fable 5 · 2026-08-02
+--         drift-fix header note · Claude Code · Kimi K3 · 2026-08-12
+-- NB 2026-08-12: routing targets below reference SurrealDB as the downstream
+-- analysis sink per applied sql/0016; SurrealDB is RETIRED (2026-08-06,
+-- ADR-0043). This validator mirrors APPLIED HISTORY — do not read the
+-- 'surrealdb' lane targets as current routing.
 --
 -- WHY THIS EXISTS
 -- ===============

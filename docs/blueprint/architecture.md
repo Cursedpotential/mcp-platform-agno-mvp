@@ -1,6 +1,7 @@
 # Layer 1 — Architecture
 
-> _Byline: Claude Code · Opus 4.8 · 2026-08-11 · reverse+forward, hybrid._
+> _Byline: Claude Code · Opus 4.8 · 2026-08-11 · reverse+forward, hybrid;
+> drift-fix 2026-08-12 (Claude Code · Kimi K3): "PG change-detection not built" claims updated — partially built per D-048._
 > Stable architecture (ADR-0051 target, ADR-0050 lanes, deploy topology) is drawn as the primary
 > view. Build STATUS moves daily — for live phase status see `docs/COORDINATION.md` (war-room) and
 > `docs/DECISION_LOG.md`, not this diagram.
@@ -44,8 +45,10 @@ flowchart TB
     F["source file (any format)"] --> DD["DuckDB: cache + UUID + catalog link"]
     DD --> SBV["SBV: parse + PREVIEW (Go fork) — then HANDS OFF"]
     SBV --> PG[("Postgres<br/>working.normalized_record<br/>(source of truth)")]
-    %% UNVERIFIED: PG change-detection does not exist yet (forward-only, ADR-0051)
-    PG -->|"PG change-detection (not built)"| FAN{{"fan-out triggered"}}
+    %% Updated 2026-08-12 (D-048): partially built — the context lane's change-detection-SHAPED
+    %% consumer (`ingest.context-drain`, pending-row polling) exists; the full trigger/outbox/
+    %% cursor CDC spine stays DEFERRED (ADR-0051 invariant 4; spine design = ADR-0052, queued)
+    PG -->|"PG change-detection (partial — pending-row polling, D-048; full CDC spine deferred)"| FAN{{"fan-out triggered"}}
     FAN --> CH["chunk (Chonkie via chunking_policy)"]
     CH --> EX["multipass extract + artifacts (Semantica)"]
     EX --> EN["entities + timeline (Graphiti/Neo4j)"]
@@ -71,7 +74,7 @@ flowchart TB
       P2["Chonkie chunkers → Agno (chunking_policy seam, WIRED by Lane D)"]
       P3["custody hashing decoupled → pkg/custodyhash"]
     end
-    GAP["NOT built yet: PG change-detection · Semantica wired · AI-chat Go decoders · HITL-after-extract"]
+    GAP["NOT built yet: full CDC spine (context-lane pending-row polling shipped 2026-08-12, D-048) · Semantica wired · AI-chat Go decoders beyond ChatGPT · HITL-after-extract"]
     KBLane -. converging on ADR-0051 .-> GAP
     PCLane -. converging on ADR-0051 .-> GAP
 ```
@@ -104,5 +107,5 @@ flowchart LR
 
 ## Open Questions
 - `%% UNVERIFIED` R2 lakehouse → PG/DuckDB wiring mechanism (owner-stated; not confirmed in code).
-- `%% UNVERIFIED` PG change-detection — does not exist yet; forward-only (ADR-0051).
+- ~~`%% UNVERIFIED` PG change-detection — does not exist yet; forward-only (ADR-0051).~~ **Updated 2026-08-12 (D-048):** partially built — the context lane's projection is change-detection-SHAPED (`ingest.context-drain` reads rows `WHERE <sink>_synced_at IS NULL` and stamps them; CLI + registered tool). The generic trigger/outbox/cursor spine for ALL paths remains DEFERRED (ADR-0051 invariant 4; spine design = ADR-0052, queued/not yet drafted).
 - exec-tier (ovh-app) was DOWN 2026-08-10 (VPS/bill) — topology shows intended state; verify live.

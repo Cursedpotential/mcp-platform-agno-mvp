@@ -1,5 +1,7 @@
 # docker/ — Progressive Disclosure Map
 
+> _Byline: Claude Code · Kimi K3 (drift-fix) · 2026-08-12 — gateway/graphiti labels corrected: LiteLLM retired (ADR-0042), Portkey is THE model gateway._
+
 > Dockerfiles for each service container.
 
 ## Directory Map
@@ -8,9 +10,12 @@
 docker/
   postgres/            <- Custom PG18 image: pg_duckdb + PostGIS + pgvector.
   tools/               <- Consolidated tool container (SBV + tools-facade).
-  gateway/             <- LiteLLM proxy + OpenCode server.
+  gateway/             <- OpenCode server (+ LiteLLM binary baked but DISABLED — RETIRED
+                          per ADR-0042, supervisord autostart=false; the live model gateway
+                          is Portkey — see docker/gateway/portkey/ and deploy/portkey.yaml).
   sandbox/             <- Isolated agent execution (no secrets, no published ports).
-  graphiti/            <- Graphiti MCP config (Neo4j + LiteLLM LLM/embeddings).
+  graphiti/            <- Graphiti MCP config (Neo4j + Portkey LLM/embeddings — was LiteLLM;
+                          corrected 2026-08-12, cutover live since 2026-07-19, ADR-0042).
   agent-ui/            <- Agent UI container (if present).
 ```
 

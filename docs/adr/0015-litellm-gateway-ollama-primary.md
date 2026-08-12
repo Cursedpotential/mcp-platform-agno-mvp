@@ -1,6 +1,10 @@
 # ADR-0015: LiteLLM gateway; Ollama Cloud is the primary LLM, NVIDIA NIM = embed/rerank/backup
-- Status: Accepted
+- Status: Accepted — **SUPERSEDED by ADR-0042** (2026-07-29; Portkey = the model gateway;
+  LiteLLM retired, teardown pending per `adr/README.md`). Kept for history; do not wire
+  anything new to LiteLLM.
 - Date: 2026-06-11
+
+> _Byline: Claude Code · Kimi K3 (drift-fix) · 2026-08-12 — header marked superseded by ADR-0042._
 - Amended: 2026-07-04 — see "Amendment" below (embed-text model swap; Graphiti LLM exception)
 - Supersedes: the "NVIDIA NIM is the active provider" runtime choice in ADR-0011 (the
   embedder dimension contract and one-provider-for-embeddings parts of 0011 remain in force).

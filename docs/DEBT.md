@@ -2,7 +2,8 @@
 
 > _Byline: Claude Code · Sonnet 5 · 2026-08-09 (docs/registers true-up: knowledge_filters/Weaviate
 > correction, agno pin correction, STUB-rule test scoping, parser-lane queue update, justified-custom
-> addition, dated audit stamp)_
+> addition, dated audit stamp);
+> drift-fix 2026-08-12 (Claude Code · Kimi K3: Milvus "locked + LIVE" row corrected — ADR-0040/D-042 supersession)_
 
 > **2026-08-09 audit** (docs/registers true-up pass): all "resolved" rows below re-checked
 > against the tree and still verified resolved (parser/extractor modules present under
@@ -54,7 +55,7 @@ never incomplete-and-silent in production, they're deliberate test fixtures
 | `tools-facade` populated (was `PORTED={}`) | **resolved 2026-07-10** — `load_builtin_tools()`-backed, real registry + SBV proxy surface | P2 — `docker/tools/tools/facade.py` |
 | Evals populated (was `CASES=()`) | planned (still `CASES: tuple[Case, ...] = ()` as of 2026-07-10) | P5 — `evals/cases.py` |
 | Backups (pg_dump + neo4j dump → R2) | planned | P5 |
-| Self-hosted evidence vector store (Qdrant/Milvus) | **resolved 2026-07-11** — Milvus is the locked platform-wide vector substrate (ADR-0026/ADR-0027), self-hosted + LIVE on the `data-vector` Coolify app; the "Qdrant" framing was stale. Evidence-text-embeddings *ingestion* at scale is still future work, tracked as "Evidence schemas populated by a real pipeline" above. | future → `docs/adr/0026-self-hosted-milvus-coolify-semantic-store.md`, `docs/adr/0027-milvus-platform-wide-vector-substrate.md` |
+| Self-hosted evidence vector store (Qdrant/Milvus) | ~~**resolved 2026-07-11** — Milvus is the locked platform-wide vector substrate (ADR-0026/ADR-0027), self-hosted + LIVE on the `data-vector` Coolify app~~ **Corrected 2026-08-12:** ADR-0026/0027 were SUPERSEDED by ADR-0040 (Weaviate LOCKED 2026-07-27) — Weaviate is THE vector store. The Milvus→Weaviate cutover was ruled VERIFIED 2026-08-09 (D-042; pymilvus removed from the image); the `data-vector` Milvus app is DOWN deliberately since 2026-08-10 (6th embedded-etcd corruption — docs/COORDINATION.md). The "Qdrant" framing was stale. Evidence-text-embeddings *ingestion* at scale is still future work, tracked as "Evidence schemas populated by a real pipeline" above. | future → `docs/adr/0040-vector-substrate-revisit-weaviate-pgvector-milvus.md` (supersedes `docs/adr/0026`, `docs/adr/0027`) |
 | Part 2 multi-pass analysis engine | next round | future |
 | V2 slim Graphiti image; multi-user auth | deferred | future |
 | Knowledge text embedder (`nvidia/nv-embed-v1`) calls NVIDIA NIM **direct**, not through the Portkey gateway | owner decision 2026-08-01: direct for now, Portkey later | `server/core/session.py` — see the TODO above `_EMBED_TEXT_BASE_URL`; target config already exists and is verified live at `docker/gateway/portkey/configs/embed.json` (reused as-is by Graphiti's own Portkey cutover) |

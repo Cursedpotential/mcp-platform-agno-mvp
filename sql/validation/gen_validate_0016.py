@@ -8,6 +8,12 @@ Then: ssh <db-host> "docker exec -i <pg-container> psql -U ai -d ai" \
         < sql/validation/validate_0016_working_gate_layer.sql
 
 Byline: Claude Code - Opus 5 - 2026-08-01
+        drift-fix header note - Claude Code - Kimi K3 - 2026-08-12
+
+NB 2026-08-12: the migration (and thus the generated harness) routes some
+promotion probes to a 'surrealdb' target per applied sql/0016; SurrealDB is
+RETIRED (2026-08-06, ADR-0043). These validators mirror APPLIED HISTORY — do
+not read the 'surrealdb' lane targets as current routing.
 RETARGETED 2026-08-09 (handoff S3f/[S3f]): this file was drafted against
 sql/0008_working_schema.sql, which collided with the applied
 0008_temporal_clocks_and_provenance.sql and was renumbered to
@@ -155,6 +161,8 @@ VALUES ('entity', :'ent_id','approved','owner','pending');
 INSERT INTO working.promotion (candidate_kind, candidate_id, lane, target_system, target_ref, promoted_by)
 VALUES ('entity', :'ent_id','hindsight','semantica_graph','node:123','owner'),
        ('entity', :'ent_id','as_lived','graphiti_memory','ep:456','owner'),
+       -- NB 2026-08-12: 'surrealdb' below is the APPLIED 0016 target vocabulary;
+       -- SurrealDB RETIRED 2026-08-06 (ADR-0043) — mirrors history, not routing.
        ('entity', :'ent_id','consolidated','surrealdb','entity:789','owner'),
        ('entity', :'ent_id','support','weaviate','uuid:abc','owner');
 SELECT lane, target_system FROM working.promotion ORDER BY lane;

@@ -1,7 +1,10 @@
 # AGENTS.md — Universal Entry Point
 
 > _Byline: Claude Code · Sonnet 5 · 2026-08-09 (docs/registers true-up: custody.go path, disclosure_tier
-> type correction, docker/ subdir paths, `_stale/`/Makefile path precision)_
+> type correction, docker/ subdir paths, `_stale/`/Makefile path precision;
+> drift-fix 2026-08-12 Claude Code · Kimi K3: stack line agno 2.8.0 → 2.8.7 per requirements.txt:3;
+> drift-fix 2026-08-12 Claude Code · Kimi K3: "cutover pending" dropped — cutover verified D-042,
+> Milvus DOWN deliberately since 2026-08-10)_
 
 > **This is the first file any agent (Claude Code, Codex, Gemini CLI, opencode) reads.**
 > Keep it short: universal context + navigation index. **Closest file wins** — nested
@@ -70,11 +73,12 @@ Consequences that are easy to get wrong:
 
 ## Stack
 
-Agno 2.8.0 · PostgreSQL 18 (pg_duckdb + pgvector + PostGIS) — **also the Agno
+Agno 2.8.7 · PostgreSQL 18 (pg_duckdb + pgvector + PostGIS) — **also the Agno
 operational store** since the 2026-08-04 flatten (ADR-0043 decision 3) ·
 Neo4j + Graphiti · Portkey gateway (Ollama Cloud primary; LiteLLM retired,
-ADR-0042) · Weaviate vectors (locked ADR-0040, cutover pending — Milvus
-sidelined) · ~~SurrealDB operational store~~ **SurrealDB RETIRED, zero callers,
+ADR-0042) · Weaviate vectors (locked ADR-0040, ~~cutover pending~~ cutover
+VERIFIED 2026-08-09 per D-042 — Milvus not merely sidelined: the `data-vector`
+app is DOWN deliberately since 2026-08-10, 6th embedded-etcd corruption) · ~~SurrealDB operational store~~ **SurrealDB RETIRED, zero callers,
 parked read-only** (owner ruling 2026-08-06; ADR-0043; container still up on
 ovh-data, export at `_stale/surreal-export-20260804` — **WORKSPACE-ROOT-relative**,
 the `_stale/` archive is a sibling of this repo under the workspace root, not a

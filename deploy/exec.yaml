@@ -1,4 +1,7 @@
 # =============================================================================
+# Byline: Claude Code · Kimi K3 (drift-fix) · 2026-08-12 — Milvus env block
+#         annotated superseded/down (ADR-0040, D-042, data-vector off since 2026-08-10).
+# =============================================================================
 # EXEC TIER (RUMP) — deploy on OVH-1 ("ovh1-agno"; tailnet 100.72.169.40, salem
 # private 10.1.1.122, public 40.160.5.19), the execution + surfaces box.
 # Coolify "Docker Compose" app (rz41wqhpjfh1rj796ixvjhfs) built from this repo.
@@ -75,6 +78,11 @@ services:
       DB_DATABASE: ${DB_DATABASE:-ai}
       # Milvus (ADR-0026/0027) — vector store on OVH-3; defaults to the data box's
       # gRPC port over the tailnet. Override MILVUS_ADDRESS/TOKEN in env if needed.
+      # NB 2026-08-12: ADR-0026/0027 SUPERSEDED by ADR-0040 (Weaviate locked
+      # 2026-07-27). Milvus is not merely sidelined — the `data-vector` app is
+      # DOWN deliberately since 2026-08-10 (6th embedded-etcd corruption;
+      # docs/COORDINATION.md), and pymilvus was removed from the image
+      # 2026-08-09 (D-042). These vars are legacy/vestigial; nothing live.
       MILVUS_ADDRESS: ${MILVUS_ADDRESS:-http://${OVH3_HOST}:19530}
       MILVUS_TOKEN: ${MILVUS_TOKEN:-}
       # SurrealDB on OVH-3 — WS transport, /rpc path. ~~Agno operational
