@@ -167,25 +167,49 @@ def parse_chat_export(
     if not path.is_file():
         raise FileNotFoundError(path)
 
+    # Explicit engine override always wins (the MVP escape hatch).
     if engine == "go":
         from server.analysis.sbv_transcript import parse_via_sbv
 
         return parse_via_sbv(path, format=format, source_meta=source_meta)
+    if engine == "python":
+        return _parse_via_registry(path, source_meta)
 
-    # "python" and (for the MVP) "auto" both run the in-process registry mesh.
+    # engine == "auto": the DETECTION ROUTER (Go-primary), not a blind mesh.
+    # detect once -> route to the winning format's preferred engine, with
+    # graceful fallbacks (Go -> that format's Python parser -> full mesh).
+    from server.analysis.format_router import detect_format
+
+    det = detect_format(path)
+    if det.format_id and det.engine == "go":
+        from server.analysis.sbv_transcript import parse_via_sbv
+
+        try:
+            return parse_via_sbv(path, format=det.parse_format, source_meta=source_meta)
+        except Exception:  # SBV down / auth / import error -> fall back to the same format's Python parser
+            pass
+    if det.python_parser_id:
+        try:
+            return _parse_via_registry(path, source_meta, preferred_tool_id=det.python_parser_id)
+        except Exception:  # detected parser rejected it -> last-resort full mesh below
+            pass
+    # unknown format, or the detected route failed: full registry mesh (last resort).
     return _parse_via_registry(path, source_meta)
 
 
 def _parse_via_registry(
-    path: Path, source_meta: dict[str, Any] | None = None
+    path: Path, source_meta: dict[str, Any] | None = None, *, preferred_tool_id: str | None = None
 ) -> tuple[list[NormalizedRecord], str, list[dict[str, Any]]]:
     """The PYTHON parse engine: resolve `parse.transcript` candidates for
-    `path` and try each in registration order until one succeeds. Raises
-    ValueError if every candidate rejects the file."""
+    `path`. When `preferred_tool_id` is given (the router's detected parser),
+    try it FIRST, then the rest as a safety net; otherwise try in registration
+    order. Raises ValueError if every candidate rejects the file."""
     load_builtin_tools()
     candidates = registry.resolve("parse.transcript", media_hint=path.name.lower(), size_bytes=path.stat().st_size)
     if not candidates:
         raise ValueError(f"no parse.transcript tool accepts {path.name!r}")
+    if preferred_tool_id:
+        candidates = sorted(candidates, key=lambda t: 0 if t.id == preferred_tool_id else 1)
 
     attempts: list[dict[str, Any]] = []
     last_err: Exception | None = None
