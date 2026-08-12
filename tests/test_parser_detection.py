@@ -42,6 +42,38 @@ def test_detects_chatgpt_official_json(tmp_path):
     assert parser.SOURCE_NAME == "chatgpt_official"
 
 
+def test_chatgpt_official_detects_large_export_without_filename(tmp_path):
+    # Regression (2026-08-12): a real ChatGPT export is a LARGE JSON array, so the old
+    # can_parse() `json.loads(content[:4096])` truncated it -> JSONDecodeError -> content
+    # detection scored 0, leaving only the weak filename heuristic (0.20 < 0.5) -> the
+    # canonical export was REJECTED. Detection must key on the content signature
+    # ("mapping" + "create_time"), independent of the filename. This synthetic export is
+    # big enough that a 4096-char slice truncates the array, and is deliberately NOT named
+    # conversations.json so the filename crutch cannot mask a detection regression.
+    big_mapping = {
+        f"node-{i}": {
+            "id": f"node-{i}",
+            "message": {"author": {"role": "user"}, "content": {"content_type": "text", "parts": ["x" * 200]}},
+            "parent": None,
+            "children": [],
+        }
+        for i in range(80)
+    }
+    convo = {
+        "title": "Custody planning",
+        "create_time": 1700000000.0,
+        "update_time": 1700000100.0,
+        "mapping": big_mapping,
+        "current_node": "node-79",
+        "conversation_id": "abc",
+    }
+    content = json.dumps([convo, convo])
+    assert len(content) > 8192, "fixture must exceed the old 4096-char detection slice"
+    parser = _detect(tmp_path, "export_2025.json", content)  # no 'conversations' in the name
+    assert parser is not None
+    assert parser.SOURCE_NAME == "chatgpt_official"
+
+
 def test_detects_generic_markdown_fallback(tmp_path):
     # 'Person'/'Bot' bold markers are matched ONLY by the generic parser, not by
     # the Claude-specific markdown parser — isolates the fallback path.

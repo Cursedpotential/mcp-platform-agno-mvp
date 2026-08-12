@@ -51,19 +51,39 @@ class ChatGptOfficialParser(BaseParser):
 
     def can_parse(self, content: str, path: Optional[str] = None) -> float:
         score = 0.0
-        try:
-            data = json.loads(content[:4096])
-            if isinstance(data, list) and len(data) > 0:
-                first = data[0]
-                if isinstance(first, dict):
-                    if "mapping" in first and "title" in first:
-                        score += 0.5
-                    if "create_time" in first:
-                        score += 0.3
-            elif isinstance(data, dict) and "mapping" in data:
-                score += 0.4
-        except (json.JSONDecodeError, ValueError):
-            pass
+        # Signature-based detection. A real ChatGPT export is a large JSON array, so
+        # json.loads(content[:4096]) truncates it and ALWAYS raises JSONDecodeError —
+        # which used to drop content-detection to zero and leave only the weak filename
+        # signal (0.20 < 0.5 threshold => the canonical export was rejected). Probe for
+        # the export's structural markers in a prefix instead of parsing. Each
+        # conversation object opens with `"title"`, `"create_time"`, `"update_time"`,
+        # `"mapping"` — so `"mapping"` + `"create_time"` both land in the first ~200
+        # bytes, well inside the window. (Do NOT key on "current_node"/"conversation_id":
+        # those sit AFTER the mapping node graph, which is far past any fixed prefix on a
+        # real multi-message export.) The `"mapping"` key + ChatGPT's epoch `"create_time"`
+        # do not co-occur in the Claude/Gemini/Perplexity exports, so false positives are
+        # negligible.
+        head = content[:16384]
+        if '"mapping"' in head and '"create_time"' in head:
+            score += 0.7
+            if '"title"' in head:
+                score += 0.1
+        else:
+            # Small exports may fit entirely in the slice — keep the strict parse as a
+            # bonus path so tiny/single-conversation files still detect cleanly.
+            try:
+                data = json.loads(content[:4096])
+                if isinstance(data, list) and len(data) > 0:
+                    first = data[0]
+                    if isinstance(first, dict):
+                        if "mapping" in first and "title" in first:
+                            score += 0.5
+                        if "create_time" in first:
+                            score += 0.3
+                elif isinstance(data, dict) and "mapping" in data:
+                    score += 0.4
+            except (json.JSONDecodeError, ValueError):
+                pass
 
         if path and "conversations" in path.lower() and path.endswith(".json"):
             score += 0.2
