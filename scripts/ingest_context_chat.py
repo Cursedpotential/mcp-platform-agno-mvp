@@ -81,9 +81,28 @@ def main(argv: list[str] | None = None) -> int:
     if args.db_host:
         os.environ["DB_HOST"] = args.db_host
 
+    conversation_ids = set(args.conversation_ids) if args.conversation_ids else None
+
+    if args.path.lower().endswith(".zip"):
+        # Real exports arrive as a ZIP (conversations*.json + metadata + assets/).
+        from server.analysis.chat_archive import ingest_chat_archive
+
+        report = asyncio.run(
+            ingest_chat_archive(
+                args.path,
+                engine=args.engine,
+                format=args.format,
+                conversation_ids=conversation_ids,
+                max_chars=args.max_chars,
+                dry_run=args.dry_run,
+                project=args.project,
+            )
+        )
+        print(json.dumps(asdict(report), indent=2, default=str))
+        return 0
+
     from server.analysis.context_chat_ingest import ingest_chat_file
 
-    conversation_ids = set(args.conversation_ids) if args.conversation_ids else None
     report = asyncio.run(
         ingest_chat_file(
             args.path,
