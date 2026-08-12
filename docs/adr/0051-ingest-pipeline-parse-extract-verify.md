@@ -83,13 +83,33 @@ This is what exists TODAY. None of it should be read as the target above being b
     step (`_knowledge_step_impl`, `server/evidence/workflows.py:446`) calls `ingest_into_knowledge`
     with a SINGLE `domain` string. **No chunk / multipass / artifact / entity / timeline stage, and
     one-domain-per-file** — violates invariants 1, 3-as-flow, 5.
-  - `server/analysis/context_chat_ingest.py` — a SEPARATE script: parse → `chunk_records` → dual
-    write to Weaviate `platform_context` + Graphiti CASE lane (entities/timeline via GLiNER2). This
-    is where chunking + entities + timeline actually live today, OUTSIDE the evidence workflow.
+  - `server/analysis/context_chat_ingest.py` — a SEPARATE script: parse → ~~`chunk_records` → dual
+    write to Weaviate `platform_context` + Graphiti CASE lane~~. This is where chunking + entities +
+    timeline actually live today, OUTSIDE the evidence workflow.
+    **Update 2026-08-12 (owner ruling "it's all supposed to go back into pg And then change detection
+    will move it into vector db" · D-048 · sql/0021):** this path is now **PG-first** — parse →
+    `store_context_records()` into **`working.context_record`** (a SEPARATE source-of-truth table,
+    Option B: no evidence FK, so context never enters the evidence spine — ADR-0044 boundary) →
+    `sync_pending_context()` projects the pending rows to Weaviate `platform_context` + the Graphiti
+    CASE lane and stamps them synced. The dual-write-to-vector-store-directly design is retired; the
+    SQLite `IngestLedger` is gone (PG `content_hash` UNIQUE + `*_synced_at` stamps are the dedup/sync
+    authority now). It is still a separate path from the evidence workflow (invariant 1 not yet met),
+    and it still bypasses SBV (invariant, ADR-0049 Gap 2 — AI-chat Go decoder exists but isn't the
+    front door yet) and Semantica multipass (below).
 - **Semantica is unwired.** `server/analysis/semantica_wiring.py` is called by neither path;
   multipass extraction + artifact extraction (ADR-0043) do not run in any ingest flow.
-- **No PG change-detection exists.** The fan-out (invariant 4) is not built; both paths orchestrate
-  their writes inline and synchronously.
+- ~~**No PG change-detection exists.**~~ **Partial, 2026-08-12:** the context path's projection is now
+  a **change-detection-shaped** consumer — `sync_pending_context(sink)` reads rows
+  `WHERE <sink>_synced_at IS NULL` (partial-indexed) and stamps them after projecting, so Weaviate/
+  Graphiti are subscribers to PG state rather than inline targets, and any lane can be rebuilt by
+  clearing its stamp. The consumer is exposed as a registered tool — capability
+  **`ingest.context-drain`** (`server/tools/ingest/context_drain.py`) + CLI
+  `scripts/drain_context.py` — so the batch projection is triggerable on demand from CLI/agent/MCP
+  (owner 2026-08-12: "written as a tool ... so we can easily trigger that batch process ... until we
+  do get the full workflow built out"). **Still deferred:** the generic trigger/outbox/cursor spine
+  (invariant 4 for ALL paths, ADR-0052) — today the consumer is polled (inline after an ingest, or
+  the drain tool / `--no-project`), not fired by a DB trigger. The evidence workflow still writes its
+  Weaviate insert inline.
 - **AI chats do NOT go through SBV.** The SBV Go engine (`vendored/sbv/internal/`) has 12 decoders
   (messaging/email) and ZERO AI-chat decoders; AI chats run through the Python context path. (This
   is ADR-0049 Gap 2.)

@@ -186,6 +186,21 @@ tag → CI builds → bump the tag in `docker/tools/Dockerfile`. Image name MUST
 `cursedpotential/sbv-forensic` in the workflow — `${{ github.repository }}`'s capital C breaks the push).
 
 ## Ledger (append below; newest on top)
+- **2026-08-12 — CONTEXT ingest went PG-first (PARSER/CHUNKING lane · D-048):** owner ruling
+  "it's all supposed to go back into pg And then change detection will move it into vector db."
+  `server/analysis/context_chat_ingest.py` no longer dual-writes chat chunks straight to Weaviate/
+  Graphiti — it now writes **`working.context_record`** (new source-of-truth table, migration
+  `sql/0021`, **Option B = separate table, NO evidence FK** so context stays out of the evidence
+  spine) then `sync_pending_context(sink)` projects pending rows (`*_synced_at IS NULL`) to the
+  `platform_context` Weaviate collection + the Graphiti CASE lane. SQLite `IngestLedger` retired
+  (PG `content_hash` UNIQUE + `*_synced_at` are the dedup/sync authority). 20/20 tests pass.
+  **APPLIED to live** (0021 committed to the DB, table present) + **batch-drain tool built**:
+  registered capability `ingest.context-drain` (`server/tools/ingest/context_drain.py`) + CLI
+  `scripts/drain_context.py` — the manual "project pending rows now" trigger until the CDC worker
+  exists (owner: "written as a tool ... so we can easily trigger that batch process"). **KB-STRUCTURE
+  lane:** this touches only the CONTEXT write path + a NEW
+  `working.*` table + parser-lane docs (ADR-0051 current-reality, DECISION_LOG, this ledger) — it
+  does NOT edit your six-lane KB-structure files or the `ai.*` contents tables.
 - **2026-07-10 — DOCUMENTATION SYNC (branch `docs/autonomous-doc-sync`):** AGENTS.md
   progressive-disclosure reconfiguration after ADR-0033/0035 left the root `AGENTS.md`
   describing the pre-repack flat-package layout and promising per-directory `README.md`

@@ -1,18 +1,23 @@
-"""CLI: ingest ONE AI-chat export file into the CONTEXT lane (Weaviate
-`platform_context` tier=context + Graphiti CASE lane). See
-`server/analysis/context_chat_ingest.py` for the full pipeline docstring and
-the NON-NEGOTIABLE evidence/context boundary this enforces.
+"""CLI: ingest ONE AI-chat export file into the CONTEXT lane, PG-first (owner
+ruling 2026-08-12): parse -> working.context_record (Postgres SOURCE OF TRUTH)
+-> change-detection projects to Weaviate `platform_context` tier=context +
+the Graphiti CASE lane. See `server/analysis/context_chat_ingest.py` for the
+full pipeline docstring and the NON-NEGOTIABLE evidence/context boundary this
+enforces.
 
 Usage (uv-managed venv, never a bare python — CONVENTIONS.md):
     uv run --no-sync python scripts/ingest_context_chat.py <path> --dry-run
     uv run --no-sync python scripts/ingest_context_chat.py <path> \\
         --conversation-id <id> [--conversation-id <id> ...] \\
         --db-host 100.119.96.29
+    # PG-only (write the source of truth now, let a worker project later):
+    uv run --no-sync python scripts/ingest_context_chat.py <path> --no-project
 
-`--db-host` overrides DB_HOST for this process only: agno's Knowledge
-contents_db needs Postgres, and the platform default `DB_HOST=agentos-db`
-only resolves inside the docker compose network, not from an external host
-(CLAUDE.md environment note) — pass the tailnet IP when running this off-box.
+`--db-host` overrides DB_HOST for this process only: both the context_record
+source-of-truth write AND agno's Knowledge contents_db need Postgres, and the
+platform default `DB_HOST=agentos-db` only resolves inside the docker compose
+network, not from an external host (CLAUDE.md environment note) — pass the
+tailnet IP when running this off-box.
 
 Prints a JSON IngestReport to stdout; nothing here bulk-ingests by default —
 pass `--conversation-id` to scope a proof run to specific conversation(s), or
@@ -47,9 +52,16 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="restrict to this conversation_id (repeatable); omit to ingest every conversation in the file",
     )
-    ap.add_argument("--dry-run", action="store_true", help="parse+chunk only, no Weaviate/Graphiti writes")
+    ap.add_argument("--dry-run", action="store_true", help="parse+preview only; no PG write, no projection")
+    ap.add_argument(
+        "--no-project",
+        dest="project",
+        action="store_false",
+        default=True,
+        help="write the PG source of truth only; leave Weaviate/Graphiti projection for a later worker",
+    )
     ap.add_argument("--max-chars", type=int, default=6000, help="per-chunk character budget (default 6000)")
-    ap.add_argument("--db-host", default=None, help="override DB_HOST for this process (Postgres contents_db)")
+    ap.add_argument("--db-host", default=None, help="override DB_HOST for this process (Postgres source of truth + contents_db)")
     return ap.parse_args(argv)
 
 
@@ -67,6 +79,7 @@ def main(argv: list[str] | None = None) -> int:
             conversation_ids=conversation_ids,
             max_chars=args.max_chars,
             dry_run=args.dry_run,
+            project=args.project,
         )
     )
     print(json.dumps(asdict(report), indent=2, default=str))
