@@ -72,15 +72,20 @@ services:
       # (corrupt etcd from 08-10) is retired in place — NOT mounted, NOT deleted.
       - /data/agno/volumes/milvus-memsearch:/var/lib/milvus
     configs:
-      - embedEtcd_yaml
-      - user_yaml
+      # LONG FORM required: short `- <name>` mounts at `/<name>`, but Milvus reads
+      # these from /milvus/configs/. Without explicit targets Milvus loads NEITHER
+      # config -> etcd defaults to 100ms heartbeat (boot-race panic) + no R2 block.
+      - source: embedEtcd_yaml
+        target: /milvus/configs/embedEtcd.yaml
+      - source: user_yaml
+        target: /milvus/configs/user.yaml
     ports:
       - "${BIND_IP:-127.0.0.1}:19530:19530"   # gRPC SDK — tailnet-only (BIND_IP=100.91.190.107 via Coolify env)
       - "${BIND_IP:-127.0.0.1}:9091:9091"     # health
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]   # milvus image HAS curl
       interval: 30s
-      start_period: 90s
+      start_period: 150s   # bumped from 90s — cold R2 first-boot is slower than local
       timeout: 20s
       retries: 3
     networks:
