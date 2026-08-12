@@ -126,6 +126,7 @@ class ArchiveIngestReport:
     logs_ingested: list[dict[str, Any]]  # one IngestReport-as-dict per conversation log
     deferred_assets: int
     deferred_metadata: list[str]
+    assets_materialized: dict[str, Any] | None = None  # MaterializeReport-as-dict when materialize_assets=True
 
 
 async def ingest_chat_archive(
@@ -137,6 +138,7 @@ async def ingest_chat_archive(
     max_chars: int | None = None,
     dry_run: bool = False,
     project: bool = True,
+    materialize_assets: bool = False,
     knowledge: Any | None = None,
     graphiti_client: Any | None = None,
 ) -> ArchiveIngestReport:
@@ -179,9 +181,17 @@ async def ingest_chat_archive(
             )
             logs_out.append({"member": member, **asdict(report)})
 
+    # Whole-unit: optionally materialize the archive's assets + metadata too
+    # (owner: "the data within it is properly parsed and saved"). Off by default
+    # so a conversation-only ingest doesn't trigger blob writes; always
+    # runs a dry-run preview so the report shows what WOULD/DID materialize.
+    from server.analysis.context_assets import materialize_archive
+
+    mat = materialize_archive(zip_path, dry_run=dry_run or not materialize_assets)
     return ArchiveIngestReport(
         inventory=inv.as_dict(),
         logs_ingested=logs_out,
         deferred_assets=len(inv.asset_files),
         deferred_metadata=inv.metadata_files,
+        assets_materialized=mat.as_dict(),
     )
