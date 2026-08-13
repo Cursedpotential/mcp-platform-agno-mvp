@@ -189,13 +189,19 @@ def classify_chunks(
         raise ValueError("classification mode must be 'keyword', 'cpu', or 'hybrid'")
     chunks = list(chunks)
     cpu_error: Exception | None = None
+    effective_model_id: str | None = None
     if mode in {"cpu", "hybrid"} and encoder is None:
         try:
-            from server.analysis.cpu_lane_classifier import load_cpu_encoder
+            from server.analysis.cpu_lane_classifier import load_cpu_encoder, resolve_cpu_model_id
 
-            encoder = load_cpu_encoder(model_id)
+            effective_model_id = resolve_cpu_model_id(model_id)
+            encoder = load_cpu_encoder(effective_model_id)
         except Exception as exc:  # optional runtime/model download must not lose chunks
             cpu_error = exc
+    elif mode in {"cpu", "hybrid"}:
+        from server.analysis.cpu_lane_classifier import resolve_cpu_model_id
+
+        effective_model_id = resolve_cpu_model_id(model_id)
 
     semantic_by_hash: dict[str, list[LaneClassification]] = {}
     if mode in {"cpu", "hybrid"} and cpu_error is None and encoder is not None:
@@ -205,7 +211,7 @@ def classify_chunks(
             semantic_by_hash = classify_chunks_cpu(
                 chunks,
                 encoder=encoder,
-                model_id=model_id or DEFAULT_CPU_MODEL,
+                model_id=effective_model_id or DEFAULT_CPU_MODEL,
             )
         except Exception as exc:
             cpu_error = exc
@@ -250,6 +256,6 @@ def classifier_id(mode: str, model_id: str | None = None) -> str:
 
     if mode == "keyword":
         return "keyword-v1"
-    from server.analysis.cpu_lane_classifier import DEFAULT_CPU_MODEL
+    from server.analysis.cpu_lane_classifier import resolve_cpu_model_id
 
-    return f"{mode}-v1:{model_id or DEFAULT_CPU_MODEL}"
+    return f"{mode}-v1:{resolve_cpu_model_id(model_id)}"

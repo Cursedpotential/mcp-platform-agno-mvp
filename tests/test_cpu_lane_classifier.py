@@ -34,6 +34,12 @@ class SemanticFake:
         return vectors
 
 
+class ZeroEncoder:
+    def encode(self, sentences, **kwargs):
+        del kwargs
+        return [[0.0, 0.0] for _ in sentences]
+
+
 def _chunk(content: str) -> ChatChunk:
     return ChatChunk(
         conversation_id="c1",
@@ -63,6 +69,11 @@ def test_cpu_windows_prevent_encoder_truncation():
     assert len(windows) == 3
     assert max(map(len, windows)) <= 1400
     assert "".join(windows) == "x" * 4000
+
+
+def test_cpu_below_threshold_returns_context_only():
+    assignments = classify_chunk_cpu(_chunk("opaque material"), encoder=ZeroEncoder())
+    assert [assignment.lane for assignment in assignments] == [ChatLane.context]
 
 
 def test_hybrid_keeps_keyword_and_adds_cpu_candidates():
@@ -98,3 +109,8 @@ def test_unknown_mode_rejected_and_ids_are_versioned():
         classify_chunks([], mode="remote")
     assert classifier_id("keyword") == "keyword-v1"
     assert classifier_id("cpu", "local/model") == "cpu-v1:local/model"
+
+
+def test_classifier_id_honors_environment_model(monkeypatch):
+    monkeypatch.setenv("CPU_CLASSIFIER_MODEL", "owner/local-model")
+    assert classifier_id("hybrid") == "hybrid-v1:owner/local-model"

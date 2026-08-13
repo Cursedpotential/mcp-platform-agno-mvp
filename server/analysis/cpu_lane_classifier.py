@@ -68,10 +68,16 @@ def load_cpu_encoder(model_id: str | None = None, backend: str | None = None) ->
     except ImportError as exc:
         raise RuntimeError('CPU classification is unavailable; install the "classification" extra') from exc
     return SentenceTransformer(
-        model_id or os.getenv("CPU_CLASSIFIER_MODEL", DEFAULT_CPU_MODEL),
+        resolve_cpu_model_id(model_id),
         backend=backend or os.getenv("CPU_CLASSIFIER_BACKEND", DEFAULT_CPU_BACKEND),
         device="cpu",
     )
+
+
+def resolve_cpu_model_id(model_id: str | None = None) -> str:
+    """Resolve explicit configuration before environment and default values."""
+
+    return model_id or os.getenv("CPU_CLASSIFIER_MODEL") or DEFAULT_CPU_MODEL
 
 
 def _windows(text: str, max_chars: int) -> list[str]:
@@ -118,7 +124,14 @@ def _assign_scores(
         if score >= policy.include_lane and top_score - score <= policy.relative_margin
     ][: policy.max_lanes]
     if not selected:
-        selected = [ordered[0]]
+        return [
+            LaneClassification(
+                lane=ChatLane.context,
+                confidence=1.0,
+                review_status="pending_review",
+                rationale=f"cpu-semantic-v1:{model_id}; every domain score below inclusion threshold",
+            )
+        ]
 
     results = [
         LaneClassification(

@@ -600,32 +600,39 @@ async def ingest_chat_file(
     stored = 0
     all_classifications: list[list[LaneClassification]] = []
     conversation_external_ids: list[str] = []
+    prepared: list[tuple[ChatConversation, list[ChatMessage], list[ChatChunk]]] = []
 
     for conversation, messages in batches:
         conversation_external_ids.append(conversation.conversation_id)
         chunks = chunk_chat_messages(messages, max_chars=max_chars, chunker=chunker)
-        classifications = (
-            classify_chunks(chunks, mode=classify_mode, model_id=classify_model)
-            if classify
-            else {
-                chunk.content_hash: [
-                    LaneClassification(
-                        lane="context",
-                        confidence=1.0,
-                        review_status="pending_review",
-                        rationale="classification deferred",
-                    )
-                ]
-                for chunk in chunks
-            }
-        )
-        all_classifications.extend(classifications.values())
+        prepared.append((conversation, messages, chunks))
+
+    all_chunks = [chunk for _, _, chunks in prepared for chunk in chunks]
+    classifications = (
+        classify_chunks(all_chunks, mode=classify_mode, model_id=classify_model)
+        if classify
+        else {
+            chunk.content_hash: [
+                LaneClassification(
+                    lane="context",
+                    confidence=1.0,
+                    review_status="pending_review",
+                    rationale="classification deferred",
+                )
+            ]
+            for chunk in all_chunks
+        }
+    )
+    all_classifications.extend(classifications.values())
+
+    for conversation, messages, chunks in prepared:
+        batch_classifications = {chunk.content_hash: classifications[chunk.content_hash] for chunk in chunks}
         if not dry_run:
             stored += store_chat_batch(
                 conversation,
                 messages,
                 chunks,
-                classifications,
+                batch_classifications,
                 classifier_id_value=classifier_id(classify_mode, classify_model) if classify else "deferred",
             )
 
