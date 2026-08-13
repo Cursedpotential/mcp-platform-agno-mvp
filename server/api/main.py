@@ -32,6 +32,7 @@ Hard rules:
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from functools import partial
 from os import getenv
 from pathlib import Path
 from typing import Any
@@ -40,6 +41,9 @@ from agno.os import AgentOS
 from agno.registry import Registry
 from agno.team.team import Team
 from agno.utils.log import log_info, log_warning
+from agno.workflow.factory import WorkflowFactory
+from agno.workflow.remote import RemoteWorkflow
+from agno.workflow.workflow import Workflow
 from fastapi import FastAPI
 
 from server.agents.factory import build_agent_team
@@ -67,7 +71,7 @@ scheduler_base_url: str = getenv("AGENTOS_URL", "http://127.0.0.1:8000")
 # instead of constructing Knowledge directly; module-level so the lifespan
 # (which only receives the ASGI `app`, not `_build_app`'s locals) can start
 # the background retry loop after the app object exists.
-_knowledge_handle = KnowledgeHandle(lambda: create_knowledge("platform", "platform_knowledge"))
+_knowledge_handle = KnowledgeHandle(partial(create_knowledge, "platform", "platform_knowledge"))
 
 # Named knowledge bases — the SIX-LANE architecture (ADR-0050, 2026-08-10).
 # AgentOS takes a LIST; each entry becomes its own selectable base.
@@ -89,7 +93,7 @@ _KNOWLEDGE_BASES: dict[str, str] = {
     "context": "platform_context",  # AI chats (ADR-0044 context corpus; existing collection)
 }
 _extra_knowledge_handles: dict[str, KnowledgeHandle] = {
-    name: KnowledgeHandle(lambda n=name, t=table: create_knowledge(n, t)) for name, table in _KNOWLEDGE_BASES.items()
+    name: KnowledgeHandle(partial(create_knowledge, name, table)) for name, table in _KNOWLEDGE_BASES.items()
 }
 
 
@@ -398,7 +402,7 @@ def _build_app() -> Any:
         # the factory per request with the caller's validated input.
         # `registered_workflows` never raises — registration is a convenience
         # surface and must not be able to crash-loop the boot path.
-        workflows=registered_workflows(db, knowledge),
+        workflows=list[Workflow | RemoteWorkflow | WorkflowFactory](registered_workflows(db, knowledge)),
         base_app=app,
         enable_mcp_server=True,  # serve the OS as an MCP server at /mcp (extracted standalone by app/mcp_main.py — mounted /mcp 500s, see that file)
         on_route_conflict="preserve_base_app",

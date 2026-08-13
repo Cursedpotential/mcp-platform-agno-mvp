@@ -33,8 +33,7 @@ ROW = '<sms address="+1555000{n}" date="17000000000{n}0" type="1" body="hello {n
 def _damaged_xml(tmp_path, name="s.xml"):
     p = tmp_path / name
     body = "\n".join(ROW.format(n=i) for i in range(8))
-    p.write_text(f'<?xml version="1.0" encoding="UTF-8"?>\n<smses>\n{body}\n</smses>\n',
-                 encoding="utf-8")
+    p.write_text(f'<?xml version="1.0" encoding="UTF-8"?>\n<smses>\n{body}\n</smses>\n', encoding="utf-8")
     p.write_bytes(p.read_bytes().replace(b'body="hello 3"', b'body="bad \x0b\x1f"', 1))
     return p
 
@@ -147,8 +146,8 @@ def test_ledger_keys_on_content_so_a_moved_file_stays_flagged(tmp_path):
     moved.parent.mkdir()
     moved.write_bytes(src.read_bytes())
 
-    assert ledger.by_path(moved) is None          # path lookup misses
-    assert ledger.by_sha(sha) is not None          # content lookup still finds it
+    assert ledger.by_path(moved) is None  # path lookup misses
+    assert ledger.by_sha(sha) is not None  # content lookup still finds it
     assert ledger.should_skip(moved, verify_hash=True) is True
 
 

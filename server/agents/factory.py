@@ -26,6 +26,7 @@ Conventions:
   to the ``analysis`` schema. It pauses for human approval before executing.
 """
 # Byline: Claude Code · Fable 5 · 2026-07-31 (enable_user_memories on Root Router + Project PAL; Weaviate docstring fix)
+# Byline: Codex · GPT-5 · 2026-08-13 (type-safe audit hook attachment)
 
 from __future__ import annotations
 
@@ -548,7 +549,8 @@ def build_agent_team(ctx: Any) -> dict[str, Any]:
     # tool_hooks is not silently clobbered.
     from server.core.audit import audit_tool_hook
 
-    for _obj in roster.values():
+    for _obj_value in roster.values():
+        _obj: Any = _obj_value
         _obj.tool_hooks = [*(getattr(_obj, "tool_hooks", None) or []), audit_tool_hook]
 
     return roster

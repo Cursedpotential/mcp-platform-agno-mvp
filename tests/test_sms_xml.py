@@ -35,7 +35,10 @@ def test_sms_messages_roles_mms_and_empty_bodies(tmp_path):
     assert result["stats"]["calls"] == 0
     recs = result["records"]
     assert [r["content"] for r in recs] == [
-        "why are you late", "I am on my way", "", "see the photo",
+        "why are you late",
+        "I am on my way",
+        "",
+        "see the photo",
     ]
 
     received, sent, empty, mms = recs
@@ -75,8 +78,7 @@ def test_attachment_only_mms_is_kept_and_identifiable(tmp_path):
         assert r["attrs"]["attachment_count"] == 1
         # the base64 payload is never retained on the record
         assert "data" not in r["attrs"]["attachments"][0]
-    assert (first["attrs"]["attachments"][0]["b64_sha256"]
-            != second["attrs"]["attachments"][0]["b64_sha256"])
+    assert first["attrs"]["attachments"][0]["b64_sha256"] != second["attrs"]["attachments"][0]["b64_sha256"]
 
 
 def test_call_block_forensic_flags(tmp_path):

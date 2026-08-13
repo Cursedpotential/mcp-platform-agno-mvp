@@ -46,9 +46,7 @@ def captured(monkeypatch):
 
     monkeypatch.setattr(ledger, "create_run", fake_create_run)
     monkeypatch.setattr(workflows, "attach_ledger", fake_attach)
-    monkeypatch.setattr(
-        workflows, "build_sms_xml_workflow", lambda **kw: (_FakeWorkflow(), {"ctx": True})
-    )
+    monkeypatch.setattr(workflows, "build_sms_xml_workflow", lambda **kw: (_FakeWorkflow(), {"ctx": True}))
     monkeypatch.setattr(
         workflows,
         "build_chat_transcript_workflow",
@@ -101,9 +99,7 @@ def test_ledger_failure_does_not_block_the_ingest(monkeypatch):
         raise RuntimeError("postgres unreachable")
 
     monkeypatch.setattr(ledger, "create_run", boom)
-    monkeypatch.setattr(
-        workflows, "build_sms_xml_workflow", lambda **kw: (_FakeWorkflow(), {})
-    )
+    monkeypatch.setattr(workflows, "build_sms_xml_workflow", lambda **kw: (_FakeWorkflow(), {}))
     f = _factories()["sms-xml"]
     wf = f.factory(SimpleNamespace(input={"path": "/tmp/a.xml"}))
     assert wf is not None and len(wf.steps) == 3

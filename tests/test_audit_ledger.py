@@ -158,9 +158,7 @@ def test_migration_creates_table_and_indexes(audit_engine: Engine):
             .all()
         )
         idx = (
-            conn.execute(
-                text("SELECT indexname FROM pg_indexes WHERE schemaname='ops' AND tablename='audit_ledger'")
-            )
+            conn.execute(text("SELECT indexname FROM pg_indexes WHERE schemaname='ops' AND tablename='audit_ledger'"))
             .scalars()
             .all()
         )
@@ -233,9 +231,11 @@ def test_record_rejects_non_hex_payload_hash(audit_engine: Engine):
 def test_record_genesis_row_has_null_prev_hash(audit_engine: Engine):
     new_id = audit.record("decision", "obj-1", actor="owner", engine=audit_engine)
     with audit_engine.connect() as conn:
-        row = conn.execute(
-            text("SELECT prev_hash, entry_hash FROM ops.audit_ledger WHERE id = :id"), {"id": new_id}
-        ).mappings().first()
+        row = (
+            conn.execute(text("SELECT prev_hash, entry_hash FROM ops.audit_ledger WHERE id = :id"), {"id": new_id})
+            .mappings()
+            .first()
+        )
     assert row["prev_hash"] is None
     assert row["entry_hash"] and len(row["entry_hash"]) == 64  # sha256 hex
 
@@ -266,10 +266,14 @@ def test_record_horizon_context_round_trips_as_jsonb(audit_engine: Engine):
 def test_record_custody_ref_targets_evidence_schema(audit_engine: Engine):
     new_id = audit.record_custody_ref("custody-event-99", actor="owner", engine=audit_engine)
     with audit_engine.connect() as conn:
-        row = conn.execute(
-            text("SELECT action_type, object_schema, object_ref FROM ops.audit_ledger WHERE id = :id"),
-            {"id": new_id},
-        ).mappings().first()
+        row = (
+            conn.execute(
+                text("SELECT action_type, object_schema, object_ref FROM ops.audit_ledger WHERE id = :id"),
+                {"id": new_id},
+            )
+            .mappings()
+            .first()
+        )
     assert row["action_type"] == "write"
     assert row["object_schema"] == "evidence"
     assert row["object_ref"] == "custody-event-99"
@@ -287,9 +291,11 @@ def test_record_read_produces_read_row(audit_engine: Engine):
 def test_record_approval_produces_approval_row(audit_engine: Engine):
     new_id = audit.record_approval("appr-1", "approved", actor="owner", engine=audit_engine)
     with audit_engine.connect() as conn:
-        row = conn.execute(
-            text("SELECT action_type, object_ref FROM ops.audit_ledger WHERE id = :id"), {"id": new_id}
-        ).mappings().first()
+        row = (
+            conn.execute(text("SELECT action_type, object_ref FROM ops.audit_ledger WHERE id = :id"), {"id": new_id})
+            .mappings()
+            .first()
+        )
     assert row["action_type"] == "approval"
     assert row["object_ref"] == "appr-1"
 
@@ -297,8 +303,17 @@ def test_record_approval_produces_approval_row(audit_engine: Engine):
 def test_audit_tool_hook_calls_continuation_and_logs(audit_engine: Engine, monkeypatch):
     calls: list[dict] = []
 
-    def _fake_record(action_type, object_ref, *, actor, ctx=None, object_schema=None, base_version=None,
-                      payload_hash=None, engine=None):
+    def _fake_record(
+        action_type,
+        object_ref,
+        *,
+        actor,
+        ctx=None,
+        object_schema=None,
+        base_version=None,
+        payload_hash=None,
+        engine=None,
+    ):
         calls.append(
             dict(
                 action_type=action_type,

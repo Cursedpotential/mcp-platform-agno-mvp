@@ -40,8 +40,7 @@ pikepdf = pytest.importorskip("pikepdf", reason="structural PDF repair needs pik
 
 def _xml(tmp_path, body: str):
     p = tmp_path / "s.xml"
-    p.write_text(f'<?xml version="1.0" encoding="UTF-8"?>\n<smses count="2">\n{body}\n</smses>\n',
-                 encoding="utf-8")
+    p.write_text(f'<?xml version="1.0" encoding="UTF-8"?>\n<smses count="2">\n{body}\n</smses>\n', encoding="utf-8")
     return p
 
 
@@ -65,8 +64,7 @@ def test_report_clean_requires_no_loss_no_failure_no_truncation():
     rep.record(Chunk(index=0, kind="row", node={}))
     assert rep.clean
 
-    rep.record(Chunk(index=1, kind="row", node={},
-                     repairs=[RepairEvent(kind="x", detail="d", severity=LOSSY)]))
+    rep.record(Chunk(index=1, kind="row", node={}, repairs=[RepairEvent(kind="x", detail="d", severity=LOSSY)]))
     assert not rep.clean
     assert rep.lossy_count == 1
 
@@ -157,11 +155,13 @@ def test_xml_recovery_loss_is_reported_not_silent(tmp_path):
     """
     body = "\n".join(ROW.format(n=i) for i in range(10))
     p = _xml(tmp_path, body)
-    p.write_bytes(p.read_bytes().replace(
-        b'<sms address="+15550001" date="1700000000000" type="1" body="hello 3" />',
-        b'<sms address="+15550001" date="1700000000000" type="1" body="hello 3',
-        1,
-    ))
+    p.write_bytes(
+        p.read_bytes().replace(
+            b'<sms address="+15550001" date="1700000000000" type="1" body="hello 3" />',
+            b'<sms address="+15550001" date="1700000000000" type="1" body="hello 3',
+            1,
+        )
+    )
 
     rep = RepairReport()
     chunks = list(iter_chunks(p, fmt="xml", report=rep))

@@ -66,6 +66,7 @@ def test_list_runs_includes_truncated_stage_content(monkeypatch):
             "stage_content": "x" * 600,
         },
     ]
+
     class _FakeConn2:
         def __enter__(self):
             return self
@@ -604,9 +605,12 @@ def test_run_knowledge_from_store_skips_first_three_stages_then_ingests(monkeypa
     )
     finish_calls = []
     monkeypatch.setattr(run_ledger, "finish_run", lambda *a, **k: finish_calls.append((a, k)))
-    monkeypatch.setattr(workflows_mod, "load_records_for_artifact", lambda artifact_id: [
-        NormalizedRecord(source="chat", conversation_id="A", content="hi")
-    ])
+    monkeypatch.setattr(
+        workflows_mod,
+        "load_records_for_artifact",
+        lambda artifact_id: [NormalizedRecord(source="chat", conversation_id="A", content="hi")],
+    )
+
     # ingest_into_knowledge itself (rendering markdown to disk + retry logic)
     # is unit-tested directly against store.py above — stub it here so this
     # test stays scoped to run_knowledge_from_store's OWN orchestration
@@ -696,9 +700,11 @@ def test_run_knowledge_from_store_ingest_exception_marks_stage_and_run_failed(mo
     )
     finish_calls = []
     monkeypatch.setattr(run_ledger, "finish_run", lambda *a, **k: finish_calls.append((a, k)))
-    monkeypatch.setattr(workflows_mod, "load_records_for_artifact", lambda artifact_id: [
-        NormalizedRecord(source="chat", conversation_id="A", content="hi")
-    ])
+    monkeypatch.setattr(
+        workflows_mod,
+        "load_records_for_artifact",
+        lambda artifact_id: [NormalizedRecord(source="chat", conversation_id="A", content="hi")],
+    )
 
     # Same reasoning as the happy-path test above: stub ingest_into_knowledge
     # directly (its own retry/error behavior is unit-tested against store.py
@@ -874,9 +880,7 @@ def test_health_deps_both_ok(run_routes_client, monkeypatch):
 
     # _check_weaviate falls back to session.get_weaviate_client when the route
     # has no live knowledge handle (this fixture registers with knowledge=None).
-    monkeypatch.setattr(
-        "server.core.session.get_weaviate_client", lambda: _FakeWeaviateClient(), raising=False
-    )
+    monkeypatch.setattr("server.core.session.get_weaviate_client", lambda: _FakeWeaviateClient(), raising=False)
 
     resp = client.get("/v1/health/deps")
 
@@ -899,9 +903,7 @@ def test_health_deps_pg_error_surfaces_message(run_routes_client, monkeypatch):
     def _weaviate_down():
         raise ConnectionError("weaviate down")
 
-    monkeypatch.setattr(
-        "server.core.session.get_weaviate_client", _weaviate_down, raising=False
-    )
+    monkeypatch.setattr("server.core.session.get_weaviate_client", _weaviate_down, raising=False)
 
     resp = client.get("/v1/health/deps")
 

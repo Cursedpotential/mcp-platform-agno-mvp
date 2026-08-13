@@ -374,13 +374,9 @@ def write_recovery_report(
         for e in events:
             row = e.as_row() if hasattr(e, "as_row") else dict(e)
             detail = str(row.get("detail", "")).replace("|", "\\|")[:300]
-            lines.append(f"| {row.get('severity','')} | `{row.get('kind','')}` | {detail} |")
+            lines.append(f"| {row.get('severity', '')} | `{row.get('kind', '')}` | {detail} |")
 
-    lossy = sum(
-        1
-        for e in events
-        if (e.as_row() if hasattr(e, "as_row") else dict(e)).get("severity") == "lossy"
-    )
+    lossy = sum(1 for e in events if (e.as_row() if hasattr(e, "as_row") else dict(e)).get("severity") == "lossy")
     lines += [
         "",
         "## Verdict",
@@ -423,10 +419,7 @@ def plan_quarantine(paths: list[Path], quarantine_root: Path, base: Path) -> lis
             rel = p.resolve().relative_to(base.resolve())
         except ValueError:
             rel = Path(p.name)
-        plans.append(
-            QuarantinePlan(src=p, dest=quarantine_root / rel, size=p.stat().st_size,
-                           sha256=sha256_file(p))
-        )
+        plans.append(QuarantinePlan(src=p, dest=quarantine_root / rel, size=p.stat().st_size, sha256=sha256_file(p)))
     return plans
 
 

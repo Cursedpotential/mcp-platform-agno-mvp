@@ -1,3 +1,4 @@
+# Byline: Codex · GPT-5 · 2026-08-13 (align validation scope with AGENTS.md)
 name: Validate
 
 on:
@@ -36,7 +37,7 @@ jobs:
           uv pip install --system -e .[dev]
 
       - name: Format with ruff
-        run: uv run ruff format --check .
+        run: uv run ruff format --check server tests
 
       - name: Validate (lint + type)
         run: uv run bash scripts/validate.sh

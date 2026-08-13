@@ -220,9 +220,7 @@ def _classify(messages: list[str]) -> list[RepairEvent]:
                 )
             )
         else:
-            events.append(
-                RepairEvent(kind="pdf_warning", detail=msg[:400], severity=STRUCTURAL)
-            )
+            events.append(RepairEvent(kind="pdf_warning", detail=msg[:400], severity=STRUCTURAL))
     return events
 
 
@@ -249,9 +247,7 @@ def inspect_pdf(path: Path, password: str = "") -> PdfHealth:
     if health.size == 0:
         health.status = EMPTY
         health.error = "zero bytes — no data to repair; the file must be re-acquired"
-        health.events.append(
-            RepairEvent(kind="pdf_empty_file", detail="file is 0 bytes", severity=LOSSY)
-        )
+        health.events.append(RepairEvent(kind="pdf_empty_file", detail="file is 0 bytes", severity=LOSSY))
         return health
 
     head = read_head(path, 1024)
@@ -281,9 +277,7 @@ def inspect_pdf(path: Path, password: str = "") -> PdfHealth:
         # suppress_warnings=True only stops qpdf PRINTING to stderr; the
         # warnings are still retrievable via get_warnings(). Without it a sweep
         # over thousands of files buries its own report in qpdf chatter.
-        with pikepdf.open(
-            str(path), password=password, attempt_recovery=True, suppress_warnings=True
-        ) as pdf:
+        with pikepdf.open(str(path), password=password, attempt_recovery=True, suppress_warnings=True) as pdf:
             health.pages = len(pdf.pages)
             health.encrypted = bool(pdf.is_encrypted)
             try:
@@ -359,9 +353,7 @@ def repair_pdf(
 
     try:
         dest.parent.mkdir(parents=True, exist_ok=True)
-        with pikepdf.open(
-            str(path), password=password, attempt_recovery=True, suppress_warnings=True
-        ) as pdf:
+        with pikepdf.open(str(path), password=password, attempt_recovery=True, suppress_warnings=True) as pdf:
             pdf.save(str(dest), linearize=linearize, fix_metadata_version=True)
             result.pages_after = len(pdf.pages)
             save_warnings = _warnings_of(pdf)
@@ -419,7 +411,9 @@ def scan_pdfs(
             except OSError:
                 size = 0
             yield PdfHealth(
-                path=p, status=CLOUD_ONLY, size=size,
+                path=p,
+                status=CLOUD_ONLY,
+                size=size,
                 error="cloud-only placeholder; reading it would force a download",
             )
             continue

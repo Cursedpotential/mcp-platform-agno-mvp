@@ -11,11 +11,13 @@ Commands:
 
 from __future__ import annotations
 
+# Byline: Codex · GPT-5 · 2026-08-13 (make async workflow dispatch explicit)
+
 import argparse
 import asyncio
 import json
 import sys
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable, Coroutine
 from typing import Any
 
 
@@ -32,7 +34,7 @@ def _cmd_import(args: argparse.Namespace) -> int:
     # keyword-only signatures (allow_fallback only on the latter); mypy can't join
     # them into a single Callable when left to infer, and falls back to an
     # uncallable pseudo-type ("Cannot call function of unknown type").
-    runners: dict[str, Callable[..., Awaitable[dict[str, Any]]]] = {
+    runners: dict[str, Callable[..., Coroutine[Any, Any, dict[str, Any]]]] = {
         "chat-transcript": run_chat_transcript,
         "sms-xml": run_sms_xml,
     }
@@ -52,7 +54,7 @@ def _cmd_import(args: argparse.Namespace) -> int:
 
         knowledge = create_knowledge("platform", "platform_knowledge")
 
-    summary = asyncio.run(runner(args.path, source_meta=meta, domain=domain, knowledge=knowledge))
+    summary: dict[str, Any] = asyncio.run(runner(args.path, source_meta=meta, domain=domain, knowledge=knowledge))
     print(json.dumps(summary, indent=2, default=str))
     return (
         0 if summary.get("records_stored") is not None and "FAILED" not in str(summary.get("status", "")).upper() else 1

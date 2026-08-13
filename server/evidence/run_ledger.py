@@ -174,11 +174,7 @@ def set_gate(run_id: str, state: str | None, status: str | None = None) -> None:
             )
         else:
             conn.execute(
-                text(
-                    "UPDATE ops.workflow_run "
-                    "SET gate_state = :state, updated_at = now() "
-                    "WHERE run_id = :run_id"
-                ),
+                text("UPDATE ops.workflow_run SET gate_state = :state, updated_at = now() WHERE run_id = :run_id"),
                 {"run_id": run_id, "state": state},
             )
 

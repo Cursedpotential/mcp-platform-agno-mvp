@@ -47,8 +47,12 @@ class FormatSig:
 # Order = specificity (most specific first). A file that matches an earlier sig
 # never reaches a later one; markers are chosen so real files match exactly one.
 SIGNATURES: tuple[FormatSig, ...] = (
-    FormatSig("chatgpt-official", ('"mapping"', '"create_time"'), "transcripts.chatgpt-official", "chatgpt-official-json"),
-    FormatSig("perplexity-contexts", ('"context_uuid"', '"entries"', '"query"', '"answer"'), "transcripts.perplexity-contexts"),
+    FormatSig(
+        "chatgpt-official", ('"mapping"', '"create_time"'), "transcripts.chatgpt-official", "chatgpt-official-json"
+    ),
+    FormatSig(
+        "perplexity-contexts", ('"context_uuid"', '"entries"', '"query"', '"answer"'), "transcripts.perplexity-contexts"
+    ),
     FormatSig("claude-ai-export", ('"chat_messages"',), "transcripts.claude-ai-export"),
 )
 

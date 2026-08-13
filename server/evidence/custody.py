@@ -214,8 +214,7 @@ def ingest_artifact(src: str | Path, source_meta: dict | None = None, *, tier: s
         if copied_hex != sha_hex:
             tmp.unlink(missing_ok=True)
             raise RuntimeError(
-                f"blob copy verification failed for {path.name}: "
-                f"source {sha_hex[:12]}… vs copy {copied_hex[:12]}…"
+                f"blob copy verification failed for {path.name}: source {sha_hex[:12]}… vs copy {copied_hex[:12]}…"
             )
         os.replace(tmp, dest)
     # If it exists, content is identical by construction (path contains the sha).
