@@ -176,6 +176,7 @@ norecursedirs = ["docs", ".venv*", "server/tools", "server/vendored"]
 addopts = "-m 'not integration'"
 markers = [
   "integration: tests that require live services (Postgres/Neo4j/R2); not run by default",
+  "local_samples: privacy-safe tests against an owner-supplied local corpus",
 ]
 
 [tool.uv.pip]

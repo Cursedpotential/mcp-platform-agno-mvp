@@ -12,7 +12,7 @@ from types import SimpleNamespace
 import pytest
 
 import server.analysis.context_chat_ingest as ingest_mod
-from server.analysis.chat_normalizer import normalize_many
+from server.analysis.chat_normalizer import normalize_chat_role, normalize_many
 from server.analysis.context_chat_ingest import (
     CONTEXT_BANNER,
     chunk_chat_messages,
@@ -131,6 +131,13 @@ def test_ambiguous_and_failed_classification_remain_searchable(tmp_path):
 def test_chat_contract_rejects_evidence_lane():
     with pytest.raises(ValueError, match="cannot be routed to the evidence"):
         LaneClassification(lane=ChatLane.evidence, confidence=0.9, review_status="auto_accepted")
+
+
+def test_normalizer_closes_provider_role_vocabulary():
+    assert normalize_chat_role("user") == "user"
+    assert normalize_chat_role(" Assistant ") == "assistant"
+    assert normalize_chat_role("transcript") == "unknown"
+    assert normalize_chat_role(None) == "unknown"
 
 
 def test_two_lane_projection_embeds_once_and_reuses_vector(monkeypatch):
