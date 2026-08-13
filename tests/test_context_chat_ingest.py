@@ -196,5 +196,6 @@ def test_dry_run_exercises_parse_chunk_classify_without_database(tmp_path):
     assert report.record_count == 3
     assert report.records_stored == 0
     assert report.classified is True
+    assert report.classifier_id is not None and report.classifier_id.startswith("hybrid-v1:")
     assert report.dry_run is True
     assert {"platform", "legal", "personal_history"}.intersection(report.lane_counts)

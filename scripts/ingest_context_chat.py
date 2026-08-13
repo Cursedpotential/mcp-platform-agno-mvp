@@ -25,6 +25,7 @@ Prints a JSON IngestReport to stdout. Use `--dry-run` for a no-write preview.
 # Byline: Claude Code · Sonnet (agent) · 2026-08-01
 # Byline: Claude Code · Fable 5 · 2026-08-12 (D-053: --format now strict/bypasses the detection router; fail-fast exit 2 with a clear error)
 # Byline: Codex · GPT-5 · 2026-08-13 (ADR-0053 chat landing/classification)
+# Byline: Codex · GPT-5 · 2026-08-13 (CPU-first hybrid classifier controls)
 
 from __future__ import annotations
 
@@ -74,6 +75,17 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="defer classification; chunks remain searchable in context and pending review",
     )
     ap.add_argument(
+        "--classify-mode",
+        choices=["keyword", "cpu", "hybrid"],
+        default="hybrid",
+        help="keyword baseline, CPU semantic challenger, or hybrid (default; safely falls back to keyword)",
+    )
+    ap.add_argument(
+        "--classify-model",
+        default=None,
+        help="Sentence Transformer model id/path (default: CPU_CLASSIFIER_MODEL or BAAI/bge-small-en-v1.5)",
+    )
+    ap.add_argument(
         "--engine",
         choices=["auto", "python", "go"],
         default="auto",
@@ -121,6 +133,8 @@ def main(argv: list[str] | None = None) -> int:
                     project=args.project,
                     chunker=args.chunker,
                     classify=args.classify,
+                    classify_mode=args.classify_mode,
+                    classify_model=args.classify_model,
                 )
             )
         else:
@@ -137,6 +151,8 @@ def main(argv: list[str] | None = None) -> int:
                     format=args.format,
                     chunker=args.chunker,
                     classify=args.classify,
+                    classify_mode=args.classify_mode,
+                    classify_model=args.classify_model,
                 )
             )
     except (ValueError, FileNotFoundError) as exc:

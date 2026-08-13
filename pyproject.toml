@@ -85,6 +85,10 @@ document-ai = ["docling>=2.119,<3"]
 # chunker needs neither this extra nor a GPU; semantic uses the CPU-friendly
 # Chonkie path and TeraflopAI calls its hosted segmentation API.
 chunking = ["chonkie[semantic]>=1.7,<2"]
+# CPU-first, multi-label chat routing challenger. Kept optional until owner-
+# labeled calibration proves its thresholds; production safely falls back to
+# keyword-v1 when this extra is absent.
+classification = ["sentence-transformers[onnx]>=5,<6", "setfit>=1.1,<2"]
 # claude-agent-sdk: powers agno.agents.claude.ClaudeAgent (runs Claude Code as
 # a subprocess — the SDK bundles its own native Claude Code binary, no
 # separate Node.js/CLI install needed). NOT a base dependency: it's a heavier

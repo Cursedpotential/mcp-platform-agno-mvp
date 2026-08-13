@@ -1,6 +1,6 @@
 # ADR-0053: Five-lane chat knowledge ingestion, selective review, and investigation register
 
-> _Byline: Codex · GPT-5 · 2026-08-13_
+> _Byline: Codex · GPT-5 · 2026-08-13 · amended: CPU-first hybrid classification_
 
 - Status: **Accepted** — owner rulings across the 2026-08-13 design review
 - Date: 2026-08-13
@@ -73,9 +73,19 @@ Classification status is one of `auto_accepted`, `pending_review`, `human_approv
 - Classifier failures also land in `context` with an error/review record.
 - Nothing is discarded because a classifier is uncertain or unavailable.
 
-The initial keyword classifier is a deterministic baseline, not the final semantic model.
-Remote or LLM classifiers plug into the same versioned seam and must be evaluated against a
-human-labeled set before replacing the baseline.
+Classification is CPU-first. The deterministic keyword classifier remains the zero-dependency
+baseline. A small Sentence Transformer running through ONNX on CPU is the semantic challenger;
+`BAAI/bge-small-en-v1.5` is the initial default, configurable rather than locked. Inputs are split
+into bounded windows before encoding because this model family has a finite token window. The
+hybrid mode retains clear keyword decisions and adds multi-label semantic candidates.
+
+The semantic challenger is deliberately uncalibrated at first: its assignments remain
+`pending_review` and searchable through `context`. Owner corrections form the gold set used to
+train a SetFit/logistic multilabel head and calibrate per-lane thresholds. Only after held-out
+evaluation may calibrated CPU assignments become `auto_accepted`. A remote LLM is an escalation
+and independent-verification tier for ambiguity, novelty, or CPU/LLM disagreement—not a mandatory
+call on every chunk. Classifier mode, model/version, confidence, rationale, and review state are
+persisted. Runtime/model failure falls open into reviewable context; no chunk disappears.
 
 ### 5. Tags are normalized search facets
 
@@ -138,5 +148,7 @@ dict pre-filters; direct unrestricted search utilities are prohibited.
   the deterministic baseline; VPS CPU is primary and hosted/Colab inference is optional.
 - Select and benchmark OCR/VLM providers, including privacy/cost/quality on representative
   owner data.
+- Build the owner-labeled classification gold set, train the SetFit multilabel head, calibrate
+  per-lane thresholds, and enable the independent LLM verifier only for the uncertain tail.
 - Implement entity/claim/time/event candidates and the human investigation-register UI.
 - Design the as-experienced versus hindsight walk after temporal extraction is populated.

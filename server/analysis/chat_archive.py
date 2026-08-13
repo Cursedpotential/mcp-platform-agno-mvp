@@ -147,6 +147,8 @@ async def ingest_chat_archive(
     materialize_assets: bool = True,
     chunker: str = "message-window",
     classify: bool = True,
+    classify_mode: str = "hybrid",
+    classify_model: str | None = None,
 ) -> ArchiveIngestReport:
     """Ingest every conversation log inside a chat-export ZIP through the
     engine-dynamic pipeline. Extracts only log files to temporary disk; asset
@@ -183,6 +185,8 @@ async def ingest_chat_archive(
                 format=format,
                 chunker=chunker,
                 classify=classify,
+                classify_mode=classify_mode,
+                classify_model=classify_model,
             )
             logs_out.append({"member": member, **asdict(report)})
 
