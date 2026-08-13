@@ -12,18 +12,16 @@ shapes seen on disk:
 
 This module is the front door: open the archive WITHOUT extracting the whole
 thing (memory- and disk-safe — an `assets/` folder can be hundreds of files),
-find the conversation log(s), extract ONLY those to a temp file, and hand each
-to the engine-dynamic `ingest_chat_file`. Everything else (metadata jsons, the
-`assets/` payload) is INVENTORIED and reported, never silently dropped — the
-`assets/` materialization into a document/code store is a deliberate later
-stage (owner's Stage-2 requirement), and this module surfaces exactly what is
-waiting for it.
+find the conversation log(s), extract only those to a temp file, and hand each
+to the engine-dynamic `ingest_chat_file`. Every other payload is inventoried
+and, by default, materialized through the context-asset store after chat rows
+land. Original bytes stay distinct from derived OCR/transcript representations.
 
-Downstream is unchanged: each conversation log flows parse → PG
-`working.context_record` → change-detection → Weaviate/Graphiti, exactly as a
-bare file would.
+Downstream, each conversation log flows through the canonical chat tables,
+post-chunk multi-label routing, and durable Weaviate/Graphiti projections.
 """
 # Byline: Claude Code · Opus 4.8 · 2026-08-12
+# Byline: Codex · GPT-5 · 2026-08-13 (ADR-0053 whole-archive ingest)
 
 from __future__ import annotations
 
@@ -41,7 +39,15 @@ _CONV_PREFIXES = ("conversations",)
 _CONV_SUFFIX = ".json"
 # Sidecar metadata we recognise but do NOT parse as a transcript (routed later).
 _METADATA_BASENAMES = frozenset(
-    {"users.json", "user.json", "projects.json", "memories.json", "message_feedback.json", "model_comparisons.json", "shared_conversations.json"}
+    {
+        "users.json",
+        "user.json",
+        "projects.json",
+        "memories.json",
+        "message_feedback.json",
+        "model_comparisons.json",
+        "shared_conversations.json",
+    }
 )
 _ASSET_DIRS = ("assets/", "dalle-generations/")
 
@@ -95,12 +101,12 @@ def inventory_archive(zip_path: str | Path) -> ArchiveInventory:
                 continue  # directory entry
             if _is_conversation_log(name):
                 inv.conversation_logs.append(name)
-            elif _is_asset(name):
-                inv.asset_files.append(name)
             elif _basename(name).lower() in _METADATA_BASENAMES:
                 inv.metadata_files.append(name)
             else:
-                inv.other_files.append(name)
+                # Providers do not consistently place attachments/generated
+                # works under assets/. Every remaining payload is materialized.
+                inv.asset_files.append(name)
     return inv
 
 
@@ -138,14 +144,13 @@ async def ingest_chat_archive(
     max_chars: int | None = None,
     dry_run: bool = False,
     project: bool = True,
-    materialize_assets: bool = False,
-    knowledge: Any | None = None,
-    graphiti_client: Any | None = None,
+    materialize_assets: bool = True,
+    chunker: str = "message-window",
+    classify: bool = True,
 ) -> ArchiveIngestReport:
     """Ingest every conversation log inside a chat-export ZIP through the
-    engine-dynamic pipeline. Extracts ONLY the log file(s) — the `assets/`
-    payload and sidecar metadata are inventoried and reported for a later
-    materialization stage, not touched here.
+    engine-dynamic pipeline. Extracts only log files to temporary disk; asset
+    bytes and sidecar metadata flow through the whole-archive materializer.
 
     Raises ValueError if the archive contains no recognisable conversation log
     (so a wrong/empty zip fails loudly instead of silently ingesting nothing).
@@ -176,15 +181,14 @@ async def ingest_chat_archive(
                 project=project,
                 engine=engine,
                 format=format,
-                knowledge=knowledge,
-                graphiti_client=graphiti_client,
+                chunker=chunker,
+                classify=classify,
             )
             logs_out.append({"member": member, **asdict(report)})
 
     # Whole-unit: optionally materialize the archive's assets + metadata too
-    # (owner: "the data within it is properly parsed and saved"). Off by default
-    # so a conversation-only ingest doesn't trigger blob writes; always
-    # runs a dry-run preview so the report shows what WOULD/DID materialize.
+    # (owner: "the data within it is properly parsed and saved"). This is on by
+    # default; dry-run inventories and previews without blob or database writes.
     from server.analysis.context_assets import materialize_archive
 
     mat = materialize_archive(zip_path, dry_run=dry_run or not materialize_assets)

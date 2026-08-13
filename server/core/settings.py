@@ -33,6 +33,7 @@ account can actually reach, not a guess) live in ``server/core/model_catalog.py`
 — data only, doesn't change the selection logic here.
 """
 # Byline: Claude Code · Sonnet (agent) · 2026-08-01 (direct-provider wiring: ANTHROPIC_AUTH_TOKEN fallback + model_catalog.py cross-ref)
+# Byline: Codex · GPT-5 · 2026-08-13 (non-null Kimi model/base resolution)
 
 from __future__ import annotations
 
@@ -158,9 +159,9 @@ def _try_provider(provider: str, model_id: Optional[str] = None) -> Optional[Any
         from agno.models.openai.like import OpenAILike
 
         if moonshot_key:
-            base = getenv("MOONSHOT_BASE_URL", "https://api.moonshot.ai/v1")
+            base = getenv("MOONSHOT_BASE_URL") or "https://api.moonshot.ai/v1"
             return OpenAILike(
-                id=model_id or getenv("KIMI_MODEL_ID", "kimi-k2.6"),
+                id=_model_id("kimi", model_id),
                 api_key=moonshot_key,
                 base_url=base,
             )

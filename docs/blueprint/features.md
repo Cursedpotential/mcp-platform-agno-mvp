@@ -1,6 +1,7 @@
 # Layer 3 — Features
 
-> _Byline: Claude Code · Opus 4.8 · 2026-08-11._ User-facing flows + feature hierarchy. Backend
+> _Byline: Claude Code · Opus 4.8 · 2026-08-11; ADR-0053 amendment Codex · GPT-5 ·
+> 2026-08-13._ User-facing flows + feature hierarchy. Backend
 > platform (SBV has its own GUI); no wireframes. Knowledge-base-first is the sequencing (ADR-0051).
 
 ## 1. Primary flow — one conversation becomes a timeline
@@ -35,7 +36,7 @@ mindmap
       one pipeline - custody tier is the only branch
       knowledge-base FIRST, evidence second
     Knowledge
-      six lanes platform legal personal_history relationship_timeline context evidence
+      five lanes platform legal personal_history context evidence
       one chat maps to many lanes at segment level
       chunking via Chonkie and chunking_policy
     Timeline_and_entities

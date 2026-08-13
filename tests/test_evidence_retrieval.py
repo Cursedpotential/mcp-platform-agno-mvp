@@ -55,63 +55,73 @@ REALIZED = _Doc(
 
 def test_intermediate_horizon_returns_only_earlier_doc():
     calls: list[dict] = []
-    res = asyncio.run(evidence_search(
-        _FakeKnowledge([EARLY, LATE]),
-        "what happened",
-        horizon="2024-12-31T23:59:59+00:00",
-        actor="test",
-        audit=_audit_recorder(calls),
-    ))
+    res = asyncio.run(
+        evidence_search(
+            _FakeKnowledge([EARLY, LATE]),
+            "what happened",
+            horizon="2024-12-31T23:59:59+00:00",
+            actor="test",
+            audit=_audit_recorder(calls),
+        )
+    )
     assert [d.name for d in res.documents] == ["early"]
     assert res.kept == 1 and res.denied == 1
 
 
 def test_undated_documents_are_denied():
     calls: list[dict] = []
-    res = asyncio.run(evidence_search(
-        _FakeKnowledge([UNDATED, EARLY]),
-        "q",
-        horizon="2026-01-01T00:00:00+00:00",
-        actor="test",
-        audit=_audit_recorder(calls),
-    ))
+    res = asyncio.run(
+        evidence_search(
+            _FakeKnowledge([UNDATED, EARLY]),
+            "q",
+            horizon="2026-01-01T00:00:00+00:00",
+            actor="test",
+            audit=_audit_recorder(calls),
+        )
+    )
     assert [d.name for d in res.documents] == ["early"]
     assert res.denied == 1
 
 
 def test_visible_from_wins_over_occurred_at():
     calls: list[dict] = []
-    res = asyncio.run(evidence_search(
-        _FakeKnowledge([REALIZED]),
-        "q",
-        horizon="2025-01-01T00:00:00+00:00",  # after occurred_at, BEFORE visible_from
-        actor="test",
-        audit=_audit_recorder(calls),
-    ))
+    res = asyncio.run(
+        evidence_search(
+            _FakeKnowledge([REALIZED]),
+            "q",
+            horizon="2025-01-01T00:00:00+00:00",  # after occurred_at, BEFORE visible_from
+            actor="test",
+            audit=_audit_recorder(calls),
+        )
+    )
     assert res.documents == [] and res.denied == 1
 
 
 def test_foreign_case_id_is_denied():
     calls: list[dict] = []
-    res = asyncio.run(evidence_search(
-        _FakeKnowledge([OTHER_CASE]),
-        "q",
-        horizon="2026-01-01T00:00:00+00:00",
-        actor="test",
-        audit=_audit_recorder(calls),
-    ))
+    res = asyncio.run(
+        evidence_search(
+            _FakeKnowledge([OTHER_CASE]),
+            "q",
+            horizon="2026-01-01T00:00:00+00:00",
+            actor="test",
+            audit=_audit_recorder(calls),
+        )
+    )
     assert res.documents == [] and res.denied == 1
 
 
 def test_every_search_is_audited_with_horizon_context():
     calls: list[dict] = []
-    asyncio.run(evidence_search(
-        _FakeKnowledge([EARLY]),
-        "sensitive query text",
-        horizon="2026-01-01T00:00:00+00:00",
-        actor="legal-team",
-        audit=_audit_recorder(calls),
-    ))
+    asyncio.run(
+        evidence_search(
+            _FakeKnowledge([EARLY]),
+            "sensitive query text",
+            horizon="2026-01-01T00:00:00+00:00",
+            actor="legal-team",
+            audit=_audit_recorder(calls),
+        )
+    )
     assert len(calls) == 1
     row = calls[0]
     # query is hashed, never stored as text
@@ -127,13 +137,15 @@ def test_audit_failure_fails_the_search():
         raise RuntimeError("ledger down")
 
     with pytest.raises(RuntimeError, match="ledger down"):
-        asyncio.run(evidence_search(
-            _FakeKnowledge([EARLY]),
-            "q",
-            horizon="2026-01-01T00:00:00+00:00",
-            actor="test",
-            audit=_broken_audit,
-        ))
+        asyncio.run(
+            evidence_search(
+                _FakeKnowledge([EARLY]),
+                "q",
+                horizon="2026-01-01T00:00:00+00:00",
+                actor="test",
+                audit=_broken_audit,
+            )
+        )
 
 
 def test_missing_horizon_rejected():

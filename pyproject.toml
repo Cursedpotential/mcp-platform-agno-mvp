@@ -1,3 +1,4 @@
+# Byline: Codex · GPT-5 · 2026-08-13 (reproducible CI toolchain and optional-import typing)
 [project]
 name = "agent-platform"
 version = "1.0.0"
@@ -71,11 +72,19 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["mypy", "ruff", "pytest", "pytest-cov"]
+dev = ["mypy==2.1.0", "ruff==0.15.17", "pytest>=8,<9", "pytest-cov>=5,<8"]
 # OCR tier. Both wheels are useless without system binaries — `tesseract-ocr`
 # for pytesseract and `poppler` for pdf2image — so this stays opt-in and the
 # container image must install those alongside it.
 ocr = ["pytesseract", "pdf2image", "pillow"]
+# Structured document/OCR tier for the standalone ingestion worker. Kept out
+# of the parser facade's base environment because Docling brings local models
+# and document-AI dependencies; install on the VPS worker or Colab backup.
+document-ai = ["docling>=2.119,<3"]
+# Optional transcript segmentation challengers. The default message-window
+# chunker needs neither this extra nor a GPU; semantic uses the CPU-friendly
+# Chonkie path and TeraflopAI calls its hosted segmentation API.
+chunking = ["chonkie[semantic]>=1.7,<2"]
 # claude-agent-sdk: powers agno.agents.claude.ClaudeAgent (runs Claude Code as
 # a subprocess — the SDK bundles its own native Claude Code binary, no
 # separate Node.js/CLI install needed). NOT a base dependency: it's a heavier
@@ -148,6 +157,9 @@ module = [
   "json_repair.*",
   "pikepdf.*",
   "charset_normalizer.*",
+  # optional ingestion/agent extras; imports are lazy and availability-gated
+  "chonkie.*",
+  "claude_agent_sdk.*",
 ]
 ignore_missing_imports = true
 

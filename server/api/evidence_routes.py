@@ -15,6 +15,7 @@ main; only its presence on this branch is new. See the C0 run-ledger task
 report for the full explanation.
 """
 # Byline: Claude Code · Fable 5 · 2026-07-19 (C3 KnowledgeHandle live-resolve 2026-07-22 — Claude Code · Sonnet (agent))
+# Byline: Codex · GPT-5 · 2026-08-13 (ADR-0053 five-lane alignment)
 
 from __future__ import annotations
 
@@ -27,11 +28,21 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 
 from server.core.knowledge_handle import resolve_knowledge
 
+# ADR-0053 five-lane knowledge domains. MUST stay aligned with
+# server.evidence.store.KNOWLEDLEDGE_DOMAINS — the store is the authority and
+# raises ValueError on any domain it doesn't recognize (store.py:448). This set
+# was stale (timeline_relationship/platform_design/legal_strategy — a different
+# vocabulary than the store's canonical lane names) AND omitted
+# `context`, so the route's own `context` default 422'd and every accepted
+# domain the store then rejected with a 500 on a real ingest (2026-08-12).
+# Relationship history is now part of personal_history. AI chat never routes
+# directly to evidence; this route keeps evidence for custody-approved imports.
 _ALLOWED_DOMAINS = {
-    "timeline_relationship",
+    "platform",
+    "legal",
     "personal_history",
-    "platform_design",
-    "legal_strategy",
+    "context",
+    "evidence",
 }
 
 _ALLOWED_WORKFLOWS = {"chat-transcript"}

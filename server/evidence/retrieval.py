@@ -1,6 +1,7 @@
 """server/evidence/retrieval.py — THE horizon-gated evidence retrieval seam (ADR-0050 §4).
 
 Byline: Claude Code · Fable 5 · 2026-08-11
+Byline: Codex · GPT-5 · 2026-08-13 (make the injected audit seam type-safe)
 
 CONTRACT (ADR-0050 §4, owner-ruled 2026-08-10):
 - This module is the ONLY sanctioned read path into the evidence knowledge
@@ -103,7 +104,9 @@ async def evidence_search(
         raise ValueError("evidence_search requires an ISO-8601 `horizon` string")
 
     if audit is None:
-        from server.core.audit import record_read as audit  # type: ignore[assignment]
+        from server.core.audit import record_read
+
+        audit = record_read
 
     engine = resolve_knowledge(knowledge)
     if engine is None:

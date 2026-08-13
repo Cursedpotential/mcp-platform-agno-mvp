@@ -423,7 +423,8 @@ def _store_step_impl(ctx: dict[str, Any]) -> StepOutput:
             )
             logger.warning(
                 "store dedupe-no-op WITHOUT parent linkage for artifact %s: knowledge "
-                "landing cannot be verified from this run", artifact.artifact_id,
+                "landing cannot be verified from this run",
+                artifact.artifact_id,
             )
         return StepOutput(
             content=f"store: duplicate artifact already has records — skipped re-store ({why})",
@@ -458,7 +459,8 @@ async def _knowledge_step_impl(ctx: dict[str, Any], knowledge: Any) -> StepOutpu
         ctx["knowledge_docs"] = 0
         reason = (
             "duplicate-artifact no-op — see the store stage content for whether docs previously landed"
-            if ctx.get("dedupe_noop") else "parse produced no records"
+            if ctx.get("dedupe_noop")
+            else "parse produced no records"
         )
         return StepOutput(content=f"knowledge: no records to ingest — skipped ({reason})", success=True)
     attempts_log: list[dict[str, Any]] = []

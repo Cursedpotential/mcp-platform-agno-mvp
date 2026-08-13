@@ -2,8 +2,9 @@
 
 > **Authoritative for:** what we build next, in order. Entry point: `docs/PROJECT_CANON.md` (§0 Document Contract).
 > Supersedes `docs/planning/*` (EXECUTION_PLAN, BUILD_TODO, MIGRATION_PLAN_v8) for **forward** work — those are history.
-> Last updated: 2026-06-13 (phase statuses refreshed 2026-07-11).
-> _Byline: Claude Code · Opus 4.8 · 2026-06-13 (phase-status refresh 2026-07-11 Claude Code · Sonnet 5)_
+> Last updated: 2026-08-13 (Phase B aligned to ADR-0053).
+> _Byline: Claude Code · Opus 4.8 · 2026-06-13; phase-status refresh 2026-07-11
+> Claude Code · Sonnet 5; ADR-0053 amendment Codex · GPT-5 · 2026-08-13._
 
 ## Anchor: the owner's critical path
 
@@ -34,7 +35,11 @@ Inventory complete (`EVIDENCE_MERGE_MAP.md`).
 ## Phase B — Knowledge ingestion + bootstrap loop
 
 **Goal:** parsed+segmented transcripts land in the domain-partitioned knowledge engine so agents can answer "what did we decide/plan."
-- Route segments into ~~the four domains (`platform_design` / `legal_strategy` / `timeline_relationship` / `personal_history`)~~ **the SIX lanes (`platform` · `legal` · `personal_history` · `relationship_timeline` · `context` · `evidence`) — superseded 2026-08-10 by ADR-0050** by segment-level tags, `MIXED`/`UNKNOWN` catch-alls; lanes stay structurally separate (one Weaviate collection each, ADR-0050 §1; CANON §3). Migration map: `platform_design`→`platform`, `legal_strategy`→`legal`, `timeline_relationship`→`relationship_timeline`, `personal_history`→`personal_history`. One conversation routes into MULTIPLE lanes at the segment level (ADR-0051 invariant 5). — _corrected Claude Code · Opus 4.8 · 2026-08-10_
+- Route message-safe chunks into the **five structural lanes** (`platform` · `legal` ·
+  `personal_history` · `context` · `evidence`) under ADR-0053. AI chat can use the first four
+  only; relationship history is part of `personal_history`; evidence is custody-only. One
+  chunk may have multiple lane assignments but is stored and embedded once. Normalized tags
+  retain finer topics. — _amended Codex · GPT-5 · 2026-08-13_
 - Ingest the platform-design + legal-strategy conversation history first (fuels the bootstrap loop).
 - **Done when:** a Builder agent answers a grounded question about a past design decision, citing the source transcript.
 

@@ -217,9 +217,23 @@ def iter_html(path: Path, tags: tuple[str, ...] | None = None, **kw: Any) -> Ite
 #: LAST path segment, so "messages" matches both a top-level key and a nested one.
 _RECORD_KEYS: frozenset[str] = frozenset(
     {
-        "messages", "message", "items", "records", "entries", "conversations",
-        "chats", "threads", "data", "results", "rows", "events", "logs", "posts",
-        "comments", "calls", "sms",
+        "messages",
+        "message",
+        "items",
+        "records",
+        "entries",
+        "conversations",
+        "chats",
+        "threads",
+        "data",
+        "results",
+        "rows",
+        "events",
+        "logs",
+        "posts",
+        "comments",
+        "calls",
+        "sms",
     }
 )
 
@@ -308,9 +322,7 @@ def iter_json(
         # Which array we picked is a decision, not an implementation detail:
         # picking the wrong one yields a clean-looking run over the wrong data.
         # Record it so it is auditable rather than invisible.
-        rep.events.append(
-            RepairEvent(kind="json_array_selected", detail=reason, severity=COSMETIC)
-        )
+        rep.events.append(RepairEvent(kind="json_array_selected", detail=reason, severity=COSMETIC))
 
     if resolved is None:
         yield from _json_repair_fallback(path, rep, reason="no array found to stream")
@@ -361,8 +373,7 @@ def _json_repair_fallback(
                 severity=LOSSY,
             )
         )
-        failed = Chunk(index=start_index, kind="object", node=None, ok=False,
-                       error="too large to repair")
+        failed = Chunk(index=start_index, kind="object", node=None, ok=False, error="too large to repair")
         rep.record(failed)
         yield failed
         return
@@ -373,8 +384,7 @@ def _json_repair_fallback(
         rep.events.append(
             RepairEvent(kind="json_repair_unavailable", detail="json-repair not installed", severity=LOSSY)
         )
-        failed = Chunk(index=start_index, kind="object", node=None, ok=False,
-                       error="json-repair not installed")
+        failed = Chunk(index=start_index, kind="object", node=None, ok=False, error="json-repair not installed")
         rep.record(failed)
         yield failed
         return
@@ -452,7 +462,10 @@ def iter_ndjson(path: Path, report: RepairReport | None = None) -> Iterator[Chun
                     )
                 except Exception as exc2:  # noqa: BLE001 - optional json-repair error surface
                     chunk = Chunk(
-                        index=index, kind="object", node=None, ok=False,
+                        index=index,
+                        kind="object",
+                        node=None,
+                        ok=False,
                         error=f"line {lineno}: {exc2}",
                     )
                     rep.record(chunk)

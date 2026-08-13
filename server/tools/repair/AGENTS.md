@@ -1,6 +1,7 @@
 # server/tools/repair/ — streaming repair + structural chunking
 
 > _Byline: Claude Code · Opus 5 (1M) · 2026-08-02_
+> _Byline: Codex · GPT-5 · 2026-08-13 (Ruff Markdown formatting)_
 >
 > Nested map. Parent: `../AGENTS.md`. Root: `../../../AGENTS.md`.
 
@@ -134,16 +135,16 @@ report = RepairReport()
 for chunk in iter_chunks(path, report=report):
     if chunk.ok:
         handle(chunk.node)
-report.summary()          # funnel counters for the ingest ledger
+report.summary()  # funnel counters for the ingest ledger
 ```
 
 ```python
 from server.tools.repair import inspect_pdf, repair_pdf
 
-health = inspect_pdf(path)                      # read-only
+health = inspect_pdf(path)  # read-only
 if health.needs_repair:
-    result = repair_pdf(path, dest)             # NEW file, never in place
-    result.provenance()                         # -> custody ledger row
+    result = repair_pdf(path, dest)  # NEW file, never in place
+    result.provenance()  # -> custody ledger row
 ```
 
 ## Scripts

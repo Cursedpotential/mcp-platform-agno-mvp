@@ -1,9 +1,12 @@
 # ADR-0050: Six-lane knowledge architecture + memory namespaces
 
-- Status: **Accepted** — owner rulings 2026-08-10 (structured Q&A + plan approval, this session);
+- Status: **Superseded in part by ADR-0053** — storage isolation survives; the six-lane
+  taxonomy is replaced by five lanes and `relationship_timeline` merges into `personal_history`.
+  Original status was **Accepted** — owner rulings 2026-08-10;
   design plan approved via plan mode (`https-docs-agno-com-features-storage-duc-glittery-summit`).
 - Date: 2026-08-10
 - _Byline: Claude Code · Fable 5 · 2026-08-10_
+- _Amendment byline: Codex · GPT-5 · 2026-08-13_
 - Supersedes: ADR-0020's four-domain taxonomy (the multi-domain *shape* survives; the vocabulary
   and per-lane storage change). Amends: ADR-0030 (rclone role wording). Related: ADR-0010 (one
   collection per embedder — unchanged), ADR-0040 (Weaviate substrate — unchanged), ADR-0043

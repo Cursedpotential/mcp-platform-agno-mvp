@@ -1033,7 +1033,12 @@ def test_run_chat_transcript_supervised_mode_wraps_run_control(monkeypatch, tmp_
 
     asyncio.run(workflows_mod.run_chat_transcript(str(f), knowledge=None, run_id="run-1", mode="supervised"))
 
-    assert wrap_calls == [(1, 4, "run-1", "supervised"), (2, 4, "run-1", "supervised"), (3, 4, "run-1", "supervised"), (4, 4, "run-1", "supervised")]
+    assert wrap_calls == [
+        (1, 4, "run-1", "supervised"),
+        (2, 4, "run-1", "supervised"),
+        (3, 4, "run-1", "supervised"),
+        (4, 4, "run-1", "supervised"),
+    ]
 
 
 def test_run_chat_transcript_run_id_none_never_wraps_run_control(monkeypatch, tmp_path):
@@ -1118,7 +1123,9 @@ def test_continue_200_releases_gate_and_sets_running(run_routes_client, monkeypa
     run_routes, client = run_routes_client
     monkeypatch.setattr(run_routes, "get_run", lambda run_id: {"status": "paused"})
     set_gate_calls = []
-    monkeypatch.setattr(run_routes, "set_gate", lambda run_id, state, status=None: set_gate_calls.append((run_id, state, status)))
+    monkeypatch.setattr(
+        run_routes, "set_gate", lambda run_id, state, status=None: set_gate_calls.append((run_id, state, status))
+    )
 
     resp = client.post("/v1/runs/run-1/continue")
 
@@ -1141,7 +1148,9 @@ def test_abort_200_on_paused_or_running(run_routes_client, monkeypatch, status):
     run_routes, client = run_routes_client
     monkeypatch.setattr(run_routes, "get_run", lambda run_id: {"status": status})
     set_gate_calls = []
-    monkeypatch.setattr(run_routes, "set_gate", lambda run_id, state, status=None: set_gate_calls.append((run_id, state)))
+    monkeypatch.setattr(
+        run_routes, "set_gate", lambda run_id, state, status=None: set_gate_calls.append((run_id, state))
+    )
 
     resp = client.post("/v1/runs/run-1/abort")
 

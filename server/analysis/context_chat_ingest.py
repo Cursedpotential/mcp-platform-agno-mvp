@@ -1,101 +1,51 @@
-"""server/analysis/context_chat_ingest.py — the AI-chat CONTEXT ingest lane.
+"""PG-first AI-chat ingestion, selective routing, and Agno-compatible projection.
 
-Owner brief (2026-08-01): ingest the owner's AI-chat exports (Claude/ChatGPT/
-Perplexity/Gemini conversations about the custody case) so the platform can
-surface leads worth chasing, capture stated preferences, and reconstruct
-legal-strategy discussion — WITHOUT ever letting a chat be cited as proof.
+The canonical path is parse -> conversation/message -> message-safe chunks ->
+multi-label classification -> selective HITL -> outbox projection. Raw AI-chat
+rows are horizon-neutral and can never enter the evidence lane.
 
-ARCHITECTURE (owner ruling, 2026-08-12, verbatim): "it's all supposed to go
-back into pg And then change detection will move it into vector db." This lane
-is therefore **PG-first**:
-
-    parse -> working.context_record (Postgres SOURCE OF TRUTH)
-          -> change-detection -> Weaviate `platform_context` + Graphiti CASE lane
-
-The relational rows in `working.context_record` are canonical; the Weaviate
-collection and the Graphiti graph are DERIVED, rebuildable projections of them.
-The `*_synced_at` columns on that table ARE the change-detection signal — NULL
-means "not yet projected into that sink" — so `sync_pending_context()` is a
-plain "find the pending rows, project them, stamp them" consumer. (This
-replaced the pre-2026-08-12 design, which wrote chunks DIRECTLY to Weaviate +
-Graphiti and deliberately never touched Postgres; the old local-SQLite
-`IngestLedger` that tracked "already sent" is gone — Postgres is now that
-authority, via the UNIQUE `content_hash` and the `*_synced_at` stamps.)
-
-OPTION B (owner pick, 2026-08-12): context rows live in their OWN table
-(`working.context_record`, sql/0021), NOT in `working.normalized_record`. That
-separation is the CONTEXT-never-EVIDENCE boundary (owner, 2026-08-01: "AI chats
-are CONTEXT, never EVIDENCE"): `normalized_record` REQUIRES a custody artifact
-(`artifact_id -> evidence.evidence_hash`), and `context_record` has no evidence
-FK and is referenced by no evidence surface, so a chat can never become
-reachable through an evidence-only read path while PG still holds the canonical
-copy. This module accordingly still does **not** import `server.evidence.*`
-(server/AGENTS.md boundary: `analysis/` depends on `contracts/`, `core/`,
-`tools/` only) — it reaches Postgres through `server.core.url` like every other
-non-evidence writer.
-
-Weaviate projection: agno Knowledge collection `platform_context` (a SECOND,
-separate Knowledge instance from `platform_knowledge` — see
-`create_context_knowledge()`), every chunk tagged `lane: context` /
-`tier: context`. Graphiti projection: the CASE lane
-(`server/analysis/graphiti_case_client.py`) via `add_memory` — Graphiti's own
-entity/relationship/temporal extraction is the entity pipeline; this module
-does not extract entities itself.
-
-Every projected chunk (both sinks) is prefixed with `_CONTEXT_BANNER` so raw
-chunk text read directly (a Weaviate search result, a Graphiti episode body)
-still carries the disclaimer even outside the `tier: context` metadata —
-surface as "unverified lead - verify against primary evidence", never as fact.
+Byline: Codex · GPT-5 · 2026-08-13
 """
-# Byline: Claude Code · Sonnet (agent) · 2026-08-01
-# Byline: Claude Code · Opus 4.8 · 2026-08-12 (PG-first rewrite: context_record source of truth + change-detection sync, ADR-0051 / owner ruling)
-# Byline: Claude Code · Fable 5 · 2026-08-12 (D-053: explicit format override is strict — bypasses router, never falls back)
 
 from __future__ import annotations
 
-import hashlib
-import json
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime
+import hashlib
+import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
+import uuid
 
 from sqlalchemy import text
 
-from server.analysis.graphiti_case_client import GraphitiCaseClient
-from server.contracts.records import NormalizedRecord, finalize
-from server.tools.registry import load_builtin_tools, registry
+from server.analysis.chat_normalizer import compute_content_hash, normalize_many
+from server.analysis.chat_parse import filter_conversations, parse_chat_export
+from server.analysis.lane_classifier import classify_chunks
+from server.contracts.records import ChatChunk, ChatConversation, ChatMessage, LaneClassification
+from server.tools.registry import registry
 
-CONTEXT_KNOWLEDGE_NAME = "context"
-CONTEXT_TABLE_NAME = "platform_context"
+__all__ = ["filter_conversations", "ingest_chat_file", "parse_chat_export", "registry"]
+
 DEFAULT_MAX_CHARS = 6000
+DEFAULT_EMBEDDER_ID = "nvidia/nv-embed-v1"
 
-_CONTEXT_BANNER = (
+CONTEXT_BANNER = (
     "[UNVERIFIED LEAD -- AI-chat context, not primary evidence. "
     "Verify against primary evidence before relying on this.]"
 )
 
-# The two projection sinks, matched to the `working.context_record.*_synced_at`
-# columns that track them. Kept as a table so the sync consumer is generic over
-# sink and a third projection later is one row, not a new code path.
-_SYNC_COLUMNS = {"weaviate": "weaviate_synced_at", "graphiti": "graphiti_synced_at"}
-
-
-# ---------------------------------------------------------------------------
-# Postgres engine (via core.url — never evidence/, per the analysis/ boundary)
-# ---------------------------------------------------------------------------
+LANE_COLLECTIONS = {
+    "platform": "platform_knowledge",
+    "legal": "legal_knowledge",
+    "personal_history": "personal_history_knowledge",
+    "context": "platform_context",
+}
 
 _engine = None
 
 
 def _get_engine():
-    """Lazily build (once) the SQLAlchemy engine for `working.context_record`.
-
-    Uses `server.core.url.build_db_url()` — the same env-driven URL every other
-    writer uses — so this lane hits the identical Postgres the evidence spine
-    does, without importing `server.evidence.*` (boundary: analysis/ -> core/).
-    """
     global _engine
     if _engine is None:
         from sqlalchemy import create_engine
@@ -106,453 +56,476 @@ def _get_engine():
     return _engine
 
 
-# ---------------------------------------------------------------------------
-# Knowledge lane (Weaviate `platform_context`, separate from `platform_knowledge`)
-# ---------------------------------------------------------------------------
+def create_lane_knowledge(lane: str):
+    """Build the standard Agno Knowledge search handle for one chat lane."""
 
-
-def create_context_knowledge():
-    """A SECOND agno Knowledge instance — separate Weaviate collection
-    (`platform_context`), separate Postgres contents table
-    (`platform_context_contents`) — so AI-chat context never mixes with
-    platform build/design docs in the same collection.
-
-    Thin wrapper over `server.core.session.create_knowledge()`; imported lazily
-    (function body, not module level) because `server.core.session` pulls in
-    sqlalchemy/agno DB wiring that unit tests for the pure parse/chunk logic
-    below should not have to construct.
-    """
     from server.core.session import create_knowledge
 
-    return create_knowledge(CONTEXT_KNOWLEDGE_NAME, CONTEXT_TABLE_NAME)
-
-
-# ---------------------------------------------------------------------------
-# Parse: reuse the EXISTING registry substitution mesh, no new parser
-# ---------------------------------------------------------------------------
-
-
-VALID_ENGINES = ("auto", "python", "go")
-
-
-def parse_chat_export(
-    path: Path,
-    source_meta: dict[str, Any] | None = None,
-    *,
-    engine: str = "auto",
-    format: str | None = None,
-) -> tuple[list[NormalizedRecord], str, list[dict[str, Any]]]:
-    """Parse a chat export into NormalizedRecords — ENGINE-DYNAMIC dispatcher
-    (owner 2026-08-12: "the pipeline needs to be dynamic ... it shouldn't be
-    dedicated to one format or the other"). Returns (records, parser_id,
-    attempts_log). The engine choice changes ONLY who parses; the
-    NormalizedRecord output and everything downstream are identical.
-
-    engine:
-      * "python" — the in-process registry `parse.transcript` mesh (chatminer
-        et al.), try-next-candidate by priority.
-      * "go" — hand the file to the SBV Go service (memory-safe universal
-        decoder, ADR-0049) via `server.analysis.sbv_transcript.parse_via_sbv`.
-      * "auto" (default) — the detection ROUTER (`format_router.detect_format`,
-        D-051): detect once, route to the winning format's preferred engine
-        (Go-primary) with graceful fallbacks.
-
-    `format` is the EXPLICIT operator override (D-053): when given, it BYPASSES
-    the detection router entirely and is STRICT — the named parser engine
-    (`format_router.resolve_format_override`) is used directly, and an
-    unresolvable or rejected combination raises ValueError instead of falling
-    back to detection, to the registry mesh, or to the other engine. Accepted
-    spellings: a router format_id ('claude-ai-export'), a Go importer id
-    ('chatgpt-official-json'), or a Python registry tool id ('transcripts.<name>').
-    """
-    if engine not in VALID_ENGINES:
-        raise ValueError(f"unknown engine {engine!r} (expected one of {VALID_ENGINES})")
-    if not path.is_file():
-        raise FileNotFoundError(path)
-
-    # Explicit --format override (D-053): bypass the detection router entirely.
-    # STRICT — the operator named the parser, so nothing falls back: a format
-    # the chosen engine cannot handle, an unknown parser id, or a rejecting
-    # parser is a loud ValueError (the CLI turns it into exit 2).
-    if format is not None:
-        from server.analysis.format_router import resolve_format_override
-
-        engaged, go_id, py_id = resolve_format_override(format, engine)
-        if engaged == "go":
-            from server.analysis.sbv_transcript import parse_via_sbv
-
-            return parse_via_sbv(path, format=go_id, source_meta=source_meta)
-        assert py_id is not None  # resolve_format_override guarantees one side
-        return _parse_via_pinned_tool(path, source_meta, py_id)
-
-    # Explicit engine override always wins (the MVP escape hatch).
-    if engine == "go":
-        from server.analysis.sbv_transcript import parse_via_sbv
-
-        return parse_via_sbv(path, format=format, source_meta=source_meta)
-    if engine == "python":
-        return _parse_via_registry(path, source_meta)
-
-    # engine == "auto": the DETECTION ROUTER (Go-primary), not a blind mesh.
-    # detect once -> route to the winning format's preferred engine, with
-    # graceful fallbacks (Go -> that format's Python parser -> full mesh).
-    from server.analysis.format_router import detect_format
-
-    det = detect_format(path)
-    if det.format_id and det.engine == "go":
-        from server.analysis.sbv_transcript import parse_via_sbv
-
-        try:
-            return parse_via_sbv(path, format=det.parse_format, source_meta=source_meta)
-        except Exception:  # SBV down / auth / import error -> fall back to the same format's Python parser
-            pass
-    if det.python_parser_id:
-        try:
-            return _parse_via_registry(path, source_meta, preferred_tool_id=det.python_parser_id)
-        except Exception:  # detected parser rejected it -> last-resort full mesh below
-            pass
-    # unknown format, or the detected route failed: full registry mesh (last resort).
-    return _parse_via_registry(path, source_meta)
-
-
-def _parse_via_registry(
-    path: Path, source_meta: dict[str, Any] | None = None, *, preferred_tool_id: str | None = None
-) -> tuple[list[NormalizedRecord], str, list[dict[str, Any]]]:
-    """The PYTHON parse engine: resolve `parse.transcript` candidates for
-    `path`. When `preferred_tool_id` is given (the router's detected parser),
-    try it FIRST, then the rest as a safety net; otherwise try in registration
-    order. Raises ValueError if every candidate rejects the file."""
-    load_builtin_tools()
-    candidates = registry.resolve("parse.transcript", media_hint=path.name.lower(), size_bytes=path.stat().st_size)
-    if not candidates:
-        raise ValueError(f"no parse.transcript tool accepts {path.name!r}")
-    if preferred_tool_id:
-        candidates = sorted(candidates, key=lambda t: 0 if t.id == preferred_tool_id else 1)
-
-    attempts: list[dict[str, Any]] = []
-    last_err: Exception | None = None
-    for tool in candidates:
-        try:
-            result = tool.run({"path": str(path), "source_meta": source_meta or {}})
-            attempts.append({"tool": tool.id, "ok": True})
-            records = [NormalizedRecord.model_validate(r) for r in result["records"]]
-            return records, tool.id, attempts
-        except Exception as exc:  # wrong format -> try next same-capability tool
-            attempts.append({"tool": tool.id, "ok": False, "error": str(exc)})
-            last_err = exc
-    raise ValueError(f"all parse.transcript candidates failed for {path.name!r}: {attempts} (last: {last_err})")
-
-
-def _parse_via_pinned_tool(
-    path: Path, source_meta: dict[str, Any] | None, tool_id: str
-) -> tuple[list[NormalizedRecord], str, list[dict[str, Any]]]:
-    """The PYTHON engine under an EXPLICIT format override (D-053): run exactly
-    ONE named `parse.transcript` tool. Unlike `_parse_via_registry` there is NO
-    substitution mesh — an unknown tool id, a non-transcript capability, or a
-    rejecting parser raises ValueError immediately (an explicit override must
-    never silently turn into a different parse)."""
-    load_builtin_tools()
     try:
-        tool = registry.get(tool_id)
+        collection = LANE_COLLECTIONS[lane]
     except KeyError:
-        known = sorted(t.id for t in registry.all() if t.capability == "parse.transcript")
-        raise ValueError(f"unknown python parser {tool_id!r}; registered parse.transcript tools: {known}") from None
-    if tool.capability != "parse.transcript":
-        raise ValueError(f"tool {tool_id!r} is capability {tool.capability!r}, not 'parse.transcript'")
-    try:
-        result = tool.run({"path": str(path), "source_meta": source_meta or {}})
-    except Exception as exc:
-        raise ValueError(
-            f"parser {tool_id!r} rejected {path.name!r} under the explicit format override (no fallback): {exc}"
-        ) from exc
-    records = [NormalizedRecord.model_validate(r) for r in result["records"]]
-    return records, tool.id, [{"tool": tool.id, "ok": True}]
+        raise ValueError(f"unknown AI-chat lane {lane!r}") from None
+    return create_knowledge(lane, collection)
 
 
-def filter_conversations(records: list[NormalizedRecord], conversation_ids: set[str] | None) -> list[NormalizedRecord]:
-    """Restrict to specific conversation_id(s) — used for the single-chat proof
-    run so a giant multi-conversation export doesn't get bulk-written just to
-    prove the pipeline on ONE small chat."""
-    if conversation_ids is None:
-        return records
-    return [r for r in records if (r.conversation_id or "") in conversation_ids]
+def create_all_lane_knowledge() -> dict[str, Any]:
+    return {lane: create_lane_knowledge(lane) for lane in LANE_COLLECTIONS}
 
 
-# ---------------------------------------------------------------------------
-# PG write: working.context_record is the SOURCE OF TRUTH (owner ruling)
-# ---------------------------------------------------------------------------
+def _render_message(message: ChatMessage) -> str:
+    return f"[{message.role}] {message.content.strip()}".strip()
 
 
-def _record_content_hash(rec: NormalizedRecord) -> str:
-    """Record-grain dedup key. Deterministic over the fields that make a
-    message identity: source, conversation, role, valid-time, content. Backs
-    the UNIQUE constraint so re-ingesting the same export is a no-op INSERT."""
-    occurred = rec.occurred_at.isoformat() if rec.occurred_at else ""
-    basis = f"{rec.source}:{rec.conversation_id or ''}:{rec.role or ''}:{occurred}:{rec.content}"
-    return hashlib.sha256(basis.encode("utf-8")).hexdigest()
+def _window_groups(messages: list[ChatMessage], max_chars: int) -> list[list[ChatMessage]]:
+    """Apply a hard cap only between messages; never cut through a turn."""
+
+    groups: list[list[ChatMessage]] = []
+    current: list[ChatMessage] = []
+    current_size = 0
+    for message in messages:
+        rendered_size = len(_render_message(message)) + 2
+        if current and current_size + rendered_size > max_chars:
+            groups.append(current)
+            current = []
+            current_size = 0
+        current.append(message)
+        current_size += rendered_size
+    if current:
+        groups.append(current)
+    return groups
 
 
-def store_context_records(records: list[NormalizedRecord]) -> int:
-    """Write canonical records into `working.context_record` (PG source of
-    truth), one row per message. Idempotent: `ON CONFLICT (content_hash) DO
-    NOTHING`, so re-running a parse never double-writes. Returns the number of
-    rows actually inserted (conflicts excluded). New rows land with both
-    `*_synced_at` NULL — i.e. pending projection — which is exactly what
-    `sync_pending_context()` picks up.
-    """
-    if not records:
-        return 0
-    rows = [
-        {
-            "record_type": r.record_type.value,
-            "source": r.source,
-            "conversation_id": r.conversation_id,
-            "conversation_title": r.attrs.get("conversation_title"),
-            "role": r.role,
-            "participants": json.dumps(r.participants),
-            "content": r.content,
-            "occurred_at": r.occurred_at,
-            "knowledge_time": r.knowledge_time,
-            "content_hash": _record_content_hash(r),
-            "attrs": json.dumps(r.attrs),
-        }
-        for r in records
-    ]
-    with _get_engine().begin() as conn:
-        result = conn.execute(
+def _segment_groups(
+    messages: list[ChatMessage],
+    *,
+    chunker: str,
+    max_chars: int,
+) -> tuple[list[list[ChatMessage]], str]:
+    if chunker == "message-window":
+        return _window_groups(messages, max_chars), chunker
+
+    rendered = "\n\n".join(_render_message(message) for message in messages)
+    message_ends: list[int] = []
+    cursor = 0
+    for index, message in enumerate(messages):
+        cursor += len(_render_message(message))
+        message_ends.append(cursor)
+        if index < len(messages) - 1:
+            cursor += 2
+
+    if chunker == "chonkie-semantic":
+        from chonkie import SemanticChunker
+
+        segments = SemanticChunker(chunk_size=400).chunk(rendered)
+    elif chunker == "teraflopai":
+        from chonkie import TeraflopAIChunker
+
+        segments = TeraflopAIChunker().chunk(rendered)
+    else:
+        raise ValueError(f"unknown chunker {chunker!r}")
+
+    boundary_indexes: list[int] = []
+    for segment in segments:
+        end = int(segment.end_index)
+        completed = [index for index, message_end in enumerate(message_ends) if message_end <= end]
+        if completed:
+            boundary_indexes.append(completed[-1] + 1)
+    boundary_indexes.append(len(messages))
+
+    groups: list[list[ChatMessage]] = []
+    start = 0
+    for stop in sorted(set(boundary_indexes)):
+        if stop > start:
+            groups.extend(_window_groups(messages[start:stop], max_chars))
+            start = stop
+    if start < len(messages):
+        groups.extend(_window_groups(messages[start:], max_chars))
+    return groups, chunker
+
+
+def chunk_chat_messages(
+    messages: list[ChatMessage],
+    *,
+    max_chars: int = DEFAULT_MAX_CHARS,
+    chunker: str = "message-window",
+) -> list[ChatChunk]:
+    """Create canonical chunks before classification, preserving every role."""
+
+    by_conversation: dict[str, list[ChatMessage]] = defaultdict(list)
+    for message in messages:
+        by_conversation[message.conversation_id].append(message)
+
+    chunks: list[ChatChunk] = []
+    for conversation_id, conversation_messages in by_conversation.items():
+        ordered = sorted(conversation_messages, key=lambda message: message.message_index)
+        groups, chunker_id = _segment_groups(ordered, chunker=chunker, max_chars=max_chars)
+        for chunk_index, group in enumerate(groups):
+            body = "\n\n".join(_render_message(message) for message in group)
+            content = f"{CONTEXT_BANNER}\n\n{body}"
+            indexes = [message.message_index for message in group]
+            digest_input = f"{conversation_id}:{indexes}:{content}".encode()
+            chunks.append(
+                ChatChunk(
+                    conversation_id=conversation_id,
+                    chunk_index=chunk_index,
+                    content=content,
+                    content_hash=hashlib.sha256(digest_input).hexdigest(),
+                    message_indexes=indexes,
+                    chunker_id=chunker_id,
+                    char_start=None,
+                    char_end=None,
+                )
+            )
+    return chunks
+
+
+def _store_conversation(connection: Any, conversation: ChatConversation) -> str:
+    row = (
+        connection.execute(
             text(
-                "INSERT INTO working.context_record "
-                "(record_type, source, conversation_id, conversation_title, role, participants, "
-                " content, occurred_at, knowledge_time, content_hash, attrs) "
-                "VALUES (:record_type, :source, :conversation_id, :conversation_title, :role, "
-                " CAST(:participants AS jsonb), :content, :occurred_at, :knowledge_time, "
-                " :content_hash, CAST(:attrs AS jsonb)) "
-                "ON CONFLICT (content_hash) DO NOTHING"
+                "INSERT INTO working.chat_conversation "
+                "(source, external_id, title, source_path, created_at, attrs) "
+                "VALUES (:source, :external_id, :title, :source_path, :created_at, CAST(:attrs AS jsonb)) "
+                "ON CONFLICT (source, external_id) DO UPDATE SET "
+                "title = COALESCE(EXCLUDED.title, working.chat_conversation.title), "
+                "source_path = COALESCE(EXCLUDED.source_path, working.chat_conversation.source_path) "
+                "RETURNING id"
             ),
-            rows,
+            {
+                "source": conversation.source,
+                "external_id": conversation.conversation_id,
+                "title": conversation.title,
+                "source_path": conversation.file_path,
+                "created_at": conversation.created_at,
+                "attrs": json.dumps(conversation.attrs),
+            },
         )
-    # rowcount reflects rows actually inserted for a multi-values INSERT with
-    # ON CONFLICT DO NOTHING (psycopg reports affected rows); fall back to len
-    # if the driver returns -1 (unknown).
-    inserted = result.rowcount if result.rowcount is not None and result.rowcount >= 0 else len(rows)
-    return inserted
+        .mappings()
+        .one()
+    )
+    return str(row["id"])
 
 
-# ---------------------------------------------------------------------------
-# Change-detection read side: pending rows -> (id, record) pairs
-# ---------------------------------------------------------------------------
+def _store_messages(
+    connection: Any,
+    conversation_db_id: str,
+    messages: list[ChatMessage],
+) -> dict[int, str]:
+    ids: dict[int, str] = {}
+    for message in messages:
+        row = (
+            connection.execute(
+                text(
+                    "INSERT INTO working.chat_message "
+                    "(conversation_id, message_index, role, content, sent_at, thinking, attachments, attrs, content_hash) "
+                    "VALUES (CAST(:conversation_id AS uuid), :message_index, :role, :content, :sent_at, :thinking, "
+                    "CAST(:attachments AS jsonb), CAST(:attrs AS jsonb), :content_hash) "
+                    "ON CONFLICT (conversation_id, message_index) DO UPDATE SET "
+                    "role = EXCLUDED.role, content = EXCLUDED.content, sent_at = EXCLUDED.sent_at, "
+                    "thinking = EXCLUDED.thinking, attachments = EXCLUDED.attachments, attrs = EXCLUDED.attrs "
+                    "RETURNING id"
+                ),
+                {
+                    "conversation_id": conversation_db_id,
+                    "message_index": message.message_index,
+                    "role": message.role if message.role in {"user", "assistant", "system", "tool"} else "unknown",
+                    "content": message.content,
+                    "sent_at": message.timestamp,
+                    "thinking": message.thinking,
+                    "attachments": json.dumps(message.attachments),
+                    "attrs": json.dumps(message.attrs),
+                    "content_hash": compute_content_hash(message),
+                },
+            )
+            .mappings()
+            .one()
+        )
+        ids[message.message_index] = str(row["id"])
+    return ids
+
+
+def _store_chunks(
+    connection: Any,
+    conversation_db_id: str,
+    chunks: list[ChatChunk],
+    message_ids: dict[int, str],
+) -> dict[str, str]:
+    ids: dict[str, str] = {}
+    for chunk in chunks:
+        row = (
+            connection.execute(
+                text(
+                    "INSERT INTO working.chat_chunk "
+                    "(conversation_id, chunk_index, content, content_hash, chunker_id, token_count, char_start, char_end, attrs) "
+                    "VALUES (CAST(:conversation_id AS uuid), :chunk_index, :content, :content_hash, :chunker_id, "
+                    ":token_count, :char_start, :char_end, CAST(:attrs AS jsonb)) "
+                    "ON CONFLICT (conversation_id, chunk_index) DO UPDATE SET "
+                    "content = EXCLUDED.content, content_hash = EXCLUDED.content_hash, chunker_id = EXCLUDED.chunker_id "
+                    "RETURNING id"
+                ),
+                {
+                    "conversation_id": conversation_db_id,
+                    "chunk_index": chunk.chunk_index,
+                    "content": chunk.content,
+                    "content_hash": chunk.content_hash,
+                    "chunker_id": chunk.chunker_id,
+                    "token_count": chunk.token_count,
+                    "char_start": chunk.char_start,
+                    "char_end": chunk.char_end,
+                    "attrs": json.dumps(chunk.attrs),
+                },
+            )
+            .mappings()
+            .one()
+        )
+        chunk_id = str(row["id"])
+        ids[chunk.content_hash] = chunk_id
+        for ordinal, message_index in enumerate(chunk.message_indexes):
+            connection.execute(
+                text(
+                    "INSERT INTO working.chat_chunk_message (chunk_id, message_id, ordinal) "
+                    "VALUES (CAST(:chunk_id AS uuid), CAST(:message_id AS uuid), :ordinal) "
+                    "ON CONFLICT (chunk_id, message_id) DO NOTHING"
+                ),
+                {"chunk_id": chunk_id, "message_id": message_ids[message_index], "ordinal": ordinal},
+            )
+    return ids
+
+
+def _is_projection_eligible(classification: LaneClassification) -> bool:
+    return classification.review_status in {"auto_accepted", "human_approved", "human_corrected"} or (
+        classification.lane.value == "context"
+        and classification.review_status in {"pending_review", "classification_failed"}
+    )
+
+
+def _store_classifications(
+    connection: Any,
+    chunk_ids: dict[str, str],
+    classifications: dict[str, list[LaneClassification]],
+    *,
+    classifier_id: str,
+) -> None:
+    for content_hash, assignments in classifications.items():
+        chunk_id = chunk_ids[content_hash]
+        for assignment in assignments:
+            connection.execute(
+                text(
+                    "INSERT INTO working.chat_chunk_lane "
+                    "(chunk_id, lane, confidence, classifier_id, review_status, rationale) "
+                    "VALUES (CAST(:chunk_id AS uuid), :lane, :confidence, :classifier_id, :review_status, :rationale) "
+                    "ON CONFLICT (chunk_id, lane) DO UPDATE SET confidence = EXCLUDED.confidence, "
+                    "classifier_id = EXCLUDED.classifier_id, review_status = EXCLUDED.review_status, "
+                    "rationale = EXCLUDED.rationale"
+                ),
+                {
+                    "chunk_id": chunk_id,
+                    "lane": assignment.lane.value,
+                    "confidence": assignment.confidence,
+                    "classifier_id": classifier_id,
+                    "review_status": assignment.review_status,
+                    "rationale": assignment.rationale,
+                },
+            )
+            if _is_projection_eligible(assignment):
+                for sink in ("weaviate", "graphiti"):
+                    connection.execute(
+                        text(
+                            "INSERT INTO working.chat_chunk_projection (chunk_id, lane, sink, embedder_id) "
+                            "VALUES (CAST(:chunk_id AS uuid), :lane, :sink, :embedder_id) "
+                            "ON CONFLICT (chunk_id, lane, sink) DO NOTHING"
+                        ),
+                        {
+                            "chunk_id": chunk_id,
+                            "lane": assignment.lane.value,
+                            "sink": sink,
+                            "embedder_id": DEFAULT_EMBEDDER_ID if sink == "weaviate" else None,
+                        },
+                    )
+
+
+def store_chat_batch(
+    conversation: ChatConversation,
+    messages: list[ChatMessage],
+    chunks: list[ChatChunk],
+    classifications: dict[str, list[LaneClassification]],
+) -> int:
+    """Atomically persist one conversation and all derived routing state."""
+
+    with _get_engine().begin() as connection:
+        conversation_id = _store_conversation(connection, conversation)
+        message_ids = _store_messages(connection, conversation_id, messages)
+        chunk_ids = _store_chunks(connection, conversation_id, chunks, message_ids)
+        _store_classifications(connection, chunk_ids, classifications, classifier_id="keyword-v1")
+    return len(messages)
 
 
 @dataclass(frozen=True)
-class PendingRecord:
-    """One `working.context_record` row awaiting projection into a sink —
-    the record plus the PK needed to stamp it `*_synced_at` afterward."""
+class PendingProjection:
+    chunk_id: str
+    content_hash: str
+    content: str
+    lane: str
+    sink: str
+    conversation_external_id: str
+    conversation_title: str | None
+    chunk_index: int
 
-    id: str
-    record: NormalizedRecord
 
-
-def load_pending_context(sink: str) -> list[PendingRecord]:
-    """Load the rows still pending projection into `sink` ('weaviate' |
-    'graphiti') — the change-detection query. Ordered by conversation then
-    valid-time so chunking sees each conversation contiguous and chronological
-    (NULLS LAST — undated records sort after dated ones, matching the pure-path
-    `chunk_records` sort)."""
-    col = _SYNC_COLUMNS[sink]
-    with _get_engine().connect() as conn:
+def load_pending_projections(sink: str) -> list[PendingProjection]:
+    if sink not in {"weaviate", "graphiti"}:
+        raise ValueError("sink must be 'weaviate' or 'graphiti'")
+    with _get_engine().connect() as connection:
         rows = (
-            conn.execute(
+            connection.execute(
                 text(
-                    "SELECT id, record_type, source, conversation_id, conversation_title, role, "
-                    "participants, content, occurred_at, knowledge_time, attrs "
-                    f"FROM working.context_record WHERE {col} IS NULL "
-                    "ORDER BY conversation_id NULLS LAST, occurred_at NULLS LAST"
-                )
+                    "SELECT p.chunk_id, c.content_hash, c.content, p.lane, p.sink, "
+                    "v.external_id, v.title, c.chunk_index "
+                    "FROM working.chat_chunk_projection p "
+                    "JOIN working.chat_chunk c ON c.id = p.chunk_id "
+                    "JOIN working.chat_conversation v ON v.id = c.conversation_id "
+                    "WHERE p.sink = :sink AND p.projected_at IS NULL "
+                    "ORDER BY c.id, p.lane"
+                ),
+                {"sink": sink},
             )
             .mappings()
             .all()
         )
-
-    pending: list[PendingRecord] = []
-    for row in rows:
-        participants = row["participants"]
-        if isinstance(participants, str):
-            participants = json.loads(participants)
-        attrs = row["attrs"]
-        if isinstance(attrs, str):
-            attrs = json.loads(attrs)
-        pending.append(
-            PendingRecord(
-                id=str(row["id"]),
-                record=NormalizedRecord(
-                    record_type=row["record_type"],
-                    source=row["source"],
-                    conversation_id=row["conversation_id"],
-                    role=row["role"],
-                    participants=participants or [],
-                    content=row["content"] or "",
-                    occurred_at=row["occurred_at"],
-                    knowledge_time=row["knowledge_time"],
-                    attrs={**(attrs or {}), "conversation_title": row["conversation_title"]}
-                    if row["conversation_title"]
-                    else (attrs or {}),
-                ),
-            )
+    return [
+        PendingProjection(
+            chunk_id=str(row["chunk_id"]),
+            content_hash=row["content_hash"],
+            content=row["content"],
+            lane=row["lane"],
+            sink=row["sink"],
+            conversation_external_id=row["external_id"],
+            conversation_title=row["title"],
+            chunk_index=row["chunk_index"],
         )
-    return pending
+        for row in rows
+    ]
 
 
-def mark_synced(sink: str, ids: list[str]) -> None:
-    """Stamp `<sink>_synced_at = now()` on the given rows — the projection is
-    done for that sink. Only stamps rows still NULL (a concurrent re-run can't
-    move the timestamp backward)."""
-    if not ids:
-        return
-    col = _SYNC_COLUMNS[sink]
-    with _get_engine().begin() as conn:
-        conn.execute(
+def _mark_projected(item: PendingProjection, projection_ref: str) -> None:
+    with _get_engine().begin() as connection:
+        connection.execute(
             text(
-                f"UPDATE working.context_record SET {col} = NOW() "
-                f"WHERE id = ANY(CAST(:ids AS uuid[])) AND {col} IS NULL"
+                "UPDATE working.chat_chunk_projection SET projected_at = now(), projection_ref = :ref, "
+                "attempts = attempts + 1, last_error = NULL "
+                "WHERE chunk_id = CAST(:chunk_id AS uuid) AND lane = :lane AND sink = :sink"
             ),
-            {"ids": "{" + ",".join(ids) + "}"},
+            {"ref": projection_ref, "chunk_id": item.chunk_id, "lane": item.lane, "sink": item.sink},
         )
 
 
-# ---------------------------------------------------------------------------
-# Chunk: group by conversation, render, hash (a property of PROJECTION, not
-# of the relational source of truth — the DB stores records, we chunk on read)
-# ---------------------------------------------------------------------------
+def _weaviate_uuid(chunk_id: str, lane: str) -> uuid.UUID:
+    return uuid.UUID(hex=hashlib.md5(f"{chunk_id}:{lane}".encode(), usedforsecurity=False).hexdigest())
 
 
-@dataclass(frozen=True)
-class ChatChunk:
-    source: str
-    conversation_id: str
-    conversation_title: str
-    chunk_index: int
-    text: str
-    occurred_at_start: datetime | None
-    occurred_at_end: datetime | None
-    message_count: int
-    content_hash: str = field(compare=False)
-    record_ids: tuple[str, ...] = field(default=(), compare=False)
+def _load_cached_embedding(chunk_id: str) -> list[float] | None:
+    with _get_engine().connect() as connection:
+        value = connection.execute(
+            text(
+                "SELECT embedding::text FROM working.chat_chunk_embedding "
+                "WHERE chunk_id = CAST(:chunk_id AS uuid) AND embedder_id = :embedder_id"
+            ),
+            {"chunk_id": chunk_id, "embedder_id": DEFAULT_EMBEDDER_ID},
+        ).scalar()
+    return [float(item) for item in value.strip("[]").split(",")] if value else None
 
 
-def _render_chunk(
-    source: str,
-    conversation_id: str,
-    title: str,
-    chunk_index: int,
-    recs: list[NormalizedRecord],
-    record_ids: tuple[str, ...] = (),
-) -> ChatChunk:
-    lines = [_CONTEXT_BANNER, "", f"# {title} (part {chunk_index + 1})", ""]
-    for r in recs:
-        stamp = f" — {r.occurred_at.isoformat()}" if r.occurred_at else ""
-        lines += [f"**{(r.role or 'unknown').upper()}{stamp}:**", "", r.content, "", "---", ""]
-    text_body = "\n".join(lines)
-    content_hash = hashlib.sha256(f"{source}:{conversation_id}:{chunk_index}:{text_body}".encode("utf-8")).hexdigest()
-    dated = [r.occurred_at for r in recs if r.occurred_at is not None]
-    return ChatChunk(
-        source=source,
-        conversation_id=conversation_id,
-        conversation_title=title,
-        chunk_index=chunk_index,
-        text=text_body,
-        occurred_at_start=min(dated) if dated else None,
-        occurred_at_end=max(dated) if dated else None,
-        message_count=len(recs),
-        content_hash=content_hash,
-        record_ids=record_ids,
-    )
-
-
-def _chunk_pending(items: list[PendingRecord], max_chars: int = DEFAULT_MAX_CHARS) -> list[ChatChunk]:
-    """Group PendingRecords by conversation (chronological within), split each
-    conversation into ~max_chars chunks on message boundaries, and carry the
-    source-row ids into each chunk (so the sync step can stamp exactly the rows
-    it projected). Never splits a single message's content."""
-    by_conv: dict[str, list[PendingRecord]] = defaultdict(list)
-    for it in items:
-        by_conv[it.record.conversation_id or "untitled"].append(it)
-
-    chunks: list[ChatChunk] = []
-    for conv_id, conv_items in by_conv.items():
-        conv_items = sorted(
-            conv_items, key=lambda it: it.record.occurred_at.isoformat() if it.record.occurred_at else ""
+def _cache_embedding(item: PendingProjection, vector: list[float], usage: dict[str, Any] | None) -> None:
+    with _get_engine().begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO working.chat_chunk_embedding "
+                "(chunk_id, embedder_id, content_hash, embedding, embedding_dimension, "
+                "vector_ref, embedded_at, attrs) "
+                "VALUES (CAST(:chunk_id AS uuid), :embedder_id, :content_hash, "
+                "CAST(:embedding AS vector), :dimension, :vector_ref, now(), CAST(:attrs AS jsonb)) "
+                "ON CONFLICT (chunk_id, embedder_id) DO UPDATE SET embedded_at = EXCLUDED.embedded_at, "
+                "embedding = EXCLUDED.embedding, embedding_dimension = EXCLUDED.embedding_dimension, "
+                "vector_ref = EXCLUDED.vector_ref, attrs = EXCLUDED.attrs"
+            ),
+            {
+                "chunk_id": item.chunk_id,
+                "embedder_id": DEFAULT_EMBEDDER_ID,
+                "content_hash": item.content_hash,
+                "embedding": json.dumps(vector),
+                "dimension": len(vector),
+                "vector_ref": item.chunk_id,
+                "attrs": json.dumps({"usage": usage or {}}),
+            },
         )
-        title = conv_items[0].record.attrs.get("conversation_title") or conv_id
-        source = conv_items[0].record.source
-
-        bucket: list[NormalizedRecord] = []
-        bucket_ids: list[str] = []
-        bucket_chars = 0
-        idx = 0
-        for it in conv_items:
-            r_chars = len(it.record.content)
-            if bucket and bucket_chars + r_chars > max_chars:
-                chunks.append(_render_chunk(source, conv_id, title, idx, bucket, tuple(bucket_ids)))
-                idx += 1
-                bucket, bucket_ids, bucket_chars = [], [], 0
-            bucket.append(it.record)
-            bucket_ids.append(it.id)
-            bucket_chars += r_chars
-        if bucket:
-            chunks.append(_render_chunk(source, conv_id, title, idx, bucket, tuple(bucket_ids)))
-    return chunks
 
 
-def chunk_records(records: list[NormalizedRecord], max_chars: int = DEFAULT_MAX_CHARS) -> list[ChatChunk]:
-    """Pure-path chunker (no PG): same bucketing as `_chunk_pending`, for
-    callers/tests that hold in-memory records with no row ids. Delegates so the
-    grouping logic lives in exactly one place."""
-    return _chunk_pending([PendingRecord(id="", record=r) for r in records], max_chars=max_chars)
+async def _project_weaviate(items: list[PendingProjection]) -> tuple[int, int]:
+    """Embed each canonical chunk once, then reuse its vector across lanes.
+
+    Objects match Agno's Weaviate property shape, so ordinary Agno Knowledge
+    search reads them without a parallel query implementation.
+    """
+
+    if not items:
+        return 0, 0
+    handles = create_all_lane_knowledge()
+    by_chunk: dict[str, list[PendingProjection]] = defaultdict(list)
+    for item in items:
+        by_chunk[item.chunk_id].append(item)
+
+    projected = 0
+    for chunk_items in by_chunk.values():
+        first = chunk_items[0]
+        vector = _load_cached_embedding(first.chunk_id)
+        if vector is None:
+            embedder = handles[first.lane].vector_db.embedder
+            vector, usage = embedder.get_embedding_and_usage(first.content)
+            if vector is None:
+                raise RuntimeError(f"embedding failed for chat chunk {first.chunk_id}")
+            _cache_embedding(first, vector, usage)
+        for item in chunk_items:
+            handle = handles[item.lane]
+            client = handle.vector_db.get_client()
+            collection = client.collections.get(LANE_COLLECTIONS[item.lane])
+            meta = {
+                "lane": item.lane,
+                "source": "ai_chat",
+                "conversation_id": item.conversation_external_id,
+                "conversation_title": item.conversation_title,
+                "chunk_index": item.chunk_index,
+                "content_hash": item.content_hash,
+                "evidence_status": "unverified_lead",
+            }
+            object_id = _weaviate_uuid(item.chunk_id, item.lane)
+            collection.data.insert(
+                uuid=object_id,
+                vector=vector,
+                properties={
+                    "name": f"chat-{item.conversation_external_id}-{item.chunk_index:04d}",
+                    "content": item.content.replace("\x00", "\ufffd"),
+                    "meta_data": json.dumps(meta),
+                    "content_id": item.chunk_id,
+                    "content_hash": item.content_hash,
+                },
+            )
+            _mark_projected(item, str(object_id))
+            projected += 1
+    return projected, len(by_chunk)
 
 
-# ---------------------------------------------------------------------------
-# Projection: write chunks to a sink, then stamp their source rows synced
-# ---------------------------------------------------------------------------
+def _project_graphiti(items: list[PendingProjection]) -> tuple[int, int]:
+    from server.analysis.graphiti_case_client import GraphitiCaseClient
 
-
-def _weaviate_name(chunk: ChatChunk) -> str:
-    safe_conv = "".join(c if c.isalnum() or c in "-_" else "-" for c in chunk.conversation_id)[:80] or "conv"
-    return f"context-{chunk.source}-{safe_conv}-{chunk.chunk_index:04d}"
-
-
-async def _project_chunk_to_weaviate(knowledge: Any, chunk: ChatChunk) -> None:
-    await knowledge.ainsert(
-        name=_weaviate_name(chunk),
-        text_content=chunk.text,
-        metadata={
-            "lane": "context",  # ADR-0050 §3 unified vocabulary
-            "doc_type": "chat",
-            "case_id": "primary",
-            "tier": "context",  # legacy key retained — docs/filters reference it
-            "disclaimer": "unverified lead - verify against primary evidence",
-            "source": chunk.source,
-            "conversation_id": chunk.conversation_id,
-            "conversation_title": chunk.conversation_title,
-            "chunk_index": chunk.chunk_index,
-            "message_count": chunk.message_count,
-            "occurred_at_start": chunk.occurred_at_start.isoformat() if chunk.occurred_at_start else None,
-            "occurred_at_end": chunk.occurred_at_end.isoformat() if chunk.occurred_at_end else None,
-            "content_hash": chunk.content_hash,
-        },
-    )
-
-
-def _project_chunk_to_graphiti(client: GraphitiCaseClient, chunk: ChatChunk) -> None:
-    name = f"context-chat/{chunk.source}/{chunk.conversation_title}/chunk-{chunk.chunk_index}"[:200]
-    client.add_memory(
-        name=name,
-        episode_body=chunk.text,
-        source="text",
-        source_description=(
-            f"context-chat-ingest ({chunk.source}) -- tier=context, unverified lead, "
-            "verify against primary evidence"
-        ),
-    )
+    client = GraphitiCaseClient()
+    for item in items:
+        client.add_memory(
+            name=f"context-chat/{item.lane}/{item.conversation_external_id}/{item.chunk_index}",
+            episode_body=item.content,
+            source_description=f"AI chat {item.lane}; unverified lead",
+        )
+        _mark_projected(item, item.chunk_id)
+    return len(items), len({item.chunk_id for item in items})
 
 
 async def sync_pending_context(
@@ -560,129 +533,110 @@ async def sync_pending_context(
     *,
     max_chars: int = DEFAULT_MAX_CHARS,
     dry_run: bool = False,
-    knowledge: Any | None = None,
-    graphiti_client: GraphitiCaseClient | None = None,
 ) -> tuple[int, int]:
-    """The change-detection consumer for ONE sink ('weaviate' | 'graphiti'):
-    load rows from `working.context_record` whose `<sink>_synced_at IS NULL`,
-    chunk per conversation, project each chunk into the sink, and stamp the
-    source rows synced. Returns (chunks_projected, records_stamped).
+    """Drain projection rows; retained name is the registered tool contract."""
 
-    Decoupled by design: this reads pending state from Postgres, so it runs
-    equally well inline after an ingest OR as an independent worker/cron later
-    — no ingest call is required for it to have work to do. `dry_run=True`
-    counts what WOULD project without touching the sink or stamping rows.
-    `knowledge`/`graphiti_client` are injectable for tests; when omitted and
-    not dry-run they are constructed lazily (durable-infra side effects).
-    """
-    if sink not in _SYNC_COLUMNS:
-        raise ValueError(f"unknown sink {sink!r} (expected one of {sorted(_SYNC_COLUMNS)})")
-
-    pending = load_pending_context(sink)
-    chunks = _chunk_pending(pending, max_chars=max_chars)
+    del max_chars  # chunks are already canonical and persisted
+    items = load_pending_projections(sink)
     if dry_run:
-        return len(chunks), sum(len(c.record_ids) for c in chunks)
-
-    chunks_done = records_stamped = 0
+        return len(items), len({item.chunk_id for item in items})
     if sink == "weaviate":
-        if knowledge is None:
-            knowledge = create_context_knowledge()
-        for chunk in chunks:
-            await _project_chunk_to_weaviate(knowledge, chunk)
-            mark_synced("weaviate", list(chunk.record_ids))
-            chunks_done += 1
-            records_stamped += len(chunk.record_ids)
-    else:  # graphiti
-        if graphiti_client is None:
-            graphiti_client = GraphitiCaseClient()
-        for chunk in chunks:
-            _project_chunk_to_graphiti(graphiti_client, chunk)
-            mark_synced("graphiti", list(chunk.record_ids))
-            chunks_done += 1
-            records_stamped += len(chunk.record_ids)
-    return chunks_done, records_stamped
+        return await _project_weaviate(items)
+    if sink == "graphiti":
+        return _project_graphiti(items)
+    raise ValueError("sink must be 'weaviate' or 'graphiti'")
 
 
-# ---------------------------------------------------------------------------
-# Orchestrator: parse -> PG (source of truth) -> change-detection projection
-# ---------------------------------------------------------------------------
+sync_pending_chat = sync_pending_context
 
 
 @dataclass
 class IngestReport:
-    path: str
     parser_id: str
-    parse_attempts: list[dict[str, Any]]
+    attempts: list[dict[str, Any]]
     record_count: int
     records_stored: int
-    weaviate_chunks: int
-    weaviate_records_synced: int
-    graphiti_chunks: int
-    graphiti_records_synced: int
-    dry_run: bool
     conversation_ids: list[str]
+    dry_run: bool
+    classified: bool
+    lane_counts: dict[str, int] = field(default_factory=dict)
+    weaviate_chunks: int = 0
+    weaviate_records_synced: int = 0
+    graphiti_chunks: int = 0
+    graphiti_records_synced: int = 0
+
+
+def _lane_counts(classifications: Iterable[list[LaneClassification]]) -> dict[str, int]:
+    counts: dict[str, int] = defaultdict(int)
+    for assignments in classifications:
+        for assignment in assignments:
+            counts[assignment.lane.value] += 1
+    return dict(counts)
 
 
 async def ingest_chat_file(
-    path: str | Path,
+    path: Path,
     *,
     source_meta: dict[str, Any] | None = None,
     conversation_ids: set[str] | None = None,
     max_chars: int = DEFAULT_MAX_CHARS,
     dry_run: bool = False,
-    project: bool = True,
+    project: bool = False,
     engine: str = "auto",
     format: str | None = None,
-    knowledge: Any | None = None,
-    graphiti_client: GraphitiCaseClient | None = None,
+    classify: bool = True,
+    classify_mode: str = "keyword",
+    classify_model: str | None = None,
+    chunker: str = "message-window",
 ) -> IngestReport:
-    """The whole pipeline for ONE chat-export file, PG-first:
+    """Run the complete PG-first path for one export file."""
 
-        parse (engine=auto|python|go) -> (optional conversation filter) -> finalize
-              -> store_context_records()   [Postgres SOURCE OF TRUTH]
-              -> sync_pending_context('weaviate' / 'graphiti')   [projection]
-
-    `engine`/`format` pick the PARSER dynamically (Python registry vs SBV Go),
-    without changing anything downstream — see `parse_chat_export`. The
-    projection step reads PENDING rows from Postgres, so it naturally projects
-    anything left pending by a prior crashed run too, not only this file's rows
-    — that is the change-detection contract, not a quirk. Pass `project=False`
-    to write Postgres only and let a separate worker drain the projections.
-    `dry_run=True` stores nothing and only counts.
-    """
-    p = Path(path)
-    records, parser_id, attempts = parse_chat_export(p, source_meta, engine=engine, format=format)
+    del classify_model
+    records, parser_id, attempts = parse_chat_export(path, source_meta, engine=engine, format=format)
     records = filter_conversations(records, conversation_ids)
-    records = finalize(records)
+    batches = normalize_many(records, file_path=str(path))
+    stored = 0
+    all_classifications: list[list[LaneClassification]] = []
+    conversation_external_ids: list[str] = []
 
-    w_chunks = w_synced = g_chunks = g_synced = 0
+    for conversation, messages in batches:
+        conversation_external_ids.append(conversation.conversation_id)
+        chunks = chunk_chat_messages(messages, max_chars=max_chars, chunker=chunker)
+        classifications = (
+            classify_chunks(chunks, mode=classify_mode)
+            if classify
+            else {
+                chunk.content_hash: [
+                    LaneClassification(
+                        lane="context",
+                        confidence=1.0,
+                        review_status="pending_review",
+                        rationale="classification deferred",
+                    )
+                ]
+                for chunk in chunks
+            }
+        )
+        all_classifications.extend(classifications.values())
+        if not dry_run:
+            stored += store_chat_batch(conversation, messages, chunks, classifications)
 
-    if dry_run:
-        # Preview THIS file's own records (nothing is written, so reading
-        # "pending" back from PG would reflect unrelated pre-existing rows).
-        records_stored = 0
-        preview = chunk_records(records, max_chars=max_chars)
-        if project:
-            w_chunks = g_chunks = len(preview)
-            w_synced = g_synced = len(records)
-    else:
-        records_stored = store_context_records(records)
-        if project:
-            w_chunks, w_synced = await sync_pending_context("weaviate", max_chars=max_chars, knowledge=knowledge)
-            g_chunks, g_synced = await sync_pending_context(
-                "graphiti", max_chars=max_chars, graphiti_client=graphiti_client
-            )
+    weaviate_objects = weaviate_chunks = graphiti_objects = graphiti_chunks = 0
+    if project and not dry_run:
+        weaviate_objects, weaviate_chunks = await sync_pending_context("weaviate")
+        graphiti_objects, graphiti_chunks = await sync_pending_context("graphiti")
 
     return IngestReport(
-        path=str(p),
         parser_id=parser_id,
-        parse_attempts=attempts,
+        attempts=attempts,
         record_count=len(records),
-        records_stored=records_stored,
-        weaviate_chunks=w_chunks,
-        weaviate_records_synced=w_synced,
-        graphiti_chunks=g_chunks,
-        graphiti_records_synced=g_synced,
+        records_stored=stored,
+        conversation_ids=conversation_external_ids,
         dry_run=dry_run,
-        conversation_ids=sorted({r.conversation_id or "untitled" for r in records}),
+        classified=classify,
+        lane_counts=_lane_counts(all_classifications),
+        weaviate_chunks=weaviate_chunks,
+        weaviate_records_synced=weaviate_objects,
+        graphiti_chunks=graphiti_chunks,
+        graphiti_records_synced=graphiti_objects,
     )

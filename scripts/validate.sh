@@ -1,6 +1,8 @@
 #!/bin/bash
 # Byline: Claude Code · Sonnet 5 · 2026-08-09 (added the doc-path + ADR/D-NNN
 # traceability checks appended below — HANDOFF-2026-08-09-S1, task 13)
+# Byline: Codex · GPT-5 · 2026-08-13 (align first-party validation scope
+# with AGENTS.md; server/vendored remains intentionally excluded)
 
 ############################################################################
 #
@@ -31,14 +33,14 @@ echo ""
 
 failed=0
 
-echo -e "${DIM}> ruff check ${REPO_ROOT}${NC}"
-if ! ruff check "${REPO_ROOT}"; then
+echo -e "${DIM}> ruff check --config ${REPO_ROOT}/pyproject.toml ${REPO_ROOT}/server ${REPO_ROOT}/tests${NC}"
+if ! ruff check --config "${REPO_ROOT}/pyproject.toml" "${REPO_ROOT}/server" "${REPO_ROOT}/tests"; then
   failed=1
 fi
 
 echo ""
-echo -e "${DIM}> mypy ${REPO_ROOT} --config-file ${REPO_ROOT}/pyproject.toml${NC}"
-if ! mypy "${REPO_ROOT}" --config-file "${REPO_ROOT}/pyproject.toml"; then
+echo -e "${DIM}> mypy ${REPO_ROOT}/server --config-file ${REPO_ROOT}/pyproject.toml${NC}"
+if ! mypy "${REPO_ROOT}/server" --config-file "${REPO_ROOT}/pyproject.toml"; then
   failed=1
 fi
 

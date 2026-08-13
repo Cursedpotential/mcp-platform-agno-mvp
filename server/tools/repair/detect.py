@@ -121,7 +121,10 @@ def detect(path: Path, sample: bytes | None = None) -> Detection:
 
     if not body:
         return Detection(
-            fmt="unknown", encoding=encoding, confidence=0.0, had_bom=had_bom,
+            fmt="unknown",
+            encoding=encoding,
+            confidence=0.0,
+            had_bom=had_bom,
             notes=["file is empty or contains only whitespace"],
         )
 

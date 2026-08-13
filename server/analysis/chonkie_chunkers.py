@@ -214,6 +214,11 @@ def remote_chunker(name: str) -> _RemoteChunkerStub:
 
 #: Heavy chunkers addressable by short name — DERIVED from _REMOTE_BACKENDS so the registry can't
 #: drift from the stubs. All raise until the remote MCP executor exists.
-REMOTE: dict[str, Callable[[], _RemoteChunkerStub]] = {
-    name: (lambda n=name: remote_chunker(n)) for name in _REMOTE_BACKENDS
-}
+def _remote_factory(name: str) -> Callable[[], _RemoteChunkerStub]:
+    def build() -> _RemoteChunkerStub:
+        return remote_chunker(name)
+
+    return build
+
+
+REMOTE: dict[str, Callable[[], _RemoteChunkerStub]] = {name: _remote_factory(name) for name in _REMOTE_BACKENDS}

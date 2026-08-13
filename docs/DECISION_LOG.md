@@ -12,6 +12,12 @@ Lanes: **A** = restructure · **B** = ingestion/table redesign · **C** = infra/
 
 ---
 
+## 2026-08-13
+
+| # | Decision | Lane | Status | Rationale / notes |
+|---|---|---|---|---|
+| D-057 | **AI-chat knowledge ingest uses five lanes, post-chunk multi-label routing, selective confidence HITL, multimodal assets, and a human investigation register** | B | accepted + implementation in progress 2026-08-13 | The global vocabulary is `platform`, `legal`, `personal_history`, `context`, `evidence`; `relationship_timeline` merges into `personal_history`. AI chat may auto-route only to the first four; `evidence` remains custody-only. Raw truth is explicit `chat_conversation` → ordered `chat_message` with `role` retained and participants removed; no horizon/disclosure columns. Chunks are message-safe and canonical once, then classified multi-label; one embedding is reused across lane projections. High confidence auto-routes, ambiguity/failure stays searchable in `context` and enters review, nothing is discarded. Normalized tags support search. Every created work/attachment is preserved; lightweight/native extraction precedes Docling and then provider-plural VLM OCR, with Colab-via-MCP backup only. Entity/claim/time/event extraction is asynchronous; a human-curated `investigation_event` register links concerns, candidates, evidence needs, and primary evidence, and only a human promotes to timeline. As-experienced/hindsight walk tables/views are deferred. rel: **ADR-0053** (authoritative), ADR-0044/0045/0050/0051/0052, D-046/D-054/D-056. _Byline: Codex · GPT-5 · 2026-08-13._ |
+
 ## 2026-08-12
 
 | # | Decision | Lane | Status | Rationale / notes |

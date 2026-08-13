@@ -7,6 +7,7 @@ is exercised in test_parsers*.py): registration roster, substitution order
 
 _Byline: Claude Code · Kimi K3 · 2026-08-12 (stale roster fix: count 13→14 for the
 D-051 perplexity-contexts wrapper; de-numbered the test name so it stops rotting)_
+_Byline: Codex · GPT-5 · 2026-08-13 (Gemini/custom-GPT Markdown parsers)_
 """
 
 from __future__ import annotations
@@ -30,6 +31,11 @@ CHATMINER_WRAPPER_IDS = {
     "transcripts.generic-md",
 }
 
+SPECIALTY_MARKDOWN_IDS = {
+    "transcripts.chatgpt-custom-gpt-md",
+    "transcripts.gemini-md",
+}
+
 
 @pytest.fixture(autouse=True)
 def _builtins():
@@ -47,14 +53,39 @@ def test_all_chatminer_wrappers_register():
     # the count below was stale at 13 (and the old `test_all_ten_...` name staler
     # still); renamed so a wrapper add can't silently rot the roster again.
     assert "transcripts.perplexity-contexts" in ids
-    assert len(ids) == 14
+    assert SPECIALTY_MARKDOWN_IDS <= ids
+    assert len(ids) == 16
 
 
 def test_whole_file_fallback_resolves_last_for_md():
     order = [t.id for t in registry.resolve("parse.transcript", media_hint="notes.md", size_bytes=1)]
     # The fallback never rejects a non-empty file; anything after it is dead code.
     assert order[-1] == "transcripts.markdown"
-    assert set(order[:-1]) <= CHATMINER_WRAPPER_IDS
+    assert set(order[:-1]) <= CHATMINER_WRAPPER_IDS | SPECIALTY_MARKDOWN_IDS
+
+
+@pytest.mark.parametrize(
+    ("tool_id", "body", "expected_source"),
+    [
+        (
+            "transcripts.chatgpt-custom-gpt-md",
+            "You asked:\n---\nHow should this work?\n\nChatGPT Replied:\n---\nUse ordered messages.",
+            "chatgpt-custom-gpt-md",
+        ),
+        (
+            "transcripts.gemini-md",
+            "# Design chat\nExported on: 4/14/2026, 7:08:32 PM\n---\n**You:**\nQuestion\n**Gemini:**\nAnswer",
+            "gemini-md",
+        ),
+    ],
+)
+def test_specialty_markdown_parsers_end_to_end(tmp_path, tool_id, body, expected_source):
+    path = tmp_path / "chat.md"
+    path.write_text(body, encoding="utf-8")
+    tool = next(candidate for candidate in registry.all() if candidate.id == tool_id)
+    result = tool.run({"path": str(path)})
+    assert [record["source"] for record in result["records"]] == [expected_source, expected_source]
+    assert [record["role"] for record in result["records"]] == ["user", "assistant"]
 
 
 def test_chatgpt_official_wrapper_end_to_end(tmp_path):

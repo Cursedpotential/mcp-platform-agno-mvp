@@ -33,7 +33,11 @@ def test_detect_chatgpt_is_go_primary(tmp_path):
 
 
 def test_detect_claude_is_python(tmp_path):
-    f = _write(tmp_path, "conversations.json", [{"uuid": "c", "name": "n", "chat_messages": [{"sender": "human", "text": "hi"}]}])
+    f = _write(
+        tmp_path,
+        "conversations.json",
+        [{"uuid": "c", "name": "n", "chat_messages": [{"sender": "human", "text": "hi"}]}],
+    )
     det = detect_format(f)
     assert det.format_id == "claude-ai-export"
     assert det.engine == "python"
@@ -82,7 +86,13 @@ def test_perplexity_contexts_parser_maps_query_and_answer(tmp_path):
                     "context_title": "pickup",
                     "mode": "COPILOT",
                     "entries": [
-                        {"entry_uuid": "e1", "query": "when is pickup", "answer": "6pm", "created_at": "2026-01-01T00:00:00Z", "query_status": "COMPLETED"},
+                        {
+                            "entry_uuid": "e1",
+                            "query": "when is pickup",
+                            "answer": "6pm",
+                            "created_at": "2026-01-01T00:00:00Z",
+                            "query_status": "COMPLETED",
+                        },
                     ],
                 }
             ]

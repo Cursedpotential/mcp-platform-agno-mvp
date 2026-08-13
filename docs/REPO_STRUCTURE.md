@@ -7,9 +7,11 @@
 > 2026-07-10, ADR-0035: `server/tools/` sub-namespaced by capability, `tool_finder/` →
 > `server/tools/gateway/`, record contract → `server/contracts/records.py`). Progressive-disclosure
 > detail for each package now lives in that package's own `AGENTS.md` (root map: `../AGENTS.md`) —
-> this doc stays the single structural index.
+> this doc stays the single structural index. 2026-08-13: chat-ingestion modules added to
+> the analysis map.
 > _Byline: Claude Code · Opus 4.8 · 2026-06-13 (D-026 update: Claude Sonnet 5 · 2026-07-09; ADR-0035
-> update: Claude Opus 4.8 · 2026-07-10; 2026-08-09 update: Claude Code · Sonnet 5)_
+> update: Claude Opus 4.8 · 2026-07-10; 2026-08-09 update: Claude Code · Sonnet 5;
+> 2026-08-13 update: Codex · GPT-5)_
 
 ## The one active build
 
@@ -37,7 +39,9 @@ server/         THE backend — one boundary, domain-separated inside:
   agents/       factory.py (build_agent_team), providers.py (context providers, learning, Graphiti MCP), instructions, tools/ (@tool wrappers)
   evidence/     THE SPINE (Python chassis) — see below; purely evidence-domain since ADR-0035
   tools/        CROSS-DOMAIN CAPABILITY LAYER (D-026), sub-namespaced by capability (ADR-0035) — registry + parsers/extractors/gateway; see below
-  analysis/     behavioral domain: detection.py, patterns.py (OntologyChain), court_language.py, milvus_forensic.py, semantica_wiring.py + config/
+  analysis/     behavioral + knowledge ingestion: detection.py, patterns.py, chat_parse.py,
+                chat_normalizer.py, context_chat_ingest.py, lane_classifier.py,
+                chat_archive.py, context_assets.py, semantica_wiring.py + config/
   vendored/
     chatminer/  vendored parser core (import-only)
     semantica/  vendored project (installed dist, not `server.vendored.semantica`-imported)

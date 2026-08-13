@@ -572,9 +572,7 @@ class SBVClient:
             os.makedirs(quarantine, exist_ok=True)
             quarantined = os.path.join(quarantine, os.path.basename(dest) + ".integrity-mismatch")
             os.replace(dest, quarantined)
-            raise SBVError(
-                f"attachment {attachment_id} integrity mismatch; quarantined at {quarantined}"
-            )
+            raise SBVError(f"attachment {attachment_id} integrity mismatch; quarantined at {quarantined}")
         result["verified"] = bool(isinstance(expected_count, int) and expected_hash)
         return result
 

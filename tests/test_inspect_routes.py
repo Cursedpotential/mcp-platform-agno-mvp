@@ -273,7 +273,13 @@ def test_list_records_q_adds_ilike_filter(client, monkeypatch):
 def test_inspect_pg_schemas_exact_count_for_small_tables(monkeypatch):
     table_rows = [{"schema": "analysis", "table_name": "workflow_run", "est_rows": 5}]
     column_rows = [
-        {"table_schema": "analysis", "table_name": "workflow_run", "column_name": "run_id", "data_type": "uuid", "ordinal_position": 1}
+        {
+            "table_schema": "analysis",
+            "table_name": "workflow_run",
+            "column_name": "run_id",
+            "data_type": "uuid",
+            "ordinal_position": 1,
+        }
     ]
     fake = _FakeEngine([table_rows, column_rows, 42])  # tables, columns, exact count
     monkeypatch.setattr(inspect_routes, "_get_engine", lambda: fake)
@@ -622,9 +628,7 @@ def test_parse_dryrun_tries_next_candidate_on_failure_and_reports_attempts(clien
 def test_parse_dryrun_no_candidates_reports_empty(client, monkeypatch):
     monkeypatch.setattr("server.evidence.run_ledger.get_run", lambda run_id: {"workflow": "sms-xml"})
     monkeypatch.setattr("server.tools.registry.load_builtin_tools", lambda: None)
-    monkeypatch.setattr(
-        "server.tools.registry.registry.resolve", lambda capability, media_hint="", size_bytes=0: []
-    )
+    monkeypatch.setattr("server.tools.registry.registry.resolve", lambda capability, media_hint="", size_bytes=0: [])
 
     resp = client.post("/v1/runs/run-1/parse-dryrun", files={"file": ("f.xml", b"<smses/>", "text/xml")})
 
@@ -759,9 +763,7 @@ def test_create_flag_422_unknown_target_kind(client):
 
 
 def test_create_flag_422_unknown_status(client):
-    resp = client.post(
-        "/v1/flags", json={"target_kind": "record", "target_id": "x", "claim": "c", "status": "bogus"}
-    )
+    resp = client.post("/v1/flags", json={"target_kind": "record", "target_id": "x", "claim": "c", "status": "bogus"})
     assert resp.status_code == 422
 
 

@@ -25,6 +25,7 @@ tailnet `http://100.72.169.40:8085`); auth is the client's service account
 (`SBV_SERVICE_USER`/`SBV_SERVICE_PASS`), handled transparently.
 """
 # Byline: Claude Code · Opus 4.8 · 2026-08-12
+# Byline: Codex · GPT-5 · 2026-08-13 (reject malformed SBV import responses)
 
 from __future__ import annotations
 
@@ -81,11 +82,7 @@ def _row_to_record(row: dict[str, Any], default_source: str) -> NormalizedRecord
         or metadata.get("author")
         or (participants[0] if participants else None)
     )
-    conversation_id = (
-        metadata.get("conversation_id")
-        or metadata.get("conversation")
-        or row.get("conversation_id")
-    )
+    conversation_id = metadata.get("conversation_id") or metadata.get("conversation") or row.get("conversation_id")
     source = str(row.get("format") or default_source)
 
     attrs: dict[str, Any] = {
@@ -145,6 +142,8 @@ def parse_via_sbv(
     attempts: list[dict[str, Any]] = []
     summary = client.import_file(str(path), filename=path.name, format=format)
     import_id = summary.get("import_id")
+    if import_id is None:
+        raise RuntimeError("SBV import response did not include import_id")
     client.wait_for_processing(timeout_s=timeout_s)
     rows = client.import_records(int(import_id))
 

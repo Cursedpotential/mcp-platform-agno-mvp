@@ -688,7 +688,9 @@ def _register_flags_routes(app: FastAPI) -> None:
     @app.post("/v1/flags", status_code=201)
     async def create_flag(body: FlagCreate) -> dict[str, Any]:
         if body.target_kind not in _ALLOWED_TARGET_KINDS:
-            raise HTTPException(422, f"unknown target_kind {body.target_kind!r}; allowed: {sorted(_ALLOWED_TARGET_KINDS)}")
+            raise HTTPException(
+                422, f"unknown target_kind {body.target_kind!r}; allowed: {sorted(_ALLOWED_TARGET_KINDS)}"
+            )
         if body.status not in _ALLOWED_FLAG_STATUSES:
             raise HTTPException(422, f"unknown status {body.status!r}; allowed: {sorted(_ALLOWED_FLAG_STATUSES)}")
 
@@ -738,7 +740,9 @@ def _register_flags_routes(app: FastAPI) -> None:
         where_clause = f"WHERE {' AND '.join(where)}" if where else ""
 
         with _get_engine().connect() as conn:
-            total = conn.execute(text(f"SELECT count(*) FROM analysis.corroboration_flag {where_clause}"), params).scalar()
+            total = conn.execute(
+                text(f"SELECT count(*) FROM analysis.corroboration_flag {where_clause}"), params
+            ).scalar()
             rows = (
                 conn.execute(
                     text(
