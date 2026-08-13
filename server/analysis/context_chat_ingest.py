@@ -21,7 +21,7 @@ from sqlalchemy import text
 
 from server.analysis.chat_normalizer import compute_content_hash, normalize_many
 from server.analysis.chat_parse import filter_conversations, parse_chat_export
-from server.analysis.lane_classifier import classify_chunks
+from server.analysis.lane_classifier import classifier_id, classify_chunks
 from server.contracts.records import ChatChunk, ChatConversation, ChatMessage, LaneClassification
 from server.tools.registry import registry
 
@@ -349,6 +349,8 @@ def store_chat_batch(
     messages: list[ChatMessage],
     chunks: list[ChatChunk],
     classifications: dict[str, list[LaneClassification]],
+    *,
+    classifier_id_value: str,
 ) -> int:
     """Atomically persist one conversation and all derived routing state."""
 
@@ -356,7 +358,7 @@ def store_chat_batch(
         conversation_id = _store_conversation(connection, conversation)
         message_ids = _store_messages(connection, conversation_id, messages)
         chunk_ids = _store_chunks(connection, conversation_id, chunks, message_ids)
-        _store_classifications(connection, chunk_ids, classifications, classifier_id="keyword-v1")
+        _store_classifications(connection, chunk_ids, classifications, classifier_id=classifier_id_value)
     return len(messages)
 
 
@@ -559,6 +561,7 @@ class IngestReport:
     conversation_ids: list[str]
     dry_run: bool
     classified: bool
+    classifier_id: str | None = None
     lane_counts: dict[str, int] = field(default_factory=dict)
     weaviate_chunks: int = 0
     weaviate_records_synced: int = 0
@@ -585,41 +588,53 @@ async def ingest_chat_file(
     engine: str = "auto",
     format: str | None = None,
     classify: bool = True,
-    classify_mode: str = "keyword",
+    classify_mode: str = "hybrid",
     classify_model: str | None = None,
     chunker: str = "message-window",
 ) -> IngestReport:
     """Run the complete PG-first path for one export file."""
 
-    del classify_model
     records, parser_id, attempts = parse_chat_export(path, source_meta, engine=engine, format=format)
     records = filter_conversations(records, conversation_ids)
     batches = normalize_many(records, file_path=str(path))
     stored = 0
     all_classifications: list[list[LaneClassification]] = []
     conversation_external_ids: list[str] = []
+    prepared: list[tuple[ChatConversation, list[ChatMessage], list[ChatChunk]]] = []
 
     for conversation, messages in batches:
         conversation_external_ids.append(conversation.conversation_id)
         chunks = chunk_chat_messages(messages, max_chars=max_chars, chunker=chunker)
-        classifications = (
-            classify_chunks(chunks, mode=classify_mode)
-            if classify
-            else {
-                chunk.content_hash: [
-                    LaneClassification(
-                        lane="context",
-                        confidence=1.0,
-                        review_status="pending_review",
-                        rationale="classification deferred",
-                    )
-                ]
-                for chunk in chunks
-            }
-        )
-        all_classifications.extend(classifications.values())
+        prepared.append((conversation, messages, chunks))
+
+    all_chunks = [chunk for _, _, chunks in prepared for chunk in chunks]
+    classifications = (
+        classify_chunks(all_chunks, mode=classify_mode, model_id=classify_model)
+        if classify
+        else {
+            chunk.content_hash: [
+                LaneClassification(
+                    lane="context",
+                    confidence=1.0,
+                    review_status="pending_review",
+                    rationale="classification deferred",
+                )
+            ]
+            for chunk in all_chunks
+        }
+    )
+    all_classifications.extend(classifications.values())
+
+    for conversation, messages, chunks in prepared:
+        batch_classifications = {chunk.content_hash: classifications[chunk.content_hash] for chunk in chunks}
         if not dry_run:
-            stored += store_chat_batch(conversation, messages, chunks, classifications)
+            stored += store_chat_batch(
+                conversation,
+                messages,
+                chunks,
+                batch_classifications,
+                classifier_id_value=classifier_id(classify_mode, classify_model) if classify else "deferred",
+            )
 
     weaviate_objects = weaviate_chunks = graphiti_objects = graphiti_chunks = 0
     if project and not dry_run:
@@ -634,6 +649,7 @@ async def ingest_chat_file(
         conversation_ids=conversation_external_ids,
         dry_run=dry_run,
         classified=classify,
+        classifier_id=classifier_id(classify_mode, classify_model) if classify else None,
         lane_counts=_lane_counts(all_classifications),
         weaviate_chunks=weaviate_chunks,
         weaviate_records_synced=weaviate_objects,

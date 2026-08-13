@@ -4,14 +4,14 @@ Classification never emits ``evidence``: discussion about evidence is still an
 AI-chat lead. Low-confidence and failed classifications remain searchable in
 ``context`` and enter selective human review.
 
-Byline: Codex · GPT-5 · 2026-08-13
+Byline: Codex · GPT-5 · 2026-08-13 (CPU semantic challenger + hybrid confidence gate)
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 import re
-from typing import Iterable
+from typing import Any, Iterable
 
 from server.contracts.records import ChatChunk, ChatLane, LaneClassification
 
@@ -172,21 +172,90 @@ def classification_failure(reason: str) -> list[LaneClassification]:
 def classify_chunks(
     chunks: Iterable[ChatChunk],
     *,
-    mode: str = "keyword",
+    mode: str = "hybrid",
     policy: ClassificationPolicy | None = None,
+    model_id: str | None = None,
+    encoder: Any | None = None,
 ) -> dict[str, list[LaneClassification]]:
     """Classify canonical chunks; keys are chunk content hashes.
 
-    The deterministic CPU mode is the production baseline. Remote/LLM models
-    can be added as challengers without changing the persistence contract.
+    ``keyword`` is the zero-dependency baseline. ``cpu`` runs the optional
+    semantic challenger. ``hybrid`` keeps clear keyword decisions and adds
+    semantic candidates for review; if the optional runtime is absent it
+    safely falls back to keyword classification.
     """
 
-    if mode != "keyword":
-        raise ValueError("only the calibrated keyword baseline is wired; remote classifiers are challengers")
+    if mode not in {"keyword", "cpu", "hybrid"}:
+        raise ValueError("classification mode must be 'keyword', 'cpu', or 'hybrid'")
+    chunks = list(chunks)
+    cpu_error: Exception | None = None
+    effective_model_id: str | None = None
+    if mode in {"cpu", "hybrid"} and encoder is None:
+        try:
+            from server.analysis.cpu_lane_classifier import load_cpu_encoder, resolve_cpu_model_id
+
+            effective_model_id = resolve_cpu_model_id(model_id)
+            encoder = load_cpu_encoder(effective_model_id)
+        except Exception as exc:  # optional runtime/model download must not lose chunks
+            cpu_error = exc
+    elif mode in {"cpu", "hybrid"}:
+        from server.analysis.cpu_lane_classifier import resolve_cpu_model_id
+
+        effective_model_id = resolve_cpu_model_id(model_id)
+
+    semantic_by_hash: dict[str, list[LaneClassification]] = {}
+    if mode in {"cpu", "hybrid"} and cpu_error is None and encoder is not None:
+        try:
+            from server.analysis.cpu_lane_classifier import DEFAULT_CPU_MODEL, classify_chunks_cpu
+
+            semantic_by_hash = classify_chunks_cpu(
+                chunks,
+                encoder=encoder,
+                model_id=effective_model_id or DEFAULT_CPU_MODEL,
+            )
+        except Exception as exc:
+            cpu_error = exc
+
     output: dict[str, list[LaneClassification]] = {}
     for chunk in chunks:
         try:
-            output[chunk.content_hash] = classify_chunk_keyword(chunk, policy=policy)
+            keyword = classify_chunk_keyword(chunk, policy=policy)
+            if mode == "keyword":
+                output[chunk.content_hash] = keyword
+                continue
+            if cpu_error is not None or encoder is None:
+                if mode == "cpu":
+                    output[chunk.content_hash] = classification_failure(str(cpu_error))
+                else:
+                    output[chunk.content_hash] = keyword
+                continue
+
+            semantic = semantic_by_hash[chunk.content_hash]
+            if mode == "cpu":
+                output[chunk.content_hash] = semantic
+                continue
+
+            # A clear deterministic match is already high precision. Semantic
+            # candidates broaden recall but never upgrade themselves to an
+            # accepted fact before calibration against owner labels.
+            merged = {item.lane: item for item in keyword}
+            for item in semantic:
+                existing = merged.get(item.lane)
+                if existing is None or (
+                    existing.review_status != "auto_accepted" and item.confidence > existing.confidence
+                ):
+                    merged[item.lane] = item
+            output[chunk.content_hash] = list(merged.values())
         except Exception as exc:  # a bad chunk must never disappear
             output[chunk.content_hash] = classification_failure(str(exc))
     return output
+
+
+def classifier_id(mode: str, model_id: str | None = None) -> str:
+    """Versioned persistence identifier for the configured classification run."""
+
+    if mode == "keyword":
+        return "keyword-v1"
+    from server.analysis.cpu_lane_classifier import resolve_cpu_model_id
+
+    return f"{mode}-v1:{resolve_cpu_model_id(model_id)}"

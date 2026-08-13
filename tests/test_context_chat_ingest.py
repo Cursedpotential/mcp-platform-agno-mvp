@@ -196,5 +196,26 @@ def test_dry_run_exercises_parse_chunk_classify_without_database(tmp_path):
     assert report.record_count == 3
     assert report.records_stored == 0
     assert report.classified is True
+    assert report.classifier_id is not None and report.classifier_id.startswith("hybrid-v1:")
     assert report.dry_run is True
     assert {"platform", "legal", "personal_history"}.intersection(report.lane_counts)
+
+
+def test_multi_conversation_cpu_state_is_loaded_and_encoded_once(tmp_path, monkeypatch):
+    calls = {"load": 0, "encode": 0}
+
+    class CountingEncoder:
+        def encode(self, sentences, **kwargs):
+            del kwargs
+            calls["encode"] += 1
+            return [[0.0, 0.0] for _ in sentences]
+
+    def load(model_id=None, backend=None):
+        del model_id, backend
+        calls["load"] += 1
+        return CountingEncoder()
+
+    monkeypatch.setattr("server.analysis.cpu_lane_classifier.load_cpu_encoder", load)
+    report = asyncio.run(ingest_chat_file(_export(tmp_path), dry_run=True, classify_mode="cpu"))
+    assert len(report.conversation_ids) == 2
+    assert calls == {"load": 1, "encode": 1}
