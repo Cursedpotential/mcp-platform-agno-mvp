@@ -1,12 +1,15 @@
 # ADR-0051: The ingest pipeline — SBV parses+previews, extraction is a separate triggered stage, HITL verifies
 
-- Status: **Accepted as direction** — owner stated this architecture emphatically across the
+- Status: **Superseded in part by ADR-0053** for AI-chat landing, post-chunk routing,
+  selective HITL, multimodal assets, and the investigation register. The general parse →
+  async extract → verify direction remains accepted. Original status: **Accepted as direction** — owner stated this architecture emphatically across the
   2026-08-10 session ("SBV should be in charge of parsing and previewing and then handing it off
   to the next part of the process which handles all of the extractions … and then there's the
   human-in-the-loop part that comes after"). **NOT YET BUILT** — the current-reality gap is
   documented below and is the work this ADR authorizes.
 - Date: 2026-08-10
 - _Byline: Claude Code · Opus 4.8 · 2026-08-10_
+- _Amendment byline: Codex · GPT-5 · 2026-08-13_
 - Ties together: ADR-0049 (SBV = the universal parser) · ADR-0050 (six-lane knowledge storage) ·
   ADR-0043 (Semantica extraction worker) · ADR-0044 (evidence-vs-context boundary) ·
   ADR-0002/0047 (native HITL + audit ledger). This ADR is the **flow**; those are the parts.

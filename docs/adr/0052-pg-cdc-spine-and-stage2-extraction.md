@@ -2,6 +2,12 @@
 
 > _Byline: Claude Code · Opus 4.x (draft) · 2026-08-12; amended + SIGNED per owner · Kimi K3 · 2026-08-12 (owner rulings on all 8 open questions — format/size split replaced by coverage-based Go-primary)_
 
+> **2026-08-13 amendment:** ADR-0053 supersedes the AI-chat `working.context_record`
+> realization with explicit conversation/message/chunk tables and post-chunk multi-label
+> classification. This ADR's transactional outbox, full-row events, NOTIFY-as-wakeup,
+> per-sink cursors, dead-letter/replay, extraction semantics, and coverage-based engine split
+> remain authoritative. _Byline: Codex · GPT-5 · 2026-08-13._
+
 - Status: **ACCEPTED — owner sign-off 2026-08-12 (15:50 EDT)** ("sign 52"), all 8 open questions
   ruled same day (see "Owner rulings" / D-054). Phases 1+ may now be built (Phase 0 already
   shipped as D-048).

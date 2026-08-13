@@ -9,7 +9,6 @@ the zip-slip guard, and the no-log error. DB-free (ingest_chat_file is faked).
 from __future__ import annotations
 
 import asyncio
-import io
 import json
 import zipfile
 
@@ -27,7 +26,15 @@ def _make_zip(path, members: dict[str, bytes]):
 
 
 def _claude_conv():
-    return json.dumps([{"uuid": "c1", "name": "t", "chat_messages": [{"sender": "human", "text": "hi", "created_at": "2026-01-01T00:00:00Z"}]}]).encode()
+    return json.dumps(
+        [
+            {
+                "uuid": "c1",
+                "name": "t",
+                "chat_messages": [{"sender": "human", "text": "hi", "created_at": "2026-01-01T00:00:00Z"}],
+            }
+        ]
+    ).encode()
 
 
 def test_inventory_claude_shape(tmp_path):
@@ -54,10 +61,12 @@ def test_inventory_chatgpt_shape_with_assets(tmp_path):
     )
     inv = inventory_archive(z)
     assert inv.conversation_logs == ["conversations-20251215.json"]
-    assert len(inv.asset_files) == 3  # png + md + pdf under assets/
-    assert "user-data.xlsx" in inv.other_files
+    assert len(inv.asset_files) == 4  # root spreadsheet + png + md + pdf
+    assert "user-data.xlsx" in inv.asset_files
     # a conversations-named file INSIDE assets/ must NOT be treated as a log
-    z2 = _make_zip(tmp_path / "trap.zip", {"assets/conversations.json": _claude_conv(), "conversations.json": _claude_conv()})
+    z2 = _make_zip(
+        tmp_path / "trap.zip", {"assets/conversations.json": _claude_conv(), "conversations.json": _claude_conv()}
+    )
     inv2 = inventory_archive(z2)
     assert inv2.conversation_logs == ["conversations.json"]
     assert "assets/conversations.json" in inv2.asset_files
@@ -85,7 +94,7 @@ def test_ingest_archive_only_extracts_logs(tmp_path, monkeypatch):
         return _Rep(record_count=1, records_stored=1)
 
     monkeypatch.setattr("server.analysis.context_chat_ingest.ingest_chat_file", _fake_ingest)
-    report = asyncio.run(arch.ingest_chat_archive(z, project=False))
+    report = asyncio.run(arch.ingest_chat_archive(z, project=False, materialize_assets=False))
     assert len(report.logs_ingested) == 1
     assert report.deferred_assets == 1
     assert report.deferred_metadata == ["users.json"]

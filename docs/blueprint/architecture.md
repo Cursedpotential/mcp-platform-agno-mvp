@@ -1,8 +1,9 @@
 # Layer 1 — Architecture
 
 > _Byline: Claude Code · Opus 4.8 · 2026-08-11 · reverse+forward, hybrid;
-> drift-fix 2026-08-12 (Claude Code · Kimi K3): "PG change-detection not built" claims updated — partially built per D-048._
-> Stable architecture (ADR-0051 target, ADR-0050 lanes, deploy topology) is drawn as the primary
+> drift-fix 2026-08-12 (Claude Code · Kimi K3): "PG change-detection not built" claims updated — partially built per D-048;
+> ADR-0053 amendment 2026-08-13 Codex · GPT-5._
+> Stable architecture (ADR-0051 flow, ADR-0053 lanes, deploy topology) is drawn as the primary
 > view. Build STATUS moves daily — for live phase status see `docs/COORDINATION.md` (war-room) and
 > `docs/DECISION_LOG.md`, not this diagram.
 
@@ -21,7 +22,7 @@ flowchart LR
     OP(["Operator<br/>(single user, HITL)"])
     subgraph Platform["Agno-MCP-Platform"]
       ING["Ingest pipeline"]
-      KB["Six-lane knowledge"]
+      KB["Five-lane knowledge"]
       TL["Timeline / entities"]
       AG["Agent families"]
     end
@@ -52,7 +53,7 @@ flowchart TB
     FAN --> CH["chunk (Chonkie via chunking_policy)"]
     CH --> EX["multipass extract + artifacts (Semantica)"]
     EX --> EN["entities + timeline (Graphiti/Neo4j)"]
-    CH --> WV["embed → six Weaviate lanes"]
+    CH --> WV["embed once → eligible Weaviate lanes"]
     EN --> HITL["HITL verify (native @approval)"]
     WV --> HITL
     HITL --> CANON["canonical knowledge + timeline, per lane"]
@@ -67,7 +68,7 @@ war-room, not here.**
 flowchart TB
     subgraph KBLane["KB-structure lane (Lane D) — Phases 1-3 shipped"]
       W1["custody → parse → store → knowledge"]
-      W1 --> SIX["six lanes registered + lane vocab live<br/>(platform/legal re-ingested)"]
+      W1 --> SIX["five-lane registry target<br/>(ADR-0053)"]
     end
     subgraph PCLane["Parser/chunking lane (this chat)"]
       P1["SBV = primary parser (ADR-0049)"]

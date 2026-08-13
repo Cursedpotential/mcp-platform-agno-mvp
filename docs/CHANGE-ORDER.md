@@ -1,11 +1,31 @@
 # CHANGE-ORDER — Agno-MCP-Platform
 
-> _Byline: Claude Code · Fable 5 · 2026-08-12_
+> _Byline: Claude Code · Fable 5 · 2026-08-12; Codex · GPT-5 · 2026-08-13_
 > Running, append-only ledger of executed changes (newest on top). Per the workspace
 > memory contract: append the same turn as any executed change. Complements
 > `DECISION_LOG.md` (the why) — this is the what/where/verified. Strike; never delete.
 
 ---
+
+## 2026-08-13
+
+### CH-4 — ADR-0053 five-lane chat-ingestion feature branch implemented
+
+- **What:** additive migration 0024; explicit conversation/message/chunk tables;
+  post-chunk multi-label classification; selective confidence review; embed-once lane
+  projections; normalized tags; whole-archive multimodal assets + optional Docling;
+  per-table outboxes/cursors/dead-letter; human investigation register; runtime five-lane
+  alignment; new Gemini/custom-GPT Markdown parsers; visual HTML report; canon/ADRs true-up.
+- **Safety:** no live database migration, deployment, bulk ingest, or external write was
+  performed. Conflicting untracked utilities/reports were moved to `to_be_deleted`, never
+  deleted.
+- **Verified:** PostgreSQL parser accepts migration 0024 (43 statements); Ruff lint clean;
+  focused mypy clean; HTML structure and JavaScript syntax clean; full pytest suite 644
+  passed / 22 skipped. Global mypy still has unrelated pre-existing errors recorded in the
+  handoff/reporting; repository-wide format check has unrelated historical drift.
+- **Governing record:** ADR-0053 / D-057.
+
+_Byline: Codex · GPT-5 · 2026-08-13._
 
 ## 2026-08-12
 

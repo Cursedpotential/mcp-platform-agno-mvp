@@ -4,7 +4,8 @@
 > repeated compaction never loses the vision, decisions, or plan. It is kept
 > current as decisions are made. If something here conflicts with an older ADR,
 > this file's "Locked Decisions" section wins and the ADR should be updated.
-> Last updated: 2026-08-09 (docs/registers true-up — §4 data-tier host defaults corrected to
+> Last updated: 2026-08-13 (ADR-0053 five-lane chat-ingestion, multimodal asset,
+> selective HITL, and investigation-register decisions; prior: 2026-08-09 — §4 data-tier host defaults corrected to
 > ovh-files per commits 5e829ab/a68fabd; §5 SurrealDB entry restated RETIRED/zero-callers;
 > §6 P4 updated for PR #18 (universal import engine + SBV promotion) — exact Phase-5a wording
 > pends OQ-9, see the marked TODO below; prior: 2026-07-29, §4 rewritten to the 4-box Coolify
@@ -16,7 +17,8 @@
 > against ADR-0040/0042/0043 and D-042 (Claude Code · Kimi K3);
 > §6 status refresh 2026-07-11 Claude Code · Sonnet 5; §5/§6/§8 sync 2026-07-29
 > (drift-fix 2026-08-12 round 2, Claude Code · Kimi K3: §4 data-vector down-note + §6 OpenCode LiteLLM mention corrected)
-> Claude Code · Fable 5; §4/§5/§6 sync 2026-08-09 Claude Code · Sonnet 5)_
+> Claude Code · Fable 5; §4/§5/§6 sync 2026-08-09 Claude Code · Sonnet 5;
+> §3/§5 chat-ingestion amendment 2026-08-13 Codex · GPT-5)_
 
 ---
 
@@ -99,35 +101,35 @@ UI/tests depend on them. (Cloud Drive Cleanup: removed from the active topology
 
 ---
 
-## 3. The knowledge engine — multi-domain, any-agent, domain-separated
+## 3. The knowledge engine — five lanes, segment-routed, source-preserving
 
-Knowledge is gathered from conversations covering **everything**: timeline &
-relationship history, personal history, platform/engine **design decisions**,
-and **legal strategy & planning**. **Requirement: any agent can query it, and
-the domains MUST stay separated** so an agent pulls the right context.
+Knowledge is gathered from conversations covering everything. The five structural
+lanes are `platform`, `legal`, `personal_history`, `context`, and `evidence`.
+`personal_history` includes relationship history; relationship-specific meaning is
+captured with tags and later entity/event extraction, not a separate storage lane.
+Weaviate uses one collection per lane. The evidence collection is custody-only and
+never receives AI-chat auto-routing.
 
-**Design (to implement):** domain-partitioned knowledge — separate
-collections/namespaces + metadata tags per domain, not one undifferentiated
-corpus:
-- `timeline_relationship` — relationship history, events, who/when
-- `personal_history` — background, personal context
-- `platform_design` — engine/platform design decisions & discussion (this canon, ADRs, planning)
-- `legal_strategy` — case strategy, planning, filings discussion
+AI chats land first as horizon-neutral parent conversations and ordered child messages.
+They are chunked at message-safe boundaries and only then classified. One chunk can have
+several lane assignments, but PG stores it once and embedding is computed once per
+embedder; that vector is reused across eligible lane projections. Ambiguous or failed
+classification remains searchable in `context` and enters selective human review.
 
-**Two different taxonomies — keep them separate (owner decision 2026-06-13):**
-the **knowledge DOMAINS above** are *storage partitions* (which collection a record
-lands in). The parser's **`TopicTag`** (`RELATIONSHIP_HISTORY` / `PERSONAL_LEGAL` /
-`DEVELOPMENT` / `EMOTIONAL` / `EVIDENCE` / `MIXED` / `UNKNOWN`) is a *separate metadata
-field* on each segment — NOT merged into the domains. Because the owner's conversations
-are "very ADD/bipolar" (every conversation spans all topics), **tagging happens at the
-SEGMENT/TURN level, never per-conversation**, with `MIXED`/`UNKNOWN` as catch-alls.
-**`RELATIONSHIP_HISTORY` is its own first-class lane** (split out of `PERSONAL_LEGAL`)
-with heavy entity extraction + timeline construction.
+Lanes answer “which broad corpus?” while normalized tags answer “what is this about?”.
+Tags retain provenance, confidence, and review state. Raw messages do not carry lane,
+horizon, disclosure, as-experienced, or hindsight judgments.
 
-Each agent family queries the domains relevant to it (Legal Team → legal_strategy
-+ evidence + timeline; Builder → platform_design; Analysis → timeline +
-personal). Implemented as per-domain pgvector collections (MVP) with metadata
-filters; evidence-scale vectors move to a self-hosted store later (see §6).
+All created works and attachments are ingested with the archive. Original bytes remain in
+R2 and PG records provenance plus derived text/OCR/transcript/keyframe representations.
+Extraction escalates from lightweight/native parsing to Docling, then to a configurable
+vision model; Colab driven through MCP is a backup only. Provider selection is not locked.
+
+Entity, claim, time, and event-candidate extraction runs asynchronously after landing and
+chunking. Human-curated concerns graduate first into an investigation register linked to
+candidates, evidence needs, and primary evidence; only a human promotes them to an official
+timeline event. As-experienced versus hindsight walk views/tables are designed later. See
+ADR-0053.
 
 **The comprehensive living wiki (ADR-0022) — the human-readable face of this engine.**
 One wiki, **dual-rendered**: human-readable navigable markdown AND AI-queryable
@@ -171,6 +173,11 @@ S3 API + pg_duckdb httpfs (`read_text('s3://nexus/...')`).
 
 ## 5. Locked decisions
 
+- **AI-chat knowledge ingestion = ADR-0053:** five global lanes; explicit
+  conversation/message/chunk source truth; post-chunk multi-label routing; selective
+  confidence HITL; created works + attachments included; OCR escalation is
+  lightweight/native → Docling → configurable VLM; human investigation register;
+  horizon-walk realization deferred and never stamped on raw chat rows.
 - **Deploy on the VPS** (ADR-0009), not local podman. n8n on its own server.
 - **pg_duckdb inside Postgres** (ADR-0013, supersedes ADR-0003 no-DuckDB).
 - **Neo4j for Graphiti** (ADR-0014, supersedes FalkorDB). Bitemporal cognition substrate.

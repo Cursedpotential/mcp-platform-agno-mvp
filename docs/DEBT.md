@@ -4,6 +4,7 @@
 > correction, agno pin correction, STUB-rule test scoping, parser-lane queue update, justified-custom
 > addition, dated audit stamp);
 > drift-fix 2026-08-12 (Claude Code · Kimi K3: Milvus "locked + LIVE" row corrected — ADR-0040/D-042 supersession)_
+> _2026-08-13 amendment: Codex · GPT-5 (ADR-0053 implementation follow-ups)._
 
 > **2026-08-09 audit** (docs/registers true-up pass): all "resolved" rows below re-checked
 > against the tree and still verified resolved (parser/extractor modules present under
@@ -35,6 +36,19 @@ never incomplete-and-silent in production, they're deliberate test fixtures
 | Marker | File | What | Why deferred | Returns with |
 |---|---|---|---|---|
 | _(none)_ | | | | |
+
+## ADR-0053 implementation follow-ups
+
+| Item | Current safe behavior | Required completion |
+|---|---|---|
+| CDC worker/replay/alert | PG projection plans and outbox/cursor/dead-letter schema are durable; drains are manual | standalone worker, replay tool, count>0 alert, operator status |
+| Classifier quality | deterministic keyword baseline; ambiguity/failure falls back to searchable context | human-labeled evaluation, semantic/LLM challenger, sampled high-confidence audit |
+| OCR/VLM selection | lightweight extractor seam plus optional Docling; failures remain visible | benchmark Mistral/Kimi/GLM/other providers on representative private data; record cost/privacy/quality |
+| Multimodal embedding | schema represents native/text/OCR/transcript/keyframe projections | implement and evaluate image/audio/video embedders without replacing original bytes |
+| Timeline extraction | ingest succeeds without premature facts | entity/claim/time/event candidate workers, bulk consolidation, investigation-register UI |
+| Horizon walks | no horizon values are stamped on raw chat | separately design as-experienced versus hindsight walk tables/views after timeline population |
+
+_Byline: Codex · GPT-5 · 2026-08-13._
 
 > 2026-06-12: the entire **Cloud Drive Cleanup agent** (not just `trash_cloud_file`)
 > was removed from the active topology — owner decision: cloud cleanup is a separate

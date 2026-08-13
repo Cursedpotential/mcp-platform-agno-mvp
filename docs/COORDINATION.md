@@ -6,6 +6,12 @@
 > don't rewrite history** — add timestamped entries under your lane; strike (~~…~~) items
 > you complete. Commit this file with your changes so the other lane sees it on pull.
 
+> **2026-08-13 current-architecture correction:** historical lane entries below accurately
+> describe the earlier ADR-0050 work, but their six-lane vocabulary is superseded by
+> ADR-0053. Current vocabulary is five lanes; relationship history is inside
+> `personal_history`, and `tuned=True` treats only `context` as the transcript lane.
+> _Byline: Codex · GPT-5 · 2026-08-13._
+
 ## Lanes & ownership (as of 2026-07-08)
 
 ### LANE A — "Restructure" (this file created by Lane A)

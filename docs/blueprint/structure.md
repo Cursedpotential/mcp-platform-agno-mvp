@@ -1,10 +1,10 @@
 # Layer 2 — Structure
 
-> _Byline: Claude Code · Opus 4.8 · 2026-08-11._ Data model + component structure. Sources:
-> ADR-0050 (six-lane KB), `server/tools/registry.py` (parser registry), `vendored/sbv/` (Go engine
-> + `pkg/custodyhash`), ADR-0050 §7 (agent→lane).
+> _Byline: Claude Code · Opus 4.8 · 2026-08-11; ADR-0053 amendment Codex · GPT-5 ·
+> 2026-08-13._ Data model + component structure. Sources: ADR-0053,
+> `server/tools/registry.py`, `vendored/sbv/` (Go engine + `pkg/custodyhash`).
 
-## 1. Six-lane knowledge model (ADR-0050)
+## 1. Five-lane knowledge model (ADR-0053)
 
 Each lane is its OWN Weaviate collection + Postgres contents table (schema `ai`) — isolation is
 structural, not filter-dependent. One embedder for now (`nv-embed-v1`, 4096-d).
@@ -16,10 +16,10 @@ erDiagram
     LANE ||--o{ CHUNK : contains
     CHUNK }o--|| SOURCE : "derived from"
     LANE {
-      string name "one of the six lanes"
+      string name "one of five lanes"
     }
     CHUNK {
-      string lane "exactly one of six"
+      string lane "one or more per chat chunk; evidence custody-only"
       string doc_type "transcript doc note rubric motion sms chat"
       string source
       string case_id "always primary"
@@ -73,7 +73,7 @@ flowchart LR
     FUT["PG/DuckDB/backup/FastAPI mirror<br/>follow-up, not built"] -. binds to .-> pkg
 ```
 
-## 4. Agent → lane wiring (ADR-0050 §7)
+## 4. Agent → lane wiring (ADR-0053)
 
 One primary lane per family; cross-lane via team members, not custom retrievers.
 
@@ -81,13 +81,12 @@ One primary lane per family; cross-lane via team members, not custom retrievers.
 flowchart LR
     LEGAL["Legal family"] --> Llegal["legal"]
     LEGAL --> Lev["+ Evidence Analyst (horizon-gated)"]
-    LEGAL --> Lrt["+ relationship_timeline"]
-    ANALYSIS["Analysis family"] --> Art["relationship_timeline"]
-    ANALYSIS --> Aph["+ personal_history"]
+    LEGAL --> Lph["+ personal_history"]
+    ANALYSIS["Analysis family"] --> Aph["personal_history"]
     BUILDER["Builder/Dev"] --> Bp["platform"]
     DIGEST["Digest/Recall"] --> Dc["context"]
 ```
 
 ## Open Questions
 - `%% UNVERIFIED` non-Go custodyhash callers (PG/DuckDB/FastAPI mirror) — follow-up, not built.
-- Agent→lane wiring is ADR-0050 Phase 4 — verify against `server/agents/factory.py` when shipped.
+- Agent→lane wiring must be verified against `server/agents/factory.py` when shipped.

@@ -20,6 +20,7 @@ Hard rules:
 # Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3 spine boot resilience — KnowledgeHandle wired in place of a direct create_knowledge() call; register_inspect_routes added)
 # Byline: Claude Code · Sonnet · 2026-07-23 (agno 2.8 service accounts — AgentOS admin-plane db switched from SurrealDb to a dedicated PostgresDb; agents/teams keep SurrealDb unchanged)
 # Byline: Claude Code · Fable 5 · 2026-07-31 (Milvus→Weaviate doc-drift cleanup (ADR-0040))
+# Byline: Codex · GPT-5 · 2026-08-13 (ADR-0053 five-lane alignment)
 # Byline: Claude Code · Opus 5 · 2026-08-05 (SurrealDB→Postgres doc-drift cleanup — the
 #   2026-08-04 flatten (ADR-0043 decision 3) moved the operational store to Postgres, but
 #   these comments still described the pre-flatten two-backend split)
@@ -43,13 +44,10 @@ from fastapi import FastAPI
 
 from server.agents.factory import build_agent_team
 from server.agents.providers import build_context, build_learning
-from server.core.knowledge_handle import KnowledgeHandle, resolve_knowledge
-from server.core.model_registry import build_catalog_models, load_available_models
-from server.core.settings import build_model
-from server.core import create_knowledge, get_agno_db, get_postgres_db
 from server.api.workflow_registry import registered_workflows
 from server.core import create_knowledge, get_agno_db, get_postgres_db
 from server.core.knowledge_handle import KnowledgeHandle, resolve_knowledge
+from server.core.model_registry import build_catalog_models, load_available_models
 from server.core.session import DB_ID
 from server.core.settings import build_model
 from server.core.url import db_url
@@ -85,15 +83,13 @@ _knowledge_handle = KnowledgeHandle(lambda: create_knowledge("platform", "platfo
 # Each base gets its OWN handle so a vector-store outage degrades one base
 # instead of all of them (same boot-resilience contract as the platform handle).
 _KNOWLEDGE_BASES: dict[str, str] = {
-    "legal": "legal_knowledge",        # strategy + documents ONLY (owner 2026-08-10)
+    "legal": "legal_knowledge",  # strategy + documents ONLY (owner 2026-08-10)
     "evidence": "evidence_knowledge",  # custody-approved records ONLY; horizon-gated retrieval
-    "personal_history": "personal_history_knowledge",          # ADR-0050: own lane
-    "relationship_timeline": "relationship_timeline_knowledge",  # ADR-0050: own lane, ≠ personal_history
-    "context": "platform_context",     # AI chats (ADR-0044 context corpus; existing collection)
+    "personal_history": "personal_history_knowledge",  # ADR-0053: includes relationship history
+    "context": "platform_context",  # AI chats (ADR-0044 context corpus; existing collection)
 }
 _extra_knowledge_handles: dict[str, KnowledgeHandle] = {
-    name: KnowledgeHandle(lambda n=name, t=table: create_knowledge(n, t))
-    for name, table in _KNOWLEDGE_BASES.items()
+    name: KnowledgeHandle(lambda n=name, t=table: create_knowledge(n, t)) for name, table in _KNOWLEDGE_BASES.items()
 }
 
 
@@ -174,11 +170,7 @@ def register_knowledge_routes(app: FastAPI, knowledge: Any) -> None:
 
         # Route each domain to its own base — knowledge/legal/ must land in the
         # legal base, not inside the platform collection (2026-08-04).
-        bases = {
-            name: h.instance
-            for name, h in _extra_knowledge_handles.items()
-            if h.instance is not None
-        }
+        bases = {name: h.instance for name, h in _extra_knowledge_handles.items() if h.instance is not None}
         count = await ingest_all(live_knowledge, bases=bases)
         return {"indexedDocumentCount": count, "status": "completed", "bases": sorted(bases) or ["platform"]}
 
@@ -218,7 +210,8 @@ def _assert_agno_version() -> None:
             "AGNO VERSION SKEW: running %s but requirements.txt pins %s — "
             "behavior verified against the pin does NOT transfer. "
             "(Local dev: use `uv run --no-sync`. Prod: rebuild the image.)",
-            running, pinned,
+            running,
+            pinned,
         )
     else:
         logging.getLogger(__name__).info("agno %s (matches requirements pin)", running)
@@ -297,8 +290,7 @@ def _build_app() -> Any:
     for _label, _handle in _extra_knowledge_handles.items():
         _handle.try_connect_now()
         log_info(
-            f"knowledge base {_label!r}: "
-            + ("connected" if _handle.ready else f"NOT ready ({_handle.last_error})")
+            f"knowledge base {_label!r}: " + ("connected" if _handle.ready else f"NOT ready ({_handle.last_error})")
         )
     # Learning MUST ride the Postgres admin db, never SurrealDb: agno's
     # SurrealDb raises NotImplementedError on every learning method
@@ -397,11 +389,7 @@ def _build_app() -> Any:
         # and Evidence as separate selectable knowledge bases rather than the
         # single "platform" entry the owner kept hitting. A base that failed to
         # connect is simply absent until its background retry succeeds.
-        knowledge=[
-            k
-            for k in (knowledge, *(h.instance for h in _extra_knowledge_handles.values()))
-            if k is not None
-        ],
+        knowledge=[k for k in (knowledge, *(h.instance for h in _extra_knowledge_handles.values())) if k is not None],
         # The evidence workflows existed but were never handed to AgentOS, so
         # `GET /workflows` returned [] and `POST /workflows/{id}/runs` did not
         # exist — the Studio Workflows panel was empty and the only way to run

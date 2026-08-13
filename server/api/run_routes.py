@@ -53,6 +53,7 @@ auto-routes into the same reload-and-reingest path instead of silently
 reporting 0 records, logging it loudly on the store stage's content.
 """
 # Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C2 gates+retry+custody_tier 2026-07-20; C2.6 retry from_stage + health/deps 2026-07-21; C3 KnowledgeHandle live-resolve + retry-gap for completed parents 2026-07-22)
+# Byline: Codex · GPT-5 · 2026-08-13 (ADR-0053 five-lane alignment)
 
 from __future__ import annotations
 
@@ -73,13 +74,12 @@ from server.evidence.run_ledger import create_run, get_run, list_runs, ping, see
 
 logger = logging.getLogger("evidence.runs")  # same logger name workflows.py/store.py use
 
-# ADR-0050 (2026-08-10): unified lane vocabulary (was the legacy four-domain
-# set — old values now 422 by design; migration map in ADR-0050 §3).
+# ADR-0053 (2026-08-13): five-lane vocabulary; relationship history is part
+# of personal_history. AI-chat routing still cannot produce evidence.
 _ALLOWED_DOMAINS = {
     "platform",
     "legal",
     "personal_history",
-    "relationship_timeline",
     "context",
     "evidence",
 }
@@ -390,7 +390,9 @@ def register_run_routes(app: FastAPI, knowledge: Any, evidence_knowledge: Any | 
         # for sms-xml, unless the caller explicitly overrides.
         resolved_tier = custody_tier or _DEFAULT_CUSTODY_TIER[workflow]
         if resolved_tier not in _ALLOWED_CUSTODY_TIERS:
-            raise HTTPException(422, f"unknown custody_tier {resolved_tier!r}; allowed: {sorted(_ALLOWED_CUSTODY_TIERS)}")
+            raise HTTPException(
+                422, f"unknown custody_tier {resolved_tier!r}; allowed: {sorted(_ALLOWED_CUSTODY_TIERS)}"
+            )
         try:
             meta = json.loads(source_meta) if source_meta else {}
         except json.JSONDecodeError as exc:
@@ -417,7 +419,9 @@ def register_run_routes(app: FastAPI, knowledge: Any, evidence_knowledge: Any | 
         seed_stages(run_id, WORKFLOW_STAGE_NAMES[workflow])
 
         asyncio.create_task(
-            _execute_run(run_id, workflow, tmp_path, tmpdir, meta, resolved_domain, mode=mode, custody_tier=resolved_tier)
+            _execute_run(
+                run_id, workflow, tmp_path, tmpdir, meta, resolved_domain, mode=mode, custody_tier=resolved_tier
+            )
         )
 
         return {"run_id": run_id, "workflow": workflow, "mode": mode}
@@ -521,7 +525,7 @@ def register_run_routes(app: FastAPI, knowledge: Any, evidence_knowledge: Any | 
                 raise HTTPException(422, f"retry body is not valid JSON: {exc}") from exc
             if payload is not None:
                 if not isinstance(payload, dict):
-                    raise HTTPException(422, "retry body must be a JSON object, e.g. {\"from_stage\": \"knowledge\"}")
+                    raise HTTPException(422, 'retry body must be a JSON object, e.g. {"from_stage": "knowledge"}')
                 from_stage = payload.get("from_stage")
                 if from_stage is not None and from_stage not in _ALLOWED_RETRY_FROM_STAGES:
                     raise HTTPException(
@@ -572,7 +576,7 @@ def register_run_routes(app: FastAPI, knowledge: Any, evidence_knowledge: Any | 
             raise HTTPException(
                 409,
                 f"run {run_id!r} is {run['status']!r}, not failed — a full rerun is only allowed on a "
-                "terminal-failed run (use {\"from_stage\": \"knowledge\"} to retry a completed run's "
+                'terminal-failed run (use {"from_stage": "knowledge"} to retry a completed run\'s '
                 "knowledge stage instead)",
             )
 

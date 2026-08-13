@@ -27,6 +27,7 @@ C2.6 (resilience + observability, 2026-07-20/21) additions:
 """
 # Byline: Claude Code · Sonnet (agent) · 2026-07-21 (C2.6: retry/backoff + load_records_for_artifact + logging)
 # Byline: Claude Code · Fable 5 · 2026-07-31 (Milvus→Weaviate doc-drift cleanup (ADR-0040))
+# Byline: Codex · GPT-5 · 2026-08-13 (ADR-0053 five-lane alignment)
 
 from __future__ import annotations
 
@@ -47,7 +48,7 @@ _engine = None
 
 logger = logging.getLogger("evidence.runs")
 
-# ADR-0050 (2026-08-10): the unified LANE vocabulary — replaces the legacy
+# ADR-0053 (2026-08-13): the unified five-lane vocabulary — replaces the legacy
 # four-domain set (timeline_relationship / personal_history / platform_design /
 # legal_strategy). Migration map lives in ADR-0050 §3. `lane` is written to
 # vector metadata alongside `doc_type` / `source` / `case_id` (flat scalars —
@@ -56,7 +57,6 @@ KNOWLEDGE_DOMAINS = (
     "platform",
     "legal",
     "personal_history",
-    "relationship_timeline",
     "context",
     "evidence",
 )
@@ -462,9 +462,7 @@ async def ingest_into_knowledge(
         # records so text and metadata can never disagree.
         axes = horizon_axes(by_conv.get(conv_id, []), case_id=case_id)
 
-        async def _do_insert(
-            doc_path: Path = doc_path, conv_id: str = conv_id, axes: dict[str, Any] = axes
-        ) -> None:
+        async def _do_insert(doc_path: Path = doc_path, conv_id: str = conv_id, axes: dict[str, Any] = axes) -> None:
             await knowledge.ainsert(
                 name=doc_path.stem,
                 path=str(doc_path),

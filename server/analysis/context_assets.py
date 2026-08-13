@@ -8,7 +8,8 @@ logs; this module handles everything else the archive carries:
 
   * a `working.context_archive` manifest row per archive (dedup by the zip's
     own sha256), holding the sidecar metadata (users/projects/memories.json);
-  * one `working.context_asset` row per generated file in `assets/` — classified
+  * one `working.context_asset` row per non-log/non-metadata payload, wherever
+    the provider placed it — classified
     document | code | image | data | other (owner: docs -> a document store,
     code snippets -> a code store), bytes written to R2, small text assets also
     stored INLINE so they are queryable without a fetch.
@@ -27,11 +28,13 @@ drive. `dry_run=True` classifies + counts + sizes WITHOUT hashing or writing —
 the cost-scope preview (R2 writes are billable).
 """
 # Byline: Claude Code · Opus 4.8 · 2026-08-12
+# Byline: Codex · GPT-5 · 2026-08-13 (whole-archive multimodal extraction)
 
 from __future__ import annotations
 
 import hashlib
 import json
+import mimetypes
 import zipfile
 from dataclasses import dataclass, field
 from os import getenv
@@ -40,10 +43,34 @@ from typing import Any
 
 from sqlalchemy import text
 
+from server.tools.registry import load_builtin_tools, registry
+
 # extension -> routed category (owner's document-store / code-store split)
 _CATEGORY: dict[str, str] = {
     **{e: "document" for e in ("pdf", "md", "txt", "doc", "docx", "rtf", "html", "htm")},
-    **{e: "code" for e in ("py", "sql", "js", "ts", "tsx", "jsx", "sh", "go", "rs", "java", "c", "cpp", "h", "css", "yaml", "yml", "toml", "ipynb")},
+    **{
+        e: "code"
+        for e in (
+            "py",
+            "sql",
+            "js",
+            "ts",
+            "tsx",
+            "jsx",
+            "sh",
+            "go",
+            "rs",
+            "java",
+            "c",
+            "cpp",
+            "h",
+            "css",
+            "yaml",
+            "yml",
+            "toml",
+            "ipynb",
+        )
+    },
     **{e: "image" for e in ("png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "tiff")},
     **{e: "data" for e in ("csv", "xlsx", "xls", "parquet", "json", "ndjson")},
 }
@@ -52,6 +79,17 @@ _INLINE_EXTS = frozenset({"md", "txt", "py", "sql", "js", "ts", "sh", "go", "rs"
 _INLINE_MAX_BYTES = 100_000
 
 _ASSET_DIRS = ("assets/", "dalle-generations/")
+_METADATA_BASENAMES = frozenset(
+    {
+        "users.json",
+        "user.json",
+        "projects.json",
+        "memories.json",
+        "message_feedback.json",
+        "model_comparisons.json",
+        "shared_conversations.json",
+    }
+)
 
 
 def _ext(member: str) -> str:
@@ -65,6 +103,31 @@ def categorize(member: str) -> str:
 
 def _is_asset(member: str) -> bool:
     return any(seg in member.replace("\\", "/").lower() for seg in _ASSET_DIRS)
+
+
+def _is_conversation_log(member: str) -> bool:
+    base = member.replace("\\", "/").rsplit("/", 1)[-1].lower()
+    return base.startswith("conversations") and base.endswith(".json") and not _is_asset(member)
+
+
+def modality(member: str) -> str:
+    ext = _ext(member)
+    if categorize(member) == "code":
+        return "code"
+    if categorize(member) in {"document", "data"}:
+        return "text"
+    if categorize(member) == "image":
+        return "image"
+    if ext in {"mp3", "wav", "m4a", "aac", "flac", "ogg"}:
+        return "audio"
+    if ext in {"mp4", "mov", "mkv", "webm", "avi"}:
+        return "video"
+    return "binary"
+
+
+def origin_kind(member: str) -> str:
+    norm = member.replace("\\", "/").lower()
+    return "generated_work" if "dalle-generations/" in norm else "export_asset"
 
 
 def _sha256_bytes(data: bytes) -> str:
@@ -143,12 +206,17 @@ def materialize_archive(
 
     with zipfile.ZipFile(zp) as zf:
         infos = [i for i in zf.infolist() if not i.filename.endswith("/")]
-        assets = [i for i in infos if _is_asset(i.filename)]
+        # Every non-log, non-metadata payload is a created work or attachment,
+        # regardless of whether the provider placed it under assets/.
+        assets = [
+            i
+            for i in infos
+            if not _is_conversation_log(i.filename) and i.filename.rsplit("/", 1)[-1].lower() not in _METADATA_BASENAMES
+        ]
         metadata_members = [
             i.filename
             for i in infos
-            if i.filename.rsplit("/", 1)[-1].lower()
-            in ("users.json", "user.json", "projects.json", "memories.json")
+            if i.filename.rsplit("/", 1)[-1].lower() in ("users.json", "user.json", "projects.json", "memories.json")
         ]
         by_cat: dict[str, int] = {}
         asset_bytes = 0
@@ -208,6 +276,9 @@ def materialize_archive(
             chash = _sha256_bytes(data)
             ext = _ext(i.filename)
             category = categorize(i.filename)
+            asset_modality = modality(i.filename)
+            media_type = mimetypes.guess_type(i.filename)[0]
+            asset_origin = origin_kind(i.filename)
             key = _r2_key(chash, ext)
             inline = None
             if ext in _INLINE_EXTS and len(data) <= _INLINE_MAX_BYTES:
@@ -231,8 +302,9 @@ def materialize_archive(
                 conn.execute(
                     text(
                         "INSERT INTO working.context_asset "
-                        "(archive_id, member_path, asset_category, file_ext, content_hash, byte_size, r2_bucket, r2_key, content_inline) "
-                        "VALUES (:aid, :mp, :cat, :ext, :h, :sz, :bkt, :key, :inline) "
+                        "(archive_id, member_path, asset_category, file_ext, content_hash, byte_size, r2_bucket, r2_key, "
+                        "content_inline, origin_kind, media_type, modality) "
+                        "VALUES (:aid, :mp, :cat, :ext, :h, :sz, :bkt, :key, :inline, :origin_kind, :media_type, :modality) "
                         "ON CONFLICT (content_hash) DO NOTHING"
                     ),
                     {
@@ -245,8 +317,104 @@ def materialize_archive(
                         "bkt": str(root),
                         "key": key,
                         "inline": inline,
+                        "media_type": media_type,
+                        "modality": asset_modality,
+                        "origin_kind": asset_origin,
                     },
                 )
+                asset_id = conn.execute(
+                    text("SELECT id FROM working.context_asset WHERE content_hash = :h"), {"h": chash}
+                ).scalar_one()
+                basename = i.filename.replace("\\", "/").rsplit("/", 1)[-1]
+                linked = conn.execute(
+                    text(
+                        "INSERT INTO working.context_asset_message (asset_id, message_id, relationship) "
+                        "SELECT CAST(:asset_id AS uuid), m.id, 'attached_to' "
+                        "FROM working.chat_message m "
+                        "WHERE m.attrs->>'archive' = :archive "
+                        "AND (m.attachments ? :member OR m.attachments ? :basename) "
+                        "ON CONFLICT DO NOTHING RETURNING message_id"
+                    ),
+                    {
+                        "asset_id": asset_id,
+                        "archive": str(zp),
+                        "member": i.filename,
+                        "basename": basename,
+                    },
+                ).first()
+                if linked and asset_origin == "export_asset":
+                    conn.execute(
+                        text(
+                            "UPDATE working.context_asset SET origin_kind = 'attachment' WHERE id = CAST(:id AS uuid)"
+                        ),
+                        {"id": asset_id},
+                    )
             report.uploaded += 1
 
     return report
+
+
+def extract_asset_text(asset_id: str, *, engine: Any | None = None) -> dict[str, Any]:
+    """Run the registered native-text/OCR tool for one stored image or PDF.
+
+    OCR is a lossy derived representation. The original R2 object is unchanged;
+    low-confidence output is retained and marked for vision-model escalation.
+    """
+
+    if engine is None:
+        from server.analysis.context_chat_ingest import _get_engine
+
+        engine = _get_engine()
+    with engine.connect() as connection:
+        row = (
+            connection.execute(
+                text(
+                    "SELECT id, r2_bucket, r2_key, byte_size, member_path "
+                    "FROM working.context_asset WHERE id = CAST(:id AS uuid)"
+                ),
+                {"id": asset_id},
+            )
+            .mappings()
+            .one()
+        )
+    asset_path = Path(row["r2_bucket"]) / row["r2_key"]
+    load_builtin_tools()
+    tools = registry.resolve("extract.text", media_hint=row["member_path"], size_bytes=row["byte_size"] or 0)
+    tools = sorted(
+        tools,
+        key=lambda candidate: (
+            0 if candidate.id == "documents.extract-text" else 1 if candidate.id == "documents.extract-docling" else 2
+        ),
+    )
+    if not tools:
+        with engine.begin() as connection:
+            connection.execute(
+                text("UPDATE working.context_asset SET extraction_status = 'unsupported' WHERE id = CAST(:id AS uuid)"),
+                {"id": asset_id},
+            )
+        return {"asset_id": asset_id, "status": "unsupported"}
+
+    failures: list[str] = []
+    for tool in tools:
+        try:
+            result = tool.run({"path": str(asset_path)})
+        except Exception as exc:
+            failures.append(f"{tool.id}: {exc}")
+            continue
+        low_confidence = bool(result.get("stats", {}).get("low_confidence"))
+        status = "low_confidence" if low_confidence else "completed"
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE working.context_asset SET extracted_text = :content, extraction_tool_id = :tool_id, "
+                    "extraction_status = :status WHERE id = CAST(:id AS uuid)"
+                ),
+                {"content": result.get("text", ""), "tool_id": tool.id, "status": status, "id": asset_id},
+            )
+        return {"asset_id": asset_id, "status": status, "tool_id": tool.id, **result}
+    with engine.begin() as connection:
+        connection.execute(
+            text("UPDATE working.context_asset SET extraction_status = 'failed' WHERE id = CAST(:id AS uuid)"),
+            {"id": asset_id},
+        )
+    raise RuntimeError(f"asset text extraction failed for {asset_id}: {'; '.join(failures)}")

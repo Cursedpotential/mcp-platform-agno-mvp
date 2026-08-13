@@ -4,6 +4,8 @@ must pull from EITHER the Go OR the Python parser, not be dedicated to one).
 DB-free and SBV-free: the Go path is exercised with a fake SBVClient so the
 dispatcher routing + the SBV-row -> NormalizedRecord mapping are verified
 without a live SBV service.
+
+Byline: Codex · GPT-5 · 2026-08-13 (lint-only import cleanup)
 """
 
 from __future__ import annotations
@@ -12,7 +14,6 @@ import json
 
 import pytest
 
-import server.analysis.context_chat_ingest as mod
 from server.analysis.context_chat_ingest import parse_chat_export
 from server.analysis.sbv_transcript import _row_to_record, parse_via_sbv
 from server.tools.registry import load_builtin_tools
@@ -84,8 +85,13 @@ def test_engine_auto_defaults_to_python_for_mvp(tmp_path):
 def test_engine_go_routes_to_sbv(tmp_path, monkeypatch):
     f = _claude_export(tmp_path)
     rows = [
-        {"kind": "message", "content": "hello from go", "occurred_at": "2026-01-01T10:00:00Z",
-         "format": "chatgpt-official-json", "metadata": {"conversation_id": "c-9", "role": "user"}},
+        {
+            "kind": "message",
+            "content": "hello from go",
+            "occurred_at": "2026-01-01T10:00:00Z",
+            "format": "chatgpt-official-json",
+            "metadata": {"conversation_id": "c-9", "role": "user"},
+        },
     ]
     fake = FakeSBVClient(rows)
     # parse_chat_export builds its own client; inject via parse_via_sbv's client kw
@@ -96,11 +102,17 @@ def test_engine_go_routes_to_sbv(tmp_path, monkeypatch):
             path, format=format, source_meta=source_meta, client=fake
         ),
     )
-    records, parser_id, attempts = parse_chat_export(f, engine="go", format="chatgpt-official-json")
+    records, parser_id, attempts = parse_chat_export(
+        f,
+        engine="go",
+        format="chatgpt-official-json",
+        source_meta={"archive": "export.zip", "archive_member": "conversations.json"},
+    )
     assert parser_id == "sbv-go:chatgpt-official-json"
     assert len(records) == 1
     assert records[0].content == "hello from go"
     assert records[0].source == "chatgpt-official-json"
+    assert records[0].attrs["archive"] == "export.zip"
     assert fake.import_calls[0]["format"] == "chatgpt-official-json"
 
 

@@ -1,6 +1,7 @@
 # Architecture Decision Records (ADRs)
 
-> _Byline: Claude Code · Kimi K3 (drift-fix) · 2026-08-12 — ADR-0049/0051 index rows updated for D-048..D-052; ADR-0052 placeholder row added, then updated for the owner's 8 question-rulings, then flipped ACCEPTED on owner sign-off; ADR-0015/0026/0027 rows annotated SUPERSEDED-by-0042/0040._
+> _Byline: Claude Code · Kimi K3 (drift-fix) · 2026-08-12; Codex · GPT-5 ·
+> 2026-08-13 (ADR-0053 five-lane chat-ingestion amendment)._
 
 Lightweight [MADR](https://adr.github.io/madr/)-style records of decisions that are **locked** —
 so they are not silently re-litigated or forgotten across sessions/agents.
@@ -32,7 +33,7 @@ guarantee gets an ADR. One short record. Supersede (don't edit) when a decision 
 | 0017 | Evidence = polyglot orchestration mesh (custody → workflows → atomic tools) | Accepted |
 | 0018 | Bitemporal evidence memory + disclosure-tier (multi-pass cognition substrate) | Accepted (extends 0014) |
 | 0019 | Three agent families — add the AI Legal Team (Part 3) | Accepted (extends 0006) |
-| 0020 | Multi-domain knowledge engine — domain-separated, any-agent queryable | Accepted (extends 0010/0011) |
+| 0020 | Multi-domain knowledge engine — domain-separated, any-agent queryable | Shape accepted; taxonomy superseded by ADR-0053 |
 | 0021 | Engineering conventions — no-stub discipline, harness-first tests | Accepted |
 | 0022 | Comprehensive living wiki — dual-purpose (AI + human), covers everything | Accepted (vision; build deferred) |
 | 0023 | Universal exposure — API-first, MCP-wrapped (every tool/agent/workflow) | Accepted (pairs with 0017) |
@@ -62,9 +63,10 @@ guarantee gets an ADR. One short record. Supersede (don't edit) when a decision 
 | 0047 | Audit-everything ledger: ops.audit_ledger, hash-chained, append-only, READS included | **Accepted** (owner signed 2026-08-09; D-042) |
 | 0048 | Go worker layer = the SBV universal import engine (not a second binary); messaging lane first, Google Timeline parked | **Accepted / Realized** (architecture shipped in PR #18 `aacf21c` 2026-08-06; status corrected from ~~PROPOSED~~ 2026-08-10, D-044 — index row backfilled the same day, the file shipped without one) |
 | 0049 | SBV is the universal parsing system — all transcripts + all parsing, **mostly** Go, repair reachable (may stay Python), custody hashing, SBV app GUI retained (it's a fork of `lowcarbdev/sbv`) | **Accepted with amendment 2026-08-12** (owner rulings; DECISION_LOG D-049/D-051): engine dispatch is **DYNAMIC** (Go SBV OR Python registry, explicit override) — not dedicated to either format; SBV remains the direction for a universal parser + operator GUI. Shipped under `2605fa5` (engine-dynamic parse) / `57ec156` (detection router, Go-primary) / `4accbf2` (first SBV AI-chat decoder). The 4 gaps written down 2026-08-10 still stand (repair engine, Go AI-chat decoders beyond ChatGPT, two detection registries, GUI surface). Timeline/Takeout explicitly out of scope |
-| 0050 | Six-lane knowledge architecture — platform · legal · personal_history · relationship_timeline · context · evidence (own horizon-gated KB); one Weaviate collection per lane; unified `lane` metadata; LearningMachine namespaces; pg_duckdb = bulk-ingestion point, rclone = transport only | **Accepted** (owner rulings + plan approval 2026-08-10; supersedes ADR-0020 taxonomy, amends ADR-0030; phases 0-7 in the approved plan) |
-| 0051 | The ingest pipeline flow — one pipeline for everything; SBV parses+previews then HANDS OFF; extraction (chunk→multipass→artifacts→entities→timeline) is a SEPARATE stage TRIGGERED by PG change-detection; HITL verifies; custody tier is the only evidence/context branch; one chat → many lanes | **Accepted as direction** (owner stated emphatically 2026-08-10) — **Partially built 2026-08-12** (D-048..D-052: PG-first context ingest via `working.context_record`, engine-dynamic parse, ZIP front door, detection router, archive-as-unit `context_asset`/`context_archive`); the full trigger/outbox/cursor CDC spine for ALL paths still DEFERRED (→0052) |
+| 0050 | Six-lane knowledge architecture | **Superseded in part by ADR-0053** — storage isolation, evidence boundary, and pg_duckdb/rclone decisions survive; taxonomy is now five lanes |
+| 0051 | Parse → asynchronously extract → HITL verify ingest flow | **Superseded in part by ADR-0053** for AI-chat landing/routing/assets; general staged-flow direction survives |
 | 0052 | PG-CDC spine (transactional PER-TABLE outbox, trigger-written full rows + NOTIFY wakeup + per-sink cursors — the invariant-4 mechanism), end-to-end AI-chat ingest with coverage-based Go-primary engine split (~~size-based~~ — owner ruling 2026-08-12: Go parses whatever it covers, Python = uncovered formats / logged failure-fallback), and Stage-2 extraction as tools-not-agents (entity_candidate + claim_candidate — ~~artifact_candidate~~ renamed; extract regardless of custody-approval, horizon binds at promotion; dead-letter table + replay + alert; standalone Coolify worker app; Langfuse eval, DSPy deferred) | **ACCEPTED — owner sign-off 2026-08-12** ("sign 52"; all 8 open questions ruled same day, D-054; hands off from ADR-0051 invariant 4; consistent with D-046..D-052; Phase 0 pre-shipped as D-048) |
+| 0053 | Five-lane AI-chat ingestion; explicit conversation/message/chunk truth; post-chunk multi-label routing; selective confidence HITL; tags; multimodal assets/OCR ladder; human investigation register | **Accepted** — owner rulings 2026-08-13; supersedes 0050/0051/0052 in part |
 
 > The full vision, current stack, roadmap, access, and gotchas live in
 > [`docs/PROJECT_CANON.md`](../PROJECT_CANON.md) (the durable source of truth).

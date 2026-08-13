@@ -1,9 +1,10 @@
-"""CLI: ingest ONE AI-chat export file into the CONTEXT lane, PG-first (owner
-ruling 2026-08-12): parse -> working.context_record (Postgres SOURCE OF TRUTH)
--> change-detection projects to Weaviate `platform_context` tier=context +
-the Graphiti CASE lane. See `server/analysis/context_chat_ingest.py` for the
-full pipeline docstring and the NON-NEGOTIABLE evidence/context boundary this
-enforces.
+"""CLI: ingest AI-chat exports and their created works/attachments, PG-first.
+
+The canonical path is parse -> conversation/message -> message-safe chunks ->
+multi-label classification -> selective review -> projection. PostgreSQL is
+the source of truth; each canonical chunk is embedded once and its vector may
+be reused across platform, legal, personal_history, and context collections.
+AI-chat material never enters the evidence lane.
 
 Usage (uv-managed venv, never a bare python — CONVENTIONS.md):
     uv run --no-sync python scripts/ingest_context_chat.py <path> --dry-run
@@ -13,20 +14,17 @@ Usage (uv-managed venv, never a bare python — CONVENTIONS.md):
     # PG-only (write the source of truth now, let a worker project later):
     uv run --no-sync python scripts/ingest_context_chat.py <path> --no-project
 
-`--db-host` overrides DB_HOST for this process only: both the context_record
-source-of-truth write AND agno's Knowledge contents_db need Postgres, and the
+`--db-host` overrides DB_HOST for this process only: both the chat source-of-
+truth write and Agno's Knowledge contents_db need Postgres, and the
 platform default `DB_HOST=agentos-db` only resolves inside the docker compose
 network, not from an external host (CLAUDE.md environment note) — pass the
 tailnet IP when running this off-box.
 
-Prints a JSON IngestReport to stdout; nothing here bulk-ingests by default —
-pass `--conversation-id` to scope a proof run to specific conversation(s), or
-omit it to ingest every conversation the file contains (only do that with
-explicit owner sign-off per the task brief: "Do NOT bulk-ingest until the
-owner sees the single-file result").
+Prints a JSON IngestReport to stdout. Use `--dry-run` for a no-write preview.
 """
 # Byline: Claude Code · Sonnet (agent) · 2026-08-01
 # Byline: Claude Code · Fable 5 · 2026-08-12 (D-053: --format now strict/bypasses the detection router; fail-fast exit 2 with a clear error)
+# Byline: Codex · GPT-5 · 2026-08-13 (ADR-0053 chat landing/classification)
 
 from __future__ import annotations
 
@@ -63,6 +61,19 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     ap.add_argument("--max-chars", type=int, default=6000, help="per-chunk character budget (default 6000)")
     ap.add_argument(
+        "--chunker",
+        choices=["message-window", "chonkie-semantic", "teraflopai"],
+        default="message-window",
+        help="message-safe chunking strategy; TeraflopAI is an optional hosted challenger",
+    )
+    ap.add_argument(
+        "--no-classify",
+        dest="classify",
+        action="store_false",
+        default=True,
+        help="defer classification; chunks remain searchable in context and pending review",
+    )
+    ap.add_argument(
         "--engine",
         choices=["auto", "python", "go"],
         default="auto",
@@ -77,7 +88,9 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "or a Python parser id ('transcripts.<name>'). STRICT (D-053): a format the selected --engine "
         "cannot handle, or one the parser rejects, errors with exit 2 — no fallback.",
     )
-    ap.add_argument("--db-host", default=None, help="override DB_HOST for this process (Postgres source of truth + contents_db)")
+    ap.add_argument(
+        "--db-host", default=None, help="override DB_HOST for this process (Postgres source of truth + contents_db)"
+    )
     return ap.parse_args(argv)
 
 
@@ -106,6 +119,8 @@ def main(argv: list[str] | None = None) -> int:
                     max_chars=args.max_chars,
                     dry_run=args.dry_run,
                     project=args.project,
+                    chunker=args.chunker,
+                    classify=args.classify,
                 )
             )
         else:
@@ -120,6 +135,8 @@ def main(argv: list[str] | None = None) -> int:
                     project=args.project,
                     engine=args.engine,
                     format=args.format,
+                    chunker=args.chunker,
+                    classify=args.classify,
                 )
             )
     except (ValueError, FileNotFoundError) as exc:

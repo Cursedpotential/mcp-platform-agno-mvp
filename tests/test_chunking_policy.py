@@ -2,6 +2,7 @@
 
 Byline: Claude Code · Opus 4.8 · 2026-08-11. Pins: baseline is Agno-native RecursiveChunking with
 NO chonkie dependency; tuned transcript lanes use the Chonkie hybrid; unknown lanes fail loudly.
+Byline: Codex · GPT-5 · 2026-08-13 (ADR-0053 five-lane alignment)
 """
 
 from __future__ import annotations
@@ -13,12 +14,11 @@ from agno.knowledge.chunking.strategy import ChunkingStrategy
 from server.analysis import chunking_policy as cp
 
 
-def test_lanes_are_the_six_adr0050_lanes():
+def test_lanes_are_the_five_adr0053_lanes():
     assert cp.LANES == {
         "platform",
         "legal",
         "personal_history",
-        "relationship_timeline",
         "context",
         "evidence",
     }
@@ -68,7 +68,7 @@ def test_tuned_non_transcript_stays_recursive(lane):
     assert isinstance(cp.lane_chunker(lane, tuned=True), RecursiveChunking)
 
 
-@pytest.mark.parametrize("lane", ["context", "relationship_timeline"])
+@pytest.mark.parametrize("lane", ["context"])
 def test_tuned_transcript_lane_uses_chonkie_hybrid(lane):
     pytest.importorskip("chonkie")
     from server.analysis.chonkie_chunkers import TranscriptSemanticHybridChunking
