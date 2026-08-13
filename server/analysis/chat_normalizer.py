@@ -4,7 +4,7 @@ Thin adapter: converts list[NormalizedRecord] (from existing parsers) →
 ChatConversation + list[ChatMessage]. Parsers already produce NormalizedRecord;
 we just map fields and assign message ordering.
 
-Byline: Codex · GPT-5 · 2026-08-13
+Byline: Codex · GPT-5 · 2026-08-13 (normalize provider/fallback roles at the chat-schema boundary)
 """
 
 from __future__ import annotations
@@ -16,6 +16,21 @@ from typing import Any
 from server.contracts.records import ChatConversation, ChatMessage, NormalizedRecord
 
 logger = logging.getLogger(__name__)
+
+_CHAT_ROLES = frozenset({"user", "assistant", "system", "tool", "unknown"})
+
+
+def normalize_chat_role(role: str | None) -> str:
+    """Return the finite role vocabulary accepted by ``chat_message``.
+
+    Registry fallbacks may label a whole created work as ``transcript`` and
+    providers occasionally introduce new author labels. Preserve the original
+    parser value in message attrs, but do not leak that open vocabulary into
+    chunk rendering or the database contract.
+    """
+
+    normalized = (role or "unknown").strip().lower()
+    return normalized if normalized in _CHAT_ROLES else "unknown"
 
 
 def _conversation_attrs(first: NormalizedRecord) -> dict[str, Any]:
@@ -95,7 +110,7 @@ def normalize_to_chat(
                 source=rec.source,
                 conversation_id=conv_id,
                 message_index=idx,
-                role=rec.role or "unknown",
+                role=normalize_chat_role(rec.role),
                 content=rec.content or "",
                 timestamp=rec.occurred_at,
                 thinking=thinking,
@@ -145,7 +160,7 @@ def normalize_many(
                 source=rec.source,
                 conversation_id=conv_id,
                 message_index=idx,
-                role=rec.role or "unknown",
+                role=normalize_chat_role(rec.role),
                 content=rec.content or "",
                 timestamp=rec.occurred_at,
                 thinking=thinking,
