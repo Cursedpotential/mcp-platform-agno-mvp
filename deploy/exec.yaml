@@ -1,6 +1,8 @@
 # =============================================================================
 # Byline: Claude Code · Kimi K3 (drift-fix) · 2026-08-12 — Milvus env block
 #         annotated superseded/down (ADR-0040, D-042, data-vector off since 2026-08-10).
+# Byline: Codex · GPT-5 · 2026-08-13 — restore the live AgentOS Traefik
+#         route lost during compose consolidation; auth remains OS_SECURITY_KEY.
 # =============================================================================
 # EXEC TIER (RUMP) — deploy on OVH-1 ("ovh1-agno"; tailnet 100.72.169.40, salem
 # private 10.1.1.122, public 40.160.5.19), the execution + surfaces box.
@@ -122,15 +124,17 @@ services:
       # any env is now a no-op and safe to delete from the Coolify app env too.
       SBV_SERVICE_PASS: ${SBV_SERVICE_PASS:?set SBV_SERVICE_PASS in Coolify app env}
     # No depends_on agentos-db — it's on another box. WAIT_FOR_DB handles startup.
-    # DOMAIN PHASE — main API. Re-enable + set API_DOMAIN to expose publicly:
-    # labels:
-    #   - traefik.enable=true
-    #   - traefik.http.routers.agentos-api.rule=Host(`${API_DOMAIN}`)
-    #   - traefik.http.routers.agentos-api.entryPoints=https
-    #   - traefik.http.routers.agentos-api.tls=true
-    #   - traefik.http.routers.agentos-api.tls.certresolver=letsencrypt
-    #   - traefik.http.routers.agentos-api.service=agentos-api
-    #   - traefik.http.services.agentos-api.loadbalancer.server.port=8000
+    # Public AgentOS surface. Authentication is enforced by AgentOS's
+    # OS_SECURITY_KEY bearer middleware; Traefik terminates TLS and routes only.
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=rz41wqhpjfh1rj796ixvjhfs
+      - traefik.http.routers.agentos-api.rule=Host(`agentos.mitechconsult.com`)
+      - traefik.http.routers.agentos-api.entryPoints=https
+      - traefik.http.routers.agentos-api.tls=true
+      - traefik.http.routers.agentos-api.tls.certresolver=letsencrypt
+      - traefik.http.routers.agentos-api.service=agentos-api
+      - traefik.http.services.agentos-api.loadbalancer.server.port=8000
     networks:
       - agentos
       - agno   # cross-app docker-DNS to contextforge / platform-tools (2026-07-19 split)
