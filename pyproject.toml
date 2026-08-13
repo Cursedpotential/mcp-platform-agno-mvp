@@ -1,3 +1,4 @@
+# Byline: Codex · GPT-5 · 2026-08-13 (reproducible CI toolchain and optional-import typing)
 [project]
 name = "agent-platform"
 version = "1.0.0"
@@ -71,7 +72,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["mypy", "ruff", "pytest", "pytest-cov"]
+dev = ["mypy==2.1.0", "ruff==0.15.17", "pytest>=8,<9", "pytest-cov>=5,<8"]
 # OCR tier. Both wheels are useless without system binaries — `tesseract-ocr`
 # for pytesseract and `poppler` for pdf2image — so this stays opt-in and the
 # container image must install those alongside it.
@@ -156,6 +157,9 @@ module = [
   "json_repair.*",
   "pikepdf.*",
   "charset_normalizer.*",
+  # optional ingestion/agent extras; imports are lazy and availability-gated
+  "chonkie.*",
+  "claude_agent_sdk.*",
 ]
 ignore_missing_imports = true
 

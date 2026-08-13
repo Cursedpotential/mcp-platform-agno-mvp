@@ -33,8 +33,8 @@ echo ""
 
 failed=0
 
-echo -e "${DIM}> ruff check ${REPO_ROOT}/server ${REPO_ROOT}/tests${NC}"
-if ! ruff check "${REPO_ROOT}/server" "${REPO_ROOT}/tests"; then
+echo -e "${DIM}> ruff check --config ${REPO_ROOT}/pyproject.toml ${REPO_ROOT}/server ${REPO_ROOT}/tests${NC}"
+if ! ruff check --config "${REPO_ROOT}/pyproject.toml" "${REPO_ROOT}/server" "${REPO_ROOT}/tests"; then
   failed=1
 fi
 

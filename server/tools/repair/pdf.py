@@ -1,6 +1,7 @@
 """Structural PDF repair via QPDF (pikepdf) — rebuild the file, not the text.
 
 Byline: Claude Code . Opus 5 (1M) . 2026-08-02
+Byline: Codex · GPT-5 · 2026-08-13 (portable scan iterator typing)
 
 This is REPAIR, not extraction. `server/tools/extractors/extract_text.py` reads
 text out of a PDF that already opens; this module deals with a PDF that does
@@ -38,7 +39,7 @@ from __future__ import annotations
 
 import hashlib
 import io
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -401,7 +402,7 @@ def scan_pdfs(
     from server.tools.repair.cloud import is_cloud_only
 
     root = Path(root)
-    paths = root.rglob("*.pdf") if recursive else root.glob("*.pdf")
+    paths: Iterable[Path] = root.rglob("*.pdf") if recursive else root.glob("*.pdf")
     if root.is_file():
         paths = iter([root])
     for p in sorted(paths):
