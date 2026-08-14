@@ -20,6 +20,7 @@ tests/test_run_ledger.py and tests/test_custody.py):
 No live Postgres, no live Milvus, no real agno Workflow execution.
 """
 # Byline: Claude Code · Sonnet (agent) · 2026-07-21
+# Byline: Codex · GPT-5 · 2026-08-13 (durable report action/reason contract)
 
 from __future__ import annotations
 
@@ -601,7 +602,9 @@ def test_run_knowledge_from_store_skips_first_three_stages_then_ingests(monkeypa
     monkeypatch.setattr(
         run_ledger,
         "stage_finish",
-        lambda run_id, seq, status, content=None, output=None: stage_calls.append(("finish", seq, status, content)),
+        lambda run_id, seq, status, content=None, output=None, **kwargs: stage_calls.append(
+            ("finish", seq, status, content)
+        ),
     )
     finish_calls = []
     monkeypatch.setattr(run_ledger, "finish_run", lambda *a, **k: finish_calls.append((a, k)))
@@ -662,7 +665,9 @@ def test_run_knowledge_from_store_zero_parent_records_fails_loudly(monkeypatch):
     monkeypatch.setattr(
         run_ledger,
         "stage_finish",
-        lambda run_id, seq, status, content=None, output=None: stage_finish_calls.append((seq, status, content)),
+        lambda run_id, seq, status, content=None, output=None, **kwargs: stage_finish_calls.append(
+            (seq, status, content)
+        ),
     )
     finish_calls = []
     monkeypatch.setattr(run_ledger, "finish_run", lambda *a, **k: finish_calls.append((a, k)))
@@ -696,7 +701,9 @@ def test_run_knowledge_from_store_ingest_exception_marks_stage_and_run_failed(mo
     monkeypatch.setattr(
         run_ledger,
         "stage_finish",
-        lambda run_id, seq, status, content=None, output=None: stage_finish_calls.append((seq, status, output)),
+        lambda run_id, seq, status, content=None, output=None, **kwargs: stage_finish_calls.append(
+            (seq, status, output)
+        ),
     )
     finish_calls = []
     monkeypatch.setattr(run_ledger, "finish_run", lambda *a, **k: finish_calls.append((a, k)))
@@ -743,11 +750,24 @@ def test_run_knowledge_from_store_ingest_exception_marks_stage_and_run_failed(mo
 
 
 @pytest.fixture
-def run_routes_client():
+def run_routes_client(monkeypatch):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
 
     import server.api.run_routes as run_routes
+
+    monkeypatch.setattr(
+        run_routes,
+        "record_review_action",
+        lambda run_id, action_type, reason, **kwargs: {
+            "action_id": "action-1",
+            "run_id": run_id,
+            "action_type": action_type,
+            "actor": "owner",
+            "reason": reason,
+            **kwargs,
+        },
+    )
 
     app = FastAPI()
     run_routes.register_run_routes(app, knowledge=None)

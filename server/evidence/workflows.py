@@ -67,6 +67,7 @@ C2.6 additions (resilience + observability, 2026-07-20/21):
   duration_ms in the run's finish summary.
 """
 # Byline: Claude Code · Sonnet (agent) · 2026-07-21 (C0 run-ledger instrumentation 2026-07-20; C2 gates+retry+custody_tier 2026-07-20; C2.6 resilience+observability 2026-07-21; drift-fix 2026-08-12 Claude Code · Kimi K3: Milvus-503 comments → Weaviate/historical per ADR-0040)
+# Byline: Codex · GPT-5 · 2026-08-13 (ADR-0054 structured terminal reasons)
 
 from __future__ import annotations
 
@@ -270,9 +271,14 @@ def _wrap_step_for_run_control(
 
     from server.evidence.run_ledger import read_gate, set_gate, skip_remaining_stages
 
-    def _do_abort(reason: str) -> StepOutput:
+    def _do_abort(reason: str, reason_code: str) -> StepOutput:
         ctx["gate_aborted"] = {"stage": name, "message": reason}
-        skip_remaining_stages(run_id, seq)
+        skip_remaining_stages(
+            run_id,
+            seq,
+            reason_code=reason_code,
+            reason_detail=reason,
+        )
         return StepOutput(content=f"gate: {reason}", success=False, stop=True)
 
     @functools.wraps(already_wrapped)
@@ -297,13 +303,16 @@ def _wrap_step_for_run_control(
                     set_gate(run_id, None, status="running")
                     return result
                 if state == "abort":
-                    return _do_abort(f"aborted by operator at gate after {name}")
-            return _do_abort(f"gate timed out (24h) after {name} with no operator decision")
+                    return _do_abort(f"aborted by operator at gate after {name}", "operator_abort")
+            return _do_abort(
+                f"gate timed out (24h) after {name} with no operator decision",
+                "gate_timeout",
+            )
 
         # 'auto' mode, or the last stage in 'supervised' mode: no pause, but
         # still honor an out-of-band abort request set on a RUNNING run.
         if read_gate(run_id) == "abort":
-            return _do_abort(f"aborted by operator at gate after {name}")
+            return _do_abort(f"aborted by operator at gate after {name}", "operator_abort")
         return result
 
     step.executor = _control_wrapped
@@ -970,7 +979,15 @@ async def run_knowledge_from_store(
     # verbatim — nothing to redo, nothing new hashed/parsed/stored here.
     for seq in (1, 2, 3):
         stage_start(run_id, seq)
-        stage_finish(run_id, seq, "skipped", content="inherited from parent", output=None)
+        stage_finish(
+            run_id,
+            seq,
+            "skipped",
+            content="inherited from parent",
+            output=None,
+            reason_code="inherited_from_parent",
+            reason_detail=f"Reused successful stage output from parent run {parent_run_id}.",
+        )
 
     artifact = ArtifactRef(
         artifact_id=artifact_id,

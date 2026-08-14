@@ -1,4 +1,5 @@
 // Byline: Claude Code · Sonnet (agent) · 2026-07-21 (C2: supervised-gate controls — continue/abort/retry; C2.6: louder failure banner + retry from_stage=knowledge)
+// Byline: Codex · GPT-5 · 2026-08-13 (durable interactive report)
 "use client";
 
 /**
@@ -50,10 +51,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { StageRail } from "./stage-rail";
 import { StageDrawer } from "./stage-drawer";
 import { CopyButton } from "./stage-output-view";
-import { ApiError, abortRun, continueRun, getRun, retryRun } from "@/lib/api-client";
+import { RunReportPanel } from "./run-report-panel";
+import { ApiError, abortRun, continueRun, getRun, getRunReport, retryRun } from "@/lib/api-client";
 import { useRefresh } from "@/lib/refresh-context";
 import { formatDate } from "@/lib/utils";
-import type { RunDetail, RunStageDetail } from "@/lib/shared/types";
+import type { RunDetail, RunReport, RunStageDetail } from "@/lib/shared/types";
 
 const POLL_INTERVAL_MS = 2000;
 
@@ -82,11 +84,13 @@ function statusBadgeVariant(status: string): "default" | "secondary" | "destruct
 
 export function RunDetailDialog({ runId, open, onOpenChange, onNavigateToRun }: RunDetailDialogProps) {
   const [run, setRun] = useState<RunDetail | null>(null);
+  const [report, setReport] = useState<RunReport | null>(null);
   const [selectedSeq, setSelectedSeq] = useState<number | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [actionPending, setActionPending] = useState(false);
   const [abortConfirmOpen, setAbortConfirmOpen] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastReportVersionRef = useRef<string | null>(null);
   const { triggerRefresh } = useRefresh();
 
   const stopPolling = () => {
@@ -99,20 +103,40 @@ export function RunDetailDialog({ runId, open, onOpenChange, onNavigateToRun }: 
   useEffect(() => {
     if (!open || !runId) {
       stopPolling();
+      lastReportVersionRef.current = null;
       queueMicrotask(() => setRun(null));
+      queueMicrotask(() => setReport(null));
       return;
     }
 
     let cancelled = false;
+    lastReportVersionRef.current = null;
+    queueMicrotask(() => {
+      if (!cancelled) setReport(null);
+    });
     const fetchRun = async () => {
       try {
         const data = await getRun(runId);
-        if (!cancelled) {
-          setRun(data);
-          // Paused is a wait state, not terminal — keep polling in case a
-          // gate action lands from elsewhere (another tab/session).
-          if (data.status !== "running" && data.status !== "paused") stopPolling();
+        if (cancelled) return;
+        setRun(data);
+        const reportVersion = `${runId}:${data.status}:${data.updated_at}`;
+        let reportSucceeded = lastReportVersionRef.current === reportVersion;
+        if (!reportSucceeded) {
+          try {
+            const nextReport = await getRunReport(runId);
+            if (cancelled) return;
+            setReport(nextReport);
+            lastReportVersionRef.current = reportVersion;
+            reportSucceeded = true;
+          } catch {
+            // Report migration/API may lag during a rolling deploy; the
+            // underlying run view remains available and polling retries.
+          }
         }
+        // Paused is a wait state, not terminal — keep polling in case a
+        // gate action lands from elsewhere (another tab/session). A terminal
+        // run stops only after its report was retrieved successfully.
+        if (reportSucceeded && data.status !== "running" && data.status !== "paused") stopPolling();
       } catch {
         // Transient poll failure — keep the last-known state, try again next tick.
       }
@@ -147,6 +171,8 @@ export function RunDetailDialog({ runId, open, onOpenChange, onNavigateToRun }: 
     try {
       const data = await getRun(runId);
       setRun(data);
+      setReport(await getRunReport(runId));
+      lastReportVersionRef.current = `${runId}:${data.status}:${data.updated_at}`;
     } catch {
       // Swallow — the next poll tick (or the toast already shown) covers it.
     }
@@ -203,7 +229,7 @@ export function RunDetailDialog({ runId, open, onOpenChange, onNavigateToRun }: 
   return (
     <>
       <Dialog open={open} onOpenChange={(next) => { if (!next) setAbortConfirmOpen(false); onOpenChange(next); }}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 truncate">
               {run?.source_name ?? runId}
@@ -340,6 +366,10 @@ export function RunDetailDialog({ runId, open, onOpenChange, onNavigateToRun }: 
                     Retry
                   </Button>
                 </div>
+              )}
+
+              {report && (
+                <RunReportPanel runId={run.run_id} report={report} onRecorded={refetchNow} />
               )}
 
               <Separator />

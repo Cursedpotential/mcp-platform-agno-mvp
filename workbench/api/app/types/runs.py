@@ -1,4 +1,5 @@
 # Byline: Claude Code · Sonnet (agent) · 2026-07-20 (custody_tier added — C2 gate controls)
+# Byline: Codex · GPT-5 · 2026-08-13 (review action request)
 """Request shape for the JSON branch of POST /api/runs.
 
 The multipart branch (a fresh file drop) is parsed by hand in
@@ -15,7 +16,9 @@ help.
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from typing import Annotated, Literal
+
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 
 class RunCreateRequest(BaseModel):
@@ -30,3 +33,14 @@ class RunCreateRequest(BaseModel):
     # defaults this per-workflow (chat-transcript -> light, sms-xml -> full)
     # when omitted, so it stays optional here too.
     custody_tier: str | None = None
+
+
+class RunReviewActionRequest(BaseModel):
+    """Append a human decision without replacing the recorded outcome."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    action_type: Literal["acknowledge", "approve", "override"]
+    reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)]
+    stage_seq: int | None = Field(default=None, ge=1)
+    replacement: dict | None = None

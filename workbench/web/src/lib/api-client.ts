@@ -1,4 +1,5 @@
 // Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: records, schemas, verify, parse-dryrun, flags; C4: knowledge search/browse + Graphiti pane added 2026-07-23)
+// Byline: Codex · GPT-5 · 2026-08-13 (run reports and review actions)
 /**
  * API client for the Knowledge Workbench.
  *
@@ -33,6 +34,9 @@ import type {
   RunCreateResponse,
   RunDetail,
   RunMode,
+  RunReport,
+  RunReviewAction,
+  RunReviewActionRequest,
   RunRetryResponse,
   RunSummary,
   SchemasResponse,
@@ -310,6 +314,18 @@ export async function retryRun(runId: string, fromStage?: RetryFromStage) {
     ...(fromStage
       ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify({ from_stage: fromStage }) }
       : {}),
+  });
+}
+
+export async function getRunReport(runId: string) {
+  return apiFetch<RunReport>(`/api/runs/${encodeURIComponent(runId)}/report`);
+}
+
+export async function createRunReviewAction(runId: string, payload: RunReviewActionRequest) {
+  return apiFetch<RunReviewAction>(`/api/runs/${encodeURIComponent(runId)}/review-actions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
   });
 }
 

@@ -58,19 +58,32 @@ reporting 0 records, logging it loudly on the store stage's content.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
+import os
 import shutil
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from server.core.knowledge_handle import resolve_knowledge
 from server.evidence.custody import blob_root
-from server.evidence.run_ledger import create_run, get_run, list_runs, ping, seed_stages, set_gate
+from server.evidence.run_ledger import (
+    create_run,
+    get_run,
+    list_review_actions,
+    list_runs,
+    ping,
+    record_review_action,
+    seed_stages,
+    set_gate,
+)
+from server.evidence.run_report import build_run_report
 
 logger = logging.getLogger("evidence.runs")  # same logger name workflows.py/store.py use
 
@@ -111,6 +124,42 @@ _DEFAULT_CUSTODY_TIER: dict[str, str] = {
 }
 
 _TERMINAL_STATUSES = {"completed", "failed"}
+
+
+class RunReviewActionRequest(BaseModel):
+    """Append-only operator decision attached to a run or stage."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    action_type: str = Field(pattern="^(acknowledge|approve|override)$")
+    reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)]
+    stage_seq: int | None = Field(default=None, ge=1)
+    replacement: dict[str, Any] | None = None
+
+
+def _trace_url(trace_id: str | None) -> str | None:
+    template = os.getenv("LANGFUSE_TRACE_URL_TEMPLATE")
+    if not trace_id or not template:
+        return None
+    try:
+        return template.format(trace_id=trace_id)
+    except (IndexError, KeyError, ValueError):
+        logger.warning("LANGFUSE_TRACE_URL_TEMPLATE must contain a valid {trace_id} placeholder")
+        return None
+
+
+def _audit_report_read(run_id: str, report: dict[str, Any]) -> None:
+    """Audit every report read with a content hash, never report contents."""
+    from server.core.audit import record_read
+
+    canonical = json.dumps(report, sort_keys=True, separators=(",", ":"), default=str)
+    record_read(
+        run_id,
+        actor="workbench",
+        ctx={},
+        object_schema="ops.workflow_run_report",
+        payload_hash=hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+    )
 
 
 def register_run_routes(app: FastAPI, knowledge: Any, evidence_knowledge: Any | None = None) -> None:
@@ -174,28 +223,38 @@ def register_run_routes(app: FastAPI, knowledge: Any, evidence_knowledge: Any | 
         calls this function — see `_retry_from_knowledge`) — threaded to the
         runner so its store step can auto-route a custody-dedupe no-op into
         knowledge-from-store when the parent's knowledge stage had failed."""
+        from opentelemetry import trace
+
+        from server.evidence.run_ledger import set_trace_id
         from server.evidence.workflows import run_chat_transcript, run_sms_xml
 
         runner = run_chat_transcript if workflow == "chat-transcript" else run_sms_xml
-        try:
-            await runner(
-                str(tmp_path),
-                source_meta=meta,
-                domain=domain,
-                knowledge=_knowledge_for(workflow),
-                run_id=run_id,
-                mode=mode,
-                custody_tier=custody_tier,
-                parent_run_id=parent_run_id,
-            )
-        except Exception:
-            # workflows.py's own finally-block already recorded this failure
-            # into the ledger (finish_run(status='failed', error=...)); this
-            # background task has no caller left to raise to, so just stop
-            # the exception from becoming an unhandled-task-exception log spam.
-            pass
-        finally:
-            shutil.rmtree(tmpdir, ignore_errors=True)
+        tracer = trace.get_tracer("server.evidence.workflow")
+        with tracer.start_as_current_span("evidence.workflow.run") as span:
+            span.set_attribute("platform.run_id", run_id)
+            span.set_attribute("platform.workflow", workflow)
+            span.set_attribute("platform.domain", domain)
+            span.set_attribute("platform.mode", mode)
+            span_context = span.get_span_context()
+            if span_context.is_valid:
+                set_trace_id(run_id, format(span_context.trace_id, "032x"))
+            try:
+                await runner(
+                    str(tmp_path),
+                    source_meta=meta,
+                    domain=domain,
+                    knowledge=_knowledge_for(workflow),
+                    run_id=run_id,
+                    mode=mode,
+                    custody_tier=custody_tier,
+                    parent_run_id=parent_run_id,
+                )
+            except Exception as exc:
+                span.record_exception(exc)
+                # workflows.py's own finally-block already recorded this failure
+                # into the ledger; this background task has no caller left.
+            finally:
+                shutil.rmtree(tmpdir, ignore_errors=True)
 
     async def _retry_from_knowledge(run_id: str, run: dict[str, Any]) -> dict[str, Any]:
         """C2.6 requirement 1 — the explicit `{"from_stage": "knowledge"}`
@@ -239,19 +298,32 @@ def register_run_routes(app: FastAPI, knowledge: Any, evidence_knowledge: Any | 
         )
         seed_stages(new_run_id, WORKFLOW_STAGE_NAMES[workflow])
 
-        asyncio.create_task(
-            run_knowledge_from_store(
-                parent_run_id=run_id,
-                run_id=new_run_id,
-                workflow=workflow,
-                domain=domain,
-                knowledge=_knowledge_for(workflow),
-                artifact_id=run["artifact_id"],
-                sha256=run["sha256"],
-                blob_key=blob_key,
-                custody_tier=custody_tier,
-            )
-        )
+        async def _traced_retry() -> None:
+            from opentelemetry import trace
+
+            from server.evidence.run_ledger import set_trace_id
+
+            tracer = trace.get_tracer("server.evidence.workflow")
+            with tracer.start_as_current_span("evidence.workflow.retry_from_knowledge") as span:
+                span.set_attribute("platform.run_id", new_run_id)
+                span.set_attribute("platform.parent_run_id", run_id)
+                span.set_attribute("platform.workflow", workflow)
+                span_context = span.get_span_context()
+                if span_context.is_valid:
+                    set_trace_id(new_run_id, format(span_context.trace_id, "032x"))
+                await run_knowledge_from_store(
+                    parent_run_id=run_id,
+                    run_id=new_run_id,
+                    workflow=workflow,
+                    domain=domain,
+                    knowledge=_knowledge_for(workflow),
+                    artifact_id=run["artifact_id"],
+                    sha256=run["sha256"],
+                    blob_key=blob_key,
+                    custody_tier=custody_tier,
+                )
+
+        asyncio.create_task(_traced_retry())
 
         return {"run_id": new_run_id, "parent_run_id": run_id}
 
@@ -446,6 +518,34 @@ def register_run_routes(app: FastAPI, knowledge: Any, evidence_knowledge: Any | 
             raise HTTPException(404, f"run {run_id!r} not found")
         return run
 
+    @app.get("/v1/runs/{run_id}/report")
+    async def get_run_report(run_id: str) -> dict[str, Any]:
+        """Versioned report: every stage, disposition, reason, and review action."""
+        run = get_run(run_id)
+        if run is None:
+            raise HTTPException(404, f"run {run_id!r} not found")
+        report = build_run_report(run, list_review_actions(run_id), trace_url=_trace_url(run.get("trace_id")))
+        _audit_report_read(run_id, report)
+        return report
+
+    @app.post("/v1/runs/{run_id}/review-actions", status_code=201)
+    async def create_run_review_action(run_id: str, body: RunReviewActionRequest) -> dict[str, Any]:
+        """Record a human decision without rewriting the underlying outcome."""
+        run = get_run(run_id)
+        if run is None:
+            raise HTTPException(404, f"run {run_id!r} not found")
+        if body.stage_seq is not None and not any(s["seq"] == body.stage_seq for s in run["stages"]):
+            raise HTTPException(422, f"run {run_id!r} has no stage seq={body.stage_seq}")
+        action = record_review_action(
+            run_id,
+            body.action_type,
+            body.reason,
+            actor="owner",
+            stage_seq=body.stage_seq,
+            replacement=body.replacement,
+        )
+        return action
+
     @app.post("/v1/runs/{run_id}/continue")
     async def continue_run(run_id: str) -> dict[str, Any]:
         """Release a supervised-mode gate: 200 {run_id, status:'running'}.
@@ -463,6 +563,7 @@ def register_run_routes(app: FastAPI, knowledge: Any, evidence_knowledge: Any | 
         # gate_state='released' within ~2s and clear it back to None as it
         # resumes — a harmless, idempotent second write.
         set_gate(run_id, "released", status="running")
+        record_review_action(run_id, "continue", "Owner released the supervised workflow gate.")
         return {"run_id": run_id, "status": "running"}
 
     @app.post("/v1/runs/{run_id}/abort")
@@ -492,6 +593,7 @@ def register_run_routes(app: FastAPI, knowledge: Any, evidence_knowledge: Any | 
         if status in _TERMINAL_STATUSES:
             raise HTTPException(409, f"run {run_id!r} is {status!r} (terminal) — cannot abort")
         set_gate(run_id, "abort")
+        record_review_action(run_id, "abort", "Owner requested abort at the next safe stage boundary.")
         return {"run_id": run_id, "status": "failed"}
 
     @app.post("/v1/runs/{run_id}/retry", status_code=202)
@@ -570,7 +672,14 @@ def register_run_routes(app: FastAPI, knowledge: Any, evidence_knowledge: Any | 
                         "provably missing (e.g. after a Milvus collection recreate); a query failure/unknown "
                         "result is treated as 'missing' (allow), never as 'exists' (block).",
                     )
-            return await _retry_from_knowledge(run_id, run)
+            result = await _retry_from_knowledge(run_id, run)
+            record_review_action(
+                run_id,
+                "retry",
+                "Owner started a targeted retry from the knowledge stage.",
+                replacement={"child_run_id": result["run_id"], "from_stage": "knowledge"},
+            )
+            return result
 
         if run["status"] != "failed":
             raise HTTPException(
@@ -659,4 +768,10 @@ def register_run_routes(app: FastAPI, knowledge: Any, evidence_knowledge: Any | 
             )
         )
 
+        record_review_action(
+            run_id,
+            "retry",
+            "Owner started a full workflow retry.",
+            replacement={"child_run_id": new_run_id, "from_stage": None},
+        )
         return {"run_id": new_run_id, "parent_run_id": run_id}

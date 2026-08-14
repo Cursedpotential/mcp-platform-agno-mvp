@@ -1,4 +1,5 @@
 # Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: parse_dryrun added)
+# Byline: Codex · GPT-5 · 2026-08-13 (durable report proxy)
 """Proxy to the spine's run pipeline (POST /v1/runs, GET /v1/runs[/{id}]).
 
 New in the workbench — the C1 Operator Console's replacement for the
@@ -169,6 +170,18 @@ def list_runs(status: str | None = None, limit: int | None = None) -> list[dict]
 def get_run(run_id: str) -> dict:
     """GET /v1/runs/{id} passthrough."""
     response = _spine_request("GET", f"/v1/runs/{run_id}")
+    return response.json()
+
+
+def get_run_report(run_id: str) -> dict:
+    """GET the versioned, authoritative report projection for one run."""
+    response = _spine_request("GET", f"/v1/runs/{run_id}/report")
+    return response.json()
+
+
+def create_review_action(run_id: str, payload: dict) -> dict:
+    """Append an owner review decision to the run report."""
+    response = _spine_request("POST", f"/v1/runs/{run_id}/review-actions", json=payload)
     return response.json()
 
 

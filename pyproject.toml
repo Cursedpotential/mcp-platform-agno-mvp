@@ -89,6 +89,9 @@ chunking = ["chonkie[semantic]>=1.7,<2"]
 # labeled calibration proves its thresholds; production safely falls back to
 # keyword-v1 when this extra is absent.
 classification = ["sentence-transformers[onnx]>=5,<6", "setfit>=1.1,<2"]
+# Optional external trace sink. Agno's own Postgres tracing remains enabled;
+# this exporter mirrors the same OTel spans to Langfuse when credentials exist.
+observability = ["opentelemetry-exporter-otlp-proto-http>=1.44,<2"]
 # claude-agent-sdk: powers agno.agents.claude.ClaudeAgent (runs Claude Code as
 # a subprocess — the SDK bundles its own native Claude Code binary, no
 # separate Node.js/CLI install needed). NOT a base dependency: it's a heavier
@@ -141,6 +144,7 @@ module = [
   "fastapi.*",
   "google.*",
   "sentence_transformers.*",
+  "opentelemetry.exporter.*",
   "torch.*",
   "sklearn.*",
   "yaml",
@@ -177,7 +181,7 @@ testpaths = ["tests"]
 #   uv run pytest server/vendored/semantica/tests
 norecursedirs = ["docs", ".venv*", "server/tools", "server/vendored"]
 # Integration tests are opt-in: run them with `pytest -m integration`.
-addopts = "-m 'not integration'"
+addopts = "-m 'not integration' -p server.observability.pytest_reporter"
 markers = [
   "integration: tests that require live services (Postgres/Neo4j/R2); not run by default",
   "local_samples: privacy-safe tests against an owner-supplied local corpus",

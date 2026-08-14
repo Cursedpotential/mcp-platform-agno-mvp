@@ -1,4 +1,5 @@
 // Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: records, schemas, verify, parse-dryrun, flags; C4: knowledge search/browse + Graphiti pane types added 2026-07-23)
+// Byline: Codex · GPT-5 · 2026-08-13 (durable report contracts)
 /**
  * Types for the Knowledge Workbench staged-file record.
  *
@@ -203,6 +204,8 @@ export interface RunStageDetail {
   output?: StageOutput | null;
   started_at?: string | null;
   finished_at?: string | null;
+  outcome_reason_code?: string | null;
+  outcome_reason_detail?: string | null;
 }
 
 /** Fields common to both `GET /v1/runs` list rows and the `GET /v1/runs/{id}`
@@ -231,6 +234,8 @@ export interface RunFields {
   parent_run_id: string | null;
   /** C2: evidence-chain depth — see `CustodyTier` doc comment. */
   custody_tier: CustodyTier;
+  trace_id?: string | null;
+  report_schema_version?: string;
 }
 
 /** One row of `GET /v1/runs`. */
@@ -278,6 +283,52 @@ export interface RunRetryResponse {
  * trap where a plain retry could report docs_ingested=0 without actually
  * re-ingesting anything. */
 export type RetryFromStage = "knowledge";
+
+export interface RunReviewAction {
+  action_id: string;
+  run_id: string;
+  stage_seq?: number | null;
+  action_type: "acknowledge" | "approve" | "override" | "continue" | "abort" | "retry";
+  actor: string;
+  reason: string;
+  replacement?: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface RunReportStage {
+  seq: number;
+  name: string;
+  status: StageStatus;
+  disposition: string;
+  reason: { code?: string | null; detail?: string | null };
+  duration_ms?: number | null;
+  output?: StageOutput | null;
+  review: { decision_required: boolean; allowed_actions: string[] };
+}
+
+export interface RunReport {
+  schema_version: string;
+  pass: { number: number; name: string; status: "COMPLETE" | "PARTIAL" | "BLOCKED" };
+  metadata: { timestamp?: string | null; platform: string; byline_revision: string; duration_ms?: number | null };
+  input: Record<string, unknown>;
+  output?: Record<string, unknown> | null;
+  errors: Array<{ code: string; message: string; stage_seq?: number; recoverable?: boolean }>;
+  warnings: Array<{ code: string; message: string; stage_seq?: number }>;
+  handoff: { status: string; next_action: string };
+  data: {
+    summary: { total: number; passed: number; failed: number; skipped: number; pending: number; running: number };
+    stages: RunReportStage[];
+    review_actions: RunReviewAction[];
+    trace: { trace_id?: string | null; url?: string | null; authority: "diagnostic_only" };
+  };
+}
+
+export interface RunReviewActionRequest {
+  action_type: "acknowledge" | "approve" | "override";
+  reason: string;
+  stage_seq?: number;
+  replacement?: Record<string, unknown>;
+}
 
 // ---------------------------------------------------------------------------
 // Dependency health strip (C2.6 requirement 4)

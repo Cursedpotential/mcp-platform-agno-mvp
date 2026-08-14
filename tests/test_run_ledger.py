@@ -17,6 +17,7 @@ runner's own control flow (wrap-if-run_id / try-finally / summary shape) is
 exercised without the spine underneath it.
 """
 # Byline: Claude Code · Sonnet (agent) · 2026-07-20
+# Byline: Codex · GPT-5 · 2026-08-13 (durable reports and review actions)
 
 from __future__ import annotations
 
@@ -179,6 +180,7 @@ def test_stage_finish_serializes_output_and_content(monkeypatch):
     assert params["status"] == "success"
     assert params["content"] == "parse: 3 records"
     assert json.loads(params["output"]) == {"record_count": 3}
+    assert params["reason_code"] == "completed"
 
 
 def test_stage_finish_none_output_stays_none(monkeypatch):
@@ -674,7 +676,12 @@ def test_skip_remaining_stages_filters_pending_after_seq(monkeypatch):
     stmt, params = fake.calls[0]
     assert "status = 'skipped'" in stmt
     assert "status = 'pending'" in stmt
-    assert params == {"run_id": "run-1", "from_seq": 2}
+    assert params == {
+        "run_id": "run-1",
+        "from_seq": 2,
+        "reason_code": "run_aborted",
+        "reason_detail": None,
+    }
 
 
 def test_skip_remaining_stages_default_from_seq_zero(monkeypatch):
@@ -902,7 +909,11 @@ def test_run_control_auto_mode_passthrough_when_no_abort(monkeypatch):
 def test_run_control_auto_mode_honors_abort_at_boundary(monkeypatch):
     skip_calls = []
     monkeypatch.setattr(run_ledger, "read_gate", lambda run_id: "abort")
-    monkeypatch.setattr(run_ledger, "skip_remaining_stages", lambda run_id, seq: skip_calls.append((run_id, seq)))
+    monkeypatch.setattr(
+        run_ledger,
+        "skip_remaining_stages",
+        lambda run_id, seq, **kwargs: skip_calls.append((run_id, seq, kwargs.get("reason_code"))),
+    )
     step = _make_success_step(name="parse")
     ctx = {}
 
@@ -912,7 +923,7 @@ def test_run_control_auto_mode_honors_abort_at_boundary(monkeypatch):
     assert result.success is False
     assert result.stop is True
     assert ctx["gate_aborted"]["stage"] == "parse"
-    assert skip_calls == [("run-1", 2)]
+    assert skip_calls == [("run-1", 2, "operator_abort")]
 
 
 def test_run_control_failed_stage_bypasses_gate_entirely(monkeypatch):
@@ -976,7 +987,11 @@ def test_run_control_supervised_pauses_then_abort_stops_and_skips(monkeypatch):
     monkeypatch.setattr(run_ledger, "set_gate", lambda run_id, state, status=None: gate_calls.append((state, status)))
     monkeypatch.setattr(run_ledger, "read_gate", lambda run_id: "abort")
     skip_calls = []
-    monkeypatch.setattr(run_ledger, "skip_remaining_stages", lambda run_id, seq: skip_calls.append((run_id, seq)))
+    monkeypatch.setattr(
+        run_ledger,
+        "skip_remaining_stages",
+        lambda run_id, seq, **kwargs: skip_calls.append((run_id, seq, kwargs.get("reason_code"))),
+    )
     monkeypatch.setattr(workflows_mod, "_gate_sleep", lambda seconds: asyncio.sleep(0))
     ctx = {}
     step = _make_success_step(name="custody")
@@ -988,7 +1003,7 @@ def test_run_control_supervised_pauses_then_abort_stops_and_skips(monkeypatch):
     assert result.stop is True
     assert ctx["gate_aborted"]["stage"] == "custody"
     assert "aborted by operator at gate after custody" in ctx["gate_aborted"]["message"]
-    assert skip_calls == [("run-1", 1)]
+    assert skip_calls == [("run-1", 1, "operator_abort")]
     assert gate_calls[0] == ("waiting", "paused")
 
 
@@ -996,7 +1011,11 @@ def test_run_control_supervised_timeout_is_treated_as_abort(monkeypatch):
     monkeypatch.setattr(run_ledger, "set_gate", lambda *a, **k: None)
     monkeypatch.setattr(run_ledger, "read_gate", lambda run_id: "waiting")  # never released/aborted
     skip_calls = []
-    monkeypatch.setattr(run_ledger, "skip_remaining_stages", lambda run_id, seq: skip_calls.append((run_id, seq)))
+    monkeypatch.setattr(
+        run_ledger,
+        "skip_remaining_stages",
+        lambda run_id, seq, **kwargs: skip_calls.append((run_id, seq, kwargs.get("reason_code"))),
+    )
     monkeypatch.setattr(workflows_mod, "_gate_sleep", lambda seconds: asyncio.sleep(0))
     # Shrink the ceiling so the timeout branch is reachable in a fast test.
     monkeypatch.setattr(workflows_mod, "_GATE_POLL_CEILING_S", 4)
@@ -1009,7 +1028,7 @@ def test_run_control_supervised_timeout_is_treated_as_abort(monkeypatch):
 
     assert result.success is False
     assert "timed out" in ctx["gate_aborted"]["message"]
-    assert skip_calls == [("run-1", 3)]
+    assert skip_calls == [("run-1", 3, "gate_timeout")]
 
 
 # --- runners: mode threads through to _wrap_step_for_run_control --------------
@@ -1098,6 +1117,20 @@ def run_routes_client(monkeypatch):
 
     import server.api.run_routes as run_routes
 
+    monkeypatch.setattr(
+        run_routes,
+        "record_review_action",
+        lambda run_id, action_type, reason, **kwargs: {
+            "action_id": "action-1",
+            "run_id": run_id,
+            "action_type": action_type,
+            "actor": "owner",
+            "reason": reason,
+            **kwargs,
+        },
+    )
+    monkeypatch.setattr(run_routes, "_audit_report_read", lambda run_id, report: None)
+
     app = FastAPI()
     run_routes.register_run_routes(app, knowledge=None)
     return run_routes, TestClient(app)
@@ -1109,6 +1142,58 @@ def test_continue_404_unknown_run(run_routes_client, monkeypatch):
 
     resp = client.post("/v1/runs/nope/continue")
     assert resp.status_code == 404
+
+
+def test_run_report_endpoint_itemizes_stage_reasons(run_routes_client, monkeypatch):
+    run_routes, client = run_routes_client
+    monkeypatch.setattr(
+        run_routes,
+        "get_run",
+        lambda run_id: {
+            "run_id": run_id,
+            "workflow": "chat-transcript",
+            "status": "completed",
+            "stages": [
+                {
+                    "seq": 1,
+                    "name": "custody",
+                    "status": "skipped",
+                    "outcome_reason_code": "duplicate_input",
+                    "outcome_reason_detail": "Already ingested.",
+                }
+            ],
+        },
+    )
+    monkeypatch.setattr(run_routes, "list_review_actions", lambda run_id: [])
+
+    resp = client.get("/v1/runs/run-1/report")
+
+    assert resp.status_code == 200
+    assert resp.json()["data"]["stages"][0]["reason"]["code"] == "duplicate_input"
+
+
+def test_review_action_endpoint_requires_reason_and_returns_action(run_routes_client, monkeypatch):
+    run_routes, client = run_routes_client
+    monkeypatch.setattr(run_routes, "get_run", lambda run_id: {"status": "completed", "stages": []})
+
+    missing = client.post("/v1/runs/run-1/review-actions", json={"action_type": "approve", "reason": ""})
+    whitespace = client.post("/v1/runs/run-1/review-actions", json={"action_type": "approve", "reason": "   "})
+    spoofed = client.post(
+        "/v1/runs/run-1/review-actions",
+        json={"action_type": "approve", "reason": "Validated output.", "actor": "spoofed-admin"},
+    )
+    created = client.post(
+        "/v1/runs/run-1/review-actions",
+        json={"action_type": "approve", "reason": "Validated output."},
+    )
+
+    assert missing.status_code == 422
+    assert whitespace.status_code == 422
+    assert spoofed.status_code == 422
+    assert created.status_code == 201
+    assert created.json()["action_type"] == "approve"
+    assert created.json()["actor"] == "owner"
+    assert created.json()["reason"] == "Validated output."
 
 
 def test_continue_409_when_not_paused(run_routes_client, monkeypatch):

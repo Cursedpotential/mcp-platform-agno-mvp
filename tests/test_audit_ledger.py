@@ -228,6 +228,19 @@ def test_record_rejects_non_hex_payload_hash(audit_engine: Engine):
         audit.record("read", "obj-1", actor="owner", payload_hash="not a hash!", engine=audit_engine)
 
 
+def test_record_can_share_caller_transaction_and_roll_back(audit_engine: Engine):
+    with pytest.raises(RuntimeError, match="force rollback"):
+        with audit_engine.begin() as conn:
+            audit.record("decision", "atomic-action", actor="owner", connection=conn)
+            raise RuntimeError("force rollback")
+
+    with audit_engine.connect() as conn:
+        count = conn.execute(
+            text("SELECT count(*) FROM ops.audit_ledger WHERE object_ref = 'atomic-action'")
+        ).scalar_one()
+    assert count == 0
+
+
 def test_record_genesis_row_has_null_prev_hash(audit_engine: Engine):
     new_id = audit.record("decision", "obj-1", actor="owner", engine=audit_engine)
     with audit_engine.connect() as conn:

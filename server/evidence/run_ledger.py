@@ -10,10 +10,12 @@ engine, sqlalchemy `text()`, `db_url` imported lazily to avoid import-time
 env coupling) — this module does not invent a second connection helper.
 
 Byline: Claude Code · Sonnet (agent) · 2026-07-20
+Byline: Codex · GPT-5 · 2026-08-13 (durable run reports and review actions)
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 from typing import Any
 
@@ -111,7 +113,8 @@ def stage_start(run_id: str, seq: int) -> None:
         conn.execute(
             text(
                 "UPDATE ops.workflow_run_stage "
-                "SET status = 'running', started_at = now() "
+                "SET status = 'running', started_at = now(), finished_at = NULL, "
+                "    outcome_reason_code = NULL, outcome_reason_detail = NULL "
                 "WHERE run_id = :run_id AND seq = :seq"
             ),
             {"run_id": run_id, "seq": seq},
@@ -124,18 +127,32 @@ def stage_finish(
     status: str,
     content: str | None = None,
     output: dict[str, Any] | None = None,
+    reason_code: str | None = None,
+    reason_detail: str | None = None,
 ) -> None:
     """Record a stage's terminal status/content/typed-output; stamp finished_at.
 
     On an exception in the wrapped step, callers pass status='failed' and
     content=str(exc) (see workflows.py's `_fail` helper).
     """
+    if status not in {"success", "failed", "skipped"}:
+        raise ValueError(f"terminal stage status required, got {status!r}")
+    resolved_reason = (
+        reason_code
+        or {
+            "success": "completed",
+            "failed": "stage_error",
+            "skipped": "unspecified_skip",
+        }[status]
+    )
     with _get_engine().begin() as conn:
         conn.execute(
             text(
                 "UPDATE ops.workflow_run_stage "
                 "SET status = :status, content = :content, "
-                "    output = CAST(:output AS jsonb), finished_at = now() "
+                "    output = CAST(:output AS jsonb), "
+                "    outcome_reason_code = :reason_code, "
+                "    outcome_reason_detail = :reason_detail, finished_at = now() "
                 "WHERE run_id = :run_id AND seq = :seq"
             ),
             {
@@ -144,6 +161,8 @@ def stage_finish(
                 "status": status,
                 "content": content,
                 "output": json.dumps(output) if output is not None else None,
+                "reason_code": resolved_reason,
+                "reason_detail": reason_detail,
             },
         )
 
@@ -193,7 +212,13 @@ def read_gate(run_id: str) -> str | None:
     return row[0] if row is not None else None
 
 
-def skip_remaining_stages(run_id: str, from_seq: int = 0) -> None:
+def skip_remaining_stages(
+    run_id: str,
+    from_seq: int = 0,
+    *,
+    reason_code: str = "run_aborted",
+    reason_detail: str | None = None,
+) -> None:
     """Mark every still-'pending' stage after `from_seq` as 'skipped' — used
     when an operator aborts at a supervised gate, a gate times out (24h
     ceiling with no operator decision), or an operator aborts a RUNNING run
@@ -204,11 +229,122 @@ def skip_remaining_stages(run_id: str, from_seq: int = 0) -> None:
         conn.execute(
             text(
                 "UPDATE ops.workflow_run_stage "
-                "SET status = 'skipped' "
+                "SET status = 'skipped', finished_at = now(), "
+                "    outcome_reason_code = :reason_code, "
+                "    outcome_reason_detail = :reason_detail "
                 "WHERE run_id = :run_id AND seq > :from_seq AND status = 'pending'"
             ),
-            {"run_id": run_id, "from_seq": from_seq},
+            {
+                "run_id": run_id,
+                "from_seq": from_seq,
+                "reason_code": reason_code,
+                "reason_detail": reason_detail,
+            },
         )
+
+
+def set_trace_id(run_id: str, trace_id: str) -> None:
+    """Correlate the authoritative run with an Agno/OTel/Langfuse trace."""
+    with _get_engine().begin() as conn:
+        conn.execute(
+            text("UPDATE ops.workflow_run SET trace_id = :trace_id, updated_at = now() WHERE run_id = :run_id"),
+            {"run_id": run_id, "trace_id": trace_id},
+        )
+
+
+def record_review_action(
+    run_id: str,
+    action_type: str,
+    reason: str,
+    *,
+    actor: str = "owner",
+    stage_seq: int | None = None,
+    replacement: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Atomically append an operator decision and its global audit entry."""
+    if action_type not in {"acknowledge", "approve", "override", "continue", "abort", "retry"}:
+        raise ValueError(f"unsupported review action {action_type!r}")
+    if not reason.strip():
+        raise ValueError("review action reason is required")
+    with _get_engine().begin() as conn:
+        row = (
+            conn.execute(
+                text(
+                    "INSERT INTO ops.workflow_run_review_action "
+                    "(run_id, stage_seq, action_type, actor, reason, replacement) "
+                    "VALUES (:run_id, :stage_seq, :action_type, :actor, :reason, CAST(:replacement AS jsonb)) "
+                    "RETURNING action_id, run_id, stage_seq, action_type, actor, reason, replacement, created_at"
+                ),
+                {
+                    "run_id": run_id,
+                    "stage_seq": stage_seq,
+                    "action_type": action_type,
+                    "actor": actor,
+                    "reason": reason.strip(),
+                    "replacement": json.dumps(replacement) if replacement is not None else None,
+                },
+            )
+            .mappings()
+            .first()
+        )
+        if row is None:
+            raise RuntimeError("review action INSERT did not return a row")
+        action = dict(row)
+        action["action_id"] = str(action["action_id"])
+        action["run_id"] = str(action["run_id"])
+        action["replacement"] = _jsonb(action.get("replacement"))
+
+        from server.core.audit import record
+
+        canonical = json.dumps(
+            {
+                "action_id": action["action_id"],
+                "run_id": action["run_id"],
+                "stage_seq": action.get("stage_seq"),
+                "action_type": action["action_type"],
+                "actor": action["actor"],
+                "reason": action["reason"],
+                "replacement": action.get("replacement"),
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+        )
+        record(
+            "approval" if action["action_type"] == "approve" else "decision",
+            action["action_id"],
+            actor=action["actor"],
+            ctx={},
+            object_schema="ops",
+            payload_hash=hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+            connection=conn,
+        )
+    return action
+
+
+def list_review_actions(run_id: str) -> list[dict[str, Any]]:
+    """Return append-only operator decisions for a run in recorded order."""
+    with _get_engine().connect() as conn:
+        rows = (
+            conn.execute(
+                text(
+                    "SELECT action_id, run_id, stage_seq, action_type, actor, reason, replacement, created_at "
+                    "FROM ops.workflow_run_review_action WHERE run_id = :run_id "
+                    "ORDER BY created_at, action_id"
+                ),
+                {"run_id": run_id},
+            )
+            .mappings()
+            .all()
+        )
+    actions: list[dict[str, Any]] = []
+    for row in rows:
+        action = dict(row)
+        action["action_id"] = str(action["action_id"])
+        action["run_id"] = str(action["run_id"])
+        action["replacement"] = _jsonb(action.get("replacement"))
+        actions.append(action)
+    return actions
 
 
 def finish_run(

@@ -107,6 +107,7 @@ COMMIT/ROLLBACK (``_xact`` — no explicit unlock needed, and none is skipped
 by an exception).
 """
 # Byline: Claude Code · Sonnet (agent) · 2026-08-09 (ADR-0047 / D-042 — S5 handoff)
+# Byline: Codex · GPT-5 · 2026-08-13 (shared-transaction audit writes)
 
 from __future__ import annotations
 
@@ -177,6 +178,7 @@ def record(
     base_version: int | None = None,
     payload_hash: str | None = None,
     engine: Any = None,
+    connection: Any = None,
 ) -> int:
     """Append ONE row to ``ops.audit_ledger``. The ONLY insert path.
 
@@ -219,6 +221,11 @@ def record(
     engine:
         Override the SQLAlchemy engine (tests use this to point at a
         scratch DB). Defaults to the lazy module-level engine.
+    connection:
+        Existing SQLAlchemy connection whose surrounding transaction must
+        also contain this audit row. This is used when an authoritative
+        action and its audit entry must commit atomically. Mutually exclusive
+        with ``engine``; callers retain transaction ownership.
 
     Returns
     -------
@@ -234,10 +241,11 @@ def record(
     if action_type not in ACTION_TYPES:
         raise ValueError(f"audit.record: action_type must be one of {sorted(ACTION_TYPES)}, got {action_type!r}")
     _check_hex(payload_hash, "payload_hash")
+    if engine is not None and connection is not None:
+        raise ValueError("audit.record: pass either engine or connection, not both")
 
     from sqlalchemy import text
 
-    eng = engine if engine is not None else _get_engine()
     ts = datetime.now(timezone.utc)
     business_fields = {
         "ts": ts.isoformat(),
@@ -251,7 +259,7 @@ def record(
     }
     canonical = _canonical_json(business_fields)
 
-    with eng.begin() as conn:
+    def _insert(conn: Any) -> int:
         # Single-key advisory lock BEFORE reading the chain head — see the
         # module docstring's "Concurrency" section for why a bare
         # `SELECT ... FOR UPDATE` on the last row is not sufficient here.
@@ -280,7 +288,15 @@ def record(
                 "entry_hash": entry_hash,
             },
         ).scalar()
-    return int(new_id)
+        if new_id is None:
+            raise RuntimeError("audit.record: INSERT did not return an id")
+        return int(new_id)
+
+    if connection is not None:
+        return _insert(connection)
+    eng = engine if engine is not None else _get_engine()
+    with eng.begin() as conn:
+        return _insert(conn)
 
 
 def record_custody_ref(
