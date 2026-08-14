@@ -15,6 +15,7 @@ Byline: Codex · GPT-5 · 2026-08-13 (durable run reports and review actions)
 
 from __future__ import annotations
 
+import hashlib
 import json
 from typing import Any
 
@@ -260,7 +261,7 @@ def record_review_action(
     stage_seq: int | None = None,
     replacement: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Append an operator decision; never mutate the original outcome."""
+    """Atomically append an operator decision and its global audit entry."""
     if action_type not in {"acknowledge", "approve", "override", "continue", "abort", "retry"}:
         raise ValueError(f"unsupported review action {action_type!r}")
     if not reason.strip():
@@ -286,10 +287,38 @@ def record_review_action(
             .mappings()
             .first()
         )
-    action = dict(row)
-    action["action_id"] = str(action["action_id"])
-    action["run_id"] = str(action["run_id"])
-    action["replacement"] = _jsonb(action.get("replacement"))
+        if row is None:
+            raise RuntimeError("review action INSERT did not return a row")
+        action = dict(row)
+        action["action_id"] = str(action["action_id"])
+        action["run_id"] = str(action["run_id"])
+        action["replacement"] = _jsonb(action.get("replacement"))
+
+        from server.core.audit import record
+
+        canonical = json.dumps(
+            {
+                "action_id": action["action_id"],
+                "run_id": action["run_id"],
+                "stage_seq": action.get("stage_seq"),
+                "action_type": action["action_type"],
+                "actor": action["actor"],
+                "reason": action["reason"],
+                "replacement": action.get("replacement"),
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+        )
+        record(
+            "approval" if action["action_type"] == "approve" else "decision",
+            action["action_id"],
+            actor=action["actor"],
+            ctx={},
+            object_schema="ops",
+            payload_hash=hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+            connection=conn,
+        )
     return action
 
 

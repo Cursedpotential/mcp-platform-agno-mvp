@@ -102,7 +102,6 @@ def client_with_knowledge(monkeypatch):
             **kwargs,
         },
     )
-    monkeypatch.setattr(run_routes, "_audit_review_action", lambda action: None)
 
     def _make(knowledge):
         app = FastAPI()

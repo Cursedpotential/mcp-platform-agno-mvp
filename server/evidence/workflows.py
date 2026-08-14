@@ -271,12 +271,12 @@ def _wrap_step_for_run_control(
 
     from server.evidence.run_ledger import read_gate, set_gate, skip_remaining_stages
 
-    def _do_abort(reason: str) -> StepOutput:
+    def _do_abort(reason: str, reason_code: str) -> StepOutput:
         ctx["gate_aborted"] = {"stage": name, "message": reason}
         skip_remaining_stages(
             run_id,
             seq,
-            reason_code="operator_abort" if "operator" in reason else "gate_timeout",
+            reason_code=reason_code,
             reason_detail=reason,
         )
         return StepOutput(content=f"gate: {reason}", success=False, stop=True)
@@ -303,13 +303,16 @@ def _wrap_step_for_run_control(
                     set_gate(run_id, None, status="running")
                     return result
                 if state == "abort":
-                    return _do_abort(f"aborted by operator at gate after {name}")
-            return _do_abort(f"gate timed out (24h) after {name} with no operator decision")
+                    return _do_abort(f"aborted by operator at gate after {name}", "operator_abort")
+            return _do_abort(
+                f"gate timed out (24h) after {name} with no operator decision",
+                "gate_timeout",
+            )
 
         # 'auto' mode, or the last stage in 'supervised' mode: no pause, but
         # still honor an out-of-band abort request set on a RUNNING run.
         if read_gate(run_id) == "abort":
-            return _do_abort(f"aborted by operator at gate after {name}")
+            return _do_abort(f"aborted by operator at gate after {name}", "operator_abort")
         return result
 
     step.executor = _control_wrapped

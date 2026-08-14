@@ -16,7 +16,9 @@ help.
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from typing import Annotated, Literal
+
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 
 class RunCreateRequest(BaseModel):
@@ -36,8 +38,9 @@ class RunCreateRequest(BaseModel):
 class RunReviewActionRequest(BaseModel):
     """Append a human decision without replacing the recorded outcome."""
 
-    action_type: str
-    reason: str
-    actor: str = "owner"
-    stage_seq: int | None = None
+    model_config = ConfigDict(extra="forbid")
+
+    action_type: Literal["acknowledge", "approve", "override"]
+    reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)]
+    stage_seq: int | None = Field(default=None, ge=1)
     replacement: dict | None = None

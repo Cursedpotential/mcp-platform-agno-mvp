@@ -1,6 +1,7 @@
 # ADR-0054 — Durable run reports and correlated observability
 
 > _Byline: Codex · GPT-5 · 2026-08-13_
+> _Review hardening: Codex · GPT-5 · 2026-08-13_
 
 - **Status:** Accepted (owner ruling 2026-08-13)
 - **Decision:** D-059
@@ -30,7 +31,8 @@ hash-chained `ops.audit_ledger`. The missing design was how they relate.
    Original outcomes are never rewritten.
 3. **ADR-0047 binds review actions into the global chain.** Detail stays in its
    home table; `ops.audit_ledger` stores its reference and payload hash, not raw
-   case content.
+   case content. The action row and its audit-chain entry share one PostgreSQL
+   transaction: both commit or both roll back.
 4. **Langfuse is the preferred optional diagnostic UI, not the authority.** Agno
    OpenTelemetry spans are mirrored only when explicitly enabled. The same trace
    ID is stored on the durable run and exposed as a Workbench deep link. A
@@ -38,12 +40,16 @@ hash-chained `ops.audit_ledger`. The missing design was how they relate.
 5. **HITL happens in Workbench.** The report supplies drill-down and
    reason-required Acknowledge, Approve, and Record Override actions. Continue,
    Abort, and Retry remain explicit execution controls and are also recorded.
+   This is a single-owner platform, so public request bodies never choose the
+   actor; the trusted API boundary assigns `owner`.
 6. **Case-content safety is fail-closed.** Langfuse export defaults off and
    requires `LANGFUSE_ENABLED=true` plus credentials. Self-hosting is preferred
    for case-bearing traces. No trace backend is evidence custody or audit truth.
 7. **Pytest uses the same reporting shape.** Every invocation writes ignored
    JSON and self-contained interactive HTML under `build/test-reports/`, with
-   named pass/skip/fail rows, reasons, remediation, and source links.
+   named pass/skip/fail rows, collection failures/skips, reasons, remediation,
+   and source links. Uniquely named files preserve each invocation while
+   `latest.json` and `latest.html` remain convenience copies.
 
 ## Report contract (v1.0)
 

@@ -65,7 +65,7 @@ def build_run_report(
             "reason": {"code": reason_code, "detail": reason_detail},
             "started_at": _iso(raw.get("started_at")),
             "finished_at": _iso(raw.get("finished_at")),
-            "duration_ms": raw.get("output", {}).get("duration_s", 0) * 1000
+            "duration_ms": round(raw["output"]["duration_s"] * 1000)
             if isinstance(raw.get("output"), dict) and raw["output"].get("duration_s") is not None
             else _duration_ms(raw.get("started_at"), raw.get("finished_at")),
             "output": raw.get("output"),

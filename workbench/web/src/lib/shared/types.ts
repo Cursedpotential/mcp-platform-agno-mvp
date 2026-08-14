@@ -326,7 +326,6 @@ export interface RunReport {
 export interface RunReviewActionRequest {
   action_type: "acknowledge" | "approve" | "override";
   reason: string;
-  actor?: string;
   stage_seq?: number;
   replacement?: Record<string, unknown>;
 }

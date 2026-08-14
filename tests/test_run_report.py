@@ -62,6 +62,8 @@ def test_report_itemizes_skips_and_review_actions():
         "running": 0,
     }
     assert report["data"]["stages"][1]["reason"]["code"] == "inherited_from_parent"
+    assert report["data"]["stages"][0]["duration_ms"] == 500
+    assert isinstance(report["data"]["stages"][0]["duration_ms"], int)
     assert report["data"]["stages"][1]["review"]["decision_required"] is True
     assert report["warnings"][0]["stage_seq"] == 2
     assert report["data"]["review_actions"] == actions

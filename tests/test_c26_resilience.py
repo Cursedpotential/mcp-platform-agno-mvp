@@ -768,7 +768,6 @@ def run_routes_client(monkeypatch):
             **kwargs,
         },
     )
-    monkeypatch.setattr(run_routes, "_audit_review_action", lambda action: None)
 
     app = FastAPI()
     run_routes.register_run_routes(app, knowledge=None)

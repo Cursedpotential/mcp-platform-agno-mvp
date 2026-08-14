@@ -910,7 +910,9 @@ def test_run_control_auto_mode_honors_abort_at_boundary(monkeypatch):
     skip_calls = []
     monkeypatch.setattr(run_ledger, "read_gate", lambda run_id: "abort")
     monkeypatch.setattr(
-        run_ledger, "skip_remaining_stages", lambda run_id, seq, **kwargs: skip_calls.append((run_id, seq))
+        run_ledger,
+        "skip_remaining_stages",
+        lambda run_id, seq, **kwargs: skip_calls.append((run_id, seq, kwargs.get("reason_code"))),
     )
     step = _make_success_step(name="parse")
     ctx = {}
@@ -921,7 +923,7 @@ def test_run_control_auto_mode_honors_abort_at_boundary(monkeypatch):
     assert result.success is False
     assert result.stop is True
     assert ctx["gate_aborted"]["stage"] == "parse"
-    assert skip_calls == [("run-1", 2)]
+    assert skip_calls == [("run-1", 2, "operator_abort")]
 
 
 def test_run_control_failed_stage_bypasses_gate_entirely(monkeypatch):
@@ -986,7 +988,9 @@ def test_run_control_supervised_pauses_then_abort_stops_and_skips(monkeypatch):
     monkeypatch.setattr(run_ledger, "read_gate", lambda run_id: "abort")
     skip_calls = []
     monkeypatch.setattr(
-        run_ledger, "skip_remaining_stages", lambda run_id, seq, **kwargs: skip_calls.append((run_id, seq))
+        run_ledger,
+        "skip_remaining_stages",
+        lambda run_id, seq, **kwargs: skip_calls.append((run_id, seq, kwargs.get("reason_code"))),
     )
     monkeypatch.setattr(workflows_mod, "_gate_sleep", lambda seconds: asyncio.sleep(0))
     ctx = {}
@@ -999,7 +1003,7 @@ def test_run_control_supervised_pauses_then_abort_stops_and_skips(monkeypatch):
     assert result.stop is True
     assert ctx["gate_aborted"]["stage"] == "custody"
     assert "aborted by operator at gate after custody" in ctx["gate_aborted"]["message"]
-    assert skip_calls == [("run-1", 1)]
+    assert skip_calls == [("run-1", 1, "operator_abort")]
     assert gate_calls[0] == ("waiting", "paused")
 
 
@@ -1008,7 +1012,9 @@ def test_run_control_supervised_timeout_is_treated_as_abort(monkeypatch):
     monkeypatch.setattr(run_ledger, "read_gate", lambda run_id: "waiting")  # never released/aborted
     skip_calls = []
     monkeypatch.setattr(
-        run_ledger, "skip_remaining_stages", lambda run_id, seq, **kwargs: skip_calls.append((run_id, seq))
+        run_ledger,
+        "skip_remaining_stages",
+        lambda run_id, seq, **kwargs: skip_calls.append((run_id, seq, kwargs.get("reason_code"))),
     )
     monkeypatch.setattr(workflows_mod, "_gate_sleep", lambda seconds: asyncio.sleep(0))
     # Shrink the ceiling so the timeout branch is reachable in a fast test.
@@ -1022,7 +1028,7 @@ def test_run_control_supervised_timeout_is_treated_as_abort(monkeypatch):
 
     assert result.success is False
     assert "timed out" in ctx["gate_aborted"]["message"]
-    assert skip_calls == [("run-1", 3)]
+    assert skip_calls == [("run-1", 3, "gate_timeout")]
 
 
 # --- runners: mode threads through to _wrap_step_for_run_control --------------
@@ -1123,7 +1129,6 @@ def run_routes_client(monkeypatch):
             **kwargs,
         },
     )
-    monkeypatch.setattr(run_routes, "_audit_review_action", lambda action: None)
     monkeypatch.setattr(run_routes, "_audit_report_read", lambda run_id, report: None)
 
     app = FastAPI()
@@ -1172,14 +1177,22 @@ def test_review_action_endpoint_requires_reason_and_returns_action(run_routes_cl
     monkeypatch.setattr(run_routes, "get_run", lambda run_id: {"status": "completed", "stages": []})
 
     missing = client.post("/v1/runs/run-1/review-actions", json={"action_type": "approve", "reason": ""})
+    whitespace = client.post("/v1/runs/run-1/review-actions", json={"action_type": "approve", "reason": "   "})
+    spoofed = client.post(
+        "/v1/runs/run-1/review-actions",
+        json={"action_type": "approve", "reason": "Validated output.", "actor": "spoofed-admin"},
+    )
     created = client.post(
         "/v1/runs/run-1/review-actions",
         json={"action_type": "approve", "reason": "Validated output."},
     )
 
     assert missing.status_code == 422
+    assert whitespace.status_code == 422
+    assert spoofed.status_code == 422
     assert created.status_code == 201
     assert created.json()["action_type"] == "approve"
+    assert created.json()["actor"] == "owner"
     assert created.json()["reason"] == "Validated output."
 
 

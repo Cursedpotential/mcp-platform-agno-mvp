@@ -90,6 +90,7 @@ export function RunDetailDialog({ runId, open, onOpenChange, onNavigateToRun }: 
   const [actionPending, setActionPending] = useState(false);
   const [abortConfirmOpen, setAbortConfirmOpen] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastReportVersionRef = useRef<string | null>(null);
   const { triggerRefresh } = useRefresh();
 
   const stopPolling = () => {
@@ -102,27 +103,40 @@ export function RunDetailDialog({ runId, open, onOpenChange, onNavigateToRun }: 
   useEffect(() => {
     if (!open || !runId) {
       stopPolling();
+      lastReportVersionRef.current = null;
       queueMicrotask(() => setRun(null));
       queueMicrotask(() => setReport(null));
       return;
     }
 
     let cancelled = false;
+    lastReportVersionRef.current = null;
+    queueMicrotask(() => {
+      if (!cancelled) setReport(null);
+    });
     const fetchRun = async () => {
       try {
         const data = await getRun(runId);
-        if (!cancelled) {
-          setRun(data);
+        if (cancelled) return;
+        setRun(data);
+        const reportVersion = `${runId}:${data.status}:${data.updated_at}`;
+        let reportSucceeded = lastReportVersionRef.current === reportVersion;
+        if (!reportSucceeded) {
           try {
-            setReport(await getRunReport(runId));
+            const nextReport = await getRunReport(runId);
+            if (cancelled) return;
+            setReport(nextReport);
+            lastReportVersionRef.current = reportVersion;
+            reportSucceeded = true;
           } catch {
             // Report migration/API may lag during a rolling deploy; the
             // underlying run view remains available and polling retries.
           }
-          // Paused is a wait state, not terminal — keep polling in case a
-          // gate action lands from elsewhere (another tab/session).
-          if (data.status !== "running" && data.status !== "paused") stopPolling();
         }
+        // Paused is a wait state, not terminal — keep polling in case a
+        // gate action lands from elsewhere (another tab/session). A terminal
+        // run stops only after its report was retrieved successfully.
+        if (reportSucceeded && data.status !== "running" && data.status !== "paused") stopPolling();
       } catch {
         // Transient poll failure — keep the last-known state, try again next tick.
       }
@@ -158,6 +172,7 @@ export function RunDetailDialog({ runId, open, onOpenChange, onNavigateToRun }: 
       const data = await getRun(runId);
       setRun(data);
       setReport(await getRunReport(runId));
+      lastReportVersionRef.current = `${runId}:${data.status}:${data.updated_at}`;
     } catch {
       // Swallow — the next poll tick (or the toast already shown) covers it.
     }

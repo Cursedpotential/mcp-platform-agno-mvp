@@ -14,26 +14,31 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import pytest
 
 _results: dict[str, dict[str, Any]] = {}
 _started_at: datetime | None = None
+_run_id: str | None = None
+_written_paths: tuple[Path, Path] | None = None
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
     group = parser.getgroup("durable-run-report")
-    group.addoption("--run-report-json", default="build/test-reports/latest.json")
-    group.addoption("--run-report-html", default="build/test-reports/latest.html")
+    group.addoption("--run-report-json", default=None)
+    group.addoption("--run-report-html", default=None)
 
 
 def pytest_sessionstart(session: pytest.Session) -> None:
-    global _started_at
+    global _run_id, _started_at, _written_paths
     _results.clear()
     _started_at = datetime.now(timezone.utc)
+    _run_id = f"{_started_at.strftime('%Y%m%dT%H%M%S%fZ')}-{uuid4().hex[:8]}"
+    _written_paths = None
 
 
-def _reason(report: pytest.TestReport) -> str | None:
+def _reason(report: Any) -> str | None:
     if report.skipped:
         longrepr = report.longrepr
         if isinstance(longrepr, tuple) and len(longrepr) == 3:
@@ -58,6 +63,27 @@ def pytest_runtest_logreport(report: pytest.TestReport) -> None:
         "duration_ms": round(report.duration * 1000, 3),
         "source": {"path": path.replace("\\", "/"), "line": (line or 0) + 1},
         "remediation": _remediation(_reason(report)),
+    }
+
+
+def pytest_collectreport(report: pytest.CollectReport) -> None:
+    """Record collection failures/skips that never become test reports."""
+    if report.passed:
+        return
+    status = "skipped" if report.skipped else "failed"
+    location = getattr(report, "location", None)
+    path = str(location[0]) if location else str(report.nodeid)
+    line = (location[1] or 0) + 1 if location else 1
+    reason = _reason(report)
+    result_id = f"{report.nodeid} [collection]"
+    _results[f"collection::{report.nodeid}"] = {
+        "id": result_id,
+        "status": status,
+        "phase": "collect",
+        "reason": reason,
+        "duration_ms": round(getattr(report, "duration", 0.0) * 1000, 3),
+        "source": {"path": path.replace("\\", "/"), "line": line},
+        "remediation": _remediation(reason),
     }
 
 
@@ -103,6 +129,7 @@ def _build_report(exitstatus: int) -> dict[str, Any]:
             "platform": "Agno MCP Platform",
             "byline_revision": "Codex · GPT-5 · 2026-08-13",
             "duration_ms": duration_ms,
+            "run_id": _run_id,
         },
         "input": {"runner": "pytest"},
         "output": counts,
@@ -150,18 +177,31 @@ th,td{{border-bottom:1px solid #273449;padding:9px;text-align:left;vertical-alig
 
 
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+    global _written_paths
     report = _build_report(exitstatus)
-    json_path = Path(str(session.config.getoption("--run-report-json")))
-    html_path = Path(str(session.config.getoption("--run-report-html")))
-    json_path.parent.mkdir(parents=True, exist_ok=True)
-    html_path.parent.mkdir(parents=True, exist_ok=True)
-    json_path.write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
-    _write_html(report, html_path)
+    archive_dir = Path("build/test-reports")
+    archive_json = archive_dir / f"pytest-{_run_id}.json"
+    archive_html = archive_dir / f"pytest-{_run_id}.html"
+    requested_json = session.config.getoption("--run-report-json")
+    requested_html = session.config.getoption("--run-report-html")
+    json_path = Path(str(requested_json)) if requested_json else archive_json
+    html_path = Path(str(requested_html)) if requested_html else archive_html
+
+    json_targets = {archive_json, json_path, archive_dir / "latest.json"}
+    html_targets = {archive_html, html_path, archive_dir / "latest.html"}
+    serialized = json.dumps(report, indent=2, default=str)
+    for target in json_targets:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(serialized, encoding="utf-8")
+    for target in html_targets:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        _write_html(report, target)
+    _written_paths = (json_path, html_path)
 
 
 def pytest_terminal_summary(terminalreporter: Any) -> None:
-    config = terminalreporter.config
+    paths = _written_paths or (Path("build/test-reports/latest.json"), Path("build/test-reports/latest.html"))
     terminalreporter.write_sep(
         "=",
-        f"durable reports: {config.getoption('--run-report-json')} | {config.getoption('--run-report-html')}",
+        f"durable reports: {paths[0]} | {paths[1]} (latest.* refreshed)",
     )

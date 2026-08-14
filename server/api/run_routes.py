@@ -66,10 +66,10 @@ import shutil
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from server.core.knowledge_handle import resolve_knowledge
 from server.evidence.custody import blob_root
@@ -129,9 +129,10 @@ _TERMINAL_STATUSES = {"completed", "failed"}
 class RunReviewActionRequest(BaseModel):
     """Append-only operator decision attached to a run or stage."""
 
+    model_config = ConfigDict(extra="forbid")
+
     action_type: str = Field(pattern="^(acknowledge|approve|override)$")
-    reason: str = Field(min_length=1, max_length=4000)
-    actor: str = Field(default="owner", min_length=1, max_length=200)
+    reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)]
     stage_seq: int | None = Field(default=None, ge=1)
     replacement: dict[str, Any] | None = None
 
@@ -142,37 +143,9 @@ def _trace_url(trace_id: str | None) -> str | None:
         return None
     try:
         return template.format(trace_id=trace_id)
-    except (KeyError, ValueError):
+    except (IndexError, KeyError, ValueError):
         logger.warning("LANGFUSE_TRACE_URL_TEMPLATE must contain a valid {trace_id} placeholder")
         return None
-
-
-def _audit_review_action(action: dict[str, Any]) -> None:
-    """Bind the detailed action row into ADR-0047's global hash chain."""
-    from server.core.audit import record
-
-    canonical = json.dumps(
-        {
-            "action_id": action["action_id"],
-            "run_id": action["run_id"],
-            "stage_seq": action.get("stage_seq"),
-            "action_type": action["action_type"],
-            "actor": action["actor"],
-            "reason": action["reason"],
-            "replacement": action.get("replacement"),
-        },
-        sort_keys=True,
-        separators=(",", ":"),
-        default=str,
-    )
-    record(
-        "approval" if action["action_type"] == "approve" else "decision",
-        action["action_id"],
-        actor=action["actor"],
-        ctx={},
-        object_schema="ops",
-        payload_hash=hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
-    )
 
 
 def _audit_report_read(run_id: str, report: dict[str, Any]) -> None:
@@ -567,11 +540,10 @@ def register_run_routes(app: FastAPI, knowledge: Any, evidence_knowledge: Any | 
             run_id,
             body.action_type,
             body.reason,
-            actor=body.actor,
+            actor="owner",
             stage_seq=body.stage_seq,
             replacement=body.replacement,
         )
-        _audit_review_action(action)
         return action
 
     @app.post("/v1/runs/{run_id}/continue")
@@ -591,8 +563,7 @@ def register_run_routes(app: FastAPI, knowledge: Any, evidence_knowledge: Any | 
         # gate_state='released' within ~2s and clear it back to None as it
         # resumes — a harmless, idempotent second write.
         set_gate(run_id, "released", status="running")
-        action = record_review_action(run_id, "continue", "Owner released the supervised workflow gate.")
-        _audit_review_action(action)
+        record_review_action(run_id, "continue", "Owner released the supervised workflow gate.")
         return {"run_id": run_id, "status": "running"}
 
     @app.post("/v1/runs/{run_id}/abort")
@@ -622,8 +593,7 @@ def register_run_routes(app: FastAPI, knowledge: Any, evidence_knowledge: Any | 
         if status in _TERMINAL_STATUSES:
             raise HTTPException(409, f"run {run_id!r} is {status!r} (terminal) — cannot abort")
         set_gate(run_id, "abort")
-        action = record_review_action(run_id, "abort", "Owner requested abort at the next safe stage boundary.")
-        _audit_review_action(action)
+        record_review_action(run_id, "abort", "Owner requested abort at the next safe stage boundary.")
         return {"run_id": run_id, "status": "failed"}
 
     @app.post("/v1/runs/{run_id}/retry", status_code=202)
@@ -703,13 +673,12 @@ def register_run_routes(app: FastAPI, knowledge: Any, evidence_knowledge: Any | 
                         "result is treated as 'missing' (allow), never as 'exists' (block).",
                     )
             result = await _retry_from_knowledge(run_id, run)
-            action = record_review_action(
+            record_review_action(
                 run_id,
                 "retry",
                 "Owner started a targeted retry from the knowledge stage.",
                 replacement={"child_run_id": result["run_id"], "from_stage": "knowledge"},
             )
-            _audit_review_action(action)
             return result
 
         if run["status"] != "failed":
@@ -799,12 +768,10 @@ def register_run_routes(app: FastAPI, knowledge: Any, evidence_knowledge: Any | 
             )
         )
 
-        action = record_review_action(
+        record_review_action(
             run_id,
             "retry",
             "Owner started a full workflow retry.",
             replacement={"child_run_id": new_run_id, "from_stage": None},
         )
-        _audit_review_action(action)
-
         return {"run_id": new_run_id, "parent_run_id": run_id}
