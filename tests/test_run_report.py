@@ -12,9 +12,7 @@ from server.evidence.run_report import build_run_report
 
 
 def test_run_report_migration_is_append_only_and_reasoned():
-    sql = (Path(__file__).resolve().parents[1] / "sql" / "0025_durable_run_reports.sql").read_text(
-        encoding="utf-8"
-    )
+    sql = (Path(__file__).resolve().parents[1] / "sql" / "0025_durable_run_reports.sql").read_text(encoding="utf-8")
     assert "outcome_reason_code" in sql
     assert "workflow_run_stage_terminal_reason" in sql
     assert "CREATE TABLE IF NOT EXISTS ops.workflow_run_review_action" in sql
