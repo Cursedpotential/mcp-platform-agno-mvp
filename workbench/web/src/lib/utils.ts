@@ -19,10 +19,14 @@ export function humanizeBytes(bytes: number) {
 }
 
 export function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString("en-US", {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    year: "numeric",
     month: "short",
     day: "numeric",
-    hour: "2-digit",
+    hour: "numeric",
     minute: "2-digit",
-  });
+    second: "2-digit",
+    timeZoneName: "short",
+  }).format(new Date(dateStr));
 }

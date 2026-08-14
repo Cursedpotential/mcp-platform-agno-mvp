@@ -97,3 +97,30 @@ def test_failed_run_maps_to_blocked_and_itemized_error():
             "recoverable": True,
         }
     ]
+
+
+def test_report_preserves_instant_and_adds_eastern_display_time():
+    utc_time = datetime(2026, 7, 1, 16, 30, tzinfo=timezone.utc)
+    run = {
+        "run_id": "run-dst",
+        "workflow": "chat-transcript",
+        "status": "completed",
+        "updated_at": utc_time,
+        "stages": [
+            {
+                "seq": 1,
+                "name": "custody",
+                "status": "success",
+                "outcome_reason_code": "completed",
+                "started_at": utc_time,
+                "finished_at": utc_time,
+            }
+        ],
+    }
+
+    report = build_run_report(run)
+
+    assert report["metadata"]["timestamp"] == "2026-07-01T16:30:00+00:00"
+    assert report["metadata"]["timestamp_display"] == "2026-07-01T12:30:00-04:00"
+    assert report["metadata"]["display_timezone"] == "America/New_York"
+    assert report["data"]["stages"][0]["started_at_display"].endswith("-04:00")

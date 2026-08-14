@@ -43,6 +43,8 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
+
+from server.api.uploads import safe_upload_name
 from pydantic import BaseModel
 from sqlalchemy import create_engine, text
 
@@ -542,7 +544,7 @@ def _register_parse_dryrun_route(app: FastAPI) -> None:
         tmpdir = Path(tempfile.mkdtemp(prefix="parse-dryrun-"))
         try:
             if file is not None:
-                name = Path(file.filename or "upload.bin").name
+                name = safe_upload_name(file.filename)
                 p = tmpdir / name
                 p.write_bytes(await file.read())
             else:

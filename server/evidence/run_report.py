@@ -11,8 +11,11 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 SCHEMA_VERSION = "1.0"
+DISPLAY_TIME_ZONE = "America/New_York"
+_DISPLAY_ZONE = ZoneInfo(DISPLAY_TIME_ZONE)
 
 
 def _iso(value: Any) -> str | None:
@@ -20,6 +23,16 @@ def _iso(value: Any) -> str | None:
         return None
     if isinstance(value, datetime):
         return value.isoformat()
+    return str(value)
+
+
+def _display_iso(value: Any) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            raise ValueError("run report timestamps must be timezone-aware")
+        return value.astimezone(_DISPLAY_ZONE).isoformat()
     return str(value)
 
 
@@ -64,7 +77,9 @@ def build_run_report(
             "disposition": "ran" if status in {"success", "failed"} else status,
             "reason": {"code": reason_code, "detail": reason_detail},
             "started_at": _iso(raw.get("started_at")),
+            "started_at_display": _display_iso(raw.get("started_at")),
             "finished_at": _iso(raw.get("finished_at")),
+            "finished_at_display": _display_iso(raw.get("finished_at")),
             "duration_ms": round(raw["output"]["duration_s"] * 1000)
             if isinstance(raw.get("output"), dict) and raw["output"].get("duration_s") is not None
             else _duration_ms(raw.get("started_at"), raw.get("finished_at")),
@@ -106,6 +121,8 @@ def build_run_report(
         },
         "metadata": {
             "timestamp": _iso(updated_at),
+            "timestamp_display": _display_iso(updated_at),
+            "display_timezone": DISPLAY_TIME_ZONE,
             "platform": "Agno MCP Platform",
             "byline_revision": "Codex · GPT-5 · 2026-08-13",
             "duration_ms": duration,

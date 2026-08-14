@@ -72,6 +72,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFi
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from server.core.knowledge_handle import resolve_knowledge
+from server.api.uploads import safe_upload_name
 from server.evidence.custody import blob_root
 from server.evidence.run_ledger import (
     create_run,
@@ -476,14 +477,14 @@ def register_run_routes(app: FastAPI, knowledge: Any, evidence_knowledge: Any | 
         # (deliberately not `with TemporaryDirectory()` — the background task
         # reads it after we return 202, and removes it itself when done).
         tmpdir = Path(tempfile.mkdtemp(prefix="run-ledger-"))
-        suffix_name = Path(file.filename or "upload.bin").name
+        suffix_name = safe_upload_name(file.filename)
         tmp_path = tmpdir / suffix_name
         tmp_path.write_bytes(await file.read())
 
         run_id = create_run(
             workflow=workflow,
             mode=mode,
-            source_name=file.filename,
+            source_name=suffix_name,
             source_path=str(tmp_path),
             domain=resolved_domain,
             custody_tier=resolved_tier,

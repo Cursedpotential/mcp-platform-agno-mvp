@@ -46,7 +46,7 @@ import uuid
 from pathlib import Path
 
 import pytest
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Engine
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -377,6 +377,20 @@ def test_verify_chain_valid_after_several_records(audit_engine: Engine):
     for i in range(5):
         audit.record("tool_call", f"tool-{i}", actor="agent", engine=audit_engine)
     assert audit.verify_chain(engine=audit_engine) == 5
+
+
+def test_verify_chain_is_stable_across_non_utc_database_timezone(audit_engine: Engine):
+    @event.listens_for(audit_engine, "connect")
+    def _set_non_utc_timezone(dbapi_connection, _connection_record):
+        with dbapi_connection.cursor() as cursor:
+            cursor.execute("SET TIME ZONE 'America/New_York'")
+
+    audit_engine.dispose()
+    audit.record("decision", "timezone-check", actor="owner", engine=audit_engine)
+
+    with audit_engine.connect() as conn:
+        assert conn.execute(text("SHOW TimeZone")).scalar_one() == "America/New_York"
+    assert audit.verify_chain(engine=audit_engine) == 1
 
 
 def test_verify_chain_raises_on_tampered_row(audit_engine: Engine):

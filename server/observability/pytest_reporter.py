@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -22,6 +23,8 @@ _results: dict[str, dict[str, Any]] = {}
 _started_at: datetime | None = None
 _run_id: str | None = None
 _written_paths: tuple[Path, Path] | None = None
+_DISPLAY_TIME_ZONE = "America/New_York"
+_DISPLAY_ZONE = ZoneInfo(_DISPLAY_TIME_ZONE)
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -126,6 +129,8 @@ def _build_report(exitstatus: int) -> dict[str, Any]:
         },
         "metadata": {
             "timestamp": finished.isoformat(),
+            "timestamp_display": finished.astimezone(_DISPLAY_ZONE).isoformat(),
+            "display_timezone": _DISPLAY_TIME_ZONE,
             "platform": "Agno MCP Platform",
             "byline_revision": "Codex · GPT-5 · 2026-08-13",
             "duration_ms": duration_ms,
@@ -167,7 +172,7 @@ button{{background:#1e293b;color:#e5e7eb;border:1px solid #475569;border-radius:
 th,td{{border-bottom:1px solid #273449;padding:9px;text-align:left;vertical-align:top}}th{{position:sticky;top:0;background:#111827}}code{{font-size:12px}}a{{color:#93c5fd}}
 .pill{{border-radius:999px;padding:3px 8px;font-weight:700}}.passed{{background:#14532d}}.skipped{{background:#713f12}}.failed{{background:#7f1d1d}}
 </style></head><body><main><h1>Durable pytest report</h1>
-<p>Every test is itemized. Generated {html.escape(report["metadata"]["timestamp"])} · {html.escape(report["metadata"]["byline_revision"])}</p>
+<p>Every test is itemized. Generated {html.escape(report["metadata"]["timestamp_display"])} ({html.escape(report["metadata"]["display_timezone"])}) · {html.escape(report["metadata"]["byline_revision"])}</p>
 <div class="cards"><div class="card"><b>{counts["passed"]}</b> passed</div><div class="card"><b>{counts["skipped"]}</b> skipped</div><div class="card"><b>{counts["failed"]}</b> failed</div><div class="card"><b>{counts["total"]}</b> total</div></div>
 <p><button onclick="filterRows('all')">All</button> <button onclick="filterRows('passed')">Passed</button> <button onclick="filterRows('skipped')">Skipped</button> <button onclick="filterRows('failed')">Failed</button></p>
 <table><thead><tr><th>Status</th><th>Test</th><th>Why</th><th>What next</th><th>Source</th></tr></thead><tbody>{"".join(rows)}</tbody></table>
