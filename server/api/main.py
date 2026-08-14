@@ -20,7 +20,7 @@ Hard rules:
 # Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3 spine boot resilience — KnowledgeHandle wired in place of a direct create_knowledge() call; register_inspect_routes added)
 # Byline: Claude Code · Sonnet · 2026-07-23 (agno 2.8 service accounts — AgentOS admin-plane db switched from SurrealDb to a dedicated PostgresDb; agents/teams keep SurrealDb unchanged)
 # Byline: Claude Code · Fable 5 · 2026-07-31 (Milvus→Weaviate doc-drift cleanup (ADR-0040))
-# Byline: Codex · GPT-5 · 2026-08-13 (ADR-0053 five-lane alignment)
+# Byline: Codex · GPT-5 · 2026-08-13 (ADR-0053 alignment; ADR-0054 optional Langfuse OTLP export)
 # Byline: Claude Code · Opus 5 · 2026-08-05 (SurrealDB→Postgres doc-drift cleanup — the
 #   2026-08-04 flatten (ADR-0043 decision 3) moved the operational store to Postgres, but
 #   these comments still described the pre-flatten two-backend split)
@@ -417,6 +417,12 @@ def _build_app() -> Any:
         registry=registry,
     )
     final_app = agent_os.get_app()
+
+    # Optional diagnostic mirror. AgentOS's Postgres trace store and the
+    # platform-owned durable run reports stay authoritative when absent/down.
+    from server.observability.langfuse import configure_langfuse_exporter
+
+    configure_langfuse_exporter()
 
     # ~~The registry now holds THREE ids (agentos-db / agentos-admin-db /
     # agentos-contents-db)~~ — since the 2026-08-04 flatten (ADR-0043 decision

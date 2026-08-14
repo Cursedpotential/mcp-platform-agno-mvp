@@ -1,4 +1,5 @@
 // Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: Verify action in the custody section — requirements addendum 2)
+// Byline: Codex · GPT-5 · 2026-08-13 (structured outcome reasons)
 "use client";
 
 import {
@@ -62,6 +63,13 @@ export function StageDrawer({ stage, open, onOpenChange, sha256 }: StageDrawerPr
                   <span>{stage.finished_at ? formatDate(stage.finished_at) : "—"}</span>
                 </div>
               </div>
+
+              {(stage.outcome_reason_code || stage.outcome_reason_detail) && (
+                <div className="rounded-md border bg-muted/20 p-3 text-xs">
+                  <p className="font-medium">Outcome reason: {stage.outcome_reason_code ?? "unspecified"}</p>
+                  {stage.outcome_reason_detail && <p className="mt-1 text-muted-foreground">{stage.outcome_reason_detail}</p>}
+                </div>
+              )}
 
               {stage.content !== null && stage.content !== undefined && stage.content !== "" && (
                 <>

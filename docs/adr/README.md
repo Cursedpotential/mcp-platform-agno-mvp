@@ -1,7 +1,7 @@
 # Architecture Decision Records (ADRs)
 
 > _Byline: Claude Code · Kimi K3 (drift-fix) · 2026-08-12; Codex · GPT-5 ·
-> 2026-08-13 (ADR-0053 five-lane chat-ingestion amendment)._
+> 2026-08-13 (ADR-0053 five-lane chat-ingestion amendment; ADR-0054 durable run reports)._
 
 Lightweight [MADR](https://adr.github.io/madr/)-style records of decisions that are **locked** —
 so they are not silently re-litigated or forgotten across sessions/agents.
@@ -67,6 +67,7 @@ guarantee gets an ADR. One short record. Supersede (don't edit) when a decision 
 | 0051 | Parse → asynchronously extract → HITL verify ingest flow | **Superseded in part by ADR-0053** for AI-chat landing/routing/assets; general staged-flow direction survives |
 | 0052 | PG-CDC spine (transactional PER-TABLE outbox, trigger-written full rows + NOTIFY wakeup + per-sink cursors — the invariant-4 mechanism), end-to-end AI-chat ingest with coverage-based Go-primary engine split (~~size-based~~ — owner ruling 2026-08-12: Go parses whatever it covers, Python = uncovered formats / logged failure-fallback), and Stage-2 extraction as tools-not-agents (entity_candidate + claim_candidate — ~~artifact_candidate~~ renamed; extract regardless of custody-approval, horizon binds at promotion; dead-letter table + replay + alert; standalone Coolify worker app; Langfuse eval, DSPy deferred) | **ACCEPTED — owner sign-off 2026-08-12** ("sign 52"; all 8 open questions ruled same day, D-054; hands off from ADR-0051 invariant 4; consistent with D-046..D-052; Phase 0 pre-shipped as D-048) |
 | 0053 | Five-lane AI-chat ingestion; explicit conversation/message/chunk truth; post-chunk multi-label routing; selective confidence HITL; tags; multimodal assets/OCR ladder; human investigation register | **Accepted** — owner rulings 2026-08-13; supersedes 0050/0051/0052 in part |
+| 0054 | Mandatory durable run reports + append-only review actions + correlated Agno/OpenTelemetry/Langfuse observability | **Accepted** — owner ruling 2026-08-13; Postgres authoritative, Langfuse diagnostic only; D-059 |
 
 > The full vision, current stack, roadmap, access, and gotchas live in
 > [`docs/PROJECT_CANON.md`](../PROJECT_CANON.md) (the durable source of truth).

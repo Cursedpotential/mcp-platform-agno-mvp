@@ -10,6 +10,7 @@ Style matches tests/test_run_ledger.py's existing `run_routes_client` C2
 TestClient section (same monkeypatch-the-module-under-test-by-name pattern).
 """
 # Byline: Claude Code · Sonnet (agent) · 2026-07-22
+# Byline: Codex · GPT-5 · 2026-08-13 (durable retry action contract)
 
 from __future__ import annotations
 
@@ -89,6 +90,20 @@ def _completed_run(**overrides):
 
 @pytest.fixture
 def client_with_knowledge(monkeypatch):
+    monkeypatch.setattr(
+        run_routes,
+        "record_review_action",
+        lambda run_id, action_type, reason, **kwargs: {
+            "action_id": "action-1",
+            "run_id": run_id,
+            "action_type": action_type,
+            "actor": "owner",
+            "reason": reason,
+            **kwargs,
+        },
+    )
+    monkeypatch.setattr(run_routes, "_audit_review_action", lambda action: None)
+
     def _make(knowledge):
         app = FastAPI()
         run_routes.register_run_routes(app, knowledge=knowledge)

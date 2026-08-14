@@ -4,7 +4,8 @@
 > repeated compaction never loses the vision, decisions, or plan. It is kept
 > current as decisions are made. If something here conflicts with an older ADR,
 > this file's "Locked Decisions" section wins and the ADR should be updated.
-> Last updated: 2026-08-13 (ADR-0053 five-lane chat-ingestion, multimodal asset,
+> Last updated: 2026-08-13 (ADR-0054 durable run reports and correlated observability;
+> ADR-0053 five-lane chat-ingestion, multimodal asset,
 > selective HITL, and investigation-register decisions; prior: 2026-08-09 — §4 data-tier host defaults corrected to
 > ovh-files per commits 5e829ab/a68fabd; §5 SurrealDB entry restated RETIRED/zero-callers;
 > §6 P4 updated for PR #18 (universal import engine + SBV promotion) — exact Phase-5a wording
@@ -178,6 +179,11 @@ S3 API + pg_duckdb httpfs (`read_text('s3://nexus/...')`).
   confidence HITL; created works + attachments included; OCR escalation is
   lightweight/native → Docling → configurable VLM; human investigation register;
   horizon-walk realization deferred and never stamped on raw chat rows.
+- **Run observability = ADR-0054:** every run/test produces an itemized,
+  versioned durable report explaining what ran, what skipped, why, outputs,
+  remediation, and append-only human decisions. Postgres + ADR-0047 are the
+  authority. Agno OpenTelemetry traces may mirror to explicitly enabled
+  Langfuse and are correlated by `trace_id`; Langfuse is diagnostic only.
 - **Deploy on the VPS** (ADR-0009), not local podman. n8n on its own server.
 - **pg_duckdb inside Postgres** (ADR-0013, supersedes ADR-0003 no-DuckDB).
 - **Neo4j for Graphiti** (ADR-0014, supersedes FalkorDB). Bitemporal cognition substrate.

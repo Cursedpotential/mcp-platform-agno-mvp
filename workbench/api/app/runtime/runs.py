@@ -1,4 +1,5 @@
 # Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: parse-dryrun endpoint)
+# Byline: Codex · GPT-5 · 2026-08-13 (report and review-action endpoints)
 """POST /api/runs, GET /api/runs, GET /api/runs/{id} — proxy to the spine's run pipeline.
 
 POST /api/runs accepts EITHER a JSON body ({staged_id, workflow, domain,
@@ -30,13 +31,15 @@ from app.service.runs import (
     RunsError,
     abort_run,
     continue_run,
+    create_review_action,
     get_run,
+    get_run_report,
     list_runs,
     parse_dryrun,
     retry_run,
     start_run,
 )
-from app.types.runs import RunCreateRequest
+from app.types.runs import RunCreateRequest, RunReviewActionRequest
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +110,22 @@ async def list_runs_endpoint(status: str | None = None, limit: int | None = None
 async def get_run_endpoint(run_id: str):
     try:
         return get_run(run_id)
+    except RunsError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail) from None
+
+
+@router.get("/runs/{run_id}/report")
+async def get_run_report_endpoint(run_id: str):
+    try:
+        return get_run_report(run_id)
+    except RunsError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail) from None
+
+
+@router.post("/runs/{run_id}/review-actions", status_code=201)
+async def create_review_action_endpoint(run_id: str, body: RunReviewActionRequest):
+    try:
+        return create_review_action(run_id, body.model_dump())
     except RunsError as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail) from None
 

@@ -1,4 +1,5 @@
 # Byline: Claude Code · Sonnet (agent) · 2026-07-20 (custody_tier added — C2 gate controls)
+# Byline: Codex · GPT-5 · 2026-08-13 (review action request)
 """Request shape for the JSON branch of POST /api/runs.
 
 The multipart branch (a fresh file drop) is parsed by hand in
@@ -30,3 +31,13 @@ class RunCreateRequest(BaseModel):
     # defaults this per-workflow (chat-transcript -> light, sms-xml -> full)
     # when omitted, so it stays optional here too.
     custody_tier: str | None = None
+
+
+class RunReviewActionRequest(BaseModel):
+    """Append a human decision without replacing the recorded outcome."""
+
+    action_type: str
+    reason: str
+    actor: str = "owner"
+    stage_seq: int | None = None
+    replacement: dict | None = None
