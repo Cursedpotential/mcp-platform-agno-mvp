@@ -120,10 +120,11 @@ listed here so Lane A can carry it through the repack:
 - **`get_postgres_db` semantics changed** (Phase 1): passing `contents_table` now returns a
   per-table instance instead of warning + returning the platform singleton. If your lane
   constructs PostgresDb or relies on the old warning behavior, re-check.
-- Coolify apps now point at `deploy/<name>.yaml` on main — **merging main into
-  `infra/librechat`, `infra/nocodb`, or `workbench/sprint` will silently break those
-  branch-scoped deploys** unless their Coolify `docker_compose_location` is updated first
-  (warning also in REPO_STRUCTURE.md, D-043).
+- Coolify apps now point at `deploy/<name>.yaml` on main. Workbench was repointed to
+  `deploy/workbench.yaml` (including watch paths) and live-verified before `workbench/sprint`
+  was fast-forwarded on 2026-08-13. **Merging main into `infra/librechat` or
+  `infra/nocodb` will still silently break those branch-scoped deploys** unless their Coolify
+  `docker_compose_location` is updated first (warning also in REPO_STRUCTURE.md, D-043).
 
 ## FROZEN (owner mandate, 2026-07-08)
 - Live PG data: unchanged until the Lane-B brainstorm lands
