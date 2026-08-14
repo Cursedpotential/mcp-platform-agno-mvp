@@ -27,6 +27,7 @@ from typing import Any
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 
 from server.core.knowledge_handle import resolve_knowledge
+from server.api.uploads import safe_upload_name
 
 # ADR-0053 five-lane knowledge domains. MUST stay aligned with
 # server.evidence.store.KNOWLEDLEDGE_DOMAINS — the store is the authority and
@@ -88,7 +89,7 @@ def register_evidence_routes(app: FastAPI, knowledge: Any) -> None:
 
         # Preserve the original filename (parsers sniff extensions) inside a
         # private temp dir; custody re-persists the blob durably to R2.
-        suffix_name = Path(file.filename or "upload.bin").name
+        suffix_name = safe_upload_name(file.filename)
         with tempfile.TemporaryDirectory(prefix="evidence-import-") as tmpdir:
             tmp_path = Path(tmpdir) / suffix_name
             tmp_path.write_bytes(await file.read())

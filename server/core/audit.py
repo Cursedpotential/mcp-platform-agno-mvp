@@ -108,6 +108,7 @@ by an exception).
 """
 # Byline: Claude Code · Sonnet (agent) · 2026-08-09 (ADR-0047 / D-042 — S5 handoff)
 # Byline: Codex · GPT-5 · 2026-08-13 (shared-transaction audit writes)
+# Byline: Codex · GPT-5 · 2026-08-13 (timezone-stable chain verification)
 
 from __future__ import annotations
 
@@ -166,6 +167,15 @@ def _canonical_json(fields: dict[str, Any]) -> str:
     the caller, but any stray datetime/UUID still serializes deterministically
     rather than raising)."""
     return json.dumps(fields, sort_keys=True, separators=(",", ":"), default=str)
+
+
+def _canonical_timestamp(value: Any) -> Any:
+    """Represent aware datetimes in UTC so server timezone cannot change a hash."""
+    if not isinstance(value, datetime):
+        return value
+    if value.tzinfo is None:
+        raise ValueError("audit timestamps must be timezone-aware")
+    return value.astimezone(timezone.utc).isoformat()
 
 
 def record(
@@ -248,7 +258,7 @@ def record(
 
     ts = datetime.now(timezone.utc)
     business_fields = {
-        "ts": ts.isoformat(),
+        "ts": _canonical_timestamp(ts),
         "actor": actor,
         "action_type": action_type,
         "object_schema": object_schema,
@@ -547,7 +557,7 @@ def verify_chain(engine: Any = None) -> int:
                 "out of order, or a row was tampered/removed)."
             )
         ts = row["ts"]
-        ts_iso = ts.isoformat() if isinstance(ts, datetime) else ts
+        ts_iso = _canonical_timestamp(ts)
         horizon_context = row["horizon_context"]
         if isinstance(horizon_context, str):
             horizon_context = json.loads(horizon_context)

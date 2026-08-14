@@ -2,6 +2,7 @@
 
 > _Byline: Codex · GPT-5 · 2026-08-13_
 > _Review hardening: Codex · GPT-5 · 2026-08-13_
+> _Operator-time clarification: Codex · GPT-5 · 2026-08-13_
 
 - **Status:** Accepted (owner ruling 2026-08-13)
 - **Decision:** D-059
@@ -50,6 +51,11 @@ hash-chained `ops.audit_ledger`. The missing design was how they relate.
    named pass/skip/fail rows, collection failures/skips, reasons, remediation,
    and source links. Uniquely named files preserve each invocation while
    `latest.json` and `latest.html` remain convenience copies.
+8. **Storage time and display time are separate concerns.** PostgreSQL keeps
+   timezone-aware absolute instants for correct comparison and indexing. Raw
+   API/report fields preserve those instants; operator-facing display fields
+   and Workbench rendering use `America/New_York`, including daylight-saving
+   transitions and an explicit EST/EDT label.
 
 ## Report contract (v1.0)
 
