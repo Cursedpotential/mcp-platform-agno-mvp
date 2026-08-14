@@ -146,3 +146,6 @@ docs/TODO-SNAPSHOT-*.json
 # COMPACT-SUMMARY-2026-08-01.md predates this rule, is already tracked, and was
 # verified token-free; a tracked file is unaffected by this pattern either way.
 docs/COMPACT-SUMMARY-*.md
+# Owner-only quarantine. Files moved here are intentionally retained until the
+# owner deletes them and may include credential-bearing application data.
+to_be_deleted/
