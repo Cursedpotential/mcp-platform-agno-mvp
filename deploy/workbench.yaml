@@ -3,7 +3,7 @@
 # tailnet 100.72.169.40). Single-service app per the one-concern-per-app rule
 # (see compose.data-vector.yaml for the pattern precedent).
 #
-# Coolify Watch Paths for this app: workbench/** + compose.workbench.yaml
+# Coolify Watch Paths for this app: workbench/** + deploy/workbench.yaml
 # Branch: workbench/sprint (sprint), main after milestone merges.
 #
 # HOST-PREP (once, before first deploy):
@@ -32,7 +32,7 @@
 # compose at deploy — set ALL envs (bulk API, {"data":[...]} shape) BEFORE the
 # first deploy; later env changes require a redeploy.
 # =============================================================================
-# Byline: Claude Code · Fable 5 · 2026-07-19 (MCP_SERVERS/CONTEXTFORGE_TOKEN added 2026-07-20, C1 rebuild; OPENCODE_*/COPILOT_PRESETS_PATH + copilot bind mount added 2026-07-21, C2.5; agno 2.8 MCP door migration (:8001->:8000 + token_env) + GRAPHITI_MCP_URL added 2026-07-23, Claude Code · Sonnet (agent), C4)
+# Byline: Claude Code · Fable 5 · 2026-07-19 (MCP_SERVERS/CONTEXTFORGE_TOKEN added 2026-07-20, C1 rebuild; OPENCODE_*/COPILOT_PRESETS_PATH + copilot bind mount added 2026-07-21, C2.5; agno 2.8 MCP door migration (:8001->:8000 + token_env) + GRAPHITI_MCP_URL added 2026-07-23, Claude Code · Sonnet (agent), C4; Coolify path/watch-path true-up 2026-08-13, Codex · GPT-5)
 
 services:
   knowledge-workbench:
