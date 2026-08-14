@@ -11,7 +11,7 @@
 > the analysis map.
 > _Byline: Claude Code · Opus 4.8 · 2026-06-13 (D-026 update: Claude Sonnet 5 · 2026-07-09; ADR-0035
 > update: Claude Opus 4.8 · 2026-07-10; 2026-08-09 update: Claude Code · Sonnet 5;
-> 2026-08-13 update: Codex · GPT-5)_
+> 2026-08-13 update: Codex · GPT-5; 2026-08-14 visualizer namespace: Codex · GPT-5)_
 
 ## The one active build
 
@@ -38,7 +38,7 @@ server/         THE backend — one boundary, domain-separated inside:
   contracts/    IMPORT-LIGHT record contract (ADR-0035) — records.py (NormalizedRecord/RecordType/DisclosureTier); see below
   agents/       factory.py (build_agent_team), providers.py (context providers, learning, Graphiti MCP), instructions, tools/ (@tool wrappers)
   evidence/     THE SPINE (Python chassis) — see below; purely evidence-domain since ADR-0035
-  tools/        CROSS-DOMAIN CAPABILITY LAYER (D-026), sub-namespaced by capability (ADR-0035) — registry + parsers/extractors/gateway; see below
+  tools/        CROSS-DOMAIN CAPABILITY LAYER (D-026), sub-namespaced by capability (ADR-0035) — registry + parsers/extractors/visualizers/gateway; see below
   analysis/     behavioral + knowledge ingestion: detection.py, patterns.py, chat_parse.py,
                 chat_normalizer.py, context_chat_ingest.py, lane_classifier.py,
                 chat_archive.py, context_assets.py, semantica_wiring.py + config/
@@ -135,6 +135,7 @@ server/tools/
     ai_chat/                 chatgpt_*, claude_*, gemini_*, perplexity_*
     generic/                  generic_md, whole_file_fallback
   extractors/               extract_text (capability extract.text)
+  visualizers/              geo_map (capability viz.geo_map) + vendored Leaflet assets
   gateway/                  G4 token-efficient tool gateway (was server/evidence/tool_finder/) — content_store, toolfinder, api
 ```
 
@@ -154,7 +155,7 @@ docstring for the full mount<->import contract.
 
 | You are adding… | It goes… |
 |---|---|
-| A new parser/extractor tool (Python) | `server/tools/parsers/{messaging,ai_chat,generic}/<name>.py` or `server/tools/extractors/<name>.py` (ADR-0035) — one capability, self-register via `@register`; `load_builtin_tools()` auto-discovers it, nothing else to wire |
+| A new parser/extractor/visualizer tool (Python) | `server/tools/parsers/{messaging,ai_chat,generic}/<name>.py`, `server/tools/extractors/<name>.py`, or `server/tools/visualizers/<name>.py` (ADR-0035) — one capability, self-register via `@register`; `load_builtin_tools()` auto-discovers it, nothing else to wire |
 | A tool that's really a TS/Go binary or external service | wrap as an **MCP service behind Agno**; register in the spine via the polyglot/HTTP runner (don't rewrite it in Python unless trivial) |
 | A shared helper (not itself a tool) | `server/tools/_helpers.py` (underscore prefix) or `server/evidence/<module>.py` (evidence-domain-specific) |
 | A DB schema change | new `sql/NNNN_*.sql` migration (never edit an applied one) |

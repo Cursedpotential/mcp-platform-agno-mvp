@@ -1,5 +1,7 @@
 # Visit Locations Analytics (Evidence.dev)
 
+> _Byline: Claude Code · Fable 5 · 2026-07-05 · updated 2026-08-14 (Codex · GPT-5)_
+
 An [Evidence.dev](https://evidence.dev) project for reviewing and verifying the
 2023 clustered visit-location data.
 
@@ -34,6 +36,38 @@ Copy these into your instance and re-run `npm run sources`:
 
 No extra dependencies are required beyond the standard `@evidence-dev/csv`
 datasource plugin.
+
+## Porting data from another analysis or report
+
+The map and this project's source CSV are both producible by the reusable
+`viz.geo_map` tool (`server/tools/visualizers/geo_map.py`) — callable by an agent (Agno tool), a
+workflow (registry capability `viz.geo_map`), or a user (CLI). It accepts a
+file path, in-memory records, or raw CSV text, and a column `mapping` so data
+from other analyses ports in without editing the source.
+
+Expected schema (template: `server/tools/visualizers/geo_map_template.csv`, JSON Schema:
+`server/tools/visualizers/geo_map_schema.json`): required `lat`, `lng`; optional `id`, `label`,
+`weight`, `group`, `first_seen`, `last_seen`. Unknown extra columns are carried
+into popups verbatim.
+
+```bash
+# standalone HTML map + an Evidence source CSV for this project, from any dataset
+python -m server.tools.visualizers.geo_map \
+  --input some_other_report.csv \
+  --map lat=latitude --map lng=longitude --map weight=hit_count --map group=category \
+  --title "My dataset" --weight-label hits \
+  --out my_map.html \
+  --evidence-source-out analytics/visit-locations/sources/visits/locations.csv
+# then: cd analytics/visit-locations && npm run sources && npm run dev
+```
+
+From Python / an agent:
+
+```python
+from server.tools.visualizers.geo_map import build_geo_map
+build_geo_map(records=rows, mapping={"lat": "latitude", "lng": "longitude"},
+              out_html="map.html")
+```
 
 ## Data
 

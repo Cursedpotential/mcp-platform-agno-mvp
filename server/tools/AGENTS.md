@@ -20,6 +20,7 @@ parsers/
                             gemini_{chrome,json}, perplexity_{gdpr,md,plugin}
   generic/                  generic_md, whole_file_fallback
 extractors/                extract_text (capability extract.text)
+visualizers/               geo_map (capability viz.geo_map) + vendored Leaflet assets
 gateway/                   G4 progressive-disclosure tool gateway (moved here from
                             server/evidence/tool_finder/, ADR-0035) — see below
 ```
@@ -34,8 +35,8 @@ explicit strings, never derived from module path, so moving a module never churn
 
 ## How to add a parser
 
-1. Add one module under the right `parsers/{messaging,ai_chat,generic}/` subdir (or
-   `extractors/` for a non-parser extraction tool).
+1. Add one module under the right `parsers/{messaging,ai_chat,generic}/` subdir,
+   `extractors/` for extraction, or `visualizers/` for rendered visual outputs.
 2. Self-register: `@register(id="parse.<format>", capability="parse.<capability>", ...)`.
 3. Nothing else to wire up — `registry.load_builtin_tools()` uses
    `pkgutil.walk_packages` (recursive, since ADR-0035) and auto-discovers it. It skips
