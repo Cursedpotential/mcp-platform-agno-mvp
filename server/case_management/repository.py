@@ -18,11 +18,15 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.exc import IntegrityError
 
 from server.contracts.case_management import (
+    CanonicalRecordDetail,
     CourtCase,
     CourtCaseCreate,
+    CustodyHashDetail,
+    EvidenceItemDetail,
     EvidenceItem,
     EvidenceItemCreate,
     EvidenceItemList,
+    EvidencePromotionDetail,
     EvidencePromotionResult,
     EvidenceReviewCreate,
     EvidenceReviewDecision,
@@ -36,6 +40,8 @@ from server.contracts.case_management import (
     MatterDetail,
     MatterList,
     ReviewState,
+    FileNodeDetail,
+    SourceCustodyDetail,
     SourceCandidate,
 )
 
@@ -130,6 +136,81 @@ def _evidence_item_from_row(row: dict[str, Any]) -> EvidenceItem:
         is_authenticated=bool(row["is_authenticated"]),
         created_by=row["created_by"],
         created_at=row["created_at"],
+    )
+
+
+def _evidence_detail_from_row(row: dict[str, Any]) -> EvidenceItemDetail:
+    file_node = None
+    if row.get("detail_file_node_id") is not None:
+        file_node = FileNodeDetail(
+            id=row["detail_file_node_id"],
+            node_kind=row["file_node_kind"],
+            node_path=row.get("file_node_path"),
+            ordinal=row.get("file_node_ordinal"),
+            sha256=row.get("file_node_sha256"),
+            byte_span_start=row.get("file_node_byte_span_start"),
+            byte_span_end=row.get("file_node_byte_span_end"),
+            locator=row["file_node_locator"],
+            mime_type=row.get("file_node_mime_type"),
+        )
+    return EvidenceItemDetail(
+        item=_evidence_item_from_row(row),
+        promotion=EvidencePromotionDetail(
+            id=row["promotion_id"],
+            partition_key=row["promotion_partition_key"],
+            knowledge_lane=row["promotion_knowledge_lane"],
+            retrieval_item_ref=row["promotion_retrieval_item_ref"],
+            content_ref=row.get("promotion_content_ref"),
+            chunk_ref=row.get("promotion_chunk_ref"),
+            source_pointer=row["promotion_source_pointer"],
+            promoted_by=row["promotion_promoted_by"],
+            promoted_at=row["promotion_promoted_at"],
+        ),
+        record=CanonicalRecordDetail(
+            id=row["record_id"],
+            record_type=row["record_type"],
+            source=row["record_source"],
+            conversation_id=row.get("record_conversation_id"),
+            role=row.get("record_role"),
+            content=row["record_content"],
+            occurred_at=row.get("record_occurred_at"),
+            acquired_at=row.get("record_acquired_at"),
+            ingested_at=row["record_ingested_at"],
+            realized_at=row.get("record_realized_at"),
+            disclosure_tier=row["record_disclosure_tier"],
+            review_status=row["record_review_status"],
+            case_id=row["record_case_id"],
+        ),
+        custody_hash=CustodyHashDetail(
+            id=row["custody_hash_id"],
+            source_ref=row["custody_hash_source_ref"],
+            algo=row["custody_hash_algo"],
+            digest_sha256=row["custody_hash_digest_sha256"],
+            level=row["custody_hash_level"],
+            canon_version=row["custody_hash_canon_version"],
+            hashed_at=row["custody_hash_hashed_at"],
+            computed_by=row.get("custody_hash_computed_by"),
+        ),
+        source=SourceCustodyDetail(
+            id=row["custody_source_id"],
+            sha256=row["custody_source_sha256"],
+            byte_size=row["custody_source_byte_size"],
+            mime_type=row.get("custody_source_mime_type"),
+            original_filename=row.get("custody_source_original_filename"),
+            source_type=row["custody_source_type"],
+            source_platform=row.get("custody_source_platform"),
+            acquisition_source=row["custody_source_acquisition_source"],
+            acquisition_method=row.get("custody_source_acquisition_method"),
+            acquired_at_utc=row.get("custody_source_acquired_at_utc"),
+            acquired_certainty=row["custody_source_acquired_certainty"],
+            provenance_tier=row["custody_source_provenance_tier"],
+            hash_canon_version=row["custody_source_hash_canon_version"],
+            custody_status=row["custody_source_custody_status"],
+            review_status=row["custody_source_review_status"],
+            verified_by=row.get("custody_source_verified_by"),
+            verified_at=row.get("custody_source_verified_at"),
+        ),
+        file_node=file_node,
     )
 
 
@@ -746,3 +827,127 @@ def list_evidence_items(
         limit=limit,
         offset=offset,
     )
+
+
+def get_evidence_detail(matter_id: UUID, evidence_item_id: UUID) -> EvidenceItemDetail:
+    """Return one exact promoted item with its public custody chain."""
+    query = text(
+        """
+        SELECT
+            ei.id, ei.matter_id, ei.court_case_id, ei.title, ei.description, ei.quote,
+            ei.evidence_type, ei.evidence_date, ei.normalized_record_id,
+            ei.evidence_hash_id, ei.source_id, ei.file_node_id, ei.source_run_id,
+            ei.review_status, ei.hitl_required, ei.safe_for_legal_use,
+            ei.is_authenticated, ei.created_by, ei.created_at,
+            promotion.id AS promotion_id,
+            promotion.partition_key AS promotion_partition_key,
+            promotion.knowledge_lane AS promotion_knowledge_lane,
+            promotion.retrieval_item_ref AS promotion_retrieval_item_ref,
+            promotion.content_ref AS promotion_content_ref,
+            promotion.chunk_ref AS promotion_chunk_ref,
+            promotion.source_pointer AS promotion_source_pointer,
+            promotion.promoted_by AS promotion_promoted_by,
+            promotion.promoted_at AS promotion_promoted_at,
+            record.id AS record_id,
+            record.record_type AS record_type,
+            record.source AS record_source,
+            record.conversation_id AS record_conversation_id,
+            record.role AS record_role,
+            record.content AS record_content,
+            record.occurred_at AS record_occurred_at,
+            record.acquired_at AS record_acquired_at,
+            record.ingested_at AS record_ingested_at,
+            record.realized_at AS record_realized_at,
+            record.disclosure_tier AS record_disclosure_tier,
+            record.review_status AS record_review_status,
+            record.case_id AS record_case_id,
+            custody_hash.id AS custody_hash_id,
+            custody_hash.source_ref AS custody_hash_source_ref,
+            custody_hash.algo AS custody_hash_algo,
+            encode(custody_hash.digest, 'hex') AS custody_hash_digest_sha256,
+            custody_hash.level AS custody_hash_level,
+            custody_hash.canon_version AS custody_hash_canon_version,
+            custody_hash.hashed_at AS custody_hash_hashed_at,
+            custody_hash.computed_by AS custody_hash_computed_by,
+            custody_source.id AS custody_source_id,
+            encode(custody_source.sha256, 'hex') AS custody_source_sha256,
+            custody_source.byte_size AS custody_source_byte_size,
+            custody_source.mime_type AS custody_source_mime_type,
+            custody_source.original_filename AS custody_source_original_filename,
+            custody_source.source_type AS custody_source_type,
+            custody_source.source_platform AS custody_source_platform,
+            custody_source.acquisition_source AS custody_source_acquisition_source,
+            custody_source.acquisition_method AS custody_source_acquisition_method,
+            custody_source.acquired_at_utc AS custody_source_acquired_at_utc,
+            custody_source.acquired_certainty AS custody_source_acquired_certainty,
+            custody_source.provenance_tier AS custody_source_provenance_tier,
+            custody_source.hash_canon_version AS custody_source_hash_canon_version,
+            custody_source.custody_status AS custody_source_custody_status,
+            custody_source.review_status AS custody_source_review_status,
+            custody_source.verified_by AS custody_source_verified_by,
+            custody_source.verified_at AS custody_source_verified_at,
+            file_node.id AS detail_file_node_id,
+            file_node.node_kind AS file_node_kind,
+            file_node.node_path::text AS file_node_path,
+            file_node.ordinal AS file_node_ordinal,
+            encode(file_node.sha256, 'hex') AS file_node_sha256,
+            file_node.byte_span_start AS file_node_byte_span_start,
+            file_node.byte_span_end AS file_node_byte_span_end,
+            file_node.locator AS file_node_locator,
+            file_node.mime_type AS file_node_mime_type
+        FROM analysis.evidence_item ei
+        JOIN analysis.knowledge_evidence_promotion promotion
+          ON promotion.evidence_item_id = ei.id
+         AND promotion.matter_id = ei.matter_id
+         AND promotion.court_case_id = ei.court_case_id
+         AND promotion.normalized_record_id = ei.normalized_record_id
+         AND promotion.evidence_hash_id = ei.evidence_hash_id
+         AND promotion.source_id = ei.source_id
+         AND promotion.file_node_id IS NOT DISTINCT FROM ei.file_node_id
+         AND promotion.source_run_id IS NOT DISTINCT FROM ei.source_run_id
+        JOIN working.normalized_record record
+          ON record.id = promotion.normalized_record_id
+         AND record.artifact_id = promotion.evidence_hash_id
+         AND record.case_id = promotion.partition_key
+         AND record.provenance_id IS NOT DISTINCT FROM promotion.source_run_id
+        JOIN evidence.evidence_hash custody_hash
+          ON custody_hash.id = promotion.evidence_hash_id
+         AND custody_hash.source_id = promotion.source_id
+         AND custody_hash.file_node_id IS NOT DISTINCT FROM promotion.file_node_id
+        JOIN evidence.source custody_source
+          ON custody_source.id = promotion.source_id
+        LEFT JOIN evidence.file_node file_node
+          ON file_node.id = promotion.file_node_id
+         AND file_node.source_id = promotion.source_id
+        WHERE ei.id = :evidence_item_id
+          AND ei.matter_id = :matter_id
+          AND promotion.knowledge_lane = 'evidence'
+          AND custody_hash.algo = 'sha256'
+          AND octet_length(custody_hash.digest) = 32
+          AND custody_hash.level = 'H1'
+          AND custody_hash.canon_version = 'h1-rawbytes-v1'
+          AND (promotion.file_node_id IS NULL OR file_node.id IS NOT NULL)
+          AND promotion.source_pointer->>'matter_id' = promotion.matter_id::text
+          AND promotion.source_pointer->>'court_case_id' = promotion.court_case_id::text
+          AND promotion.source_pointer->>'partition_key' = promotion.partition_key
+          AND promotion.source_pointer->>'lane' = promotion.knowledge_lane
+          AND promotion.source_pointer->>'normalized_record_id' = promotion.normalized_record_id::text
+          AND promotion.source_pointer->>'evidence_hash_id' = promotion.evidence_hash_id::text
+          AND promotion.source_pointer->>'source_id' = promotion.source_id::text
+          AND promotion.source_pointer->>'sha256' = encode(custody_hash.digest, 'hex')
+          AND analysis.knowledge_evidence_pointer_hash(promotion.source_pointer)
+              = promotion.source_pointer_hash
+        """
+    )
+    with _get_engine().connect() as conn:
+        row = (
+            conn.execute(
+                query,
+                {"matter_id": matter_id, "evidence_item_id": evidence_item_id},
+            )
+            .mappings()
+            .first()
+        )
+    if row is None:
+        raise CaseRepositoryError("promoted evidence item not found in this matter", 404)
+    return _evidence_detail_from_row(dict(row))

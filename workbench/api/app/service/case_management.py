@@ -21,6 +21,7 @@ __all__ = [
     "create_court_case",
     "create_evidence_item",
     "create_matter",
+    "get_evidence_detail",
     "get_matter",
     "list_evidence_items",
     "list_evidence_reviews",
@@ -86,6 +87,13 @@ def list_evidence_reviews(matter_id: UUID, evidence_item_id: UUID) -> dict:
     return spine_json(
         "GET",
         f"/v1/matters/{matter_id}/evidence-items/{evidence_item_id}/reviews",
+    )
+
+
+def get_evidence_detail(matter_id: UUID, evidence_item_id: UUID) -> dict:
+    return spine_json(
+        "GET",
+        f"/v1/matters/{matter_id}/evidence-items/{evidence_item_id}",
     )
 
 

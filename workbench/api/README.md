@@ -12,15 +12,15 @@ see `deploy/workbench.yaml` for the Coolify deployment manifest and
 `docs/PROJECT_CANON.md` for where this fits in the wider platform.
 
 > **Implementation status — 2026-08-15:** the case-scoped Knowledge page and its
-> Workbench API/service changes are present in the working tree. The Workbench API suite
-> (48 tests), focused frontend ESLint, and Next.js production build pass. The feature is
-> committed and pushed to `main`, but not deployed or verified against live Weaviate/Graphiti services.
+> Workbench API/service changes are committed and pushed to `main`, but not deployed or
+> verified against live Weaviate/Graphiti services. See the R9 handoff for current gates.
 
-> **Additional held slice:** the working tree now also contains a thin Matter/CourtCase
-> BFF adapter and Knowledge-to-Evidence endpoints/UI. The spine implementation and
-> migration `sql/0030_matter_case_foundation.sql` are locally tested, committed, and pushed,
-> unapplied, and undeployed. The Workbench owns no case-domain truth; it proxies neutral
-> spine contracts.
+> **Additional held slice:** the Matter/CourtCase BFF and Knowledge-to-Evidence flow are
+> locally tested, committed, and pushed. Migration
+> `sql/0030_matter_case_foundation.sql` remains unapplied and the feature remains
+> undeployed. The current working tree adds a redacted evidence-detail proxy so review
+> can inspect the exact canonical record and custody chain. The Workbench owns no
+> case-domain truth; it proxies and validates neutral spine contracts.
 
 ## Layering
 
@@ -62,6 +62,9 @@ present and enforces this boundary. SDK-facing clients remain under `app/repo/`.
 - `POST /api/matters/{id}/knowledge/resolve` and
   `GET|POST /api/matters/{id}/evidence-items` — exact source resolution and default-unsafe,
   idempotent evidence promotion; held until migration/application/deployment review.
+- `GET /api/matters/{id}/evidence-items/{item_id}` — Matter-scoped, redacted canonical
+  record/H1/source/file-node custody inspection; storage paths and private metadata are
+  excluded.
 - `GET /api/tools`, `POST /api/tools/call` — proxy to every configured MCP server (`MCP_SERVERS` env) for the Tool Explorer
 - `GET /api/documents/stats` — staging-table counts by status/type
 - `GET /health`, `GET /metrics`

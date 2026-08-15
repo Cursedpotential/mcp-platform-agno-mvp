@@ -12,7 +12,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 KnowledgeLane = Literal["platform", "legal", "personal_history", "context", "evidence"]
-ReviewState = Literal["unreviewed", "in_review", "approved", "rejected"]
+ReviewState = Literal["unreviewed", "in_review", "approved", "rejected", "needs_more_evidence"]
 EvidenceReviewDecision = Literal["approved", "rejected", "needs_changes", "needs_context", "escalated", "hold"]
 
 

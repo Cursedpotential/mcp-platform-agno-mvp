@@ -12,23 +12,41 @@ CREATE SCHEMA ops;
 CREATE SCHEMA working;
 
 CREATE TYPE ai.review_state AS ENUM (
-    'unreviewed', 'in_review', 'approved', 'rejected', 'superseded'
+    'unreviewed', 'in_review', 'approved', 'rejected',
+    'needs_more_evidence', 'superseded'
 );
 
 CREATE TABLE evidence.source (
     id                UUID PRIMARY KEY DEFAULT uuidv7(),
     sha256            BYTEA NOT NULL CHECK (octet_length(sha256) = 32),
     byte_size         BIGINT NOT NULL,
+    mime_type         TEXT,
     source_type       TEXT NOT NULL,
+    source_platform   TEXT,
     acquisition_source TEXT NOT NULL,
+    acquisition_method TEXT,
+    acquired_at_utc   TIMESTAMPTZ,
+    acquired_certainty TEXT NOT NULL DEFAULT 'exact',
+    provenance_tier   TEXT NOT NULL DEFAULT 'r2_canonical',
+    hash_canon_version TEXT NOT NULL DEFAULT 'h1-rawbytes-v1',
+    custody_status    TEXT NOT NULL DEFAULT 'collected',
+    review_status     TEXT NOT NULL DEFAULT 'not_reviewed',
+    verified_by       TEXT,
+    verified_at       TIMESTAMPTZ,
     original_filename TEXT
 );
 
 CREATE TABLE evidence.file_node (
-    id        UUID PRIMARY KEY DEFAULT uuidv7(),
-    source_id UUID NOT NULL REFERENCES evidence.source(id),
-    node_kind TEXT NOT NULL,
-    sha256    BYTEA CHECK (sha256 IS NULL OR octet_length(sha256) = 32)
+    id              UUID PRIMARY KEY DEFAULT uuidv7(),
+    source_id       UUID NOT NULL REFERENCES evidence.source(id),
+    node_kind       TEXT NOT NULL,
+    node_path       TEXT,
+    ordinal         INTEGER,
+    sha256          BYTEA CHECK (sha256 IS NULL OR octet_length(sha256) = 32),
+    byte_span_start BIGINT,
+    byte_span_end   BIGINT,
+    locator         JSONB NOT NULL DEFAULT '{}'::jsonb,
+    mime_type       TEXT
 );
 
 CREATE TABLE evidence.evidence_hash (
@@ -40,7 +58,8 @@ CREATE TABLE evidence.evidence_hash (
     source_id    UUID REFERENCES evidence.source(id),
     file_node_id UUID REFERENCES evidence.file_node(id),
     canon_version TEXT NOT NULL DEFAULT 'h1-rawbytes-v1',
-    computed_by  TEXT
+    computed_by  TEXT,
+    hashed_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE ops.processing_run (
@@ -73,6 +92,9 @@ CREATE TABLE working.normalized_record (
     role          TEXT,
     content       TEXT NOT NULL DEFAULT '',
     occurred_at   TIMESTAMPTZ,
+    acquired_at   TIMESTAMPTZ,
+    ingested_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    realized_at   TIMESTAMPTZ,
     disclosure_tier TEXT NOT NULL DEFAULT 'contemporaneous',
     review_status ai.review_state NOT NULL DEFAULT 'unreviewed',
     provenance_id UUID REFERENCES ops.processing_run(run_id),

@@ -62,6 +62,81 @@ function evidenceItem(overrides = {}) {
   };
 }
 
+function evidenceDetail() {
+  return {
+    item: evidenceItem(),
+    promotion: {
+      id: PROMOTION_A,
+      partition_key: "primary",
+      knowledge_lane: "evidence",
+      retrieval_item_ref: "knowledge-hit-a",
+      content_ref: "content-a",
+      chunk_ref: "chunk-a",
+      source_pointer: {
+        matter_id: MATTER_A,
+        court_case_id: CASE_PRIMARY,
+        partition_key: "primary",
+        lane: "evidence",
+        normalized_record_id: RECORD_A,
+        evidence_hash_id: HASH_A,
+        source_id: SOURCE_A,
+        sha256: SHA_A,
+        conversation_id: "thread-a",
+        retrieval_ref: "knowledge-hit-a",
+        content_ref: "content-a",
+        chunk_ref: "chunk-a",
+      },
+      promoted_by: "owner",
+      promoted_at: NOW,
+    },
+    record: {
+      id: RECORD_A,
+      record_type: "message",
+      source: "sms",
+      conversation_id: "thread-a",
+      role: "sender",
+      content: "Exact normalized record text",
+      occurred_at: NOW,
+      acquired_at: NOW,
+      ingested_at: NOW,
+      realized_at: null,
+      disclosure_tier: "contemporaneous",
+      review_status: "unreviewed",
+      case_id: "primary",
+    },
+    custody_hash: {
+      id: HASH_A,
+      source_ref: "fixture-export.json",
+      algo: "sha256",
+      digest_sha256: SHA_A,
+      level: "H1",
+      canon_version: "h1-rawbytes-v1",
+      hashed_at: NOW,
+      computed_by: "custody.go",
+    },
+    source: {
+      id: SOURCE_A,
+      sha256: SHA_A,
+      byte_size: 1024,
+      mime_type: "application/json",
+      original_filename: "fixture-export.json",
+      source_type: "chat_export",
+      source_platform: "fixture",
+      acquisition_source: "manual_export",
+      acquisition_method: "manual_export",
+      acquired_at_utc: NOW,
+      acquired_certainty: "exact",
+      provenance_tier: "r2_canonical",
+      hash_canon_version: "h1-rawbytes-v1",
+      custody_status: "verified",
+      review_status: "reviewed",
+      verified_by: "owner",
+      verified_at: NOW,
+    },
+    file_node: null,
+  };
+}
+
 function matterDetail() {
   return {
     id: MATTER_A,
@@ -195,6 +270,9 @@ function createFixtureServer() {
         assert.equal(body.source.artifact_id, ARTIFACT_A);
         assert.equal(body.source.sha256, SHA_A);
         return json(response, 201, { item: evidenceItem(), promotion_id: PROMOTION_A, created: true });
+      }
+      if (request.method === "GET" && url.pathname === `/api/matters/${MATTER_A}/evidence-items/${EVIDENCE_A}`) {
+        return json(response, 200, evidenceDetail());
       }
       if (request.method === "POST" && url.pathname === `/api/matters/${MATTER_A}/evidence-items/${EVIDENCE_A}/reviews`) {
         assert.equal(body.decision, "approved");
@@ -384,7 +462,12 @@ test("Matter-bound Knowledge promotes and reviews one exact custody record", { t
     assert.equal(await evaluate(cdp, session, clickText("Close")), true);
     await waitFor(cdp, session, `document.body.innerText.includes('Review draft')`, "new Matter evidence row");
     assert.equal(await evaluate(cdp, session, clickText("Review draft")), true);
-    await waitFor(cdp, session, `document.querySelector('#review-decision-${EVIDENCE_A}') !== null`, "review dialog");
+    await waitFor(
+      cdp,
+      session,
+      `document.querySelector('#review-decision-${EVIDENCE_A}') !== null && document.body.innerText.includes('Exact canonical record') && document.body.innerText.includes('H1 custody')`,
+      "review provenance inspection",
+    );
     await evaluate(cdp, session, `(() => { const node = document.querySelector('#review-decision-${EVIDENCE_A}'); node.value='approved'; node.dispatchEvent(new Event('change', {bubbles:true})); return true; })()`);
     assert.equal(await evaluate(cdp, session, setValue(`#review-rationale-${EVIDENCE_A}`, "Exact record and custody pointer reviewed.")), true);
     assert.equal(await evaluate(cdp, session, clickText("Record decision")), true);
@@ -400,6 +483,10 @@ test("Matter-bound Knowledge promotes and reviews one exact custody record", { t
     assert.equal(fixture.requests.some((item) => item.path.startsWith("/api/graphiti/")), false);
     assert.equal(fixture.requests.some((item) => item.path.includes(MATTER_B)), false);
     assert.equal(JSON.stringify(fixture.requests).includes("MATTER-B-CANARY"), false);
+    assert.equal(
+      fixture.requests.filter((item) => item.method === "GET" && item.path === `/api/matters/${MATTER_A}/evidence-items/${EVIDENCE_A}`).length,
+      1,
+    );
   } catch (error) {
     error.message += `\nBrowser stderr:\n${stderr.join("").slice(-4000)}\nRequests:\n${JSON.stringify(fixture.requests, null, 2)}`;
     throw error;

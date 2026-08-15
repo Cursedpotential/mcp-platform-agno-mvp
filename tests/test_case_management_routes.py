@@ -17,6 +17,7 @@ from server.case_management import repository
 from server.contracts.case_management import (
     CourtCase,
     EvidenceItemCreate,
+    EvidenceItemDetail,
     EvidenceReviewCreate,
     EvidenceReviewResult,
     KnowledgeSourceResolveRequest,
@@ -32,6 +33,7 @@ HASH_ID = UUID("44444444-4444-4444-4444-444444444444")
 SOURCE_ID = UUID("55555555-5555-5555-5555-555555555555")
 PROMOTION_ID = UUID("66666666-6666-6666-6666-666666666666")
 RUN_ID = UUID("77777777-7777-7777-7777-777777777777")
+FILE_NODE_ID = UUID("12121212-1212-1212-1212-121212121212")
 TASK_ID = UUID("99999999-9999-9999-9999-999999999999")
 DECISION_ID = UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
 NOW = datetime(2026, 8, 15, tzinfo=UTC)
@@ -169,6 +171,50 @@ def test_route_lists_append_only_review_history(client: TestClient, monkeypatch:
     assert response.json()["data"][0]["rationale"] == "Reviewed exact record."
 
 
+def test_route_returns_nested_public_custody_detail(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "server.case_management.service.get_evidence_detail",
+        lambda matter_id, evidence_item_id: repository._evidence_detail_from_row(_detail_row()),
+    )
+
+    response = client.get(f"/v1/matters/{MATTER_ID}/evidence-items/{_item_row()['id']}")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["item"]["id"] == str(_item_row()["id"])
+    assert payload["promotion"]["partition_key"] == "primary"
+    assert set(payload["promotion"]["source_pointer"]) == {
+        "matter_id",
+        "court_case_id",
+        "partition_key",
+        "lane",
+        "normalized_record_id",
+        "evidence_hash_id",
+        "source_id",
+        "sha256",
+        "conversation_id",
+        "retrieval_ref",
+        "content_ref",
+        "chunk_ref",
+        "quote",
+    }
+    assert payload["record"]["id"] == str(RECORD_ID)
+    assert payload["record"]["review_status"] == "needs_more_evidence"
+    assert payload["custody_hash"]["digest_sha256"] == SHA256
+    assert payload["source"]["original_filename"] == "export.json"
+    assert payload["file_node"] is None
+    serialized = response.text
+    for private_field in (
+        "local_path",
+        "private_metadata",
+        "r2_bucket",
+        "r2_key",
+        "original_metadata",
+        "derived_metadata",
+    ):
+        assert private_field not in serialized
+
+
 def test_routes_bound_pagination_and_validate_uuid(client: TestClient) -> None:
     assert client.get("/v1/matters", params={"limit": 201}).status_code == 422
     assert client.get("/v1/matters/not-a-uuid").status_code == 422
@@ -284,6 +330,84 @@ def _item_row() -> dict:
         "is_authenticated": False,
         "created_by": "owner",
         "created_at": NOW,
+    }
+
+
+def _detail_row() -> dict:
+    return {
+        **_item_row(),
+        "promotion_id": PROMOTION_ID,
+        "promotion_partition_key": "primary",
+        "promotion_knowledge_lane": "evidence",
+        "promotion_retrieval_item_ref": "retrieval-1",
+        "promotion_content_ref": "content-1",
+        "promotion_chunk_ref": "chunk-1",
+        "promotion_source_pointer": {
+            "matter_id": str(MATTER_ID),
+            "court_case_id": str(CASE_ID),
+            "partition_key": "primary",
+            "lane": "evidence",
+            "normalized_record_id": str(RECORD_ID),
+            "evidence_hash_id": str(HASH_ID),
+            "source_id": str(SOURCE_ID),
+            "sha256": SHA256,
+            "conversation_id": "conversation-1",
+            "retrieval_ref": "retrieval-1",
+            "content_ref": "content-1",
+            "chunk_ref": "chunk-1",
+            "quote": "Exact source sentence",
+            "local_path": "C:/private/evidence/export.json",
+            "private_metadata": {"secret": True},
+        },
+        "promotion_promoted_by": "owner",
+        "promotion_promoted_at": NOW,
+        "record_id": RECORD_ID,
+        "record_type": "message",
+        "record_source": "sbv",
+        "record_conversation_id": "conversation-1",
+        "record_role": "sender",
+        "record_content": "Exact source sentence with surrounding context.",
+        "record_occurred_at": NOW,
+        "record_acquired_at": NOW,
+        "record_ingested_at": NOW,
+        "record_realized_at": None,
+        "record_disclosure_tier": "contemporaneous",
+        "record_review_status": "needs_more_evidence",
+        "record_case_id": "primary",
+        "custody_hash_id": HASH_ID,
+        "custody_hash_source_ref": "source/export.json",
+        "custody_hash_algo": "sha256",
+        "custody_hash_digest_sha256": SHA256,
+        "custody_hash_level": "H1",
+        "custody_hash_canon_version": "h1-rawbytes-v1",
+        "custody_hash_hashed_at": NOW,
+        "custody_hash_computed_by": "sbv",
+        "custody_source_id": SOURCE_ID,
+        "custody_source_sha256": "ef" * 32,
+        "custody_source_byte_size": 1024,
+        "custody_source_mime_type": "application/json",
+        "custody_source_original_filename": "export.json",
+        "custody_source_type": "chat_export",
+        "custody_source_platform": "iMessage",
+        "custody_source_acquisition_source": "sbv",
+        "custody_source_acquisition_method": "manual_export",
+        "custody_source_acquired_at_utc": NOW,
+        "custody_source_acquired_certainty": "exact",
+        "custody_source_provenance_tier": "r2_canonical",
+        "custody_source_hash_canon_version": "source-container-v2",
+        "custody_source_custody_status": "verified",
+        "custody_source_review_status": "reviewed",
+        "custody_source_verified_by": "owner",
+        "custody_source_verified_at": NOW,
+        "detail_file_node_id": None,
+        "file_node_kind": None,
+        "file_node_path": None,
+        "file_node_ordinal": None,
+        "file_node_sha256": None,
+        "file_node_byte_span_start": None,
+        "file_node_byte_span_end": None,
+        "file_node_locator": None,
+        "file_node_mime_type": None,
     }
 
 
@@ -519,3 +643,67 @@ def test_promote_denies_foreign_court_case_before_source_write(monkeypatch: pyte
 
     assert exc.value.status_code == 403
     assert not any(sql.lstrip().startswith("INSERT") for sql, _ in engine.calls)
+
+
+def test_evidence_detail_uses_exact_matter_scoped_public_custody_join(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = _FakeEngine([_detail_row()])
+    monkeypatch.setattr(repository, "_get_engine", lambda: engine)
+
+    result = repository.get_evidence_detail(MATTER_ID, _item_row()["id"])
+
+    assert isinstance(result, EvidenceItemDetail)
+    assert result.promotion.id == PROMOTION_ID
+    assert result.record.content == "Exact source sentence with surrounding context."
+    assert result.custody_hash.digest_sha256 == SHA256
+    assert result.source.sha256 == "ef" * 32
+    assert result.source.hash_canon_version == "source-container-v2"
+    assert result.file_node is None
+    sql = engine.calls[0][0]
+    assert "promotion.matter_id = ei.matter_id" in sql
+    assert "record.case_id = promotion.partition_key" in sql
+    assert "custody_hash.source_id = promotion.source_id" in sql
+    assert "custody_source.sha256 = custody_hash.digest" not in sql
+    assert "custody_source.hash_canon_version = custody_hash.canon_version" not in sql
+    assert "analysis.knowledge_evidence_pointer_hash" in sql
+    for private_column in ("local_path", "r2_bucket", "r2_key", "original_metadata", "derived_metadata"):
+        assert private_column not in sql
+
+
+def test_evidence_detail_returns_404_for_cross_matter_or_broken_provenance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = _FakeEngine([None])
+    monkeypatch.setattr(repository, "_get_engine", lambda: engine)
+
+    with pytest.raises(repository.CaseRepositoryError, match="not found in this matter") as exc:
+        repository.get_evidence_detail(MATTER_ID, _item_row()["id"])
+
+    assert exc.value.status_code == 404
+
+
+def test_evidence_detail_exposes_optional_file_node_without_private_attrs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    row = {
+        **_detail_row(),
+        "file_node_id": FILE_NODE_ID,
+        "detail_file_node_id": FILE_NODE_ID,
+        "file_node_kind": "message_unit",
+        "file_node_path": "messages.42",
+        "file_node_ordinal": 42,
+        "file_node_sha256": "cd" * 32,
+        "file_node_byte_span_start": 100,
+        "file_node_byte_span_end": 200,
+        "file_node_locator": {"message_index": 42},
+        "file_node_mime_type": "text/plain",
+    }
+    engine = _FakeEngine([row])
+    monkeypatch.setattr(repository, "_get_engine", lambda: engine)
+
+    result = repository.get_evidence_detail(MATTER_ID, _item_row()["id"])
+
+    assert result.file_node is not None
+    assert result.file_node.node_path == "messages.42"
+    assert result.file_node.locator == {"message_index": 42}

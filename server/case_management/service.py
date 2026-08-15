@@ -16,6 +16,7 @@ from server.contracts.case_management import (
     CourtCase,
     CourtCaseCreate,
     EvidenceItemCreate,
+    EvidenceItemDetail,
     EvidenceItemList,
     EvidencePromotionResult,
     EvidenceReviewCreate,
@@ -55,6 +56,10 @@ def resolve_source(matter_id: UUID, body: KnowledgeSourceResolveRequest) -> Know
 
 def promote_evidence(matter_id: UUID, body: EvidenceItemCreate) -> EvidencePromotionResult:
     return repository.promote_evidence(matter_id, body)
+
+
+def get_evidence_detail(matter_id: UUID, evidence_item_id: UUID) -> EvidenceItemDetail:
+    return repository.get_evidence_detail(matter_id, evidence_item_id)
 
 
 def review_evidence(

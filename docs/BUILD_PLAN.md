@@ -30,9 +30,11 @@ this current direction:
 ### Locally built and held
 
 The Matter/CourtCase foundation, neutral spine APIs, Workbench adapters/UI, and
-Knowledge-to-Evidence promotion are present in the dirty working tree. Migration
+Knowledge-to-Evidence promotion are pushed to `main`. Migration
 `sql/0030_matter_case_foundation.sql` and focused tests exist, but the migration is
-**unapplied**, the feature is **pushed to `main`**, and no deployment/live claim is made.
+**unapplied** and no deployment/live claim is made. A follow-on local working-tree
+slice adds exact canonical-record and H1 custody inspection before human review;
+it changes no schema and remains uncommitted/undeployed until its gates complete.
 
 > **Current-state correction — 2026-08-15.** Wave 1 has implementation files in the
 > working tree (`sql/0026_realization_event.sql` through `sql/0029_pass_grants.sql`,
@@ -40,8 +42,9 @@ Knowledge-to-Evidence promotion are present in the dirty working tree. Migration
 > **pushed to `main` and not recorded as applied to the live database**. Treat the Wave-1
 > sub-plan's older “no code/migration written yet” banner as historical drift, not as
 > proof that the work has landed. The Workbench Knowledge page/API is implemented and
-> locally validated in the working tree (48 Workbench API tests, focused ESLint, and the
-> Next.js production build passed on 2026-08-15); it is pushed to `main` but not deployed.
+> locally validated and pushed to `main`; it is not deployed. Current verification
+> counts and remaining activation gates are recorded in the R9 handoff rather than
+> duplicated here.
 
 ## Anchor: the owner's critical path
 

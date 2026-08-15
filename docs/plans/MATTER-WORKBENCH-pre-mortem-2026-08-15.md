@@ -32,6 +32,7 @@ Workbench is an HTTP adapter. Horizon execution is intentionally absent.
 | Pointer metadata disagrees with immutable provenance | A misleading ledger survives even though relational IDs are correct | Migration trigger enforces evidence-only lane, pointer/ledger equality, canonical pointer hash, H1 SHA-256 algorithm/canon, and digest equality | Full custom-image baseline proof remains pending |
 | New evidence is assumed court-ready | Unauthenticated material reaches exports | DB trigger, spine response, Workbench response validation, and UI labels require unreviewed/HITL/unsafe/unauthenticated state | Existing legacy review/export surfaces still need an end-to-end audit |
 | Human approval silently means “court safe” | A record-level content review bypasses authentication/redaction gates | Review writes the canonical append-only decision, but always forces `safe_for_legal_use=false`; Workbench and proxy reject any response that claims authentication or legal safety | A separate authentication workflow remains required |
+| A reviewer decides from a quote card without reopening canonical provenance | The human decision is not grounded in the exact record and custody chain | Every item has persistent provenance inspection; the review dialog fresh-loads the Matter-scoped record/H1/source/file-node detail and disables all decision controls until it succeeds | Source authentication and legal release remain separate gates |
 | Double-click records two terminal decisions | Reviewer history forks | Evidence row + active review task are locked; terminal decisions resolve the task and a second terminal attempt returns 409 | Reconsideration will need an explicit new-task workflow |
 | A status badge survives but its reviewer rationale disappears | Later operators cannot explain who decided what or why | Matter Workbench reads the canonical append-only review-decision history scoped through Matter + evidence item and displays reviewer, rationale, readiness, and timestamp | Reconsideration remains a future explicit new-task workflow |
 | The operator leaves Matter Home and manually re-enters scope | A typo or stale selection targets the wrong Knowledge partition or proceeding | Matter Home prebinds its explicit partition and primary CourtCase; bound promotion never lists/reselects Matters, while the spine still rechecks ownership | Matters without a partition or primary CourtCase fail closed until configured |
@@ -41,10 +42,10 @@ Workbench is an HTTP adapter. Horizon execution is intentionally absent.
 
 ## Fresh local evidence
 
-- Full Python suite: **717 passed, 24 skipped**.
+- Full Python suite: **721 passed, 24 skipped**.
 - Full Ruff lint and mypy: **PASS**.
 - Matter spine + migration focused tests: **25 passed**.
-- Complete Workbench API suite: **85 passed**; Ruff lint and format: **PASS**.
+- Complete Workbench API suite: **88 passed**; Ruff lint and format: **PASS**.
 - Workbench focused ESLint, TypeScript, and production build: **PASS**;
   `/matter` and `/knowledge` are static routes.
 - Zero-dependency headless browser smoke: **1 passed**. It proved Matter-bound
@@ -56,9 +57,10 @@ Workbench is an HTTP adapter. Horizon execution is intentionally absent.
 - Migration static validation and rollback-only PostgreSQL 18.4 execution:
   **PASS**, zero net writes against the isolated prerequisite fixture.
 - Real repository integration on PostgreSQL 18.4: source resolution, promotion,
-  retry dedupe, listing, reviewer decision, persisted review-history readback,
-  and both atomic audit ledger writes **PASS** inside an outer rollback with
-  zero net writes.
+  retry dedupe, listing, exact custody detail (including a member H1 whose digest
+  differs from the container source), foreign-Matter denial, reviewer decision,
+  persisted review-history readback, and both atomic audit ledger writes **PASS**
+  inside an outer rollback with zero net writes.
 
 ## Activation / rollback
 

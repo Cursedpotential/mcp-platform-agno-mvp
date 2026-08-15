@@ -2,7 +2,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { AlertTriangle, ClipboardCheck, History, Loader2 } from "lucide-react";
+import { AlertTriangle, ClipboardCheck, History, Loader2, RefreshCw } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,11 +18,16 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { listEvidenceReviews, reviewEvidenceItem } from "@/lib/api-client";
 import type {
+  EvidenceDetail,
   EvidenceItem,
   EvidenceReviewDecision,
   EvidenceReviewRecord,
   EvidenceReviewResult,
 } from "@/lib/shared/types";
+import {
+  EvidenceDetailContent,
+  loadValidatedEvidenceDetail,
+} from "./evidence-detail-dialog";
 
 interface EvidenceReviewDialogProps {
   item: EvidenceItem;
@@ -48,16 +53,55 @@ export function EvidenceReviewDialog({ item, onReviewed }: EvidenceReviewDialogP
   const [decision, setDecision] = useState<EvidenceReviewDecision>("needs_context");
   const [rationale, setRationale] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [detail, setDetail] = useState<EvidenceDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
   const submittingRef = useRef(false);
+  const detailRequestRef = useRef(0);
 
   function reset() {
     setDecision("needs_context");
     setRationale("");
     setError(null);
+    detailRequestRef.current += 1;
+    setDetail(null);
+    setDetailLoading(false);
+    setDetailError(null);
+  }
+
+  async function loadDetail() {
+    const request = ++detailRequestRef.current;
+    setDetailLoading(true);
+    setDetail(null);
+    setDetailError(null);
+    try {
+      const result = await loadValidatedEvidenceDetail(item);
+      if (request !== detailRequestRef.current) return;
+      if (result.item.safe_for_legal_use || result.item.is_authenticated) {
+        throw new Error("This review gate only accepts unauthenticated, legally unsafe evidence");
+      }
+      setDetail(result);
+    } catch (requestError) {
+      if (request !== detailRequestRef.current) return;
+      setDetail(null);
+      setDetailError(errorMessage(requestError));
+    } finally {
+      if (request === detailRequestRef.current) setDetailLoading(false);
+    }
+  }
+
+  function changeOpen(next: boolean) {
+    setOpen(next);
+    if (next) {
+      reset();
+      void loadDetail();
+    } else {
+      reset();
+    }
   }
 
   async function submit() {
-    if (submittingRef.current || !rationale.trim()) return;
+    if (submittingRef.current || !detail || !rationale.trim()) return;
     submittingRef.current = true;
     setSaving(true);
     setError(null);
@@ -82,11 +126,11 @@ export function EvidenceReviewDialog({ item, onReviewed }: EvidenceReviewDialogP
 
   return (
     <>
-      <Button type="button" size="sm" variant="outline" onClick={() => setOpen(true)}>
+      <Button type="button" size="sm" variant="outline" onClick={() => changeOpen(true)}>
         <ClipboardCheck aria-hidden="true" /> Review draft
       </Button>
-      <Dialog open={open} onOpenChange={(next) => { setOpen(next); if (!next) reset(); }}>
-        <DialogContent aria-busy={saving}>
+      <Dialog open={open} onOpenChange={changeOpen}>
+        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto" aria-busy={saving || detailLoading}>
           <DialogHeader>
             <DialogTitle>Record reviewer decision</DialogTitle>
             <DialogDescription>
@@ -94,7 +138,21 @@ export function EvidenceReviewDialog({ item, onReviewed }: EvidenceReviewDialogP
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-          {error && <p role="alert" className="rounded-md border border-destructive p-3 text-sm text-destructive">{error}</p>}
+            {detailLoading ? (
+              <p className="flex items-center gap-2 py-8 text-sm text-muted-foreground" role="status">
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Loading exact evidence provenance before review
+              </p>
+            ) : detailError ? (
+              <div role="alert" className="space-y-3 rounded-md border border-destructive p-3 text-sm text-destructive">
+                <p>Review is locked: {detailError}</p>
+                <Button type="button" size="sm" variant="outline" onClick={() => void loadDetail()}>
+                  <RefreshCw aria-hidden="true" /> Retry provenance inspection
+                </Button>
+              </div>
+            ) : detail ? (
+              <EvidenceDetailContent detail={detail} />
+            ) : null}
+            {error && <p role="alert" className="rounded-md border border-destructive p-3 text-sm text-destructive">{error}</p>}
             <div className="flex flex-wrap gap-2">
               <Badge variant="outline">{item.review_status}</Badge>
               <Badge variant="destructive">Unsafe for legal use</Badge>
@@ -106,6 +164,7 @@ export function EvidenceReviewDialog({ item, onReviewed }: EvidenceReviewDialogP
                 id={`review-decision-${item.id}`}
                 className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
                 value={decision}
+                disabled={saving || detailLoading || !detail}
                 onChange={(event) => setDecision(event.target.value as EvidenceReviewDecision)}
               >
                 {DECISIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -117,6 +176,7 @@ export function EvidenceReviewDialog({ item, onReviewed }: EvidenceReviewDialogP
                 id={`review-rationale-${item.id}`}
                 maxLength={20000}
                 value={rationale}
+                disabled={saving || detailLoading || !detail}
                 onChange={(event) => setRationale(event.target.value)}
                 placeholder="State what was reviewed and why this decision is appropriate."
               />
@@ -127,8 +187,8 @@ export function EvidenceReviewDialog({ item, onReviewed }: EvidenceReviewDialogP
             </div>
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button type="button" disabled={saving || !rationale.trim()} onClick={() => void submit()}>
+            <Button type="button" variant="outline" onClick={() => changeOpen(false)}>Cancel</Button>
+            <Button type="button" disabled={saving || detailLoading || !detail || !rationale.trim()} onClick={() => void submit()}>
               {saving && <Loader2 className="animate-spin" aria-hidden="true" />} Record decision
             </Button>
           </DialogFooter>

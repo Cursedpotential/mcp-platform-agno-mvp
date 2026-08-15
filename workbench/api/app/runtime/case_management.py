@@ -27,6 +27,7 @@ from app.types.case_management import (
     MatterDetail,
     MatterList,
 )
+from app.types.evidence_detail import EvidenceDetail
 
 router = APIRouter(prefix="/api", tags=["matters"])
 
@@ -101,6 +102,17 @@ def list_evidence_items_endpoint(
 ):
     try:
         return service.list_evidence_items(matter_id, limit=limit, offset=offset)
+    except service.SpineError as error:
+        _raise_spine(error)
+
+
+@router.get(
+    "/matters/{matter_id}/evidence-items/{evidence_item_id}",
+    response_model=EvidenceDetail,
+)
+def get_evidence_detail_endpoint(matter_id: UUID, evidence_item_id: UUID):
+    try:
+        return service.get_evidence_detail(matter_id, evidence_item_id)
     except service.SpineError as error:
         _raise_spine(error)
 

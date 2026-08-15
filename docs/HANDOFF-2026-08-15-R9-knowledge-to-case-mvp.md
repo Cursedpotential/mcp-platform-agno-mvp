@@ -8,12 +8,12 @@ BUILD_STATUS: PASS (local R9 slice only; deployment/live proof UNKNOWN)
 
 | Thing | State |
 |---|---|
-| Branch | `main` equals `origin/main` after partitioned Wave 1, Workbench/Matter, and documentation commits |
+| Branch | `main` HEAD equals `origin/main`; the custody-inspection follow-on is currently an uncommitted local working-tree slice |
 | Knowledge UI | `/knowledge` exists in the working tree and is included in the Next.js static build |
 | Knowledge isolation | Workbench search always sends a non-empty `case_id` dict prefilter before Weaviate ranking; default is `primary` |
 | Memory separation | Graphiti facts/nodes/episodes render in a separately labeled read-only memory pane, never as canonical evidence |
 | Matter foundation | ADR-0055 / D-060 accepted; migration 0030, neutral spine APIs, Workbench proxies, `/matter`, and governed Add-to-case are built locally |
-| Backend validation | Root suite: 717 passed / 24 skipped; Workbench API: 85 passed; full Ruff and server mypy pass |
+| Backend validation | Root suite: 721 passed / 24 skipped; Workbench API: 88 passed; full Ruff and server mypy pass |
 | Frontend validation | Full ESLint and TypeScript pass; Next.js production build passes with 15 static pages |
 | Migration validation | Static contract and 11 migration tests pass. PostgreSQL 18.4 scratch execution of 0030 plus custody/promotion negative cases passed in rollback with zero net writes |
 | Workbench auth | Mandatory fail-closed `WORKBENCH_API_KEY`; only exact `/health` is public. Key is not provisioned or deployed |
@@ -334,3 +334,33 @@ locally but is not deployed or live-proven.
 - Release status remains **PARTIAL**: `WORKBENCH_API_KEY` is not provisioned,
   migrations 0026–0030 are unapplied, the canonical custom-image full-baseline
   rehearsal is outstanding, and no deliberate deployment or migration apply occurred.
+
+## Addendum — exact evidence and custody inspection (2026-08-15)
+
+> _Byline: Codex · GPT-5 · 2026-08-15_
+
+- Added a framework-neutral, Matter-scoped read endpoint for one promoted
+  evidence item. Its fail-closed join binds the item, promotion ledger,
+  canonical normalized record, H1 custody hash, source, and optional file node;
+  cross-Matter or internally inconsistent provenance returns 404.
+- The response is an explicit public allowlist. Local paths, object-store keys,
+  raw metadata, and unknown source-pointer fields are excluded. H1/member and
+  container-source hashes remain independent rather than being falsely forced
+  equal.
+- Added persistent “Inspect provenance” to Matter evidence. Human review now
+  fresh-loads and validates the exact detail; decision, rationale, and submit
+  controls remain disabled on loading, error, stale identity, or provenance
+  mismatch.
+- The browser journey now proves that canonical content and H1 custody render
+  before review and that exactly one Matter-scoped detail request occurs.
+- Fresh broad gates: root Ruff/format/mypy **PASS**, root tests **721 passed / 24
+  skipped**; Workbench API Ruff/format **PASS**, tests **88 passed**; frontend
+  ESLint/TypeScript/build **PASS** with 15 static routes; Matter smoke **1
+  passed**.
+- The real PostgreSQL 18.4 repository proof exercised a file-node/member H1
+  whose digest differs from its containing source SHA, plus foreign-Matter 404,
+  inside rollback with zero net writes. The disposable server was stopped and
+  port 55439 is closed.
+- Status remains **PARTIAL**: this follow-on is local/uncommitted/undeployed;
+  migrations 0026–0030 and live activation remain owner-held. People/Timeline
+  remains design-only pending an explicit Matter association model.

@@ -7,19 +7,21 @@
 > operator product. It consumes neutral platform/Workbench APIs so the browser does not
 > depend on whether Agno or a future adapter coordinates a run.
 
-## Current working-tree surfaces — held, not deployed
+## Current product surfaces — held, not deployed
 
 The original C1 description below is historical foundation, not the complete current route
-map. The dirty working tree also contains Knowledge browsing and a Matter workspace with
-Knowledge-to-Evidence actions. These additions have local build/test evidence but are
-committed and pushed to `main`, but not verified against deployed services. Horizon execution remains held.
+map. Knowledge browsing and the Matter workspace are committed and pushed to `main`,
+with local build/test evidence but no deployed-service proof. The current working tree
+adds exact evidence/custody inspection and makes successful inspection a prerequisite
+for recording a review decision. Horizon execution remains held.
 
 - `/knowledge`: canonical, case-prefiltered Knowledge browsing plus separately labeled
   read-only Graphiti memory.
 - `/matter`: Matter/CourtCase scope plus a bound canonical Knowledge pane. It
   prebinds the Matter partition and primary CourtCase, resolves one exact
   custody-backed record, creates a default-unsafe draft, records human review,
-  and reads the append-only review history through the Workbench BFF.
+  reads append-only review history, and exposes redacted canonical-record/H1/source
+  custody inspection through the Workbench BFF.
 - Existing operational routes remain the current Workbench foundation; provider routing,
   persistent OpenCode workspace control, and the full horizon/delta experience are targets.
 

@@ -13,6 +13,7 @@ import type {
   CustodyTier,
   CourtCase,
   CourtCaseStatus,
+  EvidenceDetail,
   EvidenceItemListResponse,
   EvidencePromotionResult,
   EvidenceReviewDecision,
@@ -565,6 +566,12 @@ export async function listEvidenceItems(matterId: string, limit = 50, offset = 0
   const qs = new URLSearchParams({ limit: String(limit), offset: String(offset) });
   return apiFetch<EvidenceItemListResponse>(
     `/api/matters/${encodeURIComponent(matterId)}/evidence-items?${qs.toString()}`,
+  );
+}
+
+export async function getEvidenceDetail(matterId: string, evidenceItemId: string) {
+  return apiFetch<EvidenceDetail>(
+    `/api/matters/${encodeURIComponent(matterId)}/evidence-items/${encodeURIComponent(evidenceItemId)}`,
   );
 }
 

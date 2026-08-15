@@ -11,10 +11,10 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from enum import StrEnum
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 KnowledgeLane = Literal["platform", "legal", "personal_history", "context", "evidence"]
 
@@ -26,6 +26,7 @@ class ReviewState(StrEnum):
     in_review = "in_review"
     approved = "approved"
     rejected = "rejected"
+    needs_more_evidence = "needs_more_evidence"
 
 
 class MatterStatus(StrEnum):
@@ -236,6 +237,106 @@ class EvidenceItem(BaseModel):
     is_authenticated: bool
     created_by: str
     created_at: datetime
+
+
+class PromotionSourcePointer(BaseModel):
+    """Public allowlist for the immutable promotion pointer."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    matter_id: UUID
+    court_case_id: UUID
+    partition_key: str
+    lane: KnowledgeLane
+    normalized_record_id: UUID
+    evidence_hash_id: UUID
+    source_id: UUID
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    conversation_id: str | None = None
+    retrieval_ref: str
+    content_ref: str | None = None
+    chunk_ref: str | None = None
+    quote: str | None = None
+
+
+class EvidencePromotionDetail(BaseModel):
+    id: UUID
+    partition_key: str
+    knowledge_lane: KnowledgeLane
+    retrieval_item_ref: str
+    content_ref: str | None = None
+    chunk_ref: str | None = None
+    source_pointer: PromotionSourcePointer
+    promoted_by: str
+    promoted_at: datetime
+
+
+class CanonicalRecordDetail(BaseModel):
+    id: UUID
+    record_type: str
+    source: str
+    conversation_id: str | None = None
+    role: str | None = None
+    content: str
+    occurred_at: datetime | None = None
+    acquired_at: datetime | None = None
+    ingested_at: datetime
+    realized_at: datetime | None = None
+    disclosure_tier: str
+    review_status: ReviewState
+    case_id: str
+
+
+class CustodyHashDetail(BaseModel):
+    id: UUID
+    source_ref: str
+    algo: str
+    digest_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    level: Literal["H1"]
+    canon_version: str
+    hashed_at: datetime
+    computed_by: str | None = None
+
+
+class SourceCustodyDetail(BaseModel):
+    id: UUID
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    byte_size: int
+    mime_type: str | None = None
+    original_filename: str | None = None
+    source_type: str
+    source_platform: str | None = None
+    acquisition_source: str
+    acquisition_method: str | None = None
+    acquired_at_utc: datetime | None = None
+    acquired_certainty: str
+    provenance_tier: str
+    hash_canon_version: str
+    custody_status: str
+    review_status: str
+    verified_by: str | None = None
+    verified_at: datetime | None = None
+
+
+class FileNodeDetail(BaseModel):
+    id: UUID
+    node_kind: str
+    node_path: str | None = None
+    ordinal: int | None = None
+    sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    byte_span_start: int | None = None
+    byte_span_end: int | None = None
+    locator: dict[str, Any]
+    mime_type: str | None = None
+
+
+class EvidenceItemDetail(BaseModel):
+    item: EvidenceItem
+    promotion: EvidencePromotionDetail
+    record: CanonicalRecordDetail
+    custody_hash: CustodyHashDetail
+    source: SourceCustodyDetail
+    file_node: FileNodeDetail | None = None
 
 
 class EvidencePromotionResult(BaseModel):

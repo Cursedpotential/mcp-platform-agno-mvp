@@ -648,7 +648,7 @@ export type CourtCaseStatus =
   | "closed"
   | "appealed"
   | "archived";
-export type ReviewState = "unreviewed" | "in_review" | "approved" | "rejected";
+export type ReviewState = "unreviewed" | "in_review" | "approved" | "rejected" | "needs_more_evidence";
 export type EvidenceReviewDecision =
   | "approved"
   | "rejected"
@@ -755,6 +755,101 @@ export interface EvidencePromotionResult {
   item: EvidenceItem;
   promotion_id: string;
   created: boolean;
+}
+
+export interface EvidenceSourcePointerDetail {
+  matter_id: string;
+  court_case_id: string;
+  partition_key: string;
+  lane: KnowledgeLane;
+  normalized_record_id: string;
+  evidence_hash_id: string;
+  source_id: string;
+  sha256: string;
+  conversation_id?: string | null;
+  retrieval_ref: string;
+  content_ref?: string | null;
+  chunk_ref?: string | null;
+}
+
+export interface EvidencePromotionDetail {
+  id: string;
+  partition_key: string;
+  knowledge_lane: KnowledgeLane;
+  retrieval_item_ref: string;
+  content_ref?: string | null;
+  chunk_ref?: string | null;
+  source_pointer: EvidenceSourcePointerDetail;
+  promoted_by: string;
+  promoted_at: string;
+}
+
+export interface CanonicalRecordDetail {
+  id: string;
+  record_type: string;
+  source: string;
+  conversation_id?: string | null;
+  role?: string | null;
+  content: string;
+  occurred_at?: string | null;
+  acquired_at?: string | null;
+  ingested_at: string;
+  realized_at?: string | null;
+  disclosure_tier: string;
+  review_status: ReviewState;
+  case_id: string;
+}
+
+export interface CustodyHashDetail {
+  id: string;
+  source_ref: string;
+  algo: string;
+  digest_sha256: string;
+  level: string;
+  canon_version: string;
+  hashed_at: string;
+  computed_by?: string | null;
+}
+
+export interface EvidenceSourceDetail {
+  id: string;
+  sha256: string;
+  byte_size: number;
+  mime_type?: string | null;
+  original_filename?: string | null;
+  source_type: string;
+  source_platform?: string | null;
+  acquisition_source: string;
+  acquisition_method?: string | null;
+  acquired_at_utc?: string | null;
+  acquired_certainty: string;
+  provenance_tier: string;
+  hash_canon_version: string;
+  custody_status: string;
+  review_status: string;
+  verified_by?: string | null;
+  verified_at?: string | null;
+}
+
+export interface EvidenceFileNodeDetail {
+  id: string;
+  node_kind: string;
+  node_path?: string | null;
+  ordinal?: number | null;
+  sha256?: string | null;
+  byte_span_start?: number | null;
+  byte_span_end?: number | null;
+  locator: Record<string, unknown>;
+  mime_type?: string | null;
+}
+
+export interface EvidenceDetail {
+  item: EvidenceItem;
+  promotion: EvidencePromotionDetail;
+  record: CanonicalRecordDetail;
+  custody_hash: CustodyHashDetail;
+  source: EvidenceSourceDetail;
+  file_node?: EvidenceFileNodeDetail | null;
 }
 
 export interface EvidenceReviewResult {

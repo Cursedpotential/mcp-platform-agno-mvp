@@ -5,11 +5,14 @@ Byline: Codex · GPT-5 · 2026-08-15
 
 from __future__ import annotations
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 from app.repo.spine_client import SpineError
 from app.runtime import case_management as runtime
+from app.types.evidence_detail import EvidenceDetail
 
 MATTER_ID = "11111111-1111-4111-8111-111111111111"
 COURT_CASE_ID = "22222222-2222-4222-8222-222222222222"
@@ -22,6 +25,7 @@ ITEM_ID = "88888888-8888-4888-8888-888888888888"
 TASK_ID = "99999999-9999-4999-8999-999999999999"
 DECISION_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 SHA256 = "a" * 64
+SOURCE_SHA256 = "b" * 64
 NOW = "2026-08-15T12:00:00Z"
 
 
@@ -270,3 +274,127 @@ def test_review_history_exposes_reviewer_rationale_and_time(monkeypatch):
         "rationale": "Compare this record with the complete thread.",
         "decided_at": NOW,
     }
+
+
+def _evidence_detail():
+    item = {
+        "id": ITEM_ID,
+        "matter_id": MATTER_ID,
+        "court_case_id": COURT_CASE_ID,
+        "title": "Custody-backed message",
+        "evidence_type": "communication",
+        "normalized_record_id": RECORD_ID,
+        "evidence_hash_id": HASH_ID,
+        "source_id": SOURCE_ID,
+        "review_status": "unreviewed",
+        "hitl_required": True,
+        "safe_for_legal_use": False,
+        "is_authenticated": False,
+        "created_by": "owner",
+        "created_at": NOW,
+    }
+    return {
+        "item": item,
+        "promotion": {
+            "id": PROMOTION_ID,
+            "partition_key": "primary",
+            "knowledge_lane": "evidence",
+            "retrieval_item_ref": "hit-1",
+            "content_ref": "content-1",
+            "chunk_ref": "chunk-1",
+            "source_pointer": {
+                "matter_id": MATTER_ID,
+                "court_case_id": COURT_CASE_ID,
+                "partition_key": "primary",
+                "lane": "evidence",
+                "normalized_record_id": RECORD_ID,
+                "evidence_hash_id": HASH_ID,
+                "source_id": SOURCE_ID,
+                "sha256": SHA256,
+                "conversation_id": "thread-1",
+                "retrieval_ref": "hit-1",
+                "content_ref": "content-1",
+                "chunk_ref": "chunk-1",
+                "quote": "must be dropped by the BFF",
+            },
+            "promoted_by": "owner",
+            "promoted_at": NOW,
+        },
+        "record": {
+            "id": RECORD_ID,
+            "record_type": "message",
+            "source": "sms",
+            "conversation_id": "thread-1",
+            "role": "sender",
+            "content": "Exact normalized record text",
+            "occurred_at": NOW,
+            "acquired_at": NOW,
+            "ingested_at": NOW,
+            "realized_at": None,
+            "disclosure_tier": "contemporaneous",
+            "review_status": "unreviewed",
+            "case_id": "primary",
+        },
+        "custody_hash": {
+            "id": HASH_ID,
+            "source_ref": "fixture-export.json",
+            "algo": "sha256",
+            "digest_sha256": SHA256,
+            "level": "H1",
+            "canon_version": "h1-rawbytes-v1",
+            "hashed_at": NOW,
+            "computed_by": "custody.go",
+        },
+        "source": {
+            "id": SOURCE_ID,
+            "sha256": SOURCE_SHA256,
+            "byte_size": 1024,
+            "mime_type": "application/json",
+            "original_filename": "fixture-export.json",
+            "source_type": "chat_export",
+            "source_platform": "fixture",
+            "acquisition_source": "manual_export",
+            "acquisition_method": "manual_export",
+            "acquired_at_utc": NOW,
+            "acquired_certainty": "exact",
+            "provenance_tier": "r2_canonical",
+            "hash_canon_version": "source-container-v2",
+            "custody_status": "verified",
+            "review_status": "reviewed",
+            "verified_by": "owner",
+            "verified_at": NOW,
+            "local_path": "C:/private/never-expose.json",
+            "r2_key": "private/object/key",
+        },
+        "file_node": None,
+    }
+
+
+def test_evidence_detail_is_matter_scoped_and_sanitized(monkeypatch):
+    monkeypatch.setattr(
+        runtime.service,
+        "get_evidence_detail",
+        lambda matter_id, item_id: _evidence_detail(),
+    )
+
+    response = _client().get(f"/api/matters/{MATTER_ID}/evidence-items/{ITEM_ID}")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["record"]["id"] == RECORD_ID
+    assert body["custody_hash"]["level"] == "H1"
+    assert body["custody_hash"]["digest_sha256"] == SHA256
+    assert body["source"]["sha256"] == SOURCE_SHA256
+    assert body["source"]["hash_canon_version"] == "source-container-v2"
+    assert body["source"]["sha256"] != body["custody_hash"]["digest_sha256"]
+    assert "local_path" not in body["source"]
+    assert "r2_key" not in body["source"]
+    assert "quote" not in body["promotion"]["source_pointer"]
+
+
+def test_evidence_detail_rejects_non_h1_custody():
+    detail = _evidence_detail()
+    detail["custody_hash"]["level"] = "H2"
+
+    with pytest.raises(ValidationError, match="requires an H1 SHA-256 custody hash"):
+        EvidenceDetail.model_validate(detail)

@@ -56,7 +56,8 @@ def run_repository_validation(*, dsn: str, target: str) -> None:
     sqlalchemy_dsn = dsn.replace("postgresql://", "postgresql+psycopg://", 1)
     engine = create_engine(sqlalchemy_dsn, pool_pre_ping=True)
     marker = f"repository-validator-{uuid.uuid4()}"
-    digest = hashlib.sha256(marker.encode()).digest()
+    source_digest = hashlib.sha256(f"{marker}:source".encode()).digest()
+    member_digest = hashlib.sha256(f"{marker}:member".encode()).digest()
 
     with engine.connect() as connection:
         before = connection.execute(
@@ -77,14 +78,14 @@ def run_repository_validation(*, dsn: str, target: str) -> None:
                         "WITH source AS ("
                         " INSERT INTO evidence.source "
                         " (sha256, byte_size, source_type, acquisition_source, original_filename) "
-                        " VALUES (:digest, 1, 'other', 'repository-validator', :marker) RETURNING id"
+                        " VALUES (:source_digest, 1, 'other', 'repository-validator', :marker) RETURNING id"
                         "), node AS ("
                         " INSERT INTO evidence.file_node (source_id, node_kind, sha256) "
-                        " SELECT id, 'message_unit', :digest FROM source RETURNING id, source_id"
+                        " SELECT id, 'message_unit', :member_digest FROM source RETURNING id, source_id"
                         "), hash AS ("
                         " INSERT INTO evidence.evidence_hash "
                         " (source_ref, digest, level, source_id, file_node_id, computed_by) "
-                        " SELECT :marker, :digest, 'H1', node.source_id, node.id, 'repository-validator' "
+                        " SELECT :marker, :member_digest, 'H1', node.source_id, node.id, 'repository-validator' "
                         " FROM node RETURNING id, source_id, file_node_id"
                         "), run AS ("
                         " INSERT INTO ops.processing_run (run_type, actor, status) "
@@ -100,7 +101,12 @@ def run_repository_validation(*, dsn: str, target: str) -> None:
                         "record.provenance_id AS run_id, hash.source_id, hash.file_node_id "
                         "FROM record JOIN hash ON hash.id = record.artifact_id"
                     ),
-                    {"digest": digest, "marker": marker, "content": "Exact repository validation sentence."},
+                    {
+                        "source_digest": source_digest,
+                        "member_digest": member_digest,
+                        "marker": marker,
+                        "content": "Exact repository validation sentence.",
+                    },
                 )
                 .mappings()
                 .one()
@@ -111,7 +117,7 @@ def run_repository_validation(*, dsn: str, target: str) -> None:
             matter = repository.list_matters(limit=10, offset=0).data[0]
             detail = repository.get_matter(matter.id)
             court_case = next(item for item in detail.court_cases if item.is_primary)
-            sha256 = digest.hex()
+            sha256 = member_digest.hex()
             source_payload = {
                 "lane": "evidence",
                 "partition_key": "primary",
@@ -150,6 +156,20 @@ def run_repository_validation(*, dsn: str, target: str) -> None:
             assert first.item.is_authenticated is False
             listed = repository.list_evidence_items(matter.id, review_status=None, limit=10, offset=0)
             assert listed.total == 1 and listed.data[0].id == first.item.id
+            custody_detail = repository.get_evidence_detail(matter.id, first.item.id)
+            assert custody_detail.item.id == first.item.id
+            assert custody_detail.record.content == "Exact repository validation sentence."
+            assert custody_detail.custody_hash.digest_sha256 == member_digest.hex()
+            assert custody_detail.source.sha256 == source_digest.hex()
+            assert custody_detail.custody_hash.digest_sha256 != custody_detail.source.sha256
+            assert custody_detail.file_node is not None
+            assert custody_detail.file_node.sha256 == member_digest.hex()
+            try:
+                repository.get_evidence_detail(uuid.uuid4(), first.item.id)
+            except repository.CaseRepositoryError as error:
+                assert error.status_code == 404
+            else:
+                raise AssertionError("cross-Matter evidence detail must fail closed")
             reviewed = repository.review_evidence(
                 matter.id,
                 first.item.id,

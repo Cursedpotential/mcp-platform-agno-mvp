@@ -20,6 +20,7 @@ from server.contracts.case_management import (
     CourtCase,
     CourtCaseCreate,
     EvidenceItemCreate,
+    EvidenceItemDetail,
     EvidenceItemList,
     EvidencePromotionResult,
     EvidenceReviewCreate,
@@ -98,6 +99,17 @@ def register_case_management_routes(app: FastAPI) -> None:
         body: EvidenceItemCreate,
     ) -> EvidencePromotionResult:
         return _translate(lambda: service.promote_evidence(matter_id, body))
+
+    @app.get(
+        "/v1/matters/{matter_id}/evidence-items/{evidence_item_id}",
+        response_model=EvidenceItemDetail,
+        tags=["case-management"],
+    )
+    def get_evidence_item_detail(
+        matter_id: UUID,
+        evidence_item_id: UUID,
+    ) -> EvidenceItemDetail:
+        return _translate(lambda: service.get_evidence_detail(matter_id, evidence_item_id))
 
     @app.post(
         "/v1/matters/{matter_id}/evidence-items/{evidence_item_id}/reviews",

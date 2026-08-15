@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { KnowledgeBrowser } from "@/components/knowledge/knowledge-browser";
 import { ApiError, getMatter, listEvidenceItems, listMatters } from "@/lib/api-client";
 import type { EvidenceItem, Matter, MatterDetail } from "@/lib/shared/types";
+import { EvidenceDetailDialog } from "./evidence-detail-dialog";
 import { EvidenceReviewDialog, EvidenceReviewHistoryDialog } from "./evidence-review-dialog";
 import { CreateCourtCaseDialog, CreateMatterDialog } from "./matter-creation-dialogs";
 
@@ -230,6 +231,7 @@ export function MatterWorkspace() {
                 <Badge variant="outline">{item.review_status}</Badge>
                 {item.hitl_required && <Badge variant="outline">HITL required</Badge>}
                 {!item.safe_for_legal_use && <Badge variant="destructive">Unsafe for legal use</Badge>}
+                <EvidenceDetailDialog item={item} />
                 {item.hitl_required && (
                   <EvidenceReviewDialog
                     item={item}
