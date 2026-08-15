@@ -14,11 +14,11 @@ see `deploy/workbench.yaml` for the Coolify deployment manifest and
 > **Implementation status — 2026-08-15:** the case-scoped Knowledge page and its
 > Workbench API/service changes are present in the working tree. The Workbench API suite
 > (48 tests), focused frontend ESLint, and Next.js production build pass. The feature is
-> committed locally, but not deployed or verified against live Weaviate/Graphiti services.
+> committed and pushed to `main`, but not deployed or verified against live Weaviate/Graphiti services.
 
 > **Additional held slice:** the working tree now also contains a thin Matter/CourtCase
 > BFF adapter and Knowledge-to-Evidence endpoints/UI. The spine implementation and
-> migration `sql/0030_matter_case_foundation.sql` are locally tested and committed,
+> migration `sql/0030_matter_case_foundation.sql` are locally tested, committed, and pushed,
 > unapplied, and undeployed. The Workbench owns no case-domain truth; it proxies neutral
 > spine contracts.
 

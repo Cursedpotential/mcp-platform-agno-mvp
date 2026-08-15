@@ -2,7 +2,7 @@
 
 > _Byline: Codex · GPT-5 · 2026-08-15_
 
-STATUS: **PARTIAL — local partitioned commits created; nothing pushed, applied, or deployed**
+STATUS: **PARTIAL — partitioned commits pushed to `main`; nothing applied or deliberately deployed**
 
 ## Non-negotiable release holds
 

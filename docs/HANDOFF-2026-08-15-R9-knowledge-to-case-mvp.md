@@ -8,7 +8,7 @@ BUILD_STATUS: PASS (local R9 slice only; deployment/live proof UNKNOWN)
 
 | Thing | State |
 |---|---|
-| Branch | `main` contains local partitioned commits not yet pushed; documentation is the remaining dirty lane |
+| Branch | `main` equals `origin/main` after partitioned Wave 1, Workbench/Matter, and documentation commits |
 | Knowledge UI | `/knowledge` exists in the working tree and is included in the Next.js static build |
 | Knowledge isolation | Workbench search always sends a non-empty `case_id` dict prefilter before Weaviate ranking; default is `primary` |
 | Memory separation | Graphiti facts/nodes/episodes render in a separately labeled read-only memory pane, never as canonical evidence |
@@ -42,8 +42,8 @@ BUILD_STATUS: PASS (local R9 slice only; deployment/live proof UNKNOWN)
 - Graphiti authorization — the server allowlist is a safe interim boundary, not
   authenticated per-Matter/per-Run grants.
 - Release ordering — 0030 is held and cannot leapfrog held migrations 0026–0029.
-- Commit custody — Wave 1 and Workbench/Matter are locally partitioned; the
-  documentation/design commit and push remain to complete.
+- Commit custody — Wave 1, Workbench/Matter, and documentation/design were
+  partitioned and pushed as `e503bfa`, `a52ff13`, and `c0fac88`.
 - Horizon execution — Wave-1 replay/proposal-contamination defects block product use; reserve delta contracts but do not expose unsafe execution.
 
 ## Pending owner decisions
@@ -333,4 +333,4 @@ locally but is not deployed or live-proven.
   shared-file hunk warnings, gates, and post-commit documentation custody.
 - Release status remains **PARTIAL**: `WORKBENCH_API_KEY` is not provisioned,
   migrations 0026–0030 are unapplied, the canonical custom-image full-baseline
-  rehearsal is outstanding, and no deployment/push occurred.
+  rehearsal is outstanding, and no deliberate deployment or migration apply occurred.

@@ -21,8 +21,8 @@
 | R9 | [Knowledge to case MVP](HANDOFF-2026-08-15-R9-knowledge-to-case-mvp.md) | Superseded in part by local build | Matter/CourtCase + evidence promotion, held/unapplied |
 
 R9's claim that Matter identity and the Knowledge-to-Evidence slice are missing is now
-historical: those components exist locally with focused tests. They are committed,
-undeployed, and dependent on unapplied migration `0030`.
+historical: those components exist locally with focused tests. They are pushed to
+`main`, undeployed, and dependent on unapplied migration `0030`.
 
 ## Historical task register — superseded for forward execution
 

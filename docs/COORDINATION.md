@@ -462,7 +462,7 @@ Owns the six-lane KB build (ADR-0050 + `plans/…glittery-summit`): `server/core
 | R6 Providers | Platform route registry over Portkey/OpenCode/authorized direct paths | Research complete |
 | R7 Workspace | Persistent OpenCode control plus isolated execution jobs | Partial |
 | R8 Workbench | Custom framework-neutral operator product | Partial |
-| R9 Matter MVP | Matter/CourtCase, source resolution, unsafe evidence promotion | Built/tested and committed locally; migration unapplied, undeployed |
+| R9 Matter MVP | Matter/CourtCase, source resolution, unsafe evidence promotion | Built/tested and pushed to `main`; migration unapplied, undeployed |
 
 Cross-lane invariant: Knowledge ingestion remains horizon-blind and independent from agent
 horizon replay. Graphiti stores derived run-scoped beliefs, not canonical evidence. AG2 is a

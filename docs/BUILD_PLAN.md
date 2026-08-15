@@ -32,16 +32,16 @@ this current direction:
 The Matter/CourtCase foundation, neutral spine APIs, Workbench adapters/UI, and
 Knowledge-to-Evidence promotion are present in the dirty working tree. Migration
 `sql/0030_matter_case_foundation.sql` and focused tests exist, but the migration is
-**unapplied**, the feature is **committed locally**, and no deployment/live claim is made.
+**unapplied**, the feature is **pushed to `main`**, and no deployment/live claim is made.
 
 > **Current-state correction — 2026-08-15.** Wave 1 has implementation files in the
 > working tree (`sql/0026_realization_event.sql` through `sql/0029_pass_grants.sql`,
 > `server/evidence/realization.py`, and `server/evidence/derivation.py`), but they are
-> **committed locally and not recorded as applied to the live database**. Treat the Wave-1
+> **pushed to `main` and not recorded as applied to the live database**. Treat the Wave-1
 > sub-plan's older “no code/migration written yet” banner as historical drift, not as
 > proof that the work has landed. The Workbench Knowledge page/API is implemented and
 > locally validated in the working tree (48 Workbench API tests, focused ESLint, and the
-> Next.js production build passed on 2026-08-15); it is committed locally but not deployed.
+> Next.js production build passed on 2026-08-15); it is pushed to `main` but not deployed.
 
 ## Anchor: the owner's critical path
 
@@ -82,7 +82,7 @@ Inventory complete (`EVIDENCE_MERGE_MAP.md`).
   `workbench/web/src/app/knowledge/page.tsx`, a case-prefiltered Weaviate search proxy,
   content browsing, and a read-only Graphiti memory pane. These files document and expose
   the intended read surfaces. The Workbench API suite (48 tests), focused ESLint, and
-  static production build pass; the feature is committed locally and remains unverified live.
+  static production build pass; the feature is pushed to `main` and remains unverified live.
 - **Done when:** a Builder agent answers a grounded question about a past design decision, citing the source transcript.
 
 ## Phase C — Gateway proof (Agno-first) — 🟡 gateway decision DONE, dial-stack wrap open
