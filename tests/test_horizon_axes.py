@@ -60,7 +60,11 @@ def test_occurred_span_is_reported_and_is_not_the_horizon():
     axes = horizon_axes([rec("c", 500, o_days=1), rec("c", 501, o_days=30)])
     assert axes["occurred_at_min"] == (T0 + timedelta(days=1)).isoformat()
     assert axes["occurred_at_max"] == (T0 + timedelta(days=30)).isoformat()
-    # the horizon key is knowledge_time, NOT occurred_at
+    # the horizon clock is visible_from (= occurred_at_max here, the conservative
+    # degenerate form with no realization events), NOT knowledge_time (which is
+    # AUDIT ONLY — ADR-0045 §A, SUPERSEDED 0008:247).
+    assert axes["visible_from"] == (T0 + timedelta(days=30)).isoformat()
+    assert axes["visible_from_epoch"] == int((T0 + timedelta(days=30)).timestamp())
     assert axes["knowledge_time"] == (T0 + timedelta(days=501)).isoformat()
 
 
@@ -87,20 +91,30 @@ def test_grouping_shared_by_text_and_axes():
     assert horizon_axes(groups["a"])["record_count"] == 2
 
 
-def test_planted_future_fact_is_excluded_by_the_documented_predicate():
-    """The end-to-end intent: an ignorant agent at a 2023 horizon must not see
-    a document whose knowledge_time is 2026, even though nothing about the
-    text or its embedding would distinguish them."""
-    horizon = int((T0 + timedelta(days=100)).timestamp())
-    past = horizon_axes([rec("old", 10)])
-    planted = horizon_axes([rec("new", 1200)])
+def test_visible_from_excludes_a_late_occurring_document():
+    """The horizon clock is ``visible_from`` (``occurred_at_max`` in the
+    degenerate, no-realization form emitted by ``horizon_axes``). A document
+    that OCCURRED after the horizon is excluded — even though nothing about its
+    text or embedding would distinguish it from a contemporaneous one
+    (embeddings have no sense of time, AGENTS.md WHY THIS EXISTS).
 
-    def visible(axes):  # mirrors working.horizon_visible()
+    A document that occurred EARLY but was only DISCOVERED later is NOT
+    excluded by this in-memory projection: hiding it until the discovery
+    requires an APPROVED ``realization_event`` (ADR-0045 §A.4), a DB-level
+    property tested in ``scripts/_wave1_validate_0026.py`` (the 'approved
+    event moves visible_from' + 'horizon_visible denies at early horizon'
+    assertions). ``knowledge_time`` is AUDIT ONLY and is never the clock
+    (ADR-0045 §A, SUPERSEDED 0008:247)."""
+    horizon = int((T0 + timedelta(days=100)).timestamp())
+    early = horizon_axes([rec("old", 10, o_days=5)])  # occurred T0+5
+    late = horizon_axes([rec("new", 10, o_days=1200)])  # occurred T0+1200
+
+    def visible(axes):  # mirrors working.horizon_visible() on the visible_from clock
         return (
             axes["case_id"] == "primary"
-            and axes["knowledge_time_epoch"] <= horizon
+            and axes["visible_from_epoch"] <= horizon
             and axes["disclosure_tier"] != "hindsight"
         )
 
-    assert visible(past)
-    assert not visible(planted)
+    assert visible(early)  # occurred within the horizon -> visible
+    assert not visible(late)  # occurred after the horizon -> excluded by the clock

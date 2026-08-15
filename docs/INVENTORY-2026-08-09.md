@@ -36,7 +36,7 @@
 | P4 | analytics/ database/ deploy/ tool-skills/ undocumented; 00_analysis_graph.surql fate (OQ-7 owner) | S1 |
 | P5 | Canon stale: header date, §4 hosts, §5 SurrealDB wording, §6 P4 pre-PR#18 | S1 |
 | D1f | DEBT # STUB: rule self-violating (2 test doubles) | S1 |
-| D2f | DEBT agno==2.6.9 pin note stale (actual 2.8.0) | S1 |
+| D2f | DEBT agno==2.6.9 pin note stale (actual 2.8.0 at audit; **now 2.8.7** per 2026-08-14 true-up, see PROJECT_CANON §8) | S1 |
 | D3f | Verified-open planned rows: stamp 2026-08-09 verification in DEBT.md | S1 |
 | D4f | Parser-lane queue: item1 landed (close row), item2 partial, items 3,4,5 open | S1(row)+S7(work) |
 

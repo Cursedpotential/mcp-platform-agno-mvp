@@ -353,9 +353,20 @@ def horizon_axes(recs: list[NormalizedRecord], case_id: str = "primary") -> dict
     A conversation document bundles many records, so its axes must be the
     SAFE aggregate, not an average:
 
-    * ``knowledge_time`` = the MAXIMUM across the bundle. The document is not
-      knowable until its last piece was; taking the minimum would expose a
-      future message hidden inside an older thread.
+    * ``visible_from`` = MAX(occurred_at) across the bundle — THE horizon clock
+      (ADR-0045 §A). The document is not knowable until its last piece occurred;
+      taking the minimum would expose a future message hidden inside an older
+      thread. This is the PROJECTION written into Weaviate metadata; the
+      AUTHORITATIVE per-record clock lives in PG as
+      ``working.visible_from(record_id)`` (= COALESCE of the earliest APPROVED
+      ``realization_event.realized_at``, occurred_at). This in-memory bundle has
+      no realization data (events are written separately, W1.2), so the
+      conservative DEGENERATE form is MAX(occurred_at): until a discovery is
+      recorded, a record is knowable when it occurred. The derivation engine
+      (W1.3) refreshes this projection when realization events move a clock.
+    * ``knowledge_time`` = MAXIMUM across the bundle, AUDIT ONLY (SUPERSEDED
+      0008:247; ADR-0045 §A — records row-write time, never a horizon input).
+      Retained for backward compatibility with existing reads; do NOT filter on it.
     * ``disclosure_tier`` = ``hindsight`` if ANY record is hindsight. One
       contaminating record taints the whole document.
     * ``occurred_at_min``/``max`` describe the span for display and for
@@ -370,6 +381,7 @@ def horizon_axes(recs: list[NormalizedRecord], case_id: str = "primary") -> dict
     tiers = {str(getattr(r.disclosure_tier, "value", r.disclosure_tier) or "contemporaneous") for r in recs}
     tier = "hindsight" if "hindsight" in tiers else ("discovered" if "discovered" in tiers else "contemporaneous")
     kmax = max(ktimes) if ktimes else None
+    omax = max(otimes) if otimes else None
     actors = {str(r.attrs.get("knowledge_actor") or "owner") for r in recs}
     axes: dict[str, Any] = {
         "case_id": case_id,
@@ -377,6 +389,8 @@ def horizon_axes(recs: list[NormalizedRecord], case_id: str = "primary") -> dict
         "knowledge_actor": actors.pop() if len(actors) == 1 else "multiple",
         "record_count": len(recs),
     }
+    # knowledge_time is AUDIT ONLY (ADR-0045 §A, SUPERSEDED 0008:247) — retained
+    # for backward compatibility, never a horizon input.
     if kmax is not None:
         axes["knowledge_time"] = kmax.isoformat()
         axes["knowledge_time_epoch"] = int(kmax.timestamp())
@@ -384,6 +398,11 @@ def horizon_axes(recs: list[NormalizedRecord], case_id: str = "primary") -> dict
         axes["occurred_at_min"] = min(otimes).isoformat()
         axes["occurred_at_max"] = max(otimes).isoformat()
         axes["occurred_at_min_epoch"] = int(min(otimes).timestamp())
+    # THE horizon clock (ADR-0045 §A), conservative degenerate form
+    # (no realization data in-memory at ingest time): see the docstring above.
+    if omax is not None:
+        axes["visible_from"] = omax.isoformat()
+        axes["visible_from_epoch"] = int(omax.timestamp())
     return axes
 
 

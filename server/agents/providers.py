@@ -36,6 +36,7 @@ from agno.context.database import DatabaseContextProvider
 from agno.context.workspace import WorkspaceContextProvider
 
 from server.agents.tools.gateway_tools import GATEWAY_TOOLS
+from server.agents.tools.realization_tools import REALIZATION_TOOLS
 from server.agents.tools.sbv_tools import SBV_TOOLS
 
 # Deferred to later goals (cloud cleanup / MCP fleet):
@@ -175,7 +176,20 @@ def build_context(
     # SBV's REST toolkit (facade-collapse Batch A, docs/planning/facade-
     # collapse-plan.md §1/§2) — additive, does not touch the tools-facade.
     # (TS/Py MCP servers join at Phase 7 via MCPTools/MCPContextProvider.)
-    source_tools = [*code_tools, *db_tools, *GATEWAY_TOOLS, *SBV_TOOLS]
+    #
+    # REALIZATION_TOOLS (W1.5 lane binding, ADR-0045 §A.4): the realization-event
+    # writer surface. ``realization_propose`` is a plain @tool — PROPOSING is
+    # inert (a 'proposed' row visible_from never reads), so every agent may
+    # propose freely, in bulk (analysis / ingest lanes). ``realization_approve``
+    # + ``realization_supersede`` are @approval + requires_confirmation=True —
+    # APPROVING/SUPERSEDING moves visible_from, so the run PAUSES for a recorded
+    # human (owner) approval before the body runs. The @approval gate IS the
+    # lane boundary, so which agent holds the tool does not change enforcement:
+    # any call pauses for the owner. OPEN owner refinement (not enforcement):
+    # scope approve/supersede to the review_gatekeeper only (needs per-agent
+    # tool customization in factory.py, which currently passes one uniform
+    # source_tools to every agent). Deferred — the @approval backstop holds.
+    source_tools = [*code_tools, *db_tools, *GATEWAY_TOOLS, *SBV_TOOLS, *REALIZATION_TOOLS]
 
     # Graphiti temporal graph memory (ADR-0014) — attached only when the
     # graph profile is up (GRAPHITI_MCP_URL set). AgentOS manages the MCP

@@ -11,6 +11,7 @@ Architecture::
     |   +-- ingestion_orchestrator
     |   +-- analysis_orchestrator
     |   +-- review_gatekeeper
+    |   +-- transcript_miner
     +-- Builder (mode=coordinate)
     |   +-- dev_copilot
     |   +-- project_pal
@@ -27,6 +28,8 @@ Conventions:
 """
 # Byline: Claude Code · Fable 5 · 2026-07-31 (enable_user_memories on Root Router + Project PAL; Weaviate docstring fix)
 # Byline: Codex · GPT-5 · 2026-08-13 (type-safe audit hook attachment)
+# Byline: Claude Code · glm-5.2:cloud · 2026-08-14 (docstring topology: add transcript_miner,
+# mounted under Platform Ops since 2026-08-04 per the inline note at line ~479)
 
 from __future__ import annotations
 

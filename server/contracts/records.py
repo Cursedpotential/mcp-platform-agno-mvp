@@ -64,7 +64,16 @@ class NormalizedRecord(BaseModel):
 
 
 def finalize(records: Iterable[NormalizedRecord]) -> list[NormalizedRecord]:
-    """Apply normalize-time defaults: knowledge_time = now for anything unset."""
+    """Apply normalize-time defaults: knowledge_time = now for anything unset.
+
+    NOTE 2026-08-14 (ADR-0045 §A, SUPERSEDED 0008:247): ``knowledge_time`` is
+    AUDIT ONLY — it records the row-write time and is never a horizon input.
+    It is stamped here for backward compatibility only. The horizon clock is
+    ``working.visible_from(record_id)`` (COALESCE of the earliest APPROVED
+    realization_event.realized_at with occurred_at); see
+    ``server/evidence/store.horizon_axes`` for the Weaviate projection. No
+    behavior change in this function — it still stamps the audit field.
+    """
     now = datetime.now(timezone.utc)
     out: list[NormalizedRecord] = []
     for rec in records:
