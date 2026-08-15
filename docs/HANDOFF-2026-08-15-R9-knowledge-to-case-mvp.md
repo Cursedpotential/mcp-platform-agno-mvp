@@ -8,7 +8,7 @@ BUILD_STATUS: PASS (local R9 slice only; deployment/live proof UNKNOWN)
 
 | Thing | State |
 |---|---|
-| Branch | `main` equals `origin/main`; court readiness is pushed as `7b6aaf6` |
+| Branch | `main` equals `origin/main`; activation preflight is pushed as `6c37548` |
 | Knowledge UI | `/knowledge` exists in the working tree and is included in the Next.js static build |
 | Knowledge isolation | Workbench search always sends a non-empty `case_id` dict prefilter before Weaviate ranking; default is `primary` |
 | Memory separation | Graphiti facts/nodes/episodes render in a separately labeled read-only memory pane, never as canonical evidence |
@@ -422,3 +422,5 @@ locally but is not deployed or live-proven.
 - A deliberate negative database run against the quarantined stock PostgreSQL
   validator correctly rejected its missing canonical extensions, confirmed the
   five migrations uniformly absent, emitted no secrets, and left port 55439 closed.
+- The preflight is committed/pushed as `6c37548`. Static scope then returned
+  **READY** with every checkout/release-contract check passing from clean `main`.

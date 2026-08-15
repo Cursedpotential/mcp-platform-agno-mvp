@@ -61,9 +61,8 @@ credentials.
 - Focused pytest exercises the repository contract, credential separation,
   uniform migration states, service-path coverage, extension/version failures,
   and secret-free report: **7 passed**. Full root suite: **750 passed / 24 skipped**.
-- Static command currently returns `NOT READY` while its own files are dirty,
-  proving the clean-tree gate is fail-closed. Rerun after commit/push for the
-  final static PASS.
+- After commit/push, static scope returned **READY** with every check passing,
+  including clean worktree and `HEAD == origin/main` at `6c37548`.
 - Activation scope has not been run against a deployed target because key
   provisioning, migration application, and deployment remain owner-held.
 - A deliberate read-only negative database run against the quarantined stock
