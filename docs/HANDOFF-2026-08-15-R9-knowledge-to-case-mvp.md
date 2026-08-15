@@ -49,6 +49,10 @@ BUILD_STATUS: PASS (local R9 slice only; deployment/live proof UNKNOWN)
 
 ## Pending owner decisions
 
+The current review packet with recommended defaults and consequences is
+[`PENDING-OWNER-DECISIONS-MATTER-MVP-2026-08-15.md`](PENDING-OWNER-DECISIONS-MATTER-MVP-2026-08-15.md).
+It is intentionally not an ADR and grants no schema/apply/deployment authority.
+
 > **Resolved 2026-08-15:** the owner approved the recommended foundation-first
 > path, separate Matter/CourtCase identities, one authored timeline, and delayed
 > Horizon execution. ADR-0055 / D-060 is authoritative. The original decision

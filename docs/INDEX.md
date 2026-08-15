@@ -19,6 +19,7 @@ deployed.
 | Migration/dependency views | [MIGRATION-DIAGRAMS-2026-08-15.md](MIGRATION-DIAGRAMS-2026-08-15.md) | Accepted target |
 | Agent/lane ownership | [TASK-DISTRIBUTION-2026-08-15.md](TASK-DISTRIBUTION-2026-08-15.md) | Coordination contract |
 | Executable handoffs | [HANDOFFS.md](HANDOFFS.md) | Current R0–R9 index |
+| Pending Matter decisions | [Matter MVP owner packet](PENDING-OWNER-DECISIONS-MATTER-MVP-2026-08-15.md) | Pending owner ruling; not an ADR |
 | Repository placement | [REPO_STRUCTURE.md](REPO_STRUCTURE.md) | Structural index |
 | Live multi-lane log | [COORDINATION.md](COORDINATION.md) | Append-only coordination history |
 
@@ -32,12 +33,15 @@ run-scoped belief projection. Portkey remains preferred routing, OpenCode adds p
 workspace/provider flexibility, and AG2 remains a candidate coordination adapter. Go routing is
 decoder-coverage based at every file size.
 
-## Held local implementation
+## Held activation
 
-The dirty working tree contains the Matter/CourtCase foundation, migration `0030`, neutral
-spine APIs, Workbench adapters/UI, and provenance-preserving Knowledge-to-Evidence promotion.
-Focused tests have been run, but the migration is unapplied and the feature is uncommitted and
-undeployed. Wave-1 migrations `0026–0029` are also held after the R0 audit.
+The Matter/CourtCase foundation, migration `0030`, neutral spine APIs,
+Workbench adapters/UI, provenance-preserving Knowledge-to-Evidence promotion,
+custody inspection, court-readiness read side, and activation preflight are
+committed and pushed to `main`. The worktree is clean. Migrations `0026–0030`
+remain unapplied and the feature remains undeployed; no live-service proof is
+claimed. Use the R9 handoff and activation preflight pre-mortem for current
+verification and release gates.
 
 Three divergent self-contained Workbench mockups and their evaluation reports
 are available through the comparison page above. They are prototypes, not the
@@ -56,5 +60,5 @@ deployed Workbench.
 - [R8 custom Workbench](HANDOFF-2026-08-15-R8-workbench.md)
 - [R9 Knowledge-to-case MVP](HANDOFF-2026-08-15-R9-knowledge-to-case-mvp.md)
 
-R9's earlier “Matter missing” statement is superseded by the held local implementation above;
+R9's earlier “Matter missing” statement is superseded by the committed local implementation above;
 the packet remains valuable as its design and safety rationale.
