@@ -2,6 +2,9 @@
 --
 -- Byline: Claude Code . glm-5.2:cloud . 2026-08-14
 --
+-- ⚠ HELD FOR OWNER — COMMITTED + ROLLBACK-VALIDATED, NOT APPLIED TO PROD.
+-- Apply only through the reviewed 0026-0030 release sequence.
+--
 -- WHAT THIS IS
 -- ============
 -- Wave 1.1 — the first slice of ADR-0045 (signed D-042, Option A + the A.4
