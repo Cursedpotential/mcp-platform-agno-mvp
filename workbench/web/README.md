@@ -13,7 +13,7 @@ The original C1 description below is historical foundation, not the complete cur
 map. Knowledge browsing and the Matter workspace are committed and pushed to `main`,
 with local build/test evidence but no deployed-service proof. Commit `be286a8`
 adds exact evidence/custody inspection and makes successful inspection a prerequisite
-for recording a review decision. The current local slice adds a separate read-only
+for recording a review decision. Commit `7b6aaf6` adds a separate read-only
 court-readiness dialog that distinguishes actual database export-view membership
 from stricter supplemental checks and explicitly avoids admissibility/legal-advice
 claims. Horizon execution remains held.

@@ -21,7 +21,7 @@ see `deploy/workbench.yaml` for the Coolify deployment manifest and
 > undeployed. Commit `be286a8` adds a redacted evidence-detail proxy so review can
 > inspect the exact canonical record and custody chain. The Workbench owns no
 > case-domain truth; it proxies and validates neutral spine contracts.
-> The current read-only readiness slice also proxies the exact Matter/item
+> Commit `7b6aaf6` adds a read-only proxy for the exact Matter/item
 > court-export evaluation. It distinguishes actual `analysis.vw_court_export`
 > membership from stricter supplemental checks and performs no authentication,
 > confidence, redaction, or legal-release mutation.

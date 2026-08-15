@@ -8,7 +8,7 @@ BUILD_STATUS: PASS (local R9 slice only; deployment/live proof UNKNOWN)
 
 | Thing | State |
 |---|---|
-| Branch | `main` commit equals `origin/main` at `ebc5031`; court-readiness changes are locally verified and pending commit |
+| Branch | `main` equals `origin/main`; court readiness is pushed as `7b6aaf6` |
 | Knowledge UI | `/knowledge` exists in the working tree and is included in the Next.js static build |
 | Knowledge isolation | Workbench search always sends a non-empty `case_id` dict prefilter before Weaviate ranking; default is `primary` |
 | Memory separation | Graphiti facts/nodes/episodes render in a separately labeled read-only memory pane, never as canonical evidence |
@@ -402,3 +402,4 @@ locally but is not deployed or live-proven.
   disposable server was stopped and port 55439 is closed.
 - Status remains **PARTIAL** and undeployed. Migration ordering, full custom-image
   baseline rehearsal, key provisioning, and live service proof remain owner-held.
+  The verified read-only slice is committed and pushed as `7b6aaf6`.

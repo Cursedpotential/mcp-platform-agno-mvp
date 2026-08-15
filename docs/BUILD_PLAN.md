@@ -35,7 +35,7 @@ Knowledge-to-Evidence promotion are pushed to `main`. Migration
 **unapplied** and no deployment/live claim is made. Commit `be286a8` adds exact
 canonical-record and H1 custody inspection before human review; it changes no
 schema and is pushed to `main` but remains undeployed.
-The current working slice adds a read-only court-export/readiness explanation:
+Commit `7b6aaf6` adds a read-only court-export/readiness explanation:
 actual `analysis.vw_court_export` membership is shown separately from stricter
 content-review, exact-provenance, custody, authentication, confidence,
 hypothesis, redaction, and sensitivity checks. It performs no release mutation.
