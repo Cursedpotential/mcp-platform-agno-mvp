@@ -157,4 +157,3 @@ The following are operational approvals, not architecture decisions:
 ## Recommended compact ruling
 
 `P1–P5 recommended; R1–R6 recommended; A1 approved; A2–A4 remain held until the A1 report.`
-
