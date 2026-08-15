@@ -12,7 +12,7 @@ from pydantic import ValidationError
 
 from app.repo.spine_client import SpineError
 from app.runtime import case_management as runtime
-from app.types.evidence_detail import EvidenceDetail
+from app.types.evidence_detail import CourtReadiness, EvidenceDetail
 
 MATTER_ID = "11111111-1111-4111-8111-111111111111"
 COURT_CASE_ID = "22222222-2222-4222-8222-222222222222"
@@ -370,6 +370,47 @@ def _evidence_detail():
     }
 
 
+def _court_readiness():
+    return {
+        "evidence_item_id": ITEM_ID,
+        "matter_id": MATTER_ID,
+        "readiness_passed": False,
+        "blockers": [
+            "CONTENT_REVIEW_REQUIRED",
+            "CUSTODY_NOT_VERIFIED",
+        ],
+        "gates": {
+            "content_review": {"approved": False, "decision_id": None},
+            "provenance": {"exact": True},
+            "custody": {
+                "h1_valid": True,
+                "event_chain_valid": True,
+                "verified_event_present": True,
+                "source_status": "pending",
+                "source_reviewed": False,
+                "verified_by": None,
+                "verified_at": None,
+            },
+            "authentication": {"authenticated": True, "method": "hash_chain_of_custody"},
+            "confidence": {"value": 0.8, "tier": "medium", "export_band": True},
+            "assertion": {"not_hypothesis": True},
+            "redaction": {
+                "privacy_sensitivity": "none",
+                "source_privacy_sensitivity": "none",
+                "status": "none",
+                "clear_for_export": True,
+            },
+            "sensitivity": {
+                "evidence_tier": "restricted",
+                "source_tier": "restricted",
+                "sealed": False,
+            },
+            "court_export": {"view_member": True},
+        },
+        "private_reason": "must be dropped by the BFF",
+    }
+
+
 def test_evidence_detail_is_matter_scoped_and_sanitized(monkeypatch):
     monkeypatch.setattr(
         runtime.service,
@@ -398,3 +439,46 @@ def test_evidence_detail_rejects_non_h1_custody():
 
     with pytest.raises(ValidationError, match="requires an H1 SHA-256 custody hash"):
         EvidenceDetail.model_validate(detail)
+
+
+def test_court_readiness_is_matter_scoped_explicit_and_fail_closed(monkeypatch):
+    monkeypatch.setattr(
+        runtime.service,
+        "get_court_readiness",
+        lambda matter_id, item_id: _court_readiness(),
+    )
+
+    response = _client().get(f"/api/matters/{MATTER_ID}/evidence-items/{ITEM_ID}/court-readiness")
+
+    assert response.status_code == 200
+    assert response.json()["blockers"] == [
+        "CONTENT_REVIEW_REQUIRED",
+        "CUSTODY_NOT_VERIFIED",
+    ]
+    assert response.json()["gates"]["custody"]["h1_valid"] is True
+    assert response.json()["gates"]["court_export"]["view_member"] is True
+    assert response.json()["readiness_passed"] is False
+    assert "private_reason" not in response.json()
+
+
+def test_court_readiness_rejects_optimistic_or_unexplained_results():
+    optimistic = _court_readiness()
+    optimistic["readiness_passed"] = True
+    optimistic["blockers"] = []
+    with pytest.raises(ValidationError, match="blockers do not match"):
+        CourtReadiness.model_validate(optimistic)
+
+    unexplained = _court_readiness()
+    unexplained["blockers"] = []
+    with pytest.raises(ValidationError, match="blockers do not match"):
+        CourtReadiness.model_validate(unexplained)
+
+
+def test_court_readiness_rejects_cross_scope_response(monkeypatch):
+    wrong = _court_readiness()
+    wrong["matter_id"] = "11111111-1111-4111-8111-999999999999"
+    monkeypatch.setattr(runtime.service, "get_court_readiness", lambda *_: wrong)
+
+    response = _client().get(f"/api/matters/{MATTER_ID}/evidence-items/{ITEM_ID}/court-readiness")
+
+    assert response.status_code == 502

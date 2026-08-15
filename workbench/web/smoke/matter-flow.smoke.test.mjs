@@ -1,4 +1,4 @@
-// Byline: Codex · GPT-5 · 2026-08-15 (zero-dependency Matter operator-flow smoke)
+// Byline: Codex · GPT-5 · 2026-08-15 (Matter promotion, custody, readiness, and review smoke)
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
@@ -134,6 +134,34 @@ function evidenceDetail() {
       verified_at: NOW,
     },
     file_node: null,
+  };
+}
+
+function courtReadiness() {
+  return {
+    evidence_item_id: EVIDENCE_A,
+    matter_id: MATTER_A,
+    readiness_passed: false,
+    blockers: ["CONTENT_REVIEW_REQUIRED", "CUSTODY_NOT_VERIFIED"],
+    gates: {
+      content_review: { approved: false, decision_id: null },
+      provenance: { exact: true },
+      custody: {
+        h1_valid: true,
+        event_chain_valid: true,
+        verified_event_present: true,
+        source_status: "pending",
+        source_reviewed: false,
+        verified_by: null,
+        verified_at: null,
+      },
+      authentication: { authenticated: true, method: "hash_chain_of_custody" },
+      confidence: { value: 0.8, tier: "medium", export_band: true },
+      assertion: { not_hypothesis: true },
+      redaction: { privacy_sensitivity: "none", source_privacy_sensitivity: "none", status: "none", clear_for_export: true },
+      sensitivity: { evidence_tier: "restricted", source_tier: "restricted", sealed: false },
+      court_export: { view_member: true },
+    },
   };
 }
 
@@ -273,6 +301,9 @@ function createFixtureServer() {
       }
       if (request.method === "GET" && url.pathname === `/api/matters/${MATTER_A}/evidence-items/${EVIDENCE_A}`) {
         return json(response, 200, evidenceDetail());
+      }
+      if (request.method === "GET" && url.pathname === `/api/matters/${MATTER_A}/evidence-items/${EVIDENCE_A}/court-readiness`) {
+        return json(response, 200, courtReadiness());
       }
       if (request.method === "POST" && url.pathname === `/api/matters/${MATTER_A}/evidence-items/${EVIDENCE_A}/reviews`) {
         assert.equal(body.decision, "approved");
@@ -461,6 +492,13 @@ test("Matter-bound Knowledge promotes and reviews one exact custody record", { t
 
     assert.equal(await evaluate(cdp, session, clickText("Close")), true);
     await waitFor(cdp, session, `document.body.innerText.includes('Review draft')`, "new Matter evidence row");
+    assert.equal(await evaluate(cdp, session, clickText("Court readiness")), true);
+    await waitFor(cdp, session, `document.body.innerText.includes('Court-export readiness checklist')`, "court readiness checklist");
+    assert.equal(await evaluate(cdp, session, `document.body.innerText.includes('database gate status only') && document.body.innerText.includes('does not determine admissibility')`), true);
+    assert.equal(await evaluate(cdp, session, `document.body.innerText.includes('In database export view') && document.body.innerText.includes('Supplemental readiness checks blocked')`), true);
+    assert.equal(await evaluate(cdp, session, `document.body.innerText.includes('Content review: Blocked') && document.body.innerText.includes('Custody: Blocked')`), true);
+    assert.equal(await evaluate(cdp, session, `document.body.innerText.includes('Not in database export view')`), false);
+    assert.equal(await evaluate(cdp, session, clickText("Close")), true);
     assert.equal(await evaluate(cdp, session, clickText("Review draft")), true);
     await waitFor(
       cdp,
@@ -485,6 +523,10 @@ test("Matter-bound Knowledge promotes and reviews one exact custody record", { t
     assert.equal(JSON.stringify(fixture.requests).includes("MATTER-B-CANARY"), false);
     assert.equal(
       fixture.requests.filter((item) => item.method === "GET" && item.path === `/api/matters/${MATTER_A}/evidence-items/${EVIDENCE_A}`).length,
+      1,
+    );
+    assert.equal(
+      fixture.requests.filter((item) => item.method === "GET" && item.path === `/api/matters/${MATTER_A}/evidence-items/${EVIDENCE_A}/court-readiness`).length,
       1,
     );
   } catch (error) {

@@ -21,6 +21,10 @@ see `deploy/workbench.yaml` for the Coolify deployment manifest and
 > undeployed. Commit `be286a8` adds a redacted evidence-detail proxy so review can
 > inspect the exact canonical record and custody chain. The Workbench owns no
 > case-domain truth; it proxies and validates neutral spine contracts.
+> The current read-only readiness slice also proxies the exact Matter/item
+> court-export evaluation. It distinguishes actual `analysis.vw_court_export`
+> membership from stricter supplemental checks and performs no authentication,
+> confidence, redaction, or legal-release mutation.
 
 ## Layering
 
@@ -65,6 +69,9 @@ present and enforces this boundary. SDK-facing clients remain under `app/repo/`.
 - `GET /api/matters/{id}/evidence-items/{item_id}` — Matter-scoped, redacted canonical
   record/H1/source/file-node custody inspection; storage paths and private metadata are
   excluded.
+- `GET /api/matters/{id}/evidence-items/{item_id}/court-readiness` — read-only,
+  Matter-scoped export-view membership plus typed supplemental blocker/gate detail;
+  database status only, not an admissibility conclusion.
 - `GET /api/tools`, `POST /api/tools/call` — proxy to every configured MCP server (`MCP_SERVERS` env) for the Tool Explorer
 - `GET /api/documents/stats` — staging-table counts by status/type
 - `GET /health`, `GET /metrics`

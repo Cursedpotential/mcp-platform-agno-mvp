@@ -15,6 +15,7 @@ from server.case_management import repository
 from server.contracts.case_management import (
     CourtCase,
     CourtCaseCreate,
+    CourtReadiness,
     EvidenceItemCreate,
     EvidenceItemDetail,
     EvidenceItemList,
@@ -60,6 +61,10 @@ def promote_evidence(matter_id: UUID, body: EvidenceItemCreate) -> EvidencePromo
 
 def get_evidence_detail(matter_id: UUID, evidence_item_id: UUID) -> EvidenceItemDetail:
     return repository.get_evidence_detail(matter_id, evidence_item_id)
+
+
+def get_court_readiness(matter_id: UUID, evidence_item_id: UUID) -> CourtReadiness:
+    return repository.get_court_readiness(matter_id, evidence_item_id)
 
 
 def review_evidence(

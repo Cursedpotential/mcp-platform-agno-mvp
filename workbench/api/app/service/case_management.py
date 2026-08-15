@@ -1,6 +1,6 @@
 """HTTP-only adapter to the spine's framework-neutral Matter API.
 
-Byline: Codex · GPT-5 · 2026-08-15
+Byline: Codex · GPT-5 · 2026-08-15 (Matter adapter and read-only readiness)
 """
 
 from __future__ import annotations
@@ -21,6 +21,7 @@ __all__ = [
     "create_court_case",
     "create_evidence_item",
     "create_matter",
+    "get_court_readiness",
     "get_evidence_detail",
     "get_matter",
     "list_evidence_items",
@@ -94,6 +95,13 @@ def get_evidence_detail(matter_id: UUID, evidence_item_id: UUID) -> dict:
     return spine_json(
         "GET",
         f"/v1/matters/{matter_id}/evidence-items/{evidence_item_id}",
+    )
+
+
+def get_court_readiness(matter_id: UUID, evidence_item_id: UUID) -> dict:
+    return spine_json(
+        "GET",
+        f"/v1/matters/{matter_id}/evidence-items/{evidence_item_id}/court-readiness",
     )
 
 

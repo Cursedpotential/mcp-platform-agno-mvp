@@ -15,6 +15,9 @@ CREATE TYPE ai.review_state AS ENUM (
     'unreviewed', 'in_review', 'approved', 'rejected',
     'needs_more_evidence', 'superseded'
 );
+CREATE TYPE ai.sensitivity_tier AS ENUM ('public', 'restricted', 'sealed');
+CREATE DOMAIN ai.confidence AS NUMERIC(4,3)
+    CHECK (VALUE IS NULL OR (VALUE >= 0 AND VALUE <= 1));
 
 CREATE TABLE evidence.source (
     id                UUID PRIMARY KEY DEFAULT uuidv7(),
@@ -31,6 +34,8 @@ CREATE TABLE evidence.source (
     hash_canon_version TEXT NOT NULL DEFAULT 'h1-rawbytes-v1',
     custody_status    TEXT NOT NULL DEFAULT 'collected',
     review_status     TEXT NOT NULL DEFAULT 'not_reviewed',
+    privacy_sensitivity TEXT NOT NULL DEFAULT 'none',
+    sensitivity_tier  ai.sensitivity_tier NOT NULL DEFAULT 'restricted',
     verified_by       TEXT,
     verified_at       TIMESTAMPTZ,
     original_filename TEXT
@@ -61,6 +66,44 @@ CREATE TABLE evidence.evidence_hash (
     computed_by  TEXT,
     hashed_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE TABLE evidence.custody_event (
+    seq                 BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id                  UUID NOT NULL DEFAULT uuidv7(),
+    source_id           UUID NOT NULL REFERENCES evidence.source(id),
+    file_node_id        UUID REFERENCES evidence.file_node(id),
+    evidence_hash_id    UUID REFERENCES evidence.evidence_hash(id),
+    event_type          TEXT NOT NULL,
+    actor               TEXT NOT NULL,
+    occurred_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+    detail              JSONB NOT NULL DEFAULT '{}'::jsonb,
+    prev_event_digest   BYTEA,
+    event_digest        BYTEA NOT NULL,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE FUNCTION evidence.chain_custody_event()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    PERFORM pg_advisory_xact_lock(hashtextextended(NEW.source_id::text, 0));
+    SELECT event_digest INTO NEW.prev_event_digest
+      FROM evidence.custody_event
+     WHERE source_id = NEW.source_id ORDER BY seq DESC LIMIT 1;
+    NEW.event_digest := digest(convert_to(
+        coalesce(NEW.source_id::text,'') || '|' || coalesce(NEW.file_node_id::text,'') || '|' ||
+        coalesce(NEW.evidence_hash_id::text,'') || '|' || NEW.event_type || '|' || NEW.actor || '|' ||
+        to_char(NEW.occurred_at,'YYYY-MM-DD"T"HH24:MI:SS.US TZH:TZM') || '|' ||
+        coalesce(NEW.detail::text,'{}') || '|' || coalesce(encode(NEW.prev_event_digest,'hex'),''),
+      'UTF8'), 'sha256');
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER custody_event_chain
+    BEFORE INSERT ON evidence.custody_event
+    FOR EACH ROW EXECUTE FUNCTION evidence.chain_custody_event();
 
 CREATE TABLE ops.processing_run (
     run_id   UUID PRIMARY KEY DEFAULT uuidv7(),
@@ -124,15 +167,33 @@ CREATE TABLE analysis.evidence_item (
     quote                TEXT,
     evidence_type        TEXT NOT NULL DEFAULT 'communication',
     evidence_date        TIMESTAMPTZ,
+    confidence           ai.confidence,
+    confidence_tier      TEXT NOT NULL DEFAULT 'low',
+    is_hypothesis        BOOLEAN NOT NULL DEFAULT false,
     review_status        ai.review_state NOT NULL DEFAULT 'unreviewed',
     hitl_required        BOOLEAN NOT NULL DEFAULT true,
     safe_for_legal_use   BOOLEAN NOT NULL DEFAULT false,
     is_authenticated     BOOLEAN NOT NULL DEFAULT false,
+    authentication_method TEXT,
+    privacy_sensitivity  TEXT NOT NULL DEFAULT 'none',
+    redaction_status     TEXT NOT NULL DEFAULT 'none',
+    sensitivity_tier     ai.sensitivity_tier NOT NULL DEFAULT 'restricted',
     source_run_id        UUID REFERENCES ops.processing_run(run_id),
     created_by           TEXT NOT NULL,
     created_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
     metadata             JSONB NOT NULL DEFAULT '{}'::jsonb
 );
+
+CREATE VIEW analysis.vw_court_export AS
+SELECT id
+FROM analysis.evidence_item
+WHERE safe_for_legal_use = true
+  AND review_status = 'approved'
+  AND confidence_tier IN ('high', 'medium')
+  AND is_hypothesis = false
+  AND is_authenticated = true
+  AND redaction_status <> 'required'
+  AND sensitivity_tier <> 'sealed';
 
 CREATE TABLE analysis.review_task (
     task_id       UUID PRIMARY KEY DEFAULT uuidv7(),

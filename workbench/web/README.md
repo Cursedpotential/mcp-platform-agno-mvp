@@ -13,7 +13,10 @@ The original C1 description below is historical foundation, not the complete cur
 map. Knowledge browsing and the Matter workspace are committed and pushed to `main`,
 with local build/test evidence but no deployed-service proof. Commit `be286a8`
 adds exact evidence/custody inspection and makes successful inspection a prerequisite
-for recording a review decision. Horizon execution remains held.
+for recording a review decision. The current local slice adds a separate read-only
+court-readiness dialog that distinguishes actual database export-view membership
+from stricter supplemental checks and explicitly avoids admissibility/legal-advice
+claims. Horizon execution remains held.
 
 - `/knowledge`: canonical, case-prefiltered Knowledge browsing plus separately labeled
   read-only Graphiti memory.
@@ -21,7 +24,8 @@ for recording a review decision. Horizon execution remains held.
   prebinds the Matter partition and primary CourtCase, resolves one exact
   custody-backed record, creates a default-unsafe draft, records human review,
   reads append-only review history, and exposes redacted canonical-record/H1/source
-  custody inspection through the Workbench BFF.
+  custody inspection plus read-only court-export/readiness gates through the
+  Workbench BFF.
 - Existing operational routes remain the current Workbench foundation; provider routing,
   persistent OpenCode workspace control, and the full horizon/delta experience are targets.
 

@@ -411,6 +411,36 @@ def _detail_row() -> dict:
     }
 
 
+def _readiness_row() -> dict:
+    return {
+        "id": _item_row()["id"],
+        "matter_id": MATTER_ID,
+        "review_status": "approved",
+        "hitl_required": False,
+        "safe_for_legal_use": True,
+        "is_hypothesis": False,
+        "is_authenticated": True,
+        "authentication_method": "hash_chain_of_custody",
+        "confidence": 0.8,
+        "confidence_tier": "high",
+        "privacy_sensitivity": "none",
+        "redaction_status": "none",
+        "sensitivity_tier": "restricted",
+        "source_custody_status": "verified",
+        "source_review_status": "reviewed",
+        "source_verified_by": "owner",
+        "source_verified_at": NOW,
+        "source_privacy_sensitivity": "none",
+        "source_sensitivity_tier": "restricted",
+        "content_review_decision_id": DECISION_ID,
+        "content_review_approved": True,
+        "h1_valid": True,
+        "event_chain_valid": True,
+        "verified_event_present": True,
+        "court_export_view_member": True,
+    }
+
+
 def _resolve_payload() -> dict:
     return {
         "lane": "evidence",
@@ -632,6 +662,107 @@ def test_review_history_is_matter_scoped_and_ordered(monkeypatch: pytest.MonkeyP
     assert result.data[0].rationale == "Reviewed exact normalized record."
     assert "item.matter_id = :matter_id" in engine.calls[0][0]
     assert "ORDER BY decided_at, decision_id" in engine.calls[1][0]
+
+
+def test_court_readiness_route_returns_nested_gates_without_private_fields(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    readiness = repository._court_readiness_from_row(_readiness_row())
+    monkeypatch.setattr("server.case_management.service.get_court_readiness", lambda *_args: readiness)
+
+    response = client.get(f"/v1/matters/{MATTER_ID}/evidence-items/{_item_row()['id']}/court-readiness")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["readiness_passed"] is True
+    assert payload["blockers"] == []
+    assert payload["gates"]["content_review"]["decision_id"] == str(DECISION_ID)
+    assert payload["gates"]["assertion"] == {"not_hypothesis": True}
+    assert payload["gates"]["court_export"] == {"view_member": True}
+    serialized = response.text
+    assert "local_path" not in serialized
+    assert "r2_key" not in serialized
+    assert "private_metadata" not in serialized
+
+
+@pytest.mark.parametrize(
+    ("changes", "blocker"),
+    [
+        ({"content_review_approved": False}, "CONTENT_REVIEW_REQUIRED"),
+        ({"source_custody_status": "collected"}, "CUSTODY_NOT_VERIFIED"),
+        ({"source_review_status": "flagged"}, "CUSTODY_NOT_VERIFIED"),
+        ({"source_verified_by": None}, "CUSTODY_NOT_VERIFIED"),
+        ({"source_verified_at": None}, "CUSTODY_NOT_VERIFIED"),
+        ({"verified_event_present": False}, "CUSTODY_NOT_VERIFIED"),
+        ({"h1_valid": False}, "CUSTODY_CHAIN_INVALID"),
+        ({"event_chain_valid": False}, "CUSTODY_CHAIN_INVALID"),
+        ({"is_authenticated": False}, "AUTHENTICATION_REQUIRED"),
+        ({"authentication_method": None}, "AUTHENTICATION_REQUIRED"),
+        ({"confidence_tier": "low"}, "CONFIDENCE_NOT_EXPORTABLE"),
+        ({"is_hypothesis": True}, "HYPOTHESIS_NOT_EXPORTABLE"),
+        ({"redaction_status": "required"}, "REDACTION_REQUIRED"),
+        ({"privacy_sensitivity": "minor"}, "REDACTION_REQUIRED"),
+        ({"source_privacy_sensitivity": "pii"}, "REDACTION_REQUIRED"),
+        ({"sensitivity_tier": "sealed"}, "SENSITIVITY_SEALED"),
+        ({"source_sensitivity_tier": "sealed"}, "SENSITIVITY_SEALED"),
+        ({"safe_for_legal_use": False}, "NOT_RELEASED"),
+    ],
+)
+def test_court_readiness_reports_each_fail_closed_blocker(changes: dict, blocker: str) -> None:
+    row = {**_readiness_row(), **changes, "court_export_view_member": False}
+
+    result = repository._court_readiness_from_row(row)
+
+    assert result.readiness_passed is False
+    assert blocker in result.blockers
+
+
+def test_court_readiness_requires_actual_export_view_membership() -> None:
+    row = {**_readiness_row(), "court_export_view_member": False}
+
+    result = repository._court_readiness_from_row(row)
+
+    assert result.readiness_passed is False
+    assert result.blockers == ["NOT_RELEASED"]
+    assert result.gates.court_export.view_member is False
+
+
+def test_court_readiness_repository_fails_404_on_exact_provenance_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = _FakeEngine([None])
+    monkeypatch.setattr(repository, "_get_engine", lambda: engine)
+
+    with pytest.raises(repository.CaseRepositoryError, match="not found in this matter") as exc:
+        repository.get_court_readiness(MATTER_ID, _item_row()["id"])
+
+    assert exc.value.status_code == 404
+
+
+def test_court_readiness_sql_uses_authoritative_view_latest_review_and_custody_chain(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = _FakeEngine([_readiness_row()])
+    monkeypatch.setattr(repository, "_get_engine", lambda: engine)
+
+    result = repository.get_court_readiness(MATTER_ID, _item_row()["id"])
+
+    assert result.readiness_passed is True
+    sql, params = engine.calls[0]
+    normalized = " ".join(sql.split())
+    assert "analysis.vw_court_export" in normalized
+    assert "analysis.knowledge_evidence_pointer_hash" in normalized
+    assert "working.normalized_record" in normalized
+    assert "promotion.file_node_id IS NOT DISTINCT FROM ei.file_node_id" in normalized
+    assert "task.trigger_code = 'knowledge_evidence_promotion'" in normalized
+    assert "ORDER BY decision.decided_at DESC, decision.decision_id DESC" in normalized
+    assert "lag(event.event_digest) OVER (ORDER BY event.seq)" in normalized
+    assert "generate_series(-720, 840, 15)" in normalized
+    assert "chained.event_digest_matches_legacy_trigger" in normalized
+    assert "chained.evidence_hash_id = exact_item.evidence_hash_id" in normalized
+    assert "chained.file_node_id IS NOT DISTINCT FROM exact_item.file_node_id" in normalized
+    assert params == {"matter_id": MATTER_ID, "evidence_item_id": _item_row()["id"]}
 
 
 def test_promote_denies_foreign_court_case_before_source_write(monkeypatch: pytest.MonkeyPatch) -> None:

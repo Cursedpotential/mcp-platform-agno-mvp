@@ -8,6 +8,19 @@
 > _2026-08-14 amendment: Claude Code · glm-5.2:cloud (independent-review report corrections — see
 > "Report re-verification corrections" below; Wave 0 live inventory + fresh-restore gate — see
 > "Wave 0 live inventory findings" below)._
+> _2026-08-15 amendment: Codex · GPT-5 (legacy custody-digest readiness verifier debt)._
+
+## Court-readiness compatibility debt (2026-08-15)
+
+- **Version the custody-event digest writer/verifier.** The existing trigger hashes a
+  session-timezone-rendered timestamp without recording a construction/timezone version.
+  The read-only Matter readiness endpoint safely verifies 2026-era rows by testing the
+  complete modern civil-offset grid (105 candidates per event), and the rollback harness
+  proves UTC/New_York reader invariance. This bounded compatibility path is acceptable for
+  an explicit operator read, but it must not become a high-volume query primitive. Add a
+  canonical UTC/versioned construction for new events, reconcile/cache legacy verification,
+  and benchmark representative large source chains before activation at scale. Do not
+  rewrite or delete historical custody rows.
 
 ## Report re-verification corrections (2026-08-14)
 

@@ -1,6 +1,6 @@
 """Workbench Matter routes: validated, same-origin proxies to the spine.
 
-Byline: Codex · GPT-5 · 2026-08-15
+Byline: Codex · GPT-5 · 2026-08-15 (Matter routes and read-only readiness)
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ from app.types.case_management import (
     MatterDetail,
     MatterList,
 )
-from app.types.evidence_detail import EvidenceDetail
+from app.types.evidence_detail import CourtReadiness, EvidenceDetail
 
 router = APIRouter(prefix="/api", tags=["matters"])
 
@@ -115,6 +115,20 @@ def get_evidence_detail_endpoint(matter_id: UUID, evidence_item_id: UUID):
         return service.get_evidence_detail(matter_id, evidence_item_id)
     except service.SpineError as error:
         _raise_spine(error)
+
+
+@router.get(
+    "/matters/{matter_id}/evidence-items/{evidence_item_id}/court-readiness",
+    response_model=CourtReadiness,
+)
+def get_court_readiness_endpoint(matter_id: UUID, evidence_item_id: UUID):
+    try:
+        readiness = CourtReadiness.model_validate(service.get_court_readiness(matter_id, evidence_item_id))
+    except service.SpineError as error:
+        _raise_spine(error)
+    if readiness.matter_id != matter_id or readiness.evidence_item_id != evidence_item_id:
+        raise HTTPException(status_code=502, detail="Spine returned court readiness for a different evidence item")
+    return readiness
 
 
 @router.post(

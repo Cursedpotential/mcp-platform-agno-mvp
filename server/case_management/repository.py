@@ -18,10 +18,19 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.exc import IntegrityError
 
 from server.contracts.case_management import (
+    AssertionReadinessGate,
+    AuthenticationReadinessGate,
     CanonicalRecordDetail,
+    ConfidenceReadinessGate,
+    ContentReviewGate,
     CourtCase,
     CourtCaseCreate,
+    CourtExportReadinessGate,
+    CourtReadiness,
+    CourtReadinessBlocker,
+    CourtReadinessGates,
     CustodyHashDetail,
+    CustodyReadinessGate,
     EvidenceItemDetail,
     EvidenceItem,
     EvidenceItemCreate,
@@ -39,7 +48,10 @@ from server.contracts.case_management import (
     MatterCreate,
     MatterDetail,
     MatterList,
+    ProvenanceReadinessGate,
+    RedactionReadinessGate,
     ReviewState,
+    SensitivityReadinessGate,
     FileNodeDetail,
     SourceCustodyDetail,
     SourceCandidate,
@@ -211,6 +223,108 @@ def _evidence_detail_from_row(row: dict[str, Any]) -> EvidenceItemDetail:
             verified_at=row.get("custody_source_verified_at"),
         ),
         file_node=file_node,
+    )
+
+
+def _court_readiness_from_row(row: dict[str, Any]) -> CourtReadiness:
+    content_approved = bool(row["content_review_approved"])
+    h1_valid = bool(row["h1_valid"])
+    event_chain_valid = bool(row["event_chain_valid"])
+    verified_event_present = bool(row["verified_event_present"])
+    source_reviewed = row["source_review_status"] == "reviewed"
+    source_verified = (
+        row["source_custody_status"] == "verified"
+        and source_reviewed
+        and row.get("source_verified_by") is not None
+        and row.get("source_verified_at") is not None
+        and verified_event_present
+    )
+    authenticated = bool(row["is_authenticated"]) and row.get("authentication_method") is not None
+    export_band = row["confidence_tier"] in {"high", "medium"}
+    not_hypothesis = not bool(row["is_hypothesis"])
+    redaction_clear = row["redaction_status"] != "required" and (
+        row["redaction_status"] == "applied"
+        or (row["privacy_sensitivity"] == "none" and row["source_privacy_sensitivity"] == "none")
+    )
+    sealed = row["sensitivity_tier"] == "sealed" or row["source_sensitivity_tier"] == "sealed"
+    view_member = bool(row["court_export_view_member"])
+
+    blockers: list[CourtReadinessBlocker] = []
+    if not content_approved:
+        blockers.append(CourtReadinessBlocker.content_review_required)
+    if not source_verified:
+        blockers.append(CourtReadinessBlocker.custody_not_verified)
+    if not h1_valid or not event_chain_valid:
+        blockers.append(CourtReadinessBlocker.custody_chain_invalid)
+    if not authenticated:
+        blockers.append(CourtReadinessBlocker.authentication_required)
+    if not export_band:
+        blockers.append(CourtReadinessBlocker.confidence_not_exportable)
+    if not not_hypothesis:
+        blockers.append(CourtReadinessBlocker.hypothesis_not_exportable)
+    if not redaction_clear:
+        blockers.append(CourtReadinessBlocker.redaction_required)
+    if sealed:
+        blockers.append(CourtReadinessBlocker.sensitivity_sealed)
+    if not bool(row["safe_for_legal_use"]) or not view_member:
+        blockers.append(CourtReadinessBlocker.not_released)
+
+    gates = CourtReadinessGates(
+        content_review=ContentReviewGate(
+            approved=content_approved,
+            decision_id=row.get("content_review_decision_id"),
+        ),
+        provenance=ProvenanceReadinessGate(exact=True),
+        custody=CustodyReadinessGate(
+            h1_valid=h1_valid,
+            event_chain_valid=event_chain_valid,
+            verified_event_present=verified_event_present,
+            source_status=row["source_custody_status"],
+            source_reviewed=source_reviewed,
+            verified_by=row.get("source_verified_by"),
+            verified_at=row.get("source_verified_at"),
+        ),
+        authentication=AuthenticationReadinessGate(
+            authenticated=authenticated,
+            method=row.get("authentication_method"),
+        ),
+        confidence=ConfidenceReadinessGate(
+            value=float(row["confidence"]) if row.get("confidence") is not None else None,
+            tier=row["confidence_tier"],
+            export_band=export_band,
+        ),
+        assertion=AssertionReadinessGate(not_hypothesis=not_hypothesis),
+        redaction=RedactionReadinessGate(
+            privacy_sensitivity=row["privacy_sensitivity"],
+            source_privacy_sensitivity=row["source_privacy_sensitivity"],
+            status=row["redaction_status"],
+            clear_for_export=redaction_clear,
+        ),
+        sensitivity=SensitivityReadinessGate(
+            evidence_tier=row["sensitivity_tier"],
+            source_tier=row["source_sensitivity_tier"],
+            sealed=sealed,
+        ),
+        court_export=CourtExportReadinessGate(view_member=view_member),
+    )
+    return CourtReadiness(
+        evidence_item_id=row["id"],
+        matter_id=row["matter_id"],
+        readiness_passed=(
+            view_member
+            and content_approved
+            and h1_valid
+            and event_chain_valid
+            and source_verified
+            and authenticated
+            and export_band
+            and not_hypothesis
+            and redaction_clear
+            and not sealed
+            and bool(row["safe_for_legal_use"])
+        ),
+        blockers=blockers,
+        gates=gates,
     )
 
 
@@ -951,3 +1065,184 @@ def get_evidence_detail(matter_id: UUID, evidence_item_id: UUID) -> EvidenceItem
     if row is None:
         raise CaseRepositoryError("promoted evidence item not found in this matter", 404)
     return _evidence_detail_from_row(dict(row))
+
+
+def get_court_readiness(matter_id: UUID, evidence_item_id: UUID) -> CourtReadiness:
+    """Evaluate exact custody and export gates without trusting session timezone.
+
+    The legacy, unversioned custody trigger hashed a session-rendered timestamp.
+    Verification therefore tries the complete modern civil-offset grid
+    (-12:00 through +14:00 in 15-minute increments) while retaining the
+    trigger's exact timestamp/string construction. Platform custody events
+    postdate historical sub-15-minute IANA offsets.
+    """
+    query = text(
+        """
+        WITH exact_item AS (
+            SELECT
+                ei.id, ei.matter_id, ei.evidence_hash_id, ei.file_node_id,
+                ei.review_status, ei.hitl_required,
+                ei.safe_for_legal_use, ei.is_hypothesis, ei.is_authenticated,
+                ei.authentication_method, ei.confidence, ei.confidence_tier,
+                ei.privacy_sensitivity, ei.redaction_status, ei.sensitivity_tier,
+                custody_hash.algo AS hash_algo,
+                octet_length(custody_hash.digest) AS hash_length,
+                custody_hash.level AS hash_level,
+                custody_hash.canon_version AS hash_canon_version,
+                custody_source.id AS source_id,
+                custody_source.custody_status AS source_custody_status,
+                custody_source.review_status AS source_review_status,
+                custody_source.verified_by AS source_verified_by,
+                custody_source.verified_at AS source_verified_at,
+                custody_source.privacy_sensitivity AS source_privacy_sensitivity,
+                custody_source.sensitivity_tier AS source_sensitivity_tier
+            FROM analysis.evidence_item ei
+            JOIN analysis.knowledge_evidence_promotion promotion
+              ON promotion.evidence_item_id = ei.id
+             AND promotion.matter_id = ei.matter_id
+             AND promotion.court_case_id = ei.court_case_id
+             AND promotion.normalized_record_id = ei.normalized_record_id
+             AND promotion.evidence_hash_id = ei.evidence_hash_id
+             AND promotion.source_id = ei.source_id
+             AND promotion.file_node_id IS NOT DISTINCT FROM ei.file_node_id
+             AND promotion.source_run_id IS NOT DISTINCT FROM ei.source_run_id
+            JOIN working.normalized_record record
+              ON record.id = promotion.normalized_record_id
+             AND record.artifact_id = promotion.evidence_hash_id
+             AND record.case_id = promotion.partition_key
+             AND record.provenance_id IS NOT DISTINCT FROM promotion.source_run_id
+            JOIN evidence.evidence_hash custody_hash
+              ON custody_hash.id = promotion.evidence_hash_id
+             AND custody_hash.source_id = promotion.source_id
+             AND custody_hash.file_node_id IS NOT DISTINCT FROM promotion.file_node_id
+            JOIN evidence.source custody_source
+              ON custody_source.id = promotion.source_id
+            LEFT JOIN evidence.file_node file_node
+              ON file_node.id = promotion.file_node_id
+             AND file_node.source_id = promotion.source_id
+            WHERE ei.id = :evidence_item_id
+              AND ei.matter_id = :matter_id
+              AND promotion.knowledge_lane = 'evidence'
+              AND (promotion.file_node_id IS NULL OR file_node.id IS NOT NULL)
+              AND promotion.source_pointer->>'matter_id' = promotion.matter_id::text
+              AND promotion.source_pointer->>'court_case_id' = promotion.court_case_id::text
+              AND promotion.source_pointer->>'partition_key' = promotion.partition_key
+              AND promotion.source_pointer->>'lane' = promotion.knowledge_lane
+              AND promotion.source_pointer->>'normalized_record_id' = promotion.normalized_record_id::text
+              AND promotion.source_pointer->>'evidence_hash_id' = promotion.evidence_hash_id::text
+              AND promotion.source_pointer->>'source_id' = promotion.source_id::text
+              AND promotion.source_pointer->>'sha256' = encode(custody_hash.digest, 'hex')
+              AND analysis.knowledge_evidence_pointer_hash(promotion.source_pointer)
+                  = promotion.source_pointer_hash
+        )
+        SELECT
+            exact_item.*,
+            latest_review.decision_id AS content_review_decision_id,
+            (
+                exact_item.review_status = 'approved'::ai.review_state
+                AND exact_item.hitl_required = false
+                AND latest_review.decision = 'approved'
+                AND latest_review.court_readiness = 'review_passed'
+                AND latest_review.task_state = 'resolved'
+            ) AS content_review_approved,
+            (
+                exact_item.hash_algo = 'sha256'
+                AND exact_item.hash_length = 32
+                AND exact_item.hash_level = 'H1'
+                AND exact_item.hash_canon_version = 'h1-rawbytes-v1'
+            ) AS h1_valid,
+            COALESCE(custody.event_chain_valid, false) AS event_chain_valid,
+            COALESCE(custody.verified_event_present, false) AS verified_event_present,
+            EXISTS (
+                SELECT 1 FROM analysis.vw_court_export court_export
+                 WHERE court_export.id = exact_item.id
+            ) AS court_export_view_member
+        FROM exact_item
+        LEFT JOIN LATERAL (
+            SELECT decision.decision_id, decision.decision, decision.court_readiness,
+                   task.state AS task_state
+              FROM analysis.review_decision decision
+              JOIN analysis.review_task task ON task.task_id = decision.task_id
+             WHERE decision.target_kind = 'evidence_item'
+               AND decision.target_id = exact_item.id
+               AND task.target_kind = 'evidence_item'
+               AND task.target_id = exact_item.id
+               AND task.trigger_code = 'knowledge_evidence_promotion'
+             ORDER BY decision.decided_at DESC, decision.decision_id DESC
+             LIMIT 1
+        ) latest_review ON true
+        LEFT JOIN LATERAL (
+            SELECT
+                COALESCE(
+                    bool_and(
+                        chained.prev_event_digest IS NOT DISTINCT FROM chained.expected_prev_digest
+                        AND chained.event_digest_matches_legacy_trigger
+                    ),
+                    false
+                ) AS event_chain_valid,
+                COALESCE(
+                    bool_or(
+                        chained.event_type = 'verified'
+                        AND (
+                            (chained.evidence_hash_id IS NULL AND chained.file_node_id IS NULL)
+                            OR (
+                                chained.evidence_hash_id = exact_item.evidence_hash_id
+                                AND chained.file_node_id IS NOT DISTINCT FROM exact_item.file_node_id
+                            )
+                        )
+                    ),
+                    false
+                ) AS verified_event_present
+            FROM (
+                SELECT
+                    event.event_type,
+                    event.evidence_hash_id,
+                    event.file_node_id,
+                    event.prev_event_digest,
+                    event.event_digest,
+                    lag(event.event_digest) OVER (ORDER BY event.seq) AS expected_prev_digest,
+                    EXISTS (
+                        SELECT 1
+                        FROM generate_series(-720, 840, 15) AS candidate(offset_minutes)
+                        WHERE event.event_digest = digest(
+                            convert_to(
+                                coalesce(event.source_id::text, '') || '|' ||
+                                coalesce(event.file_node_id::text, '') || '|' ||
+                                coalesce(event.evidence_hash_id::text, '') || '|' ||
+                                event.event_type || '|' || event.actor || '|' ||
+                                to_char(
+                                    timezone(
+                                        make_interval(mins => candidate.offset_minutes),
+                                        event.occurred_at
+                                    ),
+                                    'YYYY-MM-DD"T"HH24:MI:SS.US'
+                                ) || ' ' ||
+                                CASE WHEN candidate.offset_minutes < 0 THEN '-' ELSE '+' END ||
+                                lpad((abs(candidate.offset_minutes) / 60)::text, 2, '0') || ':' ||
+                                lpad((abs(candidate.offset_minutes) % 60)::text, 2, '0') || '|' ||
+                                coalesce(event.detail::text, '{}') || '|' ||
+                                coalesce(encode(event.prev_event_digest, 'hex'), ''),
+                                'UTF8'
+                            ),
+                            'sha256'
+                        )
+                    ) AS event_digest_matches_legacy_trigger
+                FROM evidence.custody_event event
+                WHERE event.source_id = exact_item.source_id
+                ORDER BY event.seq
+            ) chained
+        ) custody ON true
+        """
+    )
+    with _get_engine().connect() as conn:
+        row = (
+            conn.execute(
+                query,
+                {"matter_id": matter_id, "evidence_item_id": evidence_item_id},
+            )
+            .mappings()
+            .first()
+        )
+    if row is None:
+        raise CaseRepositoryError("promoted evidence item not found in this matter", 404)
+    return _court_readiness_from_row(dict(row))

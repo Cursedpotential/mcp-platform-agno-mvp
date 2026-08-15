@@ -1,5 +1,5 @@
 // Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: records, schemas, verify, parse-dryrun, flags; C4: knowledge search/browse + Graphiti pane added 2026-07-23)
-// Byline: Codex · GPT-5 · 2026-08-13 (run reports and review actions)
+// Byline: Codex · GPT-5 · 2026-08-15 (run reports, review actions, and court readiness)
 /**
  * API client for the Knowledge Workbench.
  *
@@ -14,6 +14,7 @@ import type {
   CourtCase,
   CourtCaseStatus,
   EvidenceDetail,
+  CourtReadiness,
   EvidenceItemListResponse,
   EvidencePromotionResult,
   EvidenceReviewDecision,
@@ -572,6 +573,12 @@ export async function listEvidenceItems(matterId: string, limit = 50, offset = 0
 export async function getEvidenceDetail(matterId: string, evidenceItemId: string) {
   return apiFetch<EvidenceDetail>(
     `/api/matters/${encodeURIComponent(matterId)}/evidence-items/${encodeURIComponent(evidenceItemId)}`,
+  );
+}
+
+export async function getCourtReadiness(matterId: string, evidenceItemId: string) {
+  return apiFetch<CourtReadiness>(
+    `/api/matters/${encodeURIComponent(matterId)}/evidence-items/${encodeURIComponent(evidenceItemId)}/court-readiness`,
   );
 }
 

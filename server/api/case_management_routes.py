@@ -19,6 +19,7 @@ from server.case_management import service
 from server.contracts.case_management import (
     CourtCase,
     CourtCaseCreate,
+    CourtReadiness,
     EvidenceItemCreate,
     EvidenceItemDetail,
     EvidenceItemList,
@@ -110,6 +111,17 @@ def register_case_management_routes(app: FastAPI) -> None:
         evidence_item_id: UUID,
     ) -> EvidenceItemDetail:
         return _translate(lambda: service.get_evidence_detail(matter_id, evidence_item_id))
+
+    @app.get(
+        "/v1/matters/{matter_id}/evidence-items/{evidence_item_id}/court-readiness",
+        response_model=CourtReadiness,
+        tags=["case-management"],
+    )
+    def get_evidence_item_court_readiness(
+        matter_id: UUID,
+        evidence_item_id: UUID,
+    ) -> CourtReadiness:
+        return _translate(lambda: service.get_court_readiness(matter_id, evidence_item_id))
 
     @app.post(
         "/v1/matters/{matter_id}/evidence-items/{evidence_item_id}/reviews",

@@ -53,6 +53,21 @@ class EvidenceReviewDecision(StrEnum):
     hold = "hold"
 
 
+class CourtReadinessBlocker(StrEnum):
+    """Stable reasons an evidence item cannot pass the court-facing gate."""
+
+    content_review_required = "CONTENT_REVIEW_REQUIRED"
+    provenance_invalid = "PROVENANCE_INVALID"
+    custody_not_verified = "CUSTODY_NOT_VERIFIED"
+    custody_chain_invalid = "CUSTODY_CHAIN_INVALID"
+    authentication_required = "AUTHENTICATION_REQUIRED"
+    confidence_not_exportable = "CONFIDENCE_NOT_EXPORTABLE"
+    hypothesis_not_exportable = "HYPOTHESIS_NOT_EXPORTABLE"
+    redaction_required = "REDACTION_REQUIRED"
+    sensitivity_sealed = "SENSITIVITY_SEALED"
+    not_released = "NOT_RELEASED"
+
+
 class MatterCreate(BaseModel):
     title: str = Field(min_length=1, max_length=300)
     description: str | None = Field(default=None, max_length=10_000)
@@ -337,6 +352,77 @@ class EvidenceItemDetail(BaseModel):
     custody_hash: CustodyHashDetail
     source: SourceCustodyDetail
     file_node: FileNodeDetail | None = None
+
+
+class ContentReviewGate(BaseModel):
+    approved: bool
+    decision_id: UUID | None = None
+
+
+class ProvenanceReadinessGate(BaseModel):
+    exact: bool
+
+
+class CustodyReadinessGate(BaseModel):
+    h1_valid: bool
+    event_chain_valid: bool
+    verified_event_present: bool
+    source_status: str
+    source_reviewed: bool
+    verified_by: str | None = None
+    verified_at: datetime | None = None
+
+
+class AuthenticationReadinessGate(BaseModel):
+    authenticated: bool
+    method: str | None = None
+
+
+class ConfidenceReadinessGate(BaseModel):
+    value: float | None = None
+    tier: str
+    export_band: bool
+
+
+class AssertionReadinessGate(BaseModel):
+    not_hypothesis: bool
+
+
+class RedactionReadinessGate(BaseModel):
+    privacy_sensitivity: str
+    source_privacy_sensitivity: str
+    status: str
+    clear_for_export: bool
+
+
+class SensitivityReadinessGate(BaseModel):
+    evidence_tier: str
+    source_tier: str
+    sealed: bool
+
+
+class CourtExportReadinessGate(BaseModel):
+    view_member: bool
+
+
+class CourtReadinessGates(BaseModel):
+    content_review: ContentReviewGate
+    provenance: ProvenanceReadinessGate
+    custody: CustodyReadinessGate
+    authentication: AuthenticationReadinessGate
+    confidence: ConfidenceReadinessGate
+    assertion: AssertionReadinessGate
+    redaction: RedactionReadinessGate
+    sensitivity: SensitivityReadinessGate
+    court_export: CourtExportReadinessGate
+
+
+class CourtReadiness(BaseModel):
+    evidence_item_id: UUID
+    matter_id: UUID
+    readiness_passed: bool
+    blockers: list[CourtReadinessBlocker]
+    gates: CourtReadinessGates
 
 
 class EvidencePromotionResult(BaseModel):

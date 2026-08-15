@@ -1,4 +1,4 @@
-// Byline: Codex · GPT-5 · 2026-08-15 (Matter workspace MVP)
+// Byline: Codex · GPT-5 · 2026-08-15 (Matter workspace MVP and readiness inspection)
 "use client";
 
 import { useEffect, useState } from "react";
@@ -12,6 +12,7 @@ import { KnowledgeBrowser } from "@/components/knowledge/knowledge-browser";
 import { ApiError, getMatter, listEvidenceItems, listMatters } from "@/lib/api-client";
 import type { EvidenceItem, Matter, MatterDetail } from "@/lib/shared/types";
 import { EvidenceDetailDialog } from "./evidence-detail-dialog";
+import { CourtReadinessDialog } from "./court-readiness-dialog";
 import { EvidenceReviewDialog, EvidenceReviewHistoryDialog } from "./evidence-review-dialog";
 import { CreateCourtCaseDialog, CreateMatterDialog } from "./matter-creation-dialogs";
 
@@ -232,6 +233,7 @@ export function MatterWorkspace() {
                 {item.hitl_required && <Badge variant="outline">HITL required</Badge>}
                 {!item.safe_for_legal_use && <Badge variant="destructive">Unsafe for legal use</Badge>}
                 <EvidenceDetailDialog item={item} />
+                <CourtReadinessDialog item={item} />
                 {item.hitl_required && (
                   <EvidenceReviewDialog
                     item={item}

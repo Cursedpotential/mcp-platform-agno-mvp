@@ -1,5 +1,5 @@
 // Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: records, schemas, verify, parse-dryrun, flags; C4: knowledge search/browse + Graphiti pane types added 2026-07-23)
-// Byline: Codex · GPT-5 · 2026-08-13 (durable report contracts)
+// Byline: Codex · GPT-5 · 2026-08-15 (durable reports and Matter court-readiness contracts)
 /**
  * Types for the Knowledge Workbench staged-file record.
  *
@@ -850,6 +850,44 @@ export interface EvidenceDetail {
   custody_hash: CustodyHashDetail;
   source: EvidenceSourceDetail;
   file_node?: EvidenceFileNodeDetail | null;
+}
+
+export type CourtReadinessBlocker =
+  | "CONTENT_REVIEW_REQUIRED"
+  | "PROVENANCE_INVALID"
+  | "CUSTODY_NOT_VERIFIED"
+  | "CUSTODY_CHAIN_INVALID"
+  | "AUTHENTICATION_REQUIRED"
+  | "CONFIDENCE_NOT_EXPORTABLE"
+  | "HYPOTHESIS_NOT_EXPORTABLE"
+  | "REDACTION_REQUIRED"
+  | "SENSITIVITY_SEALED"
+  | "NOT_RELEASED";
+
+export interface CourtReadiness {
+  evidence_item_id: string;
+  matter_id: string;
+  readiness_passed: boolean;
+  blockers: CourtReadinessBlocker[];
+  gates: {
+    content_review: { approved: boolean; decision_id?: string | null };
+    provenance: { exact: boolean };
+    custody: {
+      h1_valid: boolean;
+      event_chain_valid: boolean;
+      verified_event_present: boolean;
+      source_status: string;
+      source_reviewed: boolean;
+      verified_by?: string | null;
+      verified_at?: string | null;
+    };
+    authentication: { authenticated: boolean; method?: string | null };
+    confidence: { value?: number | null; tier: string; export_band: boolean };
+    assertion: { not_hypothesis: boolean };
+    redaction: { privacy_sensitivity: string; source_privacy_sensitivity: string; status: string; clear_for_export: boolean };
+    sensitivity: { evidence_tier: string; source_tier: string; sealed: boolean };
+    court_export: { view_member: boolean };
+  };
 }
 
 export interface EvidenceReviewResult {

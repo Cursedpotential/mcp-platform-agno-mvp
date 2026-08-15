@@ -8,15 +8,16 @@ BUILD_STATUS: PASS (local R9 slice only; deployment/live proof UNKNOWN)
 
 | Thing | State |
 |---|---|
-| Branch | `main` equals `origin/main`; custody inspection is pushed as `be286a8` |
+| Branch | `main` commit equals `origin/main` at `ebc5031`; court-readiness changes are locally verified and pending commit |
 | Knowledge UI | `/knowledge` exists in the working tree and is included in the Next.js static build |
 | Knowledge isolation | Workbench search always sends a non-empty `case_id` dict prefilter before Weaviate ranking; default is `primary` |
 | Memory separation | Graphiti facts/nodes/episodes render in a separately labeled read-only memory pane, never as canonical evidence |
 | Matter foundation | ADR-0055 / D-060 accepted; migration 0030, neutral spine APIs, Workbench proxies, `/matter`, and governed Add-to-case are built locally |
-| Backend validation | Root suite: 721 passed / 24 skipped; Workbench API: 88 passed; full Ruff and server mypy pass |
+| Backend validation | Root suite: 743 passed / 24 skipped; Workbench API: 92 passed; full Ruff and server mypy pass |
 | Frontend validation | Full ESLint and TypeScript pass; Next.js production build passes with 15 static pages |
 | Migration validation | Static contract and 11 migration tests pass. PostgreSQL 18.4 scratch execution of 0030 plus custody/promotion negative cases passed in rollback with zero net writes |
 | Workbench auth | Mandatory fail-closed `WORKBENCH_API_KEY`; only exact `/health` is public. Key is not provisioned or deployed |
+| Court readiness | Read-only Matter/item endpoint and dialog distinguish actual export-view membership from stricter supplemental gates; no release mutation |
 | Deployment | UNKNOWN — no live Workbench, Weaviate, Graphiti, migration, or Coolify mutation was performed |
 
 ## Historical baseline findings / work done
@@ -364,3 +365,40 @@ locally but is not deployed or live-proven.
 - Status remains **PARTIAL**: this follow-on is committed/pushed as `be286a8` and undeployed;
   migrations 0026–0030 and live activation remain owner-held. People/Timeline
   remains design-only pending an explicit Matter association model.
+
+## Addendum — read-only court-export readiness (2026-08-15)
+
+> _Byline: Codex · GPT-5 · 2026-08-15_
+
+- Added a Matter-scoped read endpoint and Workbench dialog for one promoted
+  evidence item. The contract reports actual `analysis.vw_court_export`
+  membership separately from `readiness_passed`, the stricter aggregate of
+  content review, exact provenance, custody, authentication, confidence,
+  hypothesis, redaction, sensitivity, and release checks.
+- This slice is diagnostic only. It does not authenticate evidence, change
+  confidence, apply redaction, mark material safe, or perform legal release.
+  The UI labels the result as database status—not admissibility, satisfaction
+  of court rules, or legal advice.
+- Exact custody checks remain fail-closed and Matter-scoped. A verification
+  event qualifies only when it is source-wide or matches the selected H1 and
+  file node; a verified sibling member cannot verify the selected item.
+- The legacy custody trigger rendered timestamps in the writer session's time
+  zone. The read verifier reconstructs the exact legacy input over the complete
+  modern civil-offset grid (105 candidates per event), making reads independent
+  of the current session time zone. This is bounded MVP compatibility debt; a
+  versioned canonical writer/verifier and large-chain benchmark remain future
+  hardening.
+- Adversarial review initially returned **NEEDS REVISION** for export-view
+  conflation, sibling verification leakage, and timezone-dependent digest
+  checking. All three were corrected; final bounded re-review returned **PASS**.
+- Fresh broad gates: root Ruff/format/mypy **PASS**, root tests **743 passed / 24
+  skipped**; Workbench API Ruff/format **PASS**, tests **92 passed**; frontend
+  ESLint/TypeScript/build **PASS** with 15 static routes; Matter smoke **1
+  passed**.
+- PostgreSQL 18.4 rollback proof passed with zero net writes. It proves sibling
+  isolation, actual view member/nonmember states, and identical readiness after
+  switching the reader between UTC and America/New_York. The first attempt
+  exposed a harness bind-literal bug; it was fixed and the proof rerun. The
+  disposable server was stopped and port 55439 is closed.
+- Status remains **PARTIAL** and undeployed. Migration ordering, full custom-image
+  baseline rehearsal, key provisioning, and live service proof remain owner-held.

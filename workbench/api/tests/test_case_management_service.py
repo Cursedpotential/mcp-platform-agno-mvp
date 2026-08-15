@@ -178,3 +178,22 @@ def test_evidence_detail_forwards_exact_matter_item_scope(monkeypatch):
         "path": f"/v1/matters/{MATTER_ID}/evidence-items/{item_id}",
         "kwargs": {},
     }
+
+
+def test_court_readiness_forwards_exact_matter_item_scope(monkeypatch):
+    captured = {}
+
+    def fake_spine_json(method, path, **kwargs):
+        captured.update(method=method, path=path, kwargs=kwargs)
+        return {}
+
+    monkeypatch.setattr(case_management, "spine_json", fake_spine_json)
+    item_id = UUID("88888888-8888-4888-8888-888888888888")
+
+    case_management.get_court_readiness(MATTER_ID, item_id)
+
+    assert captured == {
+        "method": "GET",
+        "path": f"/v1/matters/{MATTER_ID}/evidence-items/{item_id}/court-readiness",
+        "kwargs": {},
+    }

@@ -35,6 +35,12 @@ Knowledge-to-Evidence promotion are pushed to `main`. Migration
 **unapplied** and no deployment/live claim is made. Commit `be286a8` adds exact
 canonical-record and H1 custody inspection before human review; it changes no
 schema and is pushed to `main` but remains undeployed.
+The current working slice adds a read-only court-export/readiness explanation:
+actual `analysis.vw_court_export` membership is shown separately from stricter
+content-review, exact-provenance, custody, authentication, confidence,
+hypothesis, redaction, and sensitivity checks. It performs no release mutation.
+See `docs/plans/COURT-READINESS-pre-mortem-2026-08-15.md` for verified local
+evidence and residual legacy-digest debt.
 
 > **Current-state correction — 2026-08-15.** Wave 1 has implementation files in the
 > working tree (`sql/0026_realization_event.sql` through `sql/0029_pass_grants.sql`,
