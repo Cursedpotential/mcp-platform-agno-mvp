@@ -35,9 +35,7 @@ async def list_records_endpoint(
     offset: int | None = None,
 ):
     try:
-        return inspect_service.list_records(
-            artifact_id=artifact_id, run_id=run_id, q=q, limit=limit, offset=offset
-        )
+        return inspect_service.list_records(artifact_id=artifact_id, run_id=run_id, q=q, limit=limit, offset=offset)
     except SpineError as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail) from None
 

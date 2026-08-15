@@ -99,9 +99,7 @@ def test_file_digest_not_found(monkeypatch):
 
 def test_build_preamble_with_run_and_file(monkeypatch):
     monkeypatch.setattr(copilot, "get_run", lambda run_id: {"run_id": run_id, "stages": []})
-    monkeypatch.setattr(
-        copilot.staging, "get", lambda file_id: {"id": file_id, "name": "f.md", "text": "hi"}
-    )
+    monkeypatch.setattr(copilot.staging, "get", lambda file_id: {"id": file_id, "name": "f.md", "text": "hi"})
     preamble = copilot.build_preamble({"page": "intake", "run_id": "r1", "file_id": "f1"})
     assert "intake" in preamble
     assert "r1" in preamble
@@ -175,7 +173,12 @@ def test_list_presets_override_merges(monkeypatch, tmp_path):
     override_path.write_text(
         _json.dumps(
             [
-                {"id": "summarize-file", "label": "Summarize (custom)", "prompt": "custom prompt", "wants_context": "file"},
+                {
+                    "id": "summarize-file",
+                    "label": "Summarize (custom)",
+                    "prompt": "custom prompt",
+                    "wants_context": "file",
+                },
                 {"id": "new-one", "label": "New preset", "prompt": "do the thing", "wants_context": None},
             ]
         ),

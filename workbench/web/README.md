@@ -1,10 +1,31 @@
 # Knowledge Workbench — web (C1 Operator Console)
 
 > _Byline: Claude Code · Sonnet (agent) · 2026-07-20 (C1 rebuild: Runs/Tools/Intake replaces Upload/Files-promote)_
+> _Current-product repair: Codex · GPT-5 · 2026-08-15._
+
+> **Current role:** this custom Next.js Workbench—not AgentOS Studio—is the accepted
+> operator product. It consumes neutral platform/Workbench APIs so the browser does not
+> depend on whether Agno or a future adapter coordinates a run.
+
+## Current working-tree surfaces — held, not deployed
+
+The original C1 description below is historical foundation, not the complete current route
+map. The dirty working tree also contains Knowledge browsing and a Matter workspace with
+Knowledge-to-Evidence actions. These additions have local build/test evidence but are
+uncommitted and not verified against deployed services. Horizon execution remains held.
+
+- `/knowledge`: canonical, case-prefiltered Knowledge browsing plus separately labeled
+  read-only Graphiti memory.
+- `/matter`: Matter/CourtCase scope plus a bound canonical Knowledge pane. It
+  prebinds the Matter partition and primary CourtCase, resolves one exact
+  custody-backed record, creates a default-unsafe draft, records human review,
+  and reads the append-only review history through the Workbench BFF.
+- Existing operational routes remain the current Workbench foundation; provider routing,
+  persistent OpenCode workspace control, and the full horizon/delta experience are targets.
 
 The C1 Operator Console: drive the evidence spine instead of feeding a blind
 upload->promote box (owner rejection, `docs/planning/operator-console-requirements.md`).
-Three pages: **Runs** (default landing — start/watch spine runs stage-by-stage:
+The first C1 rebuild emphasized three pages: **Runs** (default landing — start/watch spine runs stage-by-stage:
 custody -> parse -> store -> knowledge), **Tools** (schema-generated forms over
 every configured MCP server), **Intake** (the renamed Files page — upload folded
 in, Promote buttons removed, each row's action is "Start run ->").
@@ -49,8 +70,9 @@ no Backblaze/B2 branding or copy remains in the UI.
 ### What was removed from the donor kit
 
 - **Chat + RAG**: `src/app/chat/`, `src/components/chat/` (streaming chat UI,
-  citations, session sidebar) — this app never queries the knowledge base, it
-  only stages and promotes files into it.
+  citations, session sidebar) were removed. The current product does query
+  canonical Knowledge through `/knowledge` and the Matter-bound Knowledge
+  pane; those are governed operator surfaces, not the donor chat experience.
 - **Dashboard**: `src/app/page.tsx` (the donor's session-analytics dashboard),
   `src/components/dashboard/` (stats cards, query/ingestion tables, retrieval
   quality, agent behavior, session drill-down, the recharts-based upload chart).
@@ -68,7 +90,10 @@ no Backblaze/B2 branding or copy remains in the UI.
   Backblaze B2 keys. Staged files have no folder concept, so `Files` is now a
   flat table (name, size, detected_type, domain, status, updated_at) with
   Promote + detail actions — no download/delete (out of scope for staging).
-- **`e2e/`, `playwright.config.ts`**: skipped for this sprint per the build brief.
+- **Donor `e2e/` + Playwright setup**: skipped for the original sprint. The
+  current app instead has a zero-dependency Edge/Chrome CDP smoke at
+  `smoke/matter-flow.smoke.test.mjs` for the complete Matter-bound operator
+  journey.
 - **Unused shadcn/ui primitives**: `avatar.tsx`, `chart.tsx` (recharts),
   `scroll-area.tsx`, `tabs.tsx`, `toggle.tsx`, `alert-dialog.tsx`,
   `dropdown-menu.tsx` — not imported by anything in the Upload/Files/layout
@@ -116,7 +141,14 @@ pnpm dev     # next dev
 pnpm build   # next build -> out/
 pnpm start   # next start (dev convenience only; static export doesn't need a server)
 pnpm lint    # eslint
+npm run smoke:matter-flow  # build + strict mocked browser journey
 ```
+
+The Matter smoke starts a same-origin fixture server and a quarantined headless
+browser profile, then proves search → exact-source resolution → unsafe draft →
+review → persisted history. It fails on unscoped Matter discovery, cross-Matter
+requests, or Graphiti calls. Browser profiles are retained under the repository
+`to_be_deleted/` directory for owner-only cleanup, per the no-delete policy.
 
 ## Requirements
 

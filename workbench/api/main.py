@@ -18,6 +18,9 @@ from pathlib import Path
 
 from app.config import settings
 from app.runtime import (
+    case_management,
+    classification,
+    compare,
     copilot,
     documents,
     files,
@@ -28,9 +31,11 @@ from app.runtime import (
     promote,
     repairs,
     runs,
+    sentiment,
     tools,
     upload,
 )
+from app.runtime.auth import authentication_middleware
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -40,12 +45,56 @@ logger = logging.getLogger("workbench")
 
 app = FastAPI(
     title="Knowledge Workbench API",
-    description="Staging + promote surface over the existing platform ingestion API",
+    description="""
+Staging + promote surface over the existing platform ingestion API.
+
+## Classification & Sentiment Analysis Test System
+
+This API includes a comprehensive test system for running conversation chunks and AI chat chunks through classification and sentiment analysis via LLM.
+
+### Features
+- **Multi-provider support**: Ollama, NVIDIA NIM, Portkey, OpenRouter, Anthropic, OpenAI, Google, Groq
+- **Classification**: Categorize texts into custom categories with confidence scores
+- **Sentiment Analysis**: Detect sentiment (positive/negative/neutral/mixed) with emotion breakdown
+- **Comparison**: Run same texts across multiple providers simultaneously
+- **Export**: JSON/CSV export of results
+- **Portkey Integration**: Unified gateway with tracing, fallbacks, cost tracking
+
+### Authentication
+Mandatory `WORKBENCH_API_KEY`. API clients use `Authorization: Bearer <key>`;
+browsers may use HTTP Basic credentials `owner:<key>`. Only `/health` is public.
+
+### Documentation
+- Swagger UI: `/docs`
+- ReDoc: `/redoc`
+- OpenAPI JSON: `/openapi.json`
+    """,
     version="0.1.0",
+    openapi_tags=[
+        {"name": "health", "description": "Health checks"},
+        {"name": "upload", "description": "File upload and staging"},
+        {"name": "files", "description": "Staged file management"},
+        {"name": "promote", "description": "Promote staged files to platform"},
+        {"name": "documents", "description": "Document management"},
+        {"name": "runs", "description": "Spine run management"},
+        {"name": "inspect", "description": "Record inspection and flagging"},
+        {"name": "knowledge", "description": "Knowledge search and browse"},
+        {"name": "matters", "description": "Matter workspaces and draft evidence"},
+        {"name": "tools", "description": "MCP tool proxy"},
+        {"name": "repairs", "description": "Automated repair agents"},
+        {"name": "copilot", "description": "Copilot chat interface"},
+        {"name": "metrics", "description": "API metrics"},
+        {"name": "classification", "description": "Text classification (single/batch)"},
+        {"name": "sentiment", "description": "Sentiment analysis (single/batch)"},
+        {"name": "comparison", "description": "Multi-provider comparison and export"},
+    ],
 )
 
 # Request timing + in-process metrics counters (app.runtime.metrics)
 app.add_middleware(BaseHTTPMiddleware, dispatch=metrics.timing_middleware)
+# Added after timing so authentication is the outermost boundary around API,
+# documentation, and the static frontend alike.
+app.add_middleware(BaseHTTPMiddleware, dispatch=authentication_middleware)
 
 app.include_router(health.router)
 app.include_router(upload.router)
@@ -55,10 +104,14 @@ app.include_router(documents.router)
 app.include_router(runs.router)
 app.include_router(inspect.router)
 app.include_router(knowledge.router)
+app.include_router(case_management.router)
 app.include_router(tools.router)
 app.include_router(repairs.router)
 app.include_router(copilot.router)
 app.include_router(metrics.router)
+app.include_router(classification.router)
+app.include_router(sentiment.router)
+app.include_router(compare.router)
 
 # Static frontend (built separately) mounted LAST so /api + /health always win.
 _static_dir = Path(settings.static_dir)

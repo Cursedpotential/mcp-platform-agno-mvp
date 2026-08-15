@@ -55,9 +55,7 @@ async def metrics():
             method = parts[0] if len(parts) == 3 else "unknown"
             path = parts[1] if len(parts) == 3 else key
             status = parts[2] if len(parts) == 3 else "unknown"
-            lines.append(
-                f'http_requests_total{{method="{method}",path="{path}",status="{status}"}} {count}'
-            )
+            lines.append(f'http_requests_total{{method="{method}",path="{path}",status="{status}"}} {count}')
 
         lines.append("# HELP http_request_duration_seconds Total request duration")
         lines.append("# TYPE http_request_duration_seconds counter")

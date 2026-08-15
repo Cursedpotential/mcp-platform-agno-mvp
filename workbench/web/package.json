@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "smoke:matter-flow": "npm run build && node --test --test-concurrency=1 smoke/matter-flow.smoke.test.mjs"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",

@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { PlayCircle, Wrench, Inbox, Brain, FileSearch, ListChecks, Database, BookOpen, ShieldCheck } from "lucide-react";
+import { PlayCircle, Wrench, Inbox, Brain, FileSearch, ListChecks, Database, BookOpen, ShieldCheck, FlaskConical, BriefcaseBusiness } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -31,7 +31,9 @@ const navItems = [
   { title: "Intake", href: "/intake", icon: Inbox },
   { title: "Evidence Queue", href: "/evidence-queue", icon: ListChecks },
   { title: "Knowledge", href: "/knowledge", icon: BookOpen },
+  { title: "Matters", href: "/matter", icon: BriefcaseBusiness },
   { title: "Schemas", href: "/schemas", icon: Database },
+  { title: "Classification Lab", href: "/classification-test", icon: FlaskConical },
 ];
 
 export function AppSidebar() {

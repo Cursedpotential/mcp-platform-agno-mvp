@@ -11,6 +11,13 @@
  */
 import type {
   CustodyTier,
+  CourtCase,
+  CourtCaseStatus,
+  EvidenceItemListResponse,
+  EvidencePromotionResult,
+  EvidenceReviewDecision,
+  EvidenceReviewListResponse,
+  EvidenceReviewResult,
   FileAnalysis,
   FileTextResponse,
   Flag,
@@ -23,7 +30,12 @@ import type {
   GraphitiNodesResponse,
   HealthDepsResponse,
   KnowledgeContentsResponse,
+  KnowledgeSourceRef,
+  KnowledgeSourceResolution,
   KnowledgeSearchResponse,
+  Matter,
+  MatterDetail,
+  MatterListResponse,
   ParseDryrunResponse,
   RecordMetaPatch,
   RecordRow,
@@ -434,28 +446,34 @@ export async function updateFlag(flagId: string, patch: FlagUpdateRequest) {
 }
 
 // ---------------------------------------------------------------------------
-// Knowledge (C4 — Milvus-backed search/browse)
+// Knowledge (C4 — Weaviate-backed, case/lane-scoped search/browse)
 // ---------------------------------------------------------------------------
 
 export interface SearchKnowledgeParams {
-  domain?: string;
+  caseId?: string;
+  lane?: string;
   limit?: number;
 }
 
 export async function searchKnowledge(query: string, params: SearchKnowledgeParams = {}) {
   const qs = new URLSearchParams({ q: query });
-  if (params.domain) qs.set("domain", params.domain);
+  qs.set("case_id", params.caseId || "primary");
+  if (params.lane) qs.set("lane", params.lane);
   if (params.limit) qs.set("limit", String(params.limit));
   return apiFetch<KnowledgeSearchResponse>(`/api/knowledge/search?${qs.toString()}`);
 }
 
 export interface ListKnowledgeContentsParams {
+  caseId: string;
+  lane: string;
   limit?: number;
   offset?: number;
 }
 
-export async function listKnowledgeContents(params: ListKnowledgeContentsParams = {}) {
+export async function listKnowledgeContents(params: ListKnowledgeContentsParams) {
   const qs = new URLSearchParams();
+  qs.set("case_id", params.caseId);
+  qs.set("lane", params.lane);
   if (params.limit) qs.set("limit", String(params.limit));
   if (params.offset) qs.set("offset", String(params.offset));
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
@@ -463,23 +481,139 @@ export async function listKnowledgeContents(params: ListKnowledgeContentsParams 
 }
 
 // ---------------------------------------------------------------------------
+// Matter workspace (framework-neutral spine API, via Workbench proxy)
+// ---------------------------------------------------------------------------
+
+export async function listMatters(limit = 50, offset = 0) {
+  const qs = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  return apiFetch<MatterListResponse>(`/api/matters?${qs.toString()}`);
+}
+
+export async function createMatter(payload: {
+  title: string;
+  description?: string;
+  partition_key?: string;
+  created_by?: "owner";
+}) {
+  return apiFetch<Matter>("/api/matters", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getMatter(matterId: string) {
+  return apiFetch<MatterDetail>(`/api/matters/${encodeURIComponent(matterId)}`);
+}
+
+export async function createCourtCase(
+  matterId: string,
+  payload: {
+    caption: string;
+    court_name?: string;
+    docket_number?: string;
+    jurisdiction?: string;
+    case_type?: string;
+    status?: CourtCaseStatus;
+    filed_on?: string;
+    closed_on?: string;
+    is_primary?: boolean;
+    created_by?: "owner";
+  },
+) {
+  return apiFetch<CourtCase>(`/api/matters/${encodeURIComponent(matterId)}/court-cases`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function resolveKnowledgeSource(matterId: string, source: KnowledgeSourceRef) {
+  return apiFetch<KnowledgeSourceResolution>(
+    `/api/matters/${encodeURIComponent(matterId)}/knowledge/resolve`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(source),
+    },
+  );
+}
+
+export async function createEvidenceItem(
+  matterId: string,
+  payload: {
+    court_case_id: string;
+    source: KnowledgeSourceRef & { normalized_record_id: string };
+    title: string;
+    description?: string;
+    quote?: string;
+    evidence_type?: string;
+    created_by?: "owner";
+  },
+) {
+  return apiFetch<EvidencePromotionResult>(
+    `/api/matters/${encodeURIComponent(matterId)}/evidence-items`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function listEvidenceItems(matterId: string, limit = 50, offset = 0) {
+  const qs = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  return apiFetch<EvidenceItemListResponse>(
+    `/api/matters/${encodeURIComponent(matterId)}/evidence-items?${qs.toString()}`,
+  );
+}
+
+export async function reviewEvidenceItem(
+  matterId: string,
+  evidenceItemId: string,
+  payload: {
+    decision: EvidenceReviewDecision;
+    rationale: string;
+    reviewer?: "owner";
+  },
+) {
+  return apiFetch<EvidenceReviewResult>(
+    `/api/matters/${encodeURIComponent(matterId)}/evidence-items/${encodeURIComponent(evidenceItemId)}/reviews`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function listEvidenceReviews(matterId: string, evidenceItemId: string) {
+  return apiFetch<EvidenceReviewListResponse>(
+    `/api/matters/${encodeURIComponent(matterId)}/evidence-items/${encodeURIComponent(evidenceItemId)}/reviews`,
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Graphiti (C4 — Graph memory pane, read-only)
 // ---------------------------------------------------------------------------
 
-export async function searchGraphitiFacts(query: string, limit?: number) {
+export async function searchGraphitiFacts(query: string, limit?: number, groupId = "platform") {
   const qs = new URLSearchParams({ q: query, kind: "facts" });
+  qs.set("group_id", groupId);
   if (limit) qs.set("limit", String(limit));
   return apiFetch<GraphitiFactsResponse>(`/api/graphiti/search?${qs.toString()}`);
 }
 
-export async function searchGraphitiNodes(query: string, limit?: number) {
+export async function searchGraphitiNodes(query: string, limit?: number, groupId = "platform") {
   const qs = new URLSearchParams({ q: query, kind: "nodes" });
+  qs.set("group_id", groupId);
   if (limit) qs.set("limit", String(limit));
   return apiFetch<GraphitiNodesResponse>(`/api/graphiti/search?${qs.toString()}`);
 }
 
-export async function listGraphitiEpisodes(last?: number) {
+export async function listGraphitiEpisodes(last?: number, groupId = "platform") {
   const qs = new URLSearchParams();
+  qs.set("group_id", groupId);
   if (last) qs.set("last", String(last));
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
   return apiFetch<GraphitiEpisodesResponse>(`/api/graphiti/episodes${suffix}`);

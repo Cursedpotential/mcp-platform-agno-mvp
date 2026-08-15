@@ -68,9 +68,7 @@ def test_no_backward_imports():
                 imported_layer = _layer_of_import(imp)
                 if imported_layer and imported_layer in FORBIDDEN_IMPORTS[layer]:
                     rel = pyfile.relative_to(APP_ROOT.parent)
-                    violations.append(
-                        f"{rel}: {layer}/ imports from {imported_layer}/ ({imp})"
-                    )
+                    violations.append(f"{rel}: {layer}/ imports from {imported_layer}/ ({imp})")
     assert violations == [], "Backward import violations:\n" + "\n".join(violations)
 
 
@@ -154,7 +152,5 @@ def test_langchain_only_in_repo():
                 for sdk_prefix in _REPO_ONLY_SDKS:
                     if imp == sdk_prefix or imp.startswith(sdk_prefix + "."):
                         rel = pyfile.relative_to(APP_ROOT.parent)
-                        violations.append(
-                            f"{rel}: {sdk_prefix} imported outside repo/"
-                        )
+                        violations.append(f"{rel}: {sdk_prefix} imported outside repo/")
     assert violations == [], "langchain boundary violations:\n" + "\n".join(violations)

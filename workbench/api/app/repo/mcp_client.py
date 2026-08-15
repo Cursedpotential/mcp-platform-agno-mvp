@@ -50,11 +50,7 @@ def _parse_body(response: httpx.Response) -> dict:
     if "text/event-stream" not in content_type:
         return response.json()
 
-    data_lines = [
-        line[len("data:") :].strip()
-        for line in response.text.splitlines()
-        if line.startswith("data:")
-    ]
+    data_lines = [line[len("data:") :].strip() for line in response.text.splitlines() if line.startswith("data:")]
     if not data_lines:
         raise McpError("Empty SSE response from MCP server")
 
@@ -107,9 +103,7 @@ def _rpc(
         return None, new_session_id
 
     if response.status_code >= 400:
-        raise McpError(
-            f"MCP server {url} returned HTTP {response.status_code}: {response.text[:500]}"
-        )
+        raise McpError(f"MCP server {url} returned HTTP {response.status_code}: {response.text[:500]}")
 
     envelope = _parse_body(response)
     error = envelope.get("error")
@@ -118,9 +112,7 @@ def _rpc(
     return envelope.get("result", {}), new_session_id
 
 
-def _handshake(
-    client: httpx.Client, url: str, headers: dict[str, str] | None
-) -> str | None:
+def _handshake(client: httpx.Client, url: str, headers: dict[str, str] | None) -> str | None:
     """initialize -> notifications/initialized. Returns the session id, if any."""
     _, session_id = _rpc(
         client,

@@ -1,0 +1,748 @@
+"""Transactional Postgres repository for Matter and evidence promotion.
+
+The repository is the only case-management layer that knows table names.
+Knowledge retrieval metadata is never trusted: every promotion re-resolves
+the selected normalized record through the custody tables in one transaction.
+
+Byline: Codex · GPT-5 · 2026-08-15
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+from typing import Any
+from uuid import UUID
+
+from sqlalchemy import create_engine, text
+from sqlalchemy.exc import IntegrityError
+
+from server.contracts.case_management import (
+    CourtCase,
+    CourtCaseCreate,
+    EvidenceItem,
+    EvidenceItemCreate,
+    EvidenceItemList,
+    EvidencePromotionResult,
+    EvidenceReviewCreate,
+    EvidenceReviewDecision,
+    EvidenceReviewList,
+    EvidenceReviewRecord,
+    EvidenceReviewResult,
+    KnowledgeSourceResolution,
+    KnowledgeSourceResolveRequest,
+    Matter,
+    MatterCreate,
+    MatterDetail,
+    MatterList,
+    ReviewState,
+    SourceCandidate,
+)
+
+_engine: Any = None
+
+
+class CaseRepositoryError(Exception):
+    """Repository failure carrying the intended HTTP-compatible status."""
+
+    def __init__(self, detail: str, status_code: int) -> None:
+        self.detail = detail
+        self.status_code = status_code
+        super().__init__(detail)
+
+
+def _get_engine() -> Any:
+    global _engine
+    if _engine is None:
+        from server.core.url import db_url
+
+        _engine = create_engine(db_url, pool_pre_ping=True)
+    return _engine
+
+
+def _matter_from_row(row: dict[str, Any]) -> Matter:
+    return Matter(
+        id=row["id"],
+        title=row["title"],
+        description=row.get("description"),
+        status=row["status"],
+        partition_keys=list(row.get("partition_keys") or []),
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
+
+def _court_case_from_row(row: dict[str, Any]) -> CourtCase:
+    return CourtCase(
+        id=row["id"],
+        matter_id=row["matter_id"],
+        caption=row["caption"],
+        court_name=row.get("court_name"),
+        docket_number=row.get("docket_number"),
+        jurisdiction=row.get("jurisdiction"),
+        case_type=row.get("case_type"),
+        status=row["status"],
+        filed_on=row.get("filed_on"),
+        closed_on=row.get("closed_on"),
+        is_primary=bool(row["is_primary"]),
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
+
+def _candidate_from_row(row: dict[str, Any]) -> SourceCandidate:
+    return SourceCandidate(
+        normalized_record_id=row["normalized_record_id"],
+        artifact_id=row["artifact_id"],
+        evidence_hash_id=row["evidence_hash_id"],
+        source_id=row["source_id"],
+        file_node_id=row.get("file_node_id"),
+        source_run_id=row.get("source_run_id"),
+        sha256=row["sha256"],
+        conversation_id=row.get("conversation_id"),
+        record_type=row["record_type"],
+        role=row.get("role"),
+        content=row["content"],
+        occurred_at=row.get("occurred_at"),
+        disclosure_tier=row["disclosure_tier"],
+        review_status=row["review_status"],
+    )
+
+
+def _evidence_item_from_row(row: dict[str, Any]) -> EvidenceItem:
+    return EvidenceItem(
+        id=row["id"],
+        matter_id=row["matter_id"],
+        court_case_id=row["court_case_id"],
+        title=row["title"],
+        description=row.get("description"),
+        quote=row.get("quote"),
+        evidence_type=row["evidence_type"],
+        evidence_date=row.get("evidence_date"),
+        normalized_record_id=row["normalized_record_id"],
+        evidence_hash_id=row["evidence_hash_id"],
+        source_id=row["source_id"],
+        file_node_id=row.get("file_node_id"),
+        source_run_id=row.get("source_run_id"),
+        review_status=row["review_status"],
+        hitl_required=bool(row["hitl_required"]),
+        safe_for_legal_use=bool(row["safe_for_legal_use"]),
+        is_authenticated=bool(row["is_authenticated"]),
+        created_by=row["created_by"],
+        created_at=row["created_at"],
+    )
+
+
+_MATTER_SELECT = """
+SELECT m.id, m.title, m.description, m.status, m.created_at, m.updated_at,
+       COALESCE(array_agg(mp.partition_key ORDER BY mp.partition_key)
+         FILTER (WHERE mp.partition_key IS NOT NULL), ARRAY[]::text[]) AS partition_keys
+FROM analysis.matter m
+LEFT JOIN analysis.matter_knowledge_partition mp ON mp.matter_id = m.id
+"""
+
+
+def list_matters(*, limit: int, offset: int) -> MatterList:
+    with _get_engine().connect() as conn:
+        total = int(conn.execute(text("SELECT count(*) FROM analysis.matter")).scalar() or 0)
+        rows = (
+            conn.execute(
+                text(_MATTER_SELECT + " GROUP BY m.id ORDER BY m.updated_at DESC, m.id LIMIT :limit OFFSET :offset"),
+                {"limit": limit, "offset": offset},
+            )
+            .mappings()
+            .all()
+        )
+    return MatterList(data=[_matter_from_row(dict(row)) for row in rows], total=total, limit=limit, offset=offset)
+
+
+def create_matter(body: MatterCreate) -> Matter:
+    try:
+        with _get_engine().begin() as conn:
+            row = (
+                conn.execute(
+                    text(
+                        "INSERT INTO analysis.matter (title, description, created_by) "
+                        "VALUES (:title, :description, :created_by) "
+                        "RETURNING id, title, description, status, created_at, updated_at"
+                    ),
+                    body.model_dump(include={"title", "description", "created_by"}),
+                )
+                .mappings()
+                .one()
+            )
+            matter_id = row["id"]
+            partition_key = body.partition_key or str(matter_id)
+            default_case_id = conn.execute(
+                text(
+                    "INSERT INTO analysis.court_case "
+                    "(matter_id, caption, status, is_primary, created_by) "
+                    "VALUES (:matter_id, :caption, 'pre_filing', true, :created_by) "
+                    "RETURNING id"
+                ),
+                {"matter_id": matter_id, "caption": body.title, "created_by": body.created_by},
+            ).scalar_one()
+            conn.execute(
+                text(
+                    "INSERT INTO analysis.matter_knowledge_partition "
+                    "(partition_key, matter_id, default_court_case_id, created_by) "
+                    "VALUES (:partition_key, :matter_id, :default_case_id, :created_by)"
+                ),
+                {
+                    "partition_key": partition_key,
+                    "matter_id": matter_id,
+                    "default_case_id": default_case_id,
+                    "created_by": body.created_by,
+                },
+            )
+            return _matter_from_row({**dict(row), "partition_keys": [partition_key]})
+    except IntegrityError as exc:
+        raise CaseRepositoryError("matter title or partition key already exists", 409) from exc
+
+
+def get_matter(matter_id: UUID) -> MatterDetail:
+    with _get_engine().connect() as conn:
+        row = (
+            conn.execute(text(_MATTER_SELECT + " WHERE m.id = :matter_id GROUP BY m.id"), {"matter_id": matter_id})
+            .mappings()
+            .first()
+        )
+        if row is None:
+            raise CaseRepositoryError("matter not found", 404)
+        cases = (
+            conn.execute(
+                text(
+                    "SELECT id, matter_id, caption, docket_number, court_name, jurisdiction, case_type, "
+                    "status, filed_on, closed_on, is_primary, created_at, updated_at "
+                    "FROM analysis.court_case WHERE matter_id = :matter_id "
+                    "ORDER BY is_primary DESC, created_at, id"
+                ),
+                {"matter_id": matter_id},
+            )
+            .mappings()
+            .all()
+        )
+    matter = _matter_from_row(dict(row))
+    return MatterDetail(**matter.model_dump(), court_cases=[_court_case_from_row(dict(case)) for case in cases])
+
+
+def create_court_case(matter_id: UUID, body: CourtCaseCreate) -> CourtCase:
+    try:
+        with _get_engine().begin() as conn:
+            if not conn.execute(text("SELECT 1 FROM analysis.matter WHERE id = :id"), {"id": matter_id}).first():
+                raise CaseRepositoryError("matter not found", 404)
+
+            has_case = bool(
+                conn.execute(
+                    text("SELECT 1 FROM analysis.court_case WHERE matter_id = :matter_id LIMIT 1"),
+                    {"matter_id": matter_id},
+                ).first()
+            )
+            is_primary = body.is_primary or not has_case
+            if is_primary:
+                conn.execute(
+                    text("UPDATE analysis.court_case SET is_primary = false WHERE matter_id = :matter_id"),
+                    {"matter_id": matter_id},
+                )
+            values = body.model_dump(exclude={"is_primary"})
+            row = (
+                conn.execute(
+                    text(
+                        "INSERT INTO analysis.court_case "
+                        "(matter_id, caption, docket_number, court_name, jurisdiction, case_type, status, "
+                        " filed_on, closed_on, is_primary, created_by) "
+                        "VALUES (:matter_id, :caption, :docket_number, :court_name, :jurisdiction, :case_type, "
+                        " :status, :filed_on, :closed_on, :is_primary, :created_by) "
+                        "RETURNING id, matter_id, caption, docket_number, court_name, jurisdiction, case_type, "
+                        "status, filed_on, closed_on, is_primary, created_at, updated_at"
+                    ),
+                    {**values, "matter_id": matter_id, "is_primary": is_primary},
+                )
+                .mappings()
+                .one()
+            )
+            if is_primary:
+                conn.execute(
+                    text(
+                        "UPDATE analysis.matter_knowledge_partition SET default_court_case_id = :case_id "
+                        "WHERE matter_id = :matter_id"
+                    ),
+                    {"case_id": row["id"], "matter_id": matter_id},
+                )
+            return _court_case_from_row(dict(row))
+    except IntegrityError as exc:
+        raise CaseRepositoryError("court case conflicts with an existing proceeding", 409) from exc
+
+
+def _require_partition(conn: Any, matter_id: UUID, partition_key: str) -> None:
+    if not conn.execute(text("SELECT 1 FROM analysis.matter WHERE id = :id"), {"id": matter_id}).first():
+        raise CaseRepositoryError("matter not found", 404)
+    matched = conn.execute(
+        text(
+            "SELECT 1 FROM analysis.matter_knowledge_partition "
+            "WHERE matter_id = :matter_id AND partition_key = :partition_key"
+        ),
+        {"matter_id": matter_id, "partition_key": partition_key},
+    ).first()
+    if not matched:
+        raise CaseRepositoryError("knowledge partition is not authorized for this matter", 403)
+
+
+_SOURCE_SELECT = """
+SELECT nr.id AS normalized_record_id, nr.artifact_id, nr.conversation_id,
+       nr.record_type, nr.role, nr.content, nr.occurred_at, nr.disclosure_tier,
+       nr.review_status, nr.provenance_id AS source_run_id,
+       eh.id AS evidence_hash_id, eh.source_id, eh.file_node_id,
+       encode(eh.digest, 'hex') AS sha256
+FROM working.normalized_record nr
+JOIN evidence.evidence_hash eh ON eh.id = nr.artifact_id
+WHERE nr.case_id = :partition_key
+  AND nr.artifact_id = :artifact_id
+  AND eh.level = 'H1'
+  AND eh.algo = 'sha256'
+  AND eh.canon_version = 'h1-rawbytes-v1'
+  AND octet_length(eh.digest) = 32
+  AND eh.source_id IS NOT NULL
+  AND encode(eh.digest, 'hex') = :sha256
+"""
+
+
+def resolve_source(matter_id: UUID, body: KnowledgeSourceResolveRequest) -> KnowledgeSourceResolution:
+    if body.lane != "evidence":
+        raise CaseRepositoryError("only custody-backed evidence-lane knowledge can be promoted", 422)
+    params: dict[str, Any] = {
+        "partition_key": body.partition_key,
+        "artifact_id": body.artifact_id,
+        "sha256": body.sha256,
+    }
+    query = _SOURCE_SELECT
+    if body.conversation_id is not None:
+        query += " AND nr.conversation_id = :conversation_id"
+        params["conversation_id"] = body.conversation_id
+    if body.quote:
+        query += " AND position(:quote in nr.content) > 0"
+        params["quote"] = body.quote
+    query += " ORDER BY nr.occurred_at NULLS LAST, nr.id LIMIT 500"
+
+    with _get_engine().connect() as conn:
+        _require_partition(conn, matter_id, body.partition_key)
+        rows = conn.execute(text(query), params).mappings().all()
+
+    return KnowledgeSourceResolution(
+        matter_id=matter_id,
+        candidates=[_candidate_from_row(dict(row)) for row in rows],
+    )
+
+
+def _resolve_selected_source(conn: Any, matter_id: UUID, body: EvidenceItemCreate) -> dict[str, Any]:
+    source = body.source
+    _require_partition(conn, matter_id, source.partition_key)
+    if source.lane != "evidence":
+        raise CaseRepositoryError("only custody-backed evidence-lane knowledge can be promoted", 422)
+    case_owner = conn.execute(
+        text("SELECT 1 FROM analysis.court_case WHERE id = :case_id AND matter_id = :matter_id"),
+        {"case_id": body.court_case_id, "matter_id": matter_id},
+    ).first()
+    if not case_owner:
+        raise CaseRepositoryError("court case is not part of this matter", 403)
+
+    params: dict[str, Any] = {
+        "partition_key": source.partition_key,
+        "artifact_id": source.artifact_id,
+        "sha256": source.sha256,
+        "record_id": source.normalized_record_id,
+    }
+    query = _SOURCE_SELECT + " AND nr.id = :record_id"
+    if source.conversation_id is not None:
+        query += " AND nr.conversation_id = :conversation_id"
+        params["conversation_id"] = source.conversation_id
+    row = conn.execute(text(query), params).mappings().first()
+    if row is None:
+        raise CaseRepositoryError("selected record has no matching custody-backed provenance", 422)
+    return dict(row)
+
+
+def _promotion_identity(
+    matter_id: UUID, body: EvidenceItemCreate, source_row: dict[str, Any]
+) -> tuple[str, str, dict[str, Any]]:
+    quote = body.quote if body.quote is not None else body.source.quote
+    pointer = {
+        "matter_id": str(matter_id),
+        "court_case_id": str(body.court_case_id),
+        "partition_key": body.source.partition_key,
+        "lane": body.source.lane,
+        "normalized_record_id": str(source_row["normalized_record_id"]),
+        "evidence_hash_id": str(source_row["evidence_hash_id"]),
+        "source_id": str(source_row["source_id"]),
+        "sha256": source_row["sha256"],
+        "conversation_id": source_row.get("conversation_id"),
+        "retrieval_ref": body.source.retrieval_ref,
+        "content_ref": body.source.content_ref,
+        "chunk_ref": body.source.chunk_ref,
+        "quote": quote,
+    }
+    # Retrieval/content/chunk refs are useful trace metadata but are adapter-
+    # generated and can change when the same canonical record is reindexed.
+    # Dedupe on authoritative provenance + selected quote, not those refs.
+    stable_pointer = {
+        key: value for key, value in pointer.items() if key not in {"retrieval_ref", "content_ref", "chunk_ref"}
+    }
+    canonical = json.dumps(stable_pointer, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    pointer_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    dedupe_material = f"{matter_id}|{body.court_case_id}|{pointer_hash}"
+    return hashlib.sha256(dedupe_material.encode()).hexdigest(), pointer_hash, pointer
+
+
+def _database_pointer_hash(conn: Any, pointer: dict[str, Any]) -> str:
+    """Use the migration-owned canonicalizer so app and DB cannot drift."""
+    return str(
+        conn.execute(
+            text("SELECT encode(analysis.knowledge_evidence_pointer_hash(CAST(:source_pointer AS jsonb)), 'hex')"),
+            {"source_pointer": json.dumps(pointer)},
+        ).scalar_one()
+    )
+
+
+_EVIDENCE_RETURNING = """
+id, matter_id, court_case_id, title, description, quote, evidence_type,
+evidence_date, normalized_record_id, evidence_hash_id, source_id,
+file_node_id, source_run_id,
+review_status, hitl_required, safe_for_legal_use, is_authenticated,
+created_by, created_at
+"""
+
+
+def _existing_promotion(conn: Any, matter_id: UUID, pointer_hash: str) -> EvidencePromotionResult | None:
+    row = (
+        conn.execute(
+            text(
+                "SELECT ei.id, ei.matter_id, ei.court_case_id, ei.title, ei.description, ei.quote, "
+                "ei.evidence_type, ei.evidence_date, ei.normalized_record_id, ei.evidence_hash_id, "
+                "ei.source_id, ei.file_node_id, ei.source_run_id, ei.review_status, ei.hitl_required, "
+                "ei.safe_for_legal_use, ei.is_authenticated, ei.created_by, ei.created_at, "
+                "p.id AS promotion_id "
+                "FROM analysis.knowledge_evidence_promotion p "
+                "JOIN analysis.evidence_item ei ON ei.id = p.evidence_item_id "
+                "WHERE p.matter_id = :matter_id AND p.source_pointer_hash = :pointer_hash "
+                "LIMIT 1"
+            ),
+            {"matter_id": matter_id, "pointer_hash": bytes.fromhex(pointer_hash)},
+        )
+        .mappings()
+        .first()
+    )
+    if row is None:
+        return None
+    return EvidencePromotionResult(
+        item=_evidence_item_from_row(dict(row)), promotion_id=row["promotion_id"], created=False
+    )
+
+
+def promote_evidence(matter_id: UUID, body: EvidenceItemCreate) -> EvidencePromotionResult:
+    with _get_engine().begin() as conn:
+        source_row = _resolve_selected_source(conn, matter_id, body)
+        quote = body.quote if body.quote is not None else body.source.quote
+        if quote is not None and quote not in source_row["content"]:
+            raise CaseRepositoryError("quote is not contained in the selected normalized record", 422)
+
+        _, _, pointer = _promotion_identity(matter_id, body, source_row)
+        pointer_hash = _database_pointer_hash(conn, pointer)
+        dedupe_material = f"{matter_id}|{body.court_case_id}|{pointer_hash}"
+        dedupe_key = hashlib.sha256(dedupe_material.encode()).hexdigest()
+        conn.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"), {"key": dedupe_key})
+        existing = _existing_promotion(conn, matter_id, pointer_hash)
+        if existing is not None:
+            return existing
+
+        item_row = (
+            conn.execute(
+                text(
+                    "INSERT INTO analysis.evidence_item "
+                    "(case_id, matter_id, court_case_id, source_id, file_node_id, normalized_record_id, "
+                    " evidence_hash_id, source_run_id, "
+                    " title, description, quote, evidence_type, evidence_date, created_by, metadata) "
+                    "VALUES (:court_case_id, :matter_id, :court_case_id, :source_id, :file_node_id, "
+                    " :record_id, :hash_id, :source_run_id, "
+                    " :title, :description, :quote, :evidence_type, :evidence_date, :created_by, "
+                    " CAST(:metadata AS jsonb)) RETURNING " + _EVIDENCE_RETURNING
+                ),
+                {
+                    "matter_id": matter_id,
+                    "court_case_id": body.court_case_id,
+                    "source_id": source_row["source_id"],
+                    "file_node_id": source_row.get("file_node_id"),
+                    "source_run_id": source_row.get("source_run_id"),
+                    "record_id": source_row["normalized_record_id"],
+                    "hash_id": source_row["evidence_hash_id"],
+                    "title": body.title,
+                    "description": body.description,
+                    "quote": quote,
+                    "evidence_type": body.evidence_type,
+                    "evidence_date": source_row.get("occurred_at"),
+                    "created_by": body.created_by,
+                    "metadata": json.dumps({"promotion_source_pointer_hash": pointer_hash}),
+                },
+            )
+            .mappings()
+            .one()
+        )
+        promotion_id = conn.execute(
+            text(
+                "INSERT INTO analysis.knowledge_evidence_promotion "
+                "(idempotency_key, partition_key, matter_id, court_case_id, evidence_item_id, "
+                " normalized_record_id, evidence_hash_id, source_id, file_node_id, source_run_id, "
+                " knowledge_lane, retrieval_item_ref, content_ref, chunk_ref, source_pointer, "
+                " source_pointer_hash, promoted_by) "
+                "VALUES (:dedupe_key, :partition_key, :matter_id, :court_case_id, :item_id, "
+                " :record_id, :hash_id, :source_id, :file_node_id, :source_run_id, :lane, "
+                " :retrieval_ref, :content_ref, :chunk_ref, CAST(:pointer AS jsonb), :pointer_hash, "
+                " :promoted_by) RETURNING id"
+            ),
+            {
+                "dedupe_key": dedupe_key,
+                "partition_key": body.source.partition_key,
+                "matter_id": matter_id,
+                "court_case_id": body.court_case_id,
+                "item_id": item_row["id"],
+                "record_id": source_row["normalized_record_id"],
+                "hash_id": source_row["evidence_hash_id"],
+                "source_id": source_row["source_id"],
+                "file_node_id": source_row.get("file_node_id"),
+                "source_run_id": source_row.get("source_run_id"),
+                "lane": body.source.lane,
+                "retrieval_ref": body.source.retrieval_ref,
+                "content_ref": body.source.content_ref,
+                "chunk_ref": body.source.chunk_ref,
+                "pointer": json.dumps(pointer, sort_keys=True),
+                "pointer_hash": bytes.fromhex(pointer_hash),
+                "promoted_by": body.created_by,
+            },
+        ).scalar_one()
+        conn.execute(
+            text(
+                "INSERT INTO analysis.review_task "
+                "(trigger_code, target_kind, target_id, blocks, reviewer_role, state, created_by) "
+                "VALUES ('knowledge_evidence_promotion', 'evidence_item', :item_id, "
+                "'legal_use', 'owner', 'pending', :created_by)"
+            ),
+            {"item_id": item_row["id"], "created_by": body.created_by},
+        )
+
+        from server.core.audit import record as audit_record
+
+        audit_record(
+            "write",
+            str(item_row["id"]),
+            actor=body.created_by,
+            ctx={"case_id": str(body.court_case_id), "matter_id": str(matter_id), "actor": body.created_by},
+            object_schema="analysis.evidence_item",
+            payload_hash=pointer_hash,
+            connection=conn,
+        )
+        item = _evidence_item_from_row(dict(item_row))
+        return EvidencePromotionResult(item=item, promotion_id=promotion_id, created=True)
+
+
+def review_evidence(
+    matter_id: UUID,
+    evidence_item_id: UUID,
+    body: EvidenceReviewCreate,
+) -> EvidenceReviewResult:
+    """Record one reviewer-of-record decision without granting legal safety."""
+    with _get_engine().begin() as conn:
+        item_row = (
+            conn.execute(
+                text(
+                    "SELECT ei.id, ei.matter_id, ei.court_case_id, ei.title, ei.description, "
+                    "ei.quote, ei.evidence_type, ei.evidence_date, ei.normalized_record_id, "
+                    "ei.evidence_hash_id, ei.source_id, ei.file_node_id, ei.source_run_id, "
+                    "ei.review_status, ei.hitl_required, ei.safe_for_legal_use, "
+                    "ei.is_authenticated, ei.created_by, ei.created_at "
+                    "FROM analysis.evidence_item ei "
+                    "JOIN analysis.knowledge_evidence_promotion promotion "
+                    "  ON promotion.evidence_item_id = ei.id "
+                    "WHERE ei.id = :item_id AND ei.matter_id = :matter_id FOR UPDATE"
+                ),
+                {"item_id": evidence_item_id, "matter_id": matter_id},
+            )
+            .mappings()
+            .first()
+        )
+        if item_row is None:
+            raise CaseRepositoryError("promoted evidence item not found in this matter", 404)
+
+        task_id = conn.execute(
+            text(
+                "SELECT task_id FROM analysis.review_task "
+                "WHERE target_kind = 'evidence_item' AND target_id = :item_id "
+                "  AND trigger_code = 'knowledge_evidence_promotion' "
+                "  AND state IN ('pending', 'in_review') "
+                "ORDER BY created_at, task_id LIMIT 1 FOR UPDATE"
+            ),
+            {"item_id": evidence_item_id},
+        ).scalar()
+        if task_id is None:
+            raise CaseRepositoryError("evidence review is already resolved", 409)
+
+        terminal = body.decision in {
+            EvidenceReviewDecision.approved,
+            EvidenceReviewDecision.rejected,
+        }
+        review_status = (
+            ReviewState.approved
+            if body.decision == EvidenceReviewDecision.approved
+            else ReviewState.rejected
+            if body.decision == EvidenceReviewDecision.rejected
+            else ReviewState.in_review
+        )
+        court_readiness = (
+            "review_passed"
+            if body.decision == EvidenceReviewDecision.approved
+            else "excluded"
+            if body.decision == EvidenceReviewDecision.rejected
+            else "draft"
+        )
+        decision_id = conn.execute(
+            text(
+                "INSERT INTO analysis.review_decision "
+                "(task_id, target_kind, target_id, reviewer, decision, court_readiness, rationale) "
+                "VALUES (:task_id, 'evidence_item', :item_id, :reviewer, :decision, "
+                ":court_readiness, :rationale) RETURNING decision_id"
+            ),
+            {
+                "task_id": task_id,
+                "item_id": evidence_item_id,
+                "reviewer": body.reviewer,
+                "decision": body.decision.value,
+                "court_readiness": court_readiness,
+                "rationale": body.rationale,
+            },
+        ).scalar_one()
+        updated = (
+            conn.execute(
+                text(
+                    "UPDATE analysis.evidence_item SET "
+                    "review_status = :review_status, hitl_required = :hitl_required, "
+                    "safe_for_legal_use = false "
+                    "WHERE id = :item_id RETURNING " + _EVIDENCE_RETURNING
+                ),
+                {
+                    "review_status": review_status.value,
+                    "hitl_required": not terminal,
+                    "item_id": evidence_item_id,
+                },
+            )
+            .mappings()
+            .one()
+        )
+        conn.execute(
+            text("UPDATE analysis.review_task SET state = :state WHERE task_id = :task_id"),
+            {"state": "resolved" if terminal else "in_review", "task_id": task_id},
+        )
+
+        from server.core.audit import record as audit_record
+
+        decision_hash = hashlib.sha256(
+            json.dumps(
+                {
+                    "decision": body.decision.value,
+                    "rationale": body.rationale,
+                    "reviewer": body.reviewer,
+                    "task_id": str(task_id),
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+        ).hexdigest()
+        audit_record(
+            "approval",
+            str(decision_id),
+            actor=body.reviewer,
+            ctx={"case_id": str(updated["court_case_id"]), "matter_id": str(matter_id)},
+            object_schema="analysis.review_decision",
+            payload_hash=decision_hash,
+            connection=conn,
+        )
+        return EvidenceReviewResult(
+            item=_evidence_item_from_row(dict(updated)),
+            task_id=task_id,
+            decision_id=decision_id,
+            decision=body.decision,
+            court_readiness=court_readiness,
+        )
+
+
+def list_evidence_reviews(
+    matter_id: UUID,
+    evidence_item_id: UUID,
+) -> EvidenceReviewList:
+    """Return append-only reviewer-of-record history for one promoted item."""
+    with _get_engine().connect() as conn:
+        owned = conn.execute(
+            text(
+                "SELECT 1 FROM analysis.evidence_item item "
+                "JOIN analysis.knowledge_evidence_promotion promotion "
+                "  ON promotion.evidence_item_id = item.id "
+                "WHERE item.id = :item_id AND item.matter_id = :matter_id"
+            ),
+            {"item_id": evidence_item_id, "matter_id": matter_id},
+        ).first()
+        if not owned:
+            raise CaseRepositoryError("promoted evidence item not found in this matter", 404)
+        rows = (
+            conn.execute(
+                text(
+                    "SELECT decision_id, task_id, target_id AS evidence_item_id, reviewer, "
+                    "decision, court_readiness, rationale, decided_at "
+                    "FROM analysis.review_decision "
+                    "WHERE target_kind = 'evidence_item' AND target_id = :item_id "
+                    "ORDER BY decided_at, decision_id"
+                ),
+                {"item_id": evidence_item_id},
+            )
+            .mappings()
+            .all()
+        )
+    records = [EvidenceReviewRecord.model_validate(dict(row)) for row in rows]
+    return EvidenceReviewList(data=records, total=len(records))
+
+
+def list_evidence_items(
+    matter_id: UUID,
+    *,
+    review_status: ReviewState | None,
+    limit: int,
+    offset: int,
+) -> EvidenceItemList:
+    with _get_engine().connect() as conn:
+        if not conn.execute(text("SELECT 1 FROM analysis.matter WHERE id = :id"), {"id": matter_id}).first():
+            raise CaseRepositoryError("matter not found", 404)
+        where = "ei.matter_id = :matter_id"
+        params: dict[str, Any] = {"matter_id": matter_id, "limit": limit, "offset": offset}
+        if review_status is not None:
+            where += " AND ei.review_status = :review_status"
+            params["review_status"] = review_status.value
+        total = int(
+            conn.execute(text(f"SELECT count(*) FROM analysis.evidence_item ei WHERE {where}"), params).scalar() or 0
+        )
+        rows = (
+            conn.execute(
+                text(
+                    "SELECT ei.id, ei.matter_id, ei.court_case_id, ei.title, ei.description, ei.quote, "
+                    "ei.evidence_type, ei.evidence_date, ei.normalized_record_id, ei.evidence_hash_id, "
+                    "ei.source_id, ei.file_node_id, ei.source_run_id, ei.review_status, ei.hitl_required, "
+                    "ei.safe_for_legal_use, ei.is_authenticated, ei.created_by, ei.created_at "
+                    "FROM analysis.evidence_item ei "
+                    f"WHERE {where} ORDER BY ei.created_at DESC, ei.id LIMIT :limit OFFSET :offset"
+                ),
+                params,
+            )
+            .mappings()
+            .all()
+        )
+    return EvidenceItemList(
+        data=[_evidence_item_from_row(dict(row)) for row in rows],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )

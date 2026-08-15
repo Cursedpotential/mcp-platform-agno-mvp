@@ -37,7 +37,15 @@ def test_literal_token_wins_over_token_env(monkeypatch):
     monkeypatch.setenv("AGENTOS_API_TOKEN", "from-env")
     settings = Settings(
         mcp_servers=json.dumps(
-            [{"key": "agentos", "label": "AgentOS", "url": "http://x/mcp", "token": "literal-token", "token_env": "AGENTOS_API_TOKEN"}]
+            [
+                {
+                    "key": "agentos",
+                    "label": "AgentOS",
+                    "url": "http://x/mcp",
+                    "token": "literal-token",
+                    "token_env": "AGENTOS_API_TOKEN",
+                }
+            ]
         )
     )
     servers = {s["key"]: s for s in settings.mcp_servers_parsed}
@@ -55,9 +63,7 @@ def test_contextforge_legacy_field_backfills_when_no_token_env(monkeypatch):
     monkeypatch.delenv("CONTEXTFORGE_TOKEN", raising=False)
     settings = Settings(
         contextforge_token="legacy-field-value",
-        mcp_servers=json.dumps(
-            [{"key": "contextforge", "label": "ContextForge", "url": "http://x/mcp"}]
-        ),
+        mcp_servers=json.dumps([{"key": "contextforge", "label": "ContextForge", "url": "http://x/mcp"}]),
     )
     servers = {s["key"]: s for s in settings.mcp_servers_parsed}
     assert servers["contextforge"]["token"] == "legacy-field-value"

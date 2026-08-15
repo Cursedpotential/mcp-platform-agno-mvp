@@ -637,6 +637,158 @@ export interface KnowledgeContentsResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Matter workspace — framework-neutral case-management API
+// ---------------------------------------------------------------------------
+
+export type MatterStatus = "active" | "closed" | "archived";
+export type CourtCaseStatus =
+  | "pre_filing"
+  | "active"
+  | "stayed"
+  | "closed"
+  | "appealed"
+  | "archived";
+export type ReviewState = "unreviewed" | "in_review" | "approved" | "rejected";
+export type EvidenceReviewDecision =
+  | "approved"
+  | "rejected"
+  | "needs_changes"
+  | "needs_context"
+  | "escalated"
+  | "hold";
+export type KnowledgeLane = "platform" | "legal" | "personal_history" | "context" | "evidence";
+
+export interface Matter {
+  id: string;
+  title: string;
+  description?: string | null;
+  status: MatterStatus;
+  partition_keys: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MatterListResponse {
+  data: Matter[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface CourtCase {
+  id: string;
+  matter_id: string;
+  caption: string;
+  court_name?: string | null;
+  docket_number?: string | null;
+  jurisdiction?: string | null;
+  case_type?: string | null;
+  status: CourtCaseStatus;
+  filed_on?: string | null;
+  closed_on?: string | null;
+  is_primary: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MatterDetail extends Matter {
+  court_cases: CourtCase[];
+}
+
+export interface KnowledgeSourceRef {
+  lane: KnowledgeLane;
+  partition_key: string;
+  artifact_id: string;
+  sha256: string;
+  conversation_id?: string;
+  quote?: string;
+  retrieval_ref: string;
+  content_ref?: string;
+  chunk_ref?: string;
+}
+
+export interface SourceCandidate {
+  normalized_record_id: string;
+  artifact_id: string;
+  evidence_hash_id: string;
+  source_id: string;
+  file_node_id?: string | null;
+  source_run_id?: string | null;
+  sha256: string;
+  conversation_id?: string | null;
+  record_type: string;
+  role?: string | null;
+  content: string;
+  occurred_at?: string | null;
+  disclosure_tier: string;
+  review_status: ReviewState;
+}
+
+export interface KnowledgeSourceResolution {
+  matter_id: string;
+  candidates: SourceCandidate[];
+}
+
+export interface EvidenceItem {
+  id: string;
+  matter_id: string;
+  court_case_id: string;
+  title: string;
+  description?: string | null;
+  quote?: string | null;
+  evidence_type: string;
+  evidence_date?: string | null;
+  normalized_record_id: string;
+  evidence_hash_id: string;
+  source_id: string;
+  file_node_id?: string | null;
+  source_run_id?: string | null;
+  review_status: ReviewState;
+  hitl_required: boolean;
+  safe_for_legal_use: boolean;
+  is_authenticated: boolean;
+  created_by: string;
+  created_at: string;
+}
+
+export interface EvidencePromotionResult {
+  item: EvidenceItem;
+  promotion_id: string;
+  created: boolean;
+}
+
+export interface EvidenceReviewResult {
+  item: EvidenceItem;
+  task_id: string;
+  decision_id: string;
+  decision: EvidenceReviewDecision;
+  court_readiness: "review_passed" | "excluded" | "draft";
+}
+
+export interface EvidenceReviewRecord {
+  decision_id: string;
+  task_id?: string | null;
+  evidence_item_id: string;
+  reviewer: string;
+  decision: EvidenceReviewDecision;
+  court_readiness: string;
+  rationale: string;
+  decided_at: string;
+}
+
+export interface EvidenceReviewListResponse {
+  data: EvidenceReviewRecord[];
+  total: number;
+}
+
+export interface EvidenceItemListResponse {
+  data: EvidenceItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+// ---------------------------------------------------------------------------
 // Graphiti (C4 — Graph memory pane, read-only knowledge-graph search)
 // mirrors the same three read tools the `grc` CLI (graphiti-client skill)
 // exposes over MCP (search_memory_facts / search_nodes / get_episodes),

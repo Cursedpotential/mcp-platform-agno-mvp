@@ -69,8 +69,7 @@ DEFAULT_PRESETS: list[dict] = [
         "id": "diagnose-run",
         "label": "Diagnose this run",
         "prompt": (
-            "Read the attached run's stage digest and explain what failed (or "
-            "is stuck) and suggest a concrete fix."
+            "Read the attached run's stage digest and explain what failed (or is stuck) and suggest a concrete fix."
         ),
         "wants_context": "run",
     },
@@ -101,9 +100,7 @@ def _load_overrides() -> list[dict]:
         logger.warning("copilot presets: could not read %s: %s", path, e)
         return []
     if not isinstance(data, list):
-        logger.warning(
-            "copilot presets: %s must be a JSON list, got %s", path, type(data).__name__
-        )
+        logger.warning("copilot presets: %s must be a JSON list, got %s", path, type(data).__name__)
         return []
     return [p for p in data if isinstance(p, dict) and p.get("id") and p.get("label") and p.get("prompt")]
 

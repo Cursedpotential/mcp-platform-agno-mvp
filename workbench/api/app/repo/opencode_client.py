@@ -181,9 +181,7 @@ def send_message(
         "parts": [{"type": "text", "text": prompt}],
     }
     deadline = time.monotonic() + timeout
-    doc = _request(
-        "POST", f"/session/{session_id}/message", params=params, json_body=body, timeout=timeout
-    )
+    doc = _request("POST", f"/session/{session_id}/message", params=params, json_body=body, timeout=timeout)
     text, error = extract_reply(doc)
 
     # Defensive idle-poll fallback — only triggers if the blocking POST came

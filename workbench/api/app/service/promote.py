@@ -125,9 +125,7 @@ def _promote_chat_export(record: dict, client: httpx.Client) -> dict:
     form = {
         "workflow": "chat-transcript",
         "domain": meta.get("domain", ""),
-        "source_meta": json.dumps(
-            {"source_platform": meta.get("source_platform", ""), "sha256": record["id"]}
-        ),
+        "source_meta": json.dumps({"source_platform": meta.get("source_platform", ""), "sha256": record["id"]}),
     }
     response = client.post(
         f"{settings.agentos_api_url}/v1/evidence/import",

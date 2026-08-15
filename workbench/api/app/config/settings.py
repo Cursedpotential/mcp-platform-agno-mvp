@@ -98,11 +98,23 @@ class Settings(BaseSettings):
     # needed client-side) and app/service/graphiti.py for the tool contract.
     # No auth today (tailnet-only, matches the `grc` CLI's --via direct).
     graphiti_mcp_url: str = "http://100.119.96.29:8071/mcp"
+    # Temporary operator boundary until authenticated Matter/Run grants land.
+    # Comma-separated namespaces; browser input never expands this allowlist.
+    graphiti_allowed_groups: str = "platform"
+
+    @property
+    def graphiti_allowed_group_set(self) -> frozenset[str]:
+        """Configured read-only Graphiti namespaces, normalized fail-closed."""
+        return frozenset(group.strip() for group in self.graphiti_allowed_groups.split(",") if group.strip())
 
     # --- App ---
     app_port: int = 8020
     static_dir: str = "/app/static"
     max_upload_mb: int = 200
+    # Mandatory inbound operator credential. The exact /health path is the
+    # sole exemption so orchestration can distinguish healthy-but-unconfigured
+    # from a dead container. Every API, docs, and static request fails closed.
+    workbench_api_key: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

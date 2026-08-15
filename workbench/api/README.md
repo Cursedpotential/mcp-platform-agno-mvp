@@ -1,25 +1,39 @@
 # Knowledge Workbench API
 
-> _Byline: Claude Code · Sonnet (agent) · 2026-07-19_
+> _Byline: Claude Code · Sonnet (agent) · 2026-07-19 (drift-fix 2026-08-14 Claude Code · glm-5.2:cloud: Milvus → Weaviate per ADR-0040; note data-vector DOWN since 2026-08-10)_
+> _Current-product repair: Codex · GPT-5 · 2026-08-15._
+<!-- Updated by: Codex (migration-passes/doc-patching) | Date: 2026-08-15 | Rev: 1 | Platform: Codex / win32 | Changes: Correct deploy path, layering, vector-store, and Knowledge status | Context: Align operator documentation with current source without claiming uncommitted work is deployed -->
 
 A staging + promote surface. It stages uploaded files locally (LanceDB
 whole-file store) and promotes them through the **existing** platform
-ingestion API. It never chunks, embeds, or writes Milvus/Postgres itself —
-see `compose.workbench.yaml` (repo root) for how this deploys, and
+ingestion API. It never chunks, embeds, or writes the vector/PG stores itself
+(~~Milvus~~ → Weaviate per ADR-0040; `data-vector`/Milvus DOWN deliberately since 2026-08-10) —
+see `deploy/workbench.yaml` for the Coolify deployment manifest and
 `docs/PROJECT_CANON.md` for where this fits in the wider platform.
+
+> **Implementation status — 2026-08-15:** the case-scoped Knowledge page and its
+> Workbench API/service changes are present in the working tree. The Workbench API suite
+> (48 tests), focused frontend ESLint, and Next.js production build pass. The feature is
+> not committed, deployed, or verified against live Weaviate/Graphiti services.
+
+> **Additional held slice:** the working tree now also contains a thin Matter/CourtCase
+> BFF adapter and Knowledge-to-Evidence endpoints/UI. The spine implementation and
+> migration `sql/0030_matter_case_foundation.sql` are locally tested but uncommitted,
+> unapplied, and undeployed. The Workbench owns no case-domain truth; it proxies neutral
+> spine contracts.
 
 ## Layering
 
-`types` -> `config` -> `repo` -> `service` -> `runtime`, lower layers never
-import from higher ones (enforced by `tests/test_structure.py`). `boto3` and
-`lancedb` are confined to `app/repo/`.
+`types` -> `config` -> `repo` -> `service` -> `runtime` is the declared dependency
+direction; lower layers should not import higher ones. `tests/test_structure.py` is
+present and enforces this boundary. SDK-facing clients remain under `app/repo/`.
 
 | Layer | Files | Role |
 |---|---|---|
 | `config` | `settings.py` | S3-agnostic object-store env knobs + LanceDB path + spine URL + MCP server list |
-| `repo` | `object_store_client.py`, `lancedb_client.py`, `staging.py`, `mcp_client.py`, `spine_client.py` | boto3 + LanceDB + MCP streamable-HTTP + shared spine HTTP client, confined here |
-| `service` | `upload.py`, `detect.py`, `files.py`, `documents.py`, `promote.py`, `metadata.py`, `runs.py`, `tools.py`, `inspect.py`, `flags.py` | business logic, no SDK imports |
-| `runtime` | `upload.py`, `files.py`, `promote.py`, `documents.py`, `health.py`, `metrics.py`, `runs.py`, `tools.py`, `inspect.py` | FastAPI routers |
+| `repo` | `object_store_client.py`, `lancedb_client.py`, `staging.py`, `mcp_client.py`, `spine_client.py`, `graphiti_client.py`, `opencode_client.py` | Object storage + LanceDB + MCP/Graphiti + spine/OpenCode HTTP clients |
+| `service` | upload/files/promote/runs/inspect/flags/knowledge/Graphiti/tools/repairs/Copilot/classification/sentiment/comparison modules | Business orchestration over repository clients |
+| `runtime` | matching FastAPI routers under `app/runtime/` | HTTP validation and error translation |
 
 ## Endpoints
 
@@ -30,12 +44,40 @@ import from higher ones (enforced by `tests/test_structure.py`). `boto3` and
 - `POST /api/runs/{id}/continue`, `POST /api/runs/{id}/abort`, `POST /api/runs/{id}/retry` — C2 supervised-gate controls
 - `POST /api/runs/parse-dryrun` (json `{sha256}` or multipart `file`) — C3 dry-run parse (which parser would claim this file), no run created
 - `GET /api/records`, `PATCH /api/records/{id}/meta` — C3 per-run record browser (parse-quality review) + curation edits
-- `GET /api/schemas` — C3 raw PG (evidence/analysis tables + row counts) and Milvus (collections/entities/dims) inspection views
+- `GET /api/schemas` — C3 raw PG table/column/count views plus **Weaviate** collection
+  inspection. The spine currently also returns the same vector result under a deprecated
+  `milvus` compatibility key because the Workbench schema component/types still use that
+  name; the label is stale, not a live Milvus read.
 - `POST /api/verify/{sha256}` — C3 active hash verification (re-fetch + recompute, walks the H1/H2/H3 custody chain for full-tier runs)
 - `POST /api/flags`, `GET /api/flags`, `PATCH /api/flags/{id}` — C3 corroboration flags ("needs corroborating evidence")
+- `GET /api/knowledge/search` — locally verified case-prefiltered Weaviate knowledge search;
+  the endpoint defaults `case_id` to `primary`, the service always sends a non-empty case
+  prefilter, and optional lane/domain filtering uses a Weaviate-compatible dictionary
+  prefilter.
+- `GET /api/knowledge/contents` — locally verified proxy to AgentOS's paginated knowledge-content catalog.
+- `GET /api/graphiti/search`, `GET /api/graphiti/episodes` — locally verified, read-only
+  Graphiti memory inspection; a Graphiti group is a namespace, not an authorization boundary.
+- `GET|POST /api/matters`, `GET /api/matters/{id}`, and
+  `POST /api/matters/{id}/court-cases` — held Workbench proxies to neutral Matter APIs.
+- `POST /api/matters/{id}/knowledge/resolve` and
+  `GET|POST /api/matters/{id}/evidence-items` — exact source resolution and default-unsafe,
+  idempotent evidence promotion; held until migration/application/deployment review.
 - `GET /api/tools`, `POST /api/tools/call` — proxy to every configured MCP server (`MCP_SERVERS` env) for the Tool Explorer
 - `GET /api/documents/stats` — staging-table counts by status/type
 - `GET /health`, `GET /metrics`
+
+## Inbound authentication
+
+`WORKBENCH_API_KEY` is mandatory. The Workbench fails closed when it is empty:
+all API routes, API documentation, and static frontend paths return `503`. The
+exact `/health` path is the sole public exception so the container healthcheck
+continues to work.
+
+API clients send `Authorization: Bearer <WORKBENCH_API_KEY>`. Browsers can use
+HTTP Basic authentication with username `owner` and the same key as the
+password. Successful requests expose the authenticated `owner` principal in
+the request scope; the Workbench's outbound `AGENTOS_API_TOKEN` remains a
+separate credential and must never be used as the inbound Workbench key.
 
 ## Origin
 

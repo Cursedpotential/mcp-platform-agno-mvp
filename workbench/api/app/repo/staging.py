@@ -118,12 +118,7 @@ def upsert_staged(record: dict) -> dict:
     row["vector"] = [0.0] * DUMMY_VECTOR_DIM
 
     data = pa.table({name: [row.get(name)] for name in _FIELD_NAMES}, schema=STAGED_FILES_SCHEMA)
-    (
-        table.merge_insert("id")
-        .when_matched_update_all()
-        .when_not_matched_insert_all()
-        .execute(data)
-    )
+    (table.merge_insert("id").when_matched_update_all().when_not_matched_insert_all().execute(data))
     return get(row["id"])
 
 

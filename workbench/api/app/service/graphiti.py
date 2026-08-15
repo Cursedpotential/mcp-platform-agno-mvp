@@ -7,8 +7,9 @@ add_memory/clear_graph/delete_* are deliberately NOT wired here — console-
 driven writes to Graphiti are out of scope for C4 (owner write-discipline:
 one focused episode per durable fact, `grc add` stays the only writer).
 
-Default group_id "platform" matches grc.py's DEFAULT_GROUP — the platform's
-own memory group; callers can override via group_ids for a different scope.
+Default group_id "platform" matches grc.py's DEFAULT_GROUP. Caller-provided
+groups are accepted only when present in the server-side allowlist; a Graphiti
+namespace is never treated as authorization.
 
 get_episodes over-fetches (floor 50) and sorts client-side by created_at
 descending before slicing to the requested count: Graphiti's get_episodes
@@ -35,32 +36,55 @@ def _call(name: str, arguments: dict) -> dict:
     return graphiti_client.call_tool(settings.graphiti_mcp_url, name, arguments)
 
 
-def search_facts(
-    query: str, *, group_ids: list[str] | None = None, max_facts: int | None = None
-) -> dict:
+def _authorized_groups(group_ids: list[str] | None) -> list[str]:
+    requested = group_ids or [_DEFAULT_GROUP]
+    normalized = [group.strip() for group in requested if group.strip()]
+    if not normalized:
+        raise ValueError("at least one Graphiti group is required")
+    allowed = settings.graphiti_allowed_group_set
+    denied = sorted(set(normalized) - allowed)
+    if denied:
+        raise ValueError("Graphiti group is not authorized")
+    return normalized
+
+
+def _bounded_count(value: int | None, *, default: int) -> int:
+    effective = default if value is None else value
+    if effective < 1 or effective > 100:
+        raise ValueError("Graphiti result limit must be between 1 and 100")
+    return effective
+
+
+def search_facts(query: str, *, group_ids: list[str] | None = None, max_facts: int | None = None) -> dict:
     """search_memory_facts -> {facts: [{uuid, fact, valid_at, group_id, ...}]}."""
     return _call(
         "search_memory_facts",
-        {"query": query, "group_ids": group_ids or [_DEFAULT_GROUP], "max_facts": max_facts or 10},
+        {
+            "query": query,
+            "group_ids": _authorized_groups(group_ids),
+            "max_facts": _bounded_count(max_facts, default=10),
+        },
     )
 
 
-def search_nodes(
-    query: str, *, group_ids: list[str] | None = None, max_nodes: int | None = None
-) -> dict:
+def search_nodes(query: str, *, group_ids: list[str] | None = None, max_nodes: int | None = None) -> dict:
     """search_nodes -> {nodes: [{uuid, name, labels, summary, ...}]}."""
     return _call(
         "search_nodes",
-        {"query": query, "group_ids": group_ids or [_DEFAULT_GROUP], "max_nodes": max_nodes or 10},
+        {
+            "query": query,
+            "group_ids": _authorized_groups(group_ids),
+            "max_nodes": _bounded_count(max_nodes, default=10),
+        },
     )
 
 
 def get_episodes(*, group_ids: list[str] | None = None, last: int | None = None) -> dict:
     """get_episodes -> {episodes: [...]}, freshest `last` first (client-sorted
     — see module docstring for why the raw server order can't be trusted)."""
-    n = last or 10
+    n = _bounded_count(last, default=10)
     fetch_n = max(n, _EPISODES_FETCH_FLOOR)
-    result = _call("get_episodes", {"group_ids": group_ids or [_DEFAULT_GROUP], "max_episodes": fetch_n})
+    result = _call("get_episodes", {"group_ids": _authorized_groups(group_ids), "max_episodes": fetch_n})
     episodes = result.get("episodes", [])
     episodes = sorted(episodes, key=lambda e: e.get("created_at", ""), reverse=True)[:n]
     return {**result, "episodes": episodes}

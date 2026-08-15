@@ -1,7 +1,22 @@
 {
-  "_comment": "Graphiti's LLM lane specifically (NOT the general-purpose chat.json). Graphiti requires NIM guided-JSON structured output support -- glm-5.1 (chat.json's primary tier) cannot emit schema-conformant JSON (confirmed 2026-07-04, see owner's CLAUDE.md global learnings: 'glm-5.1 cannot emit JSON-schema-conformant structured output -- never use it for schema-constrained workloads'). So this mirrors litellm-config.yaml's dedicated 'nemotron' model_name 1:1 rather than reusing chat.json's glm-5.1-primary chain, which would silently break Graphiti's structured extraction if glm answered first. Single NVIDIA target, matching current LiteLLM risk profile exactly (num_retries:2, no cross-provider fallback) -- diversifying this is a legitimate follow-up, not part of this cutover.",
+  "_comment": "Updated 2026-08-14: Graphiti's LLM lane specifically (NOT the general-purpose chat.json). Expanded NVIDIA selection for guided-JSON structured output support. Graphiti requires NIM guided-JSON structured output -- glm-5.1 (chat.json's primary tier) cannot emit schema-conformant JSON (confirmed 2026-07-04, see owner's CLAUDE.md global learnings). This now includes multiple NVIDIA NIM models known for strong instruction following and structured output capabilities, with loadbalancing across selected models. Single-provider fallback strategy maintained for simplicity and reliability, but with expanded model choices within NVIDIA NIM. All models selected for verified structured output performance.",
   "strategy": { "mode": "fallback" },
   "targets": [
+    {
+      "strategy": { "mode": "loadbalance" },
+      "targets": [
+        { "provider": "openai", "custom_host": "https://integrate.api.nvidia.com/v1", "api_key": "$NVIDIA_API_KEY", "override_params": { "model": "nvidia/nemotron-3-ultra-550b-a55b" } },
+        { "provider": "openai", "custom_host": "https://integrate.api.nvidia.com/v1", "api_key": "$NVIDIA_API_KEY", "override_params": { "model": "nvidia/nemotron-3-super-120b-a12b" } },
+        { "provider": "openai", "custom_host": "https://integrate.api.nvidia.com/v1", "api_key": "$NVIDIA_API_KEY", "override_params": { "model": "nvidia/llama-3.3-nemotron-super-49b-v1" } },
+        { "provider": "openai", "custom_host": "https://integrate.api.nvidia.com/v1", "api_key": "$NVIDIA_API_KEY", "override_params": { "model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning" } },
+        { "provider": "openai", "custom_host": "https://integrate.api.nvidia.com/v1", "api_key": "$NVIDIA_API_KEY", "override_params": { "model": "mistralai/mistral-large" } },
+        { "provider": "openai", "custom_host": "https://integrate.api.nvidia.com/v1", "api_key": "$NVIDIA_API_KEY", "override_params": { "model": "mistralai/mistral-large-2-instruct" } },
+        { "provider": "openai", "custom_host": "https://integrate.api.nvidia.com/v1", "api_key": "$NVIDIA_API_KEY", "override_params": { "model": "meta/llama-3.3-70b-instruct" } },
+        { "provider": "openai", "custom_host": "https://integrate.api.nvidia.com/v1", "api_key": "$NVIDIA_API_KEY", "override_params": { "model": "meta/llama-3.1-70b-instruct" } },
+        { "provider": "openai", "custom_host": "https://integrate.api.nvidia.com/v1", "api_key": "$NVIDIA_API_KEY", "override_params": { "model": "ibm/granite-34b-code-instruct" } },
+        { "provider": "openai", "custom_host": "https://integrate.api.nvidia.com/v1", "api_key": "$NVIDIA_API_KEY", "override_params": { "model": "nvidia/nemotron-3.5-content-safety" } }
+      ]
+    },
     {
       "provider": "openai",
       "custom_host": "https://integrate.api.nvidia.com/v1",

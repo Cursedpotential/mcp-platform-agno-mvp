@@ -8,6 +8,8 @@ client-side sort-by-created_at-descending + slice.
 
 from __future__ import annotations
 
+import pytest
+
 from app.service import graphiti
 
 
@@ -29,6 +31,7 @@ def test_search_facts_default_group(monkeypatch):
 
 def test_search_facts_custom_group_and_max(monkeypatch):
     captured = {}
+    monkeypatch.setattr(graphiti.settings, "graphiti_allowed_groups", "platform,case-bible")
     monkeypatch.setattr(
         graphiti.graphiti_client,
         "call_tool",
@@ -36,6 +39,24 @@ def test_search_facts_custom_group_and_max(monkeypatch):
     )
     graphiti.search_facts("q", group_ids=["case-bible"], max_facts=5)
     assert captured["arguments"] == {"query": "q", "group_ids": ["case-bible"], "max_facts": 5}
+
+
+def test_search_rejects_group_outside_server_allowlist(monkeypatch):
+    monkeypatch.setattr(graphiti.settings, "graphiti_allowed_groups", "platform")
+    monkeypatch.setattr(
+        graphiti.graphiti_client,
+        "call_tool",
+        lambda *args, **kwargs: pytest.fail("denied group must not reach Graphiti"),
+    )
+
+    with pytest.raises(ValueError, match="not authorized"):
+        graphiti.search_facts("q", group_ids=["guessed-case-group"])
+
+
+@pytest.mark.parametrize("limit", [0, -1, 101])
+def test_search_rejects_out_of_bounds_limit(limit):
+    with pytest.raises(ValueError, match="between 1 and 100"):
+        graphiti.search_nodes("q", max_nodes=limit)
 
 
 def test_search_nodes_default_group(monkeypatch):
@@ -85,5 +106,10 @@ def test_get_episodes_respects_last_above_floor(monkeypatch):
         "call_tool",
         lambda url, name, arguments: captured.setdefault("arguments", arguments) or {"episodes": []},
     )
-    graphiti.get_episodes(last=200)
-    assert captured["arguments"]["max_episodes"] == 200
+    graphiti.get_episodes(last=100)
+    assert captured["arguments"]["max_episodes"] == 100
+
+
+def test_get_episodes_rejects_negative_last():
+    with pytest.raises(ValueError, match="between 1 and 100"):
+        graphiti.get_episodes(last=-1)

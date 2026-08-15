@@ -338,6 +338,7 @@ def _build_app() -> Any:
     register_knowledge_routes(app, _knowledge_handle)
 
     from server.api.evidence_routes import register_evidence_routes
+    from server.api.case_management_routes import register_case_management_routes
     from server.api.inspect_routes import register_inspect_routes
     from server.api.repair_routes import router as repair_router
     from server.api.run_routes import register_run_routes
@@ -350,6 +351,7 @@ def _build_app() -> Any:
     register_evidence_routes(app, _knowledge_handle)
     register_run_routes(app, _knowledge_handle, evidence_knowledge=_extra_knowledge_handles["evidence"])
     register_inspect_routes(app, _knowledge_handle)
+    register_case_management_routes(app)
     app.include_router(repair_router)
 
     teams = [v for v in agents.values() if isinstance(v, Team)]

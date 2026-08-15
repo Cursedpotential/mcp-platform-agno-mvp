@@ -58,6 +58,9 @@ async def upload(file: UploadFile):
     record_upload(success=True)
     logger.info(
         "File staged: id=%s name=%s size=%d duplicate=%s",
-        result.get("id"), result.get("name"), result.get("size"), result.get("duplicate"),
+        result.get("id"),
+        result.get("name"),
+        result.get("size"),
+        result.get("duplicate"),
     )
     return result
