@@ -13,7 +13,7 @@ BUILD_STATUS: PASS (local R9 slice only; deployment/live proof UNKNOWN)
 | Knowledge isolation | Workbench search always sends a non-empty `case_id` dict prefilter before Weaviate ranking; default is `primary` |
 | Memory separation | Graphiti facts/nodes/episodes render in a separately labeled read-only memory pane, never as canonical evidence |
 | Matter foundation | ADR-0055 / D-060 accepted; migration 0030, neutral spine APIs, Workbench proxies, `/matter`, and governed Add-to-case are built locally |
-| Backend validation | Root suite: 743 passed / 24 skipped; Workbench API: 92 passed; full Ruff and server mypy pass |
+| Backend validation | Root suite: 750 passed / 24 skipped; Workbench API: 92 passed; full Ruff and server mypy pass |
 | Frontend validation | Full ESLint and TypeScript pass; Next.js production build passes with 15 static pages |
 | Migration validation | Static contract and 11 migration tests pass. PostgreSQL 18.4 scratch execution of 0030 plus custody/promotion negative cases passed in rollback with zero net writes |
 | Workbench auth | Mandatory fail-closed `WORKBENCH_API_KEY`; only exact `/health` is public. Key is not provisioned or deployed |
@@ -403,3 +403,22 @@ locally but is not deployed or live-proven.
 - Status remains **PARTIAL** and undeployed. Migration ordering, full custom-image
   baseline rehearsal, key provisioning, and live service proof remain owner-held.
   The verified read-only slice is committed and pushed as `7b6aaf6`.
+
+## Addendum — fail-closed activation preflight (2026-08-15)
+
+> _Byline: Codex · GPT-5 · 2026-08-15_
+
+- Added a read-only static/database/activation preflight that converts the remaining release
+  assertions into itemized PASS/FAIL/BLOCKED output. It checks clean/pushed git
+  state, migration custody/order, Workbench fail-closed auth wiring, credential
+  separation, PostgreSQL 18 extensions, uniform migration state, and live
+  Matter/Knowledge/Graphiti/Weaviate reads.
+- Secrets and DSNs are accepted only through named environment variables and
+  are never emitted. Missing inputs return `NOT READY`; the command never
+  applies migrations or deploys services.
+- Focused tests and static analysis pass locally. The activation scope remains
+  intentionally unexecuted until the owner provisions credentials, approves the
+  0026–0030 sequence, and provides the reviewed canonical/deployed targets.
+- A deliberate negative database run against the quarantined stock PostgreSQL
+  validator correctly rejected its missing canonical extensions, confirmed the
+  five migrations uniformly absent, emitted no secrets, and left port 55439 closed.

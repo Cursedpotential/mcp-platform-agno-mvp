@@ -17,6 +17,17 @@ STATUS: **PARTIAL — partitioned commits pushed to `main`; nothing applied or d
 - No Horizon execution may be exposed until the R0/R2 replay and contamination
   defects are resolved.
 
+## Machine-readable activation gate
+
+Use `scripts/_matter_activation_preflight.py`; its rationale and exact commands
+are in `docs/plans/MATTER-ACTIVATION-PREFLIGHT-pre-mortem-2026-08-15.md`.
+Static mode verifies the clean/pushed checkout, held migration files, auth
+wiring, and canonical image contract. Database mode isolates the canonical
+PostgreSQL/version/extension/migration-state rehearsal. Activation mode defaults
+to migrations present and additionally fails closed on missing/distinct
+credentials or failed Matter/Knowledge/Graphiti/Weaviate service reads.
+It is read-only and does not authorize an apply or deployment.
+
 ## Recommended commit sequence
 
 1. `docs(adr): accept Matter and CourtCase identity boundary`
