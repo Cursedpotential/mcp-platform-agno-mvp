@@ -1,7 +1,7 @@
 # Documentation Cleanup Manifest
 
 > _Byline: Codex · GPT-5 · 2026-08-15_
-<!-- Updated by: Codex (migration-passes/doc-patching) | Date: 2026-08-15 | Rev: 1 | Platform: Codex / win32 | Changes: Record completed doc true-up and concurrent Knowledge work | Context: Keep cleanup status accurate without moving or deleting owner files -->
+<!-- Updated by: Codex · GPT-5 | Date: 2026-08-15 | Rev: 2 | Changes: Reconcile cleanup ledger with pushed Matter/Knowledge MVP and held activation state | Context: Keep current cleanup status distinct from historical pre-commit reports -->
 
 STATUS: ENTRY-POINT REPAIR COMPLETE; QUARANTINE STILL PROPOSED — no files moved or deleted
 
@@ -25,7 +25,7 @@ STATUS: ENTRY-POINT REPAIR COMPLETE; QUARANTINE STILL PROPOSED — no files move
 | Superseded store/runtime ADRs | SurrealDB, Milvus, LiteLLM-era ADRs/docs | KEEP HISTORICAL; add superseded-by banners/index links | ADR index review |
 | Workbench operational drift | `workbench/api/README.md` | UPDATED_IN_PLACE 2026-08-15: deploy path, enforced layering, Weaviate schema behavior, and locally verified Knowledge routes corrected | Local tests/build pass; live validation still open |
 | Workbench inline-code drift | `workbench/api/main.py`, inspect service/runtime docstrings, schema UI/types | UPDATE_IN_PLACE in a code-owned lane; Milvus labels remain compatibility/history debt | Code owner + tests |
-| Knowledge surface | `workbench/web/src/app/knowledge/page.tsx` and related browser/API/service files | KEEP; locally verified, uncommitted implementation, not a cleanup target | Commit review + live verification |
+| Knowledge/Matter surface | `workbench/web/src/app/knowledge/page.tsx`, `/matter`, and related browser/API/service files | KEEP; committed and pushed on `main`, locally verified, undeployed | Activation approval + live verification |
 | Deployment host drift | `deploy/data-weaviate.yaml`, `deploy/data-graphiti-case.yaml`, `deploy/data-neo4j.yaml` | UPDATE_IN_PLACE only after live inventory | Read-only live check |
 | Wave-1 review docs | `docs/plans/WAVE1-*.md` | ADD CORRECTION/REVIEW BANNERS; do not quarantine | Owner reviews R0 findings |
 | Semantica handoff drift | `docs/HANDOFF-2026-08-09-S8-semantica-graph-lane.md` | PRESERVE VIP status and full capabilities; correct only the governed canonical-write/CDC boundary | ADR-0043 + VIP owner ruling trace check |
@@ -82,8 +82,8 @@ They may contain rulings, rollback instructions, or evidence of why a decision c
 - Whether `docs/blueprint/` or `.agents/blueprint/` should be the human-facing canonical location.
 - Which compact summaries still contain facts not represented in current canon.
 - Whether inactive deployment manifests remain rollback assets or should be quarantined.
-- Which dirty-tree lanes belong to the other active agent and are ready for commit.
-- Whether the locally validated Knowledge implementation is accepted for commit/deployment
-  and passes live Weaviate/Graphiti verification.
-- When Wave-1 migrations `0026`–`0029` will be reviewed, committed, rollback-tested, and
-  applied; their presence in the working tree is not proof of live state.
+- Whether the committed Knowledge/Matter implementation is approved for deployment and
+  passes live Workbench/spine/Weaviate/Graphiti verification.
+- When held migrations `0026`–`0030` will be approved for the disposable custom-image
+  rehearsal and, only after that proof, for an explicitly named target apply. Their presence
+  in git is not proof of live state.

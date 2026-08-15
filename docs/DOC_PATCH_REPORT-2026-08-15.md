@@ -3,6 +3,14 @@
 > _Byline: Codex · GPT-5 · 2026-08-15_
 <!-- Updated by: Codex (migration-passes/doc-patching) | Date: 2026-08-15 | Rev: 1 | Platform: Codex / win32 | Changes: Record Workbench and BUILD_PLAN true-up | Context: Concurrent Knowledge implementation invalidated an earlier missing-page finding -->
 
+> **Current-state correction — 2026-08-15 (Codex · GPT-5):** This report
+> records an earlier documentation pass and intentionally preserves its
+> then-current observations below. The Knowledge/Matter implementation,
+> Classification Lab repair, court-readiness read side, and activation preflight
+> are now committed and pushed on clean `main`. They remain undeployed;
+> migrations `0026`–`0030`, credential provisioning, and live cross-service proof
+> are still held. Use `docs/INDEX.md` and the R9 handoff for current status.
+
 ## True-up batch — 2026-08-15
 
 - Updated `docs/BUILD_PLAN.md` without replacing historical phase text: Wave-1 files are
