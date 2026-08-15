@@ -2,9 +2,46 @@
 
 > **Authoritative for:** what we build next, in order. Entry point: `docs/PROJECT_CANON.md` (§0 Document Contract).
 > Supersedes `docs/planning/*` (EXECUTION_PLAN, BUILD_TODO, MIGRATION_PLAN_v8) for **forward** work — those are history.
-> Last updated: 2026-08-13 (Phase B aligned to ADR-0053).
+> Last updated: 2026-08-15 (working-tree status true-up; no deployment claim).
 > _Byline: Claude Code · Opus 4.8 · 2026-06-13; phase-status refresh 2026-07-11
-> Claude Code · Sonnet 5; ADR-0053 amendment Codex · GPT-5 · 2026-08-13._
+> Claude Code · Sonnet 5; ADR-0053 amendment Codex · GPT-5 · 2026-08-13;
+> documentation true-up Codex · GPT-5 · 2026-08-15._
+<!-- Updated by: Codex (migration-passes/doc-patching) | Date: 2026-08-15 | Rev: 1 | Platform: Codex / win32 | Changes: Clarify Wave-1, Knowledge, and Semantica status | Context: Prevent uncommitted working-tree implementation from being read as applied or deployed -->
+
+> _Current-entry-point repair: Codex · GPT-5 · 2026-08-15._
+
+## Current forward plan — 2026-08-15
+
+The detailed execution source is
+[`PLAN-2026-08-15-platform-runtime-migration.md`](PLAN-2026-08-15-platform-runtime-migration.md),
+with bounded lanes indexed in [`HANDOFFS.md`](HANDOFFS.md). The older Phase A–E narrative
+below remains useful history, but any Agno-first or AgentOS-UI wording in it is superseded by
+this current direction:
+
+1. Preserve and audit the unapplied Wave-1 tree; do not cut over migrations `0026–0029`.
+2. Complete coverage-based Go ingestion and deterministic ordered custody. Never route by size.
+3. Separate horizon-blind Knowledge ingestion from immutable horizon replay and agent experience.
+4. Integrate Semantica as the VIP semantic-intelligence service; only its outputs may be candidates.
+5. Freeze framework-neutral ports, then build the PostgreSQL belief ledger and per-run Graphiti projection.
+6. Add request-scoped provider routing and persistent OpenCode workspace control with isolated jobs.
+7. Evaluate AG2 behind `OrchestrationPort`; retain the current Agno adapter until gates pass.
+8. Expand the custom Workbench as the primary product surface.
+
+### Locally built and held
+
+The Matter/CourtCase foundation, neutral spine APIs, Workbench adapters/UI, and
+Knowledge-to-Evidence promotion are present in the dirty working tree. Migration
+`sql/0030_matter_case_foundation.sql` and focused tests exist, but the migration is
+**unapplied**, the feature is **committed locally**, and no deployment/live claim is made.
+
+> **Current-state correction — 2026-08-15.** Wave 1 has implementation files in the
+> working tree (`sql/0026_realization_event.sql` through `sql/0029_pass_grants.sql`,
+> `server/evidence/realization.py`, and `server/evidence/derivation.py`), but they are
+> **committed locally and not recorded as applied to the live database**. Treat the Wave-1
+> sub-plan's older “no code/migration written yet” banner as historical drift, not as
+> proof that the work has landed. The Workbench Knowledge page/API is implemented and
+> locally validated in the working tree (48 Workbench API tests, focused ESLint, and the
+> Next.js production build passed on 2026-08-15); it is committed locally but not deployed.
 
 ## Anchor: the owner's critical path
 
@@ -41,6 +78,11 @@ Inventory complete (`EVIDENCE_MERGE_MAP.md`).
   chunk may have multiple lane assignments but is stored and embedded once. Normalized tags
   retain finer topics. — _amended Codex · GPT-5 · 2026-08-13_
 - Ingest the platform-design + legal-strategy conversation history first (fuels the bootstrap loop).
+- **Workbench visibility (locally verified, 2026-08-15):** the current working tree adds
+  `workbench/web/src/app/knowledge/page.tsx`, a case-prefiltered Weaviate search proxy,
+  content browsing, and a read-only Graphiti memory pane. These files document and expose
+  the intended read surfaces. The Workbench API suite (48 tests), focused ESLint, and
+  static production build pass; the feature is committed locally and remains unverified live.
 - **Done when:** a Builder agent answers a grounded question about a past design decision, citing the source transcript.
 
 ## Phase C — Gateway proof (Agno-first) — 🟡 gateway decision DONE, dial-stack wrap open
@@ -53,8 +95,18 @@ Inventory complete (`EVIDENCE_MERGE_MAP.md`).
 ## Phase D — Bitemporal substrate (P3) + two-pass machinery
 
 **Goal:** the cognition substrate that makes Part 2 possible.
-- Wire `occurred_at` / `knowledge_time` / `disclosure_tier` through `store.py` + Graphiti; stand up the decision/provenance layer (Semantica).
-- Rebuild the **two-pass shape on Agno** (donor reference: dial-stack `multi-pass-classifier` = Pass 1; `forensic-workflow` = preliminary→meta→reconciliation w/ HITL) — drop the LangGraph runtime.
+- Wire `occurred_at` / `knowledge_time` / `disclosure_tier` through `store.py` + Graphiti;
+  stand up **Semantica as a VIP semantic-intelligence and decision/provenance service**.
+  Semantica itself is not a “candidate service” and must not be replaced or forked around.
+  Its entity/claim/time/event **candidate outputs** remain proposals: they enter the
+  governed review/promotion path and do not become authored canonical truth without human
+  promotion. The existing `server/analysis/semantica_wiring.py` is configuration-only and
+  approval-gated, so it is not evidence of a deployed service.
+- Rebuild the two-horizon experience behind framework-neutral ports. The current Agno
+  adapter may host a shadow implementation, but it does not own the durable contract.
+- **Wave-1 status (2026-08-15):** implementation is present only in the dirty working
+  tree; no migration-application, deployment, or cutover claim is made here. Apply and
+  validate in the locked order before binding agent readers.
 - **Done when:** the Pass-1-vs-final-pass delta is queryable for a sample event over the bitemporal graph.
 
 ## Phase E — Evidence verticals + custody hardening + tests
@@ -70,7 +122,8 @@ Inventory complete (`EVIDENCE_MERGE_MAP.md`).
 ## Later (own rounds)
 
 - **Part 2 — Analysis:** behavioral/legal layer — vendor/wrap **Tether** (HF models, deferred at `dial-stack/utilities/apps/ml-nlp/Tether/`), `pattern-analyzer` (~25 modules→MCL), `ConflictAnalysisApp` RuleEngine, `priority-screener`; multi-pass over knowledge horizons.
-- **Part 3 — AI Legal Team:** port the owner's Gemini Gems personas to Agno; MCL 722.23 ontology + Michigan legal skills.
+- **Part 3 — AI Legal Team:** port the owner's Gemini Gems personas behind the neutral
+  orchestration contract; MCL 722.23 ontology + Michigan legal skills.
 - **Hardening:** self-hosted evidence vector store at scale; multi-user auth; living wiki (ADR-0022).
 
 ## Delegation map — who/what does each kind of work

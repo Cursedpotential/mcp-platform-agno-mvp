@@ -2,7 +2,7 @@
 
 > _Byline: Claude Code · Fable 5 · 2026-07-27_
 
-**Status**: ACCEPTED — owner locked Weaviate 2026-07-27 (AskUserQuestion). Migration plan still to be executed.
+**Status**: ACCEPTED — owner locked Weaviate 2026-07-27 (AskUserQuestion). ~~Migration plan still to be executed.~~ **Amendment 2026-08-09 (D-042): cutoVER VERIFIED — Milvus→Weaviate migration executed (pymilvus removed from the image); Weaviate is THE vector store. The `data-vector`/Milvus Coolify app is DOWN deliberately since 2026-08-10 (6th embedded-etcd corruption); Case Bible's own `casebible_ai_conversations` memsearch lane is a separate, intentionally-retained concern (see Remaining execution steps #4).**
 **Supersedes/amends**: ADR-0026 (self-hosted Milvus on Coolify), ADR-0027 (Milvus platform-wide substrate). ADR-0010 (two collections) and ADR-0011 (dimension contract) carry over unchanged — they govern shape, not engine.
 
 ## Context
@@ -41,9 +41,13 @@ documented 07-21→23 etcd outage this settles the demotion.
    footprint at this scale ≈ 300–500 MiB. Fits comfortably even with Milvus still standing.
 2. Migration: re-embed-free export of existing 4096-d vectors Milvus → Weaviate (dims preserved).
 3. Cutover platform consumers (knowledge pipeline) → verify search parity.
-4. **Milvus stays STOOD UP but sidelined** (owner 2026-07-27): at least one MCP (memsearch lane)
+4. ~~**Milvus stays STOOD UP but sidelined** (owner 2026-07-27): at least one MCP (memsearch lane)
    still depends on it. No new platform writers; it serves only that MCP until that consumer is
-   migrated or retired — then the convoy is decommissioned.
+   migrated or retired — then the convoy is decommissioned.~~ **Corrected 2026-08-09/10 (D-042):**
+   the platform cutover to Weaviate is VERIFIED and pymilvus removed from the image; the platform
+   `data-vector` Milvus app is DOWN deliberately since 2026-08-10. The **Case Bible** corpus has its
+   OWN Milvus (`casebible_ai_conversations`, the memsearch lane) which ADR-0040 does NOT govern —
+   that stays as a separate SORT-owned concern until its own migration/retirement.
 
 ## Consequences
 

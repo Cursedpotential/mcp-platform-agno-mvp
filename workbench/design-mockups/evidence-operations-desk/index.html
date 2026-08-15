@@ -1,0 +1,825 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Evidence Operations Desk — Workbench Mockup</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f4f0e7;
+      --paper-deep: #e9e2d4;
+      --sheet: #fffdf8;
+      --ink: #222321;
+      --muted: #66665f;
+      --rule: #cec6b7;
+      --rule-dark: #8a887f;
+      --graphite: #262a2d;
+      --graphite-2: #34393d;
+      --indigo: #3d477d;
+      --indigo-deep: #2d365f;
+      --indigo-pale: #e5e7f2;
+      --amber: #a95f08;
+      --amber-pale: #fff1d3;
+      --red: #a4322c;
+      --red-pale: #fae5e1;
+      --green: #2d6a4f;
+      --green-pale: #e0eee5;
+      --blue-grey: #4d6471;
+      --shadow: 0 18px 40px rgb(34 35 33 / 10%);
+      --sans: "Aptos", "Segoe UI Variable", "Frutiger", sans-serif;
+      --mono: "Cascadia Mono", "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body { min-height: 100%; }
+
+    body {
+      margin: 0;
+      overflow: hidden;
+      color: var(--ink);
+      background:
+        linear-gradient(90deg, rgb(78 67 48 / 4%) 1px, transparent 1px) 0 0 / 42px 42px,
+        linear-gradient(rgb(78 67 48 / 3%) 1px, transparent 1px) 0 0 / 42px 42px,
+        var(--paper);
+      font-family: var(--sans);
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    button, select, input { font: inherit; }
+    button { color: inherit; }
+    button:focus-visible, select:focus-visible, input:focus-visible, [tabindex]:focus-visible {
+      outline: 3px solid #e0a23c;
+      outline-offset: 2px;
+    }
+
+    .shell {
+      display: grid;
+      grid-template-rows: 64px minmax(0, 1fr) 39px;
+      height: 100vh;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: 244px minmax(340px, 1fr) auto;
+      align-items: stretch;
+      color: #f8f5ed;
+      background: var(--graphite);
+      border-bottom: 3px solid var(--indigo);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 0 19px;
+      border-right: 1px solid #4b5053;
+      letter-spacing: .02em;
+    }
+
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 30px;
+      height: 36px;
+      border: 1px solid #d8d1c2;
+      background: linear-gradient(145deg, #4e588d, #323b69);
+      box-shadow: inset 0 0 0 3px rgb(255 255 255 / 8%);
+      font-family: var(--mono);
+      font-weight: 800;
+    }
+
+    .brand strong { display: block; font-size: 14px; }
+    .brand small { color: #b9bab6; font-size: 10px; text-transform: uppercase; letter-spacing: .14em; }
+
+    .matter-switcher {
+      display: flex;
+      align-items: center;
+      gap: 13px;
+      padding: 8px 20px;
+      min-width: 0;
+    }
+
+    .matter-switcher label,
+    .eyebrow {
+      color: #aeb0ac;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+    }
+
+    .matter-switcher { position: relative; }
+    .matter-select {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+      padding: 6px 14px;
+      border-left: 2px solid #8c98d3;
+      background: #303538;
+      width: 100%;
+      border-top: 0;
+      border-right: 0;
+      border-bottom: 0;
+      color: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .matter-select strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .matter-select span { color: #bcbdb8; font: 11px var(--mono); }
+    .matter-menu {
+      position: absolute;
+      z-index: 20;
+      top: calc(100% + 6px);
+      left: 20px;
+      right: 20px;
+      padding: 8px;
+      border: 1px solid #656b6e;
+      background: #292e31;
+      box-shadow: 0 12px 30px rgb(0 0 0 / 28%);
+    }
+    .matter-menu[hidden] { display: none; }
+    .matter-option { display: block; width: 100%; padding: 9px; border: 0; color: #f3f0e8; background: transparent; text-align: left; cursor: pointer; }
+    .matter-option:hover, .matter-option:focus-visible { background: #3c4246; }
+    .matter-option small { display: block; margin-top: 2px; color: #bcbdb8; font: 11px var(--mono); }
+
+    .top-status {
+      display: flex;
+      align-items: center;
+      gap: 17px;
+      padding: 0 18px;
+    }
+
+    .top-stat { text-align: right; }
+    .top-stat span { display: block; color: #bdbfbc; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+    .top-stat strong { font: 700 12px var(--mono); }
+    .top-stat .attention { color: #ffca78; }
+
+    .operator {
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border: 1px solid #74797c;
+      background: #41474b;
+      font: 800 11px var(--mono);
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: 218px minmax(540px, 1fr) 390px;
+      min-height: 0;
+    }
+
+    .sidebar {
+      overflow-y: auto;
+      padding: 18px 12px;
+      color: #e4e1d8;
+      background: var(--graphite-2);
+      border-right: 1px solid #52575a;
+    }
+
+    .nav-group { margin-bottom: 22px; }
+    .nav-group h2 {
+      margin: 0 10px 7px;
+      color: #999f9f;
+      font-size: 9px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      min-height: 35px;
+      padding: 7px 10px;
+      border: 0;
+      border-left: 2px solid transparent;
+      background: transparent;
+      color: #deddd7;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .nav-item:hover { background: #3c4246; }
+    .nav-item.active { border-left-color: #aab4ef; background: #42495a; color: #fff; }
+    .nav-icon { width: 18px; color: #abb1b3; font: 12px var(--mono); text-align: center; }
+    .nav-item b { margin-left: auto; color: #ffca78; font: 700 10px var(--mono); }
+
+    .boundary-key {
+      margin: 28px 7px 5px;
+      padding: 12px 10px;
+      border: 1px solid #555c60;
+      background: #2d3235;
+    }
+
+    .boundary-key strong { display: block; margin-bottom: 9px; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; }
+    .key-line { display: flex; align-items: center; gap: 8px; margin: 7px 0; color: #c5c5bf; font-size: 11px; }
+    .key-dot { width: 8px; height: 8px; background: #ddd; }
+    .key-dot.canonical { background: #8c9add; }
+    .key-dot.knowledge { background: #d7a14b; }
+    .key-dot.memory { border-radius: 50%; background: #77a28d; }
+    .key-dot.work { background: transparent; border: 1px solid #bab8b0; }
+
+    .main {
+      min-width: 0;
+      overflow: auto;
+      background: rgb(255 253 248 / 69%);
+    }
+
+    .main-head {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 23px 26px 14px;
+      border-bottom: 1px solid var(--rule);
+    }
+
+    h1 { margin: 2px 0 3px; font-size: 24px; line-height: 1.1; letter-spacing: -.02em; }
+    .subhead { color: var(--muted); font-size: 12px; }
+    .head-actions { display: flex; gap: 8px; }
+
+    .button {
+      min-height: 34px;
+      padding: 7px 12px;
+      border: 1px solid var(--rule-dark);
+      border-radius: 2px;
+      background: var(--sheet);
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .button:hover { transform: translateY(-1px); box-shadow: 0 3px 0 rgb(34 35 33 / 12%); }
+    .button.primary { border-color: var(--indigo-deep); color: #fff; background: var(--indigo); }
+
+    .summary-ribbon {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(120px, 1fr));
+      background: var(--sheet);
+      border-bottom: 1px solid var(--rule);
+    }
+
+    .summary-block { position: relative; padding: 13px 20px 12px; border-right: 1px solid var(--rule); }
+    .summary-block:last-child { border: 0; }
+    .summary-block span { display: block; color: var(--muted); font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .09em; }
+    .summary-block strong { display: block; margin-top: 2px; font: 750 20px var(--mono); font-variant-numeric: tabular-nums; }
+    .summary-block small { color: var(--muted); }
+    .summary-block.warn::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--amber); }
+
+    .queue-tools {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 13px 20px 10px;
+    }
+
+    .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--rule); }
+    .tab {
+      padding: 8px 11px 7px;
+      border: 0;
+      border-bottom: 3px solid transparent;
+      background: transparent;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 750;
+      cursor: pointer;
+    }
+    .tab.active { border-bottom-color: var(--indigo); color: var(--indigo-deep); }
+
+    .search {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 245px;
+      padding: 7px 10px;
+      border: 1px solid var(--rule);
+      background: var(--sheet);
+    }
+    .search input { width: 100%; border: 0; outline: 0; background: transparent; color: var(--ink); }
+
+    .table-wrap { padding: 0 20px 24px; }
+    .evidence-table { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--sheet); box-shadow: var(--shadow); }
+    .evidence-table th {
+      padding: 8px 10px;
+      border-top: 1px solid var(--rule-dark);
+      border-bottom: 1px solid var(--rule-dark);
+      color: #555752;
+      background: #ece7dc;
+      font-size: 9px;
+      letter-spacing: .1em;
+      text-align: left;
+      text-transform: uppercase;
+    }
+    .evidence-table td { padding: 11px 10px; border-bottom: 1px solid #ded8cc; vertical-align: top; }
+    .evidence-table tr { cursor: pointer; transition: background .13s ease; }
+    .evidence-table tbody tr:hover { background: #f6f3ec; }
+    .evidence-table tbody tr.selected { background: #e9ebf4; box-shadow: inset 3px 0 var(--indigo); }
+    .evidence-table tbody tr[hidden] { display: none; }
+    .record-id { color: var(--muted); font: 10px var(--mono); }
+    .record-title { display: block; max-width: 300px; margin-top: 3px; font-weight: 750; }
+    .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+    .source { display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+    .source-mark { display: grid; place-items: center; width: 23px; height: 23px; border: 1px solid var(--rule-dark); font: 800 9px var(--mono); }
+    .custody { font-size: 11px; }
+    .custody::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 6px; background: var(--green); }
+    .custody.warn::before { background: var(--amber); }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 6px;
+      border: 1px solid currentColor;
+      border-radius: 2px;
+      font-size: 9px;
+      font-weight: 850;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .badge.amber { color: #784309; background: var(--amber-pale); }
+    .badge.green { color: #20533b; background: var(--green-pale); }
+    .badge.red { color: #822a25; background: var(--red-pale); }
+    .badge.indigo { color: var(--indigo-deep); background: var(--indigo-pale); }
+    .next-action { color: var(--indigo-deep); font-size: 11px; font-weight: 800; }
+
+    .inspector {
+      min-width: 0;
+      overflow-y: auto;
+      border-left: 1px solid var(--rule-dark);
+      background:
+        linear-gradient(90deg, transparent 31px, rgb(167 81 72 / 18%) 32px, transparent 33px),
+        repeating-linear-gradient(0deg, transparent, transparent 26px, rgb(95 86 70 / 5%) 27px),
+        var(--sheet);
+      box-shadow: -10px 0 25px rgb(35 34 30 / 6%);
+    }
+
+    .inspector-head {
+      position: sticky;
+      top: 0;
+      z-index: 4;
+      padding: 18px 19px 14px 47px;
+      border-bottom: 1px solid var(--rule);
+      background: rgb(255 253 248 / 96%);
+      backdrop-filter: blur(6px);
+    }
+    .inspector-head h2 { margin: 3px 0 5px; font-size: 17px; }
+    .inspector-head p { margin: 0; color: var(--muted); font: 10px var(--mono); }
+
+    .warning-band {
+      margin: 12px 18px 0 46px;
+      padding: 9px 11px;
+      border: 1px solid #d49a47;
+      border-left: 5px solid var(--amber);
+      background: var(--amber-pale);
+      color: #69420e;
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .provenance-rail { position: relative; padding: 8px 18px 30px 46px; }
+    .provenance-rail::before { content: ""; position: absolute; top: 17px; bottom: 34px; left: 31px; width: 2px; background: linear-gradient(var(--blue-grey), var(--indigo), var(--amber), var(--rule)); }
+    .rail-section { position: relative; padding: 13px 0 15px; border-bottom: 1px solid var(--rule); }
+    .rail-node { position: absolute; top: 17px; left: -21px; width: 13px; height: 13px; border: 3px solid var(--sheet); background: var(--indigo); box-shadow: 0 0 0 1px var(--indigo); }
+    .rail-node.hash { background: var(--green); box-shadow: 0 0 0 1px var(--green); }
+    .rail-node.warn { background: var(--amber); box-shadow: 0 0 0 1px var(--amber); }
+    .rail-node.empty { background: var(--sheet); box-shadow: 0 0 0 1px var(--rule-dark); }
+    .rail-section h3 { margin: 0 0 8px; font-size: 11px; letter-spacing: .07em; text-transform: uppercase; }
+    .field { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 9px; margin: 5px 0; font-size: 11px; }
+    .field dt { color: var(--muted); }
+    .field dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+    .field dd.mono { font-size: 11px; }
+    .preview {
+      max-height: 105px;
+      overflow: auto;
+      padding: 9px 10px;
+      border-left: 2px solid var(--rule-dark);
+      background: #f0ece3;
+      font-family: Georgia, serif;
+      font-size: 12px;
+      line-height: 1.52;
+    }
+    details summary { cursor: pointer; font-weight: 750; }
+    details[open] summary { margin-bottom: 8px; }
+    .gate-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+    .gate-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11px; }
+    .gate-list li::before { content: "□"; color: var(--amber); font: 15px var(--mono); }
+    .gate-list li.done::before { content: "■"; color: var(--green); }
+    .gate-list span { margin-left: auto; color: var(--muted); font: 11px var(--mono); }
+
+    .service-strip {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      overflow: hidden;
+      padding: 0 14px;
+      border-top: 1px solid #4a4e50;
+      color: #d8d7d0;
+      background: #282c2e;
+      font-size: 9px;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+    }
+    .service-strip strong { color: #fff; }
+    .health-toggle { display: none; }
+    .health-services { display: contents; }
+    .service { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+    .pulse { width: 6px; height: 6px; border-radius: 50%; background: #76b491; box-shadow: 0 0 0 3px rgb(118 180 145 / 12%); }
+    .pulse.warn { background: #e2aa4e; }
+    .pulse.idle { background: #8f979a; }
+    .health-time { margin-left: auto; color: #9da09d; font-family: var(--mono); white-space: nowrap; }
+
+    @media (max-width: 1180px) {
+      .workspace { grid-template-columns: 74px minmax(500px, 1fr) 345px; }
+      .sidebar { padding-inline: 7px; }
+      .nav-group h2, .nav-item span:not(.nav-icon), .nav-item b, .boundary-key { display: none; }
+      .nav-item { justify-content: center; padding-inline: 4px; }
+      .nav-icon { font-size: 13px; }
+      .topbar { grid-template-columns: 190px 1fr auto; }
+      .top-stat:first-child { display: none; }
+      .field { grid-template-columns: 78px minmax(0, 1fr); }
+    }
+
+    @media (max-width: 900px) {
+      body { overflow: auto; }
+      .shell { height: auto; min-height: 100vh; grid-template-rows: auto auto 39px; }
+      .topbar { grid-template-columns: 170px 1fr; min-height: 64px; }
+      .top-status { display: none; }
+      .workspace { grid-template-columns: 62px minmax(0, 1fr); }
+      .inspector { grid-column: 2; max-height: none; border-top: 2px solid var(--indigo); border-left: 0; }
+      .main { overflow: visible; }
+      .summary-ribbon { grid-template-columns: repeat(2, 1fr); }
+      .queue-tools { align-items: stretch; flex-direction: column; }
+      .search { min-width: 0; }
+      .table-wrap { overflow-x: auto; box-shadow: inset -14px 0 12px -14px rgb(29 31 31 / 55%); }
+      .evidence-table { min-width: 720px; }
+      .evidence-table th:first-child, .evidence-table td:first-child { position: sticky; left: 0; z-index: 2; background: inherit; box-shadow: 8px 0 10px -10px #393a38; }
+      .service-strip { position: relative; display: block; min-height: 39px; padding: 0; }
+      .health-toggle { display: flex; width: 100%; min-height: 39px; align-items: center; justify-content: space-between; padding: 0 14px; border: 0; color: #fff; background: #282c2e; font: 750 11px var(--sans); text-transform: uppercase; cursor: pointer; }
+      .health-services { display: none; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 12px 14px; border-top: 1px solid #4a4e50; }
+      .service-strip.open .health-services { display: grid; }
+      .health-time { grid-column: 1 / -1; margin: 0; }
+    }
+
+    @media (max-width: 640px) {
+      .topbar { grid-template-columns: 112px minmax(0, 1fr); }
+      .brand { padding-inline: 10px; }
+      .brand div:last-child { display: none; }
+      .matter-switcher { padding-inline: 8px; }
+      .matter-select { padding-inline: 9px; }
+      .matter-select strong { font-size: 11px; }
+      .matter-select span, .matter-switcher label { display: none; }
+      .workspace { grid-template-columns: 48px minmax(0, 1fr); }
+      .main-head, .queue-tools, .table-wrap { padding-inline: 12px; }
+      .table-wrap { overflow: visible; box-shadow: none; }
+      .evidence-table, .evidence-table tbody { display: block; min-width: 0; background: transparent; box-shadow: none; }
+      .evidence-table thead { display: none; }
+      .evidence-table tr { display: grid; grid-template-columns: 1fr auto; margin-bottom: 10px; border: 1px solid var(--rule-dark); background: var(--sheet); box-shadow: var(--shadow); }
+      .evidence-table td { display: block; padding: 8px 10px; border-bottom: 1px solid #e3ddd2; }
+      .evidence-table td:first-child { position: static; grid-column: 1 / -1; box-shadow: none; }
+      .evidence-table td:nth-child(2), .evidence-table td:nth-child(3) { display: none; }
+      .evidence-table td:nth-child(4), .evidence-table td:nth-child(5), .evidence-table td:nth-child(6) { grid-column: 1 / -1; }
+      .evidence-table td:nth-child(4)::before, .evidence-table td:nth-child(5)::before, .evidence-table td:nth-child(6)::before { display: block; margin-bottom: 4px; color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+      .evidence-table td:nth-child(4)::before { content: "Custody"; }
+      .evidence-table td:nth-child(5)::before { content: "Review"; }
+      .evidence-table td:nth-child(6)::before { content: "Next action"; }
+      .inspector { grid-column: 1 / -1; }
+      .health-services { grid-template-columns: 1fr; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">EO</div>
+        <div><strong>Evidence Operations</strong><small>Operator Workbench</small></div>
+      </div>
+      <div class="matter-switcher">
+        <label>Active file</label>
+        <button class="matter-select" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="matter-menu">
+          <strong>Primary matter / Primary proceeding</strong>
+          <span>partition: primary</span>
+        </button>
+        <div class="matter-menu" id="matter-menu" role="listbox" aria-label="Active file" hidden>
+          <button class="matter-option" type="button" role="option" aria-selected="true" data-matter="Primary matter / Primary proceeding" data-partition="primary">Primary matter / Primary proceeding<small>partition: primary · active</small></button>
+          <button class="matter-option" type="button" role="option" aria-selected="false" data-matter="Research workspace / No court case" data-partition="research">Research workspace / No court case<small>partition: research · sample</small></button>
+        </div>
+      </div>
+      <div class="top-status">
+        <div class="top-stat"><span>Custody</span><strong>CHAIN VALID</strong></div>
+        <div class="top-stat"><span>Horizon</span><strong class="attention">OPERATOR · HINDSIGHT</strong></div>
+        <div class="operator" aria-label="Single operator">OP</div>
+      </div>
+    </header>
+
+    <div class="workspace">
+      <nav class="sidebar" aria-label="Workbench navigation">
+        <section class="nav-group">
+          <h2>Case Work</h2>
+          <button class="nav-item active"><span class="nav-icon">▤</span><span>Evidence Desk</span><b>12</b></button>
+          <button class="nav-item"><span class="nav-icon">⌕</span><span>Knowledge</span></button>
+          <button class="nav-item"><span class="nav-icon">◎</span><span>People</span></button>
+          <button class="nav-item"><span class="nav-icon">↦</span><span>Timeline</span></button>
+          <button class="nav-item"><span class="nav-icon">§</span><span>Issues</span><b>4</b></button>
+          <button class="nav-item"><span class="nav-icon">□</span><span>Work Product</span></button>
+        </section>
+        <section class="nav-group">
+          <h2>Intelligence</h2>
+          <button class="nav-item"><span class="nav-icon">∆</span><span>Horizon Replay</span></button>
+          <button class="nav-item"><span class="nav-icon">◫</span><span>Agent Team</span></button>
+          <button class="nav-item"><span class="nav-icon">◇</span><span>Belief Memory</span></button>
+        </section>
+        <section class="nav-group">
+          <h2>Platform Operations</h2>
+          <button class="nav-item"><span class="nav-icon">⇄</span><span>Ingestion</span><b>3</b></button>
+          <button class="nav-item"><span class="nav-icon">⊞</span><span>Providers</span></button>
+          <button class="nav-item"><span class="nav-icon">&gt;_</span><span>Code Sandbox</span></button>
+        </section>
+        <aside class="boundary-key" aria-label="Information boundary legend">
+          <strong>Information boundaries</strong>
+          <div class="key-line"><i class="key-dot canonical"></i>Canonical evidence</div>
+          <div class="key-line"><i class="key-dot knowledge"></i>Knowledge result</div>
+          <div class="key-line"><i class="key-dot memory"></i>Graphiti belief</div>
+          <div class="key-line"><i class="key-dot work"></i>Generated work</div>
+        </aside>
+      </nav>
+
+      <main class="main">
+        <header class="main-head">
+          <div>
+            <span class="eyebrow" style="color:#656860">Case work / review queue</span>
+            <h1>Evidence operations desk</h1>
+            <div class="subhead">Custody-bound drafts awaiting human judgment · updated 09:42</div>
+          </div>
+          <div class="head-actions">
+            <button class="button">Import manifest</button>
+            <button class="button primary">Open Knowledge</button>
+          </div>
+        </header>
+
+        <section class="summary-ribbon" aria-label="Review queue summary">
+          <div class="summary-block warn"><span>Needs review</span><strong>12</strong><small>4 high relevance</small></div>
+          <div class="summary-block"><span>Custody verified</span><strong>247</strong><small>98.8% of evidence</small></div>
+          <div class="summary-block"><span>Unsafe for court</span><strong>18</strong><small>HITL or redaction</small></div>
+          <div class="summary-block"><span>Ready to package</span><strong>31</strong><small>all gates passed</small></div>
+        </section>
+
+        <section class="queue-tools">
+          <div class="tabs" role="tablist" aria-label="Evidence filters">
+            <button class="tab active" role="tab" aria-selected="true" data-filter="all">Review queue · 12</button>
+            <button class="tab" role="tab" aria-selected="false" data-filter="custody">Custody exceptions · 2</button>
+            <button class="tab" role="tab" aria-selected="false" data-filter="approved">Approved · 247</button>
+          </div>
+          <label class="search"><span aria-hidden="true">⌕</span><input type="search" placeholder="Filter title, source, ID…" aria-label="Filter evidence queue"></label>
+        </section>
+
+        <div class="table-wrap">
+          <table class="evidence-table">
+            <thead><tr><th>Evidence draft</th><th>Source</th><th>Occurred</th><th>Custody</th><th>Review state</th><th>Next action</th></tr></thead>
+            <tbody>
+              <tr class="selected" tabindex="0" data-filter="all" data-record="SMS-00482" data-title="Conversation excerpt · schedule change" data-preview="The exchange records a proposed schedule change and the contemporaneous response. The surrounding messages remain attached for context; no analytical conclusion is asserted." data-hash="8e72f1c9…a43d9b12" data-source="sms-export-2024-02.xml / message 482">
+                <td><span class="record-id">EV-DRAFT-0142</span><span class="record-title">Conversation excerpt · schedule change</span></td>
+                <td><div class="source"><i class="source-mark">SMS</i><span>Device export</span></div></td>
+                <td class="mono">2024-02-18<br>19:42:11Z</td>
+                <td><span class="custody">H1 + H2 linked</span></td>
+                <td><span class="badge amber">HITL required</span></td>
+                <td><span class="next-action">Review context →</span></td>
+              </tr>
+              <tr tabindex="0" data-filter="custody" data-record="IMG-00931" data-title="Screenshot · calendar notification" data-preview="Screenshot OCR identifies a calendar notification. Original pixels are retained, but the file timestamp conflicts with the claimed capture time and requires operator resolution." data-hash="49dc18aa…02fa77bc" data-source="mobile-backup.zip / IMG_0931.png">
+                <td><span class="record-id">EV-DRAFT-0141</span><span class="record-title">Screenshot · calendar notification</span></td>
+                <td><div class="source"><i class="source-mark">IMG</i><span>Archive member</span></div></td>
+                <td class="mono">2024-02-16<br>08:13:02Z</td>
+                <td><span class="custody warn">Clock conflict</span></td>
+                <td><span class="badge red">Unsafe</span></td>
+                <td><span class="next-action">Resolve clock →</span></td>
+              </tr>
+              <tr tabindex="0" data-filter="all" data-record="DOC-00117" data-title="School communication · attendance" data-preview="A two-page school communication was parsed from the canonical PDF. The draft cites page 2, lines 4–11 and retains the full document as its source context." data-hash="3b8200d4…97e50c16" data-source="records-batch-03 / attendance-note.pdf">
+                <td><span class="record-id">EV-DRAFT-0139</span><span class="record-title">School communication · attendance</span></td>
+                <td><div class="source"><i class="source-mark">PDF</i><span>Document</span></div></td>
+                <td class="mono">2024-01-29<br>14:06:00Z</td>
+                <td><span class="custody">H1 verified</span></td>
+                <td><span class="badge amber">Needs redaction</span></td>
+                <td><span class="next-action">Mark redactions →</span></td>
+              </tr>
+              <tr tabindex="0" data-filter="approved" data-record="CALL-00074" data-title="Call log · missed contact sequence" data-preview="Device-native call log entries show three missed contacts over a 41-minute interval. The sequence has been authenticated against the original device export." data-hash="ab0916df…e83d4f01" data-source="device-report.json / call 74">
+                <td><span class="record-id">EV-0126</span><span class="record-title">Call log · missed contact sequence</span></td>
+                <td><div class="source"><i class="source-mark">TEL</i><span>Call log</span></div></td>
+                <td class="mono">2024-01-08<br>17:21:32Z</td>
+                <td><span class="custody">Chain valid</span></td>
+                <td><span class="badge green">Approved</span></td>
+                <td><span class="next-action">Add to package →</span></td>
+              </tr>
+              <tr tabindex="0" data-filter="custody" data-record="AUD-00021" data-title="Voicemail transcription · pickup timing" data-preview="Automated transcription is available for search, but the audio blob has not yet been reconciled against its manifest entry. Transcript text cannot be promoted independently." data-hash="pending reconciliation" data-source="voicemail-export / audio 21">
+                <td><span class="record-id">EV-DRAFT-0134</span><span class="record-title">Voicemail transcription · pickup timing</span></td>
+                <td><div class="source"><i class="source-mark">AUD</i><span>Audio</span></div></td>
+                <td class="mono">2023-12-19<br>16:02:44Z</td>
+                <td><span class="custody warn">Hash pending</span></td>
+                <td><span class="badge red">Blocked</span></td>
+                <td><span class="next-action">Reconcile source →</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </main>
+
+      <aside class="inspector" aria-label="Evidence custody inspector">
+        <header class="inspector-head">
+          <span class="eyebrow" style="color:#656860">Custody jacket / selected draft</span>
+          <h2 id="inspector-title">Conversation excerpt · schedule change</h2>
+          <p id="inspector-record">EV-DRAFT-0142 · SMS-00482</p>
+        </header>
+        <div class="warning-band" id="inspector-warning">UNSAFE FOR LEGAL USE · human review required</div>
+        <div class="provenance-rail">
+          <section class="rail-section">
+            <i class="rail-node hash" id="custody-node" aria-hidden="true"></i>
+            <h3>01 · Canonical source</h3>
+            <dl class="field"><dt>Pointer</dt><dd class="mono" id="inspector-source">sms-export-2024-02.xml / message 482</dd></dl>
+            <dl class="field"><dt>H1 SHA-256</dt><dd class="mono" id="inspector-hash">8e72f1c9…a43d9b12</dd></dl>
+            <dl class="field"><dt>Custody</dt><dd><span class="badge green" id="inspector-custody">Chain valid</span></dd></dl>
+          </section>
+
+          <section class="rail-section">
+            <i class="rail-node" aria-hidden="true"></i>
+            <h3>02 · Normalized record</h3>
+            <dl class="field"><dt>Partition</dt><dd class="mono">primary</dd></dl>
+            <dl class="field"><dt>Record ID</dt><dd class="mono">01960f8a-b219-73c0-a2e1-5b8c74a08031</dd></dl>
+            <div class="preview" id="inspector-preview">The exchange records a proposed schedule change and the contemporaneous response. The surrounding messages remain attached for context; no analytical conclusion is asserted.</div>
+          </section>
+
+          <section class="rail-section">
+            <i class="rail-node warn" id="draft-node" aria-hidden="true"></i>
+            <h3>03 · Evidence draft</h3>
+            <dl class="field"><dt>Scope</dt><dd>Primary matter / Primary proceeding</dd></dl>
+            <dl class="field"><dt>State</dt><dd><span class="badge amber" id="inspector-state">Unreviewed</span></dd></dl>
+            <dl class="field"><dt>Promoted from</dt><dd>Knowledge · evidence lane</dd></dl>
+          </section>
+
+          <section class="rail-section">
+            <i class="rail-node warn" aria-hidden="true"></i>
+            <details open>
+              <summary>04 · Human review gates</summary>
+              <ul class="gate-list" id="inspector-gates">
+                <li class="done">Custody hash verified <span>PASS</span></li>
+                <li class="done">Source pointer resolved <span>PASS</span></li>
+                <li>Context reviewed <span>OPEN</span></li>
+                <li>Authentication method <span>OPEN</span></li>
+                <li>Redaction check <span>OPEN</span></li>
+              </ul>
+            </details>
+          </section>
+
+          <section class="rail-section">
+            <i class="rail-node empty" aria-hidden="true"></i>
+            <h3>05 · Court-safe status</h3>
+            <dl class="field"><dt>Safe to use</dt><dd><span class="badge red" id="inspector-safe">No</span></dd></dl>
+            <dl class="field"><dt>Blocker</dt><dd id="inspector-blocker">Human context review and authentication required.</dd></dl>
+          </section>
+
+          <section class="rail-section">
+            <i class="rail-node empty" aria-hidden="true"></i>
+            <details>
+              <summary>Agent notes · clearly non-canonical</summary>
+              <p style="margin:0;color:var(--muted);font-size:11px">A retrieval assistant marked this result as potentially relevant to scheduling consistency. This note is generated work product, not evidence or a finding.</p>
+            </details>
+          </section>
+        </div>
+      </aside>
+    </div>
+
+    <footer class="service-strip" aria-label="Platform service health">
+      <button class="health-toggle" type="button" aria-expanded="false"><span>Service health · 6 healthy · 1 queued · 1 idle</span><span aria-hidden="true">＋</span></button>
+      <div class="health-services">
+        <strong>Service health</strong>
+        <span class="service"><i class="pulse"></i>Semantica VIP</span>
+        <span class="service"><i class="pulse warn"></i>Knowledge ingest · 3 queued</span>
+        <span class="service"><i class="pulse"></i>Postgres</span>
+        <span class="service"><i class="pulse"></i>Weaviate</span>
+        <span class="service"><i class="pulse"></i>Graphiti</span>
+        <span class="service"><i class="pulse"></i>Portkey</span>
+        <span class="service"><i class="pulse idle"></i>OpenCode · idle</span>
+        <span class="service"><i class="pulse"></i>Orchestration adapter</span>
+        <span class="health-time">checked 09:42:18Z</span>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    const rows = [...document.querySelectorAll('.evidence-table tbody tr')];
+    const tabs = [...document.querySelectorAll('.tab')];
+    const search = document.querySelector('.search input');
+
+    const inspectorState = {
+      'SMS-00482': { custody: ['Chain valid', 'green', 'hash'], state: ['Unreviewed', 'amber'], warning: 'UNSAFE FOR LEGAL USE · human review required', safe: ['No', 'red'], blocker: 'Human context review and authentication required.', gates: [['Custody hash verified', 'PASS', true], ['Source pointer resolved', 'PASS', true], ['Context reviewed', 'OPEN', false], ['Authentication method', 'OPEN', false], ['Redaction check', 'OPEN', false]] },
+      'IMG-00931': { custody: ['Clock conflict', 'red', 'warn'], state: ['Unsafe', 'red'], warning: 'CUSTODY CONFLICT · do not promote or cite', safe: ['No', 'red'], blocker: 'File timestamp conflicts with claimed capture time.', gates: [['Custody hash verified', 'CONFLICT', false], ['Source pointer resolved', 'PASS', true], ['Capture clock resolved', 'OPEN', false], ['Authentication method', 'OPEN', false], ['Redaction check', 'OPEN', false]] },
+      'DOC-00117': { custody: ['H1 verified', 'green', 'hash'], state: ['Needs redaction', 'amber'], warning: 'UNSAFE FOR LEGAL USE · redaction review required', safe: ['No', 'red'], blocker: 'Required privacy redactions are not approved.', gates: [['Custody hash verified', 'PASS', true], ['Source pointer resolved', 'PASS', true], ['Context reviewed', 'PASS', true], ['Authentication method', 'PASS', true], ['Redaction check', 'OPEN', false]] },
+      'CALL-00074': { custody: ['Chain valid', 'green', 'hash'], state: ['Approved', 'green'], warning: 'APPROVED CANDIDATE · packaging remains a separate action', safe: ['Yes', 'green'], blocker: 'None · all listed review gates passed.', gates: [['Custody hash verified', 'PASS', true], ['Source pointer resolved', 'PASS', true], ['Context reviewed', 'PASS', true], ['Authentication method', 'PASS', true], ['Redaction check', 'PASS', true]] },
+      'AUD-00021': { custody: ['Hash pending', 'red', 'warn'], state: ['Blocked', 'red'], warning: 'HASH PENDING · transcript cannot be promoted independently', safe: ['No', 'red'], blocker: 'Audio blob has not been reconciled against its manifest.', gates: [['Custody hash verified', 'PENDING', false], ['Source pointer resolved', 'OPEN', false], ['Context reviewed', 'BLOCKED', false], ['Authentication method', 'BLOCKED', false], ['Redaction check', 'BLOCKED', false]] }
+    };
+
+    function setBadge(element, [label, tone]) {
+      element.textContent = label;
+      element.className = `badge ${tone}`;
+    }
+
+    function selectRow(row) {
+      rows.forEach(item => item.classList.toggle('selected', item === row));
+      document.querySelector('#inspector-title').textContent = row.dataset.title;
+      document.querySelector('#inspector-record').textContent = `${row.cells[0].querySelector('.record-id').textContent} · ${row.dataset.record}`;
+      document.querySelector('#inspector-preview').textContent = row.dataset.preview;
+      document.querySelector('#inspector-hash').textContent = row.dataset.hash;
+      document.querySelector('#inspector-source').textContent = row.dataset.source;
+      const state = inspectorState[row.dataset.record];
+      setBadge(document.querySelector('#inspector-custody'), state.custody);
+      setBadge(document.querySelector('#inspector-state'), state.state);
+      setBadge(document.querySelector('#inspector-safe'), state.safe);
+      document.querySelector('#custody-node').className = `rail-node ${state.custody[2]}`;
+      document.querySelector('#draft-node').className = `rail-node ${state.state[1] === 'green' ? 'hash' : 'warn'}`;
+      document.querySelector('#inspector-warning').textContent = state.warning;
+      document.querySelector('#inspector-blocker').textContent = state.blocker;
+      document.querySelector('#inspector-gates').replaceChildren(...state.gates.map(([label, status, done]) => {
+        const item = document.createElement('li');
+        if (done) item.className = 'done';
+        item.append(document.createTextNode(label));
+        const result = document.createElement('span');
+        result.textContent = status;
+        item.append(result);
+        return item;
+      }));
+    }
+
+    rows.forEach(row => {
+      row.addEventListener('click', () => selectRow(row));
+      row.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          selectRow(row);
+        }
+      });
+    });
+
+    function applyFilters() {
+      const active = document.querySelector('.tab.active').dataset.filter;
+      const query = search.value.trim().toLowerCase();
+      rows.forEach(row => {
+        const tabMatch = active === 'all' ? row.dataset.filter !== 'approved' : row.dataset.filter === active;
+        const queryMatch = !query || row.textContent.toLowerCase().includes(query);
+        row.hidden = !(tabMatch && queryMatch);
+      });
+    }
+
+    tabs.forEach(tab => tab.addEventListener('click', () => {
+      tabs.forEach(item => {
+        item.classList.toggle('active', item === tab);
+        item.setAttribute('aria-selected', item === tab ? 'true' : 'false');
+      });
+      applyFilters();
+    }));
+    search.addEventListener('input', applyFilters);
+
+    const matterButton = document.querySelector('.matter-select');
+    const matterMenu = document.querySelector('#matter-menu');
+    matterButton.addEventListener('click', () => {
+      const opening = matterMenu.hidden;
+      matterMenu.hidden = !opening;
+      matterButton.setAttribute('aria-expanded', String(opening));
+      if (opening) matterMenu.querySelector('.matter-option').focus();
+    });
+    document.querySelectorAll('.matter-option').forEach(option => option.addEventListener('click', () => {
+      matterButton.querySelector('strong').textContent = option.dataset.matter;
+      matterButton.querySelector('span').textContent = `partition: ${option.dataset.partition}`;
+      document.querySelectorAll('.matter-option').forEach(item => item.setAttribute('aria-selected', String(item === option)));
+      matterMenu.hidden = true;
+      matterButton.setAttribute('aria-expanded', 'false');
+      matterButton.focus();
+    }));
+    matterMenu.addEventListener('keydown', event => {
+      if (event.key === 'Escape') {
+        matterMenu.hidden = true;
+        matterButton.setAttribute('aria-expanded', 'false');
+        matterButton.focus();
+      }
+    });
+
+    const healthStrip = document.querySelector('.service-strip');
+    const healthToggle = document.querySelector('.health-toggle');
+    healthToggle.addEventListener('click', () => {
+      const open = healthStrip.classList.toggle('open');
+      healthToggle.setAttribute('aria-expanded', String(open));
+      healthToggle.lastElementChild.textContent = open ? '−' : '＋';
+    });
+  </script>
+</body>
+</html>

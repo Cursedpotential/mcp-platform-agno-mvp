@@ -12,7 +12,7 @@
 The original C1 description below is historical foundation, not the complete current route
 map. The dirty working tree also contains Knowledge browsing and a Matter workspace with
 Knowledge-to-Evidence actions. These additions have local build/test evidence but are
-uncommitted and not verified against deployed services. Horizon execution remains held.
+committed locally and not verified against deployed services. Horizon execution remains held.
 
 - `/knowledge`: canonical, case-prefiltered Knowledge browsing plus separately labeled
   read-only Graphiti memory.

@@ -1,5 +1,11 @@
 # ADR Reconciliation — Proposals for Owner/Opus Review
 
+> **HISTORICAL PROPOSAL SWEEP — SUPERSEDED FOR CURRENT DECISIONS.** This file
+> stops at ADR-0022 and preserves June rationale only. Use `adr/README.md`,
+> `DECISION_LOG.md`, and `INDEX.md` for the current record through ADR-0055.
+> _Banner byline: Codex · GPT-5 · 2026-08-15._
+
+
 > **PROPOSALS for owner/Opus review — no decisions made here. Authoritative decisions live in PROJECT_CANON.md §5.**
 >
 > _Byline: Claude Code · Sonnet 4.6 · 2026-06-13_

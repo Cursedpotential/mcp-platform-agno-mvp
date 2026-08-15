@@ -12,6 +12,12 @@ Lanes: **A** = restructure · **B** = ingestion/table redesign · **C** = infra/
 
 ---
 
+## 2026-08-15
+
+| # | Decision | Lane | Status | Rationale / notes |
+|---|---|---|---|---|
+| D-060 | **Matter and CourtCase are separate identities; legacy textual Knowledge partitions map through an explicit bridge** | B | accepted + implementation authorized 2026-08-15 | One enduring Matter may contain multiple CourtCase proceedings, while the product remains single-owner and initially single-matter. `case_id='primary'` remains a valid Knowledge partition key and is mapped, never cast, to the seeded Matter. New case-work writes carry `matter_id` and `court_case_id`; legacy UUID `case_id` fields remain compatibility fields until reconciled. Knowledge-to-Evidence promotion is transactional, idempotent, provenance-preserving, unreviewed/HITL-required, and unsafe for legal use by default. This narrowly supersedes D-041's identity-model consequence, not its single-owner/multi-client prohibition. rel: **ADR-0055**, R9 handoff. _Byline: Codex · GPT-5 · 2026-08-15._ |
+
 ## 2026-08-13
 
 | # | Decision | Lane | Status | Rationale / notes |

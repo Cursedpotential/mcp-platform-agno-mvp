@@ -4,7 +4,10 @@
 > repeated compaction never loses the vision, decisions, or plan. It is kept
 > current as decisions are made. If something here conflicts with an older ADR,
 > this file's "Locked Decisions" section wins and the ADR should be updated.
-> Last updated: 2026-08-13 (ADR-0054 durable run reports and correlated observability;
+> Last updated: 2026-08-15 (framework-neutral runtime/custom Workbench target,
+> Semantica VIP, Postgres belief authority + Graphiti projection, OpenCode
+> provider/workspace role, and ADR-0055 Matter/CourtCase boundary; prior 2026-08-13:
+> ADR-0054 durable run reports and correlated observability;
 > ADR-0053 five-lane chat-ingestion, multimodal asset,
 > selective HITL, and investigation-register decisions; prior: 2026-08-09 — §4 data-tier host defaults corrected to
 > ovh-files per commits 5e829ab/a68fabd; §5 SurrealDB entry restated RETIRED/zero-callers;
@@ -19,14 +22,15 @@
 > §6 status refresh 2026-07-11 Claude Code · Sonnet 5; §5/§6/§8 sync 2026-07-29
 > (drift-fix 2026-08-12 round 2, Claude Code · Kimi K3: §4 data-vector down-note + §6 OpenCode LiteLLM mention corrected)
 > Claude Code · Fable 5; §4/§5/§6 sync 2026-08-09 Claude Code · Sonnet 5;
-> §3/§5 chat-ingestion amendment 2026-08-13 Codex · GPT-5)_
+> §3/§5 chat-ingestion amendment 2026-08-13 Codex · GPT-5;
+> drift-fix 2026-08-14 Claude Code · glm-5.2:cloud: §1 visible_from/derived-passes (ADR-0045 §A/§B), §4+§6 Weaviate cutover-verified, §8 agno 2.8.0→2.8.7, transcript_miner topology)_
 
 ---
 
 ## 0. Document Contract (ONE of each — read this to know what's authoritative)
 
 To stop architecture/plan drift, **each concern has exactly ONE authoritative file.**
-This canon is the entry point and names them. Everything else (the 22 ADRs, `docs/planning/*`,
+This canon is the entry point and names them. Everything else (the ADR set through ADR-0055, `docs/planning/*`,
 the wiki, `glossary.md`) is **subordinate history/reference**, not a competing source of truth.
 
 | Concern ("one X") | Authoritative file |
@@ -41,7 +45,10 @@ the wiki, `glossary.md`) is **subordinate history/reference**, not a competing s
 **Drift rules (non-negotiable):**
 1. If any doc conflicts with another, **§5 Locked Decisions here wins**; fix the others to match.
 2. When a locked decision is made, **update this canon in the SAME change** — never let it lag.
-3. New capabilities become **atomic tools** (`server/tools/`, capability-sub-namespaced per ADR-0035) or **MCP services wrapped behind Agno** — NEVER a new forked architecture. See `REPO_STRUCTURE.md`.
+3. New capabilities become platform-owned **ports/contracts**, atomic tools, or
+   MCP/API services behind those contracts. Agno is one current adapter, never
+   the owner of evidence, horizon, memory, provider, HITL, or admin truth. See
+   `REPO_STRUCTURE.md` and `PLAN-2026-08-15-platform-runtime-migration.md`.
 4. `dev-resources/Archives/` is **read-only donor material** — mine it, never edit or build inside it.
 
 ---
@@ -49,8 +56,10 @@ the wiki, `glossary.md`) is **subordinate history/reference**, not a competing s
 ## 1. What we are building (the three-part arc)
 
 A personal **evidence-processing + analysis + legal-strategy platform** for the
-owner's **pro se** family-law (custody) case, built on Agno AgentOS. It
-bootstraps itself: the early agents help build the rest of the platform.
+owner's **pro se** family-law (custody) case. It currently runs through an Agno
+AgentOS adapter while migrating to framework-neutral platform contracts and a
+custom Workbench. It bootstraps itself: the early agents help build the rest of
+the platform.
 
 1. **Part 1 — Evidence.** Custody → parse → normalize → store → court-ready export.
    Many sources (SMS, Facebook, iMessage-PDF, Google Voice/Location, chat
@@ -59,7 +68,9 @@ bootstraps itself: the early agents help build the rest of the platform.
    the conversations (gaslighting, DARVO, coercive control, misleading events).
 3. **Part 3 — AI Legal Team.** A third agent family that uses the evidence +
    the knowledge base to build legal strategy, documents, and filings. Already
-   prototyped by the owner as **Gemini Gems + personas**; to be **ported to Agno**.
+   prototyped by the owner as **Gemini Gems + personas**; to be ported behind
+   the platform orchestration contract. AG2 is a bake-off candidate, not an
+   adopted replacement.
    This is where the imported Michigan legal skills + MCL 722.23 ontology engage.
 
 **The killer mechanism (why the memory is bitemporal):** Part 2 replays how a
@@ -72,6 +83,14 @@ connected), **Final pass full disclosure** (incl. facts discovered later). A
 legible** ("what you were led to believe vs what was true vs when you found
 out"). Every evidence atom must carry **valid-time + knowledge-time +
 disclosure-tier**. This is why Graphiti/Neo4j is the cognition substrate.
+**Amendment (ADR-0045, signed 2026-08-09):** the horizon clock is
+`visible_from = COALESCE(realized_at, occurred_at)`, NOT `knowledge_time` (now
+audit-only / superseded — the predicate that filtered on it is inert, see
+INVENTORY N1). And **version-pinned DERIVED pass materializations** (as-lived
+incremental via `working.walk_ledger` + hindsight on-prompt; single-writer
+refresher; hash-attested to `ops.audit_ledger`) are **sanctioned** — parallel
+AUTHORED as-lived/hindsight stores are FORBIDDEN. Decided; build underway
+(Wave 1). See ADR-0045 §A (clocks) / §B (derivation).
 
 **The end-goal frame (the platform itself):** beneath the three-part arc, the
 durable product is a **multi-surface tool-platform GATEWAY** — it **serves** its
@@ -89,7 +108,7 @@ is a parts/pattern donor only.
 Root **Router** (`mode=route`) dispatches to one of three families:
 
 1. **Platform Ops** (`coordinate`) — Ingestion Orchestrator, Analysis
-   Orchestrator, Review Gatekeeper. Runs the evidence pipeline.
+   Orchestrator, Review Gatekeeper, **Transcript Miner**. Runs the evidence pipeline.
 2. **Builder** (`coordinate`) — Dev Copilot, Project PAL, Forensic Data Agent.
    Helps build/port the platform itself (the bootstrap).
 3. **AI Legal Team** (`coordinate`, **to build — Part 3**) — ported from the
@@ -129,8 +148,10 @@ vision model; Colab driven through MCP is a backup only. Provider selection is n
 Entity, claim, time, and event-candidate extraction runs asynchronously after landing and
 chunking. Human-curated concerns graduate first into an investigation register linked to
 candidates, evidence needs, and primary evidence; only a human promotes them to an official
-timeline event. As-experienced versus hindsight walk views/tables are designed later. See
-ADR-0053.
+timeline event. As-experienced versus hindsight walk views/tables are designed later
+(~~"designed later"~~ → **amended 2026-08-14:** DERIVED pass materializations are
+**sanctioned** by ADR-0045 §B — decided but unbuilt; Wave 1 builds the single-writer
+refresher. Parallel AUTHORED stores remain forbidden). See ADR-0053 + ADR-0045 §B.
 
 **The comprehensive living wiki (ADR-0022) — the human-readable face of this engine.**
 One wiki, **dual-rendered**: human-readable navigable markdown AND AI-queryable
@@ -200,9 +221,12 @@ S3 API + pg_duckdb httpfs (`read_text('s3://nexus/...')`).
   reranker `nvidia/rerank-qa-mistral-4b`
   (`server/core/reranker.py`, custom — Agno's CohereReranker leaks to Cohere). Gemini 2.5 Pro
   for Document Digest. Groq/OpenRouter in reserve.
-- **Memory = LearningMachine (operational) + Graphiti/Neo4j (evidentiary, bitemporal)
-  + pgvector Knowledge (reference, domain-partitioned).** Semantica pulled forward
-  as substrate (decision/provenance layer); its multi-pass *use* is Part 2.
+- ~~**Memory = LearningMachine authority + Graphiti/Neo4j evidentiary memory.**~~
+  **Corrected 2026-08-15:** Postgres is the authority for durable belief/memory
+  events and canonical Knowledge metadata; Graphiti is a run-scoped belief
+  projection, not canonical evidence. Agno LearningMachine is a current adapter
+  capability to preserve or replace deliberately during decoupling. Semantica
+  is a VIP extraction/intelligence service; it forms no agent beliefs.
 - **Tool architecture = polyglot orchestration mesh:** universal custody gate →
   named workflows A/B/C per evidence type → registered atomic tools (one
   library/language each) → agent re-composition in the sandbox on step failure.
@@ -210,11 +234,14 @@ S3 API + pg_duckdb httpfs (`read_text('s3://nexus/...')`).
   write custom code ONLY for what is genuinely situation-specific (the evidence custody/
   bitemporal logic, MCL/legal analysis, the owner's parsers/taxonomy). Everything generic
   uses a proven component.
-- **VIP components — NEVER overwrite, reinvent, or fork around (owner, 2026-06-13).** Build
-  *around* these; integrate, don't replace: **Agno** (+ its native UIs, below) · **custom
-  Graphiti** (the bitemporal KG — our customized build, not stock) · **Semantica** (decision/
-  provenance substrate) · **IBM ContextForge** (the tool gateway) · **the forked SBV tool**
-  (custom SMS Backup & Restore, in `platform-tools`) · **CopilotKit** (UI, rides Agno's AG-UI).
+- ~~**VIP components include Agno and its native UI.**~~ **Corrected 2026-08-15:**
+  Agno/AgentOS is the current runtime adapter and may be removed after parity;
+  its useful capabilities must be preserved deliberately, not treated as
+  product authority. **Semantica is VIP/first-class**, as are the custody and
+  horizon invariants, the forked SBV Go engine, and platform-owned contracts.
+  Custom Graphiti remains valuable but must prove OSS parity/usage; evaluate a
+  replacement if it cannot satisfy the memory contract. ContextForge remains
+  the tool-gateway adapter. The custom Workbench is the primary product UI.
 - **Serve/consume topology (locked 2026-06-13) — the layered picture; nothing here gets dropped:**
   - **Model gateway = LiteLLM** (`gateway` container): routes ALL models — remote (Gemini/Groq/
     OpenRouter/NVIDIA/Anthropic) AND in-stack/local (Ollama Cloud primary `glm-5.1`). Every
@@ -222,16 +249,17 @@ S3 API + pg_duckdb httpfs (`read_text('s3://nexus/...')`).
     LiteLLM deprecated pending teardown — see the Portkey entry below.
   - **Tool gateway = IBM ContextForge**: serves/federates MCP tools to any MCP client — Agno
     agents (`MCPTools`, stdio + HTTP), **remote** LLMs (Claude/Gemini), and **local-stack** runners.
-  - **Agent runtime + OUTBOUND serving = Agno AgentOS**: serves our agents/workflows out via
-    **MCP-server + A2A + AG-UI (CopilotKit) + REST** → consumable by other LLMs/agents/frontends.
-  - **OpenCode** (`gateway` container) = coding agent / builder surface — **consumes** our MCP
-    tools (through ContextForge) and ~~uses **LiteLLM** models~~ **Corrected 2026-08-12:
-    is served by the Portkey-era gateway — LiteLLM is disabled/retired (ADR-0042)**. An in-stack consumer — KEEP.
+  - **Current agent runtime/outbound adapter = Agno AgentOS.** Accepted target:
+    framework-neutral orchestration ports, with Agno retained only until parity;
+    AG2 is evaluated behind the same ports.
+  - **OpenCode** = coding agent, persistent workspace, flexible provider bridge,
+    and isolated code-execution control surface. It consumes platform MCP tools
+    and complements Portkey for subscription/payment paths Portkey cannot expose.
   - **agent-sandbox** = isolated code-exec for agent re-composition (no secrets, no ports). KEEP.
   - **Kasm desktop** (`desktop` profile) = **persistent** browser desktop for agent/human GUI work. KEEP (persistence matters).
-  - **Cognition = custom Graphiti** (bitemporal KG, VIP). **Store/session/Knowledge/memory =
-    SurrealDB candidate** (Agno-native db+vector+memory; consolidates pg_duckdb/pgvector/memory;
-    NOT a Graphiti replacement — Graphiti stays for cognition; decide before P3/Phase B).
+  - ~~**Store/session/Knowledge/memory = SurrealDB candidate.**~~ **RETIRED:**
+    SurrealDB has zero callers and is parked read-only. PostgreSQL is canonical;
+    Graphiti is a belief projection; Weaviate is vector retrieval.
   - ⚠️ A raw local model consumes tools ONLY through an MCP-capable harness (Agno / OpenCode /
     MCP client) — never directly. Two distinct gateways: **models** (Portkey since ADR-0042,
     formerly LiteLLM) and **ContextForge = tools**.
@@ -284,8 +312,9 @@ S3 API + pg_duckdb httpfs (`read_text('s3://nexus/...')`).
   a heavy footprint for unused components). No practical HNSW dim cap → keeps the nv-embed-v1
   4096-d embed contract with NO re-embed; native hybrid BM25+vector. Collection-shape ADRs
   0010/0011 carry over unchanged. **Execution underway:** the `data-weaviate` Coolify app is
-  deployed & healthy on ovh-data (verified live 2026-07-29); data cutover + verification still
-  pending — steps in ADR-0040.
+  deployed & healthy on ovh-data (verified live 2026-07-29); ~~data cutover + verification still
+  pending~~ → **corrected 2026-08-14:** cutover + verification VERIFIED 2026-08-09 (D-042;
+  pymilvus removed from the image, `data-vector` down deliberately since 2026-08-10) — steps in ADR-0040.
 - **Memgraph = ADDITIVE temporal GraphRAG layer, read-side only (LOCKED 2026-07-28; ADR-0041).**
   Variant B (classic Memgraph analytical projection). NEVER a system of record — Neo4j/DozerDB
   stays (Semantica is Neo4j-bound; Graphiti's supported backends exclude Memgraph). Orchestration
@@ -401,8 +430,10 @@ pointer below — corrected 2026-08-09) — Part 1 complete + memory substrate:*
 - **Knowledge engine** — domain-partitioned collections + ingestion of all
   conversation domains (timeline/personal/design/legal).
 - **Hardening** — evidence-text embeddings at scale in **Weaviate** (the locked platform-wide
-  vector substrate — ADR-0040 2026-07-27, superseding the Milvus lock ADR-0026/ADR-0027; Milvus
-  stays sidelined-but-up on the `data-vector` Coolify app until cutover is verified);
+  vector substrate — ADR-0040 2026-07-27, superseding the Milvus lock ADR-0026/ADR-0027;
+  ~~Milvus stays sidelined-but-up on the `data-vector` Coolify app until cutover is verified~~
+  → **corrected 2026-08-14:** cutover VERIFIED 2026-08-09 (D-042) and `data-vector` is DOWN
+  deliberately since 2026-08-10 (6th embedded-etcd corruption); Weaviate is THE vector store);
   multi-user auth; V2 slim Graphiti image.
 
 ---
@@ -426,7 +457,7 @@ pointer below — corrected 2026-08-09) — Part 1 complete + memory substrate:*
 
 ## 8. Gotchas (hard-won, do not relearn)
 
-- agno 2.8.0 (2.6.9→2.6.13 on 2026-06-12; →2.8.0 on 2026-07-23): embedders/rerankers under `agno.knowledge.embedder/.reranker`; Team
+- agno ~~2.8.0~~ **2.8.7** (2.6.9→2.6.13 on 2026-06-12; →2.8.0 on 2026-07-23; →**2.8.7** pin per `requirements.txt:3`, drift-fixed 2026-08-14): embedders/rerankers under `agno.knowledge.embedder/.reranker`; Team
   mode needs `TeamMode` enum (strings break `/config`); `requirements.txt` is
   `uv pip sync`'d → new pkg needs its transitive deps listed; EntityMemoryStore
   has no PROPOSE mode (falls back to ALWAYS); 2.8.0 stopped bundling per-provider
@@ -467,12 +498,16 @@ pointer below — corrected 2026-08-09) — Part 1 complete + memory substrate:*
   workspace root (see the workspace-root `CLAUDE.md`: `dev-resources/` = read-only donors),
   NOT paths inside this repo. Verified 2026-08-09: none of them resolve under this repo's root.
 - Agent auto-memory (loads on session start): `C:\Users\matts\.claude\projects\E--AI-Workspace\memory\`.
-- **case_id (added 2026-08-09):** `TEXT NOT NULL DEFAULT 'primary'` (`sql/0018_retrieval_axes.sql`)
-  is the ONE canonical form platform-wide — owner ruling 2026-08-09, "never multi-case / never
-  multi-user" (R-2 / D-041, `docs/DECISION_LOG.md`; also closes OQ-5). The `case_id uuid` columns
-  still present in `sql/bootstrap/schema_baseline.sql` (several tables) are historical/legacy — no
-  unification migration is planned; they are not being retired, just no longer the pattern for
-  new work.
+- **Matter/case identity (amended 2026-08-15 by ADR-0055 / D-060):**
+  `working.normalized_record.case_id TEXT NOT NULL DEFAULT 'primary'`
+  (`sql/0018_retrieval_axes.sql`) remains a Knowledge **partition key** and is
+  never cast to UUID. It is no longer the universal identity for every case-work
+  concept. One enduring `Matter` may contain multiple `CourtCase` proceedings;
+  `analysis.matter_knowledge_partition` maps legacy text partitions such as `primary` to
+  the Matter explicitly. New case-work carries `matter_id` and `court_case_id`;
+  historical UUID `case_id` columns remain compatibility fields until their
+  provenance is reconciled. This narrowly supersedes D-041's identity-model
+  consequence while preserving its single-owner and single-client/matter scope.
 
 ---
 

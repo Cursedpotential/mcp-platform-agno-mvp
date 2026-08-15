@@ -33,7 +33,7 @@ parts already in the stack — no custom compile:
 |------|-----------|
 | Files / object store / relational | **pg_duckdb** (R2/S3, Parquet, CSV, JSON; `ATTACH` Postgres/SQLite) — already in the base image |
 | Graph (Neo4j) | **Native Cypher driver** at the agent / orchestration tier (graph↔SQL via FDW is an impedance mismatch; `neo4j-fdw` is immature) |
-| Vectors (Milvus) | **Milvus SDK** (vectors don't federate via SQL) |
+| Vectors (~~Milvus~~ → Weaviate per ADR-0040) | **Weaviate client** (vectors don't federate via SQL; ADR-0040 locked Weaviate, cutover verified D-042) |
 | source → process → Surreal pipeline | **Orchestration substrate** (ADR-0028/0029), not query-time federation |
 
 Core `postgres_fdw` / `file_fdw` ship with the base image and stay available

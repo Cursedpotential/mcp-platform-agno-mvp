@@ -1,4 +1,12 @@
 # HANDOFF S8 — Semantica graph lane (currently NOT wired)
+
+> **SUPERSEDED FOR EXECUTION 2026-08-15:** preserve this packet as historical
+> Semantica capability inventory, but do not implement its direct factual
+> Neo4j-writer path. Semantica is a **VIP/first-class extraction service** whose
+> outputs cross the governed PostgreSQL candidate/provenance boundary before
+> CDC projections. Current handoff: `HANDOFF-2026-08-15-R3-semantica.md`;
+> governing decision: ADR-0043. _Correction byline: Codex · GPT-5 · 2026-08-15._
+
 > _2026-08-09 · repo @ a68fabd · STATUS: BLOCKED until S6 lands visible_from · Depends: S5, S6 · Blocks: S9 via tasks 1–6 only; task 7 (backfill) runs AFTER S9 task 1 — no cycle_
 > MANDATORY: read PLAN-2026-08-09-completion-master.md §Standing constraints before executing.
 > Inventory items: R-4, F-G (preserve), DA-10, SD-5 boundary. Verified 2026-08-09: Semantica fully

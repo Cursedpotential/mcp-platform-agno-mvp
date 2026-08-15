@@ -5,6 +5,73 @@
 > addition, dated audit stamp);
 > drift-fix 2026-08-12 (Claude Code · Kimi K3: Milvus "locked + LIVE" row corrected — ADR-0040/D-042 supersession)_
 > _2026-08-13 amendment: Codex · GPT-5 (ADR-0053 implementation follow-ups)._
+> _2026-08-14 amendment: Claude Code · glm-5.2:cloud (independent-review report corrections — see
+> "Report re-verification corrections" below; Wave 0 live inventory + fresh-restore gate — see
+> "Wave 0 live inventory findings" below)._
+
+## Report re-verification corrections (2026-08-14)
+
+Source: an independent review report (`docs/reports/mcp-platform-agno-review.md`, Perplexity-sourced,
+**kept local/untracked** — findings folded into existing registers here, not committed as a report).
+Re-verified against source at commit `5d3fb09` (10 parallel verifiers + smart-explore contradiction sweep).
+Two report claims are **REFUTED** and recorded here so they don't re-enter the project as open items:
+
+1. **Report §45 "disclosure_tier hardcode = bug per ADR-0045" — REFUTED (most-wrong finding).**
+   ADR-0045 Decision C / N3 says the parser hardcoding of `disclosure_tier=contemporaneous`
+   (`server/tools/parsers/messaging/sbv_sms.py:114`, `server/analysis/sbv_transcript.py:111`) is
+   **CORRECT** — "extraction cannot know better; the defect is that no derivation layer exists above
+   it." The real defect is the **unbuilt derivation/horizon layer** (INVENTORY N1: predicate filters
+   on superseded `knowledge_time`; N2: `realized_at`/`acquired_at` zero writers; FD: agent-layer
+   pre-filter unbuilt) — NOT the hardcode. Removing the hardcode would CONTRADICT ADR-0045 Decision C.
+   The hardcode that WAS reversed (correctly) was the AI-chat **context** lane (sql/0023 / D-056,
+   applied) — a different lane from evidence extraction. The report also misnames the file
+   (`sbv_sms.py:114`, not `sbv_transcript.py`). Wave 1 builds the derivation layer; the hardcode stays.
+
+2. **Report Addendum A2 "derived horizon tables need a new ADR" — REFUTED.** ADR-0045 §B (signed
+   2026-08-09, D-042) already **sanctions version-pinned DERIVED pass materializations** (as-lived
+   incremental via `working.walk_ledger` + hindsight on-prompt; single-writer refresher; hash-attested
+   to `ops.audit_ledger`) and **amends canon §1** (parallel AUTHORED as-lived/hindsight stores
+   FORBIDDEN). No new ADR is needed — the work is to BUILD the already-sanctioned design (Wave 1/3).
+   Canon §1 + §3 amended 2026-08-14 to state this (see `PROJECT_CANON.md`).
+
+The remaining report GAPs (GAP-01…GAP-12) were CONFIRMED or PARTIAL against source and are tracked
+in the existing rows above / the Wave plan (`C:\Users\matts\.claude\plans\cached-waddling-crayon.md`).
+Full re-verification verdict table lives in that plan.
+
+## Wave 0 live inventory findings (2026-08-14)
+
+Source: `scripts/_wave0_inventory.py` + `scripts/_wave0_fresh_restore.py` against tailnet PG
+`100.91.190.107:5432` db `ai` (PG 18.1). Full signed baseline:
+`docs/INVENTORY-BASELINE-2026-08-14.md`.
+
+1. **Horizon clock = superseded `knowledge_time` (LIVE-CONFIRMED).** `working.horizon_visible`
+   filters on `row_knowledge_time <= p_horizon`, NOT ADR-0045 §A's
+   `visible_from = COALESCE(realized_at, occurred_at)` — so the predicate is inert. This is
+   GAP-04 / INVENTORY N1 confirmed against the **running DB** (previously only source-confirmed).
+   **Wave 1** replaces it (clock migration → `realization_event` → `visible_from` derivation).
+   Not a new debt row — sharpens the existing N1 finding to "live-verified."
+
+2. **ADR-0045 §A/§B unbuilt** (live-confirmed): `working.realization_event`, `working.walk_ledger`
+   do not exist. Wave 1.
+
+3. **ADR-0053 schema BUILT but EMPTY** (live-confirmed): `chat_conversation`/`chat_message`/
+   `chat_chunk` (+ lane/embedding/projection) exist, 0 rows; `chat_cdc_cursor` +
+   `chat_projection_dead_letter` exist, 0 rows. `working.context_record` still holds **1,741
+   rows** — the legacy chat-lane data to migrate into the new tables per ADR-0053.
+
+4. **NEW DEBT — migrations are NOT a from-zero build (reproducible-restore gap).** The
+   fresh-schema restore gate created a throwaway DB, applied `sql/0001`–`0025` from zero, and
+   **FAILED at `0008`** (`relation "evidence.source" does not exist`). No migration CREATEs
+   `evidence.source` — `0008` only `ALTER`s/indexes it; `docker/postgres/` holds only a
+   `Dockerfile` (no init SQL). The base schema is bootstrapped **outside the tracked migrations**
+   (runtime `docker-entrypoint-initdb.d` mount or one-off VPS DDL). This freshly verifies the
+   documented "sql/ does NOT describe the live 132-table DB" divergence and pins the precise
+   symptom. **Consequences:** (a) Wave 1+ append-only migrations build against the **live**
+   schema (the authority), not a `sql/`-only rebuild; (b) the Wave 5 automated restore-drill
+   gate is **blocked** until the bootstrap DDL is captured into the repo so `sql/` + bootstrap
+   is a complete, reproducible restore. **Owner action needed:** locate the
+   `docker-entrypoint-initdb.d` source (or dump the live base schema) and commit it. Not a
+   Wave 0 blocker — the live schema is intact and serves as the build base.
 
 > **2026-08-09 audit** (docs/registers true-up pass): all "resolved" rows below re-checked
 > against the tree and still verified resolved (parser/extractor modules present under

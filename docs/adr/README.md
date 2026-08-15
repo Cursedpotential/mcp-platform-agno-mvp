@@ -53,7 +53,7 @@ guarantee gets an ADR. One short record. Supersede (don't edit) when a decision 
 | 0037 | Graphiti MCP via ContextForge, write-enabled | Accepted (owner 2026-07-29; blocker cleared per D-028; retire `:8071` door pending) |
 | 0038 | Agno agents ↔ Graphiti as native library | Accepted (owner 2026-07-29) |
 | 0039 | Graphiti extraction LLM = hosted structured-output model | Accepted (owner 2026-07-29; implemented in practice 2026-07-04 via NIM nemotron, lane now Portkey) |
-| 0040 | Vector substrate revisit — Weaviate LOCKED (vs pgvector / keep-Milvus) | Accepted (2026-07-27; supersedes 0026/0027 engine choice; migration pending, Milvus sidelined) |
+| 0040 | Vector substrate revisit — Weaviate LOCKED (vs pgvector / keep-Milvus) | Accepted (2026-07-27; supersedes 0026/0027 engine choice; **cutover VERIFIED 2026-08-09 D-042; `data-vector`/Milvus DOWN deliberately since 2026-08-10**) |
 | 0041 | Memgraph = additive temporal GraphRAG layer, read-side only (Neo4j/DozerDB stays) | Accepted (2026-07-28; Variant B) |
 | 0042 | Portkey replaces LiteLLM as THE model gateway; LiteLLM retired | Accepted (2026-07-29; supersedes 0015; teardown pending) |
 | 0043 | Semantica as a governed extraction worker (pinned fork); SurrealDB exits the critical path | Accepted (2026-08-02; index row backfilled 2026-08-05 — the file shipped without one) |
@@ -68,6 +68,7 @@ guarantee gets an ADR. One short record. Supersede (don't edit) when a decision 
 | 0052 | PG-CDC spine (transactional PER-TABLE outbox, trigger-written full rows + NOTIFY wakeup + per-sink cursors — the invariant-4 mechanism), end-to-end AI-chat ingest with coverage-based Go-primary engine split (~~size-based~~ — owner ruling 2026-08-12: Go parses whatever it covers, Python = uncovered formats / logged failure-fallback), and Stage-2 extraction as tools-not-agents (entity_candidate + claim_candidate — ~~artifact_candidate~~ renamed; extract regardless of custody-approval, horizon binds at promotion; dead-letter table + replay + alert; standalone Coolify worker app; Langfuse eval, DSPy deferred) | **ACCEPTED — owner sign-off 2026-08-12** ("sign 52"; all 8 open questions ruled same day, D-054; hands off from ADR-0051 invariant 4; consistent with D-046..D-052; Phase 0 pre-shipped as D-048) |
 | 0053 | Five-lane AI-chat ingestion; explicit conversation/message/chunk truth; post-chunk multi-label routing; selective confidence HITL; tags; multimodal assets/OCR ladder; human investigation register | **Accepted** — owner rulings 2026-08-13; supersedes 0050/0051/0052 in part |
 | 0054 | Mandatory durable run reports + append-only review actions + correlated Agno/OpenTelemetry/Langfuse observability | **Accepted** — owner ruling 2026-08-13; Postgres authoritative, Langfuse diagnostic only; D-059 |
+| 0055 | Matter and CourtCase identity boundary + legacy text-partition bridge + idempotent Knowledge-to-Evidence promotion | **Accepted** — owner approval 2026-08-15; narrowly supersedes D-041 identity consequence while retaining single-owner scope; D-060 |
 
 > The full vision, current stack, roadmap, access, and gotchas live in
 > [`docs/PROJECT_CANON.md`](../PROJECT_CANON.md) (the durable source of truth).

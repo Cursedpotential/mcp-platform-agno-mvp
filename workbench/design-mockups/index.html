@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Neutral review board for three Operator Workbench visual prototypes.">
+  <title>Workbench Mockups — Review Board</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f3f0e8;
+      --sheet: #fcfaf4;
+      --ink: #181a19;
+      --muted: #5f625e;
+      --quiet: #777a74;
+      --rule: #c8c3b7;
+      --rule-strong: #77766f;
+      --signal: #b24a2f;
+      --signal-pale: #f4ddd5;
+      --graphite: #252927;
+      --green: #285e49;
+      --amber: #8b5b11;
+      --sans: "Aptos", "Segoe UI Variable", "Segoe UI", sans-serif;
+      --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+      --mono: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(90deg, transparent 39px, rgb(80 75 64 / 7%) 40px, transparent 41px) 0 0 / 40px 40px,
+        linear-gradient(transparent 39px, rgb(80 75 64 / 5%) 40px, transparent 41px) 0 0 / 40px 40px,
+        var(--paper);
+      font: 15px/1.5 var(--sans);
+    }
+
+    a { color: inherit; }
+    button, a { -webkit-tap-highlight-color: transparent; }
+    button:focus-visible, a:focus-visible {
+      outline: 3px solid var(--signal);
+      outline-offset: 3px;
+    }
+
+    .masthead {
+      border-bottom: 1px solid var(--rule-strong);
+      background: var(--sheet);
+    }
+    .masthead-inner, main, .footer-inner {
+      width: min(1380px, calc(100% - 48px));
+      margin: 0 auto;
+    }
+    .masthead-inner {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 32px;
+      padding: 34px 0 29px;
+    }
+    .kicker, .folio, .label, .matrix th, .status-line {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+    .kicker { color: var(--signal); }
+    h1 {
+      max-width: 880px;
+      margin: 8px 0 6px;
+      font: 600 clamp(37px, 5vw, 69px)/.96 var(--serif);
+      letter-spacing: -.045em;
+    }
+    .intro {
+      max-width: 780px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 16px;
+    }
+    .review-meta {
+      align-self: end;
+      min-width: 230px;
+      padding: 12px 0 4px 19px;
+      border-left: 3px solid var(--ink);
+      font: 12px/1.8 var(--mono);
+    }
+    .review-meta strong { display: block; font-family: var(--sans); font-size: 14px; }
+
+    main { padding: 32px 0 58px; }
+    .prototype-note {
+      display: flex;
+      align-items: flex-start;
+      gap: 11px;
+      margin-bottom: 26px;
+      padding: 13px 16px;
+      border: 1px solid #bd904f;
+      border-left: 5px solid var(--amber);
+      background: #fff4de;
+      color: #523b16;
+    }
+    .prototype-note strong { white-space: nowrap; }
+
+    .lens-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 17px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--rule-strong);
+    }
+    .lens-copy h2 { margin: 0; font: 600 25px/1.1 var(--serif); }
+    .lens-copy p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+    .lens-controls { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; }
+    .lens {
+      min-height: 37px;
+      padding: 7px 11px;
+      border: 1px solid var(--rule-strong);
+      border-radius: 0;
+      background: var(--sheet);
+      color: var(--ink);
+      cursor: pointer;
+      font: 700 12px var(--sans);
+    }
+    .lens:hover { border-color: var(--signal); }
+    .lens[aria-pressed="true"] { color: #fff; background: var(--graphite); }
+
+    .review-board {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      border-top: 1px solid var(--rule-strong);
+      border-bottom: 1px solid var(--rule-strong);
+      background: var(--sheet);
+      box-shadow: 0 18px 55px rgb(39 37 31 / 9%);
+    }
+    .concept {
+      position: relative;
+      display: flex;
+      min-width: 0;
+      flex-direction: column;
+      padding: 25px 25px 23px;
+      border-right: 1px solid var(--rule);
+      transition: opacity .18s ease, background .18s ease;
+    }
+    .concept:last-child { border-right: 0; }
+    .concept::before {
+      content: "";
+      position: absolute;
+      inset: 0 0 auto;
+      height: 5px;
+      background: var(--ink);
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform .2s ease;
+    }
+    .concept.is-focus::before { transform: scaleX(1); }
+    .concept.is-muted { opacity: .47; background: #f1eee6; }
+    .concept.is-muted:hover, .concept.is-muted:focus-within { opacity: 1; }
+    .concept-head {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      align-items: start;
+      gap: 14px;
+    }
+    .folio {
+      display: grid;
+      place-items: center;
+      width: 43px;
+      height: 53px;
+      border: 1px solid var(--rule-strong);
+      background: var(--paper);
+      font-size: 15px;
+    }
+    .concept h3 { margin: 0; font: 600 27px/1.05 var(--serif); letter-spacing: -.025em; }
+    .descriptor { margin: 5px 0 0; color: var(--muted); font-size: 13px; }
+
+    .schematic {
+      position: relative;
+      height: 125px;
+      margin: 24px 0 20px;
+      overflow: hidden;
+      border: 1px solid var(--rule-strong);
+      background-color: #ebe7dc;
+    }
+    .schematic span { position: absolute; display: block; }
+    .desk .s1 { inset: 0 auto 0 0; width: 20%; background: #343938; }
+    .desk .s2 { inset: 13px 31% 13px 24%; border-block: 5px solid #d7d1c3; background: repeating-linear-gradient(#fffdf8 0 18px, #d8d2c6 19px); }
+    .desk .s3 { inset: 0 0 0 auto; width: 27%; border-left: 2px solid #3d477d; background: repeating-linear-gradient(90deg, transparent 0 12px, #c9c2b4 13px, transparent 14px), #faf7ef; }
+    .atlas { background: linear-gradient(90deg, #ede7da 1px, transparent 1px), linear-gradient(#ede7da 1px, transparent 1px), #fbf7ed; background-size: 22px 22px; }
+    .atlas .s1, .atlas .s2 { left: 8%; right: 8%; height: 4px; border-radius: 0; transform-origin: left; }
+    .atlas .s1 { top: 34px; background: #315c9c; transform: rotate(-4deg); }
+    .atlas .s2 { bottom: 34px; background: #6a4c92; transform: rotate(4deg); }
+    .atlas .s3 { inset: 38px 25% 38px 27%; background: linear-gradient(90deg, #ddbd59, #c95f50); clip-path: polygon(0 38%, 100% 0, 100% 100%, 0 62%); }
+    .cockpit { background: #2a2f2e; }
+    .cockpit .s1 { inset: 9px 9px auto; height: 20px; border: 1px solid #8f9893; background: #202423; }
+    .cockpit .s2 { inset: 38px 50% 9px 9px; border: 1px solid #9a7d45; background: #343835; }
+    .cockpit .s3 { inset: 38px 9px 9px calc(50% + 5px); border: 1px solid #4d7c79; background: repeating-linear-gradient(0deg, #313735 0 15px, #414845 16px); }
+
+    .facts { display: grid; gap: 13px; margin: 0 0 24px; }
+    .facts div { padding-top: 10px; border-top: 1px solid var(--rule); }
+    .facts dt { color: var(--quiet); font: 700 10px var(--mono); letter-spacing: .09em; text-transform: uppercase; }
+    .facts dd { margin: 3px 0 0; font-size: 13px; }
+    .facts .cost dd { color: #6b4110; }
+
+    .concept-links { display: grid; grid-template-columns: 1fr auto; gap: 7px; margin-top: auto; }
+    .open-link, .notes-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 43px;
+      padding: 9px 11px;
+      border: 1px solid var(--ink);
+      text-decoration: none;
+      font-weight: 800;
+    }
+    .open-link { color: #fff; background: var(--graphite); }
+    .open-link:hover { color: #fff; background: var(--signal); }
+    .notes-link { border-color: var(--rule-strong); color: var(--muted); font-size: 12px; }
+    .notes-link:hover { border-color: var(--signal); color: var(--signal); }
+
+    .matrix-section { margin-top: 46px; }
+    .section-head {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 24px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid var(--ink);
+    }
+    .section-head h2 { margin: 0; font: 600 31px var(--serif); }
+    .section-head p { max-width: 560px; margin: 0; color: var(--muted); font-size: 13px; text-align: right; }
+    .matrix-scroll { overflow-x: auto; border-bottom: 1px solid var(--rule-strong); }
+    .matrix { width: 100%; min-width: 820px; border-collapse: collapse; background: var(--sheet); }
+    .matrix th, .matrix td { padding: 12px 14px; border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
+    .matrix th:last-child, .matrix td:last-child { border-right: 0; }
+    .matrix thead th { color: var(--sheet); background: var(--graphite); }
+    .matrix thead th:first-child { width: 19%; }
+    .matrix tbody th { color: var(--muted); background: #ede9df; }
+    .rating { display: block; font-weight: 800; }
+    .rating.primary { color: var(--green); }
+    .rating.strong { color: #394d73; }
+    .rating.support { color: var(--muted); }
+    .matrix small { display: block; margin-top: 2px; color: var(--quiet); }
+    .matrix-hint { display: none; margin: 7px 0 0; color: var(--muted); font-size: 12px; }
+
+    .decision-note {
+      display: grid;
+      grid-template-columns: 190px 1fr;
+      gap: 25px;
+      margin-top: 34px;
+      padding: 23px 0;
+      border-block: 1px solid var(--rule-strong);
+    }
+    .decision-note h2 { margin: 0; font: 600 23px var(--serif); }
+    .decision-note p { margin: 0; color: var(--muted); }
+
+    footer { color: #e8e5dc; background: var(--graphite); }
+    .footer-inner {
+      display: flex;
+      justify-content: space-between;
+      gap: 25px;
+      padding: 18px 0;
+      font-size: 12px;
+    }
+    .footer-inner a { color: #fff; }
+    .status-line { color: #b8bdb8; }
+
+    @media (max-width: 980px) {
+      .masthead-inner { grid-template-columns: 1fr; }
+      .review-meta { max-width: 420px; }
+      .review-board { grid-template-columns: 1fr; }
+      .concept { display: grid; grid-template-columns: minmax(220px, .75fr) minmax(0, 1.25fr); gap: 0 24px; border-right: 0; border-bottom: 1px solid var(--rule-strong); }
+      .concept:last-child { border-bottom: 0; }
+      .concept-head, .schematic { grid-column: 1; }
+      .facts, .concept-links { grid-column: 2; }
+      .facts { grid-row: 1 / span 2; align-self: center; }
+      .concept-links { align-self: end; }
+      .section-head { align-items: start; flex-direction: column; }
+      .section-head p { text-align: left; }
+      .matrix-hint { display: block; }
+    }
+
+    @media (max-width: 680px) {
+      .masthead-inner, main, .footer-inner { width: min(100% - 28px, 1380px); }
+      .masthead-inner { padding-block: 25px 22px; }
+      h1 { font-size: 43px; }
+      .prototype-note { display: block; }
+      .prototype-note strong { display: block; margin-bottom: 3px; }
+      .lens-bar { align-items: start; flex-direction: column; }
+      .lens-controls { justify-content: start; }
+      .lens { flex: 1 1 43%; }
+      .concept { display: flex; padding: 22px 18px; }
+      .schematic { width: 100%; }
+      .concept-links { grid-template-columns: 1fr; }
+      .section-head h2 { font-size: 27px; }
+      .decision-note { grid-template-columns: 1fr; }
+      .footer-inner { flex-direction: column; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <header class="masthead">
+    <div class="masthead-inner">
+      <div>
+        <div class="kicker">Operator Workbench · visual direction review</div>
+        <h1>Three instruments.<br>One platform.</h1>
+        <p class="intro">A neutral review board for three deliberately different prototypes. Open them, test the interactions, read the critic notes, and choose the workflow each direction should serve.</p>
+      </div>
+      <aside class="review-meta" aria-label="Review metadata">
+        <strong>Prototype folio 2026·08·15</strong>
+        03 directions<br>
+        03 self-contained HTML studies<br>
+        production status: none
+      </aside>
+    </div>
+  </header>
+
+  <main>
+    <aside class="prototype-note">
+      <strong>Prototype boundary</strong>
+      <span>These pages contain fictional data and illustrative interactions. They are review artifacts, not deployed application screens and not proof that a backend workflow is safe.</span>
+    </aside>
+
+    <section aria-labelledby="directions-title">
+      <div class="lens-bar">
+        <div class="lens-copy">
+          <h2 id="directions-title">Compare by working mode</h2>
+          <p>The default view is deliberately unranked. Choose a lens to surface fit, not a winner.</p>
+        </div>
+        <div class="lens-controls" role="group" aria-label="Decision lens">
+          <button class="lens" type="button" aria-pressed="true" data-lens="all">Show all</button>
+          <button class="lens" type="button" aria-pressed="false" data-lens="evidence">Evidence review</button>
+          <button class="lens" type="button" aria-pressed="false" data-lens="horizon">Horizon analysis</button>
+          <button class="lens" type="button" aria-pressed="false" data-lens="platform">Platform operations</button>
+        </div>
+      </div>
+
+      <div class="review-board" id="review-board">
+        <article class="concept" data-fit="evidence">
+          <header class="concept-head">
+            <span class="folio">01</span>
+            <div><h3>Evidence Operations Desk</h3><p class="descriptor">Forensic queue + continuous custody jacket</p></div>
+          </header>
+          <div class="schematic desk" aria-label="Schematic preview of a navigation rail, evidence ledger, and provenance inspector"><span class="s1"></span><span class="s2"></span><span class="s3"></span></div>
+          <dl class="facts">
+            <div><dt>Strength</dt><dd>Fast, court-conscious evidence triage with provenance and human gates always adjacent.</dd></div>
+            <div class="cost"><dt>Cost / tradeoff</dt><dd>Focused rather than configurable; dense tables and complete inspector-state synchronization demand careful responsive work.</dd></div>
+            <div><dt>Best-fit workflow</dt><dd>Daily source review, custody exceptions, evidence drafting, authentication, redaction, and packaging.</dd></div>
+          </dl>
+          <div class="concept-links">
+            <a class="open-link" href="evidence-operations-desk/index.html">Open prototype <span aria-hidden="true">↗</span></a>
+            <a class="notes-link" href="../../docs/design/workbench-mockups-2026-08-15/eval_variant_1_1.md">Review notes · PASS</a>
+          </div>
+        </article>
+
+        <article class="concept" data-fit="horizon">
+          <header class="concept-head">
+            <span class="folio">02</span>
+            <div><h3>Temporal Case Atlas</h3><p class="descriptor">As-lived ↔ hindsight ↔ delta cartography</p></div>
+          </header>
+          <div class="schematic atlas" aria-label="Schematic preview of two temporal tracks connected by a widening delta ribbon"><span class="s1"></span><span class="s2"></span><span class="s3"></span></div>
+          <dl class="facts">
+            <div><dt>Strength</dt><dd>Makes the platform’s defining realization delta visible, explorable, and emotionally intelligible.</dd></div>
+            <div class="cost"><dt>Cost / tradeoff</dt><dd>More specialized and interaction-heavy; exact provenance, safe replay execution, and tablet recomposition are substantial work.</dd></div>
+            <div><dt>Best-fit workflow</dt><dd>Walking horizons, comparing belief to later fact, inspecting realization boundaries, and explaining gaslighting deltas.</dd></div>
+          </dl>
+          <div class="concept-links">
+            <a class="open-link" href="temporal-case-atlas/index.html">Open prototype <span aria-hidden="true">↗</span></a>
+            <a class="notes-link" href="../../docs/design/workbench-mockups-2026-08-15/eval_variant_2_1.md">Review notes · PASS</a>
+          </div>
+        </article>
+
+        <article class="concept" data-fit="platform">
+          <header class="concept-head">
+            <span class="folio">03</span>
+            <div><h3>Modular Service Cockpit</h3><p class="descriptor">Context spine + configurable service workspaces</p></div>
+          </header>
+          <div class="schematic cockpit" aria-label="Schematic preview of a persistent context spine and docked service modules"><span class="s1"></span><span class="s2"></span><span class="s3"></span></div>
+          <dl class="facts">
+            <div><dt>Strength</dt><dd>Keeps hidden scope visible while exposing service ownership, providers, agents, ingestion, memory, and sandbox boundaries.</dd></div>
+            <div class="cost"><dt>Cost / tradeoff</dt><dd>Highest governance burden, and this first prototype filters modules rather than proving true docking. Layouts, permissions, reset behavior, and context changes all need durable state and tests.</dd></div>
+            <div><dt>Best-fit workflow</dt><dd>Technical operations, ingestion supervision, agent/provider switching, service diagnostics, and isolated code work.</dd></div>
+          </dl>
+          <div class="concept-links">
+            <a class="open-link" href="modular-service-cockpit/index.html">Open prototype <span aria-hidden="true">↗</span></a>
+            <a class="notes-link" href="../../docs/design/workbench-mockups-2026-08-15/eval_variant_3_2.md">Review notes · PASS after revision</a>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="matrix-section" aria-labelledby="matrix-title">
+      <header class="section-head">
+        <h2 id="matrix-title">Workflow fit matrix</h2>
+        <p>“Primary” means the direction was designed around that work. “Strong” means it can support the work naturally. “Supporting” means the workflow is present but should not drive the composition.</p>
+      </header>
+      <p class="matrix-hint" id="matrix-hint">Scroll horizontally to compare all directions →</p>
+      <div class="matrix-scroll" tabindex="0" aria-describedby="matrix-hint">
+        <table class="matrix">
+          <thead><tr><th>Decision axis</th><th>01 · Evidence desk</th><th>02 · Temporal atlas</th><th>03 · Service cockpit</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Evidence review</th><td><span class="rating primary">Primary</span><small>Queue, custody, HITL gates</small></td><td><span class="rating support">Supporting</span><small>Evidence anchors temporal events</small></td><td><span class="rating strong">Strong</span><small>Evidence module within workspace</small></td></tr>
+            <tr><th scope="row">Horizon analysis</th><td><span class="rating support">Supporting</span><small>Scope indicator and entry point</small></td><td><span class="rating primary">Primary</span><small>As-lived / hindsight delta</small></td><td><span class="rating strong">Strong</span><small>Dedicated preset and context</small></td></tr>
+            <tr><th scope="row">Platform operations</th><td><span class="rating support">Supporting</span><small>Health strip and navigation</small></td><td><span class="rating support">Supporting</span><small>Route and extraction telemetry</small></td><td><span class="rating primary">Primary</span><small>Explicit service modules</small></td></tr>
+            <tr><th scope="row">Information density</th><td><span class="rating">High</span><small>Ledger-first, compact inspector</small></td><td><span class="rating">Medium</span><small>Visual field with selective detail</small></td><td><span class="rating">High</span><small>Many modules, governed presets</small></td></tr>
+            <tr><th scope="row">Customizability</th><td><span class="rating">Focused</span><small>Stable daily-review layout</small></td><td><span class="rating">Moderate</span><small>Layers, horizons, checkpoints</small></td><td><span class="rating">Very high</span><small>Docking, presets, provider detail</small></td></tr>
+            <tr><th scope="row">Implementation complexity</th><td><span class="rating">Medium</span><small>State integrity + responsive table</small></td><td><span class="rating">High</span><small>Temporal data + safe replay model</small></td><td><span class="rating">Highest</span><small>Layout state + authorization matrix</small></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <aside class="decision-note">
+      <h2>These directions can coexist.</h2>
+      <p>The comparison is not necessarily a single-winner exercise. A durable product could use the Evidence Desk as the daily case-work home, the Atlas as a focused analysis instrument, and selected Cockpit patterns—especially its context spine and provider controls—as shared platform infrastructure. The implementation decision is which surface becomes the primary shell and which become task-specific workspaces.</p>
+    </aside>
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+      <span>Workbench design review · fictional prototype data only</span>
+      <span class="status-line">03 variants · direct file links · no network dependencies</span>
+    </div>
+  </footer>
+
+  <script>
+    const controls = [...document.querySelectorAll('.lens')];
+    const concepts = [...document.querySelectorAll('.concept')];
+
+    function applyLens(lens) {
+      controls.forEach(control => control.setAttribute('aria-pressed', String(control.dataset.lens === lens)));
+      concepts.forEach(concept => {
+        const focused = lens !== 'all' && concept.dataset.fit === lens;
+        concept.classList.toggle('is-focus', focused);
+        concept.classList.toggle('is-muted', lens !== 'all' && !focused);
+      });
+    }
+
+    controls.forEach(control => control.addEventListener('click', () => applyLens(control.dataset.lens)));
+  </script>
+</body>
+</html>

@@ -1,0 +1,643 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Temporal Case Atlas — Workbench Mockup</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --parchment: #f1eadc;
+      --parchment-light: #fbf6eb;
+      --paper: #fffaf0;
+      --ink: #1f2022;
+      --muted: #67655f;
+      --faint: #958f84;
+      --rule: #c9bfad;
+      --rule-dark: #887f70;
+      --cobalt: #3158a5;
+      --cobalt-soft: #dce5f6;
+      --violet: #76509a;
+      --violet-soft: #e8dff0;
+      --coral: #d96a55;
+      --gold: #d4a83e;
+      --delta-pale: #f8dfbb;
+      --graphite: #25282b;
+      --teal: #347b79;
+      --sans: "Aptos", "Segoe UI Variable", "Gill Sans", sans-serif;
+      --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+      --mono: "Cascadia Mono", "IBM Plex Mono", Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { min-height: 100%; }
+    body {
+      margin: 0;
+      overflow: hidden;
+      color: var(--ink);
+      background: var(--parchment);
+      font: 14px/1.42 var(--sans);
+    }
+    button, input, select { font: inherit; }
+    button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focus-visible {
+      outline: 3px solid var(--gold);
+      outline-offset: 2px;
+    }
+
+    .atlas-shell {
+      display: grid;
+      grid-template-rows: 74px 49px minmax(0, 1fr) 43px;
+      height: 100vh;
+      background:
+        radial-gradient(circle at 18% 8%, rgb(255 255 255 / 58%), transparent 28%),
+        repeating-linear-gradient(0deg, transparent 0 31px, rgb(93 79 55 / 4%) 32px),
+        var(--parchment);
+    }
+
+    .masthead {
+      display: grid;
+      grid-template-columns: 330px minmax(360px, 1fr) 360px;
+      align-items: center;
+      border-bottom: 1px solid var(--rule-dark);
+      background: rgb(251 246 235 / 94%);
+    }
+    .title-lockup { padding: 0 24px; }
+    .title-lockup small { display: block; color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+    .title-lockup strong { display: block; margin-top: 1px; font: 600 25px/1 var(--serif); letter-spacing: -.02em; }
+
+    .identity {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      min-width: 0;
+      border-inline: 1px solid var(--rule);
+    }
+    .identity-block { min-width: 0; padding: 9px 18px; }
+    .identity-block + .identity-block { border-left: 1px solid var(--rule); }
+    .identity-block span { display: block; color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .11em; text-transform: uppercase; }
+    .identity-block b { display: block; overflow: hidden; margin-top: 4px; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+    .identity-block code { color: var(--cobalt); font: 11px var(--mono); }
+
+    .route-status {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 14px;
+      align-items: center;
+      padding: 0 20px;
+    }
+    .route-copy span { display: block; color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .11em; text-transform: uppercase; }
+    .route-copy strong { display: block; margin-top: 3px; font: 11px var(--mono); }
+    .route-copy em { color: var(--violet); font-style: normal; }
+    .next-turn { padding: 4px 7px; border: 1px solid var(--violet); color: #50376a; background: var(--violet-soft); font-size: 9px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+
+    .atlas-nav {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 0 18px;
+      border-bottom: 1px solid var(--rule);
+      background: #e5dccb;
+    }
+    .atlas-nav button {
+      height: 48px;
+      padding: 0 13px;
+      border: 0;
+      border-bottom: 3px solid transparent;
+      background: transparent;
+      color: #5f5c55;
+      font-size: 11px;
+      font-weight: 750;
+      cursor: pointer;
+    }
+    .atlas-nav button:hover { background: rgb(255 255 255 / 36%); }
+    .atlas-nav button.active { border-bottom-color: var(--ink); color: var(--ink); }
+    .atlas-nav button:disabled { color: #817d75; cursor: not-allowed; opacity: .72; }
+    .atlas-nav .nav-separator { width: 1px; height: 23px; margin-inline: 6px; background: var(--rule); }
+    .atlas-nav .held-state { margin-left: auto; color: #73541f; font: 10px var(--mono); }
+    .atlas-nav .held-state::before { content: "◇"; margin-right: 6px; color: var(--coral); }
+
+    .stage {
+      display: grid;
+      grid-template-columns: 226px minmax(650px, 1fr) 282px;
+      min-height: 0;
+    }
+
+    .controls {
+      overflow-y: auto;
+      border-right: 1px solid var(--rule-dark);
+      background: #eee5d5;
+    }
+    .control-heading {
+      padding: 19px 17px 13px;
+      border-bottom: 1px solid var(--rule);
+    }
+    .kicker { color: var(--muted); font-size: 9px; font-weight: 850; letter-spacing: .14em; text-transform: uppercase; }
+    .control-heading h2 { margin: 3px 0 6px; font: 600 19px var(--serif); }
+    .control-heading p { margin: 0; color: var(--muted); font-size: 10px; }
+
+    .control-section { padding: 14px 17px; border-bottom: 1px solid var(--rule); }
+    .control-section h3 { margin: 0 0 10px; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; }
+    .range-label { display: flex; justify-content: space-between; color: var(--muted); font: 9px var(--mono); }
+    input[type="range"] { width: 100%; margin: 12px 0 5px; accent-color: var(--cobalt); }
+    .horizon-date { display: block; margin-top: 3px; color: var(--cobalt); font: 750 15px var(--mono); }
+    .control-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .mini-control {
+      min-height: 44px;
+      padding: 7px 8px;
+      border: 1px solid var(--rule);
+      background: var(--parchment-light);
+      text-align: left;
+    }
+    .mini-control span { display: block; color: var(--muted); font-size: 8px; text-transform: uppercase; letter-spacing: .08em; }
+    .mini-control strong { display: block; margin-top: 3px; font: 10px var(--mono); }
+    .prototype-button {
+      width: 100%;
+      min-height: 36px;
+      margin-top: 7px;
+      border: 1px dashed #a47c42;
+      background: #e6d9c4;
+      color: #715528;
+      font-size: 10px;
+      font-weight: 800;
+      cursor: not-allowed;
+      opacity: .86;
+    }
+    .checkpoint-list { display: grid; gap: 7px; }
+    .checkpoint {
+      display: grid;
+      grid-template-columns: 8px 1fr;
+      gap: 8px;
+      padding: 7px 0;
+      border: 0;
+      background: transparent;
+      text-align: left;
+      cursor: pointer;
+    }
+    .checkpoint i { width: 8px; height: 8px; margin-top: 5px; border: 1px solid var(--cobalt); background: var(--parchment-light); transform: rotate(45deg); }
+    .checkpoint.active i { background: var(--cobalt); }
+    .checkpoint b { display: block; font: 10px var(--mono); }
+    .checkpoint span { color: var(--muted); font-size: 9px; }
+
+    .canvas {
+      position: relative;
+      min-width: 0;
+      overflow: auto;
+      background:
+        linear-gradient(90deg, rgb(86 72 49 / 8%) 1px, transparent 1px) 0 0 / 58px 58px,
+        linear-gradient(rgb(86 72 49 / 5%) 1px, transparent 1px) 0 0 / 58px 58px,
+        var(--paper);
+    }
+    .map-paper { min-width: 790px; min-height: 680px; padding: 18px 24px 35px; }
+    .map-title {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: end;
+      padding: 0 4px 13px;
+      border-bottom: 1px solid var(--rule-dark);
+    }
+    .map-title h1 { margin: 2px 0 0; font: 600 26px/1.06 var(--serif); letter-spacing: -.02em; }
+    .map-title p { max-width: 420px; margin: 7px 0 0; color: var(--muted); font-size: 11px; }
+    .atlas-scale { color: var(--muted); font: 9px var(--mono); text-align: right; }
+    .atlas-scale b { display: block; color: var(--ink); font-size: 11px; }
+
+    .temporal-map { position: relative; height: 488px; margin-top: 15px; }
+    .track-label {
+      position: absolute;
+      left: 0;
+      z-index: 2;
+      width: 116px;
+      padding-right: 13px;
+      text-align: right;
+    }
+    .track-label strong { display: block; font: 600 16px var(--serif); }
+    .track-label span { color: var(--muted); font-size: 9px; line-height: 1.25; }
+    .track-label.as-lived { top: 73px; color: var(--cobalt); }
+    .track-label.delta { top: 215px; color: #9b4d3e; }
+    .track-label.hindsight { top: 355px; color: var(--violet); }
+    .map-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+    .year { fill: #706b61; font: 10px var(--mono); }
+    .small-label { fill: #5e5b54; font: 9px var(--sans); }
+    .event-label { fill: var(--ink); font: 700 9px var(--sans); }
+    .event-note { fill: #6c675e; font: 10px var(--sans); }
+    .mono-label { fill: #5f5c55; font: 10px var(--mono); }
+    .horizon-line { transition: transform .18s ease; }
+    .delta-ribbon { filter: drop-shadow(0 4px 5px rgb(119 72 37 / 14%)); }
+    .event-group { cursor: pointer; }
+    .event-group circle, .event-group rect { transition: transform .15s ease, stroke-width .15s ease; transform-box: fill-box; transform-origin: center; }
+    .event-group:hover circle, .event-group:hover rect { transform: scale(1.18); stroke-width: 3; }
+
+    .layer-key {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 10px 5px 0 121px;
+      border-top: 1px solid var(--rule);
+      color: var(--muted);
+      font-size: 9px;
+    }
+    .layer-key span { display: flex; align-items: center; gap: 6px; }
+    .swatch { width: 16px; height: 3px; background: var(--ink); }
+    .swatch.cobalt { background: var(--cobalt); }
+    .swatch.violet { background: var(--violet); }
+    .swatch.delta { height: 7px; background: linear-gradient(90deg, var(--gold), var(--coral)); }
+    .swatch.provenance { height: 1px; border-top: 1px dashed var(--teal); background: transparent; }
+
+    .drawer {
+      overflow-y: auto;
+      border-left: 1px solid var(--rule-dark);
+      background: #e9dfce;
+    }
+    .drawer-head { padding: 18px 16px 11px; border-bottom: 1px solid var(--rule); }
+    .drawer-head h2 { margin: 3px 0 0; font: 600 18px var(--serif); }
+    .drawer-tabs { display: grid; grid-template-columns: repeat(6, 1fr); border-bottom: 1px solid var(--rule-dark); }
+    .drawer-tab { min-width: 0; padding: 8px 2px; border: 0; border-bottom: 3px solid transparent; background: transparent; font-size: 9px; font-weight: 850; text-transform: uppercase; cursor: pointer; }
+    .drawer-tab.active { border-bottom-color: var(--coral); background: var(--parchment-light); }
+    .drawer-panel { padding: 0 16px 20px; }
+    .drawer-item { padding: 13px 0; border-bottom: 1px solid var(--rule); }
+    .drawer-item .type { color: var(--muted); font-size: 10px; font-weight: 850; letter-spacing: .11em; text-transform: uppercase; }
+    .drawer-item h3 { margin: 3px 0 4px; font-size: 12px; }
+    .drawer-item p { margin: 0; color: var(--muted); font-size: 10px; }
+    .status-line { display: flex; align-items: center; gap: 7px; margin-top: 7px; font: 10px var(--mono); }
+    .status-mark { width: 7px; height: 7px; border: 1px solid currentColor; }
+    .status-mark.current { background: var(--cobalt); color: var(--cobalt); }
+    .status-mark.invalid { background: transparent; color: var(--coral); transform: rotate(45deg); }
+    .status-mark.extract { border-radius: 50%; background: var(--teal); color: var(--teal); }
+    .upstream {
+      margin: 15px 16px;
+      padding: 11px 12px;
+      border-left: 4px solid var(--teal);
+      background: var(--parchment-light);
+    }
+    .upstream strong { display: block; font-size: 10px; }
+    .upstream p { margin: 4px 0 0; color: var(--muted); font-size: 9px; }
+    .upstream code { font: 8px var(--mono); }
+
+    .footer-route {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 16px;
+      padding: 0 17px;
+      color: #dedbd4;
+      background: var(--graphite);
+      font-size: 9px;
+    }
+    .footer-route strong { color: #fff; text-transform: uppercase; letter-spacing: .1em; }
+    .route-flow { display: flex; align-items: center; gap: 8px; overflow: hidden; font-family: var(--mono); white-space: nowrap; }
+    .route-flow .requested { color: #aac0f6; }
+    .route-flow .actual { color: #d1afd9; }
+    .route-flow i { color: #8b8e90; font-style: normal; }
+    .held { color: #f0c774; font-family: var(--mono); white-space: nowrap; }
+
+    .event-readout {
+      position: absolute;
+      z-index: 5;
+      right: 18px;
+      bottom: 54px;
+      width: 250px;
+      padding: 10px 12px;
+      border: 1px solid var(--rule-dark);
+      border-top: 4px solid var(--coral);
+      background: rgb(255 250 240 / 96%);
+      box-shadow: 7px 8px 0 rgb(80 68 47 / 10%);
+    }
+    .event-readout span { color: var(--muted); font: 10px var(--mono); }
+    .event-readout strong { display: block; margin: 3px 0; font: 600 13px var(--serif); }
+    .event-readout p { margin: 0; color: var(--muted); font-size: 11px; }
+    .provenance-block { display: grid; grid-template-columns: auto 1fr; gap: 3px 8px; margin: 9px 0 7px; padding-top: 7px; border-top: 1px solid var(--rule); font: 10px/1.35 var(--mono); }
+    .provenance-block dt { color: var(--muted); }
+    .provenance-block dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+    .open-evidence { width: 100%; padding: 6px 8px; border: 1px solid var(--teal); color: #245b59; background: #e3efea; font-size: 10px; font-weight: 800; cursor: pointer; }
+    .open-evidence-status { display: block; min-height: 14px; margin-top: 4px; color: var(--teal); font: 9px var(--mono); }
+    .tablet-readout { display: none; }
+
+    @media (max-width: 1180px) {
+      .masthead { grid-template-columns: 235px 1fr 270px; }
+      .title-lockup strong { font-size: 20px; }
+      .stage { grid-template-columns: 188px minmax(610px, 1fr) 228px; }
+      .control-section { padding-inline: 12px; }
+      .drawer-panel { padding-inline: 12px; }
+      .drawer-tabs { grid-template-columns: repeat(3, 1fr); }
+      .route-status { padding-inline: 12px; }
+    }
+
+    @media (max-width: 920px) {
+      body { overflow: auto; }
+      .atlas-shell { height: auto; min-height: 100vh; grid-template-rows: auto auto auto 43px; }
+      .masthead { grid-template-columns: 210px 1fr; min-height: 74px; }
+      .route-status { display: none; }
+      .stage { display: block; overflow: visible; }
+      .controls { display: grid; grid-template-columns: minmax(190px, .8fr) minmax(210px, 1fr) minmax(280px, 1.4fr); overflow: hidden; border-right: 0; border-bottom: 1px solid var(--rule-dark); }
+      .control-heading { padding: 12px 14px; }
+      .control-heading h2 { font-size: 16px; }
+      .control-section { min-width: 0; padding: 10px 12px; border-bottom: 0; border-left: 1px solid var(--rule); }
+      .control-section:nth-of-type(3) { grid-column: 1 / -1; overflow-x: auto; border-top: 1px solid var(--rule); border-left: 0; }
+      .checkpoint-list { grid-template-columns: repeat(5, minmax(145px, 1fr)); gap: 12px; min-width: 760px; }
+      .canvas { max-width: 100vw; overflow-x: auto; overflow-y: visible; }
+      .map-paper { min-width: 790px; }
+      .event-readout { display: none; }
+      .tablet-readout { display: block; margin: 12px; width: auto; position: static; }
+      .drawer { display: grid; grid-template-columns: 220px 1fr; min-height: 220px; border-top: 1px solid var(--rule-dark); border-left: 0; }
+      .drawer-head, .drawer-tabs { grid-column: 1; }
+      .drawer-panel { grid-column: 2; grid-row: 1 / span 3; }
+      .upstream { grid-column: 1; }
+      .canvas { overflow: visible; }
+      .footer-route { position: relative; min-height: 54px; grid-template-columns: auto 1fr; padding-block: 7px; }
+      .footer-route .held { grid-column: 1 / -1; }
+    }
+
+    @media (max-width: 640px) {
+      .masthead { display: block; }
+      .title-lockup { padding: 12px 16px 8px; }
+      .identity { border-inline: 0; border-top: 1px solid var(--rule); }
+      .atlas-nav { overflow-x: auto; }
+      .atlas-nav .held-state { min-width: 230px; }
+      .controls { display: block; }
+      .control-section { border-top: 1px solid var(--rule); border-left: 0; }
+      .control-grid { grid-template-columns: repeat(4, minmax(110px, 1fr)); overflow-x: auto; }
+      .drawer { display: block; }
+      .drawer-tabs { grid-template-columns: repeat(3, 1fr); }
+      .drawer-panel { min-height: 180px; }
+      .footer-route { display: block; }
+      .route-flow { margin: 5px 0; overflow-x: auto; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="atlas-shell">
+    <header class="masthead">
+      <div class="title-lockup"><small>Workbench / temporal investigation</small><strong>Temporal Case Atlas</strong></div>
+      <div class="identity">
+        <div class="identity-block"><span>Matter / CourtCase</span><b>Primary matter · Primary proceeding</b></div>
+        <div class="identity-block"><span>Knowledge partition / horizon</span><b><code>primary</code> · checkpoint CP-04</b></div>
+      </div>
+      <div class="route-status">
+        <div class="route-copy"><span>Requested route → actual model</span><strong>reasoning-large → <em>glm-5.1:cloud</em></strong></div>
+        <span class="next-turn">switch next turn</span>
+      </div>
+    </header>
+
+    <nav class="atlas-nav" aria-label="Temporal atlas sections">
+      <button class="active" aria-current="page">Atlas</button><button disabled title="Held in this mockup">Evidence</button><button disabled title="Held in this mockup">Realizations</button><button disabled title="Held in this mockup">Claims</button>
+      <span class="nav-separator"></span><button disabled title="Held in this mockup">People</button><button disabled title="Held in this mockup">Issues</button><button disabled title="Held in this mockup">Work Product</button>
+      <span class="held-state">Horizon execution held · preview only</span>
+    </nav>
+
+    <div class="stage">
+      <aside class="controls" aria-label="Horizon controls">
+        <header class="control-heading">
+          <span class="kicker">Knowledge walk</span>
+          <h2>Horizon controls</h2>
+          <p>Preview a boundary without executing or mutating an agent belief state.</p>
+        </header>
+        <section class="control-section">
+          <h3>Boundary preview</h3>
+          <div class="range-label"><span>2019</span><span>2025</span></div>
+          <input id="horizon-slider" type="range" min="0" max="100" value="61" aria-label="Preview knowledge horizon date">
+          <span class="horizon-date" id="horizon-date">2023 · AUG 17</span>
+        </section>
+        <section class="control-section">
+          <h3>Walk recipe</h3>
+          <div class="control-grid">
+            <div class="mini-control"><span>Pace</span><strong>event-step</strong></div>
+            <div class="mini-control"><span>Schedule</span><strong>occurred_at</strong></div>
+            <div class="mini-control"><span>Batch</span><strong>1 event</strong></div>
+            <div class="mini-control"><span>Disclosure</span><strong>as-lived</strong></div>
+          </div>
+          <button class="prototype-button" disabled>RE-WALK · HELD / NOT PROVEN</button>
+          <button class="prototype-button" disabled>SAVE CHECKPOINT · HELD</button>
+        </section>
+        <section class="control-section">
+          <h3>Checkpoints</h3>
+          <div class="checkpoint-list">
+            <button class="checkpoint" data-value="18" data-date="2020 · NOV 03"><i></i><span><b>CP-01 · 2020-11-03</b>First disputed schedule</span></button>
+            <button class="checkpoint" data-value="37" data-date="2022 · JAN 12"><i></i><span><b>CP-02 · 2022-01-12</b>Contradictory messages</span></button>
+            <button class="checkpoint" data-value="49" data-date="2022 · OCT 29"><i></i><span><b>CP-03 · 2022-10-29</b>Outside corroboration</span></button>
+            <button class="checkpoint active" data-value="61" data-date="2023 · AUG 17"><i></i><span><b>CP-04 · 2023-08-17</b>Archive acquired</span></button>
+            <button class="checkpoint" data-value="83" data-date="2024 · NOV 06"><i></i><span><b>CP-05 · 2024-11-06</b>Pattern recognized</span></button>
+          </div>
+        </section>
+      </aside>
+
+      <main class="canvas">
+        <article class="map-paper">
+          <header class="map-title">
+            <div><span class="kicker">Walk comparison / version 004</span><h1>What was knowable then, and what became visible later</h1><p>The delta is the deliverable. It is derived from one authored evidence store under two distinct knowledge horizons—not from parallel truths.</p></div>
+            <div class="atlas-scale"><b>2019—2025</b>1 division ≈ 6 months<br>all times UTC</div>
+          </header>
+
+          <section class="temporal-map" aria-label="As-lived and hindsight comparison timeline">
+            <div class="track-label as-lived"><strong>As-Lived</strong><span>belief state at each discovery boundary</span></div>
+            <div class="track-label delta"><strong>Delta</strong><span>contradiction, realization, changed belief</span></div>
+            <div class="track-label hindsight"><strong>Hindsight</strong><span>all admissible facts visible at once</span></div>
+
+            <svg class="map-svg" viewBox="0 0 900 488" role="img" aria-labelledby="timeline-title timeline-description">
+              <title id="timeline-title">Dual-track temporal comparison</title>
+              <desc id="timeline-description">An as-lived track and a hindsight track connected by a widening delta ribbon and evidence provenance threads.</desc>
+              <defs>
+                <linearGradient id="deltaGradient" x1="0" x2="1"><stop offset="0" stop-color="#d4a83e" stop-opacity=".45"/><stop offset=".52" stop-color="#ed9c61" stop-opacity=".75"/><stop offset="1" stop-color="#d96a55" stop-opacity=".92"/></linearGradient>
+                <pattern id="deltaHatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(28)"><line x1="0" y1="0" x2="0" y2="8" stroke="#8e5145" stroke-opacity=".16" stroke-width="2"/></pattern>
+              </defs>
+
+              <g aria-hidden="true">
+                <line x1="130" y1="38" x2="860" y2="38" stroke="#9a9285"/>
+                <g stroke="#b9af9e"><line x1="145" y1="32" x2="145" y2="448"/><line x1="265" y1="32" x2="265" y2="448"/><line x1="385" y1="32" x2="385" y2="448"/><line x1="505" y1="32" x2="505" y2="448"/><line x1="625" y1="32" x2="625" y2="448"/><line x1="745" y1="32" x2="745" y2="448"/><line x1="860" y1="32" x2="860" y2="448"/></g>
+                <g stroke="#d9d0c1" stroke-dasharray="2 7"><line x1="205" y1="38" x2="205" y2="448"/><line x1="325" y1="38" x2="325" y2="448"/><line x1="445" y1="38" x2="445" y2="448"/><line x1="565" y1="38" x2="565" y2="448"/><line x1="685" y1="38" x2="685" y2="448"/><line x1="805" y1="38" x2="805" y2="448"/></g>
+                <text class="year" x="145" y="22">2019</text><text class="year" x="265" y="22">2020</text><text class="year" x="385" y="22">2021</text><text class="year" x="505" y="22">2022</text><text class="year" x="625" y="22">2023</text><text class="year" x="745" y="22">2024</text><text class="year" x="840" y="22">2025</text>
+              </g>
+
+              <line x1="130" y1="112" x2="860" y2="112" stroke="#3158a5" stroke-width="3"/>
+              <line x1="130" y1="392" x2="860" y2="392" stroke="#76509a" stroke-width="3"/>
+
+              <path class="delta-ribbon" d="M145 220 C245 214, 310 212, 380 218 C447 223, 475 196, 520 186 C585 168, 610 145, 652 150 C715 157, 748 194, 795 180 C822 173, 845 160, 860 154 L860 302 C831 293, 808 288, 782 292 C725 300, 688 328, 630 319 C574 310, 548 282, 505 274 C449 263, 410 254, 354 258 C274 265, 215 250, 145 254 Z" fill="url(#deltaGradient)"/>
+              <path d="M145 220 C245 214, 310 212, 380 218 C447 223, 475 196, 520 186 C585 168, 610 145, 652 150 C715 157, 748 194, 795 180 C822 173, 845 160, 860 154 L860 302 C831 293, 808 288, 782 292 C725 300, 688 328, 630 319 C574 310, 548 282, 505 274 C449 263, 410 254, 354 258 C274 265, 215 250, 145 254 Z" fill="url(#deltaHatch)"/>
+              <text x="170" y="242" class="small-label">low divergence</text>
+              <text x="570" y="235" class="event-label">realization gap widens</text>
+              <text x="570" y="249" class="event-note">later records change the meaning of earlier events</text>
+
+              <g stroke="#347b79" stroke-width="1.3" stroke-dasharray="4 4" opacity=".78">
+                <path d="M303 112 C303 162 338 176 338 218"/><path d="M338 258 C338 320 354 350 354 392"/>
+                <path d="M521 112 C521 150 550 168 550 179"/><path d="M550 284 C550 329 570 350 570 392"/>
+                <path d="M653 112 C653 128 653 142 653 150"/><path d="M653 319 C653 349 665 370 665 392"/>
+                <path d="M795 112 C795 140 795 164 795 180"/><path d="M795 292 C795 328 805 360 805 392"/>
+              </g>
+
+              <g class="event-group" tabindex="0" data-title="Schedule explanation accepted" data-note="As-lived, the explanation appeared internally consistent. No contrary source had entered the horizon.">
+                <circle cx="303" cy="112" r="7" fill="#fffaf0" stroke="#3158a5" stroke-width="2"/><text class="event-label" x="273" y="90">Explanation</text><text class="event-note" x="273" y="101">accepted</text>
+              </g>
+              <g class="event-group" tabindex="0" data-title="Contradictory archive record" data-note="Hindsight exposes an earlier archive entry that conflicts with the explanation, but it was not acquired until 2023.">
+                <rect x="346" y="384" width="16" height="16" fill="#fffaf0" stroke="#76509a" stroke-width="2" transform="rotate(45 354 392)"/><text class="event-label" x="326" y="419">Archive contradiction</text>
+              </g>
+              <g class="event-group" tabindex="0" data-title="Repeated framing changes belief" data-note="A later exchange makes the earlier statement newly significant. This is a realization event, not a rewrite of occurred_at.">
+                <circle cx="521" cy="112" r="7" fill="#3158a5" stroke="#fffaf0" stroke-width="2"/><text class="event-label" x="486" y="88">Belief shifts</text><text class="event-note" x="486" y="99">partial doubt</text>
+              </g>
+              <g class="event-group" tabindex="0" data-title="Canonical source acquired" data-note="The archive enters custody and becomes available to the operator. Extraction remains horizon-neutral; agent visibility changes only at the approved boundary.">
+                <rect x="562" y="384" width="16" height="16" fill="#76509a" stroke="#fffaf0" stroke-width="2" transform="rotate(45 570 392)"/><text class="event-label" x="538" y="419">Source acquired</text>
+              </g>
+              <g class="event-group" tabindex="0" data-title="Pattern becomes realizable" data-note="At the approved realization boundary, several earlier events can be interpreted together without leaking that knowledge into prior checkpoints.">
+                <circle cx="653" cy="112" r="9" fill="#d4a83e" stroke="#3158a5" stroke-width="2"/><text class="event-label" x="619" y="88">Realization</text><text class="event-note" x="619" y="99">pattern named</text>
+              </g>
+              <g class="event-group" tabindex="0" data-title="Corroborating document" data-note="A canonical document supports the hindsight interpretation and is linked to the exact normalized record and custody hash.">
+                <rect x="657" y="384" width="16" height="16" fill="#76509a" stroke="#fffaf0" stroke-width="2" transform="rotate(45 665 392)"/><text class="event-label" x="636" y="419">Corroboration</text>
+              </g>
+              <g class="event-group" tabindex="0" data-title="Belief correction checkpoint" data-note="The as-lived agent may update its belief only from evidence visible at this checkpoint. The prior belief remains preserved in the walk ledger.">
+                <circle cx="795" cy="112" r="7" fill="#fffaf0" stroke="#3158a5" stroke-width="2"/><text class="event-label" x="758" y="88">Correction</text><text class="event-note" x="758" y="99">checkpoint</text>
+              </g>
+              <g class="event-group" tabindex="0" data-title="Full-corpus hindsight" data-note="The hindsight lane sees the complete admissible corpus. It is a filtered view over the same authored store, not a separate truth database.">
+                <rect x="797" y="384" width="16" height="16" fill="#fffaf0" stroke="#76509a" stroke-width="2" transform="rotate(45 805 392)"/><text class="event-label" x="775" y="419">Full corpus</text>
+              </g>
+
+              <g class="horizon-line" id="horizon-line">
+                <line x1="0" y1="45" x2="0" y2="450" stroke="#1f2022" stroke-width="2"/>
+                <path d="M-6 46 L0 38 L6 46" fill="#1f2022"/>
+                <rect x="-35" y="452" width="70" height="21" fill="#1f2022"/>
+                <text x="0" y="466" fill="#fffaf0" font-family="Cascadia Mono, monospace" font-size="8" text-anchor="middle">HORIZON</text>
+              </g>
+            </svg>
+
+            <aside class="event-readout" aria-live="polite">
+              <span>SELECTED DIVERGENCE · CP-04</span>
+              <strong id="readout-title">Pattern becomes realizable</strong>
+              <p id="readout-note">At the approved realization boundary, several earlier events can be interpreted together without leaking that knowledge into prior checkpoints.</p>
+              <dl class="provenance-block">
+                <dt>Evidence</dt><dd data-provenance="evidence">EV-ATLAS-0044</dd>
+                <dt>Normalized</dt><dd data-provenance="record">0196…8c74</dd>
+                <dt>H1</dt><dd data-provenance="hash">8e72f1c9…a43d9b12</dd>
+                <dt>Source</dt><dd data-provenance="pointer">archive-04.zip / entry 118</dd>
+                <dt>Acquired</dt><dd data-provenance="acquired">2023-08-17T14:22Z</dd>
+                <dt>Realized</dt><dd data-provenance="realized">2024-11-06T09:10Z</dd>
+              </dl>
+              <button class="open-evidence" type="button">Open evidence · prototype</button><span class="open-evidence-status" aria-live="polite"></span>
+            </aside>
+          </section>
+
+          <footer class="layer-key">
+            <span><i class="swatch cobalt"></i>As-lived belief</span><span><i class="swatch delta"></i>Knowledge delta</span><span><i class="swatch violet"></i>Hindsight fact view</span><span><i class="swatch provenance"></i>Provenance thread</span>
+          </footer>
+        </article>
+      </main>
+
+      <aside class="event-readout tablet-readout" aria-live="polite" aria-label="Selected event provenance">
+        <span>SELECTED DIVERGENCE · VERIFIABLE SOURCE</span>
+        <strong class="readout-title">Pattern becomes realizable</strong>
+        <p class="readout-note">At the approved realization boundary, several earlier events can be interpreted together without leaking that knowledge into prior checkpoints.</p>
+        <dl class="provenance-block">
+          <dt>Evidence</dt><dd data-provenance="evidence">EV-ATLAS-0044</dd><dt>Normalized</dt><dd data-provenance="record">0196…8c74</dd><dt>H1</dt><dd data-provenance="hash">8e72f1c9…a43d9b12</dd><dt>Source</dt><dd data-provenance="pointer">archive-04.zip / entry 118</dd><dt>Acquired</dt><dd data-provenance="acquired">2023-08-17T14:22Z</dd><dt>Realized</dt><dd data-provenance="realized">2024-11-06T09:10Z</dd>
+        </dl>
+        <button class="open-evidence" type="button">Open evidence · prototype</button><span class="open-evidence-status" aria-live="polite"></span>
+      </aside>
+
+      <aside class="drawer" aria-label="Case atlas layers">
+        <header class="drawer-head"><span class="kicker">Atlas drawer</span><h2>Linked layers</h2></header>
+        <div class="drawer-tabs" role="tablist" aria-label="Linked layers"><button class="drawer-tab active" role="tab" aria-selected="true" data-layer="people">People</button><button class="drawer-tab" role="tab" aria-selected="false" data-layer="claims">Claims</button><button class="drawer-tab" role="tab" aria-selected="false" data-layer="issues">Issues</button><button class="drawer-tab" role="tab" aria-selected="false" data-layer="evidence">Evidence</button><button class="drawer-tab" role="tab" aria-selected="false" data-layer="memory">Memory</button><button class="drawer-tab" role="tab" aria-selected="false" data-layer="works">Works</button></div>
+        <div class="drawer-panel" id="drawer-panel">
+          <section class="drawer-item"><span class="type">Person / human-reviewed identity</span><h3>Operator</h3><p>Knowledge actor for the selected as-lived walk.</p><div class="status-line"><i class="status-mark current"></i>current at CP-04</div></section>
+        </div>
+        <section class="upstream"><strong>Semantica VIP · upstream extraction</strong><p>46 entity candidates · 18 claim candidates · 9 temporal assertions. Forms no beliefs and sees the complete ingest corpus.</p><code>run sem-2026-08-15-041 · complete</code></section>
+      </aside>
+    </div>
+
+    <footer class="footer-route">
+      <strong>Provider route</strong>
+      <div class="route-flow"><span class="requested">requested: reasoning-large</span><i>→ Portkey policy atlas-reasoning →</i><span class="actual">actual: ollama/glm-5.1:cloud</span><i>· fallback armed: nvidia/structured-medium</i></div>
+      <span class="held">model switch applies next turn</span>
+    </footer>
+  </div>
+
+  <script>
+    const slider = document.querySelector('#horizon-slider');
+    const horizonLine = document.querySelector('#horizon-line');
+    const dateLabel = document.querySelector('#horizon-date');
+    const checkpoints = [...document.querySelectorAll('.checkpoint')];
+    const events = [...document.querySelectorAll('.event-group')];
+    const eventProvenance = {
+      'Schedule explanation accepted': ['EV-ATLAS-0012', '0196…01a2', '91a0e702…128fd460', 'sms-export.xml / message 482', '2020-11-03T18:42Z', '2020-11-03T18:42Z'],
+      'Contradictory archive record': ['EV-ATLAS-0021', '0196…21b7', '375bd102…6a071e2c', 'archive-04.zip / entry 118', '2023-08-17T14:22Z', '2023-08-17T14:22Z'],
+      'Repeated framing changes belief': ['EV-ATLAS-0029', '0196…29c4', '7f0da188…fb6b74c1', 'sms-export.xml / thread 19', '2022-01-12T20:11Z', '2022-01-12T20:11Z'],
+      'Canonical source acquired': ['EV-ATLAS-0037', '0196…37d8', '375bd102…6a071e2c', 'archive-04.zip / manifest 01', '2023-08-17T14:22Z', '2023-08-17T14:22Z'],
+      'Pattern becomes realizable': ['EV-ATLAS-0044', '0196…8c74', '8e72f1c9…a43d9b12', 'archive-04.zip / entry 118', '2023-08-17T14:22Z', '2024-11-06T09:10Z'],
+      'Corroborating document': ['EV-ATLAS-0048', '0196…48e2', 'aa81c024…304e1fa9', 'records-batch-03 / page 2', '2024-03-09T16:05Z', '2024-03-09T16:05Z'],
+      'Belief correction checkpoint': ['EV-ATLAS-0053', '0196…53f1', 'f4b81cc0…88b12002', 'walk-ledger / CP-05', '2024-11-06T09:10Z', '2024-11-06T09:10Z'],
+      'Full-corpus hindsight': ['EV-ATLAS-0060', '0196…60a7', 'd2015ad9…f36c3ba8', 'admissible-corpus / snapshot 004', '2025-01-08T11:30Z', '2025-01-08T11:30Z']
+    };
+
+    function updateHorizon(value, label) {
+      const x = 145 + (Number(value) / 100) * 715;
+      horizonLine.style.transform = `translateX(${x}px)`;
+      if (label) dateLabel.textContent = label;
+    }
+
+    slider.addEventListener('input', () => {
+      checkpoints.forEach(item => item.classList.remove('active'));
+      const year = 2019 + (Number(slider.value) / 100) * 6;
+      dateLabel.textContent = `${Math.floor(year)} · PREVIEW`;
+      updateHorizon(slider.value);
+    });
+
+    checkpoints.forEach(checkpoint => checkpoint.addEventListener('click', () => {
+      checkpoints.forEach(item => item.classList.toggle('active', item === checkpoint));
+      slider.value = checkpoint.dataset.value;
+      updateHorizon(checkpoint.dataset.value, checkpoint.dataset.date);
+    }));
+
+    function selectEvent(event) {
+      document.querySelector('#readout-title').textContent = event.dataset.title;
+      document.querySelector('#readout-note').textContent = event.dataset.note;
+      document.querySelector('.tablet-readout .readout-title').textContent = event.dataset.title;
+      document.querySelector('.tablet-readout .readout-note').textContent = event.dataset.note;
+      const fields = ['evidence', 'record', 'hash', 'pointer', 'acquired', 'realized'];
+      const values = eventProvenance[event.dataset.title];
+      fields.forEach((field, index) => document.querySelectorAll(`[data-provenance="${field}"]`).forEach(node => { node.textContent = values[index]; }));
+      document.querySelectorAll('.open-evidence-status').forEach(node => { node.textContent = ''; });
+    }
+    events.forEach(event => {
+      event.addEventListener('click', () => selectEvent(event));
+      event.addEventListener('keydown', key => {
+        if (key.key === 'Enter' || key.key === ' ') {
+          key.preventDefault();
+          selectEvent(event);
+        }
+      });
+    });
+
+    document.querySelectorAll('.open-evidence').forEach(button => button.addEventListener('click', () => {
+      const scope = button.closest('.event-readout');
+      scope.querySelector('.open-evidence-status').textContent = 'Prototype link only · no record opened or mutated';
+    }));
+
+    const drawerContent = {
+      people: [['Person / human-reviewed identity', 'Operator', 'Knowledge actor for the selected as-lived walk.', 'current at CP-04', 'current']],
+      claims: [['Claim candidate / not adjudicated', 'Archive timing conflicts with explanation', 'Candidate relationship extracted for operator review; not a finding.', 'review required', 'invalid']],
+      issues: [['Legal issue / operator-defined', 'Authentication and foundation', 'Links the selected evidence to a reviewable foundation question.', '4 evidence links', 'current']],
+      evidence: [['Canonical evidence', 'EV-ATLAS-0044', 'Custody-bound source for the selected realization event.', 'H1 verified · source resolved', 'extract']],
+      memory: [['Graphiti belief memory', '“Schedule changes are isolated”', 'Agent belief retained from CP-02; not canonical evidence.', 'invalidated at CP-04', 'invalid'], ['Graphiti belief memory', '“Explanations conflict across sources”', 'Current belief formed after the archive entered the horizon.', 'current belief', 'current']],
+      works: [['Generated work product', 'Delta narrative · draft 04', 'Agent-authored summary. Requires review before legal use.', 'not evidence · HITL required', 'invalid']]
+    };
+    const drawerTabs = [...document.querySelectorAll('.drawer-tab')];
+    const drawerPanel = document.querySelector('#drawer-panel');
+    drawerTabs.forEach(tab => tab.addEventListener('click', () => {
+      drawerTabs.forEach(item => {
+        item.classList.toggle('active', item === tab);
+        item.setAttribute('aria-selected', String(item === tab));
+      });
+      drawerPanel.replaceChildren(...drawerContent[tab.dataset.layer].map(([type, title, copy, status, mark]) => {
+        const section = document.createElement('section');
+        section.className = 'drawer-item';
+        const typeNode = document.createElement('span'); typeNode.className = 'type'; typeNode.textContent = type;
+        const heading = document.createElement('h3'); heading.textContent = title;
+        const paragraph = document.createElement('p'); paragraph.textContent = copy;
+        const statusNode = document.createElement('div'); statusNode.className = 'status-line';
+        const marker = document.createElement('i'); marker.className = `status-mark ${mark}`;
+        statusNode.append(marker, document.createTextNode(status));
+        section.append(typeNode, heading, paragraph, statusNode);
+        return section;
+      }));
+    }));
+
+    updateHorizon(slider.value, dateLabel.textContent);
+  </script>
+</body>
+</html>

@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Platform Workbench — Modular Service Cockpit</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #0b0e10;
+      --surface: #11161a;
+      --surface-2: #171d21;
+      --surface-3: #1d2429;
+      --line: #2d373d;
+      --line-hot: #47545b;
+      --text: #eef2ef;
+      --muted: #9aa6a5;
+      --faint: #6f7c7d;
+      --gold: #d9ad54;
+      --gold-dim: #77643e;
+      --blue: #67a7d8;
+      --red: #d07761;
+      --violet: #9a83c8;
+      --teal: #65b8ad;
+      --green: #72ae86;
+      --cyan: #69b7c4;
+      --amber: #d7a45b;
+      --ok: #76b58d;
+      --warn: #d7a45b;
+      --danger: #d07761;
+      --mono: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+      --sans: Bahnschrift, "Aptos Narrow", "Segoe UI Variable", sans-serif;
+      --body: Aptos, "Segoe UI Variable Text", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html { background: var(--ink); }
+    body {
+      margin: 0;
+      min-width: 320px;
+      min-height: 100vh;
+      overflow-x: hidden;
+      color: var(--text);
+      font-family: var(--body);
+      background:
+        radial-gradient(circle at 12% -10%, rgba(217, 173, 84, .07), transparent 30rem),
+        radial-gradient(circle at 92% 20%, rgba(103, 167, 216, .05), transparent 34rem),
+        linear-gradient(135deg, rgba(255,255,255,.012) 25%, transparent 25%) 0 0 / 8px 8px,
+        var(--ink);
+    }
+
+    button, select { font: inherit; }
+    button { color: inherit; }
+    button:focus-visible, select:focus-visible {
+      outline: 2px solid var(--cyan);
+      outline-offset: 2px;
+    }
+
+    .app-shell { min-height: 100vh; display: grid; grid-template-rows: auto auto 1fr; }
+
+    .masthead {
+      min-height: 52px;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      padding: 0 22px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(12, 16, 18, .96);
+    }
+    .brand { display: flex; align-items: center; gap: 10px; min-width: 240px; }
+    .brand-mark {
+      width: 25px; height: 25px; position: relative;
+      border: 1px solid var(--gold-dim);
+      background: linear-gradient(135deg, rgba(217,173,84,.18), transparent);
+    }
+    .brand-mark::before, .brand-mark::after {
+      content: ""; position: absolute; background: var(--gold);
+    }
+    .brand-mark::before { width: 13px; height: 1px; left: 5px; top: 8px; }
+    .brand-mark::after { width: 1px; height: 13px; left: 11px; top: 5px; }
+    .brand strong { font: 650 14px/1 var(--sans); letter-spacing: .08em; text-transform: uppercase; }
+    .brand small { color: var(--faint); font: 10px/1 var(--mono); }
+    .preset-strip { display: flex; gap: 3px; overflow-x: auto; scrollbar-width: none; }
+    .mobile-preset { display: none; min-height: 32px; color: var(--text); border: 1px solid var(--line); background: var(--surface); font: 11px var(--sans); }
+    .preset {
+      border: 0; border-bottom: 2px solid transparent; background: transparent;
+      padding: 18px 11px 15px; color: var(--muted); cursor: pointer;
+      font: 600 11px/1 var(--sans); letter-spacing: .065em; text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .preset:hover { color: var(--text); background: rgba(255,255,255,.025); }
+    .preset[aria-pressed="true"] { color: var(--text); border-bottom-color: var(--gold); }
+    .mast-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+    .key-btn, .icon-btn {
+      border: 1px solid var(--line); background: var(--surface); cursor: pointer;
+      min-height: 30px; padding: 0 10px; color: var(--muted);
+      font: 11px var(--mono);
+    }
+    .key-btn:hover, .icon-btn:hover { color: var(--text); border-color: var(--line-hot); }
+    .live { display: flex; gap: 6px; align-items: center; color: var(--muted); font: 10px var(--mono); }
+    .live::before { content: ""; width: 6px; height: 6px; background: var(--ok); box-shadow: 0 0 0 3px rgba(118,181,141,.10); }
+    .fixture { padding: 4px 6px; border: 1px solid #5f5948; color: #c7b98f; font: 10px var(--mono); letter-spacing: .06em; }
+
+    .context-spine {
+      position: sticky; top: 0; z-index: 20;
+      display: grid; grid-template-columns: repeat(6, minmax(118px, 1fr)) auto;
+      border-bottom: 1px solid var(--line-hot);
+      background: #12171a;
+      box-shadow: 0 8px 24px rgba(0,0,0,.28);
+    }
+    .scope {
+      min-height: 69px; padding: 11px 14px 10px; position: relative;
+      min-width: 0;
+      border-right: 1px solid var(--line);
+      cursor: default;
+    }
+    .scope::after {
+      content: ""; position: absolute; right: -4px; top: 32px; width: 7px; height: 7px;
+      transform: rotate(45deg); border-top: 1px solid var(--line-hot); border-right: 1px solid var(--line-hot);
+      background: #12171a; z-index: 1;
+    }
+    .scope:last-of-type::after { display: none; }
+    .micro {
+      display: block; margin-bottom: 6px; color: var(--faint);
+      font: 650 9px/1 var(--sans); letter-spacing: .13em; text-transform: uppercase;
+    }
+    .scope strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 13px/1.2 var(--sans); }
+    .scope code { display: block; margin-top: 4px; color: var(--muted); font: 9px/1 var(--mono); white-space: nowrap; }
+    .scope-actions { display: grid; align-content: center; padding: 0 15px; }
+    .scope-actions button {
+      border: 1px solid var(--gold-dim); background: rgba(217,173,84,.07); color: #ecd294;
+      min-height: 34px; padding: 0 13px; cursor: pointer; font: 650 10px var(--sans); letter-spacing: .08em; text-transform: uppercase;
+    }
+
+    main { display: grid; grid-template-columns: 54px minmax(0,1fr) 272px; min-height: 0; }
+    .rail {
+      border-right: 1px solid var(--line); background: #0e1214;
+      display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 13px 8px;
+    }
+    .rail button {
+      width: 36px; height: 36px; border: 1px solid transparent; background: transparent; color: var(--faint); cursor: pointer;
+      font: 700 11px var(--mono);
+    }
+    .rail button:hover, .rail button.active { border-color: var(--line); background: var(--surface-2); color: var(--text); }
+    .rail .bottom { margin-top: auto; }
+
+    .workspace { min-width: 0; padding: 15px; }
+    .workspace-head { display: flex; align-items: end; gap: 18px; padding: 3px 2px 13px; }
+    .workspace-head h1 { margin: 0; font: 600 21px/1 var(--sans); letter-spacing: .02em; }
+    .workspace-head p { margin: 5px 0 0; color: var(--muted); font-size: 12px; }
+    .layout-meta { margin-left: auto; color: var(--faint); font: 10px var(--mono); }
+    .layout-tools { margin-left: auto; display: flex; align-items: center; gap: 7px; }
+    .layout-tools .layout-meta { margin: 0; }
+    .save-layout { min-height: 29px; padding: 0 9px; border: 1px solid var(--line); background: var(--surface-2); color: var(--muted); cursor: pointer; font: 10px var(--mono); }
+    .save-layout.dirty { color: #edcf8b; border-color: var(--gold-dim); }
+
+    .module-grid {
+      display: grid; grid-template-columns: minmax(280px, 1.22fr) minmax(270px, 1fr) minmax(270px, 1fr);
+      grid-auto-flow: dense; gap: 10px; align-items: start;
+    }
+    .module {
+      --accent: var(--blue);
+      position: relative; width: 100%; max-width: 100%; min-width: 0; overflow: hidden;
+      border: 1px solid var(--line); border-top: 2px solid color-mix(in srgb, var(--accent) 65%, var(--line));
+      background: linear-gradient(180deg, rgba(255,255,255,.014), transparent 85px), var(--surface);
+      box-shadow: 0 9px 20px rgba(0,0,0,.14);
+      animation: enter .34s both;
+    }
+    @keyframes enter { from { opacity: 0; transform: translateY(5px); } }
+    .module:nth-child(2) { animation-delay: .035s; }
+    .module:nth-child(3) { animation-delay: .07s; }
+    .module:nth-child(4) { animation-delay: .105s; }
+    .module:nth-child(5) { animation-delay: .14s; }
+    .module:nth-child(6) { animation-delay: .175s; }
+    .module:hover { border-color: color-mix(in srgb, var(--accent) 35%, var(--line-hot)); }
+    .module.hidden { display: none; }
+    .module.focused { grid-column: span 2; }
+    .module.pinned { border-left: 3px solid var(--accent); }
+    .module.collapsed .module-body { display: none; }
+    .module.dragging { opacity: .45; }
+    .module.drop-target { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .semantica { --accent: var(--gold); grid-row: span 2; }
+    .ingestion { --accent: var(--amber); }
+    .knowledge { --accent: var(--blue); }
+    .custody { --accent: var(--red); }
+    .memory { --accent: var(--violet); }
+    .agents { --accent: var(--teal); }
+    .providers { --accent: var(--cyan); }
+    .opencode { --accent: var(--green); }
+    .observability { --accent: #88989d; }
+
+    .module-head { display: grid; grid-template-columns: 34px minmax(0,1fr) auto; gap: 8px 10px; align-items: center; padding: 12px 13px 9px; border-bottom: 1px solid var(--line); }
+    .panel-tools { grid-column: 2 / -1; display: flex; align-items: center; justify-content: flex-end; gap: 2px; padding-top: 5px; border-top: 1px solid rgba(45,55,61,.7); }
+    .panel-tools button { width: 25px; height: 25px; padding: 0; border: 1px solid transparent; background: transparent; color: var(--faint); cursor: pointer; font: 11px var(--mono); }
+    .panel-tools button:hover { color: var(--text); border-color: var(--line); background: var(--surface-3); }
+    .panel-tools button[aria-pressed="true"] { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+    .drag-handle { cursor: grab !important; }
+    .glyph {
+      width: 32px; height: 32px; display: grid; place-items: center;
+      border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent);
+      font: 700 11px var(--mono);
+    }
+    .module-title h2 { margin: 0; font: 650 13px/1.15 var(--sans); letter-spacing: .025em; }
+    .module-title span { display: block; margin-top: 3px; color: var(--faint); font: 9px/1 var(--mono); }
+    .status { display: flex; align-items: center; gap: 6px; color: var(--muted); font: 9px var(--mono); text-transform: uppercase; }
+    .status i { width: 6px; height: 6px; background: var(--ok); }
+    .status.warn i { background: var(--warn); }
+    .status.idle i { background: var(--faint); }
+
+    .module-body { padding: 12px 13px 13px; }
+    .boundary {
+      display: flex; justify-content: space-between; gap: 12px; margin-bottom: 11px; padding-bottom: 9px; border-bottom: 1px dotted var(--line);
+      color: var(--muted); font-size: 11px;
+    }
+    .boundary b { color: var(--text); font-weight: 550; text-align: right; }
+    .data-class {
+      display: inline-block; border: 1px solid var(--line-hot); padding: 3px 5px; color: #cbd2d0; background: #151b1e;
+      font: 650 8px/1 var(--sans); letter-spacing: .09em; text-transform: uppercase;
+    }
+    .data-class.canonical { border-color: #426578; }
+    .data-class.candidate { border-style: dashed; }
+    .data-class.belief { border-color: #64557e; }
+    .data-class.generated { border-color: #4c755b; }
+    .data-class.projected { border-color: #6e674a; }
+    .metric-row { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); margin-bottom: 11px; }
+    .metric { min-width: 0; background: #13191c; padding: 9px; }
+    .metric b { display: block; margin-bottom: 4px; font: 600 17px/1 var(--mono); color: var(--text); }
+    .metric span { color: var(--faint); font: 8px var(--sans); letter-spacing: .09em; text-transform: uppercase; }
+    .activity { list-style: none; padding: 0; margin: 0; }
+    .activity li { display: grid; grid-template-columns: 54px 1fr; gap: 9px; padding: 6px 0; border-top: 1px solid rgba(45,55,61,.55); font-size: 10px; }
+    .activity time { color: var(--faint); font: 9px var(--mono); }
+    .activity strong { color: #d8dedb; font-weight: 500; }
+    .pending { margin-top: 10px; padding: 8px 9px; border-left: 2px solid var(--warn); background: rgba(215,164,91,.05); color: #c6b28f; font-size: 10px; }
+    .audit-footer { display: grid; grid-template-columns: 1fr 1.2fr .8fr; gap: 1px; margin: 12px -13px -13px; background: var(--line); border-top: 1px solid var(--line); }
+    .audit-cell { min-width: 0; padding: 8px 9px; background: #101518; }
+    .audit-cell span { display: block; margin-bottom: 4px; color: #8e9b9b; font: 10px var(--sans); letter-spacing: .08em; text-transform: uppercase; }
+    .audit-cell strong { display: block; color: #d1d8d5; font: 11px/1.35 var(--mono); overflow-wrap: anywhere; }
+
+    .vip-band { display: flex; justify-content: space-between; align-items: center; margin: -12px -13px 12px; padding: 8px 13px; background: rgba(217,173,84,.075); color: #e2c886; border-bottom: 1px solid rgba(217,173,84,.18); font: 650 9px var(--sans); letter-spacing: .1em; text-transform: uppercase; }
+    .pipeline { margin: 10px 0 12px; display: grid; grid-template-columns: 1fr 16px 1fr 16px 1fr; align-items: center; }
+    .stage { min-width: 0; border: 1px solid var(--line); padding: 8px; background: #12171a; }
+    .stage b { display: block; overflow: hidden; text-overflow: ellipsis; font: 10px var(--mono); }
+    .stage small { color: var(--faint); font-size: 8px; }
+    .arrow { color: var(--faint); text-align: center; font: 12px var(--mono); }
+
+    .route-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-bottom: 9px; }
+    .select-wrap label { display: block; margin-bottom: 4px; color: var(--faint); font: 8px var(--sans); letter-spacing: .1em; text-transform: uppercase; }
+    select { width: 100%; min-height: 29px; padding: 0 25px 0 7px; color: var(--text); border: 1px solid var(--line); background: #101518; font: 10px var(--mono); }
+    .semantic-note { padding: 7px 8px; border: 1px solid #31525a; color: #a9cbcf; background: rgba(105,183,196,.055); font: 9px/1.4 var(--mono); }
+    .route-state { display: grid; gap: 1px; margin: 9px 0; background: var(--line); border: 1px solid var(--line); }
+    .route-state div { display: grid; grid-template-columns: 105px 1fr; gap: 8px; padding: 7px 8px; background: #101518; }
+    .route-state span { color: #93a1a1; font: 10px var(--sans); text-transform: uppercase; letter-spacing: .06em; }
+    .route-state strong { min-width: 0; color: #d8e1de; font: 11px var(--mono); overflow-wrap: anywhere; }
+    .sandbox { border: 1px solid #375442; background: #0d1510; margin: 9px 0; }
+    .sandbox-head { display: flex; justify-content: space-between; padding: 6px 8px; border-bottom: 1px solid #273d2f; color: #9bc0a5; font: 9px var(--mono); }
+    .terminal { padding: 8px; min-height: 76px; color: #afc8b6; font: 9px/1.65 var(--mono); }
+    .terminal em { color: var(--faint); font-style: normal; }
+    .tool-chip { display: inline-block; margin: 2px 3px 2px 0; padding: 3px 5px; border: 1px solid #304239; color: #a9b9ae; font: 8px var(--mono); }
+
+    .inspector { border-left: 1px solid var(--line); background: #0e1214; min-width: 0; }
+    .inspector-head { padding: 16px 15px 12px; border-bottom: 1px solid var(--line); }
+    .inspector-head h2 { margin: 0; font: 650 12px var(--sans); letter-spacing: .06em; text-transform: uppercase; }
+    .inspector-head p { margin: 5px 0 0; color: var(--faint); font-size: 10px; }
+    .inspector-section { padding: 13px 15px; border-bottom: 1px solid var(--line); }
+    .inspector-section h3 { margin: 0 0 10px; color: var(--faint); font: 650 9px var(--sans); letter-spacing: .11em; text-transform: uppercase; }
+    .queue-item { display: grid; grid-template-columns: 4px 1fr auto; gap: 9px; padding: 8px 0; border-top: 1px solid rgba(45,55,61,.6); }
+    .queue-item i { background: var(--warn); }
+    .queue-item strong { display: block; font: 500 10px/1.3 var(--body); }
+    .queue-item small { color: var(--faint); font: 8px var(--mono); }
+    .queue-item b { color: var(--muted); font: 8px var(--mono); }
+    .legend { display: grid; gap: 7px; }
+    .legend div { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 10px; }
+
+    .palette-backdrop { display: none; position: fixed; inset: 0; z-index: 99; padding-top: 12vh; background: rgba(4,6,7,.75); }
+    .palette-backdrop.open { display: block; }
+    .palette { width: min(610px, calc(100vw - 28px)); margin: auto; border: 1px solid var(--line-hot); background: #12171a; box-shadow: 0 30px 70px rgba(0,0,0,.55); }
+    .palette input { width: 100%; padding: 17px; border: 0; border-bottom: 1px solid var(--line); outline: 0; background: transparent; color: var(--text); font: 14px var(--mono); }
+    .commands { padding: 7px; }
+    .command { display: grid; grid-template-columns: 27px 1fr auto; gap: 9px; align-items: center; padding: 10px; color: var(--muted); cursor: pointer; }
+    .command:hover, .command.active { background: var(--surface-3); color: var(--text); }
+    .command span:first-child { color: var(--gold); font: 10px var(--mono); }
+    .command b { font: 500 11px var(--body); }
+    .command kbd { color: var(--faint); background: transparent; font: 9px var(--mono); }
+
+    @media (max-width: 1180px) {
+      .context-spine { grid-template-columns: repeat(3, 1fr); }
+      .scope:nth-child(3) { border-right: 0; }
+      .scope:nth-child(3)::after, .scope:nth-child(6)::after { display: none; }
+      .scope-actions { position: absolute; right: 8px; top: 61px; z-index: 3; }
+      main { grid-template-columns: 48px minmax(0, 1fr); }
+      .inspector { display: none; }
+      .module-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    }
+    @media (max-width: 980px) {
+      .preset-strip { display: none; }
+      .mobile-preset { display: block; margin-left: auto; max-width: 155px; }
+      .mast-actions .fixture, .mast-actions .live { display: none; }
+      .module-grid { grid-template-columns: minmax(0,1fr); }
+      .module.focused { grid-column: auto; }
+      .audit-footer { grid-template-columns: 1fr 1.2fr .8fr; }
+    }
+    @media (max-width: 760px) {
+      .masthead { padding: 0 12px; }
+      .brand { min-width: auto; }
+      .brand strong { font-size: 12px; }
+      .brand small, .live, .key-btn { display: none; }
+      .preset-strip { margin-left: auto; }
+      .preset { padding-inline: 8px; }
+      .preset-strip { display: none; }
+      .mobile-preset { display: block; width: 90px; margin-left: auto; }
+      .context-spine { position: relative; grid-template-columns: repeat(2, 1fr); }
+      .scope { min-height: 61px; }
+      .scope:nth-child(2n) { border-right: 0; }
+      .scope:nth-child(2n)::after { display: none; }
+      .scope-actions { position: static; grid-column: span 2; padding: 8px; }
+      main { display: block; width: 100vw; max-width: 100vw; overflow: hidden; }
+      .rail { display: none; }
+      .workspace { width: 100vw; max-width: 100vw; padding: 10px; overflow: hidden; }
+      .layout-meta { display: none; }
+      .module-grid { display: block; }
+      .module { margin-bottom: 10px; }
+      .module.focused { grid-column: auto; }
+      .route-selector { grid-template-columns: 1fr; }
+      .module-head { grid-template-columns: 32px minmax(0,1fr) auto; gap: 7px; }
+      .module-head > .status { display: none; }
+      .panel-tools { grid-column: 2 / -1; justify-content: flex-end; border-top: 1px solid var(--line); padding-top: 6px; }
+      .metric-row, .pipeline { min-width: 0; }
+      .metric { padding: 8px 6px; }
+      .metric b { font-size: 15px; overflow-wrap: anywhere; }
+      .boundary { display: grid; grid-template-columns: auto minmax(0,1fr); }
+      .route-state div { grid-template-columns: 1fr; }
+      .pipeline { grid-template-columns: 1fr; gap: 3px; }
+      .pipeline .arrow { transform: rotate(90deg); }
+      .audit-footer { grid-template-columns: 1fr; }
+      .workspace-head { align-items: start; }
+      .workspace-head h1, .workspace-head p { overflow-wrap: anywhere; }
+    }
+    .micro, .scope code, .module-title span, .status, .data-class, .metric span, .activity time, .stage small, .queue-item small, .queue-item b { font-size: 10px; }
+    .activity li, .boundary, .pending, .semantic-note, .terminal, .tool-chip { font-size: 11px; }
+    .module-title, .module-title h2, .module-title span, .boundary span, .boundary b, .scope strong, .scope code { min-width: 0; overflow-wrap: anywhere; }
+    @media (prefers-reduced-motion: reduce) { .module { animation: none; } }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="masthead">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span><strong>Platform Workbench</strong><small>operator cockpit / local</small></span>
+      </div>
+      <nav class="preset-strip" aria-label="Workspace presets">
+        <button class="preset" data-preset="case" aria-pressed="false">Case Review</button>
+        <button class="preset" data-preset="ingestion" aria-pressed="false">Ingestion</button>
+        <button class="preset" data-preset="agents" aria-pressed="false">Agent Lab</button>
+        <button class="preset" data-preset="horizon" aria-pressed="true">Horizon Analysis</button>
+        <button class="preset" data-preset="ops" aria-pressed="false">Platform Ops</button>
+      </nav>
+      <select class="mobile-preset" id="mobilePreset" aria-label="Workspace preset"><option value="case">Case Review</option><option value="ingestion">Ingestion</option><option value="agents">Agent Lab</option><option value="horizon" selected>Horizon Analysis</option><option value="ops">Platform Ops</option></select>
+      <div class="mast-actions">
+        <span class="fixture">DEMO FIXTURE</span>
+        <span class="live">9 services observed</span>
+        <button class="key-btn" id="openPalette">⌘K&nbsp; Command</button>
+      </div>
+    </header>
+
+    <section class="context-spine" aria-label="Persistent action scope">
+      <div class="scope"><span class="micro">01 / Matter</span><strong>Rowan v. Rowan</strong><code>mat_71f2 · active</code></div>
+      <div class="scope"><span class="micro">02 / CourtCase</span><strong>Custody proceeding</strong><code>2026-DM-1048</code></div>
+      <div class="scope"><span class="micro">03 / Partition</span><strong>primary</strong><code>evidence + personal archive</code></div>
+      <div class="scope"><span class="micro">04 / Horizon</span><strong>As-lived · H-018</strong><code>through 2022-09-14</code></div>
+      <div class="scope"><span class="micro">05 / Run</span><strong>walk_08f9</strong><code>stage 18 / 42 · pinned</code></div>
+      <div class="scope"><span class="micro">06 / Route</span><strong>Reasoning / balanced</strong><code>openrouter · qwen3-235b</code></div>
+      <div class="scope-actions"><button id="changeScope">Change scope</button></div>
+    </section>
+
+    <main>
+      <aside class="rail" aria-label="Primary tools">
+        <button class="active" title="Cockpit">CO</button><button title="Search">SR</button><button title="Runs">RN</button>
+        <button title="Evidence">EV</button><button title="Graph">GR</button><button class="bottom" title="Settings">ST</button>
+      </aside>
+
+      <section class="workspace">
+        <header class="workspace-head">
+          <div><span class="micro">Active workspace</span><h1 id="workspaceTitle">Horizon Analysis</h1><p id="workspaceDescription">Walk temporal knowledge without contaminating the ignorant-agent view.</p></div>
+          <div class="layout-tools"><span class="layout-meta" id="layoutManifest">LAYOUT horizon-v4 · saved</span><button class="save-layout" id="saveLayout">Save layout</button></div>
+        </header>
+
+        <div class="module-grid" id="moduleGrid">
+          <article class="module semantica" data-module="semantica">
+            <header class="module-head"><div class="glyph">SE</div><div class="module-title"><h2>Semantica</h2><span>extraction intelligence · VIP service</span></div><span class="status"><i></i> Ready</span></header>
+            <div class="module-body">
+              <div class="vip-band"><span>Privileged extraction plane</span><span>v0.9.4</span></div>
+              <div class="boundary"><span>Owns</span><b>structure extraction, entity mentions, claim proposals</b></div>
+              <span class="data-class candidate">Extracted claims · candidate</span>
+              <div class="metric-row"><div class="metric"><b>186</b><span>claims</span></div><div class="metric"><b>42</b><span>records</span></div><div class="metric"><b>98.2%</b><span>linked</span></div></div>
+              <div class="pipeline"><div class="stage"><b>msg_02018</b><small>canonical input</small></div><span class="arrow">›</span><div class="stage"><b>17 spans</b><small>structured output</small></div><span class="arrow">›</span><div class="stage"><b>6 claims</b><small>awaiting review</small></div></div>
+              <ul class="activity"><li><time>14:31:52</time><strong>Extracted contradictory location claims from SMS thread</strong></li><li><time>14:31:44</time><strong>Linked “school office” to entity ent_042</strong></li><li><time>14:31:39</time><strong>Preserved source offsets for 17 spans</strong></li></ul>
+              <div class="pending">Pending: 6 claim candidates require reviewer disposition before promotion.</div>
+            </div>
+          </article>
+
+          <article class="module ingestion" data-module="ingestion">
+            <header class="module-head"><div class="glyph">G/P</div><div class="module-title"><h2>Ingestion router</h2><span>decoder coverage · Go primary</span></div><span class="status"><i></i> Flowing</span></header>
+            <div class="module-body"><div class="boundary"><span>Owns</span><b>format routing, parse results, normalized writes</b></div><span class="data-class canonical">Normalized records · canonical</span><div class="pipeline"><div class="stage"><b>Go</b><small>SMS / JSON</small></div><span class="arrow">›</span><div class="stage"><b>custody</b><small>H1 · H2 · H3</small></div><span class="arrow">›</span><div class="stage"><b>store</b><small>42 written</small></div></div><ul class="activity"><li><time>14:30:18</time><strong>Batch parse complete · 42/42 records</strong></li></ul><div class="pending">Pending: Python fallback retained for uncovered PDF layout.</div></div>
+          </article>
+
+          <article class="module knowledge" data-module="knowledge">
+            <header class="module-head"><div class="glyph">KN</div><div class="module-title"><h2>Canonical Knowledge</h2><span>authored truth · horizon-filterable</span></div><span class="status"><i></i> Current</span></header>
+            <div class="module-body"><div class="boundary"><span>Owns</span><b>normalized records and temporal disclosure facts</b></div><span class="data-class canonical">Authored · canonical</span><div class="metric-row"><div class="metric"><b>8,412</b><span>records</span></div><div class="metric"><b>18</b><span>horizons</span></div><div class="metric"><b>0</b><span>leaks</span></div></div><ul class="activity"><li><time>14:29:08</time><strong>H-018 pre-filter verified across stores</strong></li></ul></div>
+          </article>
+
+          <article class="module custody" data-module="custody">
+            <header class="module-head"><div class="glyph">H3</div><div class="module-title"><h2>Evidence / Custody</h2><span>immutable provenance spine</span></div><span class="status warn"><i></i> Review</span></header>
+            <div class="module-body"><div class="boundary"><span>Owns</span><b>hashes, custody events, evidence promotion</b></div><span class="data-class canonical">Evidence · canonical</span><div class="metric-row"><div class="metric"><b>1,934</b><span>links</span></div><div class="metric"><b>11</b><span>unreviewed</span></div><div class="metric"><b>100%</b><span>verified</span></div></div><ul class="activity"><li><time>14:28:21</time><strong>H1 provenance matched promotion ledger</strong></li></ul><div class="pending">11 promoted items remain unsafe until human review.</div></div>
+          </article>
+
+          <article class="module memory" data-module="memory">
+            <header class="module-head"><div class="glyph">GM</div><div class="module-title"><h2>Graphiti Belief Memory</h2><span>agent-lived accumulation</span></div><span class="status"><i></i> Synced</span></header>
+            <div class="module-body"><div class="boundary"><span>Owns</span><b>beliefs accumulated within this walk only</b></div><span class="data-class belief">Agent belief · non-canonical</span><div class="metric-row"><div class="metric"><b>274</b><span>beliefs</span></div><div class="metric"><b>31</b><span>revised</span></div><div class="metric"><b>H-018</b><span>ceiling</span></div></div><ul class="activity"><li><time>14:27:56</time><strong>Belief revision linked to disclosure evt_991</strong></li></ul></div>
+          </article>
+
+          <article class="module agents" data-module="agents">
+            <header class="module-head"><div class="glyph">AG</div><div class="module-title"><h2>Agents / AG2 adapter</h2><span>coordination boundary</span></div><span class="status idle"><i></i> Paused</span></header>
+            <div class="module-body"><div class="boundary"><span>Owns</span><b>roles, handoffs, tool authorization</b></div><span class="data-class projected">Runtime state · projected</span><ul class="activity"><li><time>14:26:42</time><strong>Ignorant analyst stopped at horizon checkpoint</strong></li><li><time>14:26:38</time><strong>Review gate received 3 findings</strong></li></ul><div class="pending">AG2 remains an adapter candidate; public contracts stay neutral.</div></div>
+          </article>
+
+          <article class="module providers" data-module="providers">
+            <header class="module-head"><div class="glyph">PR</div><div class="module-title"><h2>Provider routing</h2><span>Portkey + authorized direct paths</span></div><span class="status"><i></i> Routed</span></header>
+            <div class="module-body"><div class="boundary"><span>Owns</span><b>provider, model, tier, retry policy</b></div><span class="data-class projected">Route config · projected</span><div class="route-selector"><div class="select-wrap"><label for="provider">Provider</label><select id="provider"><option>OpenRouter</option><option>Ollama Cloud</option><option>Anthropic · direct</option><option>OpenCode SDK</option></select></div><div class="select-wrap"><label for="model">Exact model</label><select id="model"><option>qwen3-235b-a22b</option><option>glm-5.1</option><option>claude-sonnet-4.5</option></select></div></div><div class="route-selector"><div class="select-wrap"><label for="tier">Service tier</label><select id="tier"><option>Balanced</option><option>Priority</option><option>Economy</option></select></div><div class="select-wrap"><label for="apply">Apply change</label><select id="apply"><option>Next turn</option><option>Next stage</option><option>New run only</option></select></div></div><div class="route-state"><div><span>Requested</span><strong>OpenRouter / qwen3-235b · balanced</strong></div><div><span>Effective now</span><strong>Ollama Cloud / glm-5.1 · pinned turn 18</strong></div><div><span>Pending</span><strong>requested route · applies next turn</strong></div></div><div class="semantic-note">No mid-turn mutation. Pending route resolves only after the current tool cycle closes.</div></div>
+          </article>
+
+          <article class="module opencode" data-module="opencode">
+            <header class="module-head"><div class="glyph">OC</div><div class="module-title"><h2>OpenCode workspace</h2><span>isolated execution sandbox</span></div><span class="status"><i></i> Isolated</span></header>
+            <div class="module-body"><div class="boundary"><span>Owns</span><b>generated work, tools, ephemeral session state</b></div><span class="data-class generated">Generated work · non-canonical</span><div class="route-state"><div><span>Active model</span><strong>opencode / anthropic / claude-sonnet-4.5</strong></div><div><span>Session pin</span><strong>oc_84a · unchanged until restart</strong></div></div><div class="sandbox"><div class="sandbox-head"><span>ws_case_71f2 / session oc_84a</span><span>network: deny</span></div><div class="terminal"><em>$</em> verify --evidence evt_9cc2<br><em>›</em> custody hash matched<br><em>›</em> report staged in /outputs<br><em>▮</em></div></div><div><span class="tool-chip">read:evidence</span><span class="tool-chip">write:outputs</span><span class="tool-chip">shell:restricted</span></div></div>
+          </article>
+
+          <article class="module observability" data-module="observability">
+            <header class="module-head"><div class="glyph">OB</div><div class="module-title"><h2>Observability</h2><span>traces · audit · health</span></div><span class="status"><i></i> Nominal</span></header>
+            <div class="module-body"><div class="boundary"><span>Owns</span><b>telemetry and operator-visible audit</b></div><span class="data-class projected">Telemetry · projected</span><div class="metric-row"><div class="metric"><b>184ms</b><span>p95</span></div><div class="metric"><b>0</b><span>errors</span></div><div class="metric"><b>9/9</b><span>healthy</span></div></div><ul class="activity"><li><time>14:31:58</time><strong>Scope chain attached to trace tr_4432</strong></li></ul></div>
+          </article>
+        </div>
+      </section>
+
+      <aside class="inspector">
+        <header class="inspector-head"><h2>Operator queue</h2><p>Scope-aware work requiring attention</p></header>
+        <section class="inspector-section"><h3>Pending within this Matter</h3><div class="queue-item"><i></i><span><strong>Review 6 Semantica claim candidates</strong><small>source offsets preserved</small></span><b>P1</b></div><div class="queue-item"><i></i><span><strong>Authenticate 11 evidence items</strong><small>unsafe for legal use</small></span><b>P1</b></div><div class="queue-item"><i style="background:var(--blue)"></i><span><strong>Compare H-018 with hindsight</strong><small>delta ready to compute</small></span><b>P2</b></div></section>
+        <section class="inspector-section"><h3>Data-state legend</h3><div class="legend"><div><span class="data-class canonical">Canonical</span><span>authored truth</span></div><div><span class="data-class projected">Projected</span><span>rebuildable view</span></div><div><span class="data-class candidate">Candidate</span><span>awaits disposition</span></div><div><span class="data-class belief">Belief</span><span>agent-lived state</span></div><div><span class="data-class generated">Generated</span><span>work product</span></div></div></section>
+        <section class="inspector-section"><h3>Last scope verification</h3><div style="color:var(--muted);font:9px/1.7 var(--mono)">matter ✓<br>court case ✓<br>partition ✓<br>horizon pre-filter ✓<br>run pin ✓<br>route authorization ✓</div></section>
+      </aside>
+    </main>
+  </div>
+
+  <div class="palette-backdrop" id="paletteBackdrop" role="dialog" aria-modal="true" aria-label="Command palette">
+    <div class="palette"><input id="commandInput" placeholder="Type a command or switch workspace…" autocomplete="off"><div class="commands"><div class="command active" data-switch="case"><span>01</span><b>Switch workspace: Case Review</b><kbd>↵</kbd></div><div class="command" data-switch="ingestion"><span>02</span><b>Switch workspace: Ingestion</b><kbd>↵</kbd></div><div class="command" data-switch="agents"><span>03</span><b>Switch workspace: Agent Lab</b><kbd>↵</kbd></div><div class="command" data-switch="horizon"><span>04</span><b>Switch workspace: Horizon Analysis</b><kbd>↵</kbd></div><div class="command" data-switch="ops"><span>05</span><b>Switch workspace: Platform Ops</b><kbd>↵</kbd></div></div></div>
+  </div>
+
+  <script>
+    const presets = {
+      case: { title: "Case Review", description: "Promote, authenticate, and inspect evidence without losing provenance.", order: ["custody","semantica","knowledge","memory","providers","agents","ingestion","opencode","observability"], focus: "custody" },
+      ingestion: { title: "Ingestion", description: "Route files by decoder coverage and verify every canonical write.", order: ["ingestion","semantica","custody","knowledge","observability","providers","memory","agents","opencode"], focus: "ingestion" },
+      agents: { title: "Agent Lab", description: "Coordinate agents, choose exact inference routes, and inspect generated work.", order: ["agents","providers","opencode","memory","knowledge","observability","semantica","custody","ingestion"], focus: "agents" },
+      horizon: { title: "Horizon Analysis", description: "Walk temporal knowledge without contaminating the ignorant-agent view.", order: ["semantica","knowledge","memory","custody","agents","providers","observability","ingestion","opencode"], focus: "semantica" },
+      ops: { title: "Platform Ops", description: "Observe service health, routing, execution boundaries, and pending work.", order: ["observability","providers","ingestion","opencode","custody","memory","agents","knowledge","semantica"], focus: "observability" }
+    };
+    const audits = {
+      semantica: ["14:31 · offsets verified", "6 claims need disposition", "candidate"],
+      ingestion: ["14:30 · 42 hashes reconciled", "PDF fallback coverage", "canonical"],
+      knowledge: ["14:29 · H-018 prefilter", "No refresh pending", "canonical"],
+      custody: ["14:28 · H1 ledger match", "11 await authentication", "canonical"],
+      memory: ["14:27 · revision linked", "Community rebuild queued", "belief"],
+      agents: ["14:26 · gate handoff", "AG2 spike held", "projected"],
+      providers: ["14:25 · route authorized", "Next-turn route queued", "projected"],
+      opencode: ["14:24 · sandbox policy", "1 staged work product", "generated"],
+      observability: ["14:31 · scope trace", "No active alerts", "projected"]
+    };
+    const backdrop = document.getElementById("paletteBackdrop");
+    const input = document.getElementById("commandInput");
+    const grid = document.getElementById("moduleGrid");
+    const manifest = document.getElementById("layoutManifest");
+    const saveButton = document.getElementById("saveLayout");
+    let activePreset = "horizon";
+    let returnFocus = null;
+    let dragged = null;
+
+    function markDirty() {
+      manifest.textContent = `LAYOUT ${activePreset}-custom · unsaved`;
+      saveButton.classList.add("dirty");
+    }
+
+    document.querySelectorAll("[data-module]").forEach(module => {
+      const key = module.dataset.module;
+      const body = module.querySelector(".module-body");
+      const [verified, pending, authority] = audits[key];
+      body.insertAdjacentHTML("beforeend", `<footer class="audit-footer"><div class="audit-cell"><span>Last verified</span><strong>${verified}</strong></div><div class="audit-cell"><span>Pending work</span><strong>${pending}</strong></div><div class="audit-cell"><span>Data class</span><strong>${authority}</strong></div></footer>`);
+      module.querySelector(".module-head").insertAdjacentHTML("beforeend", `<div class="panel-tools" aria-label="Panel controls"><button class="drag-handle" title="Drag to reorder" aria-label="Drag ${key} panel">↕</button><button data-action="up" title="Move earlier" aria-label="Move panel earlier">↑</button><button data-action="down" title="Move later" aria-label="Move panel later">↓</button><button data-action="collapse" title="Collapse panel" aria-label="Collapse panel" aria-pressed="false">−</button><button data-action="focus" title="Focus panel" aria-label="Focus panel" aria-pressed="false">□</button><button data-action="pin" title="Pin panel" aria-label="Pin panel" aria-pressed="false">◆</button></div>`);
+      module.draggable = true;
+      module.addEventListener("dragstart", event => { dragged = module; module.classList.add("dragging"); event.dataTransfer.effectAllowed = "move"; });
+      module.addEventListener("dragend", () => { module.classList.remove("dragging"); document.querySelectorAll(".drop-target").forEach(item => item.classList.remove("drop-target")); dragged = null; });
+      module.addEventListener("dragover", event => { event.preventDefault(); if (dragged && dragged !== module) module.classList.add("drop-target"); });
+      module.addEventListener("dragleave", () => module.classList.remove("drop-target"));
+      module.addEventListener("drop", event => { event.preventDefault(); module.classList.remove("drop-target"); if (dragged && dragged !== module) { grid.insertBefore(dragged, module); markDirty(); } });
+    });
+
+    grid.addEventListener("click", event => {
+      const button = event.target.closest("[data-action]");
+      if (!button) return;
+      const module = button.closest(".module");
+      const action = button.dataset.action;
+      if (action === "up" && module.previousElementSibling) grid.insertBefore(module, module.previousElementSibling);
+      if (action === "down" && module.nextElementSibling) grid.insertBefore(module.nextElementSibling, module);
+      if (action === "collapse") { module.classList.toggle("collapsed"); button.setAttribute("aria-pressed", String(module.classList.contains("collapsed"))); button.textContent = module.classList.contains("collapsed") ? "+" : "−"; }
+      if (action === "focus") { const next = !module.classList.contains("focused"); document.querySelectorAll(".module.focused").forEach(item => item.classList.remove("focused")); module.classList.toggle("focused", next); button.setAttribute("aria-pressed", String(next)); }
+      if (action === "pin") { module.classList.toggle("pinned"); button.setAttribute("aria-pressed", String(module.classList.contains("pinned"))); }
+      markDirty();
+    });
+
+    function setPreset(key) {
+      const preset = presets[key];
+      activePreset = key;
+      document.getElementById("workspaceTitle").textContent = preset.title;
+      document.getElementById("workspaceDescription").textContent = preset.description;
+      document.getElementById("mobilePreset").value = key;
+      document.querySelectorAll("[data-preset]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.preset === key)));
+      preset.order.forEach(moduleKey => grid.appendChild(document.querySelector(`[data-module="${moduleKey}"]`)));
+      document.querySelectorAll("[data-module]").forEach(module => module.classList.toggle("focused", module.dataset.module === preset.focus));
+      manifest.textContent = `LAYOUT ${key}-v1 · preset`;
+      saveButton.classList.remove("dirty");
+      closePalette();
+    }
+    function openPalette() { returnFocus = document.activeElement; backdrop.classList.add("open"); setTimeout(() => input.focus(), 0); }
+    function closePalette() { backdrop.classList.remove("open"); input.value = ""; document.querySelectorAll(".command").forEach(command => command.style.display = "grid"); if (returnFocus) returnFocus.focus(); }
+    document.querySelectorAll("[data-preset]").forEach(button => button.addEventListener("click", () => setPreset(button.dataset.preset)));
+    document.querySelectorAll("[data-switch]").forEach(command => command.addEventListener("click", () => setPreset(command.dataset.switch)));
+    document.getElementById("mobilePreset").addEventListener("change", event => setPreset(event.target.value));
+    document.getElementById("openPalette").addEventListener("click", openPalette);
+    document.getElementById("changeScope").addEventListener("click", event => { event.currentTarget.textContent = event.currentTarget.textContent.includes("demo") ? "Change scope" : "Scope editor · demo held"; });
+    saveButton.addEventListener("click", () => {
+      const layout = [...grid.children].map(module => ({ key: module.dataset.module, collapsed: module.classList.contains("collapsed"), pinned: module.classList.contains("pinned") }));
+      localStorage.setItem("cockpit-layout", JSON.stringify(layout));
+      manifest.textContent = `LAYOUT ${activePreset}-custom · saved now`;
+      saveButton.classList.remove("dirty");
+    });
+    backdrop.addEventListener("click", event => { if (event.target === backdrop) closePalette(); });
+    document.addEventListener("keydown", event => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") { event.preventDefault(); openPalette(); }
+      if (event.key === "Escape" && backdrop.classList.contains("open")) closePalette();
+      if (backdrop.classList.contains("open") && ["ArrowDown","ArrowUp"].includes(event.key)) {
+        event.preventDefault();
+        const visible = [...document.querySelectorAll(".command")].filter(command => command.style.display !== "none");
+        const current = visible.findIndex(command => command.classList.contains("active"));
+        visible.forEach(command => command.classList.remove("active"));
+        visible[(current + (event.key === "ArrowDown" ? 1 : -1) + visible.length) % visible.length]?.classList.add("active");
+      }
+      if (backdrop.classList.contains("open") && event.key === "Enter") document.querySelector(".command.active")?.click();
+      if (backdrop.classList.contains("open") && event.key === "Tab") { event.preventDefault(); input.focus(); }
+    });
+    input.addEventListener("input", () => {
+      const query = input.value.toLowerCase();
+      document.querySelectorAll(".command").forEach(command => command.style.display = command.textContent.toLowerCase().includes(query) ? "grid" : "none");
+    });
+    setPreset("horizon");
+    try {
+      const saved = JSON.parse(localStorage.getItem("cockpit-layout") || "null");
+      if (Array.isArray(saved)) {
+        saved.forEach(item => {
+          const module = document.querySelector(`[data-module="${item.key}"]`);
+          if (!module) return;
+          grid.appendChild(module);
+          module.classList.toggle("collapsed", Boolean(item.collapsed));
+          module.classList.toggle("pinned", Boolean(item.pinned));
+        });
+        manifest.textContent = "LAYOUT custom · restored";
+      }
+    } catch (_) { localStorage.removeItem("cockpit-layout"); }
+  </script>
+</body>
+</html>

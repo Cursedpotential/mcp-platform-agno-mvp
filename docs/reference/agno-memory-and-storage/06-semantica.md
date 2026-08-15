@@ -1,4 +1,6 @@
 > _Byline: Claude Code · Sonnet (R1f) · 2026-07-11_
+> drift-fix 2026-08-14 Claude Code · glm-5.2:cloud: §5 positioning table — vector-search row
+> corrected Milvus/bge-m3→Weaviate/nv-embed-v1 per ADR-0040 / D-042 (cutover verified 2026-08-09)._
 
 # Semantica — vendored knowledge-engineering framework
 
@@ -433,7 +435,7 @@ yet — it is design only, same APPROVALS-gated status as the wiring module.
 | **Reference/document retrieval (RAG over static knowledge)** | **agno `Knowledge`** | Passed into `LearningMachine` and agent factories (`server/agents/factory.py`, `providers.py`); the platform's existing RAG surface — distinct from both Semantica's `vector_store`/`context.AgentMemory` and Graphiti |
 | **Session context, user profile/memory, learned knowledge** | **agno `LearningMachine`** (`UserProfileConfig`, `UserMemoryConfig`, `SessionContextConfig`, `LearnedKnowledgeConfig` — all in `server/agents/providers.py:build_learning()`) | The platform's actual in-use agent-memory system; `LearnedKnowledgeConfig` is also `PROPOSE`-mode/HITL, namespaced `"platform"` |
 | **Cross-source conflict detection, dedup, decision-provenance** | **Semantica `conflicts/` + `deduplication/` + `context.decision_*`** (net-new, unwired) | Explicitly the reason Semantica is being evaluated at all — "lanes the current custody→parse→normalize→Graphiti path does not cover" (wiring docstring) |
-| **Vector similarity search over evidence** | **OUR Milvus (`forensic_records/findings/patterns`)**, dim-locked bge-m3/1024 | Semantica's `vector_store.milvus_store` targets these same collections — no second index — per `semantica_wiring.vector_store_config()` |
+| **Vector similarity search over evidence** | **OUR Weaviate (`forensic_records/findings/patterns`)**, nv-embed-v1/4096-d _(corrected 2026-08-14: was Milvus/bge-m3/1024, superseded by ADR-0040; cutover verified D-042 2026-08-09; `data-vector` down since 2026-08-10)_ | Semantica's `vector_store` targets the platform's vector store — no second index — per `semantica_wiring.vector_store_config()` (design-only, `deploy=false`) |
 | **Behavioral-pattern / detection-pattern ontology** | **PostgreSQL `analysis.behavior_category`/`detection_pattern`/`pattern_lexicon`** (153/512/51 rows) | Seeds Semantica's `kg`/`ontology` modules via `extend_not_replace=True` — Semantica extends this, does not own or replace it |
 | **Provenance / lineage record** | **PostgreSQL `provenance.provenance`** (SSOT) + Semantica's `provenance/` module as the **design model** (PROV-O) the graph's own provenance strategy is patterned on | Semantica's W3C PROV-O implementation (`prov:Entity/Activity/Agent/wasDerivedFrom`) is cited by name in the forensic-DB architecture doc as the governance pattern to mirror, even though PG remains the actual system of record |
 | **RDF/OWL/ontology authoring & reasoning** | **Semantica `ontology/` + `reasoning/` + `triplet_store/`** (unwired) | No platform equivalent exists; would be net-new capability if adopted |

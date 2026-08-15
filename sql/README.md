@@ -1,12 +1,18 @@
 # sql/ — Progressive Disclosure Map
 
-> PostgreSQL migrations — numbered, immutable, run once on empty data dir.
+> _Byline: Codex · GPT-5 · 2026-08-15 (entry-point bootstrap correction)_
+>
+> PostgreSQL schema history and bootstrap artifacts. The numbered migrations
+> are immutable history but **are not an empty-database bootstrap path** after
+> 0007. Use `sql/bootstrap/schema_baseline.sql` for a fresh database, then apply
+> only migrations newer than that baseline in reviewed numerical order.
 
 ## Directory Map
 
 ```
 sql/
-  0001_init_extensions.sql     <- Extensions + rich domain types (citext, ltree, hstore…).
+  bootstrap/schema_baseline.sql <- The only reproducible empty-database bootstrap.
+  0001_init_extensions.sql     <- Historical extensions + rich domain types.
   0002_schema.sql              <- Dual-schema boundary + HITL audit tables (legacy).
   0003_normalized_records.sql  <- analysis.normalized_record (bitemporal substrate).
   0004_custom_types.sql        <- PG enums/domain types (entity_type, mcl_factor, event_type…).
@@ -23,7 +29,8 @@ sql/
 ## Convention
 
 - **NEVER edit an applied migration.** Add a new `NNNN_*.sql` file.
-- Files run in order via `/docker-entrypoint-initdb.d/` on first boot only.
+- Do not replay the numbered chain against an empty database; it is incomplete
+  by construction from 0008 onward. Bootstrap from the captured baseline.
 - On existing `pgdata` volumes, apply new migrations manually:
   `psql -U "$DB_USER" -d "$DB_DATABASE" -f sql/NNNN_name.sql`
 

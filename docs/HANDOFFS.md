@@ -1,7 +1,32 @@
-# HANDOFFS — agent-executable task units
+# HANDOFFS — current execution index
 
 > _Byline: Claude Code · Opus 4.8 · 2026-06-13_
-> **Authoritative for:** the forward build, broken into SMALL self-contained units a cheaper /
+> _Current-index conversion: Codex · GPT-5 · 2026-08-15._
+> **Historical note:** the original task units are preserved below for provenance, but are
+> superseded for forward work by the dated R0–R9 packets in this index.
+
+## Current handoff set
+
+| Lane | Current packet | Status at packet | Boundary |
+|---|---|---|---|
+| R0 | [Wave-1 audit](HANDOFF-2026-08-15-R0-wave1-audit.md) | Complete / build failed | Audit only; migrations held |
+| R1 | [Go ingestion](HANDOFF-2026-08-15-R1-go-ingestion.md) | Partial | Coverage-based parsing and ordered custody |
+| R2 | [Horizon engine](HANDOFF-2026-08-15-R2-horizon-engine.md) | Partial | Immutable manifests, replay, contamination gates |
+| R3 | [Semantica VIP](HANDOFF-2026-08-15-R3-semantica.md) | Partial | Full intelligence behind governed candidate boundary |
+| R4 | [Graphiti/Zep memory](HANDOFF-2026-08-15-R4-graphiti-zep-memory.md) | Research complete | PostgreSQL belief authority; Graphiti projection |
+| R5 | [AG2 coordination](HANDOFF-2026-08-15-R5-ag2-coordination.md) | Research complete | Candidate adapter only; Agno remains current |
+| R6 | [Provider switching](HANDOFF-2026-08-15-R6-provider-switching.md) | Research complete | Portkey/OpenCode/direct route registry |
+| R7 | [OpenCode workspace](HANDOFF-2026-08-15-R7-opencode-workspace.md) | Partial | Persistent control; isolated execution |
+| R8 | [Custom Workbench](HANDOFF-2026-08-15-R8-workbench.md) | Partial | Framework-neutral operator product |
+| R9 | [Knowledge to case MVP](HANDOFF-2026-08-15-R9-knowledge-to-case-mvp.md) | Superseded in part by local build | Matter/CourtCase + evidence promotion, held/unapplied |
+
+R9's claim that Matter identity and the Knowledge-to-Evidence slice are missing is now
+historical: those components exist locally with focused tests. They are committed,
+undeployed, and dependent on unapplied migration `0030`.
+
+## Historical task register — superseded for forward execution
+
+> **Original contract:** the forward build, broken into SMALL self-contained units a cheaper /
 > smaller-context agent can pick up and finish **without re-deriving context**. Entry point:
 > `PROJECT_CANON.md` (§0). Companion: `BUILD_PLAN.md` (phase narrative).
 >

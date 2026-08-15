@@ -1,5 +1,14 @@
 # Platform Blueprint
 
+> **SUPERSEDED REVIEW COPY 2026-08-15:** unique historical findings are
+> preserved here, but the current human-facing blueprints are
+> `../PRODUCT-BLUEPRINT-2026-08-15.md`,
+> `../ARCHITECTURE-BLUEPRINT-2026-08-15.md`, and
+> `../MIGRATION-DIAGRAMS-2026-08-15.md`; generated-agent contract lives in
+> `../../.agents/blueprint/`. Do not execute this older AgentOS-centered plan.
+> _Banner byline: Codex · GPT-5 · 2026-08-15._
+
+
 > _Byline: Claude Code · Opus 4.8 · 2026-08-10; ADR-0053 amendment Codex · GPT-5 ·
 > 2026-08-13_
 > **Mode:** hybrid — reverse (what IS, verified in code this session) + forward (ADR-0051 target, labeled).

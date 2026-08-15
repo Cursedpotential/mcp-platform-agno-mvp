@@ -4,7 +4,11 @@
 > type correction, docker/ subdir paths, `_stale/`/Makefile path precision;
 > drift-fix 2026-08-12 Claude Code · Kimi K3: stack line agno 2.8.0 → 2.8.7 per requirements.txt:3;
 > drift-fix 2026-08-12 Claude Code · Kimi K3: "cutover pending" dropped — cutover verified D-042,
-> Milvus DOWN deliberately since 2026-08-10)_
+> Milvus DOWN deliberately since 2026-08-10;
+> drift-fix 2026-08-14 Claude Code · glm-5.2:cloud: agent topology adds `transcript_miner`
+> (mounted under Platform Ops since 2026-08-04, was in code but omitted from docs);
+> §1 ADR-0045 "drafted/pending signature" → signed D-042 + §B derived-materialization
+> sanction + FORBIDS parallel authored stores (doc-drift rule)_
 
 > **This is the first file any agent (Claude Code, Codex, Gemini CLI, opencode) reads.**
 > Keep it short: universal context + navigation index. **Closest file wins** — nested
@@ -42,8 +46,11 @@ and which agents have hindsight."* How many passes exist is a workflow decision.
 
 Consequences that are easy to get wrong:
 
-- **One store, filtered per agent.** Do NOT design parallel as-lived / hindsight
-  stores. Everything is written once carrying `occurred_at` (valid time),
+- **One store, filtered per agent.** Do NOT design parallel AUTHORED as-lived /
+  hindsight stores. (ADR-0045 §B **sanctions version-pinned DERIVED**
+  materializations — a single-writer refresher that re-derives pass checkpoints from
+  the one authored store; these are projections, never a second authored truth.)
+  Everything is written once carrying `occurred_at` (valid time),
   `knowledge_time`, and `disclosure_tier` on `working.normalized_record`
   (~~`analysis.normalized_record`~~ until the 2026-08-02 schema split, sql/0014) —
   ~~live enum `ai.disclosure_horizon`~~ **corrected 2026-08-09: as-built,
@@ -51,16 +58,22 @@ Consequences that are easy to get wrong:
   constraint** (`contemporaneous` / `hindsight` / `discovered`), not an enum.
   The `ai.disclosure_horizon` enum is real, but lives elsewhere — on
   `analysis.time_assertion.disclosure_horizon` and
-  `analysis.timeline_event.disclosure_horizon` only. See ADR-0045 (Decision C,
-  drafted 2026-08-09) for the derivation-architecture amendment this feeds;
-  TEXT+CHECK is recommended to stand as-built pending that ADR's signature.
+  `analysis.timeline_event.disclosure_horizon` only. See ADR-0045
+  (**signed 2026-08-09, D-042**) — Decision C settles disclosure_tier (the parser
+  hardcode is CORRECT; the defect is the missing derivation layer above it, not the
+  hardcode), and **§B sanctions version-pinned DERIVED pass materializations**
+  (as-lived incremental + hindsight on-prompt, single-writer refresher, hash-attested)
+  and **FORBIDS parallel AUTHORED as-lived/hindsight stores** — amending canon §1.
+  TEXT+CHECK stands as-built by that decision. Build underway (Wave 1).
 - **Extraction is not analysis.** Semantica may read everything; it forms no beliefs.
   The horizon discipline belongs at the AGENT layer, never the extraction layer.
 - **Enforce the horizon as a PRE-filter in every store** — Postgres, Weaviate,
   Graphiti, Neo4j. Vector search is the main leak: embeddings have no sense of time,
   so a future document scores exactly as similar as a contemporaneous one. Filtering
   after top-k silently shrinks k, sometimes to zero, with no error.
-  ⚠ **Weaviate-specific landmine (verified in agno 2.8.0 source, 2026-08-02):**
+  ⚠ **Weaviate-specific landmine (verified in agno 2.8.0 source, 2026-08-02;
+  re-verified 2.8.7, 2026-08-14 — STILL PRESENT at `weaviate.py:414-416`,
+  `:441-443`, `:883-884`):**
   agno's Weaviate adapter SILENTLY DROPS `agno.filters` FilterExpr lists
   (`log_warning` + `filters = None`) — only **dict filters**
   (`{"domain": ..., "disclosure_tier": ...}`) are applied. A horizon filter
@@ -133,6 +146,7 @@ Root Router (mode=route)
 |   +-- ingestion_orchestrator
 |   +-- analysis_orchestrator
 |   +-- review_gatekeeper
+|   +-- transcript_miner
 +-- Builder (mode=coordinate)
 |   +-- dev_copilot
 |   +-- project_pal

@@ -11,7 +11,8 @@
 > the analysis map.
 > _Byline: Claude Code · Opus 4.8 · 2026-06-13 (D-026 update: Claude Sonnet 5 · 2026-07-09; ADR-0035
 > update: Claude Opus 4.8 · 2026-07-10; 2026-08-09 update: Claude Code · Sonnet 5;
-> 2026-08-13 update: Codex · GPT-5; 2026-08-14 visualizer namespace: Codex · GPT-5)_
+> 2026-08-13 update: Codex · GPT-5; 2026-08-14 visualizer namespace: Codex · GPT-5;
+> 2026-08-15 current-entry-point repair: Codex · GPT-5)_
 
 ## The one active build
 
@@ -33,11 +34,12 @@ is reference (donor archives, mined code, planning history). **Never build a par
 
 ```
 server/         THE backend — one boundary, domain-separated inside:
-  api/          AgentOS entrypoint — main.py (base_app, router, HITL+knowledge), mcp_main.py, config.yaml
+  api/          current Agno/AgentOS adapter entrypoint plus framework-neutral HTTP routes
   core/         settings.py (model factory), session.py, embedder.py (NimEmbedder), reranker.py, url.py
   contracts/    IMPORT-LIGHT record contract (ADR-0035) — records.py (NormalizedRecord/RecordType/DisclosureTier); see below
   agents/       factory.py (build_agent_team), providers.py (context providers, learning, Graphiti MCP), instructions, tools/ (@tool wrappers)
   evidence/     THE SPINE (Python chassis) — see below; purely evidence-domain since ADR-0035
+  case_management/  Matter/CourtCase repository + service boundary (held locally; migration 0030 unapplied)
   tools/        CROSS-DOMAIN CAPABILITY LAYER (D-026), sub-namespaced by capability (ADR-0035) — registry + parsers/extractors/visualizers/gateway; see below
   analysis/     behavioral + knowledge ingestion: detection.py, patterns.py, chat_parse.py,
                 chat_normalizer.py, context_chat_ingest.py, lane_classifier.py,
@@ -45,11 +47,13 @@ server/         THE backend — one boundary, domain-separated inside:
   vendored/
     chatminer/  vendored parser core (import-only)
     semantica/  vendored project (installed dist, not `server.vendored.semantica`-imported)
-ui/             CopilotKit shell (G1) — DEFERRED, not built yet
+workbench/      CUSTOM OPERATOR PRODUCT — api/ FastAPI BFF + web/ Next.js; expanding locally
+ui/             superseded/deferred shell proposal; do not start a parallel UI
 shared/         cross-boundary contracts — created only when ui/ needs them (DEFERRED)
 sql/            numbered migrations only: NNNN_name.sql (e.g. 0003_normalized_records.sql)
 docker/         one folder per service image: postgres/ (pg_duckdb), tools/, sandbox/, gateway/, milvus/, n8n/, coolify-mcp/
-compose.yaml    local/dev core ONLY. All per-app Coolify compose files live in deploy/ (S10
+compose.yaml    mirrored stack definition with production-facing live sections; never describe
+                it as laptop-only. Per-app Coolify compose files live in deploy/ (S10
                 consolidation 2026-08-10, D-043): deploy/<app>.yaml, one file per Coolify
                 application. Root also keeps compose.data-surreal.yaml (PARKED marker, see its
                 header). Dead tiers (browser/ui/data) → _stale/*.SUPERSEDED.
@@ -156,7 +160,7 @@ docstring for the full mount<->import contract.
 | You are adding… | It goes… |
 |---|---|
 | A new parser/extractor/visualizer tool (Python) | `server/tools/parsers/{messaging,ai_chat,generic}/<name>.py`, `server/tools/extractors/<name>.py`, or `server/tools/visualizers/<name>.py` (ADR-0035) — one capability, self-register via `@register`; `load_builtin_tools()` auto-discovers it, nothing else to wire |
-| A tool that's really a TS/Go binary or external service | wrap as an **MCP service behind Agno**; register in the spine via the polyglot/HTTP runner (don't rewrite it in Python unless trivial) |
+| A tool that's really a TS/Go binary or external service | expose it behind a framework-neutral HTTP/MCP adapter; the current Agno adapter may consume it, but must not own its public contract |
 | A shared helper (not itself a tool) | `server/tools/_helpers.py` (underscore prefix) or `server/evidence/<module>.py` (evidence-domain-specific) |
 | A DB schema change | new `sql/NNNN_*.sql` migration (never edit an applied one) |
 | A new service/container | `docker/<service>/` + a block in `compose.yaml` |

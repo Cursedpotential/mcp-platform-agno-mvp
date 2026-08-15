@@ -216,7 +216,9 @@ tag → CI builds → bump the tag in `docker/tools/Dockerfile`. Image name MUST
   `server/analysis/context_chat_ingest.py` no longer dual-writes chat chunks straight to Weaviate/
   Graphiti — it now writes **`working.context_record`** (new source-of-truth table, migration
   `sql/0021`, **Option B = separate table, NO evidence FK** so context stays out of the evidence
-  spine) then `sync_pending_context(sink)` projects pending rows (`*_synced_at IS NULL`) to the
+  spine; ~~source-of-truth~~ — **superseded 2026-08-13 by ADR-0053** (chat_conversation/message/chunk;
+  see CHANGE-ORDER CH-4); context_record is retained as a legacy row but no longer the SoT for the
+  chat lane) then `sync_pending_context(sink)` projects pending rows (`*_synced_at IS NULL`) to the
   `platform_context` Weaviate collection + the Graphiti CASE lane. SQLite `IngestLedger` retired
   (PG `content_hash` UNIQUE + `*_synced_at` are the dedup/sync authority). 20/20 tests pass.
   **APPLIED to live** (0021 committed to the DB, table present) + **batch-drain tool built**:
@@ -443,3 +445,25 @@ Owns the six-lane KB build (ADR-0050 + `plans/…glittery-summit`): `server/core
 - **Next in my lane (non-colliding):** chonkie[api]→MCP tool; remote GPU executor (Colab/RunPod
   scale-to-zero) for the heavy chunkers; add `chonkie[semantic,code,table]` to requirements via
   proper lockfile regen. Follow-up: Docling (separate).
+
+## 2026-08-15 — Current framework-neutral migration lanes
+
+> _Byline: Codex · GPT-5 · 2026-08-15. Append-only status block; it does not rewrite the
+> historical lane record above._
+
+| Lane | Current boundary | State |
+|---|---|---|
+| R0 Wave-1 | Audit/salvage only; migrations `0026–0029` remain held | Complete audit; build gate failed |
+| R1 Go | Decoder-coverage routing, bounded ordered parallelism, custody equivalence | Partial |
+| R2 Horizon | Immutable manifests, replay, quarantine, store prefilters | Partial; no cutover |
+| R3 Semantica | VIP semantic intelligence with governed candidate/provenance boundary | Partial; no production worker claim |
+| R4 Memory | PostgreSQL belief events → per-run Graphiti projection | Research complete; implementation pending |
+| R5 Runtime | Current Agno adapter versus bounded AG2 candidate spike | No AG2 runtime cutover |
+| R6 Providers | Platform route registry over Portkey/OpenCode/authorized direct paths | Research complete |
+| R7 Workspace | Persistent OpenCode control plus isolated execution jobs | Partial |
+| R8 Workbench | Custom framework-neutral operator product | Partial |
+| R9 Matter MVP | Matter/CourtCase, source resolution, unsafe evidence promotion | Built/tested and committed locally; migration unapplied, undeployed |
+
+Cross-lane invariant: Knowledge ingestion remains horizon-blind and independent from agent
+horizon replay. Graphiti stores derived run-scoped beliefs, not canonical evidence. AG2 is a
+candidate adapter only. No lane may claim a local build is live without deployment proof.
