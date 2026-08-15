@@ -18,8 +18,8 @@ see `deploy/workbench.yaml` for the Coolify deployment manifest and
 > **Additional held slice:** the Matter/CourtCase BFF and Knowledge-to-Evidence flow are
 > locally tested, committed, and pushed. Migration
 > `sql/0030_matter_case_foundation.sql` remains unapplied and the feature remains
-> undeployed. The current working tree adds a redacted evidence-detail proxy so review
-> can inspect the exact canonical record and custody chain. The Workbench owns no
+> undeployed. Commit `be286a8` adds a redacted evidence-detail proxy so review can
+> inspect the exact canonical record and custody chain. The Workbench owns no
 > case-domain truth; it proxies and validates neutral spine contracts.
 
 ## Layering

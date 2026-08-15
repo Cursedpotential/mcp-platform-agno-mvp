@@ -22,9 +22,9 @@
 
 R9's claim that Matter identity and the Knowledge-to-Evidence slice are missing is now
 historical: those components are pushed to `main`, undeployed, and dependent on
-unapplied migration `0030`. A local follow-on adds redacted evidence/custody inspection
-and blocks human review until the exact Matter-scoped detail loads; its status is recorded
-in the newest R9 addendum.
+unapplied migration `0030`. Commit `be286a8` adds redacted evidence/custody
+inspection and blocks human review until the exact Matter-scoped detail loads; its
+status is recorded in the newest R9 addendum.
 
 ## Historical task register — superseded for forward execution
 

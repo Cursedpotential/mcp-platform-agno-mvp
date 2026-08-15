@@ -11,7 +11,7 @@
 
 The original C1 description below is historical foundation, not the complete current route
 map. Knowledge browsing and the Matter workspace are committed and pushed to `main`,
-with local build/test evidence but no deployed-service proof. The current working tree
+with local build/test evidence but no deployed-service proof. Commit `be286a8`
 adds exact evidence/custody inspection and makes successful inspection a prerequisite
 for recording a review decision. Horizon execution remains held.
 
@@ -50,7 +50,7 @@ in, Promote buttons removed, each row's action is "Start run ->").
   table's row action both open the same New-run dialog), `src/components/ui/switch.tsx`
   and `textarea.tsx` (small primitives the donor kit didn't carry).
 - Run/Stage/ToolServer/Tool types cross-checked against the actual spine
-  implementation that landed in this same working tree mid-build
+  implementation that landed in the same implementation tranche
   (`server/evidence/run_ledger.py`, `server/api/run_routes.py`,
   `sql/0005_workflow_run_ledger.sql`) — notably, STAGE status uses
   `pending|running|success|failed|skipped` (not `completed`, which is only

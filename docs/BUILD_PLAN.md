@@ -32,9 +32,9 @@ this current direction:
 The Matter/CourtCase foundation, neutral spine APIs, Workbench adapters/UI, and
 Knowledge-to-Evidence promotion are pushed to `main`. Migration
 `sql/0030_matter_case_foundation.sql` and focused tests exist, but the migration is
-**unapplied** and no deployment/live claim is made. A follow-on local working-tree
-slice adds exact canonical-record and H1 custody inspection before human review;
-it changes no schema and remains uncommitted/undeployed until its gates complete.
+**unapplied** and no deployment/live claim is made. Commit `be286a8` adds exact
+canonical-record and H1 custody inspection before human review; it changes no
+schema and is pushed to `main` but remains undeployed.
 
 > **Current-state correction — 2026-08-15.** Wave 1 has implementation files in the
 > working tree (`sql/0026_realization_event.sql` through `sql/0029_pass_grants.sql`,
@@ -81,11 +81,11 @@ Inventory complete (`EVIDENCE_MERGE_MAP.md`).
   chunk may have multiple lane assignments but is stored and embedded once. Normalized tags
   retain finer topics. — _amended Codex · GPT-5 · 2026-08-13_
 - Ingest the platform-design + legal-strategy conversation history first (fuels the bootstrap loop).
-- **Workbench visibility (locally verified, 2026-08-15):** the current working tree adds
+- **Workbench visibility (locally verified, 2026-08-15):** `main` includes
   `workbench/web/src/app/knowledge/page.tsx`, a case-prefiltered Weaviate search proxy,
   content browsing, and a read-only Graphiti memory pane. These files document and expose
-  the intended read surfaces. The Workbench API suite (48 tests), focused ESLint, and
-  static production build pass; the feature is pushed to `main` and remains unverified live.
+  the intended read surfaces. Current broad gates are recorded in the R9 handoff;
+  the feature is pushed to `main` and remains unverified live.
 - **Done when:** a Builder agent answers a grounded question about a past design decision, citing the source transcript.
 
 ## Phase C — Gateway proof (Agno-first) — 🟡 gateway decision DONE, dial-stack wrap open
@@ -107,8 +107,8 @@ Inventory complete (`EVIDENCE_MERGE_MAP.md`).
   approval-gated, so it is not evidence of a deployed service.
 - Rebuild the two-horizon experience behind framework-neutral ports. The current Agno
   adapter may host a shadow implementation, but it does not own the durable contract.
-- **Wave-1 status (2026-08-15):** implementation is present only in the dirty working
-  tree; no migration-application, deployment, or cutover claim is made here. Apply and
+- **Wave-1 status (2026-08-15):** implementation is pushed to `main`; no
+  migration-application, deployment, or cutover claim is made here. Apply and
   validate in the locked order before binding agent readers.
 - **Done when:** the Pass-1-vs-final-pass delta is queryable for a sample event over the bitemporal graph.
 

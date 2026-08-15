@@ -69,6 +69,6 @@ Workbench is an HTTP adapter. Horizon execution is intentionally absent.
   stopped and retained under `to_be_deleted/` for owner-only deletion.
 - Do not deploy the server/Workbench routes until migration 0030 has an approved
   application order after 0026–0029 and a live rollback rehearsal.
-- Before activation, rollback is simply leaving the uncommitted files out of a
-  release. After promotion rows exist, preserve the append-only ledger; disable
+- Before activation, rollback is omitting or reverting the reviewed release commit.
+  After promotion rows exist, preserve the append-only ledger; disable
   the route and supersede additively rather than dropping provenance.

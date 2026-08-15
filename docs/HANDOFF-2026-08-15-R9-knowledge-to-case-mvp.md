@@ -8,7 +8,7 @@ BUILD_STATUS: PASS (local R9 slice only; deployment/live proof UNKNOWN)
 
 | Thing | State |
 |---|---|
-| Branch | `main` HEAD equals `origin/main`; the custody-inspection follow-on is currently an uncommitted local working-tree slice |
+| Branch | `main` equals `origin/main`; custody inspection is pushed as `be286a8` |
 | Knowledge UI | `/knowledge` exists in the working tree and is included in the Next.js static build |
 | Knowledge isolation | Workbench search always sends a non-empty `case_id` dict prefilter before Weaviate ranking; default is `primary` |
 | Memory separation | Graphiti facts/nodes/episodes render in a separately labeled read-only memory pane, never as canonical evidence |
@@ -30,7 +30,7 @@ BUILD_STATUS: PASS (local R9 slice only; deployment/live proof UNKNOWN)
 - The repository has no canonical `matter` or `case` table. Textual knowledge partitions use `case_id='primary'`, while `analysis.evidence_item`, `analysis.evidence_task`, `analysis.export_package`, and `reference.legal_issue` use UUID `case_id` columns. Directly converting `primary` into a UUID would be unsafe.
 - Existing case-management building blocks are substantial: `analysis.evidence_item`, `analysis.timeline_event`, `analysis.evidence_task`, `reference.legal_issue`, `working.entity/person`, `working.artifact_registry`, review tables, and court-export views/packages.
 - The next vertical slice should turn a case-prefiltered Knowledge hit into a provenance-preserving, review-gated draft evidence item. Matter identity must land first so the promotion cannot deepen current ID drift.
-- Documentation now records local Knowledge verification, correct Workbench deployment paths, Weaviate terminology, Semantica VIP status, and Wave-1’s uncommitted/unapplied state.
+- Documentation now records local Knowledge verification, correct Workbench deployment paths, Weaviate terminology, Semantica VIP status, and Wave-1’s pushed/unapplied state.
 
 ## UNRESOLVED (current, mandatory)
 
@@ -361,6 +361,6 @@ locally but is not deployed or live-proven.
   whose digest differs from its containing source SHA, plus foreign-Matter 404,
   inside rollback with zero net writes. The disposable server was stopped and
   port 55439 is closed.
-- Status remains **PARTIAL**: this follow-on is local/uncommitted/undeployed;
+- Status remains **PARTIAL**: this follow-on is committed/pushed as `be286a8` and undeployed;
   migrations 0026–0030 and live activation remain owner-held. People/Timeline
   remains design-only pending an explicit Matter association model.
