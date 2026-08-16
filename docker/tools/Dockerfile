@@ -27,9 +27,11 @@
 # NOTE: this v0.2.x build has HEIC transcode DISABLED (pinned libheif-go no longer
 # compiles vs current Alpine libheif — see restore-heic TODO in docs/COORDINATION.md).
 # HEIC attachment bytes are still ingested + custody-hashed; only in-app HEIC
-# display is off. To bump SBV: build a new tag in the fork, change the tag below.
+# display is off. The immutable multi-arch digest below is the successful
+# swift-mvp-universal-import build (GitHub Actions run 31959522422). To bump SBV,
+# publish a new fork image and replace the digest only after its test/build gates pass.
 # -----------------------------------------------------------------------------
-FROM ghcr.io/cursedpotential/sbv-forensic:0.2.4-forensic AS sbv
+FROM ghcr.io/cursedpotential/sbv-forensic@sha256:18a2a21cceb22433ad2ec9a458b0fd0f0788a1811b7635451b1b3159bb7c07fc AS sbv
 
 # -----------------------------------------------------------------------------
 # Final image: python facade + the SBV binary/assets lifted from the sbv stage.
