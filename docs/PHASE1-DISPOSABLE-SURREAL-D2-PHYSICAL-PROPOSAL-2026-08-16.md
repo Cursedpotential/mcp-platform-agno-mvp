@@ -2,9 +2,11 @@
 
 > _Byline: Codex · GPT-5 · 2026-08-16 · official-documentation verification refresh 2026-08-16_
 >
-> **Status:** OWNER REVIEW — D2 proposal only. This document does not create or authorize a
-> target, credential, schema, adapter, deployment, corpus copy, migration, service activation,
-> production-agent binding, Graphiti replacement, or E1–E5 adoption.
+> **Status:** OWNER APPROVED FOR D3/D4 T0 EXECUTION — 2026-08-16. The owner separately approved
+> creating and implementing only the named isolated synthetic slice and requested that the
+> current SurrealDB GUI be incorporated into Workbench. Corpus copy, production migration,
+> production-agent binding, Graphiti replacement, and E1–E5 adoption remain unauthorized.
+> _Execution addendum byline: Codex · GPT-5 · 2026-08-16._
 >
 > **Companions:** [logical slice design](PHASE1-DISPOSABLE-SURREAL-SLICE-DESIGN-2026-08-16.md),
 > [pre-mortem](plans/R12-PHASE1-DISPOSABLE-SLICE-pre-mortem-2026-08-16.md), and
@@ -27,9 +29,9 @@ traversal. The Phase-1 primary vector path is an exact, filtered cosine scan ove
 as-lived path unless `EXPLAIN FULL`, candidate traces, and planted sentinels prove that eligibility
 is applied before approximate ranking.
 
-This proposal is ready for review, not execution. D3 must separately authorize creating the named
-target and credentials. D4 must separately authorize schema and adapter implementation and live
-T0 testing.
+The owner completed the separate D3/D4 authorization on 2026-08-16 for this exact named target,
+new credentials, physical adapter, and live synthetic T0 test. The authorization does not widen
+the production, corpus, migration, agent-binding, Graphiti, or E1–E5 boundaries.
 
 ## 2. Authority boundary and inherited holds
 
@@ -45,8 +47,8 @@ Every R9 hold remains active:
 - migrations `0026`–`0030` and any new production migration remain unapplied;
 - canonical-image/full-baseline rehearsal remains held;
 - no credential is created, read, rotated, or installed by this proposal;
-- exact target creation and deployment authority remains D3;
-- physical schema, adapter implementation, and live store proof remain D4;
+- exact target creation and deployment are authorized only for the named D3 T0 target;
+- physical schema, adapter implementation, and live store proof are authorized only for D4 T0;
 - production Horizon execution, production-agent binding, and corpus copy remain held;
 - parked legacy Surreal remains read-only and untouched;
 - the permitted corpus remains T0 synthetic only; and
@@ -59,7 +61,7 @@ Every R9 hold remains active:
 | Experiment ID | `phase1-surreal-t0-slice-r1` |
 | Coolify/application name | `data-surreal-phase1-t0-r1` |
 | Host | `ovh-files` (`100.91.190.107`; owner-designated replacement for retired `ovh-data`) |
-| Server image | `surrealdb/surrealdb:v3.2.3`, resolved to and recorded by immutable digest before D3 |
+| Server image | `surrealdb/surrealdb@sha256:e908d5d47f8dfacf955d5679487a06c75a4a8338f49e137582d4fd6ed63ddef2` (3.2.3, Linux/amd64) |
 | Storage engine | RocksDB; SurrealKV is excluded because it is beta |
 | Internal endpoint | `ws://data-surreal-phase1-t0-r1:8000/rpc` |
 | External endpoint | None; no public domain, proxy route, or host-published port |
@@ -73,9 +75,12 @@ Every R9 hold remains active:
 | Resource ceiling | 2 vCPU, 2 GiB RAM, 2 GiB data-volume budget |
 | Lifecycle | Create only after D3; stop, revoke, and quarantine after the run; never auto-delete |
 
-The image tag is a selection, not a mutable deployment reference. Before D3, the packet must add
-the registry digest, verify its signature/provenance if available, and recheck current upstream
-security advisories. SurrealDB 3.2.3 is chosen because current official Python SDK documentation
+The deployed Linux/amd64 image is pinned to
+`surrealdb/surrealdb@sha256:e908d5d47f8dfacf955d5679487a06c75a4a8338f49e137582d4fd6ed63ddef2`;
+the multi-platform index digest is
+`sha256:2006fe3f88f6f240c6463460021b4a14ffe102aea376284428f850045b7b382e`.
+Registry config and layer inspection verified the configured `nonroot` identity as UID/GID
+`65532:65532`. SurrealDB 3.2.3 is chosen because current official Python SDK documentation
 lists it as the newest compatible server for SDK 2.0.0, and it includes the fixes disclosed in the
 3.1.5 and 3.2.0 security advisories.
 
@@ -114,7 +119,8 @@ The target is an isolated single-node experiment, not a production service:
   broader capability.
 - The container must run as the image's verified non-root user, with a read-only root filesystem
   where supported, dropped Linux capabilities, `no-new-privileges`, and only its data volume
-  writable. The resolved UID/GID is recorded with the image digest before D3.
+  writable. Registry config/layer inspection resolved the configured `nonroot` account to
+  UID/GID `65532:65532`.
 - Logs contain stable IDs, counts, hashes, and typed failures—not source text, JWTs, credentials,
   prompts, forbidden sentinel text, or embeddings.
 - Original binaries remain outside Surreal. `binary_replication` is always `reference_only` in T0.
@@ -460,9 +466,10 @@ that later time.
 - [Official security advisories](https://github.com/surrealdb/surrealdb/security/advisories) —
   recheck immediately before resolving the D3 image digest.
 
-## 15. Owner decision requested
+## 15. Owner decision recorded
 
-Approve, revise, or reject this D2 proposal as a design packet. Approval of D2 means only that
-this is the physical plan to carry into D3/D4 review. It does not authorize creating the named
-target or credentials, implementing the schema/adapter, contacting a live Surreal service, or
-running the T0 slice.
+The owner approved D3/D4 execution for the exact isolated synthetic target on 2026-08-16. The
+[authorization/preflight packet](PHASE1-DISPOSABLE-SURREAL-D3-D4-AUTHORIZATION-PREFLIGHT-2026-08-16.md)
+records the observed negative-identity evidence, immutable image, implementation artifacts, and
+remaining holds. Passing this slice still does not authorize production adoption, corpus copy,
+migrations, agent binding, Horizon activation, or Graphiti replacement.

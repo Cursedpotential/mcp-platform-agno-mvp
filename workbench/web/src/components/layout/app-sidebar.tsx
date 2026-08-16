@@ -1,10 +1,10 @@
 // Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: Records/Evidence Queue/Schemas nav entries + open-flags badge; C4: Knowledge nav entry added 2026-07-23)
-// Byline: Codex · GPT-5 · 2026-08-16 (Data Explorer nav correction)
+// Byline: Codex · GPT-5 · 2026-08-16 (Data Explorer + Surreal projection nav)
 "use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { PlayCircle, Wrench, Inbox, Brain, FileSearch, ListChecks, Database, BookOpen, ShieldCheck, FlaskConical, BriefcaseBusiness } from "lucide-react";
+import { PlayCircle, Wrench, Inbox, Brain, FileSearch, ListChecks, Database, BookOpen, ShieldCheck, FlaskConical, BriefcaseBusiness, Orbit } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -34,6 +34,7 @@ const navItems = [
   { title: "Knowledge", href: "/knowledge", icon: BookOpen },
   { title: "Matters", href: "/matter", icon: BriefcaseBusiness },
   { title: "Data Explorer", href: "/schemas", icon: Database },
+  { title: "Surreal Projection", href: "/surreal", icon: Orbit },
   { title: "Classification Lab", href: "/classification-test", icon: FlaskConical },
 ];
 

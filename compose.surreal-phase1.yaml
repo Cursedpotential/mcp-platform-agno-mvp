@@ -1,0 +1,74 @@
+# Disposable synthetic-only Phase-1 SurrealDB slice on ovh-files.
+# This target is newly isolated from every parked deployment and has no public ingress.
+# Stop and quarantine; never delete the app, volume, or files automatically.
+# Byline: Codex · GPT-5 · 2026-08-16
+
+services:
+  data-surreal-phase1-t0-r1:
+    image: surrealdb/surrealdb@sha256:e908d5d47f8dfacf955d5679487a06c75a4a8338f49e137582d4fd6ed63ddef2
+    platform: linux/amd64
+    user: "65532:65532"
+    restart: unless-stopped
+    command:
+      - start
+      - --no-banner
+      - --bind=0.0.0.0:8000
+      - --username=${SURREAL_PHASE1_ROOT_USER:?required}
+      - --password=${SURREAL_PHASE1_ROOT_PASS:?required}
+      - --deny-all
+      - --allow-arbitrary-query=system,record
+      - --allow-funcs=type::record,array::len,vector::similarity::cosine
+      - --allow-rpc=signin,use,query,authenticate,info,invalidate
+      - --query-timeout=10s
+      - --transaction-timeout=10s
+      - --log=info
+      - rocksdb:/data/t0_slice_r1.db
+    volumes:
+      - /data/agno/experiments/phase1-surreal-t0-r1:/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    cpus: 2
+    mem_limit: 2g
+    healthcheck:
+      test: ["CMD", "/surreal", "isready", "--endpoint", "http://localhost:8000"]
+      interval: 5s
+      timeout: 3s
+      retries: 24
+      start_period: 20s
+    networks:
+      phase1-surreal-t0-r1:
+        aliases:
+          - data-surreal-phase1-t0-r1
+
+  phase1-surreal-runner:
+    build:
+      context: ./docker/surreal-phase1-runner
+      dockerfile: Dockerfile
+    restart: "no"
+    environment:
+      SURREAL_PHASE1_ROOT_USER: ${SURREAL_PHASE1_ROOT_USER:?required}
+      SURREAL_PHASE1_ROOT_PASS: ${SURREAL_PHASE1_ROOT_PASS:?required}
+    depends_on:
+      data-surreal-phase1-t0-r1:
+        condition: service_healthy
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    mem_limit: 512m
+    cpus: 1
+    networks:
+      - phase1-surreal-t0-r1
+
+networks:
+  phase1-surreal-t0-r1:
+    name: phase1-surreal-t0-r1
+    internal: true

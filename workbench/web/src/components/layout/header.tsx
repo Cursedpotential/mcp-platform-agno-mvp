@@ -1,5 +1,5 @@
 // Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: Records/Evidence Queue/Schemas page titles)
-// Byline: Codex · GPT-5 · 2026-08-15 (Knowledge page title)
+// Byline: Codex · GPT-5 · 2026-08-16 (Knowledge + Surreal projection page titles)
 "use client";
 
 import { usePathname } from "next/navigation";
@@ -27,6 +27,7 @@ const pageTitles: Record<string, string> = {
   "/knowledge": "Knowledge",
   "/matter": "Matters",
   "/schemas": "Schemas",
+  "/surreal": "Surreal Projection",
 };
 
 export function Header() {

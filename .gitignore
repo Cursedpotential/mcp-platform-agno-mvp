@@ -30,6 +30,9 @@ htmlcov/
 
 # uv state — requirements.txt is the lockfile of record
 uv.lock
+# The disposable Surreal runner is intentionally dependency-isolated and owns its lock.
+!docker/surreal-phase1-runner/uv.lock
+# Byline: Codex · GPT-5 · 2026-08-16
 
 # =========================
 # Virtual envs + secrets

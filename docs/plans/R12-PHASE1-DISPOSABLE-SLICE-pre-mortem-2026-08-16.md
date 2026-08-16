@@ -11,6 +11,11 @@
 >
 > **D2 proposal:**
 > [PHASE1-DISPOSABLE-SURREAL-D2-PHYSICAL-PROPOSAL-2026-08-16.md](../PHASE1-DISPOSABLE-SURREAL-D2-PHYSICAL-PROPOSAL-2026-08-16.md)
+>
+> **Execution addendum — 2026-08-16:** the owner separately approved D3/D4 for the exact
+> synthetic T0 target. This pre-mortem now governs that execution; it still grants no production,
+> corpus, migration, agent-binding, or Graphiti-replacement authority.
+> _Addendum byline: Codex · GPT-5 · 2026-08-16._
 
 ## 1. Premise
 
