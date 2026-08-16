@@ -1,0 +1,18 @@
+{
+  "_byline": "Codex · GPT-5 · 2026-08-16",
+  "schema_version": 1,
+  "registry_authority": "contextforge",
+  "audit_gateway": "portkey",
+  "publications": [
+    {
+      "key": "platform-tools",
+      "source_url_env": "CONTEXTFORGE_PLATFORM_TOOLS_MCP_URL",
+      "source_token_env": "CONTEXTFORGE_TOKEN",
+      "downstream_url_env": "PORTKEY_PLATFORM_TOOLS_MCP_URL",
+      "downstream_token_env": "PORTKEY_MCP_API_KEY",
+      "publication_mode": "source_exact",
+      "require_adr0046_annotations": true,
+      "require_trace_correlation": true
+    }
+  ]
+}

@@ -44,7 +44,10 @@ services:
     environment:
       HOST: "0.0.0.0"
       PORT: "4444"
-      DATABASE_URL: "sqlite:////data/mcp.db"
+      # Dedicated ContextForge database on the ovh-files PostgreSQL cluster.
+      # Never point this at Horizon's canonical application database. The
+      # database, role, SQLite export/import, and redeploy are separately held.
+      DATABASE_URL: ${CONTEXTFORGE_DATABASE_URL:?set dedicated ContextForge PostgreSQL DSN}
       CACHE_TYPE: "database"
       GRAPHITI_MCP_URL: ${GRAPHITI_MCP_URL:-http://${OVH3_HOST}:8071}
       AUTH_REQUIRED: "true"
@@ -68,7 +71,8 @@ services:
       PASSWORD_MAX_AGE_DAYS: "36500"                  # default 90 would silently expire the headless admin login
       GUNICORN_WORKERS: "1"
     volumes:
-      # SAME absolute bind as the bundle — reattaches the live mcp.db, no migration.
+      # Preserve the former SQLite registry as migration/rollback source.
+      # ContextForge no longer authors state here after the PG cutover.
       - /data/agno/volumes/contextforge:/data
     healthcheck:
       test: ["CMD-SHELL", "python3 -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:4444/health').status==200 else 1)\""]
@@ -97,3 +101,4 @@ networks:
 
 # Byline: Claude Code · Sonnet · 2026-07-19 (split out of compose.exec.yaml, exec-tier split, owner order 2026-07-19)
 # Byline: Claude Code · Fable 5 · 2026-08-03 (password-policy relax: PASSWORD_POLICY_ENABLED=false + MIN_LENGTH_PRIVILEGED=10 + MAX_AGE_DAYS=36500, so the owner-chosen admin password can be set via /auth/email/change-password)
+# Byline: Codex · GPT-5 · 2026-08-16 (held PostgreSQL cutover contract; SQLite preserved for migration/rollback only)

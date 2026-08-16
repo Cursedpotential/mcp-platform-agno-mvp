@@ -77,7 +77,11 @@ services:
       # agentos url uses :8000/mcp (agentos-api's mounted MCP surface) — the
       # standalone agentos-mcp service (:8001) was retired 2026-07-23, its
       # mounted-/mcp bug fixed upstream in agno 2.8.0.
-      MCP_SERVERS: '[{"key":"agentos","label":"AgentOS","url":"http://100.72.169.40:8000/mcp","token_env":"AGENTOS_API_TOKEN"},{"key":"contextforge","label":"ContextForge","url":"http://100.72.169.40:4444/mcp","token_env":"CONTEXTFORGE_TOKEN"}]'
+      # Activation value contains Portkey MCP endpoints published from
+      # ContextForge virtual servers and gateway:"portkey" on every entry.
+      # Empty is fail-closed. Direct doors require the explicit diagnostic flag.
+      MCP_SERVERS: ${MCP_SERVERS:-[]}
+      MCP_DIRECT_BYPASS_ALLOWED: ${MCP_DIRECT_BYPASS_ALLOWED:-false}
       CONTEXTFORGE_TOKEN: ${CONTEXTFORGE_TOKEN:-}
       # --- LLM gateway (default model-lab route) ---
       # Self-hosted Portkey accepts the selected upstream in

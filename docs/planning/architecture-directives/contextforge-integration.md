@@ -6,6 +6,13 @@
 > wiring IBM ContextForge (MCP Gateway) into `compose.exec.yaml`. It does **not** modify any
 > live compose file or touch infra. Coolify deploys the real thing once this is reviewed.
 
+> **2026-08-16 correction — Codex · GPT-5:** this historical draft is superseded for storage
+> and publication topology. ContextForge remains the authored registry but must use a dedicated
+> PostgreSQL database on ovh-files; SQLite is migration/rollback input only. Approved tools are
+> published one-way from an exact ContextForge `/servers/<uuid>/mcp` endpoint into Portkey MCP
+> Gateway for downstream auth/audit. The current OSS Portkey LLM container does not itself prove
+> MCP control-plane availability. See `docs/plans/MCP-GATEWAY-CHAIN-PHASE1-2026-08-16.md`.
+
 ---
 
 ## 0. What this is and why

@@ -32,36 +32,21 @@ class Settings(BaseSettings):
     agentos_api_token: str | None = None
 
     # --- MCP tool servers (Tool Explorer) ---
-    # Config-driven so the C1 console never hardcodes a server list. Each
+    # ContextForge is the authored registry; Portkey is the downstream audited
+    # gateway. Default empty is intentional: an unprovisioned chain exposes no
+    # tools instead of falling back to a direct AgentOS/ContextForge door. Each
     # entry may carry its own literal "token" (bearer), or a "token_env" —
     # the NAME of an env var holding the bearer, resolved at read time via
     # mcp_servers_parsed (never baked into the JSON literal itself, so the
     # actual secret value lives only in the process env / Coolify env editor,
     # never in this file or compose.workbench.yaml's MCP_SERVERS string).
-    # "agentos" (agno 2.8 door migration, 2026-07-23): agentos-mcp :8001 is
-    # RETIRED — the MCP door is now mounted straight on agentos-api's own
-    # port, http://100.72.169.40:8000/mcp (streamable-HTTP), and REQUIRES
-    # Authorization: Bearer <OS_SECURITY_KEY> (verified live: initialize ok,
-    # tools/list = 8 v2 tools). token_env "AGENTOS_API_TOKEN" points at the
-    # same env var the spine proxy (app/repo/spine_client.py) already reads
-    # for OS_SECURITY_KEY — the app env already carries it, nothing new to
-    # provision.
-    # "contextforge" URL below is the bare gateway root; the confirmed real
-    # path convention (see docs/planning/architecture-directives/
-    # contextforge-integration.md) is per-virtual-server:
-    # `http://<host>:4444/servers/<SERVER_UUID>/mcp`, and ContextForge has
-    # AUTH_REQUIRED=true (JWT bearer, minted via
-    # `mcpgateway.utils.create_jwt_token`) — NOT the "no auth on tailnet" the
-    # build brief assumed. Update MCP_SERVERS with the real registered
-    # virtual-server URL (e.g. for "platform_tools") once known, and set
-    # CONTEXTFORGE_TOKEN to a minted JWT.
-    # agentos url uses :8000/mcp (agentos-api's mounted MCP surface) — the
-    # standalone agentos-mcp service (:8001) was retired 2026-07-23, its
-    # mounted-/mcp bug fixed upstream in agno 2.8.0.
-    mcp_servers: str = (
-        '[{"key":"agentos","label":"AgentOS","url":"http://100.72.169.40:8000/mcp","token_env":"AGENTOS_API_TOKEN"},'
-        '{"key":"contextforge","label":"ContextForge","url":"http://100.72.169.40:4444/mcp","token_env":"CONTEXTFORGE_TOKEN"}]'
-    )
+    # Each normal entry declares gateway:"portkey" and names Portkey's
+    # /<server-slug>/mcp endpoint. ContextForge's /servers/<uuid>/mcp URL is
+    # an upstream publication target, never a normal Workbench client door.
+    mcp_servers: str = "[]"
+    # Temporary diagnostics may explicitly opt into a direct door. This must
+    # never become the production default or an automatic failure fallback.
+    mcp_direct_bypass_allowed: bool = False
     # Back-compat only: used to fill the "contextforge" entry's token when
     # that entry carries neither "token" nor a resolvable "token_env" (a
     # pre-C4 MCP_SERVERS literal that hasn't been migrated to the token_env
@@ -140,17 +125,16 @@ class Settings(BaseSettings):
         1. A literal "token" already on the entry wins as-is (rare — mostly
            a manual override).
         2. "token_env": the name of an env var holding the bearer, resolved
-           via `os.environ` at read time (so the raw secret never has to be
-           embedded in the MCP_SERVERS JSON literal itself — the "agentos"
-           entry's default is "AGENTOS_API_TOKEN", the same OS_SECURITY_KEY
-           the spine proxy already uses).
+           via `os.environ` at read time so the raw secret never has to be
+           embedded in the MCP_SERVERS JSON literal itself.
         3. Back-compat: the bare CONTEXTFORGE_TOKEN env fills in the
            "contextforge"-keyed entry specifically, when it has neither of
            the above (a pre-C4 MCP_SERVERS literal that predates the
            token_env convention).
 
         Malformed/non-list JSON degrades to an empty list rather than
-        raising — a bad env var should not crash the whole app.
+        raising. Entries without gateway:"portkey" are filtered unless the
+        explicit diagnostic bypass is enabled.
         """
         try:
             servers = json.loads(self.mcp_servers)
@@ -158,10 +142,14 @@ class Settings(BaseSettings):
             return []
         if not isinstance(servers, list):
             return []
+        allowed_servers = []
         for server in servers:
             if not isinstance(server, dict):
                 continue
+            if server.get("gateway") != "portkey" and not self.mcp_direct_bypass_allowed:
+                continue
             if server.get("token"):
+                allowed_servers.append(server)
                 continue
             token_env = server.get("token_env")
             resolved = os.environ.get(token_env) if token_env else None
@@ -169,7 +157,8 @@ class Settings(BaseSettings):
                 server["token"] = resolved
             elif server.get("key") == "contextforge" and self.contextforge_token:
                 server["token"] = self.contextforge_token
-        return servers
+            allowed_servers.append(server)
+        return allowed_servers
 
 
 settings = Settings()
