@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.service import copilot
+from app.service import chat_context, copilot
 from app.service.copilot_presets import DEFAULT_PRESETS, list_presets
 from app.service.runs import RunsError
 
@@ -55,7 +55,7 @@ def test_run_digest_success(monkeypatch):
             "stages": [{"seq": 1, "name": "custody", "status": "success", "output": {"sha256": "abc"}}],
         }
 
-    monkeypatch.setattr(copilot, "get_run", fake_get_run)
+    monkeypatch.setattr(chat_context, "get_run", fake_get_run)
     digest = copilot._run_digest("run-123")
     assert "run-123" in digest
     assert "chat-transcript" in digest
@@ -66,7 +66,7 @@ def test_run_digest_unavailable_degrades(monkeypatch):
     def fake_get_run(run_id):
         raise RunsError("run 'run-404' not found", 404)
 
-    monkeypatch.setattr(copilot, "get_run", fake_get_run)
+    monkeypatch.setattr(chat_context, "get_run", fake_get_run)
     digest = copilot._run_digest("run-404")
     assert "run-404" in digest
     assert "unavailable" in digest
@@ -84,7 +84,7 @@ def test_file_digest_found(monkeypatch):
             "text": "x" * 5000,
         }
 
-    monkeypatch.setattr(copilot.staging, "get", fake_get)
+    monkeypatch.setattr(chat_context.staging, "get", fake_get)
     digest = copilot._file_digest("sha-abc")
     assert "chat.md" in digest
     # text preview must be capped, not the full 5000 chars
@@ -92,14 +92,18 @@ def test_file_digest_found(monkeypatch):
 
 
 def test_file_digest_not_found(monkeypatch):
-    monkeypatch.setattr(copilot.staging, "get", lambda file_id: None)
+    monkeypatch.setattr(chat_context.staging, "get", lambda file_id: None)
     digest = copilot._file_digest("missing")
     assert "not found" in digest
 
 
 def test_build_preamble_with_run_and_file(monkeypatch):
-    monkeypatch.setattr(copilot, "get_run", lambda run_id: {"run_id": run_id, "stages": []})
-    monkeypatch.setattr(copilot.staging, "get", lambda file_id: {"id": file_id, "name": "f.md", "text": "hi"})
+    monkeypatch.setattr(chat_context, "get_run", lambda run_id: {"run_id": run_id, "stages": []})
+    monkeypatch.setattr(
+        chat_context.staging,
+        "get",
+        lambda file_id: {"id": file_id, "name": "f.md", "text": "hi"},
+    )
     preamble = copilot.build_preamble({"page": "intake", "run_id": "r1", "file_id": "f1"})
     assert "intake" in preamble
     assert "r1" in preamble

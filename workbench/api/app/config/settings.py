@@ -1,4 +1,5 @@
 # Byline: Claude Code · Sonnet (agent) · 2026-07-19 (agno 2.8 MCP door migration + Graphiti pane wiring 2026-07-23)
+# Byline: Codex · GPT-5 · 2026-08-16 (Portkey-routed neutral chat settings)
 """Workbench settings — S3-agnostic object store (R2 now, B2/any-S3 = env swap later).
 
 Env var names are the pydantic-settings default (uppercase of the field name)
@@ -85,6 +86,15 @@ class Settings(BaseSettings):
     # dirs. See app/repo/opencode_client.py module docstring + the
     # compose.gateway.yaml HOST-PREP comment (bind mount + one-time mkdir).
     opencode_workspace_dir: str = "/workspace/copilot"
+
+    # --- Neutral operator chat (Portkey is the normal audited route) ---
+    # PORTKEY_CONFIG is intentionally required by the route: saved configs own
+    # fallback/load-balancing policy, while direct providers remain confined to
+    # the explicitly labeled diagnostic model lab.
+    portkey_api_key: str = ""
+    portkey_base_url: str = "https://api.portkey.ai/v1"
+    portkey_config: str = ""
+    portkey_environment: str = "development"
 
     # --- Copilot preset prompts (optional JSON override, merged over
     # in-code defaults — see app/service/copilot_presets.py) ---

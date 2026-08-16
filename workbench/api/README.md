@@ -2,6 +2,7 @@
 
 > _Byline: Claude Code · Sonnet (agent) · 2026-07-19 (drift-fix 2026-08-14 Claude Code · glm-5.2:cloud: Milvus → Weaviate per ADR-0040; note data-vector DOWN since 2026-08-10)_
 > _Current-product repair: Codex · GPT-5 · 2026-08-15._
+> _Neutral Portkey streaming chat: Codex · GPT-5 · 2026-08-16._
 <!-- Updated by: Codex (migration-passes/doc-patching) | Date: 2026-08-15 | Rev: 1 | Platform: Codex / win32 | Changes: Correct deploy path, layering, vector-store, and Knowledge status | Context: Align operator documentation with current source without claiming uncommitted work is deployed -->
 
 A staging + promote surface. It stages uploaded files locally (LanceDB
@@ -26,6 +27,12 @@ see `deploy/workbench.yaml` for the Coolify deployment manifest and
 > membership from stricter supplemental checks and performs no authentication,
 > confidence, redaction, or legal-release mutation.
 
+> **Neutral chat slice:** `/v1/chat` now accepts Vercel AI SDK UI messages and
+> returns a plain-text stream through Portkey. A saved `PORTKEY_CONFIG` is
+> mandatory so provider fallback and audit remain gateway-owned. The code is
+> locally tested and built but is not deployed; the live Coolify app still
+> tracks `workbench/sprint`, and activation remains owner-gated.
+
 ## Layering
 
 `types` -> `config` -> `repo` -> `service` -> `runtime` is the declared dependency
@@ -36,7 +43,7 @@ present and enforces this boundary. SDK-facing clients remain under `app/repo/`.
 |---|---|---|
 | `config` | `settings.py` | S3-agnostic object-store env knobs + LanceDB path + spine URL + MCP server list |
 | `repo` | `object_store_client.py`, `lancedb_client.py`, `staging.py`, `mcp_client.py`, `spine_client.py`, `graphiti_client.py`, `opencode_client.py` | Object storage + LanceDB + MCP/Graphiti + spine/OpenCode HTTP clients |
-| `service` | upload/files/promote/runs/inspect/flags/knowledge/Graphiti/tools/repairs/Copilot/classification/sentiment/comparison modules | Business orchestration over repository clients |
+| `service` | upload/files/promote/runs/inspect/flags/knowledge/Graphiti/tools/repairs/chat/Copilot/classification/sentiment/comparison modules | Business orchestration over repository clients and the neutral Portkey HTTP adapter |
 | `runtime` | matching FastAPI routers under `app/runtime/` | HTTP validation and error translation |
 
 ## Endpoints
@@ -74,6 +81,8 @@ present and enforces this boundary. SDK-facing clients remain under `app/repo/`.
   database status only, not an admissibility conclusion.
 - `GET /api/tools`, `POST /api/tools/call` — proxy to every configured MCP server (`MCP_SERVERS` env) for the Tool Explorer
 - `GET /api/documents/stats` — staging-table counts by status/type
+- `POST /v1/chat` — framework-neutral Vercel AI SDK text stream; Portkey saved
+  config owns routing/fallback and every request carries a trace id plus audit metadata.
 - `GET /health`, `GET /metrics`
 
 ## Inbound authentication
@@ -96,9 +105,11 @@ LanceDB + chunking/embedding pipeline). The workbench keeps the kit's layered
 `app/` structure and its whole-file object-store + LanceDB plumbing, but
 **deletes every chunking/embedding/retrieval/chat module** (`chunker.py`,
 `embedder.py`, `pipeline.py`, `classifier.py`, `contextualizer.py`, `crag.py`,
-`reranker.py`, `retrieval.py`, `summarizer.py`, `chat.py`, `sessions.py`,
+`reranker.py`, `retrieval.py`, `summarizer.py`, the donor `chat.py`, `sessions.py`,
 `dashboard.py`, and their repo-layer counterparts) — this app is staging-only;
-the platform's own ingestion API owns chunking/embedding/vector writes.
+the platform's own ingestion API owns chunking/embedding/vector writes. The
+current `app/runtime/chat.py` is new Horizon code: a stateless Portkey gateway
+adapter, not the donor retrieval/chat implementation.
 
 The donor kit's MIT license (Backblaze, Inc.) is preserved at
 `../LICENSE.b2-kit` per its terms; this directory's own code is licensed

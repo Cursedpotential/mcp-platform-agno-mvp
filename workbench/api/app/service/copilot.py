@@ -1,4 +1,5 @@
 # Byline: Claude Code · Sonnet (agent) · 2026-07-21
+# Byline: Codex · GPT-5 · 2026-08-16 (share neutral context builder)
 """Ops Copilot (C2.5) — ask()/continue_ask() over the OpenCode server, with
 console-context injection.
 
@@ -14,18 +15,18 @@ see list_models()) and GET /api/copilot/health.
 
 from __future__ import annotations
 
-import json
 import logging
 
 from app.config import settings
-from app.repo import opencode_client, staging
-from app.service.runs import RunsError, get_run
+from app.repo import opencode_client
+from app.service import chat_context
 
 logger = logging.getLogger(__name__)
 
-# Staged-file text preview cap for context injection — matches the build
-# brief's "first 2KB text" instruction.
-_FILE_TEXT_PREVIEW_CHARS = 2048
+_FILE_TEXT_PREVIEW_CHARS = chat_context._FILE_TEXT_PREVIEW_CHARS
+_run_digest = chat_context._run_digest
+_file_digest = chat_context._file_digest
+build_preamble = chat_context.build_preamble
 
 
 class CopilotError(Exception):
@@ -43,81 +44,6 @@ def _split_model(model: str | None) -> tuple[str, str]:
         raise CopilotError(f"model must be 'provider/model', got {raw!r}", 400)
     provider_id, model_id = raw.split("/", 1)
     return provider_id, model_id
-
-
-def _run_digest(run_id: str) -> str:
-    """Compact JSON digest of a run for context injection — id/workflow/
-    status/domain/gate + per-stage seq/name/status/output, NOT full stage
-    `content` (that can be large; the model gets the summary, the operator
-    still sees the full run in the console)."""
-    try:
-        run = get_run(run_id)
-    except RunsError as e:
-        logger.warning("copilot: run context %s unavailable: %s", run_id, e.detail)
-        return f"(run {run_id} context unavailable: {e.detail})"
-    digest = {
-        "run_id": run.get("run_id"),
-        "workflow": run.get("workflow"),
-        "mode": run.get("mode"),
-        "status": run.get("status"),
-        "domain": run.get("domain"),
-        "gate_state": run.get("gate_state"),
-        "error": run.get("error"),
-        "stages": [
-            {
-                "seq": s.get("seq"),
-                "name": s.get("name"),
-                "status": s.get("status"),
-                "output": s.get("output"),
-            }
-            for s in run.get("stages", [])
-        ],
-    }
-    return json.dumps(digest, default=str)[:4000]
-
-
-def _file_digest(file_id: str) -> str:
-    record = staging.get(file_id)
-    if record is None:
-        logger.warning("copilot: file context %s not found", file_id)
-        return f"(staged file {file_id} not found)"
-    digest = {
-        "id": record.get("id"),
-        "name": record.get("name"),
-        "mime": record.get("mime"),
-        "detected_type": record.get("detected_type"),
-        "meta": record.get("meta"),
-        "text_preview": (record.get("text") or "")[:_FILE_TEXT_PREVIEW_CHARS],
-    }
-    return json.dumps(digest, default=str)[: _FILE_TEXT_PREVIEW_CHARS + 1000]
-
-
-def build_preamble(context: dict | None) -> str:
-    """Compose the context preamble prepended to the operator's prompt.
-
-    `context` (all keys optional): {"page": "runs"|"intake"|"tools"|None,
-    "run_id": str, "file_id": str}. Missing/unreachable context degrades to
-    an inline note rather than failing the whole ask() call — same tolerant
-    style as service/tools.py's per-server error entries.
-    """
-    if not context:
-        return ""
-    lines = ["You are the Ops Copilot embedded in the Knowledge Workbench operator console."]
-    page = context.get("page")
-    if page:
-        lines.append(f"The operator is currently on the '{page}' page.")
-    run_id = context.get("run_id")
-    if run_id:
-        lines.append(f"Attached run context (compact JSON digest):\n{_run_digest(run_id)}")
-    file_id = context.get("file_id")
-    if file_id:
-        lines.append(
-            f"Attached staged-file context (compact JSON digest, text truncated to "
-            f"{_FILE_TEXT_PREVIEW_CHARS} chars):\n{_file_digest(file_id)}"
-        )
-    if len(lines) == 1:
-        return ""
-    return "\n\n".join(lines) + "\n\n---\n\n"
 
 
 def _send(session_id: str, provider_id: str, model_id: str, prompt: str) -> dict:

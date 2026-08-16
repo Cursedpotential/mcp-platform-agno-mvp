@@ -1,4 +1,5 @@
 # Byline: Claude Code · Sonnet (agent) · 2026-07-23 (C4: knowledge router — Knowledge browser + Graphiti pane)
+# Byline: Codex · GPT-5 · 2026-08-16 (neutral Portkey streaming chat)
 """Knowledge Workbench API entrypoint — the C1-C4 Operator Console backend.
 
 Stages uploaded files locally (LanceDB whole-file store + object-store copy),
@@ -19,6 +20,7 @@ from pathlib import Path
 from app.config import settings
 from app.runtime import (
     case_management,
+    chat,
     classification,
     compare,
     copilot,
@@ -83,6 +85,7 @@ browsers may use HTTP Basic credentials `owner:<key>`. Only `/health` is public.
         {"name": "tools", "description": "MCP tool proxy"},
         {"name": "repairs", "description": "Automated repair agents"},
         {"name": "copilot", "description": "Copilot chat interface"},
+        {"name": "chat", "description": "Framework-neutral Portkey streaming chat"},
         {"name": "metrics", "description": "API metrics"},
         {"name": "classification", "description": "Text classification (single/batch)"},
         {"name": "sentiment", "description": "Sentiment analysis (single/batch)"},
@@ -105,6 +108,7 @@ app.include_router(runs.router)
 app.include_router(inspect.router)
 app.include_router(knowledge.router)
 app.include_router(case_management.router)
+app.include_router(chat.router)
 app.include_router(tools.router)
 app.include_router(repairs.router)
 app.include_router(copilot.router)

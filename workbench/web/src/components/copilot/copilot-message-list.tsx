@@ -1,4 +1,5 @@
 // Byline: Claude Code · Sonnet (agent) · 2026-07-21
+// Byline: Codex · GPT-5 · 2026-08-16 (streaming status copy)
 "use client";
 
 import { Loader2 } from "lucide-react";
@@ -46,7 +47,7 @@ export function CopilotMessageList({
       {loading && (
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          Waiting for the model…
+          Streaming through Portkey…
         </div>
       )}
     </div>

@@ -98,6 +98,7 @@ def test_real_app_wiring_protects_docs_api_and_static_surface(monkeypatch) -> No
     assert client.get("/health").status_code == 200
     assert client.get("/openapi.json").status_code == 401
     assert client.get("/api/matters").status_code == 401
+    assert client.post("/v1/chat", json={"messages": []}).status_code == 401
     assert client.get("/").status_code == 401
     assert (
         client.get(

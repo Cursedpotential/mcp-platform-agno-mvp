@@ -1,28 +1,43 @@
 // Byline: Claude Code · Sonnet (agent) · 2026-07-21
+// Byline: Codex · GPT-5 · 2026-08-16 (Vercel AI SDK + neutral Portkey stream)
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useChat } from "@ai-sdk/react";
+import { TextStreamChatTransport, type UIMessage } from "ai";
 import { RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { CopilotMessageList, type CopilotMessage } from "./copilot-message-list";
 import { CopilotComposer } from "./copilot-composer";
 import {
-  copilotAsk,
-  copilotContinue,
-  copilotModels,
   copilotPresets,
   type CopilotContext,
-  type CopilotModelGroup,
   type CopilotPreset,
 } from "@/lib/copilot-client";
-import { listFiles, listRuns, ApiError } from "@/lib/api-client";
+import { listFiles, listRuns } from "@/lib/api-client";
 import type { RunSummary, StagedFile } from "@/lib/shared/types";
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
+
+function messageText(message: UIMessage): string {
+  return message.parts
+    .filter((part): part is Extract<(typeof message.parts)[number], { type: "text" }> => part.type === "text")
+    .map((part) => part.text)
+    .join("");
+}
+
 export function CopilotChat() {
-  const [messages, setMessages] = useState<CopilotMessage[]>([]);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [modelGroups, setModelGroups] = useState<CopilotModelGroup[]>([]);
+  const transport = useMemo(
+    () =>
+      new TextStreamChatTransport({
+        api: `${API_BASE}/v1/chat`,
+        credentials: "same-origin",
+      }),
+    [],
+  );
+  const { messages, sendMessage, setMessages, status, error, stop } = useChat({ transport });
   const [model, setModel] = useState("");
   const [presets, setPresets] = useState<CopilotPreset[]>([]);
   const [runs, setRuns] = useState<RunSummary[]>([]);
@@ -30,17 +45,15 @@ export function CopilotChat() {
   const [attachPage, setAttachPage] = useState("");
   const [attachRunId, setAttachRunId] = useState("");
   const [attachFileId, setAttachFileId] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const loading = status === "submitted" || status === "streaming";
+  const displayMessages: CopilotMessage[] = messages
+    .filter(
+      (message): message is UIMessage & { role: "user" | "assistant" } =>
+        message.role === "user" || message.role === "assistant",
+    )
+    .map((message) => ({ role: message.role, text: messageText(message) }));
 
   useEffect(() => {
-    copilotModels()
-      .then((groups) => {
-        setModelGroups(groups);
-        const first = groups[0]?.models[0];
-        if (first && groups[0]) setModel(`${groups[0].provider}/${first}`);
-      })
-      .catch(() => setModelGroups([]));
     copilotPresets()
       .then(setPresets)
       .catch(() => setPresets([]));
@@ -63,29 +76,20 @@ export function CopilotChat() {
 
   const handleSend = async (prompt: string) => {
     if (!prompt.trim() || loading) return;
-    setError(null);
-    setMessages((prev) => [...prev, { role: "user", text: prompt }]);
-    setLoading(true);
-    try {
-      const modelParam = model || undefined;
-      const response = sessionId
-        ? await copilotContinue({ sessionId, prompt, model: modelParam })
-        : await copilotAsk({ prompt, model: modelParam, context: buildContext() });
-      setSessionId(response.session_id);
-      setMessages((prev) => [...prev, { role: "assistant", text: response.reply }]);
-    } catch (e) {
-      const message = e instanceof ApiError ? e.message : "Copilot request failed";
-      setError(message);
-      setMessages((prev) => [...prev, { role: "assistant", text: `[error] ${message}` }]);
-    } finally {
-      setLoading(false);
-    }
+    await sendMessage(
+      { text: prompt },
+      {
+        body: {
+          model: model.trim() || null,
+          context: buildContext() ?? null,
+        },
+      },
+    );
   };
 
   const handleNewChat = () => {
-    setSessionId(null);
+    if (loading) stop();
     setMessages([]);
-    setError(null);
   };
 
   return (
@@ -94,15 +98,15 @@ export function CopilotChat() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>Chat</CardTitle>
-            <Button variant="outline" size="sm" onClick={handleNewChat} disabled={!messages.length}>
+            <Button variant="outline" size="sm" onClick={handleNewChat} disabled={!messages.length && !loading}>
               <RotateCcw className="h-3.5 w-3.5" />
               New chat
             </Button>
           </div>
         </CardHeader>
         <CardContent className="flex flex-1 flex-col gap-4">
-          <CopilotMessageList messages={messages} loading={loading} />
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          <CopilotMessageList messages={displayMessages} loading={loading} />
+          {error && <p className="text-sm text-destructive">{error.message}</p>}
           <CopilotComposer presets={presets} onSend={handleSend} disabled={loading} />
         </CardContent>
       </Card>
@@ -116,32 +120,23 @@ export function CopilotChat() {
             <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Model
             </label>
-            <select
-              className="w-full rounded-md border bg-transparent px-2 py-1.5 text-sm"
+            <Input
               value={model}
               onChange={(e) => setModel(e.target.value)}
-            >
-              {modelGroups.length === 0 && <option value="">(none connected)</option>}
-              {modelGroups.map((group) => (
-                <optgroup key={group.provider} label={group.label}>
-                  {group.models.map((m) => (
-                    <option key={m} value={`${group.provider}/${m}`}>
-                      {m}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
+              placeholder="Portkey config default"
+            />
+            <p className="text-[10px] text-muted-foreground">
+              Portkey owns fallback, tracing, and audit. Leave blank to use the saved gateway config.
+            </p>
           </div>
 
           <div className="space-y-1.5">
             <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Attach context{sessionId ? " (first message only)" : ""}
+              Attach context
             </label>
             <select
               className="w-full rounded-md border bg-transparent px-2 py-1.5 text-sm disabled:opacity-50"
               value={attachPage}
-              disabled={!!sessionId}
               onChange={(e) => setAttachPage(e.target.value)}
             >
               <option value="">No page context</option>
@@ -152,7 +147,6 @@ export function CopilotChat() {
             <select
               className="w-full rounded-md border bg-transparent px-2 py-1.5 text-sm disabled:opacity-50"
               value={attachRunId}
-              disabled={!!sessionId}
               onChange={(e) => setAttachRunId(e.target.value)}
             >
               <option value="">No run attached</option>
@@ -165,7 +159,6 @@ export function CopilotChat() {
             <select
               className="w-full rounded-md border bg-transparent px-2 py-1.5 text-sm disabled:opacity-50"
               value={attachFileId}
-              disabled={!!sessionId}
               onChange={(e) => setAttachFileId(e.target.value)}
             >
               <option value="">No file attached</option>

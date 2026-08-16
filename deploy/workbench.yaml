@@ -32,7 +32,7 @@
 # compose at deploy — set ALL envs (bulk API, {"data":[...]} shape) BEFORE the
 # first deploy; later env changes require a redeploy.
 # =============================================================================
-# Byline: Claude Code · Fable 5 · 2026-07-19 (MCP_SERVERS/CONTEXTFORGE_TOKEN added 2026-07-20, C1 rebuild; OPENCODE_*/COPILOT_PRESETS_PATH + copilot bind mount added 2026-07-21, C2.5; agno 2.8 MCP door migration (:8001->:8000 + token_env) + GRAPHITI_MCP_URL added 2026-07-23, Claude Code · Sonnet (agent), C4; Coolify path/watch-path true-up 2026-08-13, Codex · GPT-5; Graphiti host repoint + model-lab Portkey env 2026-08-16, Codex · GPT-5)
+# Byline: Claude Code · Fable 5 · 2026-07-19 (MCP_SERVERS/CONTEXTFORGE_TOKEN added 2026-07-20, C1 rebuild; OPENCODE_*/COPILOT_PRESETS_PATH + copilot bind mount added 2026-07-21, C2.5; agno 2.8 MCP door migration (:8001->:8000 + token_env) + GRAPHITI_MCP_URL added 2026-07-23, Claude Code · Sonnet (agent), C4; Coolify path/watch-path true-up 2026-08-13, Codex · GPT-5; Graphiti host repoint + model-lab Portkey env + held neutral-chat config contract 2026-08-16, Codex · GPT-5)
 
 services:
   knowledge-workbench:
@@ -89,6 +89,11 @@ services:
       PORTKEY_PROVIDER: ${PORTKEY_PROVIDER:-}
       PORTKEY_API_KEY: ${PORTKEY_API_KEY:-}
       PORTKEY_MODEL_ID: ${PORTKEY_MODEL_ID:-gpt-4o}
+      # Required by POST /v1/chat. The saved config owns fallback/load-balance
+      # policy; empty fails closed. Provision only during the separately
+      # approved Workbench activation.
+      PORTKEY_CONFIG: ${PORTKEY_CONFIG:-}
+      PORTKEY_ENVIRONMENT: ${PORTKEY_ENVIRONMENT:-production}
       # --- Graphiti knowledge-graph memory (C4 Graph memory pane) ---
       # Tailnet "graphiti-hostfix" nginx sidecar (compose.data-graphiti.yaml)
       # — read-only search/episodes only, no auth (tailnet-only).
