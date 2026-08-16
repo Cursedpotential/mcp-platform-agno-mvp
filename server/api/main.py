@@ -21,6 +21,7 @@ Hard rules:
 # Byline: Claude Code · Sonnet · 2026-07-23 (agno 2.8 service accounts — AgentOS admin-plane db switched from SurrealDb to a dedicated PostgresDb; agents/teams keep SurrealDb unchanged)
 # Byline: Claude Code · Fable 5 · 2026-07-31 (Milvus→Weaviate doc-drift cleanup (ADR-0040))
 # Byline: Codex · GPT-5 · 2026-08-13 (ADR-0053 alignment; ADR-0054 optional Langfuse OTLP export)
+# Byline: Codex · GPT-5 · 2026-08-16 (framework-neutral ingest and canonical knowledge routes)
 # Byline: Claude Code · Opus 5 · 2026-08-05 (SurrealDB→Postgres doc-drift cleanup — the
 #   2026-08-04 flatten (ADR-0043 decision 3) moved the operational store to Postgres, but
 #   these comments still described the pre-flatten two-backend split)
@@ -50,7 +51,7 @@ from server.agents.factory import build_agent_team
 from server.agents.providers import build_context, build_learning
 from server.api.workflow_registry import registered_workflows
 from server.core import create_knowledge, get_agno_db, get_postgres_db
-from server.core.knowledge_handle import KnowledgeHandle, resolve_knowledge
+from server.core.knowledge_handle import KnowledgeHandle
 from server.core.model_registry import build_catalog_models, load_available_models
 from server.core.session import DB_ID
 from server.core.settings import build_model
@@ -145,38 +146,25 @@ def register_knowledge_routes(app: FastAPI, knowledge: Any) -> None:
     app:
         The FastAPI application instance.
     knowledge:
-        Agno Knowledge instance used for reindexing. C3 (spine boot
-        resilience): may be a `KnowledgeHandle` — resolved fresh on every
-        request via `resolve_knowledge()`, so this genuinely-knowledge-
-        dependent route 503s with `{"detail": "knowledge store unavailable"}`
-        while the handle isn't ready yet, and starts working again the
-        instant a background reconnect succeeds — no restart needed.
+        Retained for source compatibility while callers migrate. Folder-walk
+        ingestion no longer depends on an Agno Knowledge instance.
     """
 
     @app.post("/v1/knowledge/reindex")
     async def reindex_knowledge() -> dict[str, Any]:
-        """Trigger a full reindex of the knowledge base.
+        """Run the framework-neutral folder walker into canonical PostgreSQL.
 
         Returns
         -------
         dict
             ``{"indexedDocumentCount": <int>, "status": "completed"}``
 
-        503 ``{"detail": "knowledge store unavailable"}`` if the knowledge
-        handle isn't connected yet (C3 addendum 9 — spine boot resilience).
+        Folder-walk canonical ingestion is independent of vector-store health.
         """
-        live_knowledge = resolve_knowledge(knowledge)
-        if live_knowledge is None:
-            from fastapi import HTTPException
-
-            raise HTTPException(503, "knowledge store unavailable")
         from scripts.ingest_knowledge import ingest_all
 
-        # Route each domain to its own base — knowledge/legal/ must land in the
-        # legal base, not inside the platform collection (2026-08-04).
-        bases = {name: h.instance for name, h in _extra_knowledge_handles.items() if h.instance is not None}
-        count = await ingest_all(live_knowledge, bases=bases)
-        return {"indexedDocumentCount": count, "status": "completed", "bases": sorted(bases) or ["platform"]}
+        count = await ingest_all()
+        return {"indexedDocumentCount": count, "status": "completed", "store": "postgresql"}
 
 
 # ---------------------------------------------------------------------------
@@ -340,6 +328,7 @@ def _build_app() -> Any:
     from server.api.evidence_routes import register_evidence_routes
     from server.api.case_management_routes import register_case_management_routes
     from server.api.inspect_routes import register_inspect_routes
+    from server.api.ingest_routes import register_ingest_routes
     from server.api.repair_routes import router as repair_router
     from server.api.run_routes import register_run_routes
 
@@ -351,6 +340,7 @@ def _build_app() -> Any:
     register_evidence_routes(app, _knowledge_handle)
     register_run_routes(app, _knowledge_handle, evidence_knowledge=_extra_knowledge_handles["evidence"])
     register_inspect_routes(app, _knowledge_handle)
+    register_ingest_routes(app)
     register_case_management_routes(app)
     app.include_router(repair_router)
 

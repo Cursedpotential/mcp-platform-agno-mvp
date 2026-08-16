@@ -1,9 +1,8 @@
-"""
-Knowledge ingestion — scan the knowledge roots, normalize, knowledge.ainsert()
-==============================================================================
+"""Framework-neutral folder-walk ingestion into canonical PostgreSQL.
+=====================================================================
 
-Deterministic normalize + manifest, then hand PATHS to Agno's native insert
-(handoff §7.1/§9.1 — do NOT write a custom loader; Agno reads/chunks/embeds).
+Every accepted path enters the same Horizon ingest port used by Workbench.
+Agno may later project committed rows, but it does not own this contract.
 
 Run inside the container:
     docker exec agentos-api python -m scripts.ingest_knowledge
@@ -26,6 +25,8 @@ retrieval gap in the platform.
 Roots are now explicit and each carries a ``domain`` tag, matching the canon's
 domain-separation requirement (§3): agents filter on ``domain`` to pull only
 the lanes relevant to them, instead of one undifferentiated corpus.
+
+Byline: Codex · GPT-5 · 2026-08-16
 """
 
 import asyncio
@@ -60,22 +61,19 @@ def _safe_name(stem: str) -> str:
     return (name or "unnamed")[:127]
 
 
-async def ingest_all(knowledge, bases: dict | None = None) -> int:
-    """Ingest every knowledge root.
+async def ingest_all(_knowledge=None, bases: dict | None = None) -> int:
+    """Ingest every knowledge root through the platform-owned port.
 
-    ``bases`` maps a domain to ITS OWN Knowledge instance (2026-08-04). Without
-    it, every domain lands in the single ``knowledge`` argument — which is how
-    the legal rubrics ended up inside the platform collection, and why "legal"
-    read as empty the moment it became a selectable base. A domain absent from
-    ``bases`` falls back to ``knowledge``, so single-base callers are unchanged.
+    The legacy arguments remain temporarily source-compatible for callers, but
+    are deliberately ignored. No framework object crosses the ingest contract.
     """
+    from server.contracts.ingest import IngestLane, IngestRequest
+    from server.ingest.service import ingest_file
+
+    del bases
     count = 0
     skipped: list[str] = []
     for domain, root in KNOWLEDGE_ROOTS.items():
-        target = (bases or {}).get(domain) or knowledge
-        if target is None:
-            print(f"  no knowledge base available for [{domain}], skipping")
-            continue
         if not root.is_dir():
             print(f"  root missing, skipping: [{domain}] {root}")
             continue
@@ -90,19 +88,24 @@ async def ingest_all(knowledge, bases: dict | None = None) -> int:
             # the domain rather than repeating the folder name.
             category = path.parent.name if path.parent != root else domain
             name = _safe_name(path.stem)
-            print(f"  inserting [{domain}/{category}] {name} -> base {getattr(target, 'name', '?')!r}")
-            await target.ainsert(
-                name=name,
-                path=str(path),
-                # ADR-0050 §3 unified flat-scalar metadata: `lane` replaces the
-                # legacy `domain` key; `doc_type` carries the folder facet
-                # (was `category`). All scalars — Weaviate dict filters only.
-                metadata={
-                    "lane": domain,
-                    "doc_type": category,
-                    "source": str(path),
-                    "case_id": "primary",
-                },
+            lane = IngestLane.personal_history if domain == "relationship_timeline" else IngestLane(domain)
+            print(f"  ingesting [{domain}/{category}] {name} -> canonical PostgreSQL")
+            await asyncio.to_thread(
+                ingest_file,
+                IngestRequest(
+                    staged_path=str(path),
+                    lane=lane,
+                    matter_id="primary",
+                    custody_tier="light",
+                    source_identity={
+                        "name": name,
+                        "lane": lane.value,
+                        "doc_type": category,
+                        "source": str(path),
+                        "case_id": "primary",
+                        "legacy_root": domain,
+                    },
+                ),
             )
             count += 1
     if skipped:
@@ -111,21 +114,10 @@ async def ingest_all(knowledge, bases: dict | None = None) -> int:
 
 
 async def main() -> None:
-    from server.core import create_knowledge
-
-    knowledge = create_knowledge("platform", "platform_knowledge")
-    # Route each lane to its own base (registered in server/api/main.py).
-    bases = {
-        "legal": create_knowledge("legal", "legal_knowledge"),
-        "personal_history": create_knowledge("personal_history", "personal_history_knowledge"),
-        "relationship_timeline": create_knowledge(
-            "relationship_timeline", "relationship_timeline_knowledge"
-        ),
-    }
     roots = ", ".join(f"{d}={p}" for d, p in KNOWLEDGE_ROOTS.items())
     print(f"Ingesting from {roots} ...")
-    n = await ingest_all(knowledge, bases=bases)
-    print(f"Done. {n} document(s) indexed.")
+    n = await ingest_all()
+    print(f"Done. {n} document(s) committed to canonical PostgreSQL.")
 
 
 if __name__ == "__main__":

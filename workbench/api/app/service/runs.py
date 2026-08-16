@@ -1,6 +1,7 @@
 # Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: parse_dryrun added)
 # Byline: Codex · GPT-5 · 2026-08-13 (durable report proxy)
-"""Proxy to the spine's run pipeline (POST /v1/runs, GET /v1/runs[/{id}]).
+# Byline: Codex · GPT-5 · 2026-08-16 (neutral ingest submission)
+"""Submit intake to the neutral ingest port; inspect its PostgreSQL run receipt.
 
 New in the workbench — the C1 Operator Console's replacement for the
 promote-as-a-blind-box UX (service/promote.py). This module never touches
@@ -141,15 +142,28 @@ def start_run(
     if not file_bytes or not filename:
         raise RunsError("a file is required: pass staged_id or an uploaded file", 400)
 
-    form = {"workflow": workflow, "domain": domain or "", "mode": mode or "auto"}
-    if custody_tier:
-        form["custody_tier"] = custody_tier
+    lane_aliases = {
+        "platform_design": "platform",
+        "legal_strategy": "legal",
+        "behavioral": "personal_history",
+        "timeline_relationship": "personal_history",
+    }
+    lane = "evidence" if workflow == "sms-xml" else lane_aliases.get(domain or "", domain or "context")
+    form = {
+        "lane": lane,
+        "matter_id": str((source_meta or {}).get("matter_id") or (source_meta or {}).get("case_id") or "primary"),
+        "engine": "auto",
+        "allow_fallback": "false" if lane == "evidence" else "true",
+        "custody_tier": custody_tier or ("full" if workflow == "sms-xml" else "light"),
+    }
+    if workflow == "sms-xml":
+        form["coverage_hint"] = "smsbackuprestore-xml"
     if source_meta is not None:
-        form["source_meta"] = json.dumps(source_meta)
+        form["source_identity"] = json.dumps(source_meta)
 
     response = _spine_request(
         "POST",
-        "/v1/runs",
+        "/v1/ingest",
         files={"file": (filename, file_bytes, "application/octet-stream")},
         data=form,
     )

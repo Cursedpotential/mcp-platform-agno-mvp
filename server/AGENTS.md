@@ -18,6 +18,7 @@ is `server.*`). ADR-0035 sub-namespaced `server/tools/` by capability.
 | `tools/` | Cross-domain parser/extractor/gateway registry — see `tools/AGENTS.md` |
 | `agents/` | Agent/team constructors, providers, `@tool` wrappers — see `agents/AGENTS.md` |
 | `analysis/` | Behavioral domain: `detection.py`, `patterns.py`, `court_language.py`, `semantica_wiring.py` |
+| `ingest/` | Framework-neutral ingest application service + PostgreSQL knowledge read model |
 | `vendored/` | Third-party projects (`chatminer`, `semantica`) — import-only, excluded from ruff/mypy/pytest |
 
 ## Dependency direction (downward only)
@@ -29,6 +30,7 @@ evidence/    <- imports contracts/, core/. THE spine (custody -> store -> workfl
 tools/       <- imports contracts/ (records), vendored/chatminer. Parsers depend
                 INWARD on server.contracts.records, never on evidence/ or agents/.
 analysis/    <- imports contracts/, core/, tools/ (registry).
+ingest/      <- imports contracts/; composes evidence/tools lazily behind neutral ports.
 agents/      <- outermost domain layer. Imports evidence/, tools/, analysis/, core/.
 api/         <- outermost. Mounts agents/ + evidence/ + tools/ into FastAPI/AgentOS.
 ```

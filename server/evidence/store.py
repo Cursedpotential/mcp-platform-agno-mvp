@@ -28,6 +28,7 @@ C2.6 (resilience + observability, 2026-07-20/21) additions:
 # Byline: Claude Code · Sonnet (agent) · 2026-07-21 (C2.6: retry/backoff + load_records_for_artifact + logging)
 # Byline: Claude Code · Fable 5 · 2026-07-31 (Milvus→Weaviate doc-drift cleanup (ADR-0040))
 # Byline: Codex · GPT-5 · 2026-08-13 (ADR-0053 five-lane alignment)
+# Byline: Codex · GPT-5 · 2026-08-16 (matter/domain-aware neutral ingest writer)
 
 from __future__ import annotations
 
@@ -240,6 +241,9 @@ def store_records(
     records: list[NormalizedRecord],
     artifact: ArtifactRef,
     attempts_log: list[dict[str, Any]] | None = None,
+    *,
+    case_id: str = "primary",
+    domain: str = "evidence",
 ) -> int:
     """Batch-insert canonical records into working.normalized_record.
 
@@ -267,6 +271,8 @@ def store_records(
             "knowledge_time": r.knowledge_time,
             "disclosure_tier": r.disclosure_tier.value,
             "attrs": json.dumps(r.attrs),
+            "case_id": case_id,
+            "domain": domain,
         }
         for r in records
     ]
@@ -277,16 +283,27 @@ def store_records(
                 text(
                     "INSERT INTO working.normalized_record "
                     "(artifact_id, record_type, source, conversation_id, role, participants, "
-                    " content, occurred_at, knowledge_time, disclosure_tier, attrs) "
+                    " content, occurred_at, knowledge_time, disclosure_tier, attrs, case_id, domain) "
                     "VALUES (:artifact_id, :record_type, :source, :conversation_id, :role, "
                     " CAST(:participants AS jsonb), :content, :occurred_at, :knowledge_time, "
-                    " :disclosure_tier, CAST(:attrs AS jsonb))"
+                    " :disclosure_tier, CAST(:attrs AS jsonb), :case_id, :domain)"
                 ),
                 rows,
             )
 
     _retry_sync(f"store_records[{artifact.artifact_id}]", _do_insert, attempts_log)
     return len(rows)
+
+
+def records_exist_for_artifact(artifact_id: str) -> bool:
+    """Return whether canonical normalized rows already exist for an artifact."""
+    with _get_engine().connect() as conn:
+        return bool(
+            conn.execute(
+                text("SELECT EXISTS (SELECT 1 FROM working.normalized_record WHERE artifact_id = :artifact_id)"),
+                {"artifact_id": artifact_id},
+            ).scalar()
+        )
 
 
 def load_records_for_artifact(artifact_id: str) -> list[NormalizedRecord]:
