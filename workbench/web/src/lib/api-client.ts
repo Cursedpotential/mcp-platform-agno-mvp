@@ -32,6 +32,7 @@ import type {
   GraphitiNodesResponse,
   HealthDepsResponse,
   KnowledgeContentsResponse,
+  KnowledgeItemDetail,
   KnowledgeSourceRef,
   KnowledgeSourceResolution,
   KnowledgeSearchResponse,
@@ -448,7 +449,7 @@ export async function updateFlag(flagId: string, patch: FlagUpdateRequest) {
 }
 
 // ---------------------------------------------------------------------------
-// Knowledge (C4 — Weaviate-backed, case/lane-scoped search/browse)
+// Knowledge (Weaviate projection search + canonical PostgreSQL browse/detail)
 // ---------------------------------------------------------------------------
 
 export interface SearchKnowledgeParams {
@@ -480,6 +481,13 @@ export async function listKnowledgeContents(params: ListKnowledgeContentsParams)
   if (params.offset) qs.set("offset", String(params.offset));
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
   return apiFetch<KnowledgeContentsResponse>(`/api/knowledge/contents${suffix}`);
+}
+
+export async function getKnowledgeContent(artifactId: string, caseId: string) {
+  const qs = new URLSearchParams({ case_id: caseId });
+  return apiFetch<KnowledgeItemDetail>(
+    `/api/knowledge/contents/${encodeURIComponent(artifactId)}?${qs.toString()}`,
+  );
 }
 
 // ---------------------------------------------------------------------------

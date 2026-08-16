@@ -1,40 +1,20 @@
 # Byline: Claude Code · Sonnet (agent) · 2026-07-23 (C4: Knowledge browser + Graphiti pane)
 # Byline: Codex · GPT-5 · 2026-08-15 (case/lane-safe multi-base adapter)
-"""Knowledge search + browse — C4 read proxies to the spine's own agno
-AgentOS knowledge routes.
+# Byline: Codex · GPT-5 · 2026-08-16 (neutral canonical catalog + chunk detail)
+"""Knowledge projection search plus canonical PostgreSQL source inspection.
 
-These are NOT custom routes registered by server/api/main.py — they're
-agno's built-in AgentOS knowledge router (agno/os/routers/knowledge/
-knowledge.py), auto-mounted because `AgentOS(..., knowledge=[knowledge])`
-is handed a live instance. Read that file directly (this platform's own
-venv: .venv/Lib/site-packages/agno/os/routers/knowledge/knowledge.py)
-rather than assuming shapes — verified against it 2026-07-23:
+Two deliberately different read surfaces live here:
 
-- `POST /knowledge/search` body is `VectorSearchRequestSchema`: `query`
-  (required), `db_id`?, `knowledge_id`?, `vector_db_ids`?, `search_type`?,
-  `max_results`?, `filters`? (an arbitrary `dict` — `Knowledge.asearch()`
-  passes it straight through to `vector_db.search(filters=...)`, i.e. a
-  genuine server-side metadata filter, NOT decorative), `meta`?:
-  `{limit, page}`. Response: `PaginatedResponse[VectorSearchResult]` ->
-  `{data: [{id, content, name, meta_data, usage, reranking_score,
-  content_id, content_origin, size}], meta: {page, limit, total_pages,
-  total_count, search_time_ms}}`.
-  Filters ARE supported server-side (confirmed by reading
-  `agno.knowledge.knowledge.Knowledge.asearch`). Case isolation therefore
-  stays a pre-ranking dict filter. Lane selection is structural: it resolves
-  one registered Knowledge base by deterministic `knowledge_id`; an all-lane
-  search queries every allowed base independently and merges only the
-  already-case-filtered results.
-- `GET /knowledge/content` is the paged content-browse list ->
-  `PaginatedResponse[ContentResponseSchema]` -> `{data: [{id, name,
-  description, type, size, metadata, status, status_message, created_at,
-  updated_at, ...}], meta: {page, limit, total_pages, total_count}}`. Query
-  params are `page` (1-based) + `limit`, NOT `offset` — `list_contents()`
-  below converts an offset into a page for its caller so the runtime layer
-  can expose the `offset` shape the build brief asked for.
+- Search is a labeled Weaviate projection reached through Agno's generated
+  `/knowledge/search` route. Mandatory dict filters remain pre-ranking because
+  Agno's Weaviate adapter drops FilterExpr lists.
+- Browse/detail is the framework-neutral `/v1/knowledge/items` contract backed
+  by canonical `working.normalized_record` plus `evidence.evidence_hash` rows.
+  It never imports Agno and exposes parser, chunker, source hash, records, and
+  provenance needed by the Workbench operator loop.
 
-Never touches Milvus/Postgres directly — same single-reader discipline as
-app/service/inspect.py (spine-mediated reads only).
+This Workbench service never touches PostgreSQL or Weaviate directly; all reads
+remain spine-mediated.
 """
 
 from __future__ import annotations
@@ -44,12 +24,11 @@ from typing import Any
 
 from app.repo.spine_client import SpineError, spine_json
 
-__all__ = ["SpineError", "search", "list_contents"]
+__all__ = ["SpineError", "get_content", "list_contents", "search"]
 
 _DEFAULT_CONTENT_LIMIT = 20
 _MAX_SEARCH_RESULTS = 100
-_CONTENT_SCAN_PAGE_SIZE = 200
-_MAX_CONTENT_SCAN_PAGES = 50
+_MAX_CONTENT_ITEMS = 500
 _DB_ID = "agentos-db"
 
 # Mirrors the registered names/tables in server/api/main.py. This is an
@@ -149,14 +128,7 @@ def list_contents(
     limit: int | None = None,
     offset: int | None = None,
 ) -> dict:
-    """Return a case-scoped catalog from one structural Knowledge lane.
-
-    AgentOS cannot metadata-filter its content catalog. The trusted Workbench
-    service therefore scans the selected base, filters before returning any
-    row to the browser, and fails closed for rows lacking a matching case ID.
-    The bounded scan reports `truncated=true` rather than claiming a complete
-    catalog if the safety cap is reached.
-    """
+    """Return a case/lane-scoped catalog from the neutral canonical read API."""
     normalized_case = _require_text(case_id, "case_id")
     if lane not in _KNOWLEDGE_TABLES:
         raise ValueError(f"unsupported knowledge lane: {lane}")
@@ -165,42 +137,76 @@ def list_contents(
     if effective_offset < 0:
         raise ValueError("offset must be greater than or equal to 0")
 
-    visible: list[dict[str, Any]] = []
-    total_pages = 1
-    scanned_pages = 0
-    for page in range(1, _MAX_CONTENT_SCAN_PAGES + 1):
-        response = spine_json(
-            "GET",
-            "/knowledge/content",
-            params={
-                "limit": _CONTENT_SCAN_PAGE_SIZE,
-                "page": page,
-                "knowledge_id": _knowledge_id(lane),
-            },
-        )
-        scanned_pages = page
-        meta = response.get("meta") or {}
-        total_pages = max(1, int(meta.get("total_pages") or 1))
-        for row in response.get("data") or []:
-            metadata = row.get("metadata") or {}
-            if metadata.get("case_id") == normalized_case:
-                row = dict(row)
-                row["metadata"] = {**metadata, "knowledge_lane": lane}
-                visible.append(row)
-        if page >= total_pages:
-            break
+    items = spine_json(
+        "GET",
+        "/v1/knowledge/items",
+        params={"matter_id": normalized_case, "lane": lane, "limit": _MAX_CONTENT_ITEMS},
+    )
+    if not isinstance(items, list):
+        raise SpineError("spine returned an invalid canonical knowledge catalog")
 
-    truncated = scanned_pages < total_pages
-    page_rows = visible[effective_offset : effective_offset + effective_limit]
+    rows = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        artifact_id = str(item.get("artifact_id") or "")
+        source_path = item.get("source_path")
+        rows.append(
+            {
+                "id": artifact_id,
+                "name": item.get("source_name") or source_path or artifact_id,
+                "description": source_path,
+                "type": item.get("lane") or lane,
+                "status": "completed",
+                "created_at": item.get("created_at"),
+                "metadata": {
+                    "matter_id": item.get("matter_id") or normalized_case,
+                    "case_id": item.get("matter_id") or normalized_case,
+                    "knowledge_lane": item.get("lane") or lane,
+                    "source_path": source_path,
+                    "parser_id": item.get("parser_id"),
+                    "chunker_id": item.get("chunker_id"),
+                    "source_sha256": item.get("source_sha256"),
+                    "record_count": item.get("record_count"),
+                },
+            }
+        )
+
+    page_rows = rows[effective_offset : effective_offset + effective_limit]
     return {
         "data": page_rows,
         "meta": {
             "page": (effective_offset // effective_limit) + 1,
             "limit": effective_limit,
-            "total_pages": (len(visible) + effective_limit - 1) // effective_limit,
-            "total_count": len(visible),
+            "total_pages": (len(rows) + effective_limit - 1) // effective_limit,
+            "total_count": len(rows),
             "knowledge_lane": lane,
             "case_id": normalized_case,
-            "truncated": truncated,
+            "truncated": len(items) == _MAX_CONTENT_ITEMS,
         },
+    }
+
+
+def get_content(artifact_id: str, *, case_id: str) -> dict[str, Any]:
+    """Return canonical records/chunks and custody provenance for one source."""
+    normalized_artifact = _require_text(artifact_id, "artifact_id")
+    normalized_case = _require_text(case_id, "case_id")
+    item = spine_json(
+        "GET",
+        f"/v1/knowledge/items/{normalized_artifact}",
+        params={"matter_id": normalized_case},
+    )
+    if not isinstance(item, dict):
+        raise SpineError("spine returned an invalid canonical knowledge item")
+
+    records = item.get("records")
+    first = records[0] if isinstance(records, list) and records and isinstance(records[0], dict) else {}
+    attrs = first.get("attrs") if isinstance(first.get("attrs"), dict) else {}
+    return {
+        **item,
+        "source_name": attrs.get("source_name") or item.get("source_ref"),
+        "source_path": attrs.get("source_path") or item.get("source_ref"),
+        "parser_id": attrs.get("parser_id"),
+        "chunker_id": attrs.get("chunker_id"),
+        "lane": attrs.get("lane") or first.get("domain"),
     }

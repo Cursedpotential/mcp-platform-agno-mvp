@@ -1,4 +1,5 @@
 # Byline: Codex · GPT-5 · 2026-08-15 (Knowledge runtime boundary coverage)
+# Byline: Codex · GPT-5 · 2026-08-16 (canonical item detail boundary coverage)
 """HTTP contract tests for bounded Knowledge and Graphiti query parameters."""
 
 from __future__ import annotations
@@ -35,6 +36,54 @@ def test_search_forwards_case_and_lane(monkeypatch):
 def test_contents_requires_case_and_lane():
     response = _client().get("/api/knowledge/contents")
     assert response.status_code == 422
+
+
+def test_contents_forwards_case_lane_and_pagination(monkeypatch):
+    captured = {}
+
+    def fake_list_contents(**kwargs):
+        captured.update(kwargs)
+        return {"data": [], "meta": {"total_count": 0}}
+
+    monkeypatch.setattr(runtime.knowledge_service, "list_contents", fake_list_contents)
+    response = _client().get(
+        "/api/knowledge/contents",
+        params={"case_id": "matter-7", "lane": "evidence", "limit": 10, "offset": 20},
+    )
+
+    assert response.status_code == 200
+    assert captured == {"case_id": "matter-7", "lane": "evidence", "limit": 10, "offset": 20}
+
+
+def test_content_detail_forwards_artifact_and_case(monkeypatch):
+    captured = {}
+
+    def fake_get_content(artifact_id, **kwargs):
+        captured.update(artifact_id=artifact_id, **kwargs)
+        return {"artifact_id": artifact_id, "records": []}
+
+    monkeypatch.setattr(runtime.knowledge_service, "get_content", fake_get_content)
+    response = _client().get(
+        "/api/knowledge/contents/artifact-1",
+        params={"case_id": "matter-9"},
+    )
+
+    assert response.status_code == 200
+    assert captured == {"artifact_id": "artifact-1", "case_id": "matter-9"}
+
+
+def test_content_detail_preserves_spine_not_found(monkeypatch):
+    def fake_get_content(*args, **kwargs):
+        raise runtime.SpineError("knowledge item not found", 404)
+
+    monkeypatch.setattr(runtime.knowledge_service, "get_content", fake_get_content)
+    response = _client().get(
+        "/api/knowledge/contents/missing",
+        params={"case_id": "primary"},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "knowledge item not found"
 
 
 def test_search_rejects_unknown_lane_and_unbounded_limit():

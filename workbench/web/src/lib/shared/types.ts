@@ -575,13 +575,8 @@ export interface FlagUpdateRequest {
 }
 
 // ---------------------------------------------------------------------------
-// Knowledge (C4 — Milvus-backed search/browse, requirements sequencing §C4)
-// mirrors agno AgentOS's own built-in knowledge router
-// (agno/os/routers/knowledge/knowledge.py — POST /knowledge/search,
-// GET /knowledge/content), proxied read-only through app/service/knowledge.py
-// + app/runtime/knowledge.py. Field shapes verified against that agno source
-// directly (not the build brief's guess) — see app/service/knowledge.py's
-// module docstring for the full trace.
+// Knowledge: Weaviate projection search plus canonical PostgreSQL source,
+// chunk, metadata, and custody-provenance inspection.
 // ---------------------------------------------------------------------------
 
 /** One hit from `GET /api/knowledge/search` — mirrors agno's `VectorSearchResult`. */
@@ -607,6 +602,9 @@ export interface KnowledgePageMeta {
   total_pages: number;
   total_count: number;
   search_time_ms?: number;
+  knowledge_lane?: string;
+  case_id?: string;
+  truncated?: boolean;
 }
 
 /** `GET /api/knowledge/search` response. */
@@ -615,7 +613,7 @@ export interface KnowledgeSearchResponse {
   meta: KnowledgePageMeta;
 }
 
-/** One row of `GET /api/knowledge/contents` — mirrors agno's `ContentResponseSchema`. */
+/** One canonical source row from `GET /api/knowledge/contents`. */
 export interface KnowledgeContentRow {
   id: string;
   name?: string | null;
@@ -634,6 +632,44 @@ export interface KnowledgeContentRow {
 export interface KnowledgeContentsResponse {
   data: KnowledgeContentRow[];
   meta: KnowledgePageMeta;
+}
+
+/** One normalized PostgreSQL record/chunk belonging to a canonical source. */
+export interface KnowledgeRecord {
+  record_id: string;
+  artifact_id: string;
+  source_sha256: string;
+  source_ref: string;
+  blob_key?: string | null;
+  record_type: string;
+  source: string;
+  conversation_id?: string | null;
+  role?: string | null;
+  participants?: unknown;
+  content: string;
+  occurred_at?: string | null;
+  knowledge_time?: string | null;
+  disclosure_tier: string;
+  attrs?: Record<string, unknown> | null;
+  matter_id: string;
+  domain: string;
+  created_at: string;
+}
+
+/** Canonical item detail from `GET /api/knowledge/contents/{artifactId}`. */
+export interface KnowledgeItemDetail {
+  artifact_id: string;
+  source_sha256: string;
+  source_ref: string;
+  source_name?: string | null;
+  source_path?: string | null;
+  blob_key?: string | null;
+  matter_id: string;
+  lane?: string | null;
+  parser_id?: string | null;
+  chunker_id?: string | null;
+  record_count: number;
+  records: KnowledgeRecord[];
 }
 
 // ---------------------------------------------------------------------------

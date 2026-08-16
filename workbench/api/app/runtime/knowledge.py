@@ -1,8 +1,7 @@
 # Byline: Claude Code · Sonnet (agent) · 2026-07-23 (C4: Knowledge browser + Graphiti pane)
 # Byline: Codex · GPT-5 · 2026-08-15 (case/group-scoped browser contract)
-"""GET /api/knowledge/search, GET /api/knowledge/contents, GET
-/api/graphiti/search, GET /api/graphiti/episodes — the C4 Knowledge page's
-backend routes.
+# Byline: Codex · GPT-5 · 2026-08-16 (canonical knowledge item detail)
+"""Knowledge projection search, canonical source inspection, and Graphiti reads.
 
 Thin FastAPI wrappers over app/service/knowledge.py + app/service/graphiti.py;
 every SpineError/GraphitiError becomes an HTTPException with the upstream's
@@ -25,7 +24,7 @@ router = APIRouter(prefix="/api", tags=["knowledge"])
 
 
 # ---------------------------------------------------------------------------
-# Knowledge (Weaviate-backed, via the spine's agno AgentOS knowledge routes)
+# Knowledge search (Weaviate projection) and browse (canonical PostgreSQL)
 # ---------------------------------------------------------------------------
 
 
@@ -53,6 +52,19 @@ async def list_knowledge_contents_endpoint(
 ):
     try:
         return knowledge_service.list_contents(case_id=case_id, lane=lane, limit=limit, offset=offset)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from None
+    except SpineError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail) from None
+
+
+@router.get("/knowledge/contents/{artifact_id}")
+async def get_knowledge_content_endpoint(
+    artifact_id: str,
+    case_id: Annotated[str, Query(min_length=1, max_length=200)],
+):
+    try:
+        return knowledge_service.get_content(artifact_id, case_id=case_id)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from None
     except SpineError as e:

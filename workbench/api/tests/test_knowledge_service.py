@@ -1,4 +1,5 @@
 # Byline: Codex · GPT-5 · 2026-08-15 (case/lane-safe multi-base coverage)
+# Byline: Codex · GPT-5 · 2026-08-16 (neutral canonical catalog/detail coverage)
 """Unit coverage for the Workbench Knowledge anti-corruption adapter."""
 
 from __future__ import annotations
@@ -77,44 +78,56 @@ def test_search_rejects_unsafe_inputs(kwargs, message):
         knowledge.search(**kwargs)
 
 
-def test_list_contents_scopes_lane_and_filters_case_before_return(monkeypatch):
-    captured = []
+def test_list_contents_uses_neutral_canonical_route_and_maps_operator_metadata(monkeypatch):
+    captured = {}
 
     def fake_spine_json(method, path, **kwargs):
-        captured.append((method, path, kwargs))
-        return {
-            "data": [
-                {"id": "ours", "metadata": {"case_id": "primary"}},
-                {"id": "foreign", "metadata": {"case_id": "other"}},
-                {"id": "unscoped", "metadata": {}},
-            ],
-            "meta": {"page": 1, "total_pages": 1, "total_count": 3},
-        }
+        captured.update(method=method, path=path, kwargs=kwargs)
+        return [
+            {
+                "artifact_id": "00000000-0000-4000-8000-000000000001",
+                "source_name": "messages.xml",
+                "source_path": "/staged/messages.xml",
+                "source_sha256": "a" * 64,
+                "parser_id": "sbv.messages",
+                "chunker_id": "chonkie.semantic@1.7.0",
+                "lane": "evidence",
+                "matter_id": "matter-7",
+                "record_count": 12,
+                "created_at": "2026-08-16T12:00:00Z",
+            }
+        ]
 
     monkeypatch.setattr(knowledge, "spine_json", fake_spine_json)
-    result = knowledge.list_contents(case_id="primary", lane="evidence", limit=20, offset=0)
+    result = knowledge.list_contents(case_id="matter-7", lane="evidence", limit=20, offset=0)
 
-    assert captured[0][0:2] == ("GET", "/knowledge/content")
-    assert captured[0][2]["params"] == {
-        "limit": 200,
-        "page": 1,
-        "knowledge_id": knowledge._knowledge_id("evidence"),
+    assert captured == {
+        "method": "GET",
+        "path": "/v1/knowledge/items",
+        "kwargs": {"params": {"matter_id": "matter-7", "lane": "evidence", "limit": 500}},
     }
-    assert [row["id"] for row in result["data"]] == ["ours"]
-    assert result["data"][0]["metadata"]["knowledge_lane"] == "evidence"
+    row = result["data"][0]
+    assert row["name"] == "messages.xml"
+    assert row["metadata"] == {
+        "matter_id": "matter-7",
+        "case_id": "matter-7",
+        "knowledge_lane": "evidence",
+        "source_path": "/staged/messages.xml",
+        "parser_id": "sbv.messages",
+        "chunker_id": "chonkie.semantic@1.7.0",
+        "source_sha256": "a" * 64,
+        "record_count": 12,
+    }
     assert result["meta"]["total_count"] == 1
     assert result["meta"]["truncated"] is False
 
 
-def test_list_contents_scans_pages_then_paginates_visible_rows(monkeypatch):
+def test_list_contents_paginates_neutral_results(monkeypatch):
     def fake_spine_json(method, path, **kwargs):
-        page = kwargs["params"]["page"]
-        rows = (
-            [{"id": "a", "metadata": {"case_id": "primary"}}, {"id": "x", "metadata": {"case_id": "other"}}]
-            if page == 1
-            else [{"id": "b", "metadata": {"case_id": "primary"}}]
-        )
-        return {"data": rows, "meta": {"page": page, "total_pages": 2, "total_count": 3}}
+        return [
+            {"artifact_id": "a", "matter_id": "primary", "lane": "context"},
+            {"artifact_id": "b", "matter_id": "primary", "lane": "context"},
+        ]
 
     monkeypatch.setattr(knowledge, "spine_json", fake_spine_json)
     result = knowledge.list_contents(case_id="primary", lane="context", limit=1, offset=1)
@@ -122,6 +135,46 @@ def test_list_contents_scans_pages_then_paginates_visible_rows(monkeypatch):
     assert [row["id"] for row in result["data"]] == ["b"]
     assert result["meta"]["total_count"] == 2
     assert result["meta"]["page"] == 2
+
+
+def test_get_content_forwards_matter_scope_and_enriches_from_record_attrs(monkeypatch):
+    captured = {}
+
+    def fake_spine_json(method, path, **kwargs):
+        captured.update(method=method, path=path, kwargs=kwargs)
+        return {
+            "artifact_id": "artifact-1",
+            "source_sha256": "b" * 64,
+            "source_ref": "custody/messages.xml",
+            "matter_id": "matter-9",
+            "record_count": 1,
+            "records": [
+                {
+                    "record_id": "record-1",
+                    "domain": "evidence",
+                    "attrs": {
+                        "source_name": "messages.xml",
+                        "source_path": "/staged/messages.xml",
+                        "parser_id": "sbv.messages",
+                        "chunker_id": "chonkie.semantic@1.7.0",
+                        "lane": "evidence",
+                    },
+                }
+            ],
+        }
+
+    monkeypatch.setattr(knowledge, "spine_json", fake_spine_json)
+    result = knowledge.get_content("artifact-1", case_id="matter-9")
+
+    assert captured == {
+        "method": "GET",
+        "path": "/v1/knowledge/items/artifact-1",
+        "kwargs": {"params": {"matter_id": "matter-9"}},
+    }
+    assert result["source_name"] == "messages.xml"
+    assert result["parser_id"] == "sbv.messages"
+    assert result["chunker_id"] == "chonkie.semantic@1.7.0"
+    assert result["lane"] == "evidence"
 
 
 @pytest.mark.parametrize(

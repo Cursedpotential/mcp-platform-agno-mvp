@@ -1,8 +1,9 @@
 // Byline: Codex · GPT-5 · 2026-08-15 (case-scoped Knowledge MVP)
+// Byline: Codex · GPT-5 · 2026-08-16 (canonical source/chunk inspector)
 "use client";
 
 import { FormEvent, useState } from "react";
-import { BookOpen, Brain, Database, Loader2, Search } from "lucide-react";
+import { BookOpen, Brain, Database, Eye, Loader2, Search } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -18,8 +19,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AddToCaseDialog } from "@/components/matters/add-to-case-dialog";
+import { KnowledgeItemDrawer } from "@/components/knowledge/knowledge-item-drawer";
 import {
   ApiError,
+  getKnowledgeContent,
   listGraphitiEpisodes,
   listKnowledgeContents,
   searchGraphitiFacts,
@@ -32,6 +35,7 @@ import type {
   GraphitiNode,
   EvidencePromotionResult,
   KnowledgeContentRow,
+  KnowledgeItemDetail,
   KnowledgeLane,
   KnowledgeSearchHit,
   KnowledgeSourceRef,
@@ -122,6 +126,9 @@ export function KnowledgeBrowser({ matterContext }: KnowledgeBrowserProps = {}) 
   const [contents, setContents] = useState<KnowledgeContentRow[]>([]);
   const [contentOffset, setContentOffset] = useState(0);
   const [contentTotal, setContentTotal] = useState(0);
+  const [contentDetail, setContentDetail] = useState<KnowledgeItemDetail | null>(null);
+  const [contentDetailLoading, setContentDetailLoading] = useState(false);
+  const [contentDetailOpen, setContentDetailOpen] = useState(false);
 
   const [memoryKind, setMemoryKind] = useState<MemoryKind>("facts");
   const [facts, setFacts] = useState<GraphitiFact[]>([]);
@@ -162,7 +169,26 @@ export function KnowledgeBrowser({ matterContext }: KnowledgeBrowserProps = {}) 
     }
   }
 
-  async function runCanonicalSearch(event?: FormEvent) {
+  async function openContent(row: KnowledgeContentRow) {
+    const selectedCase = activePartition.trim();
+    if (!selectedCase) {
+      toast.error("Case ID is required");
+      return;
+    }
+    setContentDetail(null);
+    setContentDetailOpen(true);
+    setContentDetailLoading(true);
+    try {
+      setContentDetail(await getKnowledgeContent(row.id, selectedCase));
+    } catch (error) {
+      setContentDetailOpen(false);
+      toast.error(errorMessage(error, "Failed to load canonical records"));
+    } finally {
+      setContentDetailLoading(false);
+    }
+  }
+
+  async function runProjectionSearch(event?: FormEvent) {
     event?.preventDefault();
     if (!query.trim()) {
       toast.error("Enter a knowledge question or search phrase");
@@ -242,7 +268,7 @@ export function KnowledgeBrowser({ matterContext }: KnowledgeBrowserProps = {}) 
           variant={view === "search" ? "default" : "outline"}
           onClick={() => setView("search")}
         >
-          <Search /> Search
+          <Search /> Projection search
         </Button>
         <Button
           id="knowledge-contents-tab"
@@ -270,7 +296,7 @@ export function KnowledgeBrowser({ matterContext }: KnowledgeBrowserProps = {}) 
 
       {matterContext && (
         <aside className="rounded-md border border-blue-300 bg-blue-50 p-3 text-sm text-blue-950">
-          <strong>Matter-bound canonical Knowledge.</strong> Searches are prefiltered to partition <code>{activePartition}</code>.
+          <strong>Matter-bound knowledge projection.</strong> Searches are prefiltered to partition <code>{activePartition}</code> before vector ranking.
           Graphiti belief memory is separate agent state and is not queried, displayed, or promoted from this pane.
         </aside>
       )}
@@ -283,15 +309,15 @@ export function KnowledgeBrowser({ matterContext }: KnowledgeBrowserProps = {}) 
           aria-busy={loading}
         >
           <CardHeader>
-            <CardTitle>Canonical case knowledge</CardTitle>
+            <CardTitle>Weaviate projection search</CardTitle>
             <CardDescription>
               {matterContext
-                ? "Results are prefiltered to this Matter's explicit Knowledge partition before vector ranking. Evidence promotion remains custody-gated."
-                : "Results are prefiltered by case before vector ranking. Choose a lane only when you want to narrow the corpus."}
+                ? "Projection results are prefiltered to this Matter's explicit Knowledge partition before vector ranking. PostgreSQL remains canonical and evidence promotion remains custody-gated."
+                : "This is supplemental vector recall, not the authored store. Results are prefiltered by case before ranking; choose a lane to narrow the projection."}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
-            <form className={`grid gap-3 lg:items-end ${matterContext ? "lg:grid-cols-[13rem_13rem_1fr_auto]" : "lg:grid-cols-[12rem_13rem_1fr_auto]"}`} onSubmit={runCanonicalSearch}>
+            <form className={`grid gap-3 lg:items-end ${matterContext ? "lg:grid-cols-[13rem_13rem_1fr_auto]" : "lg:grid-cols-[12rem_13rem_1fr_auto]"}`} onSubmit={runProjectionSearch}>
               {matterContext ? (
                 <div className="space-y-1">
                   <Label>Knowledge scope</Label>
@@ -387,7 +413,7 @@ export function KnowledgeBrowser({ matterContext }: KnowledgeBrowserProps = {}) 
           <CardHeader>
             <CardTitle>Knowledge sources</CardTitle>
             <CardDescription>
-              AgentOS content catalog. This lists ingested sources; it is not a horizon-filtered agent context.
+              Canonical PostgreSQL sources from the framework-neutral ingest port. Open a source to inspect chunks, provenance, parser, chunker, and raw metadata.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -407,6 +433,8 @@ export function KnowledgeBrowser({ matterContext }: KnowledgeBrowserProps = {}) 
                     setCaseId(event.target.value);
                     setContents([]);
                     setContentTotal(0);
+                    setContentDetail(null);
+                    setContentDetailOpen(false);
                   }}
                 />
               </div>
@@ -421,6 +449,8 @@ export function KnowledgeBrowser({ matterContext }: KnowledgeBrowserProps = {}) 
                     setLane(event.target.value);
                     setContents([]);
                     setContentTotal(0);
+                    setContentDetail(null);
+                    setContentDetailOpen(false);
                   }}
                 >
                   <option value="">Select a lane</option>
@@ -441,14 +471,29 @@ export function KnowledgeBrowser({ matterContext }: KnowledgeBrowserProps = {}) 
             ) : (
               <div className="divide-y rounded-lg border">
                 {contents.map((row) => (
-                  <div key={row.id} className="space-y-1 p-4">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium">{row.name || row.id}</span>
-                      {row.type && <Badge variant="outline">{row.type}</Badge>}
-                      {row.status && <Badge variant={row.status === "completed" ? "secondary" : "outline"}>{row.status}</Badge>}
+                  <div key={row.id} className="space-y-2 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium">{row.name || row.id}</span>
+                        {row.type && <Badge variant="outline">{row.type}</Badge>}
+                        {row.status && <Badge variant={row.status === "completed" ? "secondary" : "outline"}>{row.status}</Badge>}
+                      </div>
+                      <Button type="button" size="sm" variant="outline" onClick={() => void openContent(row)}>
+                        <Eye className="size-4" aria-hidden="true" /> Inspect chunks
+                      </Button>
                     </div>
                     {row.description && <p className="text-sm text-muted-foreground">{row.description}</p>}
-                    <div className="flex flex-wrap gap-2">{metadataBadges(row.metadata)}</div>
+                    <div className="flex flex-wrap gap-2">
+                      {metadataBadges(row.metadata)}
+                      {row.metadata?.parser_id !== undefined && row.metadata.parser_id !== null && <Badge variant="secondary">parser: {String(row.metadata.parser_id)}</Badge>}
+                      {row.metadata?.chunker_id !== undefined && row.metadata.chunker_id !== null && <Badge variant="secondary">chunker: {String(row.metadata.chunker_id)}</Badge>}
+                      {row.metadata?.record_count !== undefined && <Badge variant="outline">{String(row.metadata.record_count)} records/chunks</Badge>}
+                    </div>
+                    {row.metadata?.source_sha256 !== undefined && row.metadata.source_sha256 !== null && (
+                      <p className="break-all font-mono text-xs text-muted-foreground">
+                        SHA-256 {String(row.metadata.source_sha256)}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -547,6 +592,16 @@ export function KnowledgeBrowser({ matterContext }: KnowledgeBrowserProps = {}) 
           </CardContent>
         </Card>
       )}
+
+      <KnowledgeItemDrawer
+        detail={contentDetail}
+        loading={contentDetailLoading}
+        open={contentDetailOpen}
+        onOpenChange={(open) => {
+          setContentDetailOpen(open);
+          if (!open && !contentDetailLoading) setContentDetail(null);
+        }}
+      />
     </div>
   );
 }
