@@ -41,6 +41,7 @@ def _receipt(request: IngestRequest) -> IngestReceipt:
 def test_upload_route_stages_safely_and_returns_compatible_receipt(tmp_path, monkeypatch) -> None:
     seen: list[IngestRequest] = []
     monkeypatch.setenv("INGEST_STAGING_ROOT", str(tmp_path))
+    monkeypatch.setenv("OS_SECURITY_KEY", "test-ingest-key")
 
     async def fake_submit(request: IngestRequest):
         seen.append(request)
@@ -57,6 +58,7 @@ def test_upload_route_stages_safely_and_returns_compatible_receipt(tmp_path, mon
             "matter_id": "matter-a",
             "source_identity": '{"doc_type":"brief"}',
         },
+        headers={"Authorization": "Bearer test-ingest-key"},
     )
 
     assert response.status_code == 202
@@ -71,14 +73,33 @@ def test_upload_route_stages_safely_and_returns_compatible_receipt(tmp_path, mon
 
 def test_upload_route_rejects_non_object_source_identity(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("INGEST_STAGING_ROOT", str(tmp_path))
+    monkeypatch.setenv("OS_SECURITY_KEY", "test-ingest-key")
     app = FastAPI()
     ingest_routes.register_ingest_routes(app)
     response = TestClient(app).post(
         "/v1/ingest",
         files={"file": ("knowledge.md", b"canonical", "text/markdown")},
         data={"source_identity": "[]"},
+        headers={"Authorization": "Bearer test-ingest-key"},
     )
     assert response.status_code == 422
+
+
+def test_ingest_and_knowledge_routes_fail_closed_without_bearer(monkeypatch) -> None:
+    monkeypatch.setenv("OS_SECURITY_KEY", "test-ingest-key")
+    app = FastAPI()
+    ingest_routes.register_ingest_routes(app)
+    client = TestClient(app)
+    assert client.post("/v1/ingest").status_code == 401
+    assert client.get("/v1/knowledge/items").status_code == 401
+
+
+def test_ingest_routes_fail_closed_when_key_is_unconfigured(monkeypatch) -> None:
+    monkeypatch.delenv("OS_SECURITY_KEY", raising=False)
+    app = FastAPI()
+    ingest_routes.register_ingest_routes(app)
+    response = TestClient(app).get("/v1/knowledge/items", headers={"Authorization": "Bearer anything"})
+    assert response.status_code == 503
 
 
 def test_async_submission_reserves_receipt_before_worker(tmp_path, monkeypatch) -> None:

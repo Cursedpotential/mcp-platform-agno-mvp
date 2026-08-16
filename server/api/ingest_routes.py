@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import secrets
 from os import getenv
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,21 @@ from server.ingest.service import IngestError, PostgresReceiptJournal, ingest_fi
 
 _MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 _INGEST_TASKS: set[asyncio.Task[None]] = set()
+
+
+def _authorize(request: Request) -> None:
+    expected = getenv("OS_SECURITY_KEY", "")
+    if not expected:
+        raise HTTPException(503, "ingest authorization is not configured")
+    scheme, separator, credential = request.headers.get("authorization", "").partition(" ")
+    valid = bool(
+        separator
+        and scheme.lower() == "bearer"
+        and credential
+        and secrets.compare_digest(credential.encode("utf-8"), expected.encode("utf-8"))
+    )
+    if not valid:
+        raise HTTPException(401, "authentication required", headers={"WWW-Authenticate": "Bearer"})
 
 
 def _staging_root() -> Path:
@@ -86,6 +102,7 @@ async def _submit_ingest(payload: IngestRequest) -> str:
 def register_ingest_routes(app: FastAPI) -> None:
     @app.post("/v1/ingest", status_code=202)
     async def ingest_upload(request: Request) -> dict[str, Any]:
+        _authorize(request)
         form = await request.form()
         upload = form.get("file")
         if upload is None or not hasattr(upload, "read"):
@@ -118,7 +135,8 @@ def register_ingest_routes(app: FastAPI) -> None:
         }
 
     @app.post("/v1/ingest/path", status_code=201)
-    async def ingest_staged_path(payload: IngestRequest) -> dict[str, Any]:
+    async def ingest_staged_path(payload: IngestRequest, request: Request) -> dict[str, Any]:
+        _authorize(request)
         try:
             receipt = await asyncio.to_thread(ingest_file, payload)
         except (FileNotFoundError, IngestError) as error:
@@ -132,8 +150,9 @@ def register_ingest_routes(app: FastAPI) -> None:
 
     @app.get("/v1/knowledge/items")
     async def knowledge_items(
-        matter_id: str = "primary", lane: IngestLane | None = None, limit: int = 100
+        request: Request, matter_id: str = "primary", lane: IngestLane | None = None, limit: int = 100
     ) -> list[dict[str, Any]]:
+        _authorize(request)
         if not 1 <= limit <= 500:
             raise HTTPException(422, "limit must be between 1 and 500")
         from server.ingest.query import list_items
@@ -141,7 +160,8 @@ def register_ingest_routes(app: FastAPI) -> None:
         return await asyncio.to_thread(list_items, matter_id=matter_id, lane=lane, limit=limit)
 
     @app.get("/v1/knowledge/items/{artifact_id}")
-    async def knowledge_item(artifact_id: str, matter_id: str = "primary") -> dict[str, Any]:
+    async def knowledge_item(artifact_id: str, request: Request, matter_id: str = "primary") -> dict[str, Any]:
+        _authorize(request)
         from server.ingest.query import get_item
 
         item = await asyncio.to_thread(get_item, artifact_id, matter_id=matter_id)
