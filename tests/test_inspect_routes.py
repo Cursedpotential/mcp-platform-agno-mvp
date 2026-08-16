@@ -1,5 +1,5 @@
 """Unit tests for server/api/inspect_routes.py — the C3 operator-console
-inspectors + curation routes (records browser, PG/Milvus schema introspection,
+inspectors + curation routes (records browser, PG/Weaviate schema introspection,
 hash verify + H1/H2/H3 chain-walk, parse-dryrun, record/flag curation).
 
 Same style as tests/test_run_ledger.py and tests/test_custody.py: a fake
@@ -8,6 +8,7 @@ route-level contracts, and monkeypatched registry/run_ledger collaborators
 for parse-dryrun so no real parser/tool-registry state is required.
 """
 # Byline: Claude Code · Sonnet (agent) · 2026-07-22
+# Byline: Codex · GPT-5 · 2026-08-16 (read-only Data Explorer coverage)
 
 from __future__ import annotations
 
@@ -304,6 +305,52 @@ def test_inspect_pg_schemas_estimate_for_large_tables(monkeypatch):
     assert len(fake.calls) == 2  # no third (exact count) call
 
 
+def test_inspect_pg_table_validates_catalog_then_returns_bounded_samples(monkeypatch):
+    columns = [
+        {
+            "column_name": "digest",
+            "data_type": "bytea",
+            "udt_name": "bytea",
+            "is_nullable": "NO",
+            "column_default": None,
+            "ordinal_position": 1,
+        }
+    ]
+    indexes = [{"indexname": "evidence_hash_pkey", "indexdef": "CREATE UNIQUE INDEX ..."}]
+    samples = [{"digest": bytes(range(256)) + b"extra", "meta": {"lane": "evidence"}}]
+    fake = _FakeEngine([True, columns, indexes, samples])
+    monkeypatch.setattr(inspect_routes, "_get_engine", lambda: fake)
+
+    out = inspect_routes._inspect_pg_table("evidence", "evidence_hash", limit=3)
+
+    assert out["schema"] == "evidence"
+    assert out["columns"][0] == {
+        "name": "digest",
+        "type": "bytea",
+        "database_type": "bytea",
+        "nullable": False,
+        "default": None,
+        "position": 1,
+    }
+    assert out["indexes"][0]["name"] == "evidence_hash_pkey"
+    assert out["rows"][0]["digest"]["encoding"] == "hex"
+    assert out["rows"][0]["digest"]["truncated"] is True
+    assert 'SELECT * FROM "evidence"."evidence_hash" LIMIT' in fake.calls[3][0]
+    assert fake.calls[3][1] == {"limit": 3}
+
+
+def test_inspect_pg_table_rejects_unapproved_schema_before_query(monkeypatch):
+    monkeypatch.setattr(inspect_routes, "_get_engine", lambda: (_ for _ in ()).throw(AssertionError("queried")))
+    with pytest.raises(inspect_routes.HTTPException) as exc:
+        inspect_routes._inspect_pg_table("public", "users", limit=5)
+    assert exc.value.status_code == 422
+
+
+def test_preview_value_bounds_text_and_json():
+    assert inspect_routes._preview_value("x" * 3000)["truncated"] is True
+    assert inspect_routes._preview_value({"content": "x" * 3000})["truncated"] is True
+
+
 def test_inspect_weaviate_collections_guards_failures(monkeypatch):
     # Force the "no knowledge instance -> build a fresh Weaviate client" path
     # to fail deterministically (this sandbox's network may or may not actually
@@ -358,7 +405,69 @@ def test_inspect_weaviate_collections_happy_path():
 
     out = inspect_routes._inspect_weaviate_collections(_FakeKnowledge())
 
-    assert out == [{"name": "Platform_knowledge", "fields": [{"name": "content", "type": "TEXT"}], "num_entities": 7}]
+    assert out == [
+        {
+            "name": "Platform_knowledge",
+            "description": None,
+            "fields": [
+                {
+                    "name": "content",
+                    "type": "TEXT",
+                    "index_filterable": None,
+                    "index_searchable": None,
+                }
+            ],
+            "num_entities": 7,
+            "vectorizer": None,
+            "vector_index_type": None,
+            "vector_index_config": None,
+            "named_vectors": None,
+        }
+    ]
+
+
+def test_inspect_weaviate_objects_returns_dimensions_and_short_preview():
+    class _Object:
+        uuid = "00000000-0000-4000-8000-000000000001"
+        properties = {"case_id": "primary", "content": "bounded"}
+        vector = {"default": [float(i) for i in range(32)]}
+
+    class _Result:
+        objects = [_Object()]
+
+    class _Query:
+        def fetch_objects(self, **kwargs):
+            assert kwargs == {"limit": 2, "include_vector": True}
+            return _Result()
+
+    class _Handle:
+        query = _Query()
+
+    class _Collections:
+        def list_all(self, simple=True):
+            return {"Platform_knowledge": object()}
+
+        def get(self, name):
+            assert name == "Platform_knowledge"
+            return _Handle()
+
+    class _Client:
+        collections = _Collections()
+
+    class _VectorDb:
+        def get_client(self):
+            return _Client()
+
+    class _Knowledge:
+        vector_db = _VectorDb()
+
+    out = inspect_routes._inspect_weaviate_objects(_Knowledge(), "Platform_knowledge", limit=2)
+
+    vector = out["objects"][0]["vectors"][0]
+    assert vector["name"] == "default"
+    assert vector["dimensions"] == 32
+    assert vector["preview"] == [float(i) for i in range(16)]
+    assert vector["truncated"] is True
 
 
 # =============================================================================

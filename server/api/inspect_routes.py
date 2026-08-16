@@ -3,7 +3,7 @@
 
 Registered on the base FastAPI app the same way run_routes.py/evidence_routes.py
 are (base_app pattern, server/api/main.py's `_build_app`). Read paths hit
-Postgres/Milvus directly and cheaply; write paths are analysis-lane ONLY —
+PostgreSQL/Weaviate directly and cheaply; write paths are analysis-lane ONLY —
 evidence blobs/hashes (evidence.evidence_hash, evidence.source,
 evidence.custody_event) are never mutated here, matching custody.py's
 sole-writer guarantee (this module never imports anything that writes to the
@@ -12,8 +12,10 @@ sole-writer guarantee (this module never imports anything that writes to the
 Routes:
   GET   /v1/records                        — paged working.normalized_record
                                               browser (addendum 1).
-  GET   /v1/inspect/schemas                 — live PG table/column + Milvus
+  GET   /v1/inspect/schemas                 — live PG table/column + Weaviate
                                               collection introspection.
+  GET   /v1/inspect/tables/{schema}/{table} — bounded PG row/field previews.
+  GET   /v1/inspect/weaviate/{collection}   — bounded vector/property previews.
   POST  /v1/verify/{sha256}                 — two-tier hash verification,
                                               full-tier H1/H2/H3 chain walk
                                               (addendum 2).
@@ -32,6 +34,7 @@ Routes:
                                               lifecycle, per addendum 6).
 """
 # Byline: Claude Code · Sonnet (agent) · 2026-07-22
+# Byline: Codex · GPT-5 · 2026-08-16 (read-only Data Explorer contracts)
 
 from __future__ import annotations
 
@@ -67,6 +70,11 @@ _CAPABILITY_FOR_WORKFLOW = {
 # vacuumed/analyzed table even when it has rows).
 _EXACT_COUNT_THRESHOLD = 100_000
 _INSPECT_SCHEMAS = ("evidence", "working", "analysis", "reference", "ops")
+_TABLE_SAMPLE_MAX = 25
+_CELL_PREVIEW_CHARS = 2_000
+_BINARY_PREVIEW_BYTES = 256
+_VECTOR_SAMPLE_MAX = 10
+_VECTOR_PREVIEW_VALUES = 16
 
 # GET /v1/records' `text` field (task spec's name; the actual DB column is
 # `content` — see the docstring on `_row_to_record` for the rename decision).
@@ -119,6 +127,43 @@ def _jsonb(value: Any) -> Any:
     if isinstance(value, (dict, list)):
         return value
     return json.loads(value)
+
+
+def _preview_value(value: Any) -> Any:
+    """Return a bounded JSON-safe representation for an operator row preview."""
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    if isinstance(value, memoryview):
+        value = value.tobytes()
+    if isinstance(value, bytes):
+        return {
+            "encoding": "hex",
+            "byte_length": len(value),
+            "preview": value[:_BINARY_PREVIEW_BYTES].hex(),
+            "truncated": len(value) > _BINARY_PREVIEW_BYTES,
+        }
+    if isinstance(value, str):
+        if len(value) <= _CELL_PREVIEW_CHARS:
+            return value
+        return {
+            "preview": value[:_CELL_PREVIEW_CHARS],
+            "character_length": len(value),
+            "truncated": True,
+        }
+    if isinstance(value, (dict, list, tuple)):
+        serialized = json.dumps(value, default=str, ensure_ascii=False)
+        if len(serialized) <= _CELL_PREVIEW_CHARS:
+            return json.loads(serialized)
+        return {
+            "preview": serialized[:_CELL_PREVIEW_CHARS],
+            "character_length": len(serialized),
+            "truncated": True,
+        }
+    return str(value)
+
+
+def _quote_identifier(value: str) -> str:
+    return '"' + value.replace('"', '""') + '"'
 
 
 # =============================================================================
@@ -237,7 +282,7 @@ def _register_records_routes(app: FastAPI) -> None:
 
 
 # =============================================================================
-# GET /v1/inspect/schemas — live PG table/column + Milvus collection
+# GET /v1/inspect/schemas — live PG table/column + Weaviate collection
 # introspection
 # =============================================================================
 
@@ -286,7 +331,8 @@ def _inspect_pg_schemas() -> dict[str, Any]:
                 # Exact count for small tables (task spec) — reltuples is
                 # only an ANALYZE-time estimate (can read 0 on a table that
                 # genuinely has rows but was never vacuumed/analyzed).
-                exact = conn.execute(text(f'SELECT count(*) FROM "{schema}"."{table_name}"')).scalar()
+                qualified = f"{_quote_identifier(schema)}.{_quote_identifier(table_name)}"
+                exact = conn.execute(text(f"SELECT count(*) FROM {qualified}")).scalar()
                 row_count = exact or 0
                 is_estimate = False
             out.setdefault(schema, []).append(
@@ -300,33 +346,178 @@ def _inspect_pg_schemas() -> dict[str, Any]:
     return out
 
 
+def _inspect_pg_table(schema: str, table_name: str, *, limit: int) -> dict[str, Any]:
+    """Inspect one allowlisted table after resolving its exact catalog identity."""
+    if schema not in _INSPECT_SCHEMAS:
+        raise HTTPException(422, f"schema must be one of {list(_INSPECT_SCHEMAS)}")
+    if not 1 <= limit <= _TABLE_SAMPLE_MAX:
+        raise HTTPException(422, f"limit must be between 1 and {_TABLE_SAMPLE_MAX}")
+
+    with _get_engine().connect() as conn:
+        exists = conn.execute(
+            text(
+                "SELECT EXISTS ("
+                "SELECT 1 FROM information_schema.tables "
+                "WHERE table_schema = :schema AND table_name = :table_name AND table_type = 'BASE TABLE'"
+                ")"
+            ),
+            {"schema": schema, "table_name": table_name},
+        ).scalar()
+        if not exists:
+            raise HTTPException(404, f"table {schema}.{table_name} not found")
+
+        columns = (
+            conn.execute(
+                text(
+                    "SELECT column_name, data_type, udt_name, is_nullable, column_default, ordinal_position "
+                    "FROM information_schema.columns "
+                    "WHERE table_schema = :schema AND table_name = :table_name "
+                    "ORDER BY ordinal_position"
+                ),
+                {"schema": schema, "table_name": table_name},
+            )
+            .mappings()
+            .all()
+        )
+        indexes = (
+            conn.execute(
+                text(
+                    "SELECT indexname, indexdef FROM pg_indexes "
+                    "WHERE schemaname = :schema AND tablename = :table_name ORDER BY indexname"
+                ),
+                {"schema": schema, "table_name": table_name},
+            )
+            .mappings()
+            .all()
+        )
+        qualified = f"{_quote_identifier(schema)}.{_quote_identifier(table_name)}"
+        samples = conn.execute(text(f"SELECT * FROM {qualified} LIMIT :limit"), {"limit": limit}).mappings().all()
+
+    return {
+        "schema": schema,
+        "table": table_name,
+        "limit": limit,
+        "columns": [
+            {
+                "name": row["column_name"],
+                "type": row["data_type"],
+                "database_type": row["udt_name"],
+                "nullable": row["is_nullable"] == "YES",
+                "default": row["column_default"],
+                "position": row["ordinal_position"],
+            }
+            for row in columns
+        ],
+        "indexes": [{"name": row["indexname"], "definition": row["indexdef"]} for row in indexes],
+        "rows": [{key: _preview_value(value) for key, value in row.items()} for row in samples],
+    }
+
+
+def _weaviate_client(knowledge: Any) -> Any:
+    client = None
+    vector_db = getattr(knowledge, "vector_db", None) if knowledge is not None else None
+    if vector_db is not None and getattr(vector_db, "get_client", None) is not None:
+        client = vector_db.get_client()
+    if client is None:
+        from server.core.session import get_weaviate_client
+
+        client = get_weaviate_client()
+    return client
+
+
+def _collection_configs(client: Any, *, detailed: bool) -> dict[str, Any]:
+    try:
+        return client.collections.list_all(simple=not detailed)
+    except TypeError:
+        # Compatibility with older/fake clients whose list_all had no simple flag.
+        return client.collections.list_all()
+
+
 def _inspect_weaviate_collections(knowledge: Any) -> Any:
     """Guarded (task spec: "guard failures -> {"error"}") — returns a list of
     {name, fields, num_entities} on success, or {"error": str} on any failure
     (Weaviate down, collection introspection error, missing client).
     ADR-0040 cutover 2026-07-29: inspects Weaviate, not Milvus."""
     try:
-        client = None
-        vector_db = getattr(knowledge, "vector_db", None) if knowledge is not None else None
-        if vector_db is not None and getattr(vector_db, "get_client", None) is not None:
-            client = vector_db.get_client()
-        if client is None:
-            from server.core.session import get_weaviate_client
-
-            client = get_weaviate_client()
+        client = _weaviate_client(knowledge)
 
         collections = []
-        for name, cfg in client.collections.list_all().items():
-            fields = [{"name": p.name, "type": str(p.data_type)} for p in (cfg.properties or [])]
+        for name, cfg in _collection_configs(client, detailed=True).items():
+            fields = [
+                {
+                    "name": p.name,
+                    "type": str(p.data_type),
+                    "index_filterable": getattr(p, "index_filterable", None),
+                    "index_searchable": getattr(p, "index_searchable", None),
+                }
+                for p in (cfg.properties or [])
+            ]
             try:
                 agg = client.collections.get(name).aggregate.over_all(total_count=True)
                 num_entities = agg.total_count
             except Exception:
                 num_entities = None
-            collections.append({"name": name, "fields": fields, "num_entities": num_entities})
+            raw = cfg.to_dict() if callable(getattr(cfg, "to_dict", None)) else {}
+            collections.append(
+                {
+                    "name": name,
+                    "description": getattr(cfg, "description", None),
+                    "fields": fields,
+                    "num_entities": num_entities,
+                    "vectorizer": raw.get("vectorizer") or getattr(cfg, "vectorizer", None),
+                    "vector_index_type": raw.get("vectorIndexType")
+                    or str(getattr(cfg, "vector_index_type", "") or "")
+                    or None,
+                    "vector_index_config": raw.get("vectorIndexConfig"),
+                    "named_vectors": raw.get("vectorConfig"),
+                }
+            )
         return collections
     except Exception as exc:
         return {"error": str(exc)[:300]}
+
+
+def _vector_previews(vector: Any) -> list[dict[str, Any]]:
+    values_by_name = vector if isinstance(vector, dict) else {"default": vector}
+    previews = []
+    for name, values in values_by_name.items():
+        if not isinstance(values, (list, tuple)):
+            continue
+        previews.append(
+            {
+                "name": str(name),
+                "dimensions": len(values),
+                "preview": [float(value) for value in values[:_VECTOR_PREVIEW_VALUES]],
+                "truncated": len(values) > _VECTOR_PREVIEW_VALUES,
+            }
+        )
+    return previews
+
+
+def _inspect_weaviate_objects(knowledge: Any, collection_name: str, *, limit: int) -> dict[str, Any]:
+    """Return bounded object metadata and short vector previews for one collection."""
+    if not 1 <= limit <= _VECTOR_SAMPLE_MAX:
+        raise HTTPException(422, f"limit must be between 1 and {_VECTOR_SAMPLE_MAX}")
+    try:
+        client = _weaviate_client(knowledge)
+        configs = _collection_configs(client, detailed=False)
+        if collection_name not in configs:
+            raise HTTPException(404, f"Weaviate collection {collection_name!r} not found")
+        result = client.collections.get(collection_name).query.fetch_objects(limit=limit, include_vector=True)
+        objects = []
+        for item in result.objects:
+            objects.append(
+                {
+                    "uuid": str(item.uuid),
+                    "properties": _preview_value(dict(item.properties or {})),
+                    "vectors": _vector_previews(item.vector),
+                }
+            )
+        return {"collection": collection_name, "limit": limit, "objects": objects}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(503, f"Weaviate inspection failed: {str(exc)[:300]}") from None
 
 
 def _register_schemas_route(app: FastAPI, knowledge: Any) -> None:
@@ -336,8 +527,16 @@ def _register_schemas_route(app: FastAPI, knowledge: Any) -> None:
         return {
             "pg": _inspect_pg_schemas(),
             "weaviate": vector,
-            "milvus": vector,  # deprecated alias (ADR-0040 cutover) — until workbench schemas-view reads "weaviate"
+            "milvus": vector,  # deprecated compatibility alias (ADR-0040 cutover)
         }
+
+    @app.get("/v1/inspect/tables/{schema}/{table_name}")
+    async def inspect_table(schema: str, table_name: str, limit: int = Query(5, ge=1, le=_TABLE_SAMPLE_MAX)):
+        return _inspect_pg_table(schema, table_name, limit=limit)
+
+    @app.get("/v1/inspect/weaviate/{collection_name}")
+    async def inspect_weaviate_collection(collection_name: str, limit: int = Query(5, ge=1, le=_VECTOR_SAMPLE_MAX)):
+        return _inspect_weaviate_objects(resolve_knowledge(knowledge), collection_name, limit=limit)
 
 
 # =============================================================================
@@ -810,9 +1009,9 @@ def register_inspect_routes(app: FastAPI, knowledge: Any) -> None:
         The FastAPI application instance (base app, pre-AgentOS wrap).
     knowledge:
         Agno Knowledge instance (or a `server.core.knowledge_handle.
-        KnowledgeHandle`, C3 addendum 9) — used ONLY by GET
-        /v1/inspect/schemas' Milvus introspection, resolved fresh per
-        request via `resolve_knowledge()`.
+        KnowledgeHandle`, C3 addendum 9) — used only by the Weaviate
+        collection/vector inspection routes and resolved fresh per request
+        via `resolve_knowledge()`.
     """
     _register_records_routes(app)
     _register_schemas_route(app, knowledge)

@@ -1,4 +1,5 @@
 # Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: record browser, schema views, hash verify)
+# Byline: Codex · GPT-5 · 2026-08-16 (neutral Data Explorer detail proxies)
 """Records / Schemas / Verify — C3 read+curate proxies to the spine.
 
 Thin bearer-authed passthroughs to the console/c3-spine's own HTTP API (a
@@ -10,12 +11,14 @@ module docstring):
   record browser (parse-quality review — requirements addendum 1).
 - `PATCH /v1/records/{id}/meta` -> curation edits (title/labels/attrs_patch;
   analysis-lane metadata ONLY, never evidence blobs — addendum 3).
-- `GET /v1/inspect/schemas` -> raw PG (evidence/analysis table+row counts)
-  and Milvus (collections/entities/dims) schema views.
+- `GET /v1/inspect/schemas` -> raw PG schema/table/row counts and Weaviate
+  collection/index metadata.
+- `GET /v1/inspect/tables/{schema}/{table}` -> bounded row/field/index preview.
+- `GET /v1/inspect/weaviate/{collection}` -> bounded vector/property preview.
 - `POST /v1/verify/{sha256}` -> active hash verification, walking the
   H1/H2/H3 custody chain for full-tier runs (addendum 2).
 
-Never touches Postgres/Milvus directly — every read goes through the spine,
+Never touches PostgreSQL/Weaviate directly — every read goes through the spine,
 same single-writer/single-reader discipline as app/service/runs.py.
 """
 
@@ -23,7 +26,15 @@ from __future__ import annotations
 
 from app.repo.spine_client import SpineError, spine_json
 
-__all__ = ["SpineError", "list_records", "patch_record_meta", "get_schemas", "verify_sha256"]
+__all__ = [
+    "SpineError",
+    "get_schemas",
+    "get_table_detail",
+    "get_vector_detail",
+    "list_records",
+    "patch_record_meta",
+    "verify_sha256",
+]
 
 
 def list_records(
@@ -69,14 +80,24 @@ def patch_record_meta(record_id: str, patch: dict) -> dict:
 
 
 def get_schemas() -> dict:
-    """GET /v1/inspect/schemas passthrough -> `{pg: {...}, milvus: {...}}`.
+    """GET /v1/inspect/schemas passthrough -> `{pg: {...}, weaviate: ...}`.
 
-    Each top-level section (pg.evidence, pg.analysis, milvus.collections) can
+    Each top-level section (PostgreSQL schemas and Weaviate collections) can
     independently carry its own `{"error": ...}` per the contract — this
     module doesn't unwrap or validate that, it's the Schemas page's job to
     render whichever sections came back healthy.
     """
     return spine_json("GET", "/v1/inspect/schemas")
+
+
+def get_table_detail(schema: str, table_name: str, *, limit: int = 5) -> dict:
+    """Return bounded rows, columns, and indexes for one allowlisted PG table."""
+    return spine_json("GET", f"/v1/inspect/tables/{schema}/{table_name}", params={"limit": limit})
+
+
+def get_vector_detail(collection_name: str, *, limit: int = 5) -> dict:
+    """Return bounded properties and vector previews for one Weaviate collection."""
+    return spine_json("GET", f"/v1/inspect/weaviate/{collection_name}", params={"limit": limit})
 
 
 def verify_sha256(sha256: str) -> dict:

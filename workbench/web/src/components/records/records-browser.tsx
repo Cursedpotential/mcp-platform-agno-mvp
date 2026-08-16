@@ -1,9 +1,10 @@
 // Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: parse-quality record browser — requirements addendum 1)
+// Byline: Codex · GPT-5 · 2026-08-16 (canonical artifact deep-link correction)
 "use client";
 
 /**
  * THE parse-quality review surface: filter by run (picker from GET
- * /api/runs) or an artifact sha256, paged table (idx/type/role/ts/text
+ * /api/runs) or an artifact UUID, paged table (idx/type/role/ts/text
  * preview), row -> detail drawer with split-boundary nav so segmentation is
  * eyeballable by hand (requirements addendum 1: "verify splitting +
  * semantics by eye").
@@ -39,7 +40,7 @@ export function RecordsBrowser() {
   const searchParams = useSearchParams();
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [runId, setRunId] = useState(() => searchParams.get("run_id") ?? "");
-  const [artifactSha, setArtifactSha] = useState("");
+  const [artifactId, setArtifactId] = useState(() => searchParams.get("artifact_id") ?? "");
   const [query, setQuery] = useState("");
   const [records, setRecords] = useState<RecordRow[]>([]);
   const [total, setTotal] = useState<number | undefined>(undefined);
@@ -57,7 +58,7 @@ export function RecordsBrowser() {
   const selectedRun = runs.find((r) => r.run_id === runId);
 
   const fetchRecords = useCallback(() => {
-    if (!runId && !artifactSha && !query) {
+    if (!runId && !artifactId) {
       setRecords([]);
       setTotal(undefined);
       return;
@@ -65,7 +66,7 @@ export function RecordsBrowser() {
     setLoading(true);
     listRecords({
       runId: runId || undefined,
-      artifactId: artifactSha || undefined,
+      artifactId: artifactId || undefined,
       q: query || undefined,
       limit: PAGE_SIZE,
       offset,
@@ -79,7 +80,7 @@ export function RecordsBrowser() {
         toast.error(err instanceof ApiError ? err.message : "Failed to load records");
       })
       .finally(() => setLoading(false));
-  }, [runId, artifactSha, query, offset]);
+  }, [runId, artifactId, query, offset]);
 
   useEffect(() => {
     queueMicrotask(fetchRecords);
@@ -88,7 +89,7 @@ export function RecordsBrowser() {
   // Reset to page 1 whenever the scope/search changes.
   useEffect(() => {
     queueMicrotask(() => setOffset(0));
-  }, [runId, artifactSha, query]);
+  }, [runId, artifactId, query]);
 
   const handleRecordUpdated = (updated: RecordRow) => {
     setRecords((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
@@ -123,13 +124,13 @@ export function RecordsBrowser() {
             </div>
             <div className="space-y-1">
               <Label htmlFor="records-artifact-input" className="text-xs">
-                Artifact sha256
+                Artifact ID
               </Label>
               <Input
                 id="records-artifact-input"
-                value={artifactSha}
-                onChange={(e) => setArtifactSha(e.target.value)}
-                placeholder="sha256…"
+                value={artifactId}
+                onChange={(e) => setArtifactId(e.target.value)}
+                placeholder="artifact UUID…"
                 className="h-9 w-48 font-mono text-xs"
               />
             </div>
@@ -158,9 +159,9 @@ export function RecordsBrowser() {
                 <Skeleton key={i} className="h-10 w-full" />
               ))}
             </div>
-          ) : !runId && !artifactSha && !query ? (
+          ) : !runId && !artifactId ? (
             <p className="text-sm text-muted-foreground py-12 text-center">
-              Pick a run, paste an artifact sha256, or search to browse records.
+              Pick a run or paste an artifact UUID before searching records.
             </p>
           ) : records.length === 0 ? (
             <p className="text-sm text-muted-foreground py-12 text-center">No records found.</p>

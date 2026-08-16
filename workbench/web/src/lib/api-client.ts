@@ -40,6 +40,7 @@ import type {
   MatterDetail,
   MatterListResponse,
   ParseDryrunResponse,
+  PgSchemaName,
   RecordMetaPatch,
   RecordRow,
   RecordsListResponse,
@@ -55,11 +56,13 @@ import type {
   RunRetryResponse,
   RunSummary,
   SchemasResponse,
+  TableDetail,
   StagedFile,
   StagedFileMeta,
   ToolServerGroup,
   UploadResponse,
   VerifyResponse,
+  WeaviateDetail,
   Workflow,
 } from "./shared/types";
 
@@ -378,11 +381,25 @@ export async function patchRecordMeta(recordId: string, patch: RecordMetaPatch) 
 }
 
 // ---------------------------------------------------------------------------
-// Schemas (C3 — raw PG/Milvus inspection views)
+// Data Explorer (read-only PostgreSQL + Weaviate inspection views)
 // ---------------------------------------------------------------------------
 
 export async function getSchemas() {
   return apiFetch<SchemasResponse>("/api/schemas");
+}
+
+export async function getTableDetail(schema: PgSchemaName, table: string, limit = 5) {
+  const qs = new URLSearchParams({ limit: String(limit) });
+  return apiFetch<TableDetail>(
+    `/api/schemas/postgresql/${encodeURIComponent(schema)}/${encodeURIComponent(table)}?${qs.toString()}`,
+  );
+}
+
+export async function getWeaviateDetail(collection: string, limit = 5) {
+  const qs = new URLSearchParams({ limit: String(limit) });
+  return apiFetch<WeaviateDetail>(
+    `/api/schemas/weaviate/${encodeURIComponent(collection)}?${qs.toString()}`,
+  );
 }
 
 // ---------------------------------------------------------------------------

@@ -423,7 +423,7 @@ export interface RecordMetaPatch {
 }
 
 // ---------------------------------------------------------------------------
-// Schemas (C3 — raw PG/Milvus inspection views)
+// Data Explorer (read-only PostgreSQL + Weaviate inspection views)
 // ---------------------------------------------------------------------------
 
 export interface SchemaColumn {
@@ -433,39 +433,85 @@ export interface SchemaColumn {
 
 export interface SchemaTable {
   table: string;
-  rows: number;
+  row_count: number;
+  row_count_is_estimate: boolean;
   columns: SchemaColumn[];
 }
 
-export interface PgSchemas {
-  evidence: SchemaTable[];
-  analysis: SchemaTable[];
-  error?: string;
-}
+export type PgSchemaName = "evidence" | "working" | "analysis" | "reference" | "ops";
 
-export interface MilvusField {
+export type PgSchemas = Partial<Record<PgSchemaName, SchemaTable[]>> & {
+  error?: string;
+};
+
+export interface WeaviateField {
   name: string;
   type: string;
-  dim?: number;
+  index_filterable?: boolean | null;
+  index_searchable?: boolean | null;
 }
 
-export interface MilvusCollection {
+export interface WeaviateCollection {
   name: string;
-  num_entities: number;
-  fields: MilvusField[];
+  description?: string | null;
+  num_entities?: number | null;
+  fields: WeaviateField[];
+  vectorizer?: unknown;
+  vector_index_type?: string | null;
+  vector_index_config?: Record<string, unknown> | null;
+  named_vectors?: Record<string, unknown> | null;
 }
 
-export interface MilvusSchemas {
-  collections?: MilvusCollection[];
-  error?: string;
+export interface InspectorError {
+  error: string;
 }
 
 /** `GET /api/schemas` response — either section may independently carry
- * `{error}` instead of its normal shape (a down Milvus doesn't block the PG
- * section from rendering, and vice versa). */
+ * `{error}` instead of its normal shape; a down Weaviate projection never
+ * blocks PostgreSQL's canonical schema view. */
 export interface SchemasResponse {
   pg: PgSchemas;
-  milvus: MilvusSchemas;
+  weaviate: WeaviateCollection[] | InspectorError;
+}
+
+export interface TableDetailColumn extends SchemaColumn {
+  database_type: string;
+  nullable: boolean;
+  default?: string | null;
+  position: number;
+}
+
+export interface TableDetailIndex {
+  name: string;
+  definition: string;
+}
+
+export interface TableDetail {
+  schema: PgSchemaName;
+  table: string;
+  limit: number;
+  columns: TableDetailColumn[];
+  indexes: TableDetailIndex[];
+  rows: Array<Record<string, unknown>>;
+}
+
+export interface VectorPreview {
+  name: string;
+  dimensions: number;
+  preview: number[];
+  truncated: boolean;
+}
+
+export interface VectorObjectPreview {
+  uuid: string;
+  properties: unknown;
+  vectors: VectorPreview[];
+}
+
+export interface WeaviateDetail {
+  collection: string;
+  limit: number;
+  objects: VectorObjectPreview[];
 }
 
 // ---------------------------------------------------------------------------

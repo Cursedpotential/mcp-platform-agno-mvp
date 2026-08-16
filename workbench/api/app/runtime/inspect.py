@@ -1,4 +1,5 @@
 # Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: record browser, hash verify, curation, corroboration flags)
+# Byline: Codex · GPT-5 · 2026-08-16 (Data Explorer table/vector detail routes)
 """GET/PATCH /api/records, GET /api/schemas, POST /api/verify/{sha},
 POST/GET/PATCH /api/flags... — the C3 inspector routes.
 
@@ -11,7 +12,7 @@ intact instead of collapsing into a generic 502.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from app.repo.spine_client import SpineError
 from app.service import flags as flags_service
@@ -49,7 +50,7 @@ async def patch_record_meta_endpoint(record_id: str, payload: RecordMetaPatchReq
 
 
 # ---------------------------------------------------------------------------
-# Schemas (raw PG/Milvus inspection views)
+# Data Explorer (raw PG + Weaviate read-only inspection views)
 # ---------------------------------------------------------------------------
 
 
@@ -57,6 +58,22 @@ async def patch_record_meta_endpoint(record_id: str, payload: RecordMetaPatchReq
 async def get_schemas_endpoint():
     try:
         return inspect_service.get_schemas()
+    except SpineError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail) from None
+
+
+@router.get("/schemas/postgresql/{schema}/{table_name}")
+async def get_table_detail_endpoint(schema: str, table_name: str, limit: int = Query(5, ge=1, le=25)):
+    try:
+        return inspect_service.get_table_detail(schema, table_name, limit=limit)
+    except SpineError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail) from None
+
+
+@router.get("/schemas/weaviate/{collection_name}")
+async def get_vector_detail_endpoint(collection_name: str, limit: int = Query(5, ge=1, le=10)):
+    try:
+        return inspect_service.get_vector_detail(collection_name, limit=limit)
     except SpineError as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail) from None
 

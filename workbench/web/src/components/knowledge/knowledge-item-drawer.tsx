@@ -1,9 +1,11 @@
 // Byline: Codex · GPT-5 · 2026-08-16 (canonical source/chunk inspector)
 "use client";
 
+import Link from "next/link";
 import { FileText, Fingerprint, Loader2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Sheet,
   SheetContent,
@@ -146,11 +148,18 @@ export function KnowledgeItemDrawer({ detail, loading, open, onOpenChange }: Kno
             </section>
 
             <section className="space-y-3">
-              <div>
-                <h3 className="font-semibold">Normalized records and chunks</h3>
-                <p className="text-xs text-muted-foreground">
-                  Raw metadata is inspectable here. Edits remain on the governed record-curation route.
-                </p>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="font-semibold">Normalized records and chunks</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Raw metadata is inspectable here. Edits remain on the governed attrs-only curation route.
+                  </p>
+                </div>
+                <Button asChild variant="outline" size="sm">
+                  <Link href={`/records?artifact_id=${encodeURIComponent(detail.artifact_id)}`}>
+                    Open governed metadata editor
+                  </Link>
+                </Button>
               </div>
               {detail.records.length === 0 ? (
                 <p className="rounded-lg border p-4 text-sm text-muted-foreground">No records returned.</p>
