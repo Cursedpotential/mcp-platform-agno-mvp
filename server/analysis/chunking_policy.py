@@ -2,6 +2,7 @@
 
 Byline: Claude Code · Opus 4.8 · 2026-08-10
 Byline: Codex · GPT-5 · 2026-08-13 (ADR-0053 five-lane alignment)
+Byline: Codex · GPT-5 · 2026-08-16 (D-046 Chonkie runtime activation)
 
 WHY THIS EXISTS — lane alignment
 --------------------------------
@@ -11,12 +12,9 @@ ADR-0053. CHUNKING is a separate concern
 gets the right `ChunkingStrategy` for that lane — so chunking policy lives here, not scattered
 inside `create_knowledge`, and neither lane edits the other's files.
 
-PLAN-FAITHFUL DEFAULT (glittery-summit Phase 6): the BASELINE is Agno-native `RecursiveChunking`
-on every reader — deterministic, zero embed cost, and **no chonkie dependency** (so the KB lane can
-adopt this today without touching requirements.txt). The semantic+fixed turn-aware hybrid (Chonkie,
-`chonkie_chunkers.TranscriptSemanticHybridChunking`) is a GATED opt-in for the transcript lanes,
-enabled by `tuned=True` once chonkie is in the lockfile and the A/B in evals/ justifies it
-(docs/planning/agno-chunking-strategy.md §6).
+D-046 RUNTIME DEFAULT: knowledge lanes use Chonkie RecursiveChunker and transcript lanes use the
+semantic+fixed hybrid. Both are torch-free. The former Agno-native recursive policy remains an
+explicit ``tuned=False`` rollback only; it is not the production default.
 
 Lane→chunker rationale: context is the conversational corpus. Relationship material is a topic
 within personal_history, not a separate destination; chat chunks are classified only after their
@@ -28,8 +26,8 @@ from __future__ import annotations
 from agno.knowledge.chunking.recursive import RecursiveChunking
 from agno.knowledge.chunking.strategy import ChunkingStrategy
 
-#: The lane whose source material is normally conversational (turn-structured).
-TRANSCRIPT_LANES: frozenset[str] = frozenset({"context"})
+#: Lanes whose source material is normally conversational (turn-structured).
+TRANSCRIPT_LANES: frozenset[str] = frozenset({"context", "evidence"})
 
 #: All five ADR-0053 lanes (kept here so a bad lane name fails loudly at the seam).
 LANES: frozenset[str] = frozenset({"platform", "legal", "personal_history", "context", "evidence"})
@@ -43,16 +41,14 @@ _TRANSCRIPT_SEMANTIC_TOKENS = 400
 _TRANSCRIPT_HARD_CAP_CHARS = 2000
 
 
-def lane_chunker(lane: str, *, tuned: bool = False, embedder=None) -> ChunkingStrategy:
+def lane_chunker(lane: str, *, tuned: bool = True, embedder=None) -> ChunkingStrategy:
     """Return the ChunkingStrategy for a lane.
 
     Args:
         lane: one of the five ADR-0053 lanes.
-        tuned: False (default) -> Agno-native RecursiveChunking baseline (no chonkie dep).
-               True -> transcript lanes get the Chonkie semantic+fixed hybrid; non-transcript
-               lanes still get the recursive baseline (semantic tuning for those is future work).
-        embedder: passed to the semantic chunker when tuned (should be the lane's storage embedder,
-               so boundaries live in the storage vector space — agno-chunking-strategy.md §5).
+        tuned: True (default) activates Chonkie. False is the explicit Agno-native rollback.
+        embedder: retained for call compatibility. Direct Chonkie semantic chunking deliberately
+               uses its pinned model2vec model rather than an Agno framework object.
 
     Raises:
         ValueError: on an unknown lane (fail loudly at the seam, never silently mis-route).
@@ -60,15 +56,18 @@ def lane_chunker(lane: str, *, tuned: bool = False, embedder=None) -> ChunkingSt
     if lane not in LANES:
         raise ValueError(f"unknown lane {lane!r}; expected one of {sorted(LANES)}")
 
-    if tuned and lane in TRANSCRIPT_LANES:
+    if not tuned:
+        return RecursiveChunking(chunk_size=_BASELINE_CHUNK_CHARS, overlap=_BASELINE_OVERLAP_CHARS)
+
+    if lane in TRANSCRIPT_LANES:
         # Import lazily: only the tuned transcript path needs chonkie installed.
         from server.analysis.chonkie_chunkers import TranscriptSemanticHybridChunking
 
-        kw = {"embedder": embedder} if embedder is not None else {}
         return TranscriptSemanticHybridChunking(
             semantic_chunk_tokens=_TRANSCRIPT_SEMANTIC_TOKENS,
             hard_cap_chars=_TRANSCRIPT_HARD_CAP_CHARS,
-            **kw,
         )
 
-    return RecursiveChunking(chunk_size=_BASELINE_CHUNK_CHARS, overlap=_BASELINE_OVERLAP_CHARS)
+    from server.analysis.chonkie_chunkers import cpu_chunker
+
+    return cpu_chunker("recursive")

@@ -9,18 +9,16 @@ Byline: Codex · GPT-5 · 2026-08-16
 
 from __future__ import annotations
 
-import math
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Literal, Protocol, cast
 
 from server.contracts.ingest import IngestLane, IngestReceipt, IngestRejection, IngestRequest, ProjectionResult
 from server.contracts.records import NormalizedRecord, finalize
+from server.core.chunking_identity import chunker_id
 
 
-CHUNKER_ID = "horizon.recursive-chars.v1:1500/150"
-_CHUNK_SIZE = 1500
-_CHUNK_OVERLAP = 150
+CHUNKER_ID = chunker_id("recursive", 1500)
 _GO_SUFFIXES = frozenset({".xml", ".eml", ".mbox", ".ndjson", ".csv"})
 _TEXT_SUFFIXES = frozenset({".md", ".txt"})
 _DOCUMENT_SUFFIXES = frozenset({".pdf", ".docx", ".pptx", ".xlsx", ".html", ".htm"})
@@ -109,11 +107,6 @@ def _stage_finish(journal: ReceiptJournal, receipt_id: str, seq: int, status: st
     callback = getattr(journal, "stage_finish", None)
     if callback is not None:
         callback(receipt_id, seq, status, output)
-
-
-def _chunk_count(records: list[NormalizedRecord]) -> int:
-    step = _CHUNK_SIZE - _CHUNK_OVERLAP
-    return sum(max(1, math.ceil(max(1, len(record.content) - _CHUNK_OVERLAP) / step)) for record in records)
 
 
 ParserEngine = Literal["go", "python", "none"]
@@ -238,7 +231,6 @@ def _enrich(
                     "source_path": str(path),
                     "source_name": path.name,
                     "parser_id": parser_id,
-                    "chunker_id": CHUNKER_ID,
                 }
             }
         )
@@ -296,9 +288,13 @@ def ingest_file(
         )
         active_stage = 2
         _stage_start(journal, receipt_id, active_stage)
-        records, parser_id, parser_engine, attempts = _parse(path, request)
-        records = _enrich(records, request, path, parser_id)
-        chunk_count = _chunk_count(records)
+        source_records, parser_id, parser_engine, attempts = _parse(path, request)
+        source_records = _enrich(source_records, request, path, parser_id)
+        from server.ingest.chunking import chunk_records
+
+        chunked = chunk_records(source_records)
+        records = chunked.records
+        chunk_count = chunked.chunk_count
         _stage_finish(
             journal,
             receipt_id,
@@ -307,7 +303,9 @@ def ingest_file(
             {
                 "parser_id": parser_id,
                 "parser_engine": parser_engine,
-                "record_count": len(records),
+                "record_count": chunked.source_record_count,
+                "chunk_count": chunk_count,
+                "chunker_id": chunked.chunker_id,
                 "attempts": attempts,
             },
         )
@@ -368,8 +366,8 @@ def ingest_file(
             duplicate=artifact.duplicate,
             parser_id=parser_id,
             parser_engine=parser_engine,
-            chunker_id=CHUNKER_ID,
-            record_count=len(records) if canonical_duplicate else stored,
+            chunker_id=chunked.chunker_id,
+            record_count=chunked.source_record_count,
             chunk_count=chunk_count,
             attempts=attempts,
             projections=projections,

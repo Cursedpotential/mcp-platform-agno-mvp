@@ -29,7 +29,7 @@ def _receipt(request: IngestRequest) -> IngestReceipt:
         artifact_id="artifact-1",
         parser_id="documents.text-v1",
         parser_engine="python",
-        chunker_id="horizon.recursive-chars.v1:1500/150",
+        chunker_id="chonkie.recursive@1.7.0:1500-chars",
         record_count=1,
         chunk_count=1,
         projections=[ProjectionResult(sink="weaviate", status="skipped")],

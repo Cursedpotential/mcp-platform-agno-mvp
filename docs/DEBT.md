@@ -9,6 +9,20 @@
 > "Report re-verification corrections" below; Wave 0 live inventory + fresh-restore gate — see
 > "Wave 0 live inventory findings" below)._
 > _2026-08-15 amendment: Codex · GPT-5 (legacy custody-digest readiness verifier debt)._
+> _2026-08-16 amendment: Codex · GPT-5 (Swift MVP ingest/Chonkie observed-state tracking)._
+
+## Horizon Swift MVP audit items (2026-08-16)
+
+| Audit item | Observed state | Remaining work / hold |
+|---|---|---|
+| Agno-owned ingest | **Resolved for the Swift path:** HTTP, folder-walk, and in-process callers share `server.contracts.ingest` / `server.ingest.service`; public contract tests reject Agno/Graphiti/Surreal/AI-SDK imports. Scratch PostgreSQL received both Markdown and an SBV-covered export. | Legacy Agno workflows remain adapters until their separate retirement wave; no retirement is part of Swift MVP. |
+| Empty SBV password silently selects Python | **Resolved on the observed Swift surface:** the live `exec-platform-tools` application has a runtime service credential; a guarded scratch receipt completed through `sbv-go:smsbackuprestore-xml` with fallback disabled. | Any future deployment must keep fail-closed credential checks; no production deployment was changed by this proof. |
+| Chonkie absent from production lock/runtime | **Resolved:** `chonkie[semantic,code,table]==1.7.0` is a base dependency; production `requirements.txt` contains no torch/transformers stack. Neutral ingest and Agno reader policies execute Chonkie and record versioned IDs with explicit units. Final scratch proof: Markdown 1 logical record → 3 stored chunks; SBV Go 1 → 1; both `chonkie.recursive@1.7.0:1500-chars`. | Neural/Late/Slumber remain remote-only by D-046; the remote executor and chunk-preview GUI are deferred and must never trigger a local torch install. |
+| Semantica config-only | **Open.** | Swift Slice 4 must produce observed candidate + provenance rows through a governed promotion boundary with no custody credentials/direct graph writes. |
+| Workbench lacks Vercel AI SDK stream | **Open.** | Swift Slice 3 must add the SDK and stream through a framework-neutral `/v1` route. |
+| Parked Surreal vs new disposable target | **Held.** Logical adapter/design work is allowed; the parked deployment remains denied. | R12 requires separate target/credential/implementation authority. If not granted, finish the adapter + compose overlay + owner HITL packet only. |
+
+_Byline: Codex · GPT-5 · 2026-08-16._
 
 ## Court-readiness compatibility debt (2026-08-15)
 

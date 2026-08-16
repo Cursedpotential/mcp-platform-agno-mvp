@@ -68,3 +68,10 @@ def test_markdown_and_sbv_export_land_in_scratch_postgres() -> None:
     assert sms_item is not None
     assert sms_item["source_sha256"] == sms.source_sha256
     assert sms_item["records"][0]["attrs"]["parser_id"] == sms.parser_id
+    markdown_item = get_item(str(markdown.artifact_id), matter_id=_MATTER_ID)
+    assert markdown_item is not None
+    assert markdown_item["source_sha256"] == markdown.source_sha256
+    assert markdown.chunker_id == "chonkie.recursive@1.7.0:1500-chars"
+    assert markdown.chunk_count == len(markdown_item["records"]) > 1
+    assert all(record["attrs"]["chunker_id"] == markdown.chunker_id for record in markdown_item["records"])
+    assert [record["attrs"]["chunk_index"] for record in markdown_item["records"]] == list(range(markdown.chunk_count))

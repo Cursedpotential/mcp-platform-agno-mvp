@@ -2,6 +2,7 @@
 
 Byline: Claude Code · Opus 4.8 · 2026-08-10. Pins the D-046 contract:
 CPU chunkers run torch-free in-process; heavy chunkers RAISE (never a silent local fallback).
+Byline: Codex · GPT-5 · 2026-08-16 (production dependency and versioned-ID activation)
 """
 
 from __future__ import annotations
@@ -33,7 +34,7 @@ def test_recursive_returns_agno_documents_with_provenance():
     assert all(isinstance(d, Document) for d in out)
     d0 = out[0]
     assert d0.content
-    assert d0.meta_data["chunker"] == "chonkie.recursive"
+    assert d0.meta_data["chunker"] == "chonkie.recursive@1.7.0:128-chars"
     assert d0.meta_data["chunk_index"] == 0
     assert d0.meta_data["source"] == "unit"  # parent meta preserved
     assert "chunk_tokens" in d0.meta_data
@@ -45,7 +46,7 @@ def test_empty_document_passthrough():
 
 
 def test_cpu_registry_names():
-    assert set(cc.CPU_FRIENDLY) == {"recursive", "sentence", "token", "semantic", "code", "table"}
+    assert set(cc.CPU_FRIENDLY) == {"recursive", "sentence", "token", "fast", "semantic", "code", "table"}
 
 
 def test_transcript_hybrid_caps_runaway():
@@ -68,7 +69,7 @@ def test_semantic_is_torch_free_and_chunks():
     # model2vec static embeddings — no torch. Model is cached from the install-verify step.
     out = cc.semantic(chunk_size=256).chunk(_doc())
     assert len(out) >= 1
-    assert out[0].meta_data["chunker"] == "chonkie.semantic"
+    assert out[0].meta_data["chunker"] == "chonkie.semantic@1.7.0:256-tokens"
     import sys
 
     assert "torch" not in sys.modules, "semantic path must not import torch"

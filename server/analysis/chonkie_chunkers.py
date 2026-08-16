@@ -1,6 +1,7 @@
 """server/analysis/chonkie_chunkers.py — Chonkie chunkers wrapped as Agno ChunkingStrategy.
 
 Byline: Claude Code · Opus 4.8 · 2026-08-10
+Byline: Codex · GPT-5 · 2026-08-16 (versioned runtime IDs; FastChunker registry)
 
 WHY THIS EXISTS
 ---------------
@@ -30,6 +31,7 @@ from typing import Any, Callable
 
 from agno.knowledge.chunking.strategy import ChunkingStrategy
 from agno.knowledge.document.base import Document
+from server.core.chunking_identity import chunker_id
 
 # ---------------------------------------------------------------------------
 # Adapter: turn any Chonkie chunker instance into an Agno ChunkingStrategy
@@ -91,15 +93,17 @@ class ChonkieChunkingStrategy(ChunkingStrategy):
 # CPU-friendly chunkers (torch-free) — one table-driven factory, no per-chunker boilerplate
 # ---------------------------------------------------------------------------
 # Each spec is (chonkie class name, default chunk_size | None for chunkers that don't take one).
-# chunk_size units differ by chunker (Chonkie: tokens for most; Table: rows/chars). Defaults are
-# starting points to tune per docs/planning/agno-chunking-strategy.md §4.
+# Units are explicit in the durable ID: character-tokenized chunkers use chars,
+# Semantic uses tokens, and Table uses rows. Defaults are starting points to tune
+# per docs/planning/agno-chunking-strategy.md §4.
 _CPU_SPECS: dict[str, tuple[str, int | None]] = {
-    "recursive": ("RecursiveChunker", 512),
+    "recursive": ("RecursiveChunker", 1500),
     "sentence": ("SentenceChunker", 512),
     "token": ("TokenChunker", 512),
+    "fast": ("FastChunker", 1500),
     "semantic": ("SemanticChunker", 512),  # model2vec (static, torch-free)
     "code": ("CodeChunker", 1500),
-    "table": ("TableChunker", None),
+    "table": ("TableChunker", 3),
 }
 
 
@@ -118,7 +122,7 @@ def cpu_chunker(name: str, chunk_size: int | None = None, **kw: Any) -> ChonkieC
         cls = getattr(chonkie, cls_name)
         return cls(**({} if size is None else {"chunk_size": size}), **kw)
 
-    return ChonkieChunkingStrategy(_f, label=f"chonkie.{name}")
+    return ChonkieChunkingStrategy(_f, label=chunker_id(name, size))
 
 
 def semantic(chunk_size: int = 512, **kw: Any) -> ChonkieChunkingStrategy:

@@ -26,6 +26,7 @@ Prints a JSON IngestReport to stdout. Use `--dry-run` for a no-write preview.
 # Byline: Claude Code · Fable 5 · 2026-08-12 (D-053: --format now strict/bypasses the detection router; fail-fast exit 2 with a clear error)
 # Byline: Codex · GPT-5 · 2026-08-13 (ADR-0053 chat landing/classification)
 # Byline: Codex · GPT-5 · 2026-08-13 (CPU-first hybrid classifier controls)
+# Byline: Codex · GPT-5 · 2026-08-16 (D-046 Chonkie semantic default)
 
 from __future__ import annotations
 
@@ -64,8 +65,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap.add_argument(
         "--chunker",
         choices=["message-window", "chonkie-semantic", "teraflopai"],
-        default="message-window",
-        help="message-safe chunking strategy; TeraflopAI is an optional hosted challenger",
+        default="chonkie-semantic",
+        help="message-safe chunking strategy; Chonkie semantic is the torch-free default",
     )
     ap.add_argument(
         "--no-classify",

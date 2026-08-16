@@ -88,6 +88,7 @@ def test_chunking_preserves_roles_messages_and_hashes(tmp_path):
     second = chunk_chat_messages(messages, max_chars=6000)
     assert [chunk.content_hash for chunk in first] == [chunk.content_hash for chunk in second]
     assert sum(len(chunk.message_indexes) for chunk in first) == len(messages)
+    assert all(chunk.chunker_id.startswith("chonkie.semantic@1.7.0:") for chunk in first)
     assert CONTEXT_BANNER in first[0].content
     assert "[user]" in first[0].content and "[assistant]" in first[0].content
 
@@ -100,6 +101,14 @@ def test_hard_cap_never_splits_a_message(tmp_path):
     flattened = [index for chunk in chunks for index in chunk.message_indexes]
     assert flattened == [0, 1]
     assert all(chunk.message_indexes for chunk in chunks)
+
+
+def test_message_window_remains_an_explicit_deterministic_rollback(tmp_path):
+    path = _export(tmp_path)
+    records, _, _ = parse_chat_export(path)
+    messages = normalize_many(records, str(path))[0][1]
+    chunks = chunk_chat_messages(messages, max_chars=80, chunker="message-window")
+    assert all(chunk.chunker_id == "horizon.message-window@1:80-chars" for chunk in chunks)
 
 
 def test_cross_domain_chunk_gets_multiple_lanes(tmp_path):

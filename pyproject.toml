@@ -1,4 +1,5 @@
 # Byline: Codex · GPT-5 · 2026-08-13 (reproducible CI toolchain and optional-import typing)
+# Byline: Codex · GPT-5 · 2026-08-16 (D-046 torch-free Chonkie production runtime)
 [project]
 name = "agent-platform"
 version = "1.0.0"
@@ -69,6 +70,9 @@ dependencies = [
   # prod ingest touching an HTML export would have raised ImportError. It is a
   # runtime dependency of shipped parsers, so it belongs in base.
   "beautifulsoup4>=4.12",
+  # D-046: CPU-only chunkers in the live ingest path. These exact extras add
+  # model2vec/tree-sitter/table support without Chonkie's neural/torch extra.
+  "chonkie[semantic,code,table]==1.7.0",
 ]
 
 [project.optional-dependencies]
@@ -81,10 +85,9 @@ ocr = ["pytesseract", "pdf2image", "pillow"]
 # of the parser facade's base environment because Docling brings local models
 # and document-AI dependencies; install on the VPS worker or Colab backup.
 document-ai = ["docling>=2.119,<3"]
-# Optional transcript segmentation challengers. The default message-window
-# chunker needs neither this extra nor a GPU; semantic uses the CPU-friendly
-# Chonkie path and TeraflopAI calls its hosted segmentation API.
-chunking = ["chonkie[semantic]>=1.7,<2"]
+# Compatibility extra retained for existing install commands; Chonkie is now
+# also pinned in base because the production ingest path executes it.
+chunking = ["chonkie[semantic,code,table]==1.7.0"]
 # CPU-first, multi-label chat routing challenger. Kept optional until owner-
 # labeled calibration proves its thresholds; production safely falls back to
 # keyword-v1 when this extra is absent.

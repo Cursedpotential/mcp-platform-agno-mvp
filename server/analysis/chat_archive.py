@@ -22,6 +22,7 @@ post-chunk multi-label routing, and durable Weaviate/Graphiti projections.
 """
 # Byline: Claude Code · Opus 4.8 · 2026-08-12
 # Byline: Codex · GPT-5 · 2026-08-13 (ADR-0053 whole-archive ingest)
+# Byline: Codex · GPT-5 · 2026-08-16 (D-046 Chonkie semantic default)
 
 from __future__ import annotations
 
@@ -145,7 +146,7 @@ async def ingest_chat_archive(
     dry_run: bool = False,
     project: bool = True,
     materialize_assets: bool = True,
-    chunker: str = "message-window",
+    chunker: str = "chonkie-semantic",
     classify: bool = True,
     classify_mode: str = "hybrid",
     classify_model: str | None = None,

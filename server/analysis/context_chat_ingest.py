@@ -5,6 +5,7 @@ multi-label classification -> selective HITL -> outbox projection. Raw AI-chat
 rows are horizon-neutral and can never enter the evidence lane.
 
 Byline: Codex · GPT-5 · 2026-08-13
+Byline: Codex · GPT-5 · 2026-08-16 (D-046 Chonkie semantic runtime activation)
 """
 
 from __future__ import annotations
@@ -23,12 +24,16 @@ from server.analysis.chat_normalizer import compute_content_hash, normalize_many
 from server.analysis.chat_parse import filter_conversations, parse_chat_export
 from server.analysis.lane_classifier import classifier_id, classify_chunks
 from server.contracts.records import ChatChunk, ChatConversation, ChatMessage, LaneClassification
+from server.core.chunking_identity import CHONKIE_PIN
 from server.tools.registry import registry
 
 __all__ = ["filter_conversations", "ingest_chat_file", "parse_chat_export", "registry"]
 
 DEFAULT_MAX_CHARS = 6000
 DEFAULT_EMBEDDER_ID = "nvidia/nv-embed-v1"
+DEFAULT_CHAT_CHUNKER = "chonkie-semantic"
+_SEMANTIC_MODEL = "minishlab/potion-base-32M"
+_SEMANTIC_CHUNK_TOKENS = 400
 
 CONTEXT_BANNER = (
     "[UNVERIFIED LEAD -- AI-chat context, not primary evidence. "
@@ -102,7 +107,7 @@ def _segment_groups(
     max_chars: int,
 ) -> tuple[list[list[ChatMessage]], str]:
     if chunker == "message-window":
-        return _window_groups(messages, max_chars), chunker
+        return _window_groups(messages, max_chars), f"horizon.message-window@1:{max_chars}-chars"
 
     rendered = "\n\n".join(_render_message(message) for message in messages)
     message_ends: list[int] = []
@@ -116,11 +121,19 @@ def _segment_groups(
     if chunker == "chonkie-semantic":
         from chonkie import SemanticChunker
 
-        segments = SemanticChunker(chunk_size=400).chunk(rendered)
+        segments = SemanticChunker(
+            embedding_model=_SEMANTIC_MODEL,
+            chunk_size=_SEMANTIC_CHUNK_TOKENS,
+        ).chunk(rendered)
+        runtime_id = (
+            f"chonkie.semantic@{CHONKIE_PIN}:potion-base-32M:"
+            f"{_SEMANTIC_CHUNK_TOKENS}-tokens+message-safe:{max_chars}-chars"
+        )
     elif chunker == "teraflopai":
         from chonkie import TeraflopAIChunker
 
         segments = TeraflopAIChunker().chunk(rendered)
+        runtime_id = f"teraflopai.remote@1+message-safe:{max_chars}-chars"
     else:
         raise ValueError(f"unknown chunker {chunker!r}")
 
@@ -140,14 +153,14 @@ def _segment_groups(
             start = stop
     if start < len(messages):
         groups.extend(_window_groups(messages[start:], max_chars))
-    return groups, chunker
+    return groups, runtime_id
 
 
 def chunk_chat_messages(
     messages: list[ChatMessage],
     *,
     max_chars: int = DEFAULT_MAX_CHARS,
-    chunker: str = "message-window",
+    chunker: str = DEFAULT_CHAT_CHUNKER,
 ) -> list[ChatChunk]:
     """Create canonical chunks before classification, preserving every role."""
 
@@ -590,7 +603,7 @@ async def ingest_chat_file(
     classify: bool = True,
     classify_mode: str = "hybrid",
     classify_model: str | None = None,
-    chunker: str = "message-window",
+    chunker: str = DEFAULT_CHAT_CHUNKER,
 ) -> IngestReport:
     """Run the complete PG-first path for one export file."""
 

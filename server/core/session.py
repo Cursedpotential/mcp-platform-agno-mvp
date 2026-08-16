@@ -403,8 +403,8 @@ def create_knowledge(name: str, table_name: str, use_code_embedder: bool = False
 
     # ADR-0050 Phase 6 wire-up (seam built by the chunking lane —
     # server/analysis/chunking_policy.py): every reader gets the lane's
-    # chunker, baseline RecursiveChunking today (tuned=False; the Chonkie
-    # transcript hybrid is a gated opt-in after the evals A/B). ``name`` is
+    # chunker. D-046 now activates Chonkie Recursive for knowledge lanes and
+    # the semantic+fixed hybrid for transcript lanes. ``name`` is
     # the lane for the six ADR-0050 bases; non-lane names (tests, ad-hoc
     # bases) keep agno's default chunking untouched.
     #
@@ -416,6 +416,7 @@ def create_knowledge(name: str, table_name: str, use_code_embedder: bool = False
     # cache, then set the chunker on each — lazy lookups at ainsert time get
     # the cached, chunker-equipped reader. `_get_reader` is private but it IS
     # the cache: building readers any other way would bypass what ainsert uses.
+    # Byline: Codex · GPT-5 · 2026-08-16 (Chonkie production activation)
     try:
         from server.analysis.chunking_policy import LANES, lane_chunker
     except Exception:  # pragma: no cover — seam module absent in stripped envs

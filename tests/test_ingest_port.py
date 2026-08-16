@@ -105,6 +105,9 @@ def test_projection_failure_does_not_fail_canonical_ingest(tmp_path: Path, monke
     assert receipt.parser_id == "documents.text-v1"
     assert receipt.chunker_id == service.CHUNKER_ID
     assert receipt.record_count == 1
+    assert receipt.chunk_count == 1
+    assert persisted[0][0][0].attrs["chunker_id"] == service.CHUNKER_ID
+    assert persisted[0][0][0].attrs["derived_materialization"] == "normalized-record-chunk"
     assert receipt.projections[0].status == "failed"
     assert persisted[0][2] == {"case_id": "matter-a", "domain": "platform_design"}
     assert journal.finished[0][0].status == "completed"
@@ -118,6 +121,39 @@ def test_projection_failure_does_not_fail_canonical_ingest(tmp_path: Path, monke
         ("start", 4, None),
         ("finish", 4, "skipped"),
     ]
+
+
+def test_receipt_reports_logical_records_and_actual_chonkie_chunks(tmp_path: Path, monkeypatch) -> None:
+    source = tmp_path / "long-knowledge.md"
+    source.write_text("fixture", encoding="utf-8")
+    content = "Alpha beta gamma. Delta epsilon zeta. " * 1000
+    monkeypatch.setattr(
+        service,
+        "_parse",
+        lambda path, request: (
+            [NormalizedRecord(source="documents.text-v1", content=content)],
+            "documents.text-v1",
+            "python",
+            [],
+        ),
+    )
+    persisted = []
+
+    def persist(records, artifact, **kwargs):
+        persisted.extend(records)
+        return len(records)
+
+    receipt = service.ingest_file(
+        _request(source),
+        journal=_Journal(),
+        custody=lambda *args, **kwargs: _Artifact(),
+        persist=persist,
+    )
+
+    assert receipt.record_count == 1
+    assert receipt.chunk_count == len(persisted) > 1
+    assert receipt.chunker_id == "chonkie.recursive@1.7.0:1500-chars"
+    assert [record.attrs["chunk_index"] for record in persisted] == list(range(len(persisted)))
 
 
 def test_duplicate_artifact_does_not_duplicate_postgres_rows(tmp_path: Path, monkeypatch) -> None:
