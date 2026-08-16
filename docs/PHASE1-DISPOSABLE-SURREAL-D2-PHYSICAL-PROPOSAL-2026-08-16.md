@@ -1,6 +1,6 @@
 # Phase 1 — Disposable Surreal D2 Physical Proposal
 
-> _Byline: Codex · GPT-5 · 2026-08-16_
+> _Byline: Codex · GPT-5 · 2026-08-16 · official-documentation verification refresh 2026-08-16_
 >
 > **Status:** OWNER REVIEW — D2 proposal only. This document does not create or authorize a
 > target, credential, schema, adapter, deployment, corpus copy, migration, service activation,
@@ -223,10 +223,11 @@ attributable approval permits it.
 
 Every edge repeats `matter_id`, `projection_revision`, `policy_version`, visibility/authority
 fields, and the relevant walk ID. Vertex permissions do not substitute for edge permissions;
-both endpoints and every traversed edge must pass the bound predicate. On SurrealDB 3.2.3 these
-relation tables will not use `ENFORCED`: current official documentation warns that pre-3.3.0
-export restore ordering can silently drop enforced edges. D4 must instead validate endpoints in
-the adapter and prove exact edge counts/hashes after export/restore.
+both endpoints and every traversed edge must pass the bound predicate. The relation tables should
+use `TYPE RELATION ... ENFORCED` so writes cannot point at missing records, while the adapter still
+validates endpoint type, Matter, revision, policy, visibility, and walk scope. D4 must also prove
+exact edge counts and hashes after export/import. `ENFORCED` protects write-time endpoint
+existence; it does not by itself prove backup/restore completeness.
 
 ### 6.3 Index catalog
 
@@ -405,12 +406,36 @@ The companion pre-mortem remains normative. D2 adds these physical failure modes
 | ANN ranks globally then filters | `EXPLAIN FULL` or candidate trace includes forbidden IDs | Reject ANN path and quarantine result |
 | Permission protects vertices but not edges | Cross-scope edge appears during traversal | Stop; require edge and endpoint checks |
 | Projection quarantine races a live token | Read succeeds after guard becomes quarantined | Seal walk; fail D4 concurrency gate |
-| Restore silently omits relation edges | Edge count/hash differs after restore | Fail reproducibility; no success claim |
+| Export/import omits or changes relation edges | Edge count/hash differs after import | Fail reproducibility; no success claim |
 | “Internal” target becomes externally reachable | Published port, proxy label, or shared network appears | Stop deployment and quarantine target |
 | Bootstrap secret remains in runtime | Secret inventory shows it in runner/app | Stop; revoke/rotate before testing |
 | Disposable volume is auto-removed | Teardown contains delete/drop/volume removal | Stop; replace with stop-and-quarantine |
 
 ## 14. External technical basis
+
+### 14.1 Verification refresh — 2026-08-16
+
+The following time-sensitive assumptions were rechecked against current official documentation
+without contacting or creating any Surreal target:
+
+- SurrealDB `3.2.3` remains the latest stable server release.
+- Python SDK `2.0.0` remains the latest documented SDK and declares compatibility with server
+  versions `2.0.0` through `3.2.3`.
+- RocksDB remains the recommended storage engine for single-node server workloads; SurrealKV
+  remains beta.
+- table/field permissions apply to RECORD users and not privileged system users; externally
+  issued JWTs can enter the RECORD permission boundary through `TYPE RECORD WITH JWT`.
+- filtered HNSW/DISKANN queries can push predicates into `KnnScan` on supported 3.1.5+ servers;
+  the required proof is the predicate in `EXPLAIN` plus planted-candidate traces, not clean final
+  results alone.
+- `TYPE RELATION ... ENFORCED` is documented in 3.2 as rejecting relations whose endpoints do not
+  exist. No official source was found for the prior draft's claim that pre-3.3 export/restore
+  silently drops enforced edges, so that claim has been removed. Export/import parity remains a
+  mandatory independent gate.
+
+Image digest, signature/provenance, current advisory disposition, and effective runtime
+capabilities remain D3 preflight evidence because they depend on the exact artifact selected at
+that later time.
 
 - [Official Python SDK reference](https://surrealdb.com/docs/reference/python) — SDK 2.0.0,
   supported Python versions, and server compatibility.
@@ -421,10 +446,10 @@ The companion pre-mortem remains normative. D2 adds these physical failure modes
   complete multi-statement results.
 - [Deployment guidance](https://surrealdb.com/docs/build/deployment) — RocksDB for a single-node
   server workload and SurrealKV beta status.
-- [Table definitions](https://surrealdb.com/docs/reference/query-language/statements/define/table)
+- [Table definitions](https://surrealdb.com/docs/learn/schema-management/tables-and-fields/tables)
   and [index definitions](https://surrealdb.com/docs/reference/query-language/statements/define/indexes)
-  — SCHEMAFULL behavior, current full-text/vector syntax, `EXPLAIN`, and the pre-3.3.0 enforced-edge
-  restore warning.
+  — SCHEMAFULL behavior, `TYPE RELATION ... ENFORCED`, current full-text/vector syntax, and
+  `EXPLAIN` planning evidence.
 - [Record access](https://surrealdb.com/docs/reference/query-language/statements/define/access/record),
   [JWT access](https://surrealdb.com/docs/reference/query-language/statements/define/access/jwt), and
   [row-level permissions](https://surrealdb.com/docs/learn/security/authorization/permissions-and-row-level-security)
