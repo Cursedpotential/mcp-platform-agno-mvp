@@ -17,6 +17,9 @@ def test_new_compose_is_isolated_and_legacy_compose_is_not_reused() -> None:
     assert "/data/agno/volumes/surrealdb" not in compose
     assert "100.119.96.29" not in compose
     assert "external: true" not in compose
+    assert "--allow-rpc=attach,signin,use,query,authenticate,info,invalidate" in compose
+    assert "--allow-rpc" in compose
+    assert "--allow-rpc=" in compose
 
 
 def test_workbench_incorporates_surrealdb_studio_without_credentials() -> None:

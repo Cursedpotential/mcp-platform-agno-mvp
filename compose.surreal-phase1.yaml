@@ -18,7 +18,7 @@ services:
       - --deny-all
       - --allow-arbitrary-query=system,record
       - --allow-funcs=type::record,array::len,vector::similarity::cosine
-      - --allow-rpc=signin,use,query,authenticate,info,invalidate
+      - --allow-rpc=attach,signin,use,query,authenticate,info,invalidate
       - --query-timeout=10s
       - --transaction-timeout=10s
       - --log=info
