@@ -4,8 +4,9 @@
 > repeated compaction never loses the vision, decisions, or plan. It is kept
 > current as decisions are made. If something here conflicts with an older ADR,
 > this file's "Locked Decisions" section wins and the ADR should be updated.
+> _Byline amendment: Codex · GPT-5 · 2026-08-16 owner-ruling synchronization._
 > Last updated: 2026-08-16 (ADR-0056–0058 Phase-0 logical contracts, synthetic
-> planted-future-fact tests, evaluation gates, and owner packet are complete for review;
+> planted-future-fact tests, evaluation gates, and S1–S6 owner review are complete;
 > no implementation/activation authority; prior 2026-08-15: governed Surreal analytical/walk-memory
 > projection, claim-centered evidence assembly, Investigation Search, and scoped
 > hindsight/as-lived behavioral analysis; prior: framework-neutral runtime/custom
@@ -206,11 +207,15 @@ S3 API + pg_duckdb httpfs (`read_text('s3://nexus/...')`).
   canonical; SurrealDB is a governed, rebuildable projection and experimental
   platform-owned Spectron-compatible memory/runtime. Original binaries stay in
   custody storage. Partial source approval exposes approved spans only. Graphiti
-  remains the baseline until bake-off. The parked legacy deployment is not activated.
+  remains the baseline until bake-off. One shared product/environment Context carries
+  Matter-scoped promoted knowledge; first-class walks and walk-bound experiential state
+  isolate executions. Failed/superseded walks are sealed for replay and compared to linked
+  rewalks. The parked legacy deployment is not activated.
 - **Claim-centered fact assembly = ADR-0057:** candidate claims generate bounded,
   auditable cross-system investigations. Human/governed review creates immutable
   established facts linked to exact supporting, contradicting, and qualifying spans;
-  corrections relate/supersede and never silently rewrite history.
+  corrections relate/supersede and never silently rewrite history. Corroboration counts
+  independent source families, while raw derivative hits remain separately visible.
 - **Investigation and behavioral analysis = ADR-0058:** Find Evidence, Reconstruct
   Event, and Discover Patterns operate on immutable scopes and bounded traces.
   Behavioral runs separate closed-set analysis from outward discovery and support
@@ -537,12 +542,15 @@ pointer below — corrected 2026-08-09) — Part 1 complete + memory substrate:*
 
 ## 10. Open threads / parking lot
 
-- **ADR-0056–0058 Phase 0 — complete for owner review, not implementation:** logical
+- **ADR-0056–0058 Phase 0 — owner review complete, not implementation:** logical
   contracts, unresolved-question inventory, gold/evaluation specification, synthetic
   planted-future-fact contract tests, and the compact owner packet are indexed in
-  `docs/HANDOFF-2026-08-16-R11-surreal-investigation-phase0.md`. Owner rulings S1–S6
-  remain pending. Phase 1, physical schema, activation, corpus copy, deploy, and Graphiti
-  replacement remain held; all R9 activation holds continue unchanged.
+  `docs/HANDOFF-2026-08-16-R12-surreal-investigation-owner-rulings.md`. D-064 records S1–S6:
+  exclusive post-parity Surreal retrieval, shared-Context walks, sealed historical
+  snapshots plus linked rewalks, horizon-local candidate beliefs, midpoint-plus-HITL
+  realization, and source-family corroboration. Disposable Phase-1 design may proceed;
+  target creation, physical schema, activation, corpus copy, deploy, production agent binding,
+  and Graphiti replacement remain held; all R9 activation holds continue unchanged.
 - Owner had one more idea that slipped away (2026-06-11) — to be added when recalled.
 - Knowledge-engine domain separation: finalize collection scheme + ingestion routing.
 - Legal Team: inventory the Gemini Gems personas to port.

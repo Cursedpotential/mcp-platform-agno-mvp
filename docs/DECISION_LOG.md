@@ -1,6 +1,7 @@
 # DECISION LOG — Agno-MCP-Platform
 
-> _Byline: Claude Code · Fable 5 · started 2026-07-09 (2026-07-10 entries: Claude Opus 4.8)_
+> _Byline: Claude Code · Fable 5 · started 2026-07-09 (2026-07-10 entries: Claude Opus 4.8) ·
+> Codex · GPT-5 · 2026-08-16 owner-ruling synchronization_
 > **Running, append-only design/decision log.** Every load-bearing decision lands here with
 > date, lane, rationale, and status — a fast scan of "why is it this way?" without digging
 > through chat. Complements (does not replace) the formal `docs/adr/` ADRs: when a decision is
@@ -11,6 +12,12 @@ Lanes: **A** = restructure · **B** = ingestion/table redesign · **C** = infra/
 `docs/COORDINATION.md` for lane ownership and the live-status ledger.
 
 ---
+
+## 2026-08-16
+
+| # | Decision | Lane | Status | Rationale / notes |
+|---|---|---|---|---|
+| D-064 | **Phase-0 Surreal investigation contracts accepted with shared-Context walks, sealed failure snapshots, HITL realization midpoint, and source-family corroboration** | B | accepted; contracts/design only 2026-08-16 | Owner rulings: **S1 A** — after parity, the as-lived agent reads evidence/memory only through reconciled Surreal, with PostgreSQL limited to canonical control/approval metadata and no broad-store fallback. **S2 B** — one shared Surreal Context per product/environment; Matter scopes plus first-class `walk`/`walk_step` records and walk-bound experiential beliefs isolate executions without corpus duplication. **S3 A amended** — revocation/drift/outage pauses and seals an immutable historical snapshot; reconciliation starts a linked rewalk and preserves the experiential before/after delta. **S4 A** — a walk may form labeled uncertain candidates only from its eligible horizon. **S5 C amended** — preserve the realization interval, propose its midpoint, require attributable HITL approval/adjustment, and withhold it until reviewed. **S6 A** — derivative copies count as one source family unless provenance review proves independence; raw-hit and independent-source counts remain separate. E1–E5 and all R9 activation holds remain unchanged. rel: **ADR-0056**, **ADR-0057**, ADR-0058, D-061–D-063. _Byline: Codex · GPT-5 · 2026-08-16._ |
 
 ## 2026-08-15
 

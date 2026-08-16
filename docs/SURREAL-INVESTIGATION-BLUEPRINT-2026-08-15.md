@@ -1,9 +1,9 @@
 # Blueprint — Surreal Analytical Surface, Investigation, and Temporal Memory
 
-> _Byline: Codex · GPT-5 · 2026-08-15 · updated 2026-08-16 (Codex · GPT-5)_
+> _Byline: Codex · GPT-5 · 2026-08-15 · owner-ruling update 2026-08-16_
 >
-> **Status:** Accepted architecture boundaries; Phase-0 logical contracts/evaluation package
-> complete for owner review 2026-08-16.
+> **Status:** Accepted architecture boundaries; Phase-0 logical contracts/evaluation and S1–S6
+> owner review complete 2026-08-16.
 > **Build status:** Research/design only; no Surreal activation, schema, or deploy claim.
 
 ## 1. Governing boundaries
@@ -176,6 +176,17 @@ must distinguish world validity, subject discovery/realization, system recording
 and walk observation. Spectron compatibility is behavior/API compatibility, not copied branding
 or an assumption that private internals are known.
 
+The disposable slice uses one shared Context for the product/environment world. Matter scopes
+partition promoted material; `walk`/`walk_step` records bind role, schedule, horizon, projection,
+and policy; experiential beliefs bind to `walk_id`. Promoted knowledge is not copied per walk.
+Stateful facilities such as caches, profiles, consolidation, and prompt assembly must prove the
+same Matter/walk/horizon/revision bindings or remain unavailable to the as-lived agent.
+
+Revocation, drift, mismatch, or outage pauses and seals the current walk as immutable historical
+experience. After reconciliation, a new `rewalk_of` execution produces an attributable delta.
+Uncertain realization keeps its interval and requires HITL clarification of a midpoint proposal.
+Corroboration reports independent source-family count separately from raw derivative hits.
+
 ## 10. Evaluation and gates
 
 Report metrics per domain and question type: Recall@k, Precision@k, MRR, nDCG, locator accuracy,
@@ -186,8 +197,8 @@ isolation, invalidation, replay, latency, and resources.
 
 The executable Phase-0 contract canary and full gate specification are in
 `tests/test_surreal_investigation_phase0_contract.py` and
-`docs/EVALUATION-2026-08-16-surreal-investigation-phase0.md`. Its 14 passing synthetic tests are
-not live adapter proof.
+`docs/EVALUATION-2026-08-16-surreal-investigation-phase0.md`. Its 18 passing synthetic tests
+(14 original horizon canaries plus four owner-ruling contracts) are not live adapter proof.
 
 ## 11. Verified corrections to research packets
 
@@ -204,24 +215,25 @@ not live adapter proof.
 - Candidate material is barred from canonical walk conclusions, not from explicitly labeled
   extraction/review/investigation agents.
 
-## 12. Open design decisions
+## 12. Resolved boundaries and deferred design decisions
 
-1. Exclusive Surreal retrieval for the as-lived walk agent.
-2. Surreal namespace/database/context isolation.
-3. Physical schemas and API versioning.
-4. Weaviate named-vector versus collection lifecycle policy.
-5. Memory embedding profiles versus promoted corpus profiles.
-6. TraceIQ geo precision, uncertainty, and retention contract.
-7. Behavioral taxonomy, expansion budgets, and Case Prep transformation approvals.
+D-064 resolves exclusive post-parity Surreal retrieval, shared-Context walk isolation,
+fail-closed sealed snapshots/rewalks, horizon-local candidate beliefs, midpoint-plus-HITL
+realization, and source-family corroboration.
+
+Still deferred: physical schemas/API versioning, Weaviate named-vector versus collection
+lifecycle, memory versus corpus embedding profiles, TraceIQ precision/uncertainty/retention,
+behavioral taxonomy/expansion budgets, Case Prep transformation approvals, and Graphiti cutover.
 
 The complete routed inventory is
 `UNRESOLVED-QUESTIONS-2026-08-16-surreal-investigation-phase0.md`; only six immediate choices are
-presented in `PENDING-OWNER-DECISIONS-SURREAL-INVESTIGATION-2026-08-16.md`. No recommendation is
-accepted until the owner rules.
+preserved and marked resolved in `PENDING-OWNER-DECISIONS-SURREAL-INVESTIGATION-2026-08-16.md`.
 
 ## 13. Implementation order
 
 Contracts and evaluation precede infrastructure. Build a disposable vertical slice with a few
 promoted sources, one candidate claim, one cross-source dossier, one reviewed fact, and one
-as-lived scope. Do not reactivate the parked deployment, bulk-copy the corpus, or replace Graphiti
-until the slice passes contamination, provenance, reconciliation, and reproducibility gates.
+as-lived scope. The Phase-1 design may now be refined, but no target, schema, activation, corpus
+copy, deployment, or agent binding follows from D-064. Do not reactivate the parked deployment,
+bulk-copy the corpus, or replace Graphiti until the slice passes contamination, provenance,
+reconciliation, and reproducibility gates.

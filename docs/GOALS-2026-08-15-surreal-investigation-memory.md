@@ -1,9 +1,9 @@
 # Goals — Curated Surreal Analysis, Walk Memory, and Investigation
 
-> _Byline: Codex · GPT-5 · 2026-08-15 · updated 2026-08-16 (Codex · GPT-5)_
+> _Byline: Codex · GPT-5 · 2026-08-15 · owner-ruling update 2026-08-16_
 >
-> **Status:** Architecture documented; Phase-0 review package complete 2026-08-16;
-> implementation not authorized by this file.
+> **Status:** Architecture documented; Phase-0 contracts and S1–S6 accepted 2026-08-16;
+> disposable Phase-1 design authorized, implementation/activation not authorized by this file.
 > **Build status:** NOT STARTED for the new Surreal/investigation capabilities.
 
 ## North-star outcome
@@ -28,6 +28,8 @@ hindsight without weakening PostgreSQL custody or canonical authority.
 - Project approved manifests, spans, full normalized sources, chunks, vectors, facts,
   relationships, temporal state, traces, and TraceIQ geo observations.
 - Enforce partial-source promotion and fail-closed projection reconciliation.
+- Use one shared product/environment Context with Matter scope, first-class walk records, and
+  walk-bound experiential beliefs; never duplicate the promoted corpus per walk.
 - Keep the legacy parked Surreal deployment untouched until an isolated target is approved.
 
 ### G3 — Recreate Spectron-compatible temporal memory
@@ -35,6 +37,8 @@ hindsight without weakening PostgreSQL custody or canonical authority.
 - Model valid, known/realized, recorded/system, decision, and walk-observed time.
 - Implement episodic, identity, knowledge, context, instruction, uncertainty, and trace memory.
 - Preserve supersession, contradiction, reconciliation, and current pointers without deletion.
+- Seal failed/superseded walks as immutable historical snapshots and compare them with linked
+  post-reconciliation rewalks as part of experiential evolution.
 - Run one isolated as-lived agent and compare it with Graphiti before replacement decisions.
 
 ### G4 — Improve chunking, routing, and embedding architecture
@@ -104,15 +108,18 @@ hindsight without weakening PostgreSQL custody or canonical authority.
 - Replacing Graphiti, Neo4j, or Weaviate before an observed bake-off.
 - Implementing an unbounded autonomous investigator.
 
-## Pending owner decisions
+## Owner-resolved Phase-1 boundaries
 
-1. Whether the as-lived walk agent retrieves exclusively from SurrealDB.
-2. Surreal namespace/database/context isolation per Matter, walk, and agent.
-3. Exact physical claim/fact/source-span schema.
-4. Weaviate named vectors versus profile-specific collections.
-5. Memory embeddings versus promoted corpus embedding profiles.
-6. Behavior-lens controlled taxonomy and expansion budgets.
-7. Case Prep transformation and approval workflow.
+1. After parity, the as-lived walk retrieves evidence/memory only through reconciled Surreal.
+2. One shared Context holds Matter-scoped promoted knowledge; walk records and walk-bound beliefs
+   isolate executions.
+3. Revocation/drift/outage seals a historical snapshot and requires a linked clean rewalk.
+4. Walk-generated candidates are allowed only from horizon-eligible inputs and remain uncertain.
+5. Uncertain realization uses a midpoint proposal plus mandatory HITL clarification.
+6. Corroboration counts independent source families, with raw derivative hits reported separately.
+
+Physical schema/API versioning, embedding layout/profiles, behavior taxonomy/budgets, TraceIQ,
+Case Prep release workflow, and Graphiti replacement remain separately gated.
 
 ## Phase-0 review package (2026-08-16)
 
@@ -122,6 +129,11 @@ hindsight without weakening PostgreSQL custody or canonical authority.
 - `PHASE0-PLANTED-FUTURE-FACT-THREAT-TESTS-2026-08-16.md`
 - `PENDING-OWNER-DECISIONS-SURREAL-INVESTIGATION-2026-08-16.md`
 - `HANDOFF-2026-08-16-R11-surreal-investigation-phase0.md`
+- `HANDOFF-2026-08-16-R12-surreal-investigation-owner-rulings.md`
 
-The planted-future-fact suite is synthetic and framework-neutral; it passed 14 tests. It does
-not prove any live store adapter. Phase 1 remains held pending owner review and R9 holds.
+The framework-neutral contract suite now passes 18 tests: the original 14 planted-future-fact
+checks plus four owner-ruling checks for shared walks, sealed rewalk snapshots, HITL realization,
+and source-family corroboration. It does
+not prove any live store adapter. Owner review is complete; disposable Phase-1 design may proceed,
+but target creation, schema implementation, corpus copy, activation, deployment, and every R9
+hold remain separately gated.

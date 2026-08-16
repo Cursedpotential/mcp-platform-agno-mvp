@@ -1,8 +1,8 @@
 # Phase-0 Contracts — Surreal Investigation, Projection, and Walk Memory
 
-> _Byline: Codex · GPT-5 · 2026-08-16_
+> _Byline: Codex · GPT-5 · 2026-08-16 · owner-ruling amendment 2026-08-16_
 >
-> **Status:** PROPOSED FOR OWNER REVIEW — logical contracts only
+> **Status:** ACCEPTED BY OWNER 2026-08-16 — logical contracts only
 > **Implementation authority:** NONE. This document does not authorize schema, migration,
 > corpus copy, Surreal activation, deployment, Graphiti replacement, or production writes.
 
@@ -78,6 +78,13 @@ The five clocks are distinct and never silently substituted:
 For current canonical records, visibility is derived from the approved realization clock or
 occurrence clock under ADR-0045: `visible_from = COALESCE(approved realized_at, occurred_at)`.
 `knowledge_time` remains audit-only and is never a horizon predicate.
+
+When realization is uncertain, the contract preserves the earliest and latest plausible bounds
+plus a computed midpoint proposal. The midpoint is not an approved timestamp. HITL review must
+approve it, choose another evidence-supported point, narrow the interval, or leave the realization
+unresolved. Until that attributable decision exists, the estimate is ineligible for as-lived
+retrieval. Later clarification creates a new realization revision; it never rewrites the prior
+interval, decision, or historical walk.
 
 `HorizonContext` is immutable and contains:
 
@@ -166,6 +173,10 @@ lineage/independence group, and exact trace step. Ranking never establishes trut
 `missing_expected` is an `EvidenceExpectation` containing the expected source/kind/time/actor,
 search coverage, and absence confidence; it never fabricates a source span.
 
+Derivative files or messages sharing custody/content lineage belong to one source family unless
+review proves independent observation or creation. Every dossier reports raw-hit count and
+independent-source-family count separately; preservation multiplicity is not corroboration.
+
 ### `FactDossier`
 
 Frozen review input containing the claim, plan, all selected and rejected hits, contradictions,
@@ -215,11 +226,27 @@ An append-only record of what one run/role proposed, accepted, rejected, superse
 or observed, including upstream evidence/fact IDs, HorizonContext, decision and observation
 times, confidence/uncertainty, prompt/tool/model versions, and prior event hash.
 
-### `MemoryContext`
+### Shared Surreal Context and `Walk`
 
-Names exactly one Matter/workflow/run/role/walk namespace. Ignorant and hindsight contexts never
-share a namespace. Namespace is not authorization; the service validates the caller's allowed
-contexts.
+The disposable product/environment uses one shared Surreal Context. Promoted evidence and facts
+are stored once and partitioned by mandatory Matter and authorization scopes. A `Walk` is a
+first-class workflow record—not a separate Context, evidence store, or truth clock—and binds
+`walk_id`, `run_id`, role/mode, schedule, current horizon, projection revision, policy versions,
+and status. `WalkStep` advances the horizon. Agent-created beliefs and observations bind to their
+originating `walk_id`; shared promoted evidence does not.
+
+Every as-lived read is bound to exactly one walk and horizon before ranking or traversal. Cache,
+profile, consolidation, prompt-assembly, and retrieval state must include the Matter, walk,
+horizon, projection revision, and policy identity or be unavailable to the as-lived path.
+
+### `WalkSnapshot` and linked rewalk
+
+On revocation, projection drift, hash mismatch, or outage, the service pauses and seals the walk.
+The immutable snapshot binds its step/horizon, projection and eligible-record manifests/hashes,
+belief-event state, retrieved context and traces, versions, and failure reason. It is historical,
+read-only, non-resumable, and ineligible for active recall. After reconciliation, a fresh walk
+links through `rewalk_of`; comparison distinguishes input/projection changes from model, prompt,
+tool, schedule, policy, and reasoning changes.
 
 ### `MemoryState` and `MemoryDiff`
 
@@ -255,8 +282,8 @@ Normative operation families are:
 - retrieval: `search`, `neighbors`, `explain`;
 - projection: `plan_projection`, `apply_projection`, `reconcile`, `rebuild`, `quarantine`;
 - investigation: `freeze_scope`, `plan`, `execute`, `expand`, `build_dossier`;
-- walk memory: `create_context`, `append`, `retrieve`, `reconcile`, `checkpoint`, `diff`,
-  `invalidate`, `export_trace`;
+- walk memory: `create_walk`, `advance_walk`, `append`, `retrieve`, `reconcile`, `checkpoint`,
+  `seal_snapshot`, `start_rewalk`, `diff`, `invalidate`, `export_trace`;
 - behavior/Case Prep: `analyze_closed_scope`, `plan_outward_discovery`, `compare_modes`,
   `prepare_case_language`, `submit_review`, `release`.
 
@@ -279,6 +306,7 @@ AND source/span access is authorized
 AND visible_from <= selected horizon for as-lived mode
 AND disclosure policy permits the item
 AND projection revision reconciles to canonical hashes
+AND any agent-belief lookup matches the bound walk_id
 ```
 
 For Weaviate, the implementation must use adapter-supported dictionary filters; Agno
@@ -291,8 +319,10 @@ prove prefiltering is ineligible for the as-lived path.
 - Every projection object carries canonical IDs, hashes, revision, promotion scope, temporal
   axes, and policy version.
 - Reconciliation compares canonical eligible membership and content hashes with target state.
-- Missing, extra, stale, or hash-mismatched target objects quarantine the affected context and
-  block as-lived reads until repaired.
+- Missing, extra, stale, or hash-mismatched target objects quarantine the affected
+  Matter/projection revision and block its as-lived reads until repaired.
+- A blocked walk is sealed as an immutable historical snapshot before repair. Repair never resumes
+  or rewrites it; a reconciled projection receives a new linked walk.
 - Rebuild starts from canonical decisions and receipts; it never imports truth from Surreal.
 - Original binaries remain in custody storage. Optional verified replication never changes
   authority or approval.
@@ -301,8 +331,8 @@ prove prefiltering is ineligible for the as-lived path.
 
 This contract intentionally does not decide:
 
-- Surreal namespace/database/table/record layout or SDK;
-- one database per Matter versus shared database with mandatory scope predicates;
+- exact Surreal namespace/database/table/record layout or SDK inside the accepted shared-Context
+  and mandatory Matter/walk-scope boundary;
 - named vectors versus profile-specific Weaviate collections;
 - embedding/reranking models and dimensions;
 - memory versus corpus embedding-profile reuse;
@@ -323,3 +353,6 @@ Those choices require the evaluation gates and owner rulings in the companion Ph
 7. Projection loss/rebuild cannot alter canonical decisions.
 8. Contract tests import no Agno, Graphiti, SurrealDB, Weaviate, or database client.
 9. R9 activation holds remain unchanged.
+10. Historical walk snapshots remain replayable but cannot become active retrieval fallback.
+11. Unapproved realization midpoint proposals produce zero as-lived visibility.
+12. Raw duplicate count cannot inflate independent corroboration count.

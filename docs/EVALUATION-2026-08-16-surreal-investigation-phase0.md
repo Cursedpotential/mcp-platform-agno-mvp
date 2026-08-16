@@ -1,8 +1,8 @@
 # Gold Corpus and Evaluation Specification — Surreal Investigation Phase 0
 
-> _Byline: Codex · GPT-5 · 2026-08-16_
+> _Byline: Codex · GPT-5 · 2026-08-16 · owner-ruling amendment 2026-08-16_
 >
-> **Status:** PROPOSED FOR OWNER REVIEW — specification plus synthetic contract canary
+> **Status:** ACCEPTED BY OWNER 2026-08-16 — specification plus synthetic contract canary
 > **Corpus state:** No production corpus copied; no sensitive corpus authorized for evaluation.
 
 ## 1. Purpose
@@ -43,6 +43,8 @@ Every corpus release contains a machine-readable manifest with:
 - established-fact labels only where a simulated/real governed review is part of the case;
 - immutable scopes, horizon steps, planted canaries, expected eligible IDs per step, and expected
   ignorant/hindsight realization delta;
+- realization-uncertainty intervals, midpoint proposals, HITL decisions, and expected preapproval
+  denial; derivative source-family labels plus separate raw-hit and independent-source counts;
 - questions, intent, acceptable answers/abstentions, required citations, prohibited conclusions,
   and required disconfirmation paths;
 - lens/diagnosis/court-language labels for behavior and Case Prep cases;
@@ -72,8 +74,8 @@ and negative examples.
 | Behavioral | Positive, negative, ambiguous lens cases; alternative explanations; no diagnosis |
 | Court language | Internal shorthand to conduct-first draft; citation and release blockers |
 | Contamination | Highly similar future facts, old-source/late-realization facts, hidden metadata leaks |
-| Isolation | Cross-Matter, cross-run, ignorant/hindsight namespace, unauthorized profile |
-| Failure/recovery | Partial projection, stale hash, timeout, budget exhaustion, rebuild/replay |
+| Isolation | Cross-Matter, cross-walk, ignorant/hindsight belief state, unauthorized profile/cache |
+| Failure/recovery | Partial projection, stale hash, outage, sealed snapshot, linked rewalk, rebuild/replay |
 
 At least 20% of questions are adversarial negatives where the correct response is abstention,
 “insufficient evidence,” a contradiction, or a blocked run. At least 20% require multi-source
@@ -125,8 +127,9 @@ Each question records:
 ### Memory and replay
 
 - temporal reconstruction, contradiction/supersession correctness, as-of search, and invalidation;
-- Matter/run/role namespace isolation;
-- deterministic replay/state-hash equality and old-run replay after later ingestion;
+- Matter/walk/role scope isolation inside the shared Context;
+- deterministic replay/state-hash equality, sealed-snapshot reconstruction, old-run replay after
+  later ingestion, and linked rewalk deltas;
 - projection acknowledgement, orphan detection, rebuild parity, and backup/restore parity.
 
 ### Behavioral and Case Prep
@@ -150,16 +153,18 @@ These gates are binary. They are never averaged into a quality score.
 |---|---|
 | E0 Contract neutrality | Contract tests run without importing Agno, AG2, AI SDK, Graphiti, SurrealDB, Weaviate, Neo4j, or a database client |
 | E1 Horizon | Zero planted future-fact leakage in retrieval, prompts, handoffs, coordination WALs, beliefs, summaries, observations, and traces; filters are proven pre-ranking/traversal |
-| E2 Scope/isolation | Zero cross-Matter, cross-run, cross-role, or closed-scope silent expansion |
+| E2 Scope/isolation | Zero cross-Matter, cross-walk, cross-role, cache/profile, or closed-scope silent expansion inside the shared Context |
 | E3 Authority | Zero candidate/extraction/belief objects represented as established facts or court-safe exports without their review chains |
 | E4 Provenance | 100% of cited/established assertions resolve through exact spans/chunk generations to a custody-backed source revision |
-| E5 Promotion | Partial approval exposes only manifest plus approved spans; revocation/hash mismatch blocks reads and reconciliation fails closed |
-| E6 Reproducibility | Same corpus, scope, versions, and deterministic components reproduce manifests, dossiers, eligibility sets, and projection/state hashes |
+| E5 Promotion | Partial approval exposes only manifest plus approved spans; revocation/hash mismatch blocks reads, seals the old walk, and reconciliation fails closed |
+| E6 Reproducibility | Same corpus, scope, versions, and deterministic components reproduce manifests, dossiers, eligibility sets, projection/state hashes, sealed snapshots, and linked rewalk deltas |
+| E6a HITL time | Unapproved midpoint proposals have zero as-lived visibility; every approved realization point retains interval, evidence, reviewer, rationale, and revision |
+| E6b Corroboration | Raw derivative hit count never inflates independent-source-family count without an attributable provenance review |
 | E7 Bounded investigation | Every run records and obeys hop/result/time/context/cost limits and executes the required disconfirmation path |
 | E8 Behavioral safety | No lens becomes a diagnosis; no discovery silently changes closed scope; no draft is labeled court-safe without release review |
 | E9 R9 hold | No test setup applies 0026–0030, deploys, activates parked Surreal, copies the real corpus, or binds a production agent |
 
-Any E1–E9 failure blocks promotion regardless of retrieval quality.
+Any listed non-negotiable gate failure blocks promotion regardless of retrieval quality.
 
 ## 8. Provisional usefulness thresholds
 
@@ -192,9 +197,13 @@ micro-averaging across easier domains.
 6. Record raw candidate sets, eligibility proof, ranks, reranker inputs/outputs, and traces.
 7. Run Investigation Search with mandatory disconfirmation and fixed budgets.
 8. Replay memory and paired-delta cases from the same ordered belief events.
-9. Score deterministically where possible; use blinded human review for behavior/wording.
-10. Publish a durable itemized report with failures, skips, versions, cost, and remediation.
-11. Repeat after rebuild to prove reconciliation and state-hash parity.
+9. Inject revocation/drift, seal the prior walk, reconcile, launch a linked rewalk, and verify both
+   exact historical reconstruction and zero historical-state retrieval leakage.
+10. Exercise uncertain realization cases before and after attributable HITL clarification and
+    derivative-copy cases before and after an independence ruling.
+11. Score deterministically where possible; use blinded human review for behavior/wording.
+12. Publish a durable itemized report with failures, skips, versions, cost, and remediation.
+13. Repeat after rebuild to prove reconciliation and state-hash parity.
 
 LLM judges may supplement but never replace deterministic eligibility, locator, provenance,
 authority, scope, budget, and hash assertions.
@@ -217,7 +226,7 @@ failure injections. Compare:
 - reconstruction at each step and after later corrections;
 - contradiction/supersession and current/as-of views;
 - exact upstream provenance and materialization acknowledgement;
-- namespace isolation and invalid context denial;
+- shared-Context Matter/walk isolation and invalid walk denial;
 - invalidation, replay, rebuild, backup/restore, and orphan repair;
 - hybrid retrieval usefulness, latency, storage, CPU/RAM, and operational complexity.
 

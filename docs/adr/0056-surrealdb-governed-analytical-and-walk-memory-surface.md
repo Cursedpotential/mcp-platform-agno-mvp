@@ -1,9 +1,9 @@
 # ADR-0056 — SurrealDB governed analytical and walk-memory surface
 
-> _Byline: Codex · GPT-5 · 2026-08-15_
+> _Byline: Codex · GPT-5 · 2026-08-15 · owner-ruling amendment 2026-08-16_
 
 - **Status:** Accepted (owner approval 2026-08-15)
-- **Decision:** D-061
+- **Decision:** D-061, refined by D-064
 - **Relates:** ADR-0014, ADR-0024, ADR-0032, ADR-0040, ADR-0043, ADR-0045, ADR-0052
 
 ## Context
@@ -38,6 +38,23 @@ but its self-hosted binary is prerelease/private and cannot be a hard dependency
 7. The parked legacy Surreal deployment stays read-only. This ADR authorizes a
    design and later isolated spike, not an in-place activation, migration, or
    production cutover.
+8. The disposable slice uses one shared Surreal Context for its product/environment
+   world. Matter scopes partition promoted material inside that Context; first-class
+   walk records, steps, horizons, and walk-bound belief records separate executions.
+   Ignorant and hindsight walks do not receive separate Contexts or duplicated corpora.
+9. After parity is proven, an as-lived walk retrieves evidence and memory only through
+   its reconciled Surreal projection. PostgreSQL may supply canonical control and
+   approval metadata, but no broad-store retrieval fallback is permitted.
+10. Revocation, drift, mismatch, or outage pauses the affected walk and fails closed.
+    The system seals an immutable, read-only historical walk snapshot, reconciles or
+    rebuilds the projection, then starts a new linked rewalk. Historical snapshots are
+    replayable and comparable but are never active retrieval fallback state.
+11. A walk may form explicitly uncertain candidate beliefs only from horizon-eligible
+    inputs. It cannot import corpus-wide candidates or extraction findings produced
+    under a broader horizon.
+12. Uncertain realization time retains its full interval. A computed midpoint is only
+    a proposal: mandatory human review must approve it, select another supported point,
+    narrow the interval, or leave it unresolved. No unapproved estimate is walk-visible.
 
 This supersedes ADR-0043 only where that ADR says SurrealDB has no future
 analytical/memory role. ADR-0043's PostgreSQL authority, Semantica candidate
@@ -87,6 +104,12 @@ revived.
   disclosure predicates and prove pre-ranking filters with planted future facts.
 - **Projection drift:** carry PostgreSQL IDs, custody hashes, projection revisions,
   and rebuild checkpoints; mismatches fail closed.
+- **Shared-Context bleed:** bind reads, writes, caches, profiles, consolidation, and
+  traces to Matter plus walk/horizon policy; disable any Context-wide facility that
+  cannot prove those predicates for the as-lived path.
+- **Historical-state contamination:** seal snapshots as immutable/non-resumable and
+  require a new walk identity after reconciliation; compare snapshots through explicit
+  input, policy, and reasoning deltas.
 - **Blob duplication:** reference custody storage by default; replicate bytes only
   under an explicit availability/analysis policy.
 - **Private-product assumptions:** label official Spectron behavior verified,

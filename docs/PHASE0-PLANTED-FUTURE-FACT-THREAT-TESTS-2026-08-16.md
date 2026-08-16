@@ -1,6 +1,6 @@
 # Phase 0 — Planted Future-Fact Horizon-Leak Tests
 
-> _Byline: Codex · GPT-5 · 2026-08-16_
+> _Byline: Codex · GPT-5 · 2026-08-16 · owner-ruling amendment 2026-08-16_
 >
 > **Status:** Threat-test contract plus validated synthetic oracle vectors.
 > **Integration status:** BLOCKED — target store/service adapters do not yet implement this contract.
@@ -106,7 +106,9 @@ cross-Matter, revoked projection, and candidate-only shapes.
 - fail-closed behavior when an adapter cannot prove prefilter support;
 - absence of runtime/store client imports from the contract test.
 
-Focused Phase-0 result: **14 passed**, with Ruff lint and format checks passing. This proves the
+Focused Phase-0 result after owner-ruling extension: **18 passed** (14 original horizon canaries
+plus four shared-walk/snapshot/HITL/corroboration contracts), with Ruff lint and format checks
+passing. This proves the
 oracle data is internally coherent. It does **not** prove a production adapter,
 store, cache, planner, model, or agent is safe. Phase-1+ adapters must consume these same vectors
 and attach their traces before integration status can change from `BLOCKED`.
@@ -118,5 +120,14 @@ do not weaken or replace the first canary.
 ## 8. Failure handling
 
 On contamination: stop the run, quarantine its checkpoint/materialization, record the policy,
-scope, candidate IDs, adapter revision, and first contaminated stage, and require a clean rerun.
-Never repair a contaminated as-lived result by merely deleting the offending sentence.
+scope, candidate IDs, adapter revision, and first contaminated stage. Seal an immutable historical
+walk snapshot with its horizon, eligible manifest, belief state, context/decision traces, versions,
+and failure cause. That snapshot remains replayable for experiential comparison but is read-only,
+non-resumable, and forbidden from active retrieval. Reconcile or rebuild, then create a new linked
+walk and measure the before/after delta. Never repair a contaminated as-lived result by deleting
+the offending sentence or rewriting the old walk.
+
+An uncertain realization midpoint is also a planted-fact boundary: before attributable HITL
+approval it must appear in zero candidate pools and agent-visible surfaces. Derivative copies must
+increase raw-hit count without increasing independent-source-family count unless a separate
+provenance review proves independence.

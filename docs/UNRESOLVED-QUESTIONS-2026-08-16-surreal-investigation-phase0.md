@@ -1,8 +1,8 @@
 # Unresolved Questions — Surreal Investigation Phase 0
 
-> _Byline: Codex · GPT-5 · 2026-08-16_
+> _Byline: Codex · GPT-5 · 2026-08-16 · owner-ruling update 2026-08-16_
 >
-> **Status:** ACTIVE INVENTORY — questions are not decisions
+> **Status:** ACTIVE INVENTORY — S1–S6 questions resolved by D-064; remaining rows stay open
 > **Default rule:** if a blocking question is unresolved, the dependent phase remains held.
 
 ## How to read this inventory
@@ -11,6 +11,23 @@ Questions are separated by decision owner and latest safe decision point. “Rec
 the behavior while unresolved; it is not an implicit architecture ruling. The companion owner
 packet contains only the small subset that requires owner judgment now.
 
+## Resolved by owner on 2026-08-16
+
+The historical question rows remain below for traceability, but their former holds no longer
+control. D-064 resolves them as follows:
+
+| Questions | Resolution |
+|---|---|
+| UQ-01 | After parity, the as-lived walk reads evidence/memory only through reconciled Surreal; no broad-store fallback |
+| UQ-02 | One shared Context per product/environment; Matter scopes plus first-class walk records and walk-bound experiential state |
+| UQ-04, UQ-07 | Fail closed; seal an immutable historical snapshot, reconcile/rebuild, then begin a linked rewalk |
+| UQ-08 | Walk-generated candidate beliefs are allowed only from horizon-eligible inputs and remain explicitly uncertain |
+| UQ-16 | Count independent source families; report raw derivative hits separately |
+| UQ-18 | Preserve the interval, propose its midpoint, require HITL clarification, and withhold until approval |
+
+Physical tables, adapter behavior, reconciliation algorithms, and live proof remain unresolved
+where separately routed below; the owner rulings do not authorize implementation.
+
 | Class | Resolution route |
 |---|---|
 | Owner | Values, risk tolerance, authority, or product meaning; owner ruling required |
@@ -18,7 +35,7 @@ packet contains only the small subset that requires owner judgment now.
 | Contract | Integration review against the Phase-0 logical contracts |
 | Operational | Named target/credentials/deployment approval; never inferred from design approval |
 
-## A. Blocks contract freeze or the disposable Phase-1 slice
+## A. Historical Phase-0 blockers and remaining implementation questions
 
 | ID | Question | Class | Latest safe point | Recommended hold while open | Evidence/decision needed |
 |---|---|---|---|---|---|
@@ -96,8 +113,9 @@ These are dependencies, not R10 questions, and Phase 0 does not resolve or weake
 
 ## H. Decision routing summary
 
-- **Owner packet now:** UQ-01, UQ-02, UQ-04, UQ-07/UQ-08, UQ-16/UQ-18,
-  UQ-21/UQ-22, UQ-25, and UQ-30.
+- **Resolved owner packet (D-064):** UQ-01, UQ-02, UQ-04, UQ-07/UQ-08, and
+  UQ-16/UQ-18.
+- **Later owner review:** UQ-17, UQ-19, UQ-21/UQ-22, UQ-24/UQ-25, and UQ-30.
 - **Gold-corpus/bake-off:** UQ-09 through UQ-14, UQ-26, and performance aspects of UQ-30.
 - **Post-contract implementation review:** UQ-03, UQ-05, UQ-06, UQ-15, UQ-17,
   UQ-19, UQ-20, and UQ-24.

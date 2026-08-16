@@ -1,24 +1,24 @@
-# Pending Owner Decisions — Surreal Investigation Phase 0
+# Owner Decisions — Surreal Investigation Phase 0
 
-> _Byline: Codex · GPT-5 · 2026-08-16_
+> _Byline: Codex · GPT-5 · 2026-08-16 · rulings synchronized 2026-08-16_
 >
-> **Status:** PENDING OWNER RULING — compact review packet only
+> **Status:** ACCEPTED BY OWNER 2026-08-16 — S1–S6 resolved
 > **Authority:** Not an ADR; no schema, migration, activation, corpus copy, or deployment authority.
 
 ## Answer first
 
-Six decisions block the disposable Phase-1 design. The recommended compact ruling is:
+The owner resolved all six decisions through a hyperfocused one-at-a-time review:
 
-`S1–S6 recommended. Keep every R9 activation hold. Defer E1–E5 to measured gates.`
+`S1 A · S2 B · S3 A plus immutable historical snapshots/rewalk · S4 A · S5 C plus
+mandatory HITL clarification · S6 A.`
 
-The recommendations use tribunal-style reasoning for hard-to-reverse isolation/authority choices
-and pre-mortem checks for their failure behavior.
+Every R9 activation hold remains in force. E1–E5 remain deferred to measured gates.
 
 ## S1 — As-lived retrieval boundary
 
 ### Verdict
 
-**Recommended:** once the disposable slice proves parity, the as-lived walk gets evidence and
+**Accepted:** once the disposable slice proves parity, the as-lived walk gets evidence and
 memory only through its immutable, reconciled Surreal context. PostgreSQL may supply canonical
 control/approval metadata, but the walk cannot fall back to broad Weaviate, Neo4j, PostgreSQL
 evidence search, or another run's memory.
@@ -39,30 +39,41 @@ federated implementation proves identical immutable membership and zero leaks on
 
 ### Verdict
 
-**Recommended:** use a new disposable Surreal environment/database for the spike; never touch the
-parked legacy deployment. Within it, require `matter_id` on all case material and a distinct
-context namespace per walk/run/agent role. Do not create one database per Matter for the current
-single-owner MVP; reevaluate for multi-tenant use.
+**Accepted:** use a new disposable Surreal environment for the spike; never touch the parked
+legacy deployment. Within it, use one shared Surreal Context for the product/environment world.
+Require `matter_id` on case material, represent each execution with first-class `walk` and
+`walk_step` records, and bind experiential beliefs/observations to `walk_id`. Promoted evidence
+and facts are stored once rather than duplicated per walk.
 
-**Alternative:** one shared context or one database per Matter immediately.
+**Rejected alternatives:** a distinct Context/namespace per walk/run/role, or one database per
+Matter immediately.
 
-**Confidence:** Medium.
+**Confidence:** High after owner clarification and review against the documented Spectron
+Context/scope/session model.
 
-**Reasoning:** one shared context cannot prevent silent cross-run contamination. Database-per-Matter
-adds lifecycle/operations before the single-owner product needs it. Environment isolation plus
-mandatory Matter and run-role namespaces gives the disposable slice a testable middle boundary.
+**Reasoning:** a Context partitions a product/environment world; scopes partition shared material
+within it, while walk records represent platform-specific horizon execution. The corpus remains
+single-copy. Safety comes from mandatory Matter, walk, horizon, projection-revision, and policy
+predicates on experiential reads/writes plus walk-aware caches, profiles, consolidation, and
+prompt assembly. Any Context-wide facility that cannot prove those bindings is barred from the
+as-lived path.
 
-**What would change this:** a Surreal permission/namespace limitation prevents reliable row/context
-isolation, or a multi-owner requirement arrives before Phase 1.
+**What would change this:** live tests prove cross-walk bleed cannot be prevented at every stateful
+surface, or a future product/environment requires absolute world isolation.
 
 ## S3 — Revocation, mismatch, and outage behavior
 
 ### Verdict
 
-**Recommended:** promotion correction/revocation is append-only. It marks affected projection
-objects ineligible, quarantines the context, and triggers reconciliation/rebuild. Hash mismatch,
+**Accepted:** promotion correction/revocation is append-only. It marks affected projection
+objects ineligible, quarantines the affected Matter/projection revision, and triggers
+reconciliation/rebuild. Hash mismatch,
 missing membership, stale revision, or Surreal outage blocks/pauses the as-lived walk. There is no
-automatic fallback to broader evidence stores.
+automatic fallback to broader evidence stores. Before repair, the system seals an immutable,
+read-only walk snapshot containing the exact horizon, manifests/hashes, belief state, context and
+decision traces, versions, and failure cause. After refresh it starts a new walk linked by
+`rewalk_of` and produces a before/after experiential delta. The old snapshot is replayable but
+never active retrieval state.
 
 **Alternative:** serve stale state with a warning or fall back to canonical/broad retrieval.
 
@@ -78,7 +89,7 @@ technically unable to persist beliefs, findings, summaries, or exports.
 
 ### Verdict
 
-**Recommended:** the walk may record its own uncertain candidate belief only when derived solely
+**Accepted:** the walk may record its own uncertain candidate belief only when derived solely
 from horizon-eligible inputs and labeled as candidate/uncertain. It may not import corpus-wide
 candidate claims or Semantica findings created with a broader horizon. Those belong to a separate
 investigation role until reviewed.
@@ -98,16 +109,18 @@ which case candidate storage should remain outside walk memory.
 
 ### Verdict
 
-**Recommended:** preserve an uncertainty interval and use its latest plausible bound for as-lived
-eligibility unless an approved realization event supplies a defensible point. Never substitute
-recorded/ingested time or silently choose the earliest bound.
+**Accepted:** preserve the uncertainty interval and compute its midpoint only as a proposal.
+Mandatory HITL clarification must approve the midpoint, select another evidence-supported point,
+narrow the interval, or leave it unresolved. Until approval, the proposal is not eligible for
+as-lived retrieval. Never substitute recorded/ingested time.
 
-**Alternative:** earliest-bound eligibility or a guessed midpoint.
+**Rejected alternatives:** silently use the earliest/latest bound or an unreviewed guessed point.
 
-**Confidence:** High.
+**Confidence:** High for the review boundary; empirical calibration of reviewer guidance remains.
 
-**Reasoning:** the latest bound is conservative against contamination. It may delay a fact in the
-ignorant walk, but that limitation is explicit; the alternatives can reveal it too early.
+**Reasoning:** the full interval preserves uncertainty while the midpoint gives the reviewer a
+clear starting proposal. Mandatory cited review prevents an estimate from being laundered into a
+fact or horizon timestamp.
 
 **What would change this:** authenticated evidence narrows the realization time, creating a new
 approved realization event/revision.
@@ -116,7 +129,7 @@ approved realization event/revision.
 
 ### Verdict
 
-**Recommended:** derivative copies sharing custody/content lineage count as one source family until
+**Accepted:** derivative copies sharing custody/content lineage count as one source family until
 review proves independence. Dossiers display raw hit count and independent-source count separately.
 
 **Alternative:** count each file/message/export as independent corroboration.
@@ -145,7 +158,7 @@ claim/dossier/fact, and walk-memory slice.
 
 ## Review effect
 
-Approving S1–S6 authorizes recording the decisions in the decision log/ADRs and refining the
+The S1–S6 rulings authorize recording the decisions in the decision log/ADRs and refining the
 **disposable** Phase-1 design. It does not authorize:
 
 - applying migrations `0026`–`0030` or creating a production migration;

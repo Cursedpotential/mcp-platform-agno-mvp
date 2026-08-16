@@ -1,9 +1,9 @@
 # ADR-0057 — Claim-centered evidence assembly and established facts
 
-> _Byline: Codex · GPT-5 · 2026-08-15_
+> _Byline: Codex · GPT-5 · 2026-08-15 · owner-ruling amendment 2026-08-16_
 
 - **Status:** Accepted (owner approval 2026-08-15)
-- **Decision:** D-062
+- **Decision:** D-062, refined by D-064
 - **Relates:** ADR-0043, ADR-0045, ADR-0047, ADR-0052, ADR-0053, ADR-0055, ADR-0056
 
 ## Context
@@ -35,6 +35,10 @@ result—not the initial extraction—creates the curated SurrealDB subgraph.
    Source-centered promotion and claim-centered assembly are complementary flows.
 7. Graphiti beliefs may generate investigative leads but cannot serve as canonical
    support without independent source resolution and promotion.
+8. Corroboration is counted by independent source family, not raw artifact count.
+   Derivative exports, screenshots, forwards, quotes, and backups sharing custody or
+   content lineage count as one family unless provenance review establishes independent
+   observation or creation. Dossiers display raw-hit and independent-source counts.
 
 ## Alternatives considered
 
