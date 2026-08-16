@@ -1,3 +1,4 @@
+# Byline: Codex · GPT-5 · 2026-08-15 (OpenAPI endpoint documentation)
 """Comparison runtime router for workbench API."""
 
 from __future__ import annotations
@@ -19,7 +20,28 @@ from app.types.classification import (
 router = APIRouter(prefix="/comparison", tags=["comparison"])
 
 
-@router.post("/run", response_model=ComparisonResponse)
+@router.post(
+    "/run",
+    response_model=ComparisonResponse,
+    summary="Run multi-provider comparison",
+    description="""
+Run classification and/or sentiment comparison across multiple providers simultaneously.
+
+This is the core endpoint for comparing how different LLMs classify and analyze the same texts.
+
+**Features:**
+- Test multiple providers in one request (max 5)
+- Each provider can have different model/temperature settings
+- Optional sentiment analysis included
+- Returns detailed per-text per-provider results
+- Calculates agreement rates across providers
+
+**Providers**: ollama, nvidia, openrouter, anthropic, openai, google, groq, portkey
+
+**Example categories**: ["legal", "platform", "personal_history", "context"]
+    """,
+    response_description="Comparison results with per-provider breakdown and agreement summary",
+)
 async def run_comparison(request: ComparisonRequest) -> ComparisonResponse:
     """Run classification and/or sentiment comparison across multiple providers."""
     try:
@@ -30,7 +52,16 @@ async def run_comparison(request: ComparisonRequest) -> ComparisonResponse:
         raise HTTPException(status_code=500, detail=f"Comparison failed: {e}")
 
 
-@router.get("/providers")
+@router.get(
+    "/providers",
+    summary="List available providers with models",
+    description="""
+Returns all supported providers with availability, default models, and model lists.
+
+Use this to discover which providers are configured and what models they support.
+    """,
+    response_description="List of providers with availability and models",
+)
 async def list_providers() -> dict:
     """List available providers with their models and availability."""
     from app.service.model_providers import _PINNED_MODELS, list_available_providers
@@ -51,7 +82,23 @@ async def list_providers() -> dict:
     return {"providers": providers_info}
 
 
-@router.post("/export")
+@router.post(
+    "/export",
+    summary="Export comparison results",
+    description="""
+Export cached comparison results as JSON or CSV.
+
+**Formats:**
+- `json`: Full or sanitized (without raw responses) JSON
+- `csv`: Spreadsheet-ready CSV with one row per text-provider combination
+
+**Parameters:**
+- `format`: "json" or "csv" (query param)
+- `comparison_id`: Specific run ID (optional, uses latest)
+- `include_raw`: Include raw model responses (query param)
+    """,
+    response_description="File download (JSON or CSV)",
+)
 async def export_results(request: ExportRequest, format: str = Query("json", pattern="^(json|csv)$")):
     """Export comparison results as JSON or CSV."""
     # For now, export the last run or a specific run
@@ -129,13 +176,24 @@ async def export_results(request: ExportRequest, format: str = Query("json", pat
     )
 
 
-@router.get("/runs")
+@router.get(
+    "/runs",
+    summary="List cached comparison runs",
+    description="Returns list of cached comparison run IDs available for export or retrieval.",
+    response_description="List of run IDs",
+)
 async def list_runs() -> dict:
     """List cached comparison runs."""
     return {"runs": comparison_service.list_cached()}
 
 
-@router.get("/runs/{run_id}")
+@router.get(
+    "/runs/{run_id}",
+    response_model=ComparisonResponse,
+    summary="Get a specific comparison run",
+    description="Retrieve a specific cached comparison run by ID.",
+    response_description="Full comparison response",
+)
 async def get_run(run_id: str) -> ComparisonResponse:
     """Get a specific comparison run."""
     result = comparison_service.get_cached(run_id)
