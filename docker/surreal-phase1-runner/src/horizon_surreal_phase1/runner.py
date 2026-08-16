@@ -327,14 +327,27 @@ async def run() -> dict[str, Any]:
     manifest = json.loads((ROOT / "fixtures" / "t0_manifest.json").read_text(encoding="utf-8"))
     private_key, public_key = _keys()
     started = time.monotonic()
-    await _bootstrap(root_user, root_password, public_key)
-    receipt = await _project(private_key, manifest)
-    early_ids, early_plan = await _retrieve(private_key, mode="as_lived_so_far", horizon_at="2024-06-01T00:00:00Z")
-    late_ids, _ = await _retrieve(private_key, mode="as_lived_so_far", horizon_at="2026-06-01T00:00:00Z")
-    hindsight_ids, _ = await _retrieve(private_key, mode="hindsight", horizon_at="2024-06-01T00:00:00Z")
-    negative_write_denied = await _negative_write(private_key)
-    await _quarantine(private_key)
-    after_quarantine_ids, _ = await _retrieve(private_key, mode="as_lived_so_far", horizon_at="2024-06-01T00:00:00Z")
+    stage = "bootstrap"
+    try:
+        await _bootstrap(root_user, root_password, public_key)
+        stage = "projection"
+        receipt = await _project(private_key, manifest)
+        stage = "retrieve_early"
+        early_ids, early_plan = await _retrieve(private_key, mode="as_lived_so_far", horizon_at="2024-06-01T00:00:00Z")
+        stage = "retrieve_late"
+        late_ids, _ = await _retrieve(private_key, mode="as_lived_so_far", horizon_at="2026-06-01T00:00:00Z")
+        stage = "retrieve_hindsight"
+        hindsight_ids, _ = await _retrieve(private_key, mode="hindsight", horizon_at="2024-06-01T00:00:00Z")
+        stage = "negative_write"
+        negative_write_denied = await _negative_write(private_key)
+        stage = "quarantine"
+        await _quarantine(private_key)
+        stage = "post_quarantine_read"
+        after_quarantine_ids, _ = await _retrieve(
+            private_key, mode="as_lived_so_far", horizon_at="2024-06-01T00:00:00Z"
+        )
+    except Exception as exc:
+        raise RuntimeError(f"stage={stage};{type(exc).__name__}:{exc}") from exc
     report = {
         "byline": "Codex · GPT-5 · 2026-08-16",
         "experiment_id": EXPERIMENT,
