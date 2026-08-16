@@ -1,0 +1,23 @@
+{
+  "_byline": "Codex · GPT-5 · 2026-08-16",
+  "batch_id": "semantica-phase1-fixture-v1",
+  "matter_id": "primary",
+  "records": [
+    {
+      "source_raw_table": "working.normalized_record",
+      "source_raw_id": "fixture-record-1",
+      "content": "Apple Inc. was founded by Steve Jobs in 1976.",
+      "content_sha256": "5a9d5c865275c498a46390703987346eda2cc831916dfddfeb2bf126d46a2ef7",
+      "provenance_ref": "fixture://semantica-phase1/record-1",
+      "occurred_at": null
+    },
+    {
+      "source_raw_table": "working.normalized_record",
+      "source_raw_id": "fixture-record-2",
+      "content": "Acme Corp was acquired by Apple Inc. in 2024.",
+      "content_sha256": "7a774244b2b01ff0ecc7e2a8202353dd5312a9ca5a8a8ab47af97cadd72138cf",
+      "provenance_ref": "fixture://semantica-phase1/record-2",
+      "occurred_at": null
+    }
+  ]
+}

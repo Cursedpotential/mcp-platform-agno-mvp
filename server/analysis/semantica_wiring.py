@@ -1,18 +1,19 @@
-"""analysis/semantica_wiring.py — Semantica seed-first hybrid WIRING CONFIG (design/local).
+"""Semantica worker and downstream projection wiring (design/local).
 
 Placement decision (BOARD 2026-07-01, ADR ~0035), REVISED per ADR-0036
 (accepted 2026-07-29) and ADR-0040 / HANDOFF-2026-07-27:
 
-  * Vector lane   → OUR Weaviate (data-weaviate on ovh-data, REST :8081 /
+ADR-0043 is authoritative: the Semantica WORKER accepts immutable normalized
+batches and emits candidates only. It receives no store credentials. The
+historical graph/vector helpers below describe later platform-owned projectors;
+they are not passed to ``server.analysis.semantica_worker``.
+
+  * Vector projection → OUR Weaviate (data-weaviate on ovh-files, REST :8081 /
     gRPC :50051, `vectorizer: none` — we bring embeddings). Platform vector
     contract is nv-embed-v1 4096-d. Milvus is SIDELINED (ADR-0040): it stays
     up for memsearch only — no new platform writers, Semantica included.
-  * Graph lane    → OUR Neo4j (DozerDB multi-database, ADR-0036). Semantica
-    OWNS and WRITES the `evidence` database under the RBAC-scoped
-    `semantica_writer` role. Graphiti owns and writes the `memory` database
-    (agent memory) under `graphiti_writer` — and NOTHING else. The two graphs
-    are permission-isolated and MUST stay separate; neither writes through
-    the other, and no Graphiti coupling exists on this path.
+  * Graph projection → OUR Neo4j `evidence` database only after candidate
+    approval. Graphiti owns `memory`. The extraction worker writes neither.
   * Seed-first    → before Semantica extracts, we SEED it from Postgres: the
     behavioral ontology (reference.behavior_category / detection_pattern) and any
     resolved working.entity rows. Semantica extends the seeded ontology rather
@@ -22,13 +23,14 @@ NET-NEW VALUE Semantica adds (why wire it at all): cross-source CONFLICT
 detection, dedup, and decision-provenance over the evidence — lanes the current
 custody->parse->normalize path does not cover.
 
-This module builds config DICTS from env only. It performs NO writes and bakes
-NO secrets (passwords/tokens are read from env at runtime, never hardcoded).
-The actual Semantica deploy / any store creation is APPROVALS-gated.
+This module builds config DICTS only. It performs NO writes and bakes NO
+secrets. Worker deployment and all projection activation remain approval-gated.
 
 > Byline: Claude Code · Fable 5 · 2026-07-29 — ADR-0036/0040 rewrite: Weaviate
-> vector lane (4096-d), Semantica writes its own `evidence` DB, Graphiti
-> decoupled (memory DB only).
+> vector lane (4096-d) and isolated evidence/memory databases. Its original
+> direct-writer assignment is superseded by ADR-0043 and the correction below.
+> Byline: Codex · GPT-5 · 2026-08-16 — ADR-0043 correction: worker is
+> credential-free and candidate-only; graph/vector configs are projector-only.
 """
 
 from __future__ import annotations
@@ -68,7 +70,7 @@ def _weaviate_host_ports() -> tuple[str, int, int]:
 
 
 def vector_store_config() -> dict[str, Any]:
-    """Semantica vector_store config → OUR Weaviate (ADR-0040), 4096-d nv-embed-v1.
+    """Approval-gated downstream vector-projector config, never worker config.
 
     Milvus is deliberately absent: sidelined for memsearch only, no new writers.
     """
@@ -83,20 +85,19 @@ def vector_store_config() -> dict[str, Any]:
         "weaviate_rest_port": rest_port,  # 8081 (8080 is coolify-proxy)
         "weaviate_grpc_port": grpc_port,
         "weaviate_api_key_env": "WEAVIATE_API_KEY",  # SECRET read at runtime (Phase-1 auth hardening)
-        # Semantica writes its derived vectors into these forensic collections
-        # (mirrors the two-collection design of ADR-0010/0011; dims carry over).
+        # A separately approved platform projector may write promoted outputs
+        # into these collections. The Semantica worker never receives this config.
         "target_collections": ["forensic_records", "forensic_findings", "forensic_patterns"],
         "namespace": "casebible",
     }
 
 
 def graph_store_config() -> dict[str, Any]:
-    """Semantica graph_store config → the `evidence` DB on DozerDB (ADR-0036).
+    """Approval-gated downstream graph-projector config, never worker config.
 
-    Semantica is the WRITER of this database, scoped by the `semantica_writer`
-    RBAC role. It is permission-isolated from Graphiti's `memory` database
-    (`graphiti_writer` role) — the two graphs stay separate BY MECHANISM, and
-    Semantica never writes through (or to) Graphiti.
+    A platform-owned projector is the eventual writer, permission-isolated from
+    Graphiti's ``memory`` database. Semantica emits pending PostgreSQL candidates
+    only and never receives this credential or writes either graph directly.
     """
     return {
         "backend": "neo4j",  # DozerDB = Neo4j Community + multi-DB/RBAC plugin
@@ -106,11 +107,11 @@ def graph_store_config() -> dict[str, Any]:
         # same day: ovh-data:7687 UNREACHABLE, ovh-files:7687 OPEN. `data-neo4j`
         # on ovh-data is exited:unhealthy; the healthy one runs on ovh-files.
         "uri": getenv("NEO4J_URI", f"bolt://{_DEFAULT_NEO4J_HOST}:7687"),
-        "database": getenv("SEMANTICA_NEO4J_DATABASE", "evidence"),  # ADR-0036 split
-        "user": getenv("SEMANTICA_NEO4J_USER", "semantica_writer"),  # RBAC-scoped writer
-        "password_env": "SEMANTICA_NEO4J_PASSWORD",  # SECRET read at runtime, never inlined
-        "role": "writer",  # Semantica owns the evidence graph; agents read, never write
-        "isolation": "adr-0036 (DozerDB multi-DB: memory=graphiti, evidence=semantica)",
+        "database": getenv("PLATFORM_NEO4J_PROJECTOR_DATABASE", "evidence"),
+        "user": getenv("PLATFORM_NEO4J_PROJECTOR_USER", "platform_projector"),
+        "password_env": "PLATFORM_NEO4J_PROJECTOR_PASSWORD",
+        "role": "writer",  # held platform projector role; agents read, never write
+        "isolation": "adr-0036/0043 (memory=graphiti; evidence=approved platform projection)",
     }
 
 
@@ -129,22 +130,50 @@ def seed_config() -> dict[str, Any]:
     }
 
 
-def full_wiring() -> dict[str, Any]:
-    """Complete seed-first hybrid wiring config (design/local; no writes)."""
+def worker_wiring() -> dict[str, Any]:
+    """Credential-free governed extraction worker contract (ADR-0043)."""
     return {
-        "adr": "~0035 (placement) + 0036 (graph isolation) + 0040 (Weaviate vector lane)",
-        "mode": "seed_first_hybrid",
-        "graph_writer": "semantica (evidence DB only; memory DB is graphiti's)",
-        "vector_store": vector_store_config(),
-        "graph_store": graph_store_config(),
-        "seed": seed_config(),
-        "deploy": "APPROVALS-gated (prod-infra); this config is design/local only",
+        "adr": "0043 (governed extraction worker)",
+        "mode": "candidate_only",
+        "input": "immutable_normalized_batch",
+        "runtime": "server.analysis.semantica_worker.SemanticaPatternWorker",
+        "candidate_tables": [
+            "working.candidate_entity",
+            "working.candidate_fact",
+            "working.candidate_event",
+        ],
+        "store_credentials": [],
+        "forbidden_writes": ["evidence.*", "neo4j", "weaviate", "surrealdb", "graphiti"],
+        "fabricated_adjacency": False,
+        "deploy": "APPROVALS-gated; fixture/in-process adapter only",
     }
 
 
+def projection_wiring() -> dict[str, Any]:
+    """Later approved projectors; not imported or passed to the worker."""
+    return {
+        "adr": "0036 (graph isolation) + 0040 (Weaviate) + 0043 (approval first)",
+        "mode": "approved_candidate_projection",
+        "vector_store": vector_store_config(),
+        "graph_store": graph_store_config(),
+        "seed": seed_config(),
+        "deploy": "APPROVALS-gated; worker cannot load this config",
+    }
+
+
+def full_wiring() -> dict[str, Any]:
+    """Back-compatible name now resolving to the safe worker contract."""
+    return worker_wiring()
+
+
 def secrets_referenced() -> list[str]:
-    """Env vars this wiring reads at runtime — asserted NOT inlined anywhere."""
-    return ["WEAVIATE_API_KEY", "SEMANTICA_NEO4J_PASSWORD"]
+    """The worker contract references no secret or credential."""
+    return []
+
+
+def projection_secrets_referenced() -> list[str]:
+    """Credential env names reserved for separately approved projectors."""
+    return ["WEAVIATE_API_KEY", "PLATFORM_NEO4J_PROJECTOR_PASSWORD"]
 
 
 if __name__ == "__main__":  # pragma: no cover

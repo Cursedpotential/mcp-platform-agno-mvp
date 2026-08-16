@@ -29,8 +29,9 @@ and previews, hands off to an **extraction** stage (chunk → multipass → enti
 triggered by **Postgres change-detection**, then **HITL** verifies before anything becomes canonical
 — landing in **five knowledge lanes** (platform · legal · personal_history · context · evidence),
 with relationship history inside personal_history and evidence remaining custody-only.
-**Today** that pipeline is not built: two disconnected ingest paths each do part of the job,
-Semantica extraction is unwired, no change-detection exists, and AI chats bypass SBV.
+**Today** that full pipeline is not built: the Swift neutral-ingest path and a disposable
+Semantica candidate worker now exist, but Semantica is not connected to PostgreSQL
+change-detection or deployed, and remaining legacy paths still require convergence.
 
 ## Navigation
 

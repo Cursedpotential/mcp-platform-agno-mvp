@@ -119,8 +119,10 @@ Inventory complete (`EVIDENCE_MERGE_MAP.md`).
   Semantica itself is not a “candidate service” and must not be replaced or forked around.
   Its entity/claim/time/event **candidate outputs** remain proposals: they enter the
   governed review/promotion path and do not become authored canonical truth without human
-  promotion. The existing `server/analysis/semantica_wiring.py` is configuration-only and
-  approval-gated, so it is not evidence of a deployed service.
+  promotion. A local disposable worker now executes vendored pattern extraction and emits
+  provenance-bearing pending candidates; its PostgreSQL adapter is contract-tested but has
+  not written a database or been deployed. Held projector configuration is not evidence of
+  an activated service.
 - Rebuild the two-horizon experience behind framework-neutral ports. The current Agno
   adapter may host a shadow implementation, but it does not own the durable contract.
 - **Wave-1 status (2026-08-15):** implementation is pushed to `main`; no

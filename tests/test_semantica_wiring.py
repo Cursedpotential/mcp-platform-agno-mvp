@@ -1,17 +1,12 @@
-"""Tests for analysis/semantica_wiring.py — Semantica seed-first hybrid wiring config.
+"""Tests for governed Semantica worker and held projector wiring.
 
 Byline: Claude Code · Fable 5 · 2026-07-29 (rewritten for the ADR-0040 Weaviate
 cutover — the previous version tested the retired Milvus lane and imported the
 deleted server.analysis.milvus_forensic).
 
-The load-bearing contracts: Semantica targets OUR stores (Weaviate on the data
-tier, 4096-d nv-embed-v1 — not Semantica's 768 default — and the DozerDB
-`evidence` DB where Semantica is the RBAC-scoped writer, permission-isolated
-from Graphiti's `memory` DB per ADR-0036); WEAVIATE_URL host/port parsing incl.
-defaults; and — court-critical — the emitted configs reference secrets by
-env-var NAME only, never inlining the secret values. Connection constants are
-read per-call via getenv, but EMBED_PLATFORM_* are import-time, so env-sensitive
-tests reload the module.
+The worker is credential-free and candidate-only. Separately approval-gated,
+platform-owned projectors may target our Weaviate and Neo4j stores, but those
+configs never cross into Semantica. Secret references are names only.
 """
 
 from __future__ import annotations
@@ -32,9 +27,9 @@ _ENV_VARS = (
     "EMBED_PLATFORM_ID",
     "EMBED_PLATFORM_DIM",
     "NEO4J_URI",
-    "SEMANTICA_NEO4J_DATABASE",
-    "SEMANTICA_NEO4J_USER",
-    "SEMANTICA_NEO4J_PASSWORD",
+    "PLATFORM_NEO4J_PROJECTOR_DATABASE",
+    "PLATFORM_NEO4J_PROJECTOR_USER",
+    "PLATFORM_NEO4J_PROJECTOR_PASSWORD",
 )
 
 
@@ -126,7 +121,7 @@ def test_dimension_follows_platform_embed_contract(wiring: Callable[..., ModuleT
     assert cfg["embedding_model"] == "mistralai/codestral-embed-2505"
 
 
-# ---- graph lane: DozerDB evidence DB, Semantica as RBAC-scoped writer -----------
+# ---- held graph lane: platform-owned projector, never Semantica ----------------
 
 
 def test_graph_store_defaults_and_isolation(wiring: Callable[..., ModuleType]) -> None:
@@ -138,8 +133,8 @@ def test_graph_store_defaults_and_isolation(wiring: Callable[..., ModuleType]) -
     assert cfg["backend"] == "neo4j"  # DozerDB = Neo4j Community + multi-DB/RBAC
     assert cfg["uri"] == f"bolt://{m._DEFAULT_NEO4J_HOST}:7687"
     assert cfg["database"] == "evidence"  # ADR-0036 split — NOT graphiti's memory DB
-    assert cfg["user"] == "semantica_writer"  # RBAC-scoped writer role
-    assert cfg["password_env"] == "SEMANTICA_NEO4J_PASSWORD"  # name, not value
+    assert cfg["user"] == "platform_projector"
+    assert cfg["password_env"] == "PLATFORM_NEO4J_PROJECTOR_PASSWORD"
     assert cfg["role"] == "writer"
     assert "0036" in cfg["isolation"]
 
@@ -147,13 +142,13 @@ def test_graph_store_defaults_and_isolation(wiring: Callable[..., ModuleType]) -
 def test_graph_store_reads_env_overrides(wiring: Callable[..., ModuleType]) -> None:
     cfg = wiring(
         NEO4J_URI="bolt://other-host:7688",
-        SEMANTICA_NEO4J_USER="svc",
-        SEMANTICA_NEO4J_DATABASE="forensics",
+        PLATFORM_NEO4J_PROJECTOR_USER="svc",
+        PLATFORM_NEO4J_PROJECTOR_DATABASE="forensics",
     ).graph_store_config()
     assert (cfg["uri"], cfg["user"], cfg["database"]) == ("bolt://other-host:7688", "svc", "forensics")
 
 
-# ---- seed-first + full wiring ----------------------------------------------------
+# ---- worker boundary + downstream projection ------------------------------------
 
 
 def test_seed_config_seeds_from_postgres_ontology(wiring: Callable[..., ModuleType]) -> None:
@@ -169,14 +164,28 @@ def test_seed_config_seeds_from_postgres_ontology(wiring: Callable[..., ModuleTy
     assert cfg["extend_not_replace"] is True
 
 
-def test_full_wiring_nests_all_three_lanes(wiring: Callable[..., ModuleType]) -> None:
+def test_full_wiring_is_candidate_only_and_credential_free(wiring: Callable[..., ModuleType]) -> None:
     m = wiring()
     w = m.full_wiring()
-    assert w["mode"] == "seed_first_hybrid"
-    assert "semantica" in w["graph_writer"]  # evidence DB only; memory DB is graphiti's
+    assert w == m.worker_wiring()
+    assert w["mode"] == "candidate_only"
+    assert w["store_credentials"] == []
+    assert w["fabricated_adjacency"] is False
+    assert set(w["candidate_tables"]) == {
+        "working.candidate_entity",
+        "working.candidate_fact",
+        "working.candidate_event",
+    }
+    assert "vector_store" not in w and "graph_store" not in w
+
+
+def test_projection_wiring_is_separate_and_approval_gated(wiring: Callable[..., ModuleType]) -> None:
+    m = wiring()
+    w = m.projection_wiring()
     assert w["vector_store"] == m.vector_store_config()
     assert w["graph_store"] == m.graph_store_config()
     assert w["seed"] == m.seed_config()
+    assert "approval" in w["deploy"].lower()
 
 
 # ---- secrets: referenced by NAME, never inlined ----------------------------------
@@ -186,18 +195,19 @@ def test_secrets_referenced_by_name_and_values_never_inlined(wiring: Callable[..
     m = wiring(
         WEAVIATE_URL="http://weaviate.internal:8081",
         WEAVIATE_API_KEY="WEAVIATE-SECRET-VALUE-9x7",
-        SEMANTICA_NEO4J_PASSWORD="NEO4J-SECRET-VALUE-3q1",
+        PLATFORM_NEO4J_PROJECTOR_PASSWORD="NEO4J-SECRET-VALUE-3q1",
     )
-    assert m.secrets_referenced() == ["WEAVIATE_API_KEY", "SEMANTICA_NEO4J_PASSWORD"]
+    assert m.secrets_referenced() == []
+    assert m.projection_secrets_referenced() == ["WEAVIATE_API_KEY", "PLATFORM_NEO4J_PROJECTOR_PASSWORD"]
 
     dump = json.dumps(m.full_wiring())
     for secret in ("WEAVIATE-SECRET-VALUE-9x7", "NEO4J-SECRET-VALUE-3q1"):
         assert secret not in dump, f"secret value leaked into wiring config: {secret}"
 
-    w = m.full_wiring()
+    w = m.projection_wiring()
     assert w["vector_store"]["weaviate_api_key_env"] == "WEAVIATE_API_KEY"
-    assert w["graph_store"]["password_env"] == "SEMANTICA_NEO4J_PASSWORD"
+    assert w["graph_store"]["password_env"] == "PLATFORM_NEO4J_PROJECTOR_PASSWORD"
 
     # Honest pin: the identifier half (user) IS embedded — it's an identifier,
     # not the secret; the password/key values never are.
-    assert w["graph_store"]["user"] == "semantica_writer"
+    assert w["graph_store"]["user"] == "platform_projector"
