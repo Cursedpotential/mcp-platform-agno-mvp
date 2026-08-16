@@ -32,7 +32,7 @@
 # compose at deploy — set ALL envs (bulk API, {"data":[...]} shape) BEFORE the
 # first deploy; later env changes require a redeploy.
 # =============================================================================
-# Byline: Claude Code · Fable 5 · 2026-07-19 (MCP_SERVERS/CONTEXTFORGE_TOKEN added 2026-07-20, C1 rebuild; OPENCODE_*/COPILOT_PRESETS_PATH + copilot bind mount added 2026-07-21, C2.5; agno 2.8 MCP door migration (:8001->:8000 + token_env) + GRAPHITI_MCP_URL added 2026-07-23, Claude Code · Sonnet (agent), C4; Coolify path/watch-path true-up 2026-08-13, Codex · GPT-5)
+# Byline: Claude Code · Fable 5 · 2026-07-19 (MCP_SERVERS/CONTEXTFORGE_TOKEN added 2026-07-20, C1 rebuild; OPENCODE_*/COPILOT_PRESETS_PATH + copilot bind mount added 2026-07-21, C2.5; agno 2.8 MCP door migration (:8001->:8000 + token_env) + GRAPHITI_MCP_URL added 2026-07-23, Claude Code · Sonnet (agent), C4; Coolify path/watch-path true-up 2026-08-13, Codex · GPT-5; Graphiti host repoint 2026-08-16, Codex · GPT-5)
 
 services:
   knowledge-workbench:
@@ -82,7 +82,7 @@ services:
       # --- Graphiti knowledge-graph memory (C4 Graph memory pane) ---
       # Tailnet "graphiti-hostfix" nginx sidecar (compose.data-graphiti.yaml)
       # — read-only search/episodes only, no auth (tailnet-only).
-      GRAPHITI_MCP_URL: ${GRAPHITI_MCP_URL:-http://100.119.96.29:8071/mcp}
+      GRAPHITI_MCP_URL: ${GRAPHITI_MCP_URL:-http://100.91.190.107:8071/mcp}
       # --- Ops Copilot (C2.5) — headless OpenCode server, exec-gateway app ---
       OPENCODE_URL: ${OPENCODE_URL:-http://100.72.169.40:4096}
       OPENCODE_USERNAME: ${OPENCODE_USERNAME:-opencode}
