@@ -1,8 +1,11 @@
-"""Classification runtime router for workbench API."""
+"""Classification runtime router for workbench API.
+
+Byline: Codex · GPT-5 · 2026-08-16
+"""
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from app.service.classification import classification_service
 from app.types.classification import (
@@ -10,10 +13,10 @@ from app.types.classification import (
     BatchClassificationResponse,
     ClassificationRequest,
     ClassificationResponse,
-    ProviderName,
+    ProvidersListResponse,
 )
 
-router = APIRouter(prefix="/classification", tags=["classification"])
+router = APIRouter(prefix="/api/classification", tags=["classification"])
 
 
 @router.post(
@@ -84,26 +87,20 @@ async def get_default_categories() -> dict[str, list[str]]:
 
 @router.get(
     "/providers",
+    response_model=ProvidersListResponse,
     summary="List available providers",
     description="""
-Returns all supported providers with their availability status and default models.
+Returns all supported providers with their availability status and available models.
 
 Availability is determined by checking if required API keys/hosts are configured.
+Each provider includes its full list of available models for dynamic frontend population.
     """,
-    response_description="List of providers with availability and default models",
+    response_description="List of providers with availability, default model, and available models",
 )
-async def list_providers() -> dict[str, list[str]]:
-    """List available providers and their default models."""
-    from app.service.model_providers import _PINNED_MODELS, list_available_providers
+async def list_providers(
+    refresh: bool = Query(default=False, description="Bypass the five-minute model catalog cache"),
+) -> ProvidersListResponse:
+    """List available providers and their models."""
+    from app.service.model_catalog import model_catalog_service
 
-    available = list_available_providers()
-    return {
-        "providers": [
-            {
-                "name": p.value,
-                "available": available.get(p, False),
-                "default_model": _PINNED_MODELS.get(p, "unknown"),
-            }
-            for p in ProviderName
-        ]
-    }
+    return await model_catalog_service.list(refresh=refresh)

@@ -2,6 +2,8 @@
 
 Follows the pattern from server/core/settings.py but tailored for
 workbench classification/sentiment use cases.
+
+Byline: Codex · GPT-5 · 2026-08-16
 """
 
 from __future__ import annotations
@@ -10,13 +12,12 @@ import os
 from typing import Any, Protocol
 
 from agno.models.message import Message
-from agno.models.openai.like import OpenAILike
-from agno.models.ollama import Ollama
 from agno.models.anthropic import Claude
-from agno.models.openai import OpenAIChat
 from agno.models.google import Gemini
 from agno.models.groq import Groq
-
+from agno.models.ollama import Ollama
+from agno.models.openai import OpenAIChat
+from agno.models.openai.like import OpenAILike
 from app.types.classification import ProviderName
 
 
@@ -112,9 +113,14 @@ def _try_provider(provider: ProviderName, model_id: str | None = None) -> ModelP
         portkey_base = os.getenv("PORTKEY_BASE_URL", "https://api.portkey.ai/v1")
         if not key:
             return None
-        # Portkey uses OpenAI-compatible API with virtual keys for routing
-        # The model_id can include the virtual key routing: e.g., "portkey/virtual-key-name"
-        return OpenAILike(id=resolved_model, api_key=key, base_url=portkey_base)
+        portkey_provider = os.getenv("PORTKEY_PROVIDER")
+        headers = {"x-portkey-provider": portkey_provider} if portkey_provider else None
+        return OpenAILike(
+            id=resolved_model,
+            api_key=key,
+            base_url=portkey_base,
+            extra_headers=headers,
+        )
 
     return None
 

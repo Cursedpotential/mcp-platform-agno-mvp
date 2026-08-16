@@ -1,4 +1,7 @@
-"""Sentiment analysis runtime router for workbench API."""
+"""Sentiment analysis runtime router for workbench API.
+
+Byline: Codex · GPT-5 · 2026-08-16
+"""
 
 from __future__ import annotations
 
@@ -12,7 +15,7 @@ from app.types.classification import (
     SentimentResponse,
 )
 
-router = APIRouter(prefix="/sentiment", tags=["sentiment"])
+router = APIRouter(prefix="/api/sentiment", tags=["sentiment"])
 
 
 @router.post(

@@ -14,10 +14,10 @@ from app.types.classification import (
     ComparisonRequest,
     ComparisonResponse,
     ExportRequest,
-    ProviderName,
+    ProvidersListResponse,
 )
 
-router = APIRouter(prefix="/comparison", tags=["comparison"])
+router = APIRouter(prefix="/api/comparison", tags=["comparison"])
 
 
 @router.post(
@@ -54,6 +54,7 @@ async def run_comparison(request: ComparisonRequest) -> ComparisonResponse:
 
 @router.get(
     "/providers",
+    response_model=ProvidersListResponse,
     summary="List available providers with models",
     description="""
 Returns all supported providers with availability, default models, and model lists.
@@ -62,24 +63,13 @@ Use this to discover which providers are configured and what models they support
     """,
     response_description="List of providers with availability and models",
 )
-async def list_providers() -> dict:
+async def list_providers(
+    refresh: bool = Query(default=False, description="Bypass the five-minute model catalog cache"),
+) -> ProvidersListResponse:
     """List available providers with their models and availability."""
-    from app.service.model_providers import _PINNED_MODELS, list_available_providers
+    from app.service.model_catalog import model_catalog_service
 
-    available = list_available_providers()
-    providers_info = []
-
-    for p in ProviderName:
-        providers_info.append(
-            {
-                "provider": p.value,
-                "available": available.get(p, False),
-                "default_model": _PINNED_MODELS.get(p, "unknown"),
-                "models": [_PINNED_MODELS.get(p, "unknown")],  # Could be extended with model catalog
-            }
-        )
-
-    return {"providers": providers_info}
+    return await model_catalog_service.list(refresh=refresh)
 
 
 @router.post(

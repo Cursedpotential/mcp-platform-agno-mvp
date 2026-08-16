@@ -1,4 +1,6 @@
-/** API client for classification and sentiment analysis. */
+/** API client for classification and sentiment analysis.
+ * Byline: Codex · GPT-5 · 2026-08-16
+ */
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || '/api';
 
@@ -9,6 +11,14 @@ export interface ProviderInfo {
   available: boolean;
   default_model: string;
   models: string[];
+  source: 'live' | 'unconfigured' | 'error';
+  error?: string;
+}
+
+export interface ProvidersListResponse {
+  providers: ProviderInfo[];
+  refreshed_at: string;
+  cache_hit: boolean;
 }
 
 export interface ClassificationRequest {
@@ -158,8 +168,8 @@ export const classificationApi = {
   getCategories: () =>
     fetchJson<{ categories: string[] }>('/classification/categories'),
 
-  getProviders: () =>
-    fetchJson<{ providers: ProviderInfo[] }>('/classification/providers'),
+  getProviders: (refresh = false) =>
+    fetchJson<ProvidersListResponse>(`/classification/providers?refresh=${refresh}`),
 };
 
 export const sentimentApi = {
@@ -183,8 +193,8 @@ export const comparisonApi = {
       body: JSON.stringify(request),
     }),
 
-  getProviders: () =>
-    fetchJson<{ providers: ProviderInfo[] }>('/comparison/providers'),
+  getProviders: (refresh = false) =>
+    fetchJson<ProvidersListResponse>(`/comparison/providers?refresh=${refresh}`),
 
   export: (runId: string, format: 'json' | 'csv', includeRaw = false) =>
     fetch(`${API_BASE}/comparison/export?format=${format}&include_raw=${includeRaw}&comparison_id=${runId}`, {

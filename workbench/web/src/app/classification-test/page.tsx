@@ -1,16 +1,17 @@
 'use client';
 
+// Byline: Codex · GPT-5 · 2026-08-16
+
 import { useState, useCallback } from 'react';
 import { ModelSelector } from './components/ModelSelector';
 import { InputEditor } from './components/InputEditor';
 import { ResultsTable } from './components/ResultsTable';
 import { ExportButton } from './components/ExportButton';
-import { ComparisonResponse, ProviderConfig } from '@/lib/classification-api';
+import { comparisonApi, ComparisonResponse, ProviderConfig } from '@/lib/classification-api';
 
 const DEFAULT_CATEGORIES = ['platform', 'legal', 'personal_history', 'context'];
 const DEFAULT_PROVIDERS: ProviderConfig[] = [
-  { provider: 'ollama', temperature: 0, max_tokens: 1024 },
-  { provider: 'nvidia', temperature: 0, max_tokens: 1024 },
+  { provider: 'portkey', temperature: 0, max_tokens: 1024 },
 ];
 
 export default function ClassificationTestPage() {
@@ -20,7 +21,8 @@ export default function ClassificationTestPage() {
   const [includeSentiment, setIncludeSentiment] = useState(true);
   const [systemPrompt, setSystemPrompt] = useState('');
   const [results, setResults] = useState<ComparisonResponse | null>(null);
-  const isLoading = false;
+  const [isLoading, setIsLoading] = useState(false);
+  const [runError, setRunError] = useState<string | null>(null);
 
   const handleProvidersChange = useCallback((newProviders: ProviderConfig[]) => {
     setProviders(newProviders);
@@ -36,7 +38,41 @@ export default function ClassificationTestPage() {
 
   const handleClear = useCallback(() => {
     setResults(null);
+    setRunError(null);
   }, []);
+
+  const handleRun = useCallback(async () => {
+    const runnableTexts = texts.map((text) => text.trim()).filter(Boolean);
+    if (runnableTexts.length === 0) {
+      setRunError('Add at least one non-empty text before running the comparison.');
+      return;
+    }
+    if (categories.length === 0) {
+      setRunError('Add at least one classification category.');
+      return;
+    }
+    if (providers.length === 0) {
+      setRunError('Select at least one provider.');
+      return;
+    }
+
+    setIsLoading(true);
+    setRunError(null);
+    try {
+      const response = await comparisonApi.run({
+        texts: runnableTexts,
+        categories,
+        providers,
+        include_sentiment: includeSentiment,
+        system_prompt: systemPrompt.trim() || undefined,
+      });
+      setResults(response);
+    } catch (error) {
+      setRunError(error instanceof Error ? error.message : 'Comparison failed');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [categories, includeSentiment, providers, systemPrompt, texts]);
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6">
@@ -123,6 +159,24 @@ export default function ClassificationTestPage() {
               isLoading={isLoading}
             />
           </div>
+        </div>
+
+        <div className="flex flex-col items-end gap-2">
+          {runError && (
+            <div role="alert" className="w-full rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {runError}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => void handleRun()}
+            disabled={isLoading}
+            className="rounded-md bg-blue-600 px-5 py-2.5 font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-400"
+          >
+            {isLoading
+              ? 'Running comparison…'
+              : `Run ${providers.length} model${providers.length === 1 ? '' : 's'} across ${texts.filter((text) => text.trim()).length} text${texts.filter((text) => text.trim()).length === 1 ? '' : 's'}`}
+          </button>
         </div>
 
         {/* Full-width Results Table (when results exist) */}

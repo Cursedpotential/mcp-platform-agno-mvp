@@ -32,7 +32,7 @@
 # compose at deploy — set ALL envs (bulk API, {"data":[...]} shape) BEFORE the
 # first deploy; later env changes require a redeploy.
 # =============================================================================
-# Byline: Claude Code · Fable 5 · 2026-07-19 (MCP_SERVERS/CONTEXTFORGE_TOKEN added 2026-07-20, C1 rebuild; OPENCODE_*/COPILOT_PRESETS_PATH + copilot bind mount added 2026-07-21, C2.5; agno 2.8 MCP door migration (:8001->:8000 + token_env) + GRAPHITI_MCP_URL added 2026-07-23, Claude Code · Sonnet (agent), C4; Coolify path/watch-path true-up 2026-08-13, Codex · GPT-5; Graphiti host repoint 2026-08-16, Codex · GPT-5)
+# Byline: Claude Code · Fable 5 · 2026-07-19 (MCP_SERVERS/CONTEXTFORGE_TOKEN added 2026-07-20, C1 rebuild; OPENCODE_*/COPILOT_PRESETS_PATH + copilot bind mount added 2026-07-21, C2.5; agno 2.8 MCP door migration (:8001->:8000 + token_env) + GRAPHITI_MCP_URL added 2026-07-23, Claude Code · Sonnet (agent), C4; Coolify path/watch-path true-up 2026-08-13, Codex · GPT-5; Graphiti host repoint + model-lab Portkey env 2026-08-16, Codex · GPT-5)
 
 services:
   knowledge-workbench:
@@ -79,6 +79,16 @@ services:
       # mounted-/mcp bug fixed upstream in agno 2.8.0.
       MCP_SERVERS: '[{"key":"agentos","label":"AgentOS","url":"http://100.72.169.40:8000/mcp","token_env":"AGENTOS_API_TOKEN"},{"key":"contextforge","label":"ContextForge","url":"http://100.72.169.40:4444/mcp","token_env":"CONTEXTFORGE_TOKEN"}]'
       CONTEXTFORGE_TOKEN: ${CONTEXTFORGE_TOKEN:-}
+      # --- LLM gateway (default model-lab route) ---
+      # Self-hosted Portkey accepts the selected upstream in
+      # x-portkey-provider and the corresponding upstream credential as the
+      # bearer token. The Workbench never exposes either value to the browser.
+      # A future Portkey control-plane key can omit PORTKEY_PROVIDER and use
+      # the same variables for the integrated cloud Model Catalog instead.
+      PORTKEY_BASE_URL: ${PORTKEY_BASE_URL:-http://100.72.169.40:8787/v1}
+      PORTKEY_PROVIDER: ${PORTKEY_PROVIDER:-}
+      PORTKEY_API_KEY: ${PORTKEY_API_KEY:-}
+      PORTKEY_MODEL_ID: ${PORTKEY_MODEL_ID:-gpt-4o}
       # --- Graphiti knowledge-graph memory (C4 Graph memory pane) ---
       # Tailnet "graphiti-hostfix" nginx sidecar (compose.data-graphiti.yaml)
       # — read-only search/episodes only, no auth (tailnet-only).

@@ -1,4 +1,7 @@
-"""Type definitions for classification and sentiment analysis."""
+"""Type definitions for classification and sentiment analysis.
+
+Byline: Codex · GPT-5 · 2026-08-16
+"""
 
 from __future__ import annotations
 
@@ -178,6 +181,7 @@ class ProviderInfo(BaseModel):
     models: list[str]
     default_model: str
     available: bool
+    source: str
     error: str | None = None
 
 
@@ -185,6 +189,8 @@ class ProvidersListResponse(BaseModel):
     """Response listing available providers and models."""
 
     providers: list[ProviderInfo]
+    refreshed_at: datetime
+    cache_hit: bool = False
 
 
 class ExportRequest(BaseModel):
