@@ -39,7 +39,10 @@ _PINNED_MODELS: dict[ProviderName, str] = {
 class ModelProvider(Protocol):
     """Protocol for model providers used in classification/sentiment."""
 
-    async def arun(self, messages: list[Message], **kwargs: Any) -> Any: ...
+    temperature: float | None
+    max_tokens: int | None
+
+    async def aresponse(self, messages: list[Message], **kwargs: Any) -> Any: ...
 
     @property
     def id(self) -> str: ...
@@ -174,7 +177,9 @@ Return ONLY a JSON object with this exact structure:
         Message(role="user", content=text),
     ]
 
-    response = await provider.arun(messages, temperature=temperature, max_tokens=max_tokens)
+    provider.temperature = temperature
+    provider.max_tokens = max_tokens
+    response = await provider.aresponse(messages)
 
     raw = str(response.content) if response.content else ""
 
@@ -232,7 +237,9 @@ The emotions object should contain scores 0.0-1.0 for each emotion present."""
         Message(role="user", content=text),
     ]
 
-    response = await provider.arun(messages, temperature=temperature, max_tokens=max_tokens)
+    provider.temperature = temperature
+    provider.max_tokens = max_tokens
+    response = await provider.aresponse(messages)
 
     raw = str(response.content) if response.content else ""
 
