@@ -4,9 +4,11 @@
 > repeated compaction never loses the vision, decisions, or plan. It is kept
 > current as decisions are made. If something here conflicts with an older ADR,
 > this file's "Locked Decisions" section wins and the ADR should be updated.
-> Last updated: 2026-08-15 (framework-neutral runtime/custom Workbench target,
-> Semantica VIP, Postgres belief authority + Graphiti projection, OpenCode
-> provider/workspace role, and ADR-0055 Matter/CourtCase boundary; prior 2026-08-13:
+> Last updated: 2026-08-15 (ADR-0056–0058: governed Surreal analytical/walk-memory
+> projection, claim-centered evidence assembly, Investigation Search, and scoped
+> hindsight/as-lived behavioral analysis; prior: framework-neutral runtime/custom
+> Workbench target, Semantica VIP, Postgres belief authority + Graphiti projection,
+> OpenCode provider/workspace role, and ADR-0055 Matter/CourtCase boundary; prior 2026-08-13:
 > ADR-0054 durable run reports and correlated observability;
 > ADR-0053 five-lane chat-ingestion, multimodal asset,
 > selective HITL, and investigation-register decisions; prior: 2026-08-09 — §4 data-tier host defaults corrected to
@@ -30,7 +32,7 @@
 ## 0. Document Contract (ONE of each — read this to know what's authoritative)
 
 To stop architecture/plan drift, **each concern has exactly ONE authoritative file.**
-This canon is the entry point and names them. Everything else (the ADR set through ADR-0055, `docs/planning/*`,
+This canon is the entry point and names them. Everything else (the ADR set through ADR-0058, `docs/planning/*`,
 the wiki, `glossary.md`) is **subordinate history/reference**, not a competing source of truth.
 
 | Concern ("one X") | Authoritative file |
@@ -65,7 +67,9 @@ the platform.
    Many sources (SMS, Facebook, iMessage-PDF, Google Voice/Location, chat
    exports, Drive/OneDrive). Immutable, hashed, chain-of-custody.
 2. **Part 2 — Analysis.** Multi-pass psychological / abuse / toxicity analysis of
-   the conversations (gaslighting, DARVO, coercive control, misleading events).
+   scoped events and conversations (gaslighting, DARVO, coercive control,
+   misleading events, corroboration, contradiction, and missed-pattern discovery).
+   Runs may be hindsight, as-lived-so-far, or paired to expose the realization delta.
 3. **Part 3 — AI Legal Team.** A third agent family that uses the evidence +
    the knowledge base to build legal strategy, documents, and filings. Already
    prototyped by the owner as **Gemini Gems + personas**; to be ported behind
@@ -195,6 +199,20 @@ S3 API + pg_duckdb httpfs (`read_text('s3://nexus/...')`).
 
 ## 5. Locked decisions
 
+- **Surreal analytical/walk-memory surface = ADR-0056:** PostgreSQL remains
+  canonical; SurrealDB is a governed, rebuildable projection and experimental
+  platform-owned Spectron-compatible memory/runtime. Original binaries stay in
+  custody storage. Partial source approval exposes approved spans only. Graphiti
+  remains the baseline until bake-off. The parked legacy deployment is not activated.
+- **Claim-centered fact assembly = ADR-0057:** candidate claims generate bounded,
+  auditable cross-system investigations. Human/governed review creates immutable
+  established facts linked to exact supporting, contradicting, and qualifying spans;
+  corrections relate/supersede and never silently rewrite history.
+- **Investigation and behavioral analysis = ADR-0058:** Find Evidence, Reconstruct
+  Event, and Discover Patterns operate on immutable scopes and bounded traces.
+  Behavioral runs separate closed-set analysis from outward discovery and support
+  hindsight, as-lived-so-far, and paired delta. Internal diagnostic-adjacent terms are
+  behavioral lenses, not diagnoses; Case Prep uses conduct-first evidence language.
 - **AI-chat knowledge ingestion = ADR-0053:** five global lanes; explicit
   conversation/message/chunk source truth; post-chunk multi-label routing; selective
   confidence HITL; created works + attachments included; OCR escalation is
@@ -257,9 +275,12 @@ S3 API + pg_duckdb httpfs (`read_text('s3://nexus/...')`).
     and complements Portkey for subscription/payment paths Portkey cannot expose.
   - **agent-sandbox** = isolated code-exec for agent re-composition (no secrets, no ports). KEEP.
   - **Kasm desktop** (`desktop` profile) = **persistent** browser desktop for agent/human GUI work. KEEP (persistence matters).
-  - ~~**Store/session/Knowledge/memory = SurrealDB candidate.**~~ **RETIRED:**
-    SurrealDB has zero callers and is parked read-only. PostgreSQL is canonical;
-    Graphiti is a belief projection; Weaviate is vector retrieval.
+  - ~~**Store/session/Knowledge/memory = SurrealDB candidate.**~~ The **Agno operational
+    Surreal adapter remains retired** and the legacy deployment remains parked read-only.
+    **ADR-0056 adds a different role:** a governed analytical projection and experimental
+    Spectron-compatible walk-memory runtime behind platform-owned contracts. PostgreSQL
+    remains canonical; Graphiti stays the belief-memory baseline during bake-off; Weaviate
+    remains broad vector retrieval.
   - ⚠️ A raw local model consumes tools ONLY through an MCP-capable harness (Agno / OpenCode /
     MCP client) — never directly. Two distinct gateways: **models** (Portkey since ADR-0042,
     formerly LiteLLM) and **ContextForge = tools**.
@@ -516,9 +537,10 @@ pointer below — corrected 2026-08-09) — Part 1 complete + memory substrate:*
 - Owner had one more idea that slipped away (2026-06-11) — to be added when recalled.
 - Knowledge-engine domain separation: finalize collection scheme + ingestion routing.
 - Legal Team: inventory the Gemini Gems personas to port.
-- ~~**SurrealDB — strong consolidation candidate (validated 2026-06-13).**~~ **Corrected
-  2026-08-12: SUPERSEDED by ADR-0043 (owner ruling 2026-08-06) — SurrealDB is RETIRED, zero
-  callers, parked read-only; §5 Locked Decisions already carries the ruling.** Historical
+- ~~**SurrealDB — strong consolidation candidate (validated 2026-06-13).**~~ **Historical
+  operational design superseded by ADR-0043. New role accepted 2026-08-15 by ADR-0056:**
+  governed analytical projection plus experimental platform-owned Spectron-compatible walk
+  memory; the parked legacy deployment remains read-only and no activation is implied. Historical
   rationale, kept for provenance: Multi-model
   (document + relational + vector + graph + live queries), AND **Agno supports it natively
   as a database (agent/team/workflow sessions+state) + vector store (Knowledge/RAG) + memory

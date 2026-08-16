@@ -3,7 +3,7 @@
 > _Byline: Claude Code · Opus 4.8 · 2026-06-13_
 > _Current-index conversion: Codex · GPT-5 · 2026-08-15._
 > **Historical note:** the original task units are preserved below for provenance, but are
-> superseded for forward work by the dated R0–R9 packets in this index.
+> superseded for forward work by the dated R0–R10 packets in this index.
 
 ## Current handoff set
 
@@ -19,12 +19,19 @@
 | R7 | [OpenCode workspace](HANDOFF-2026-08-15-R7-opencode-workspace.md) | Partial | Persistent control; isolated execution |
 | R8 | [Custom Workbench](HANDOFF-2026-08-15-R8-workbench.md) | Partial | Framework-neutral operator product |
 | R9 | [Knowledge to case MVP](HANDOFF-2026-08-15-R9-knowledge-to-case-mvp.md) | Superseded in part by local build | Matter/CourtCase + evidence promotion, held/unapplied |
+| R10 | [Surreal analytical memory and investigation design](HANDOFF-2026-08-15-R10-surreal-investigation-design.md) | Complete design / build unknown | Governed Surreal projection, claim assembly, investigation and behavior |
 
 R9's claim that Matter identity and the Knowledge-to-Evidence slice are missing is now
 historical: those components are pushed to `main`, undeployed, and dependent on
 unapplied migration `0030`. Commit `be286a8` adds redacted evidence/custody
 inspection and blocks human review until the exact Matter-scoped detail loads; its
 status is recorded in the newest R9 addendum.
+
+R10 is documentation/design only. It authorizes no Surreal activation, corpus copy,
+schema/migration, Graphiti replacement, or production change. Its goal hierarchy is
+[`GOALS-2026-08-15-surreal-investigation-memory.md`](GOALS-2026-08-15-surreal-investigation-memory.md)
+and its consolidated technical contract is
+[`SURREAL-INVESTIGATION-BLUEPRINT-2026-08-15.md`](SURREAL-INVESTIGATION-BLUEPRINT-2026-08-15.md).
 
 ## Historical task register — superseded for forward execution
 

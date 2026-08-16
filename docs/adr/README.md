@@ -1,7 +1,7 @@
 # Architecture Decision Records (ADRs)
 
 > _Byline: Claude Code · Kimi K3 (drift-fix) · 2026-08-12; Codex · GPT-5 ·
-> 2026-08-13 (ADR-0053 five-lane chat-ingestion amendment; ADR-0054 durable run reports)._
+> 2026-08-15 (ADR-0053–0058 index and architecture decisions)._
 
 Lightweight [MADR](https://adr.github.io/madr/)-style records of decisions that are **locked** —
 so they are not silently re-litigated or forgotten across sessions/agents.
@@ -69,6 +69,9 @@ guarantee gets an ADR. One short record. Supersede (don't edit) when a decision 
 | 0053 | Five-lane AI-chat ingestion; explicit conversation/message/chunk truth; post-chunk multi-label routing; selective confidence HITL; tags; multimodal assets/OCR ladder; human investigation register | **Accepted** — owner rulings 2026-08-13; supersedes 0050/0051/0052 in part |
 | 0054 | Mandatory durable run reports + append-only review actions + correlated Agno/OpenTelemetry/Langfuse observability | **Accepted** — owner ruling 2026-08-13; Postgres authoritative, Langfuse diagnostic only; D-059 |
 | 0055 | Matter and CourtCase identity boundary + legacy text-partition bridge + idempotent Knowledge-to-Evidence promotion | **Accepted** — owner approval 2026-08-15; narrowly supersedes D-041 identity consequence while retaining single-owner scope; D-060 |
+| 0056 | SurrealDB governed analytical projection + platform-owned Spectron-compatible walk memory | **Accepted** — owner approval 2026-08-15; supersedes ADR-0043 only as to SurrealDB's future analytical/memory role; D-061 |
+| 0057 | Claim-centered evidence assembly + immutable established facts with exact multi-source provenance | **Accepted** — owner approval 2026-08-15; D-062 |
+| 0058 | Investigation Search + scoped hindsight/as-lived behavioral-analysis modes and internal lens vocabulary | **Accepted** — owner approval 2026-08-15; D-063 |
 
 > The full vision, current stack, roadmap, access, and gotchas live in
 > [`docs/PROJECT_CANON.md`](../PROJECT_CANON.md) (the durable source of truth).

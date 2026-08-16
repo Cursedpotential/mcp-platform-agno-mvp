@@ -467,3 +467,20 @@ Owns the six-lane KB build (ADR-0050 + `plans/…glittery-summit`): `server/core
 Cross-lane invariant: Knowledge ingestion remains horizon-blind and independent from agent
 horizon replay. Graphiti stores derived run-scoped beliefs, not canonical evidence. AG2 is a
 candidate adapter only. No lane may claim a local build is live without deployment proof.
+
+## 2026-08-15 — R10 Surreal analytical memory and investigation design
+
+> _Byline: Codex · GPT-5 · 2026-08-15. Documentation/decision capture only._
+
+| Lane | Boundary | State |
+|---|---|---|
+| R10A Surreal | Governed analytical projection + experimental Spectron-compatible walk memory; PG remains authority | Accepted design; no activation |
+| R10B Facts | Candidate-driven federated evidence assembly → reviewed immutable fact subgraphs | Accepted design; no schema |
+| R10C Investigation | Find Evidence, Reconstruct Event, Discover Patterns | Accepted product target; no implementation |
+| R10D Behavior | Frozen scopes, bounded outward discovery, hindsight/as-lived/paired modes, internal pattern lenses | Accepted product target; no implementation |
+| R10E Retrieval | Source-aware chunks, multi-axis routing, versioned isolated embedding profiles, rank fusion + reranking | Proposed contracts; bake-off required |
+
+R10 must not leapfrog the R9 activation gates or silently repurpose the parked legacy Surreal
+deployment. Graphiti remains the baseline until an observed bake-off. Exact Surreal isolation,
+physical schemas, embedding profiles, TraceIQ projection, behavior taxonomy/budgets, and exclusive
+walk-agent retrieval remain owner decisions.

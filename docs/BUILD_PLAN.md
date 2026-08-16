@@ -26,6 +26,12 @@ this current direction:
 6. Add request-scoped provider routing and persistent OpenCode workspace control with isolated jobs.
 7. Evaluate AG2 behind `OrchestrationPort`; retain the current Agno adapter until gates pass.
 8. Expand the custom Workbench as the primary product surface.
+9. After R9 activation gates, freeze the ADR-0056–0058 contracts and build a disposable
+   Surreal vertical slice: promoted manifest/span, one claim investigation, one established
+   fact subgraph, and one as-lived memory scope. Do not reactivate the parked legacy deployment.
+10. Build Find Evidence, Reconstruct Event, Discover Patterns, and the scoped Behavioral
+    Analysis Agent only after gold-corpus, planted-future-fact, provenance, and bounded-query
+    gates pass. See `GOALS-2026-08-15-surreal-investigation-memory.md`.
 
 ### Locally built and held
 

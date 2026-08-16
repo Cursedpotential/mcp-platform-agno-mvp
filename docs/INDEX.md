@@ -14,6 +14,8 @@ deployed.
 | Current forward order | [BUILD_PLAN.md](BUILD_PLAN.md) | Forward entry point |
 | Framework-neutral migration plan | [PLAN-2026-08-15-platform-runtime-migration.md](PLAN-2026-08-15-platform-runtime-migration.md) | Accepted target |
 | Product surfaces | [PRODUCT-BLUEPRINT-2026-08-15.md](PRODUCT-BLUEPRINT-2026-08-15.md) | Accepted target |
+| Surreal/investigation goal hierarchy | [GOALS-2026-08-15-surreal-investigation-memory.md](GOALS-2026-08-15-surreal-investigation-memory.md) | Accepted goals; implementation not started |
+| Surreal/investigation technical blueprint | [SURREAL-INVESTIGATION-BLUEPRINT-2026-08-15.md](SURREAL-INVESTIGATION-BLUEPRINT-2026-08-15.md) | Accepted boundaries + proposed contracts |
 | Workbench HTML design review | [mockup comparison](../workbench/design-mockups/index.html) | Local review artifact |
 | Component boundaries | [ARCHITECTURE-BLUEPRINT-2026-08-15.md](ARCHITECTURE-BLUEPRINT-2026-08-15.md) | Accepted target |
 | Migration/dependency views | [MIGRATION-DIAGRAMS-2026-08-15.md](MIGRATION-DIAGRAMS-2026-08-15.md) | Accepted target |
@@ -32,6 +34,11 @@ service whose findings may be governed candidates. PostgreSQL is authoritative; 
 run-scoped belief projection. Portkey remains preferred routing, OpenCode adds persistent
 workspace/provider flexibility, and AG2 remains a candidate coordination adapter. Go routing is
 decoder-coverage based at every file size.
+
+ADR-0056–0058 add a governed Surreal analytical/walk-memory target, claim-centered evidence
+assembly, Investigation Search, and scoped behavioral analysis. This does not reactivate the
+parked legacy Surreal deployment or change PostgreSQL authority. See the goal hierarchy and
+technical blueprint above; the new capabilities are design-only.
 
 ## Held activation
 
@@ -59,6 +66,7 @@ deployed Workbench.
 - [R7 OpenCode workspace](HANDOFF-2026-08-15-R7-opencode-workspace.md)
 - [R8 custom Workbench](HANDOFF-2026-08-15-R8-workbench.md)
 - [R9 Knowledge-to-case MVP](HANDOFF-2026-08-15-R9-knowledge-to-case-mvp.md)
+- [R10 Surreal analytical memory and investigation design](HANDOFF-2026-08-15-R10-surreal-investigation-design.md)
 
 R9's earlier “Matter missing” statement is superseded by the committed local implementation above;
 the packet remains valuable as its design and safety rationale.
