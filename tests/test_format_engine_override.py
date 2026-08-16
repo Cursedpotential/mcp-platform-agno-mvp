@@ -58,7 +58,8 @@ class FakeSBVClient:
         self.import_calls.append({"file_path": file_path, "filename": filename, "format": format})
         return {"import_id": 42}
 
-    def wait_for_processing(self, timeout_s=600.0):
+    def wait_for_import(self, import_id, timeout_s=600.0):
+        assert import_id == 42
         return {"status": "completed"}
 
     def import_records(self, import_id, **kw):

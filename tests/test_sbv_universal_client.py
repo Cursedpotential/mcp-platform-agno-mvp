@@ -87,6 +87,39 @@ def test_import_records_and_rejections_paginate_by_id(monkeypatch):
     assert not any("latest" in path for _, path, _ in calls)
 
 
+def test_wait_for_import_polls_explicit_id_until_completed(monkeypatch):
+    client = SBVClient(base_url="http://sbv", password="secret")
+    details = iter(
+        [
+            {"import_id": 7, "status": "processing"},
+            {"import_id": 7, "status": "completed", "record_count": 1},
+        ]
+    )
+    calls: list[int] = []
+
+    def fake_detail(import_id):
+        calls.append(import_id)
+        return next(details)
+
+    monkeypatch.setattr(client, "import_detail", fake_detail)
+    result = client.wait_for_import(7, poll_s=0, timeout_s=1)
+
+    assert result["status"] == "completed"
+    assert calls == [7, 7]
+
+
+def test_wait_for_import_surfaces_terminal_error(monkeypatch):
+    client = SBVClient(base_url="http://sbv", password="secret")
+    monkeypatch.setattr(
+        client,
+        "import_detail",
+        lambda import_id: {"import_id": import_id, "status": "error", "error": "decoder failed"},
+    )
+
+    with pytest.raises(SBVError, match="decoder failed"):
+        client.wait_for_import(7, poll_s=0, timeout_s=1)
+
+
 def test_universal_validation_rejects_h1_or_h3_mismatch(tmp_path: Path):
     source = tmp_path / "source.xml"
     source.write_bytes(b"<smses count='1'><sms body='x'/></smses>")

@@ -144,7 +144,7 @@ def parse_via_sbv(
     import_id = summary.get("import_id")
     if import_id is None:
         raise RuntimeError("SBV import response did not include import_id")
-    client.wait_for_processing(timeout_s=timeout_s)
+    client.wait_for_import(int(import_id), timeout_s=timeout_s)
     rows = client.import_records(int(import_id))
 
     default_source = f"sbv-go:{format}" if format else "sbv-go"

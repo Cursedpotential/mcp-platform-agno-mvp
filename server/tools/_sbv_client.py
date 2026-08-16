@@ -383,6 +383,27 @@ class SBVClient:
             time.sleep(poll_s)
         raise SBVError(f"SBV processing timed out after {timeout_s}s (last={last})")
 
+    def wait_for_import(self, import_id: int, poll_s: float = 0.25, timeout_s: float = 600.0) -> dict[str, Any]:
+        """Poll one immutable universal import until it is terminal.
+
+        ``/api/progress`` belongs to SBV's legacy upload workflow and can report
+        ``no_upload`` after a successful ``POST /api/imports``. Universal imports
+        must therefore be observed through their explicit import identity.
+        """
+        if int(import_id) <= 0:
+            raise ValueError("import_id must be positive")
+        deadline = time.time() + timeout_s
+        last_status: Any = None
+        while time.time() < deadline:
+            detail = self.import_detail(import_id)
+            last_status = detail.get("status")
+            if last_status == "completed":
+                return detail
+            if last_status in ("error", "failed"):
+                raise SBVError(f"SBV import {import_id} failed: {detail.get('error') or 'unknown error'}")
+            time.sleep(poll_s)
+        raise SBVError(f"SBV import {import_id} timed out after {timeout_s}s (status={last_status!r})")
+
     def messages(
         self,
         address: str | None = None,
