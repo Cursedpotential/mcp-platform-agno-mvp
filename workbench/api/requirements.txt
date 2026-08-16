@@ -1,7 +1,7 @@
 # Byline: Claude Code · Sonnet (agent) · 2026-07-19
-# Knowledge Workbench API — staging + promote surface only.
-# Deliberately NO torch/transformers/sentence-transformers/openai/langchain:
-# this app never chunks, embeds, or runs an LLM itself (see README.md).
+# Knowledge Workbench API — operator surface plus classification lab.
+# The lab constructs Agno model adapters but still does not install local
+# torch/transformers/sentence-transformers workloads.
 
 fastapi>=0.115.0
 uvicorn[standard]>=0.34.0
@@ -12,6 +12,7 @@ boto3>=1.35.0
 lancedb>=0.15.0
 pyarrow>=18.0.0
 httpx>=0.27.0
+agno[anthropic,google,groq,ollama,openai]==2.8.7
 
 # Dev / quality
 ruff>=0.8.0
