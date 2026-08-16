@@ -11,7 +11,7 @@
 
 ```
 sql/
-  bootstrap/schema_baseline.sql <- The only reproducible empty-database bootstrap.
+  bootstrap/schema_baseline.sql <- Captured structure baseline; see current-image caveat below.
   0001_init_extensions.sql     <- Historical extensions + rich domain types.
   0002_schema.sql              <- Dual-schema boundary + HITL audit tables (legacy).
   0003_normalized_records.sql  <- analysis.normalized_record (bitemporal substrate).
@@ -36,14 +36,15 @@ sql/
 
 ## Bootstrap contract (2026-08-02, Codex C-02; honesty pass 2026-08-09, handoff S3f)
 
-Two artifacts, two jobs — and only ONE of them is a working bootstrap path.
+Two artifacts, two jobs. The baseline is the structural starting point; the
+current-image caveat below governs the additional ordering and migration work.
 
-- **`sql/bootstrap/schema_baseline.sql`** — THE reproducible bootstrap, and
-  the ONLY one. A structure-only `pg_dump --schema-only` capture of the
-  ENTIRE live schema. Apply this one file to an empty database to reproduce
-  production. Regenerate after any applied migration (see "Regenerating the
-  baseline" below) — a stale baseline is worse than no baseline, because it
-  looks trustworthy.
+- **`sql/bootstrap/schema_baseline.sql`** — the captured structure baseline.
+  It is a `pg_dump --schema-only` capture of the then-live schema. The
+  2026-08-16 current-image replay caveat below means this file is presently a
+  required bootstrap input, not a sufficient one-file bootstrap. Regenerate
+  after any applied migration (see "Regenerating the baseline" below) — a
+  stale baseline is worse than no baseline, because it looks trustworthy.
 - **`sql/NNNN_*.sql`** — the historical, append-only chain. Never edit an
   applied file; future schema changes keep landing here. Read it for HISTORY
   and INTENT (every table's WHY is documented inline, the baseline has none
@@ -104,9 +105,9 @@ resolution inline. No fix required.
 
 **Bottom line:** the numbered chain is a truthful, append-only RECORD of
 design decisions (read it for the "why"). It is not, and per the above
-cannot currently be, a bootstrap path. `sql/bootstrap/schema_baseline.sql`
-is the only file that reproduces a working database from empty. If you need
-a fresh dev/test database: apply the baseline, not the chain.
+cannot currently be, a from-zero bootstrap path. Start a fresh dev/test
+database from `sql/bootstrap/schema_baseline.sql`, then follow the
+current-image extension-order and post-baseline migration caveat below.
 
 ### Regenerating the baseline
 
@@ -127,6 +128,16 @@ vw_spine_horizon/retrieval-axis/realization_event objects the stale baseline lac
 **This also resolves the 2026-08-09 triage doc's UNVERIFIED #1: the live DB is fully
 migrated — ops (audit ledger), working (0016 gate layer), and 0018 retrieval axes are
 all present live.** The command, kept for the next regen:
+
+> **2026-08-16 current-image re-verification (Codex · GPT-5):** Directly replaying the
+> committed baseline into the isolated `horizon_scratch` target failed because the dump
+> creates `pg_duckdb` before conventional extensions; later extension-script `GRANT`s were
+> intercepted as MotherDuck operations. Pre-creating the conventional extensions before
+> `pg_duckdb` allowed the structure-only restore. Source inspection also proved the committed
+> baseline does **not** contain `ops.audit_ledger`; `0019`–`0020` and then `0021`–`0030` were
+> required to reach the reviewed scratch state. Until a deterministic bootstrap wrapper or a
+> regenerated, current-image-verified baseline lands, do not describe this file alone as a
+> complete reproducible bootstrap. No production database was mutated during this proof.
 
 ```
 # Prerequisites on the machine running this (NOT a container):

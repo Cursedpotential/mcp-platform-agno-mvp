@@ -72,19 +72,19 @@ Source: `scripts/_wave0_inventory.py` + `scripts/_wave0_fresh_restore.py` agains
    `chat_projection_dead_letter` exist, 0 rows. `working.context_record` still holds **1,741
    rows** — the legacy chat-lane data to migrate into the new tables per ADR-0053.
 
-4. **NEW DEBT — migrations are NOT a from-zero build (reproducible-restore gap).** The
-   fresh-schema restore gate created a throwaway DB, applied `sql/0001`–`0025` from zero, and
-   **FAILED at `0008`** (`relation "evidence.source" does not exist`). No migration CREATEs
-   `evidence.source` — `0008` only `ALTER`s/indexes it; `docker/postgres/` holds only a
-   `Dockerfile` (no init SQL). The base schema is bootstrapped **outside the tracked migrations**
-   (runtime `docker-entrypoint-initdb.d` mount or one-off VPS DDL). This freshly verifies the
-   documented "sql/ does NOT describe the live 132-table DB" divergence and pins the precise
-   symptom. **Consequences:** (a) Wave 1+ append-only migrations build against the **live**
-   schema (the authority), not a `sql/`-only rebuild; (b) the Wave 5 automated restore-drill
-   gate is **blocked** until the bootstrap DDL is captured into the repo so `sql/` + bootstrap
-   is a complete, reproducible restore. **Owner action needed:** locate the
-   `docker-entrypoint-initdb.d` source (or dump the live base schema) and commit it. Not a
-   Wave 0 blocker — the live schema is intact and serves as the build base.
+4. **PARTIALLY RESOLVED — bootstrap captured; current-image replay still drifts.** Commit
+   `2b37a4b` added `sql/bootstrap/schema_baseline.sql`, so the earlier action to locate and
+   capture the out-of-band DDL is complete. A 2026-08-16 observed restore into the isolated
+   `horizon_scratch` PostgreSQL service exposed two remaining defects:
+   (a) the dump creates `pg_duckdb` before `pg_stat_statements` and PostGIS, causing the current
+   `ghcr.io/cursedpotential/agno-postgres` image to reject their extension-script `GRANT`s as
+   MotherDuck-table operations; pre-creating every conventional extension before `pg_duckdb`
+   made the structure-only restore succeed; and (b) the captured file does not contain
+   `ops.audit_ledger` even though `sql/README.md` said it did. Applying `0019`–`0020`, then
+   `0021`–`0030` in reviewed order completed the scratch schema. **Still open:** regenerate or
+   wrap the baseline with deterministic extension ordering, an explicit included-migration
+   manifest, and an empty-database regression test. Do not call the baseline alone a verified
+   current-image bootstrap until that gate passes.
 
 > **2026-08-09 audit** (docs/registers true-up pass): all "resolved" rows below re-checked
 > against the tree and still verified resolved (parser/extractor modules present under
