@@ -1,8 +1,9 @@
 # Blueprint — Surreal Analytical Surface, Investigation, and Temporal Memory
 
-> _Byline: Codex · GPT-5 · 2026-08-15_
+> _Byline: Codex · GPT-5 · 2026-08-15 · updated 2026-08-16 (Codex · GPT-5)_
 >
-> **Status:** Accepted architecture boundaries plus proposed implementation contracts.
+> **Status:** Accepted architecture boundaries; Phase-0 logical contracts/evaluation package
+> complete for owner review 2026-08-16.
 > **Build status:** Research/design only; no Surreal activation, schema, or deploy claim.
 
 ## 1. Governing boundaries
@@ -183,6 +184,11 @@ and horizon contamination. Planted future facts must produce zero leakage. Graph
 comparisons cover temporal reconstruction, contradiction, supersession, provenance, namespace
 isolation, invalidation, replay, latency, and resources.
 
+The executable Phase-0 contract canary and full gate specification are in
+`tests/test_surreal_investigation_phase0_contract.py` and
+`docs/EVALUATION-2026-08-16-surreal-investigation-phase0.md`. Its 14 passing synthetic tests are
+not live adapter proof.
+
 ## 11. Verified corrections to research packets
 
 - The two Spectron reports are complementary, not duplicates.
@@ -207,6 +213,11 @@ isolation, invalidation, replay, latency, and resources.
 5. Memory embedding profiles versus promoted corpus profiles.
 6. TraceIQ geo precision, uncertainty, and retention contract.
 7. Behavioral taxonomy, expansion budgets, and Case Prep transformation approvals.
+
+The complete routed inventory is
+`UNRESOLVED-QUESTIONS-2026-08-16-surreal-investigation-phase0.md`; only six immediate choices are
+presented in `PENDING-OWNER-DECISIONS-SURREAL-INVESTIGATION-2026-08-16.md`. No recommendation is
+accepted until the owner rules.
 
 ## 13. Implementation order
 

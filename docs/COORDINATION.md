@@ -484,3 +484,18 @@ R10 must not leapfrog the R9 activation gates or silently repurpose the parked l
 deployment. Graphiti remains the baseline until an observed bake-off. Exact Surreal isolation,
 physical schemas, embedding profiles, TraceIQ projection, behavior taxonomy/budgets, and exclusive
 walk-agent retrieval remain owner decisions.
+
+## 2026-08-16 — R11 Surreal investigation Phase 0 review package
+
+> _Byline: Codex · GPT-5 · 2026-08-16. Contracts/evaluation/test-only lane._
+
+| Deliverable | State |
+|---|---|
+| Logical data/service contracts | Complete for owner review; no physical schema |
+| Unresolved-question inventory | 33 routed questions; none silently resolved |
+| Gold/evaluation specification | Complete; T0 synthetic only, T1/T2 not authorized |
+| Planted-future-fact canary | 14 synthetic contract tests pass; no live adapter proof |
+| Owner packet | Six immediate choices S1–S6 pending; empirical/later choices deferred |
+
+R11 changed no application, database, migration, deployment, corpus, or service state. The parked
+Surreal deployment was not contacted. Phase 1 and every R9 activation hold remain in force.

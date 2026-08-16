@@ -2,10 +2,11 @@
 
 > **Authoritative for:** what we build next, in order. Entry point: `docs/PROJECT_CANON.md` (§0 Document Contract).
 > Supersedes `docs/planning/*` (EXECUTION_PLAN, BUILD_TODO, MIGRATION_PLAN_v8) for **forward** work — those are history.
-> Last updated: 2026-08-15 (working-tree status true-up; no deployment claim).
+> Last updated: 2026-08-16 (ADR-0056–0058 Phase-0 review package complete; no implementation
+> or deployment claim).
 > _Byline: Claude Code · Opus 4.8 · 2026-06-13; phase-status refresh 2026-07-11
 > Claude Code · Sonnet 5; ADR-0053 amendment Codex · GPT-5 · 2026-08-13;
-> documentation true-up Codex · GPT-5 · 2026-08-15._
+> documentation true-up Codex · GPT-5 · 2026-08-15; Phase-0 status Codex · GPT-5 · 2026-08-16._
 <!-- Updated by: Codex (migration-passes/doc-patching) | Date: 2026-08-15 | Rev: 1 | Platform: Codex / win32 | Changes: Clarify Wave-1, Knowledge, and Semantica status | Context: Prevent uncommitted working-tree implementation from being read as applied or deployed -->
 
 > _Current-entry-point repair: Codex · GPT-5 · 2026-08-15._
@@ -28,10 +29,13 @@ this current direction:
 8. Expand the custom Workbench as the primary product surface.
 9. After R9 activation gates, freeze the ADR-0056–0058 contracts and build a disposable
    Surreal vertical slice: promoted manifest/span, one claim investigation, one established
-   fact subgraph, and one as-lived memory scope. Do not reactivate the parked legacy deployment.
+   fact subgraph, and one as-lived memory scope. **Phase-0 contracts/evaluation/canary package is
+   complete for owner review; S1–S6 remain pending and Phase 1 is not authorized.** Do not
+   reactivate the parked legacy deployment.
 10. Build Find Evidence, Reconstruct Event, Discover Patterns, and the scoped Behavioral
     Analysis Agent only after gold-corpus, planted-future-fact, provenance, and bounded-query
-    gates pass. See `GOALS-2026-08-15-surreal-investigation-memory.md`.
+    gates pass. The Phase-0 specification and synthetic 14-test canary exist; live-store and
+    full-corpus gates have not run. See `GOALS-2026-08-15-surreal-investigation-memory.md`.
 
 ### Locally built and held
 

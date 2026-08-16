@@ -1,6 +1,6 @@
 # Documentation Index — Current Entry Points
 
-> _Byline: Codex · GPT-5 · 2026-08-15._
+> _Byline: Codex · GPT-5 · 2026-08-15 · updated 2026-08-16 (Codex · GPT-5)._
 
 Use this page to distinguish durable canon, the accepted 2026-08-15 target, current local
 implementation, and historical planning. A file describing a target does not prove it is
@@ -16,11 +16,16 @@ deployed.
 | Product surfaces | [PRODUCT-BLUEPRINT-2026-08-15.md](PRODUCT-BLUEPRINT-2026-08-15.md) | Accepted target |
 | Surreal/investigation goal hierarchy | [GOALS-2026-08-15-surreal-investigation-memory.md](GOALS-2026-08-15-surreal-investigation-memory.md) | Accepted goals; implementation not started |
 | Surreal/investigation technical blueprint | [SURREAL-INVESTIGATION-BLUEPRINT-2026-08-15.md](SURREAL-INVESTIGATION-BLUEPRINT-2026-08-15.md) | Accepted boundaries + proposed contracts |
+| Phase-0 logical contracts | [CONTRACTS-2026-08-16-surreal-investigation-phase0.md](CONTRACTS-2026-08-16-surreal-investigation-phase0.md) | Proposed for owner review; no implementation authority |
+| Gold corpus and evaluation gates | [EVALUATION-2026-08-16-surreal-investigation-phase0.md](EVALUATION-2026-08-16-surreal-investigation-phase0.md) | Proposed gates; synthetic canary only |
+| Horizon-leak threat-test contract | [PHASE0-PLANTED-FUTURE-FACT-THREAT-TESTS-2026-08-16.md](PHASE0-PLANTED-FUTURE-FACT-THREAT-TESTS-2026-08-16.md) | Threat matrix; live integration blocked |
+| Surreal/investigation open questions | [UNRESOLVED-QUESTIONS-2026-08-16-surreal-investigation-phase0.md](UNRESOLVED-QUESTIONS-2026-08-16-surreal-investigation-phase0.md) | Active inventory |
+| Surreal/investigation owner packet | [Phase-0 pending decisions](PENDING-OWNER-DECISIONS-SURREAL-INVESTIGATION-2026-08-16.md) | Six pending choices; not an ADR |
 | Workbench HTML design review | [mockup comparison](../workbench/design-mockups/index.html) | Local review artifact |
 | Component boundaries | [ARCHITECTURE-BLUEPRINT-2026-08-15.md](ARCHITECTURE-BLUEPRINT-2026-08-15.md) | Accepted target |
 | Migration/dependency views | [MIGRATION-DIAGRAMS-2026-08-15.md](MIGRATION-DIAGRAMS-2026-08-15.md) | Accepted target |
 | Agent/lane ownership | [TASK-DISTRIBUTION-2026-08-15.md](TASK-DISTRIBUTION-2026-08-15.md) | Coordination contract |
-| Executable handoffs | [HANDOFFS.md](HANDOFFS.md) | Current R0–R9 index |
+| Executable handoffs | [HANDOFFS.md](HANDOFFS.md) | Current R0–R11 index |
 | Pending Matter decisions | [Matter MVP owner packet](PENDING-OWNER-DECISIONS-MATTER-MVP-2026-08-15.md) | Pending owner ruling; not an ADR |
 | Repository placement | [REPO_STRUCTURE.md](REPO_STRUCTURE.md) | Structural index |
 | Live multi-lane log | [COORDINATION.md](COORDINATION.md) | Append-only coordination history |
@@ -39,6 +44,10 @@ ADR-0056–0058 add a governed Surreal analytical/walk-memory target, claim-cent
 assembly, Investigation Search, and scoped behavioral analysis. This does not reactivate the
 parked legacy Surreal deployment or change PostgreSQL authority. See the goal hierarchy and
 technical blueprint above; the new capabilities are design-only.
+
+The Phase-0 review package now defines logical contracts, routes 33 unresolved questions,
+specifies the gold corpus/evaluation gates, and adds a 14-test synthetic future-fact canary.
+It does not verify live adapters or authorize Phase 1. Six compact owner choices remain pending.
 
 ## Held activation
 
@@ -67,6 +76,7 @@ deployed Workbench.
 - [R8 custom Workbench](HANDOFF-2026-08-15-R8-workbench.md)
 - [R9 Knowledge-to-case MVP](HANDOFF-2026-08-15-R9-knowledge-to-case-mvp.md)
 - [R10 Surreal analytical memory and investigation design](HANDOFF-2026-08-15-R10-surreal-investigation-design.md)
+- [R11 Surreal investigation Phase 0](HANDOFF-2026-08-16-R11-surreal-investigation-phase0.md)
 
 R9's earlier “Matter missing” statement is superseded by the committed local implementation above;
 the packet remains valuable as its design and safety rationale.

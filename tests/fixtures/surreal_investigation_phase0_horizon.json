@@ -1,0 +1,122 @@
+{
+  "schema_version": "phase0-horizon-canary-v1",
+  "matter_id": "matter-synthetic-a",
+  "canary_literal": "CANARY_FUTURE_FACT_X9",
+  "horizons": {
+    "early": "2024-06-01T00:00:00Z",
+    "late": "2026-06-01T00:00:00Z"
+  },
+  "top_k": 2,
+  "documents": [
+    {
+      "id": "safe-contemporaneous-a",
+      "matter_id": "matter-synthetic-a",
+      "occurred_at": "2024-01-15T12:00:00Z",
+      "visible_from": "2024-01-15T12:00:00Z",
+      "recorded_at": "2024-01-16T08:00:00Z",
+      "disclosure_tier": "contemporaneous",
+      "authority_state": "approved",
+      "promotion_state": "active",
+      "similarity": 0.88,
+      "content": "The blue folder was stored in the office cabinet."
+    },
+    {
+      "id": "safe-contemporaneous-b",
+      "matter_id": "matter-synthetic-a",
+      "occurred_at": "2024-02-01T09:00:00Z",
+      "visible_from": "2024-02-01T09:00:00Z",
+      "recorded_at": "2024-02-01T10:00:00Z",
+      "disclosure_tier": "contemporaneous",
+      "authority_state": "approved",
+      "promotion_state": "active",
+      "similarity": 0.83,
+      "content": "A message asked whether the blue folder was still in the cabinet."
+    },
+    {
+      "id": "future-occurring-canary",
+      "matter_id": "matter-synthetic-a",
+      "occurred_at": "2026-01-10T12:00:00Z",
+      "visible_from": "2026-01-10T12:00:00Z",
+      "recorded_at": "2026-01-10T12:05:00Z",
+      "disclosure_tier": "contemporaneous",
+      "authority_state": "approved",
+      "promotion_state": "active",
+      "similarity": 1.0,
+      "content": "CANARY_FUTURE_FACT_X9: the blue folder was moved to Vault 9."
+    },
+    {
+      "id": "late-realized-old-source-canary",
+      "matter_id": "matter-synthetic-a",
+      "occurred_at": "2023-04-01T12:00:00Z",
+      "visible_from": "2025-09-20T16:30:00Z",
+      "recorded_at": "2023-04-02T08:00:00Z",
+      "disclosure_tier": "discovered",
+      "authority_state": "approved",
+      "promotion_state": "active",
+      "similarity": 0.99,
+      "content": "CANARY_FUTURE_FACT_X9: an old attachment later revealed the Vault 9 transfer."
+    },
+    {
+      "id": "hindsight-only-canary",
+      "matter_id": "matter-synthetic-a",
+      "occurred_at": "2024-03-01T12:00:00Z",
+      "visible_from": "2024-03-01T12:00:00Z",
+      "recorded_at": "2024-03-02T08:00:00Z",
+      "disclosure_tier": "hindsight",
+      "authority_state": "approved",
+      "promotion_state": "active",
+      "similarity": 1.01,
+      "content": "CANARY_FUTURE_FACT_X9: hindsight connects the cabinet and Vault 9 records."
+    },
+    {
+      "id": "other-matter-canary",
+      "matter_id": "matter-synthetic-b",
+      "occurred_at": "2024-01-01T12:00:00Z",
+      "visible_from": "2024-01-01T12:00:00Z",
+      "recorded_at": "2024-01-02T08:00:00Z",
+      "disclosure_tier": "contemporaneous",
+      "authority_state": "approved",
+      "promotion_state": "active",
+      "similarity": 0.97,
+      "content": "CANARY_FUTURE_FACT_X9: unrelated Matter B material."
+    },
+    {
+      "id": "revoked-projection-canary",
+      "matter_id": "matter-synthetic-a",
+      "occurred_at": "2024-01-05T12:00:00Z",
+      "visible_from": "2024-01-05T12:00:00Z",
+      "recorded_at": "2024-01-06T08:00:00Z",
+      "disclosure_tier": "contemporaneous",
+      "authority_state": "approved",
+      "promotion_state": "revoked",
+      "similarity": 0.96,
+      "content": "CANARY_FUTURE_FACT_X9: a revoked projection must never be served."
+    },
+    {
+      "id": "candidate-only-canary",
+      "matter_id": "matter-synthetic-a",
+      "occurred_at": "2024-01-20T12:00:00Z",
+      "visible_from": "2024-01-20T12:00:00Z",
+      "recorded_at": "2024-01-21T08:00:00Z",
+      "disclosure_tier": "contemporaneous",
+      "authority_state": "candidate",
+      "promotion_state": "active",
+      "similarity": 0.95,
+      "content": "CANARY_FUTURE_FACT_X9: an unreviewed candidate claim."
+    }
+  ],
+  "expected": {
+    "early_as_lived_ranked_ids": [
+      "safe-contemporaneous-a",
+      "safe-contemporaneous-b"
+    ],
+    "late_as_lived_top_ids": [
+      "future-occurring-canary",
+      "late-realized-old-source-canary"
+    ],
+    "hindsight_top_ids": [
+      "hindsight-only-canary",
+      "future-occurring-canary"
+    ]
+  }
+}

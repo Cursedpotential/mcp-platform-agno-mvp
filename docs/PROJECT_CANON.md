@@ -4,7 +4,9 @@
 > repeated compaction never loses the vision, decisions, or plan. It is kept
 > current as decisions are made. If something here conflicts with an older ADR,
 > this file's "Locked Decisions" section wins and the ADR should be updated.
-> Last updated: 2026-08-15 (ADR-0056–0058: governed Surreal analytical/walk-memory
+> Last updated: 2026-08-16 (ADR-0056–0058 Phase-0 logical contracts, synthetic
+> planted-future-fact tests, evaluation gates, and owner packet are complete for review;
+> no implementation/activation authority; prior 2026-08-15: governed Surreal analytical/walk-memory
 > projection, claim-centered evidence assembly, Investigation Search, and scoped
 > hindsight/as-lived behavioral analysis; prior: framework-neutral runtime/custom
 > Workbench target, Semantica VIP, Postgres belief authority + Graphiti projection,
@@ -25,6 +27,7 @@
 > (drift-fix 2026-08-12 round 2, Claude Code · Kimi K3: §4 data-vector down-note + §6 OpenCode LiteLLM mention corrected)
 > Claude Code · Fable 5; §4/§5/§6 sync 2026-08-09 Claude Code · Sonnet 5;
 > §3/§5 chat-ingestion amendment 2026-08-13 Codex · GPT-5;
+> Phase-0 Surreal/investigation review status 2026-08-16 Codex · GPT-5;
 > drift-fix 2026-08-14 Claude Code · glm-5.2:cloud: §1 visible_from/derived-passes (ADR-0045 §A/§B), §4+§6 Weaviate cutover-verified, §8 agno 2.8.0→2.8.7, transcript_miner topology)_
 
 ---
@@ -534,6 +537,12 @@ pointer below — corrected 2026-08-09) — Part 1 complete + memory substrate:*
 
 ## 10. Open threads / parking lot
 
+- **ADR-0056–0058 Phase 0 — complete for owner review, not implementation:** logical
+  contracts, unresolved-question inventory, gold/evaluation specification, synthetic
+  planted-future-fact contract tests, and the compact owner packet are indexed in
+  `docs/HANDOFF-2026-08-16-R11-surreal-investigation-phase0.md`. Owner rulings S1–S6
+  remain pending. Phase 1, physical schema, activation, corpus copy, deploy, and Graphiti
+  replacement remain held; all R9 activation holds continue unchanged.
 - Owner had one more idea that slipped away (2026-06-11) — to be added when recalled.
 - Knowledge-engine domain separation: finalize collection scheme + ingestion routing.
 - Legal Team: inventory the Gemini Gems personas to port.

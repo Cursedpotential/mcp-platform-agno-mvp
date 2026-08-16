@@ -1,9 +1,9 @@
 # HANDOFFS — current execution index
 
 > _Byline: Claude Code · Opus 4.8 · 2026-06-13_
-> _Current-index conversion: Codex · GPT-5 · 2026-08-15._
+> _Current-index conversion: Codex · GPT-5 · 2026-08-15; R11 update 2026-08-16._
 > **Historical note:** the original task units are preserved below for provenance, but are
-> superseded for forward work by the dated R0–R10 packets in this index.
+> superseded for forward work by the dated R0–R11 packets in this index.
 
 ## Current handoff set
 
@@ -20,6 +20,7 @@
 | R8 | [Custom Workbench](HANDOFF-2026-08-15-R8-workbench.md) | Partial | Framework-neutral operator product |
 | R9 | [Knowledge to case MVP](HANDOFF-2026-08-15-R9-knowledge-to-case-mvp.md) | Superseded in part by local build | Matter/CourtCase + evidence promotion, held/unapplied |
 | R10 | [Surreal analytical memory and investigation design](HANDOFF-2026-08-15-R10-surreal-investigation-design.md) | Complete design / build unknown | Governed Surreal projection, claim assembly, investigation and behavior |
+| R11 | [Surreal investigation Phase 0](HANDOFF-2026-08-16-R11-surreal-investigation-phase0.md) | Complete for owner review | Logical contracts, question inventory, evaluation gates, synthetic horizon canary, owner packet |
 
 R9's claim that Matter identity and the Knowledge-to-Evidence slice are missing is now
 historical: those components are pushed to `main`, undeployed, and dependent on
@@ -32,6 +33,10 @@ schema/migration, Graphiti replacement, or production change. Its goal hierarchy
 [`GOALS-2026-08-15-surreal-investigation-memory.md`](GOALS-2026-08-15-surreal-investigation-memory.md)
 and its consolidated technical contract is
 [`SURREAL-INVESTIGATION-BLUEPRINT-2026-08-15.md`](SURREAL-INVESTIGATION-BLUEPRINT-2026-08-15.md).
+
+R11 executes the contract/evaluation portion of R10 Phase 0. The synthetic canary passes 14
+tests, but no live adapter is verified. Six owner choices remain pending; Phase 1 and every R9
+activation hold remain in force.
 
 ## Historical task register — superseded for forward execution
 

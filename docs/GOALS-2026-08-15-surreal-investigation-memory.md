@@ -1,8 +1,9 @@
 # Goals — Curated Surreal Analysis, Walk Memory, and Investigation
 
-> _Byline: Codex · GPT-5 · 2026-08-15_
+> _Byline: Codex · GPT-5 · 2026-08-15 · updated 2026-08-16 (Codex · GPT-5)_
 >
-> **Status:** Architecture documented; implementation not authorized by this file.
+> **Status:** Architecture documented; Phase-0 review package complete 2026-08-16;
+> implementation not authorized by this file.
 > **Build status:** NOT STARTED for the new Surreal/investigation capabilities.
 
 ## North-star outcome
@@ -83,7 +84,7 @@ hindsight without weakening PostgreSQL custody or canonical authority.
 
 | Phase | Outcome | Gate |
 |---|---|---|
-| 0 | Contracts, question inventory, gold corpus, threat model | Owner accepts contracts and planted-leak tests |
+| 0 | Contracts, question inventory, gold/evaluation specification, synthetic threat canary | **Complete for owner review**; owner accepts contracts, gates, planted-leak behavior, and S1–S6 |
 | 1 | Disposable Surreal spike with promoted manifests/spans | Exact PG/hash reconciliation and rollback/rebuild proof |
 | 2 | Source/chunk/vector projection and hybrid retrieval | Profile isolation, prefilters, locator accuracy |
 | 3 | Claim investigation and established-fact subgraph | Multi-source provenance and contradiction review |
@@ -112,3 +113,15 @@ hindsight without weakening PostgreSQL custody or canonical authority.
 5. Memory embeddings versus promoted corpus embedding profiles.
 6. Behavior-lens controlled taxonomy and expansion budgets.
 7. Case Prep transformation and approval workflow.
+
+## Phase-0 review package (2026-08-16)
+
+- `CONTRACTS-2026-08-16-surreal-investigation-phase0.md`
+- `UNRESOLVED-QUESTIONS-2026-08-16-surreal-investigation-phase0.md`
+- `EVALUATION-2026-08-16-surreal-investigation-phase0.md`
+- `PHASE0-PLANTED-FUTURE-FACT-THREAT-TESTS-2026-08-16.md`
+- `PENDING-OWNER-DECISIONS-SURREAL-INVESTIGATION-2026-08-16.md`
+- `HANDOFF-2026-08-16-R11-surreal-investigation-phase0.md`
+
+The planted-future-fact suite is synthetic and framework-neutral; it passed 14 tests. It does
+not prove any live store adapter. Phase 1 remains held pending owner review and R9 holds.

@@ -63,3 +63,12 @@ contracts and planted horizon-leak tests are accepted.
 - No files deleted or moved.
 - No application, database, infrastructure, or external state changed.
 - Existing user-owned `.gitignore` modification was not touched.
+
+## Addendum — Phase 0 completed for review (2026-08-16)
+
+> _Byline: Codex · GPT-5 · 2026-08-16_
+
+The next safe action was completed as a contract/evaluation/test package only. Continue from
+`HANDOFF-2026-08-16-R11-surreal-investigation-phase0.md`. Owner rulings remain pending; no
+Surreal activation, corpus copy, schema/migration, deploy, Graphiti replacement, or live proof
+occurred.
