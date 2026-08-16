@@ -44,6 +44,19 @@ def _datetime(value: str) -> Datetime:
     return Datetime(value)
 
 
+def _assert_statement_success(raw: Any, operation: str) -> None:
+    """Reject any failed statement in a multi-statement SDK response."""
+
+    if not isinstance(raw, dict):
+        raise RuntimeError(f"{operation}:MALFORMED_RESPONSE")
+    failures = []
+    for index, item in enumerate(raw.get("result", [])):
+        if isinstance(item, dict) and item.get("status") == "ERR":
+            failures.append(f"{index}:{item.get('result', 'UNKNOWN')}")
+    if failures:
+        raise RuntimeError(f"{operation}:" + "|".join(failures[:3]))
+
+
 def _keys() -> tuple[bytes, str]:
     private = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     private_pem = private.private_bytes(
@@ -106,14 +119,17 @@ async def _bootstrap(root_user: str, root_password: str, public_key: str) -> Non
         await database.use(APPROVED_TARGET.namespace, APPROVED_TARGET.database)
         schema = (ROOT / "schema" / "001_phase1_t0.surql").read_text(encoding="utf-8")
         schema = schema.replace("__PHASE1_JWT_PUBLIC_KEY__", public_key.strip())
-        await database.query(schema)
+        for definition in ("ACCESS", "TABLE", "FIELD", "INDEX"):
+            schema = schema.replace(f"DEFINE {definition} ", f"DEFINE {definition} OVERWRITE ")
+        schema_result = await database.query_raw(schema)
+        _assert_statement_success(schema_result, "schema")
         for principal, role in (
             ("phase1_projector", "projector"),
             ("phase1_walk", "walk"),
             ("phase1_auditor", "auditor"),
         ):
             await database.query(
-                "CREATE ONLY type::record('service_principal', $principal) CONTENT $row;",
+                "UPSERT type::record('service_principal', $principal) CONTENT $row;",
                 {
                     "principal": principal,
                     "row": {

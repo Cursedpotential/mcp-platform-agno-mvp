@@ -5,6 +5,10 @@ Byline: Codex · GPT-5 · 2026-08-16
 
 from pathlib import Path
 
+import pytest
+
+from horizon_surreal_phase1.runner import _assert_statement_success
+
 ROOT = Path(__file__).parents[1]
 
 
@@ -35,3 +39,14 @@ def test_vector_query_prefilters_before_exact_cosine_and_captures_plan() -> None
         "$MODE",
     ):
         assert binding in upper
+
+
+def test_multi_statement_schema_failure_is_not_hidden() -> None:
+    raw = {
+        "result": [
+            {"status": "OK", "result": None},
+            {"status": "ERR", "result": "definition rejected"},
+        ]
+    }
+    with pytest.raises(RuntimeError, match="schema:1:definition rejected"):
+        _assert_statement_success(raw, "schema")
