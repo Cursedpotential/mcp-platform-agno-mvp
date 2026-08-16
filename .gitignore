@@ -149,3 +149,5 @@ docs/COMPACT-SUMMARY-*.md
 # Owner-only quarantine. Files moved here are intentionally retained until the
 # owner deletes them and may include credential-bearing application data.
 to_be_deleted/
+# CocoIndex Code (ccc)
+/.cocoindex_code/
