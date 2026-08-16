@@ -1,9 +1,9 @@
 # HANDOFFS — current execution index
 
 > _Byline: Claude Code · Opus 4.8 · 2026-06-13_
-> _Current-index conversion: Codex · GPT-5 · 2026-08-15; R11 update 2026-08-16._
+> _Current-index conversion: Codex · GPT-5 · 2026-08-15; R13 update 2026-08-16._
 > **Historical note:** the original task units are preserved below for provenance, but are
-> superseded for forward work by the dated R0–R11 packets in this index.
+> superseded for forward work by the dated R0–R13 packets in this index.
 
 ## Current handoff set
 
@@ -21,6 +21,8 @@
 | R9 | [Knowledge to case MVP](HANDOFF-2026-08-15-R9-knowledge-to-case-mvp.md) | Superseded in part by local build | Matter/CourtCase + evidence promotion, held/unapplied |
 | R10 | [Surreal analytical memory and investigation design](HANDOFF-2026-08-15-R10-surreal-investigation-design.md) | Complete design / build unknown | Governed Surreal projection, claim assembly, investigation and behavior |
 | R11 | [Surreal investigation Phase 0](HANDOFF-2026-08-16-R11-surreal-investigation-phase0.md) | Complete for owner review | Logical contracts, question inventory, evaluation gates, synthetic horizon canary, owner packet |
+| R12 | [Surreal investigation owner rulings](HANDOFF-2026-08-16-R12-surreal-investigation-owner-rulings.md) | Complete | S1–S6 settled; Phase-1 design authorized, physical work separately gated |
+| R13 | [Phase-1 Surreal T0 reboot checkpoint](HANDOFF-2026-08-16-R13-phase1-surreal-t0-reboot-checkpoint.md) | Paused / target stopped | Local gates pass; live projection fails closed; resume from sealed disposable state |
 
 R9's claim that Matter identity and the Knowledge-to-Evidence slice are missing is now
 historical: those components are pushed to `main`, undeployed, and dependent on
