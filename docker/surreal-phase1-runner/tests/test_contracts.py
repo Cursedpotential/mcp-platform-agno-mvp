@@ -17,7 +17,7 @@ from horizon_surreal_phase1.contracts import (
     link_rewalk,
     transition_projection_guard,
 )
-from horizon_surreal_phase1.runner import _safe_error_details
+from horizon_surreal_phase1.runner import _record_absent, _safe_error_details
 
 FIXTURE = Path(__file__).parents[1] / "fixtures" / "t0_manifest.json"
 
@@ -98,3 +98,9 @@ def test_safe_error_details_reports_only_allowlisted_denial_fields() -> None:
 
 def test_safe_error_details_omits_unstructured_exception_text() -> None:
     assert _safe_error_details(RuntimeError("credential-like text")) == {}
+
+
+def test_permission_filtered_empty_shapes_are_absent() -> None:
+    assert _record_absent(None)
+    assert _record_absent([])
+    assert not _record_absent("forbidden")

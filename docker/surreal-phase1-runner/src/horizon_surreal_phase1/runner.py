@@ -21,7 +21,7 @@ from typing import Any
 import jwt
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-from surrealdb import AsyncSurreal, Datetime
+from surrealdb import AsyncSurreal, Datetime, NotAllowedError
 
 from .adapter import connect
 from .identity import APPROVED_TARGET, sdk_endpoint, validate_target_identity
@@ -78,6 +78,12 @@ def _safe_error_details(error: BaseException) -> dict[str, str]:
             return details
         current = current.__cause__
     return {}
+
+
+def _record_absent(value: Any) -> bool:
+    """Recognize SDK result shapes for a permission-filtered missing record."""
+
+    return value is None or value == []
 
 
 def _keys() -> tuple[bytes, str]:
@@ -337,9 +343,12 @@ async def _negative_write(private_key: bytes) -> bool:
                     }
                 },
             )
-        except Exception:
+        except NotAllowedError:
             return True
-    return False
+        observed = await database.query(
+            "SELECT VALUE platform_id FROM ONLY context:forbidden;"
+        )
+    return _record_absent(observed)
 
 
 async def _quarantine(private_key: bytes) -> None:
