@@ -1,9 +1,9 @@
 # HANDOFFS — current execution index
 
 > _Byline: Claude Code · Opus 4.8 · 2026-06-13_
-> _Current-index conversion: Codex · GPT-5 · 2026-08-15; R13 update 2026-08-16._
+> _Current-index conversion: Codex · GPT-5 · 2026-08-15; R14 update 2026-08-17._
 > **Historical note:** the original task units are preserved below for provenance, but are
-> superseded for forward work by the dated R0–R13 packets in this index.
+> superseded for forward work by the dated R0–R14 packets in this index.
 
 ## Current handoff set
 
@@ -23,6 +23,7 @@
 | R11 | [Surreal investigation Phase 0](HANDOFF-2026-08-16-R11-surreal-investigation-phase0.md) | Complete for owner review | Logical contracts, question inventory, evaluation gates, synthetic horizon canary, owner packet |
 | R12 | [Surreal investigation owner rulings](HANDOFF-2026-08-16-R12-surreal-investigation-owner-rulings.md) | Complete | S1–S6 settled; Phase-1 design authorized, physical work separately gated |
 | R13 | [Phase-1 Surreal T0 reboot checkpoint](HANDOFF-2026-08-16-R13-phase1-surreal-t0-reboot-checkpoint.md) | Paused / target stopped | Local gates pass; live projection fails closed; resume from sealed disposable state |
+| R14 | [Phase-1 Surreal live core pass](HANDOFF-2026-08-17-R14-phase1-surreal-live-core-pass.md) | Core live gates pass / full set partial | Target stopped; sealed snapshot, linked rewalk, and export/import parity remain |
 
 R9's claim that Matter identity and the Knowledge-to-Evidence slice are missing is now
 historical: those components are pushed to `main`, undeployed, and dependent on
