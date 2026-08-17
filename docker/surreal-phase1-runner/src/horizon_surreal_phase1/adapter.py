@@ -1,6 +1,6 @@
 """Bounded SDK adapter for the approved disposable target only.
 
-Byline: Codex · GPT-5 · 2026-08-16
+Byline: Codex · GPT-5 · 2026-08-17 (authenticate record JWT before scoped use)
 """
 
 from __future__ import annotations
@@ -28,9 +28,12 @@ async def connect(
     async with database:
         if system_credentials is not None:
             await database.signin(system_credentials)
-        await database.use(identity.namespace, identity.database)
-        if token is not None:
+            await database.use(identity.namespace, identity.database)
+        elif token is not None:
             await database.authenticate(token)
+            await database.use(identity.namespace, identity.database)
+        else:
+            await database.use(identity.namespace, identity.database)
         yield database
 
 
