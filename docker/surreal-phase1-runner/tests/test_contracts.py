@@ -1,12 +1,13 @@
 """Pure contract tests for horizon filtering and failure transitions.
 
-Byline: Codex · GPT-5 · 2026-08-16
+Byline: Codex · GPT-5 · 2026-08-17 (sanitized structured failure diagnostics)
 """
 
 import json
 from pathlib import Path
 
 import pytest
+from surrealdb import NotAllowedError
 
 from horizon_surreal_phase1.contracts import (
     HorizonContext,
@@ -16,6 +17,7 @@ from horizon_surreal_phase1.contracts import (
     link_rewalk,
     transition_projection_guard,
 )
+from horizon_surreal_phase1.runner import _safe_error_details
 
 FIXTURE = Path(__file__).parents[1] / "fixtures" / "t0_manifest.json"
 
@@ -77,3 +79,22 @@ def test_quarantine_is_terminal_and_rewalk_gets_new_identity() -> None:
     assert rewalk.walk_id != sealed.walk_id
     assert rewalk.rewalk_of == sealed.walk_id
     assert rewalk.projection_revision == "projection-t0-r2"
+
+
+def test_safe_error_details_reports_only_allowlisted_denial_fields() -> None:
+    denial = NotAllowedError(
+        kind="NotAllowed",
+        message="Method not allowed",
+        details={"kind": "Method", "details": {"name": "create"}},
+    )
+    wrapped = RuntimeError("stage=projection")
+    wrapped.__cause__ = denial
+
+    assert _safe_error_details(wrapped) == {
+        "kind": "NotAllowed",
+        "method": "create",
+    }
+
+
+def test_safe_error_details_omits_unstructured_exception_text() -> None:
+    assert _safe_error_details(RuntimeError("credential-like text")) == {}

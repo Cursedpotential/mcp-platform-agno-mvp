@@ -3,7 +3,7 @@
 Only stable IDs, hashes, counts, and typed outcomes are emitted. Synthetic text,
 embeddings, credentials, and tokens are never logged.
 
-Byline: Codex · GPT-5 · 2026-08-16
+Byline: Codex · GPT-5 · 2026-08-17 (sanitized structured failure diagnostics)
 """
 
 from __future__ import annotations
@@ -55,6 +55,29 @@ def _assert_statement_success(raw: Any, operation: str) -> None:
             failures.append(f"{index}:{item.get('result', 'UNKNOWN')}")
     if failures:
         raise RuntimeError(f"{operation}:" + "|".join(failures[:3]))
+
+
+def _safe_error_details(error: BaseException) -> dict[str, str]:
+    """Return only non-sensitive structured Surreal denial identifiers."""
+
+    current: BaseException | None = error
+    for _ in range(8):
+        if current is None:
+            break
+        details = {
+            key: value
+            for key, value in (
+                ("kind", getattr(current, "kind", None)),
+                ("method", getattr(current, "method_name", None)),
+                ("function", getattr(current, "function_name", None)),
+                ("target", getattr(current, "target_name", None)),
+            )
+            if isinstance(value, str) and value
+        }
+        if details:
+            return details
+        current = current.__cause__
+    return {}
 
 
 def _keys() -> tuple[bytes, str]:
@@ -404,6 +427,7 @@ def main() -> None:
             "status": "FAIL",
             "error_type": type(exc).__name__,
             "error_summary": str(exc)[:240],
+            "error_details": _safe_error_details(exc),
         }
     print(json.dumps(report, sort_keys=True), flush=True)
     if report["status"] != "PASS":
