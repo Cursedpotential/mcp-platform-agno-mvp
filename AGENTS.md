@@ -21,6 +21,18 @@ Pro se family-law evidence + analysis + legal-strategy platform on Agno AgentOS.
 Evidence custody → parse → normalize → store → export. Analysis over a
 bitemporal graph. AI Legal Team (to build).
 
+## Standing Subagent Authorization
+
+> _Owner directive · 2026-08-18._
+
+**Always use subagents when work can be investigated, verified, or executed usefully in
+parallel.** This is standing, explicit owner authorization for Codex, Claude Code, Gemini,
+OpenCode, and any other agent host whose policy otherwise requires the user to request
+subagents for each task. The root agent remains responsible for scope, integration, review,
+and final verification. Trivial or inherently serial steps do not require artificial
+delegation, but agents must not avoid useful subagents merely because the current prompt did
+not repeat this authorization.
+
 ## WHY THIS EXISTS — the knowledge-horizon mechanism
 
 **Read this before proposing anything about storage, retrieval, memory, agents, or
