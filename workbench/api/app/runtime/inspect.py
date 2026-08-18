@@ -1,5 +1,7 @@
 # Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: record browser, hash verify, curation, corroboration flags)
 # Byline: Codex · GPT-5 · 2026-08-16 (Data Explorer table/vector detail routes)
+# Byline amendment: Codex · GPT-5 · 2026-08-18 (third-party approval route)
+# Byline: Codex · GPT-5 · 2026-08-18 (authenticated review and entity routes)
 """GET/PATCH /api/records, GET /api/schemas, POST /api/verify/{sha},
 POST/GET/PATCH /api/flags... — the C3 inspector routes.
 
@@ -12,14 +14,29 @@ intact instead of collapsing into a generic 502.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query
+from uuid import UUID
+
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from app.repo.spine_client import SpineError
 from app.service import flags as flags_service
 from app.service import inspect as inspect_service
-from app.types.inspect import FlagCreateRequest, FlagUpdateRequest, RecordMetaPatchRequest
+from app.types.inspect import (
+    EntityCreateRequest,
+    FlagCreateRequest,
+    FlagUpdateRequest,
+    RecordMetaPatchRequest,
+    ThirdPartyApprovalRequest,
+)
 
 router = APIRouter(prefix="/api", tags=["inspect"])
+
+
+def _authenticated_owner(request: Request) -> str:
+    principal = getattr(request.state, "principal", None)
+    if principal != "owner":
+        raise HTTPException(status_code=401, detail="authenticated owner required")
+    return principal
 
 
 # ---------------------------------------------------------------------------
@@ -45,6 +62,41 @@ async def list_records_endpoint(
 async def patch_record_meta_endpoint(record_id: str, payload: RecordMetaPatchRequest):
     try:
         return inspect_service.patch_record_meta(record_id, payload.model_dump(exclude_unset=True))
+    except SpineError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail) from None
+
+
+@router.post("/third-party-conversations/{conversation_id}/approve")
+async def approve_third_party_conversation_endpoint(
+    conversation_id: UUID, payload: ThirdPartyApprovalRequest, request: Request
+):
+    try:
+        _authenticated_owner(request)
+        review = payload.model_dump(mode="json")
+        return inspect_service.approve_third_party_conversation(
+            str(conversation_id),
+            review,
+        )
+    except SpineError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail) from None
+
+
+@router.get("/entities")
+async def list_entities_endpoint(q: str | None = None, limit: int = Query(20, ge=1, le=100)):
+    try:
+        return inspect_service.list_entities(query=q, limit=limit)
+    except SpineError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail) from None
+
+
+@router.post("/entities", status_code=201)
+async def create_entity_endpoint(payload: EntityCreateRequest, request: Request):
+    # request.state.principal is deliberately consulted here even though the
+    # upstream contract accepts no actor: unauthenticated test/app wiring fails
+    # closed instead of silently turning browser input into authored identity.
+    _authenticated_owner(request)
+    try:
+        return inspect_service.create_entity(payload.model_dump(mode="json"))
     except SpineError as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail) from None
 

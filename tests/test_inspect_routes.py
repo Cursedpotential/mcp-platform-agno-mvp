@@ -9,12 +9,15 @@ for parse-dryrun so no real parser/tool-registry state is required.
 """
 # Byline: Claude Code · Sonnet (agent) · 2026-07-22
 # Byline: Codex · GPT-5 · 2026-08-16 (read-only Data Explorer coverage)
+# Byline: Codex · GPT-5 · 2026-08-18 (projection-aware record browser coverage)
+# Byline amendment: Codex · GPT-5 · 2026-08-18 (third-party review route coverage)
 
 from __future__ import annotations
 
 import hashlib
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from fastapi import FastAPI
@@ -27,6 +30,11 @@ from server.api.inspect_routes import register_inspect_routes
 # migration-file checks for 0005/0006) -----------------------------------
 
 _SQL_0007_PATH = Path(__file__).resolve().parents[1] / "sql" / "0007_curation_and_flags.sql"
+_CONVERSATION_ID = "11111111-1111-1111-1111-111111111111"
+_MESSAGE_ID = "22222222-2222-2222-2222-222222222222"
+_PARTICIPANT_ID = "33333333-3333-3333-3333-333333333333"
+_SENDER_ENTITY_ID = "44444444-4444-4444-4444-444444444444"
+_RECIPIENT_ENTITY_ID = "55555555-5555-5555-5555-555555555555"
 
 
 def test_migration_0007_file_exists():
@@ -138,6 +146,11 @@ def test_row_to_record_truncates_text_and_reports_full_len():
         "content": long_text,
         "attrs": {"parser_tool": "x"},
         "created_at": "2026-01-02T00:00:00Z",
+        "source_kind": "third_party_acquired",
+        "projection_kind": "derived_third_party",
+        "source_available_from": "2026-02-01T00:00:00Z",
+        "third_party_conversation": {"actual_sender": "Alex", "actual_recipients": ["Taylor"]},
+        "realization_events": [{"id": "event-1"}],
     }
     out = inspect_routes._row_to_record(row)
     assert out["text"] == long_text[:2000]
@@ -145,6 +158,9 @@ def test_row_to_record_truncates_text_and_reports_full_len():
     assert "content" not in out  # renamed, not duplicated
     assert out["seq"] == 1
     assert out["attrs"] == {"parser_tool": "x"}
+    assert out["source_kind"] == "third_party_acquired"
+    assert out["third_party_conversation"]["actual_sender"] == "Alex"
+    assert out["realization_events"] == [{"id": "event-1"}]
 
 
 def test_row_to_record_handles_none_content_and_jsonb_strings():
@@ -252,6 +268,91 @@ def test_list_records_happy_path(client, monkeypatch):
     assert body["artifact_id"] == "art-1"
     assert body["records"][0]["text"] == "hello"
     assert body["records"][0]["seq"] == 1
+    list_sql = fake.calls[1][0]
+    assert "WHEN route.projection_kind='acquired_third_party' THEN 'third_party_acquired'" in list_sql
+    assert "WHEN route.projection_kind='acquired_third_party' THEN 'derived_third_party'" in list_sql
+    assert "route.decision_state<>'approved'" in list_sql
+    assert "AS third_party_review" in list_sql
+
+
+def _approval_result():
+    return SimpleNamespace(
+        conversation_id=_CONVERSATION_ID,
+        approved_record_count=2,
+        audit_ledger_id=17,
+        vector_reprojection=SimpleNamespace(
+            artifact_id="artifact-1",
+            normalized_record_ids=("record-1", "record-2"),
+            source_available_from={"record-1": "2026-08-01T00:00:00Z", "record-2": "2026-08-01T00:00:00Z"},
+        ),
+    )
+
+
+def test_third_party_approval_returns_replay_pending_without_projector(client, monkeypatch):
+    captured = {}
+
+    def fake_approve(conversation_id, **kwargs):
+        captured.update(conversation_id=conversation_id, **kwargs)
+        return _approval_result()
+
+    monkeypatch.setattr("server.evidence.message_projection.approve_third_party_conversation", fake_approve)
+    response = client.post(
+        f"/v1/third-party-conversations/{_CONVERSATION_ID}/approve",
+        json={
+            "sender_entity_ids": {_MESSAGE_ID: _SENDER_ENTITY_ID},
+            "participant_entity_ids": {_PARTICIPANT_ID: _RECIPIENT_ENTITY_ID},
+            "reason": "Compared raw export identities",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["reprojection"]["status"] == "replay_pending"
+    assert captured["conversation_id"] == _CONVERSATION_ID
+    assert captured["actor"] == "owner"
+
+
+def test_third_party_approval_invokes_attached_projector(monkeypatch):
+    knowledge = object()
+    projector = object()
+    app = FastAPI()
+    register_inspect_routes(app, knowledge=knowledge, native_projector=projector)
+    client = TestClient(app)
+    monkeypatch.setattr(
+        "server.evidence.message_projection.approve_third_party_conversation",
+        lambda *args, **kwargs: _approval_result(),
+    )
+    replayed = {}
+
+    async def fake_reproject(handoff, projector):
+        replayed.update(handoff=handoff, projector=projector)
+        return 2
+
+    monkeypatch.setattr("server.evidence.workflows.reproject_approved_third_party", fake_reproject)
+    response = client.post(
+        f"/v1/third-party-conversations/{_CONVERSATION_ID}/approve",
+        json={
+            "sender_entity_ids": {_MESSAGE_ID: _SENDER_ENTITY_ID},
+            "participant_entity_ids": {_PARTICIPANT_ID: _RECIPIENT_ENTITY_ID},
+            "reason": "Compared raw export identities",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["reprojection"] == {"status": "completed", "record_count": 2}
+    assert replayed["projector"] is projector
+
+
+def test_third_party_approval_rejects_spoofed_actor(client):
+    response = client.post(
+        f"/v1/third-party-conversations/{_CONVERSATION_ID}/approve",
+        json={
+            "sender_entity_ids": {_MESSAGE_ID: _SENDER_ENTITY_ID},
+            "participant_entity_ids": {_PARTICIPANT_ID: _RECIPIENT_ENTITY_ID},
+            "actor": "spoofed-reviewer",
+            "reason": "attempted spoof",
+        },
+    )
+    assert response.status_code == 422
 
 
 def test_list_records_q_adds_ilike_filter(client, monkeypatch):
@@ -800,7 +901,7 @@ def test_patch_record_meta_merges_title_labels_and_attrs_patch(client, monkeypat
         "attrs": {"title": "New Title", "labels": ["a", "b"], "custom": 1},
         "created_at": None,
     }
-    fake = _FakeEngine([returned_row])
+    fake = _FakeEngine([{"exists": True, "projection_kind": "first_party"}, returned_row])
     monkeypatch.setattr(inspect_routes, "_get_engine", lambda: fake)
 
     resp = client.patch(
@@ -809,7 +910,7 @@ def test_patch_record_meta_merges_title_labels_and_attrs_patch(client, monkeypat
     )
 
     assert resp.status_code == 200
-    _, params = fake.calls[0]
+    _, params = fake.calls[1]
     sent_patch = json.loads(params["patch"])
     assert sent_patch == {"title": "New Title", "labels": ["a", "b"], "custom": 1}
     body = resp.json()
@@ -827,6 +928,17 @@ def test_patch_record_meta_404_when_missing(client, monkeypatch):
 def test_patch_record_meta_422_when_empty(client):
     resp = client.patch("/v1/records/rec-1/meta", json={})
     assert resp.status_code == 422
+
+
+def test_patch_record_meta_rejects_derived_third_party_row(client, monkeypatch):
+    fake = _FakeEngine([{"exists": True, "projection_kind": "acquired_third_party"}])
+    monkeypatch.setattr(inspect_routes, "_get_engine", lambda: fake)
+
+    resp = client.patch("/v1/records/rec-1/meta", json={"title": "x"})
+
+    assert resp.status_code == 409
+    assert "derived and read-only" in resp.json()["detail"]
+    assert "decision_state='approved'" not in fake.calls[0][0]
 
 
 # =============================================================================

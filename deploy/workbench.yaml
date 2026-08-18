@@ -1,3 +1,4 @@
+# Byline: Codex · GPT-5 · 2026-08-18 (owner-only native evidence search credential)
 # =============================================================================
 # KNOWLEDGE WORKBENCH — deploy as its OWN Coolify app on OVH-1 ("ovh-app",
 # tailnet 100.72.169.40). Single-service app per the one-concern-per-app rule
@@ -57,6 +58,9 @@ services:
       # console) — base_app's OS_SECURITY_KEY gate applies to every route
       # regardless of authorization=False (see AGENTS.md Claude-Reflect note).
       AGENTOS_API_TOKEN: ${AGENTOS_API_TOKEN:-}
+      # Distinct owner-only capability for bounded exploratory evidence search.
+      # It must not be issued to agents; their route is walk/checkpoint-bound.
+      EVIDENCE_OPERATOR_SECURITY_KEY: ${EVIDENCE_OPERATOR_SECURITY_KEY:-}
       # --- MCP tool servers (Tool Explorer, C1 console) ---
       # agno 2.8 door migration (2026-07-23): agentos-mcp :8001 is RETIRED —
       # the "agentos" entry's url now points at agentos-api's own mounted

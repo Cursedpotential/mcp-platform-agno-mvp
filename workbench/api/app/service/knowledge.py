@@ -1,20 +1,13 @@
 # Byline: Claude Code · Sonnet (agent) · 2026-07-23 (C4: Knowledge browser + Graphiti pane)
 # Byline: Codex · GPT-5 · 2026-08-15 (case/lane-safe multi-base adapter)
 # Byline: Codex · GPT-5 · 2026-08-16 (neutral canonical catalog + chunk detail)
-"""Knowledge projection search plus canonical PostgreSQL source inspection.
+# Byline: Codex · GPT-5 · 2026-08-18 (projection context overlay; records/chunks remain split)
+# Byline: Codex · GPT-5 · 2026-08-18 (native horizon-prefiltered evidence search cutover)
+# Byline: Codex · GPT-5 · 2026-08-18 (owner-only operator/agent-pass boundary)
+"""Spine-mediated knowledge search plus canonical source inspection.
 
-Two deliberately different read surfaces live here:
-
-- Search is a labeled Weaviate projection reached through Agno's generated
-  `/knowledge/search` route. Mandatory dict filters remain pre-ranking because
-  Agno's Weaviate adapter drops FilterExpr lists.
-- Browse/detail is the framework-neutral `/v1/knowledge/items` contract backed
-  by canonical `working.normalized_record` plus `evidence.evidence_hash` rows.
-  It never imports Agno and exposes parser, chunker, source hash, records, and
-  provenance needed by the Workbench operator loop.
-
-This Workbench service never touches PostgreSQL or Weaviate directly; all reads
-remain spine-mediated.
+Evidence search uses the owner-only native, horizon-prefiltered route; other
+lanes retain Agno compatibility while their native stores are built.
 """
 
 from __future__ import annotations
@@ -22,6 +15,7 @@ from __future__ import annotations
 from hashlib import sha256
 from typing import Any
 
+from app.config import settings
 from app.repo.spine_client import SpineError, spine_json
 
 __all__ = ["SpineError", "get_content", "list_contents", "search"]
@@ -67,7 +61,37 @@ def _require_text(value: str, field: str) -> str:
     return normalized
 
 
-def _search_lane(query: str, *, case_id: str, lane: str, limit: int) -> dict:
+def _search_lane(
+    query: str,
+    *,
+    case_id: str,
+    lane: str,
+    limit: int,
+    horizon: str | None,
+) -> dict:
+    if lane == "evidence":
+        if not settings.evidence_operator_security_key:
+            raise SpineError("owner evidence search capability is not configured", 503)
+        body: dict[str, Any] = {
+            "query": query,
+            "case_id": case_id,
+            "limit": limit,
+            "mode": "hybrid",
+        }
+        if horizon is not None:
+            body["horizon"] = horizon
+        response = spine_json(
+            "POST",
+            "/v1/operator/evidence/search",
+            headers={"Authorization": f"Bearer {settings.evidence_operator_security_key}"},
+            json=body,
+        )
+        for hit in response.get("data") or []:
+            metadata = dict(hit.get("meta_data") or {})
+            metadata.setdefault("knowledge_lane", lane)
+            hit["meta_data"] = metadata
+        return response
+
     body = {
         "query": query,
         "knowledge_id": _knowledge_id(lane),
@@ -90,8 +114,9 @@ def search(
     case_id: str = "primary",
     lane: str | None = None,
     limit: int | None = None,
+    horizon: str | None = None,
 ) -> dict:
-    """Search one or all allowed Knowledge bases with a mandatory case prefilter."""
+    """Search one or all lanes with mandatory case and evidence-horizon gates."""
     normalized_query = _require_text(query, "query")
     normalized_case = _require_text(case_id, "case_id")
     effective_limit = _positive_limit(limit, default=20, maximum=_MAX_SEARCH_RESULTS)
@@ -100,7 +125,13 @@ def search(
         raise ValueError(f"unsupported knowledge lane: {lane}")
 
     responses = [
-        _search_lane(normalized_query, case_id=normalized_case, lane=selected, limit=effective_limit)
+        _search_lane(
+            normalized_query,
+            case_id=normalized_case,
+            lane=selected,
+            limit=effective_limit,
+            horizon=horizon,
+        )
         for selected in lanes
     ]
     hits: list[dict[str, Any]] = [hit for response in responses for hit in (response.get("data") or [])]
@@ -168,6 +199,7 @@ def list_contents(
                     "chunker_id": item.get("chunker_id"),
                     "source_sha256": item.get("source_sha256"),
                     "record_count": item.get("record_count"),
+                    "chunk_count": item.get("chunk_count"),
                 },
             }
         )
@@ -200,6 +232,59 @@ def get_content(artifact_id: str, *, case_id: str) -> dict[str, Any]:
         raise SpineError("spine returned an invalid canonical knowledge item")
 
     records = item.get("records")
+    projection_rows: list[Any] = []
+    projection_offset = 0
+    projection_limit = 1000
+    while True:
+        projection_page = spine_json(
+            "GET",
+            "/v1/records",
+            params={
+                "artifact_id": normalized_artifact,
+                "limit": projection_limit,
+                "offset": projection_offset,
+            },
+        )
+        page_rows = projection_page.get("records") if isinstance(projection_page, dict) else None
+        if not isinstance(page_rows, list):
+            raise SpineError("spine returned an invalid normalized-record projection page")
+        projection_rows.extend(page_rows)
+        projection_offset += len(page_rows)
+        total = projection_page.get("total") if isinstance(projection_page, dict) else None
+        if (isinstance(total, int) and projection_offset >= total) or len(page_rows) < projection_limit:
+            break
+        if not page_rows:
+            raise SpineError("spine projection pagination made no progress")
+    projection_by_id = {str(row.get("id")): row for row in projection_rows if isinstance(row, dict) and row.get("id")}
+    if isinstance(records, list):
+        for record in records:
+            if not isinstance(record, dict):
+                continue
+            projection = projection_by_id.get(str(record.get("record_id")))
+            if projection:
+                for key in (
+                    "source_kind",
+                    "projection_kind",
+                    "source_available_from",
+                    "normalized_lineage",
+                    "third_party_conversation",
+                    "realization_events",
+                ):
+                    record[key] = projection.get(key)
+            else:
+                record.update(
+                    {
+                        "source_kind": "unclassified",
+                        "projection_kind": "authored_normalized",
+                        "source_available_from": None,
+                        "normalized_lineage": {
+                            "normalized_record_id": str(record.get("record_id") or ""),
+                            "artifact_id": str(record.get("artifact_id") or normalized_artifact),
+                        },
+                        "third_party_conversation": None,
+                        "realization_events": [],
+                    }
+                )
     first = records[0] if isinstance(records, list) and records and isinstance(records[0], dict) else {}
     attrs = first.get("attrs") if isinstance(first.get("attrs"), dict) else {}
     return {

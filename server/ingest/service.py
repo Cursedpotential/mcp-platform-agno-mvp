@@ -5,6 +5,10 @@ projections are downstream and cannot turn a committed canonical ingest into a
 failure. SBV's SQLite databases are parser-local resumability state only.
 
 Byline: Codex · GPT-5 · 2026-08-16
+Byline amendment: Codex · GPT-5 · 2026-08-18 (source/acquisition clocks and chunk split)
+Byline amendment: Codex · GPT-5 · 2026-08-18 (governed message projection transaction)
+Byline amendment: Codex · GPT-5 · 2026-08-18 (duplicate acquisition relink)
+Byline amendment: Codex · GPT-5 · 2026-08-18 (native vector outbox pending receipt)
 """
 
 from __future__ import annotations
@@ -14,7 +18,7 @@ from pathlib import Path
 from typing import Any, Callable, Literal, Protocol, cast
 
 from server.contracts.ingest import IngestLane, IngestReceipt, IngestRejection, IngestRequest, ProjectionResult
-from server.contracts.records import NormalizedRecord, finalize
+from server.contracts.records import MessageCorpus, NormalizedRecord, finalize
 from server.core.chunking_identity import chunker_id
 
 
@@ -36,6 +40,8 @@ class Artifact(Protocol):
     artifact_id: str
     sha256: str
     duplicate: bool
+    acquisition_id: str | None
+    acquired_at: datetime | None
 
 
 class ReceiptJournal(Protocol):
@@ -57,6 +63,12 @@ class PostgresReceiptJournal:
             source_path=str(path),
             domain=request.lane.value,
             custody_tier=request.custody_tier,
+            source_context={
+                "source_identity": request.source_identity,
+                "message_corpus": request.message_corpus,
+                "source_principal": request.source_principal,
+                "acquisition": request.acquisition.model_dump(mode="json") if request.acquisition else None,
+            },
         )
         seed_stages(receipt_id, ["custody", "parse", "store", "projection"])
         return receipt_id
@@ -175,6 +187,12 @@ def _parse(
 ) -> tuple[list[NormalizedRecord], str, Literal["go", "python"], list[dict[str, Any]]]:
     from server.analysis.chat_parse import parse_chat_export
 
+    source_meta = {
+        **request.source_identity,
+        "source_principal": request.source_principal,
+        "message_corpus": request.message_corpus,
+    }
+
     hint = request.coverage_hint
     if request.lane is not IngestLane.evidence and hint is None and path.suffix.lower() in _DOCUMENT_SUFFIXES:
         return _extract_document(path, request)
@@ -191,12 +209,12 @@ def _parse(
         use_go = engaged == "go"
     if use_go:
         try:
-            records, parser_id, attempts = parse_chat_export(path, request.source_identity, engine="go", format=hint)
+            records, parser_id, attempts = parse_chat_export(path, source_meta, engine="go", format=hint)
             return records, parser_id, "go", attempts
         except Exception as primary_error:
             if not request.allow_fallback:
                 raise
-            records, parser_id, attempts = parse_chat_export(path, request.source_identity, engine="python")
+            records, parser_id, attempts = parse_chat_export(path, source_meta, engine="python")
             return (
                 records,
                 parser_id,
@@ -207,7 +225,7 @@ def _parse(
     try:
         records, parser_id, attempts = parse_chat_export(
             path,
-            request.source_identity,
+            source_meta,
             engine=request.engine,
             format=hint,
         )
@@ -224,6 +242,9 @@ def _enrich(
     return finalize(
         record.model_copy(
             update={
+                "message_corpus": MessageCorpus(request.message_corpus)
+                if request.message_corpus
+                else record.message_corpus,
                 "attrs": {
                     **record.attrs,
                     "lane": request.lane.value,
@@ -231,7 +252,9 @@ def _enrich(
                     "source_path": str(path),
                     "source_name": path.name,
                     "parser_id": parser_id,
-                }
+                    "message_corpus": request.message_corpus,
+                    "source_principal": request.source_principal,
+                },
             }
         )
         for record in records
@@ -246,7 +269,7 @@ def ingest_file(
     custody: Callable[..., Artifact] | None = None,
     persist: Callable[..., int] | None = None,
     records_exist: Callable[[str], bool] | None = None,
-    projector: Callable[[list[NormalizedRecord], Artifact, IngestRequest], str | None] | None = None,
+    projector: Any | None = None,
 ) -> IngestReceipt:
     """Ingest one staged file and return its durable receipt."""
     path = Path(request.staged_path).resolve(strict=True)
@@ -268,9 +291,9 @@ def ingest_file(
         else:
             custody_fn = custody
         if persist is None:
-            from server.evidence.store import records_exist_for_artifact, store_records
+            from server.evidence.store import records_exist_for_artifact, store_record_batch
 
-            persist_fn = cast(Callable[..., int], store_records)
+            persist_fn = cast(Callable[..., int], store_record_batch)
             records_exist_fn = records_exist or records_exist_for_artifact
         else:
             persist_fn = persist
@@ -278,7 +301,12 @@ def ingest_file(
 
         active_stage = 1
         _stage_start(journal, receipt_id, active_stage)
-        artifact = custody_fn(path, request.source_identity, tier=request.custody_tier)
+        artifact = custody_fn(
+            path,
+            request.source_identity,
+            tier=request.custody_tier,
+            acquisition=request.acquisition.model_dump(mode="python") if request.acquisition else None,
+        )
         _stage_finish(
             journal,
             receipt_id,
@@ -293,7 +321,7 @@ def ingest_file(
         from server.ingest.chunking import chunk_records
 
         chunked = chunk_records(source_records)
-        records = chunked.records
+        projection_records = chunked.records
         chunk_count = chunked.chunk_count
         _stage_finish(
             journal,
@@ -312,14 +340,38 @@ def ingest_file(
         active_stage = 3
         _stage_start(journal, receipt_id, active_stage)
         canonical_duplicate = artifact.duplicate and records_exist_fn(artifact.artifact_id)
+        duplicate_acquisition_links = 0
+        if (
+            canonical_duplicate
+            and persist is None
+            and request.message_corpus == "acquired_third_party"
+            and artifact.acquisition_id is not None
+        ):
+            from server.evidence.store import link_duplicate_artifact_acquisition
+
+            duplicate_acquisition_links = link_duplicate_artifact_acquisition(
+                artifact,
+                asserted_by=request.acquisition.asserted_by if request.acquisition is not None else "owner",
+            )
         stored = (
             0
             if canonical_duplicate
-            else persist_fn(
-                records,
-                artifact,
-                case_id=request.matter_id,
-                domain=_DB_DOMAIN[request.lane],
+            else (
+                persist_fn(
+                    source_records,
+                    chunked.chunks,
+                    artifact,
+                    case_id=request.matter_id,
+                    domain=_DB_DOMAIN[request.lane],
+                    projection_request=request,
+                )
+                if persist is None
+                else persist_fn(
+                    source_records,
+                    artifact,
+                    case_id=request.matter_id,
+                    domain=_DB_DOMAIN[request.lane],
+                )
             )
         )
         _stage_finish(
@@ -332,17 +384,71 @@ def ingest_file(
                 "custody_duplicate": artifact.duplicate,
                 "canonical_duplicate": canonical_duplicate,
                 "matter_id": request.matter_id,
+                "duplicate_acquisition_links": duplicate_acquisition_links,
             },
         )
         active_stage = 4
         _stage_start(journal, receipt_id, active_stage)
         projections: list[ProjectionResult]
-        if projector is None:
-            projections = [ProjectionResult(sink="weaviate", status="skipped", detail="projector not attached")]
+        if request.message_corpus == "acquired_third_party":
+            projections = [
+                ProjectionResult(
+                    sink="weaviate",
+                    status="skipped",
+                    detail="awaiting approved PostgreSQL source_available_from",
+                )
+            ]
+        elif projector is None:
+            pending_jobs: int | None = None
+            if persist is None and not canonical_duplicate:
+                from server.evidence.store import native_projection_jobs_for_artifact
+
+                pending_jobs = native_projection_jobs_for_artifact(artifact.artifact_id)
+            if pending_jobs:
+                projections = [
+                    ProjectionResult(
+                        sink="weaviate",
+                        status="pending",
+                        detail=f"{pending_jobs} native projection job(s) durably enqueued",
+                    )
+                ]
+            elif pending_jobs == 0 and chunk_count:
+                projections = [
+                    ProjectionResult(
+                        sink="weaviate",
+                        status="failed",
+                        detail="native outbox exists but no projection job was committed",
+                    )
+                ]
+            else:
+                projections = [
+                    ProjectionResult(
+                        sink="weaviate",
+                        status="skipped",
+                        detail="native outbox not applied or custom persistence path; projector not attached",
+                    )
+                ]
         else:
             try:
-                detail = projector(records, artifact, request)
-                projections = [ProjectionResult(sink="weaviate", status="completed", detail=detail)]
+                from server.evidence.vector_projection import NativeEvidenceProjector
+
+                if isinstance(projector, NativeEvidenceProjector):
+                    drained = projector.drain()
+                    if drained.failed:
+                        raise RuntimeError(f"native vector projection failed for {drained.failed} queued chunk(s)")
+                    projections = [
+                        ProjectionResult(
+                            sink="weaviate",
+                            status="completed",
+                            detail=(
+                                f"native outbox drained {drained.completed} chunk(s) "
+                                f"({drained.deactivated} authority-deactivated)"
+                            ),
+                        )
+                    ]
+                else:
+                    detail = projector(projection_records, artifact, request)
+                    projections = [ProjectionResult(sink="weaviate", status="completed", detail=detail)]
             except Exception as projection_error:
                 projections = [ProjectionResult(sink="weaviate", status="failed", detail=str(projection_error)[:300])]
         projection = projections[0]
@@ -350,7 +456,7 @@ def ingest_file(
             journal,
             receipt_id,
             active_stage,
-            "success" if projection.status == "completed" else "skipped",
+            "success" if projection.status in {"completed", "pending"} else "skipped",
             projection.model_dump(mode="json"),
         )
         active_stage = 0

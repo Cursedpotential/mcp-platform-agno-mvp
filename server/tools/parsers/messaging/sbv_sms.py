@@ -1,3 +1,4 @@
+# Byline amendment: Codex · GPT-5 · 2026-08-18 (combined-change hygiene)
 """Atomic tool: SMS backup XML -> NormalizedRecords via SBV (PRIMARY parser).
 
 SBV ("SMS Backup Viewer", ghcr.io/lowcarbdev/sbv) is the owner-chosen primary
@@ -39,6 +40,7 @@ from server.contracts.records import DisclosureTier, NormalizedRecord, RecordTyp
 from server.tools._common import parse_timestamp, records_out
 from server.tools._sbv_client import SBVClient, SBVError
 from server.tools.registry import register
+from ._source_parties import enrich_message_parties
 
 OWNER = "owner"
 
@@ -155,10 +157,9 @@ def _role_for_universal_record(kind: str, metadata: dict[str, Any], participants
     2/4/5/6) to counterparty-authored: the exact bug the 2026-08-02
     parser-gap review found and fixed in the legacy `_map_message()` (now
     retired to _stale/, see sbv_sms.py header), just reappearing on the
-    universal-import path that superseded it. This falls back to the same
-    type-code -> OWNER mapping as sms_xml.py's `_map_sms`/`_map_call` before
-    finally using the first participant (still the correct outcome when the
-    row genuinely IS inbound/counterparty-authored).
+    universal-import path that superseded it. The separate ``sender`` field
+    is neutral and source-principal governed; this function intentionally
+    preserves the established legacy ``role`` contract.
     """
     explicit = metadata.get("role") or metadata.get("sender")
     if explicit:
@@ -205,6 +206,8 @@ def _map_universal_record(
         conversation_id=str(metadata.get("conversation_id") or metadata.get("address") or "unknown"),
         role=role,
         participants=participants,
+        sender=str(row.get("sender")) if row.get("sender") else None,
+        recipients=row.get("recipients") if isinstance(row.get("recipients"), list) else [],
         content=str(row.get("content") or ""),
         occurred_at=occurred_at,
         disclosure_tier=DisclosureTier.contemporaneous,
@@ -372,6 +375,7 @@ def _sbv_enabled() -> bool:
     description="SMS Backup & Restore XML via SBV (primary) -> normalized message + call records, with forensic call-block flags + MMS media handling",
     # Only accept .xml AND only when SBV is wired; else defer to sms_xml.py.
     accept=lambda hint, size: hint.lower().endswith(".xml") and _sbv_enabled(),
+    priority=100,
     provenance="SBV REST API wrapper (lowcarbdev/sbv) — primary SMS-XML parser; sms_xml.py is the pure-Python fallback",
 )
 def parse(payload: dict[str, Any]) -> dict[str, Any]:
@@ -412,7 +416,9 @@ def parse(payload: dict[str, Any]) -> dict[str, Any]:
             }
         )
 
-    records = [_map_universal_record(row, import_id, attachments_by_seq) for row in rows]
+    records = enrich_message_parties(
+        [_map_universal_record(row, import_id, attachments_by_seq) for row in rows], payload
+    )
     if not records and not rejections:
         raise SBVError("SBV returned no canonical records or rejections for a non-empty import")
 

@@ -1,4 +1,5 @@
 // Byline: Claude Code · Sonnet (agent) · 2026-07-21 (C2.7: domain relabeled to "Initial routing")
+// Byline: Codex · GPT-5 · 2026-08-18 (conversation provenance and ownership inputs)
 "use client";
 
 /**
@@ -37,6 +38,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dropzone } from "@/components/upload/dropzone";
 import { ApiError, createRunFromFile, createRunFromStaged, listFiles } from "@/lib/api-client";
@@ -47,6 +49,8 @@ import {
   WORKFLOW_OPTIONS,
   type CustodyTier,
   type RunMode,
+  type MessageCorpus,
+  type AcquisitionAssertionInput,
   type StagedFile,
   type Workflow,
 } from "@/lib/shared/types";
@@ -73,6 +77,15 @@ export function NewRunDialog() {
   const [mode, setMode] = useState<RunMode>("auto");
   const [custodyTier, setCustodyTier] = useState<CustodyTier>(defaultCustodyTierFor("chat-transcript"));
   const [submitting, setSubmitting] = useState(false);
+  const [messageCorpus, setMessageCorpus] = useState<MessageCorpus>("first_party");
+  const [sourcePrincipal, setSourcePrincipal] = useState("");
+  const [callerOwnsConversation, setCallerOwnsConversation] = useState(false);
+  const [acquiredAt, setAcquiredAt] = useState("");
+  const [acquisitionMethod, setAcquisitionMethod] = useState<AcquisitionAssertionInput["method"]>("unknown");
+  const [acquisitionAuthority, setAcquisitionAuthority] = useState<AcquisitionAssertionInput["authority"]>("unclear");
+  const [sourceDevice, setSourceDevice] = useState("");
+  const [deviceCustodian, setDeviceCustodian] = useState("");
+  const [acquisitionNotes, setAcquisitionNotes] = useState("");
 
   // Reset on open, and seed from a row-action prefill if present.
   useEffect(() => {
@@ -85,6 +98,15 @@ export function NewRunDialog() {
       setDomain("");
       setMode("auto");
       setCustodyTier(defaultCustodyTierFor("chat-transcript"));
+      setMessageCorpus("first_party");
+      setSourcePrincipal("");
+      setCallerOwnsConversation(false);
+      setAcquiredAt("");
+      setAcquisitionMethod("unknown");
+      setAcquisitionAuthority("unclear");
+      setSourceDevice("");
+      setDeviceCustodian("");
+      setAcquisitionNotes("");
       listFiles({ status: "staged" })
         .then(setStagedFiles)
         .catch(() => setStagedFiles([]));
@@ -118,13 +140,36 @@ export function NewRunDialog() {
       toast.error("Drop a file");
       return;
     }
+    if (!sourcePrincipal.trim()) {
+      toast.error("Enter the source account or device principal");
+      return;
+    }
+    if (messageCorpus === "first_party" && !callerOwnsConversation) {
+      toast.error("Confirm authenticated ownership for this first-party conversation");
+      return;
+    }
+    if (messageCorpus === "acquired_third_party" && !acquiredAt) {
+      toast.error("Enter when the third-party conversation was acquired");
+      return;
+    }
+
+    const acquisition: AcquisitionAssertionInput | undefined = messageCorpus === "acquired_third_party"
+      ? {
+          acquired_at: new Date(acquiredAt).toISOString(),
+          method: acquisitionMethod,
+          authority: acquisitionAuthority,
+          source_device: sourceDevice.trim() || null,
+          device_custodian: deviceCustodian.trim() || null,
+          notes: acquisitionNotes.trim() || null,
+        }
+      : undefined;
 
     setSubmitting(true);
     try {
       const result =
         sourceMode === "staged"
-          ? await createRunFromStaged({ stagedId: selectedStagedId, workflow, domain, mode, custodyTier })
-          : await createRunFromFile({ file: uploadFile as File, workflow, domain, mode, custodyTier });
+          ? await createRunFromStaged({ stagedId: selectedStagedId, workflow, domain, mode, custodyTier, messageCorpus, sourcePrincipal: sourcePrincipal.trim(), callerOwnsConversation, acquisition })
+          : await createRunFromFile({ file: uploadFile as File, workflow, domain, mode, custodyTier, messageCorpus, sourcePrincipal: sourcePrincipal.trim(), callerOwnsConversation, acquisition });
       toast.success(`Run ${result.run_id} started`);
       triggerRefresh();
       closeNewRun();
@@ -138,7 +183,7 @@ export function NewRunDialog() {
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && closeNewRun()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
         <DialogHeader>
           <DialogTitle>New run</DialogTitle>
           <DialogDescription>
@@ -242,6 +287,64 @@ export function NewRunDialog() {
               <option value="light">light — whole-file hash</option>
               <option value="full">full — evidence chain</option>
             </select>
+          </div>
+
+          <div className="space-y-3 rounded-md border p-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="run-message-corpus">Conversation source</Label>
+              <select
+                id="run-message-corpus"
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
+                value={messageCorpus}
+                onChange={(event) => {
+                  setMessageCorpus(event.target.value as MessageCorpus);
+                  setCallerOwnsConversation(false);
+                }}
+              >
+                <option value="first_party">First-party — owner participated</option>
+                <option value="acquired_third_party">Acquired third-party — owner did not participate</option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="run-source-principal">Source account/device principal</Label>
+              <Input
+                id="run-source-principal"
+                value={sourcePrincipal}
+                onChange={(event) => setSourcePrincipal(event.target.value)}
+                placeholder="Account, phone, device, or export owner"
+              />
+            </div>
+            {messageCorpus === "first_party" ? (
+              <div className="flex items-center justify-between gap-4">
+                <Label htmlFor="run-owner-confirmation">I am the authenticated owner and participated in this conversation</Label>
+                <Switch id="run-owner-confirmation" checked={callerOwnsConversation} onCheckedChange={setCallerOwnsConversation} />
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-xs text-muted-foreground">The owner will not be added to the historical participants. Record how the source became available.</p>
+                <div className="space-y-1.5">
+                  <Label htmlFor="run-acquired-at">Acquired at</Label>
+                  <Input id="run-acquired-at" type="datetime-local" value={acquiredAt} onChange={(event) => setAcquiredAt(event.target.value)} />
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="run-acquisition-method">Method</Label>
+                    <select id="run-acquisition-method" className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm" value={acquisitionMethod} onChange={(event) => setAcquisitionMethod(event.target.value as AcquisitionAssertionInput["method"])}>
+                      <option value="own_device">Own device</option><option value="household_device">Household device</option><option value="voluntary_third_party">Voluntary third party</option><option value="legal_process">Legal process</option><option value="public_source">Public source</option><option value="unknown">Unknown</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="run-acquisition-authority">Authority</Label>
+                    <select id="run-acquisition-authority" className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm" value={acquisitionAuthority} onChange={(event) => setAcquisitionAuthority(event.target.value as AcquisitionAssertionInput["authority"])}>
+                      <option value="device_owner">Device owner</option><option value="parent_guardian">Parent/guardian</option><option value="account_holder">Account holder</option><option value="consent_given">Consent given</option><option value="court_order">Court order</option><option value="unclear">Unclear</option>
+                    </select>
+                  </div>
+                </div>
+                <Input value={sourceDevice} onChange={(event) => setSourceDevice(event.target.value)} placeholder="Source device (optional)" aria-label="Source device" />
+                <Input value={deviceCustodian} onChange={(event) => setDeviceCustodian(event.target.value)} placeholder="Device custodian (optional)" aria-label="Device custodian" />
+                <Input value={acquisitionNotes} onChange={(event) => setAcquisitionNotes(event.target.value)} placeholder="Acquisition notes (optional)" aria-label="Acquisition notes" />
+              </div>
+            )}
           </div>
 
           <div className="flex items-center justify-between rounded-md border p-3">

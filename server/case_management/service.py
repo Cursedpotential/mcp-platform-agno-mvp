@@ -25,11 +25,13 @@ from server.contracts.case_management import (
     EvidenceReviewResult,
     KnowledgeSourceResolution,
     KnowledgeSourceResolveRequest,
+    ConversationContext,
     Matter,
     MatterCreate,
     MatterDetail,
     MatterList,
     ReviewState,
+    OriginalSourceContent,
 )
 
 CaseManagementError = repository.CaseRepositoryError
@@ -94,4 +96,23 @@ def list_evidence_items(
         review_status=review_status,
         limit=limit,
         offset=offset,
+    )
+
+
+def get_original_source_content(matter_id: UUID, evidence_item_id: UUID) -> OriginalSourceContent:
+    return repository.get_original_source_content(matter_id, evidence_item_id)
+
+
+def get_conversation_context(
+    matter_id: UUID,
+    evidence_item_id: UUID,
+    *,
+    before: int,
+    after: int,
+) -> ConversationContext:
+    return repository.get_conversation_context(
+        matter_id,
+        evidence_item_id,
+        before=before,
+        after=after,
     )

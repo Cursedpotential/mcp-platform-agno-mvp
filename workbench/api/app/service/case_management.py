@@ -22,7 +22,9 @@ __all__ = [
     "create_evidence_item",
     "create_matter",
     "get_court_readiness",
+    "get_conversation_context",
     "get_evidence_detail",
+    "get_original_source_content",
     "get_matter",
     "list_evidence_items",
     "list_evidence_reviews",
@@ -102,6 +104,27 @@ def get_court_readiness(matter_id: UUID, evidence_item_id: UUID) -> dict:
     return spine_json(
         "GET",
         f"/v1/matters/{matter_id}/evidence-items/{evidence_item_id}/court-readiness",
+    )
+
+
+def get_original_source_content(matter_id: UUID, evidence_item_id: UUID) -> dict:
+    return spine_json(
+        "GET",
+        f"/v1/matters/{matter_id}/evidence-items/{evidence_item_id}/source-content",
+    )
+
+
+def get_conversation_context(
+    matter_id: UUID,
+    evidence_item_id: UUID,
+    *,
+    before: int = 25,
+    after: int = 25,
+) -> dict:
+    return spine_json(
+        "GET",
+        f"/v1/matters/{matter_id}/evidence-items/{evidence_item_id}/conversation-context",
+        params={"before": before, "after": after},
     )
 
 

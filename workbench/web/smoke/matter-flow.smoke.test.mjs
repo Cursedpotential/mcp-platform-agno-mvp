@@ -1,4 +1,5 @@
 // Byline: Codex · GPT-5 · 2026-08-15 (Matter promotion, custody, readiness, and review smoke)
+// Byline: Codex · GPT-5 · 2026-08-18 (third-party projection detail coverage)
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
@@ -97,6 +98,11 @@ function evidenceDetail() {
       role: "sender",
       content: "Exact normalized record text",
       occurred_at: NOW,
+      source_kind: "unclassified",
+      projection_kind: "authored_normalized",
+      source_available_from: null,
+      third_party_conversation: null,
+      realization_events: [],
       acquired_at: NOW,
       ingested_at: NOW,
       realized_at: null,
@@ -302,6 +308,27 @@ function createFixtureServer() {
       if (request.method === "GET" && url.pathname === `/api/matters/${MATTER_A}/evidence-items/${EVIDENCE_A}`) {
         return json(response, 200, evidenceDetail());
       }
+      if (request.method === "GET" && url.pathname === `/api/matters/${MATTER_A}/evidence-items/${EVIDENCE_A}/source-content`) {
+        return json(response, 200, {
+          content: "Original source message text",
+          mime_type: "application/json",
+          source_pointer: evidenceDetail().promotion.source_pointer,
+          provenance: { h1: HASH_A, h2: "fixture-h2", h3: "fixture-h3" },
+          h1: HASH_A,
+          h2: "fixture-h2",
+          h3: "fixture-h3",
+        });
+      }
+      if (request.method === "GET" && url.pathname === `/api/matters/${MATTER_A}/evidence-items/${EVIDENCE_A}/conversation-context`) {
+        assert.equal(url.searchParams.get("before"), "25");
+        assert.equal(url.searchParams.get("after"), "25");
+        return json(response, 200, {
+          before: 25,
+          after: 25,
+          total: 1,
+          messages: [{ id: RECORD_A, content: "Exact normalized record text", sender: "sender", recipients: ["recipient"], occurred_at: NOW, source_pointer: { normalized_record_id: RECORD_A } }],
+        });
+      }
       if (request.method === "GET" && url.pathname === `/api/matters/${MATTER_A}/evidence-items/${EVIDENCE_A}/court-readiness`) {
         return json(response, 200, courtReadiness());
       }
@@ -492,6 +519,20 @@ test("Matter-bound Knowledge promotes and reviews one exact custody record", { t
 
     assert.equal(await evaluate(cdp, session, clickText("Close")), true);
     await waitFor(cdp, session, `document.body.innerText.includes('Review draft')`, "new Matter evidence row");
+
+    // Evidence Operations Desk click-path contract: each tab must expose the
+    // returned evidence body, not only metadata or an endpoint call.
+    assert.equal(await evaluate(cdp, session, clickText("Inspect provenance")), true);
+    await waitFor(cdp, session, `document.body.innerText.includes('Evidence provenance inspection') && document.body.innerText.includes('Exact normalized source record')`, "evidence operations desk");
+    assert.equal(await evaluate(cdp, session, clickText("Original Source")), true);
+    await waitFor(cdp, session, `document.body.innerText.includes('Original source message text')`, "original source content");
+    assert.equal(await evaluate(cdp, session, clickText("Normalized Message")), true);
+    assert.equal(await evaluate(cdp, session, `document.body.innerText.includes('Exact normalized record text')`), true);
+    assert.equal(await evaluate(cdp, session, clickText("Conversation Context")), true);
+    await waitFor(cdp, session, `document.body.innerText.includes('Conversation Context') && document.body.innerText.includes('Exact normalized record text')`, "conversation context message body");
+    assert.equal(await evaluate(cdp, session, `document.body.innerText.includes('sender') && document.body.innerText.includes('recipient') && document.body.innerText.includes('8/15/2026')`), true);
+    assert.equal(await evaluate(cdp, session, `document.querySelector('ol.max-h-96') !== null`), true);
+    assert.equal(await evaluate(cdp, session, clickText("Close")), true);
     assert.equal(await evaluate(cdp, session, clickText("Court readiness")), true);
     await waitFor(cdp, session, `document.body.innerText.includes('Court-export readiness checklist')`, "court readiness checklist");
     assert.equal(await evaluate(cdp, session, `document.body.innerText.includes('database gate status only') && document.body.innerText.includes('does not determine admissibility')`), true);
@@ -503,7 +544,7 @@ test("Matter-bound Knowledge promotes and reviews one exact custody record", { t
     await waitFor(
       cdp,
       session,
-      `document.querySelector('#review-decision-${EVIDENCE_A}') !== null && document.body.innerText.includes('Exact canonical record') && document.body.innerText.includes('H1 custody')`,
+      `document.querySelector('#review-decision-${EVIDENCE_A}') !== null && document.body.innerText.includes('Exact normalized source record') && document.body.innerText.includes('Linked realization history') && document.body.innerText.includes('H1 custody')`,
       "review provenance inspection",
     );
     await evaluate(cdp, session, `(() => { const node = document.querySelector('#review-decision-${EVIDENCE_A}'); node.value='approved'; node.dispatchEvent(new Event('change', {bubbles:true})); return true; })()`);
@@ -523,11 +564,19 @@ test("Matter-bound Knowledge promotes and reviews one exact custody record", { t
     assert.equal(JSON.stringify(fixture.requests).includes("MATTER-B-CANARY"), false);
     assert.equal(
       fixture.requests.filter((item) => item.method === "GET" && item.path === `/api/matters/${MATTER_A}/evidence-items/${EVIDENCE_A}`).length,
-      1,
+      2,
     );
     assert.equal(
       fixture.requests.filter((item) => item.method === "GET" && item.path === `/api/matters/${MATTER_A}/evidence-items/${EVIDENCE_A}/court-readiness`).length,
       1,
+    );
+    assert.equal(
+      fixture.requests.filter((item) => item.method === "GET" && item.path === `/api/matters/${MATTER_A}/evidence-items/${EVIDENCE_A}/source-content`).length,
+      2,
+    );
+    assert.equal(
+      fixture.requests.filter((item) => item.method === "GET" && item.path === `/api/matters/${MATTER_A}/evidence-items/${EVIDENCE_A}/conversation-context`).length,
+      2,
     );
   } catch (error) {
     error.message += `\nBrowser stderr:\n${stderr.join("").slice(-4000)}\nRequests:\n${JSON.stringify(fixture.requests, null, 2)}`;

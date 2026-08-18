@@ -1,16 +1,19 @@
 """Contract tests for the framework-neutral canonical ingest port.
 
 Byline: Codex · GPT-5 · 2026-08-16
+Byline amendment: Codex · GPT-5 · 2026-08-18 (authored records vs derived chunks)
+Byline amendment: Codex · GPT-5 · 2026-08-18 (native projection outbox receipt)
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 
-from server.contracts.ingest import IngestLane, IngestRequest
+from server.contracts.ingest import AcquisitionAssertion, IngestLane, IngestRequest
 from server.contracts.records import NormalizedRecord
 from server.ingest import service
 
@@ -20,6 +23,8 @@ class _Artifact:
     artifact_id: str = "artifact-1"
     sha256: str = "a" * 64
     duplicate: bool = False
+    acquisition_id: str | None = None
+    acquired_at: object | None = None
 
 
 class _Journal:
@@ -48,6 +53,42 @@ def _request(path: Path, **updates) -> IngestRequest:
     return IngestRequest(**values)
 
 
+def test_acquired_third_party_requires_acquisition_and_source_principal(tmp_path: Path) -> None:
+    source = tmp_path / "friends.json"
+    source.write_text("{}", encoding="utf-8")
+    with pytest.raises(ValueError, match="acquisition assertion"):
+        _request(source, message_corpus="acquired_third_party", source_principal="alex")
+    with pytest.raises(ValueError, match="source account/device principal"):
+        _request(
+            source,
+            message_corpus="acquired_third_party",
+            acquisition=AcquisitionAssertion(acquired_at=datetime(2025, 3, 4, 12, tzinfo=timezone.utc)),
+        )
+
+
+def test_enrichment_keeps_acquisition_separate_from_occurrence(tmp_path: Path) -> None:
+    source = tmp_path / "friends.json"
+    source.write_text("{}", encoding="utf-8")
+    request = _request(
+        source,
+        lane=IngestLane.evidence,
+        message_corpus="acquired_third_party",
+        source_principal="alex",
+        acquisition=AcquisitionAssertion(acquired_at=datetime(2025, 3, 4, 12, tzinfo=timezone.utc)),
+    )
+    occurred = datetime(2023, 1, 2, tzinfo=timezone.utc)
+    record = service._enrich(
+        [NormalizedRecord(source="fixture", occurred_at=occurred, sender="alex", participants=["alex", "jordan"])],
+        request,
+        source,
+        "fixture",
+    )[0]
+    assert record.occurred_at == occurred
+    assert record.message_corpus.value == "acquired_third_party"
+    assert "acquired_at" not in record.attrs
+    assert "owner" not in record.participants
+
+
 def test_public_ingest_modules_have_no_framework_imports() -> None:
     root = Path(__file__).resolve().parents[1]
     combined = "\n".join(
@@ -74,6 +115,7 @@ def test_projection_failure_does_not_fail_canonical_ingest(tmp_path: Path, monke
     source.write_text("canonical text", encoding="utf-8")
     journal = _Journal()
     persisted = []
+    projected = []
 
     monkeypatch.setattr(
         service,
@@ -91,6 +133,7 @@ def test_projection_failure_does_not_fail_canonical_ingest(tmp_path: Path, monke
         return len(records)
 
     def failed_projection(records, artifact, request):
+        projected.extend(records)
         raise RuntimeError("vector unavailable")
 
     receipt = service.ingest_file(
@@ -106,8 +149,9 @@ def test_projection_failure_does_not_fail_canonical_ingest(tmp_path: Path, monke
     assert receipt.chunker_id == service.CHUNKER_ID
     assert receipt.record_count == 1
     assert receipt.chunk_count == 1
-    assert persisted[0][0][0].attrs["chunker_id"] == service.CHUNKER_ID
-    assert persisted[0][0][0].attrs["derived_materialization"] == "normalized-record-chunk"
+    assert "chunker_id" not in persisted[0][0][0].attrs
+    assert projected[0].attrs["chunker_id"] == service.CHUNKER_ID
+    assert projected[0].attrs["derived_materialization"] == "normalized-record-chunk"
     assert receipt.projections[0].status == "failed"
     assert persisted[0][2] == {"case_id": "matter-a", "domain": "platform_design"}
     assert journal.finished[0][0].status == "completed"
@@ -121,6 +165,107 @@ def test_projection_failure_does_not_fail_canonical_ingest(tmp_path: Path, monke
         ("start", 4, None),
         ("finish", 4, "skipped"),
     ]
+
+
+def test_acquired_third_party_vector_projection_waits_for_pg_approval(tmp_path: Path, monkeypatch) -> None:
+    source = tmp_path / "friends.json"
+    source.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(
+        service,
+        "_parse",
+        lambda path, request: (
+            [NormalizedRecord(source="fixture", content="message")],
+            "fixture",
+            "python",
+            [],
+        ),
+    )
+    projected = []
+    receipt = service.ingest_file(
+        _request(
+            source,
+            message_corpus="acquired_third_party",
+            source_principal="source-account",
+            acquisition=AcquisitionAssertion(acquired_at=datetime(2025, 3, 4, tzinfo=timezone.utc)),
+        ),
+        journal=_Journal(),
+        custody=lambda *args, **kwargs: _Artifact(
+            acquisition_id="22222222-2222-2222-2222-222222222222",
+            acquired_at=datetime(2025, 3, 4, tzinfo=timezone.utc),
+        ),
+        persist=lambda records, artifact, **kwargs: len(records),
+        projector=lambda records, artifact, request: projected.extend(records) or "should not run",
+    )
+    assert projected == []
+    assert receipt.projections[0].status == "skipped"
+    assert receipt.projections[0].detail == "awaiting approved PostgreSQL source_available_from"
+
+
+def test_default_store_receives_projection_request_for_same_transaction(tmp_path: Path, monkeypatch) -> None:
+    source = tmp_path / "thread.txt"
+    source.write_text("fixture", encoding="utf-8")
+    request = _request(
+        source,
+        message_corpus="first_party",
+        source_principal="source-account",
+        caller_owns_conversation=True,
+    )
+    monkeypatch.setattr(
+        service,
+        "_parse",
+        lambda path, ingest_request: (
+            [
+                NormalizedRecord(
+                    source="fixture",
+                    sender="source-account",
+                    recipients=[{"identity": "friend", "role": "to"}],
+                    message_corpus="first_party",
+                )
+            ],
+            "fixture",
+            "python",
+            [],
+        ),
+    )
+    captured = {}
+
+    def fake_store(records, chunks, artifact, **kwargs):
+        captured.update(kwargs)
+        return len(records)
+
+    monkeypatch.setattr("server.evidence.store.store_record_batch", fake_store)
+    monkeypatch.setattr("server.evidence.store.records_exist_for_artifact", lambda artifact_id: False)
+    monkeypatch.setattr("server.evidence.store.native_projection_jobs_for_artifact", lambda artifact_id: 1)
+    receipt = service.ingest_file(
+        request,
+        journal=_Journal(),
+        custody=lambda *args, **kwargs: _Artifact(),
+    )
+    assert captured["projection_request"] is request
+    assert receipt.projections[0].status == "pending"
+    assert receipt.projections[0].detail == "1 native projection job(s) durably enqueued"
+
+
+def test_pre_0026_default_ingest_keeps_legacy_projection_skip(tmp_path: Path, monkeypatch) -> None:
+    source = tmp_path / "pre-outbox.txt"
+    source.write_text("fixture", encoding="utf-8")
+    monkeypatch.setattr(
+        service,
+        "_parse",
+        lambda path, request: ([NormalizedRecord(source="fixture", content="message")], "fixture", "python", []),
+    )
+    monkeypatch.setattr("server.evidence.store.store_record_batch", lambda *args, **kwargs: 1)
+    monkeypatch.setattr("server.evidence.store.records_exist_for_artifact", lambda artifact_id: False)
+    monkeypatch.setattr("server.evidence.store.native_projection_jobs_for_artifact", lambda artifact_id: None)
+
+    receipt = service.ingest_file(
+        _request(source),
+        journal=_Journal(),
+        custody=lambda *args, **kwargs: _Artifact(),
+    )
+
+    assert receipt.projections[0].status == "skipped"
+    assert "native outbox not applied" in (receipt.projections[0].detail or "")
 
 
 def test_receipt_reports_logical_records_and_actual_chonkie_chunks(tmp_path: Path, monkeypatch) -> None:
@@ -138,6 +283,7 @@ def test_receipt_reports_logical_records_and_actual_chonkie_chunks(tmp_path: Pat
         ),
     )
     persisted = []
+    projected = []
 
     def persist(records, artifact, **kwargs):
         persisted.extend(records)
@@ -148,12 +294,14 @@ def test_receipt_reports_logical_records_and_actual_chonkie_chunks(tmp_path: Pat
         journal=_Journal(),
         custody=lambda *args, **kwargs: _Artifact(),
         persist=persist,
+        projector=lambda records, artifact, request: projected.extend(records) or "ok",
     )
 
     assert receipt.record_count == 1
-    assert receipt.chunk_count == len(persisted) > 1
+    assert len(persisted) == receipt.record_count == 1
+    assert receipt.chunk_count == len(projected) > 1
     assert receipt.chunker_id == "chonkie.recursive@1.7.0:1500-chars"
-    assert [record.attrs["chunk_index"] for record in persisted] == list(range(len(persisted)))
+    assert [record.attrs["chunk_index"] for record in projected] == list(range(len(projected)))
 
 
 def test_duplicate_artifact_does_not_duplicate_postgres_rows(tmp_path: Path, monkeypatch) -> None:
@@ -215,6 +363,38 @@ def test_custody_duplicate_without_canonical_rows_is_recovered(tmp_path: Path, m
     assert receipt.duplicate is True
     assert receipt.record_count == 1
     assert len(persisted) == 1
+
+
+def test_duplicate_third_party_adds_acquisition_link_without_rewriting(tmp_path: Path, monkeypatch) -> None:
+    source = tmp_path / "friends.json"
+    source.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(
+        service,
+        "_parse",
+        lambda path, request: ([NormalizedRecord(source="fixture", content="same")], "fixture", "python", []),
+    )
+    linked = []
+    monkeypatch.setattr(
+        "server.evidence.store.link_duplicate_artifact_acquisition",
+        lambda artifact, *, asserted_by: linked.append((artifact.acquisition_id, asserted_by)) or 2,
+    )
+    monkeypatch.setattr("server.evidence.store.records_exist_for_artifact", lambda artifact_id: True)
+    receipt = service.ingest_file(
+        _request(
+            source,
+            message_corpus="acquired_third_party",
+            source_principal="source-account",
+            acquisition=AcquisitionAssertion(acquired_at=datetime(2025, 3, 4, tzinfo=timezone.utc)),
+        ),
+        journal=_Journal(),
+        custody=lambda *args, **kwargs: _Artifact(
+            duplicate=True,
+            acquisition_id="new-acquisition-id",
+            acquired_at=datetime(2025, 3, 4, tzinfo=timezone.utc),
+        ),
+    )
+    assert receipt.record_count == 1
+    assert linked == [("new-acquisition-id", "owner")]
 
 
 def test_explicit_sbv_coverage_uses_go(tmp_path: Path, monkeypatch) -> None:

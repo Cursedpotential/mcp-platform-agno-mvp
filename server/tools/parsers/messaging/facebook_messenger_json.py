@@ -1,3 +1,4 @@
+# Byline amendment: Codex · GPT-5 · 2026-08-18 (combined-change hygiene)
 """Atomic tool: Facebook/Messenger "Download Your Information" JSON -> NormalizedRecords.
 
 One format, one module, swappable. Handles the modern Facebook DYI JSON export:
@@ -30,6 +31,7 @@ from typing import Any
 from server.contracts.records import DisclosureTier, NormalizedRecord, RecordType
 from server.tools.registry import register
 from server.tools._common import parse_timestamp, records_out
+from ._source_parties import enrich_message_parties
 
 _MEDIA_KEYS = [
     ("photos", "photo"),
@@ -149,4 +151,5 @@ def parse(payload: dict[str, Any]) -> dict[str, Any]:
     records.sort(key=lambda r: r.occurred_at or datetime.min.replace(tzinfo=timezone.utc))
     messages = sum(1 for r in records if r.record_type == RecordType.message)
     calls = sum(1 for r in records if r.record_type == RecordType.call)
+    records = enrich_message_parties(records, payload)
     return records_out(records, messages=messages, calls=calls, files=len(files), participants=len(participants_all))

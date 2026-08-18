@@ -1,6 +1,11 @@
 -- 0028_horizon_repoint.sql — repoint the LIVE horizon predicate to visible_from (W1.3 F1-resolution).
 --
 -- Byline: Claude Code . glm-5.2:cloud . 2026-08-14
+-- Byline amendment: Codex GPT-5 . 2026-08-18
+-- Byline amendment: Codex GPT-5 . 2026-08-18 (legacy-cache forward upgrade)
+-- Supersession: the HELD draft's cached timestamp could become a stale allow.
+-- This revision version-pins cached values, treats NULL as deny, and keeps
+-- realization atoms separate from raw-source availability.
 --
 -- ⚠ HELD FOR OWNER — DRAFTED + ROLLBACK-VALIDATED 2026-08-14, NOT APPLIED TO PROD.
 -- ⚠ This is the LIVE-BEHAVIOR FLIP (the cutover from the superseded knowledge_time
@@ -55,16 +60,50 @@ BEGIN;
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS working.record_visible_from (
     record_id    UUID PRIMARY KEY REFERENCES working.normalized_record(id) ON DELETE CASCADE,
-    visible_from TIMESTAMPTZ NOT NULL,
+    visible_from TIMESTAMPTZ,
+    base_version TEXT NOT NULL,
+    source_clock_hash TEXT NOT NULL CHECK (length(source_clock_hash)=64),
     refreshed_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Forward-upgrade the earlier three-column cache shape without trusting or
+-- deleting its rows.  Legacy values have no base-version proof, so stamp them
+-- with an explicit sentinel that horizon_record_visible refuses to consume.
+ALTER TABLE working.record_visible_from
+  ADD COLUMN IF NOT EXISTS base_version TEXT,
+  ADD COLUMN IF NOT EXISTS source_clock_hash TEXT;
+
+UPDATE working.record_visible_from
+   SET base_version='__legacy_untrusted__',
+       source_clock_hash=repeat('0',64)
+ WHERE base_version IS NULL
+    OR base_version=''
+    OR source_clock_hash IS NULL
+    OR length(source_clock_hash)<>64;
+
+ALTER TABLE working.record_visible_from
+  ALTER COLUMN visible_from DROP NOT NULL,
+  ALTER COLUMN base_version SET NOT NULL,
+  ALTER COLUMN source_clock_hash SET NOT NULL;
+
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+     WHERE conrelid='working.record_visible_from'::regclass
+       AND conname='record_visible_from_source_clock_hash_check'
+  ) THEN
+    ALTER TABLE working.record_visible_from
+      ADD CONSTRAINT record_visible_from_source_clock_hash_check
+      CHECK (length(source_clock_hash)=64);
+  END IF;
+END $$;
 
 COMMENT ON TABLE working.record_visible_from IS
   'Materialized projection of working.visible_from (ADR-0045 §A) — the FAST path '
   'for the spine view. Sole writer = the derivation-engine refresher (W1.4 grants; '
-  'pg_advisory_lock F13). The view COALESCEs to working.visible_from(r.id) when a '
-  'row is absent, so correctness never depends on the refresh having run — only '
-  'speed does (F1 mitigation). ';
+  'pg_advisory_lock F13). A cached row is trusted only when its base_version '
+  'matches app.base_version; otherwise the predicate recomputes from authored '
+  'state. NULL source availability always denies. ';
 
 -- ---------------------------------------------------------------------------
 -- Repoint working.vw_spine_horizon to the visible_from clock + fast path.
@@ -74,16 +113,38 @@ COMMENT ON TABLE working.record_visible_from IS
 -- materialized fast path with a function fallback. app.horizon unset/empty =
 -- hindsight (whole case incl. hindsight-tagged); set = ignorant (excludes
 -- hindsight-tagged + anything whose visible_from is after the cutoff).
+CREATE OR REPLACE FUNCTION working.horizon_record_visible(
+  p_record_id UUID, p_horizon TIMESTAMPTZ, p_base_version TEXT DEFAULT NULL)
+RETURNS BOOLEAN LANGUAGE sql STABLE PARALLEL SAFE AS $$
+  SELECT COALESCE((
+    SELECT CASE
+      WHEN source_time IS NULL THEN false
+      WHEN p_horizon IS NULL THEN true
+      ELSE source_time<=p_horizon
+    END
+    FROM (
+      SELECT CASE
+        WHEN p_base_version IS NOT NULL
+             AND rvf.base_version=p_base_version
+             AND rvf.base_version<>'__legacy_untrusted__'
+          THEN rvf.visible_from
+        ELSE working.source_available_from(nr.id)
+      END AS source_time
+      FROM working.normalized_record nr
+      LEFT JOIN working.record_visible_from rvf ON rvf.record_id=nr.id
+      WHERE nr.id=p_record_id
+    ) q
+  ), false);
+$$;
+
 CREATE OR REPLACE VIEW working.vw_spine_horizon AS
 SELECT r.*
   FROM working.normalized_record r
-  LEFT JOIN working.record_visible_from rvf ON rvf.record_id = r.id
  WHERE r.case_id = coalesce(nullif(current_setting('app.case_id', true), ''), 'primary')
-   AND (
-        nullif(current_setting('app.horizon', true), '') IS NULL
-        OR coalesce(rvf.visible_from, working.visible_from(r.id))
-             <= nullif(current_setting('app.horizon', true), '')::timestamptz
-   )
+   AND working.horizon_record_visible(
+         r.id,
+         nullif(current_setting('app.horizon', true), '')::timestamptz,
+         nullif(current_setting('app.base_version', true), ''))
    AND (
         nullif(current_setting('app.horizon', true), '') IS NULL
         OR r.disclosure_tier <> 'hindsight'
@@ -94,8 +155,15 @@ COMMENT ON VIEW working.vw_spine_horizon IS
   'superseded knowledge_time. SET app.case_id / app.horizon / app.actor first. '
   'app.horizon unset/empty = hindsight (whole case incl. hindsight-tagged rows); '
   'set = ignorant agent at that cutoff (excludes hindsight-tagged + anything '
-  'whose visible_from is after the cutoff). Uses the materialized fast path '
-  'working.record_visible_from with a working.visible_from(r.id) fallback (F1). '
+  'whose source_available_from is after the cutoff). Uses a base-version-pinned '
+  'materialized fast path and fails closed for NULL availability. '
   'Repointed 2026-08-14 (0028); old knowledge_time predicate retired from the view.';
+
+COMMENT ON FUNCTION working.horizon_record_visible(UUID,TIMESTAMPTZ,TEXT) IS
+  'Fail-closed raw-source horizon predicate. A cache row is trusted only for the caller-pinned app.base_version; NULL availability denies even hindsight.';
+COMMENT ON COLUMN working.record_visible_from.visible_from IS
+  'Materialized source_available_from; NULL is an intentional fail-closed result, never an unknown allow.';
+COMMENT ON COLUMN working.record_visible_from.base_version IS
+  'Exact vw_walk_base_version_input digest for which this cached source clock was computed.';
 
 COMMIT;

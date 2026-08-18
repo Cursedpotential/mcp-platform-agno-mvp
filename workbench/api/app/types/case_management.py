@@ -1,6 +1,7 @@
 """Workbench contracts for the framework-neutral Matter spine API.
 
 Byline: Codex · GPT-5 · 2026-08-15
+Byline amendment: Codex · GPT-5 · 2026-08-18 (source/projection classification contracts)
 """
 
 from __future__ import annotations
@@ -14,6 +15,8 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 KnowledgeLane = Literal["platform", "legal", "personal_history", "context", "evidence"]
 ReviewState = Literal["unreviewed", "in_review", "approved", "rejected", "needs_more_evidence"]
 EvidenceReviewDecision = Literal["approved", "rejected", "needs_changes", "needs_context", "escalated", "hold"]
+RecordSourceKind = Literal["first_party", "third_party_acquired", "unclassified"]
+RecordProjectionKind = Literal["authored_normalized", "derived_third_party"]
 
 
 class MatterCreate(BaseModel):
@@ -129,6 +132,9 @@ class SourceCandidate(BaseModel):
     role: str | None = None
     content: str
     occurred_at: datetime | None = None
+    source_kind: RecordSourceKind = "unclassified"
+    projection_kind: RecordProjectionKind = "authored_normalized"
+    source_available_from: datetime | None = None
     disclosure_tier: str
     review_status: ReviewState
 
@@ -251,6 +257,55 @@ class EvidenceReviewRecord(BaseModel):
 class EvidenceReviewList(BaseModel):
     data: list[EvidenceReviewRecord]
     total: int
+
+
+class OriginalSourceContent(BaseModel):
+    """Sanitized read-only text fetched from the custody H1 blob."""
+
+    matter_id: UUID
+    evidence_item_id: UUID
+    normalized_record_id: UUID
+    source_id: UUID
+    file_node_id: UUID | None = None
+    evidence_hash_id: UUID
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    byte_size: int = Field(ge=0)
+    content_byte_size: int = Field(ge=0)
+    mime_type: str | None = None
+    original_filename: str | None = None
+    content: str
+    encoding: str
+    source_pointer: dict[str, object] = Field(default_factory=dict)
+    provenance: dict[str, object] = Field(default_factory=dict)
+    h1: str
+    h2: str | None = None
+    h3: str | None = None
+
+
+class ConversationMessage(BaseModel):
+    id: UUID
+    normalized_record_id: UUID
+    content: str
+    sender: str | None = None
+    recipients: list[str] = Field(default_factory=list)
+    occurred_at: datetime | None = None
+    source_kind: RecordSourceKind = "unclassified"
+    projection_kind: RecordProjectionKind = "authored_normalized"
+    source_available_from: datetime | None = None
+    source_pointer: dict[str, object] = Field(default_factory=dict)
+
+
+class ConversationContext(BaseModel):
+    matter_id: UUID
+    evidence_item_id: UUID
+    selected_normalized_record_id: UUID
+    messages: list[ConversationMessage]
+    before: int = Field(ge=0)
+    after: int = Field(ge=0)
+    total: int = Field(ge=0)
+    context_available: bool = True
+    context_complete: bool = True
+    availability_reason: str | None = None
 
 
 class EvidenceItemList(BaseModel):

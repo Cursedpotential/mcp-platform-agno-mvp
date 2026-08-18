@@ -36,12 +36,12 @@ registration layer only: same workflows, now reachable over the API and visible
 in the UI, with `mode` exposed so a caller can ask for the existing supervised
 gate.
 """
-# Byline: Claude Code · Opus 5 · 2026-08-01 (workflow registration — /workflows was empty)
+# Byline amendment: Codex · GPT-5 · 2026-08-18 (native evidence projector composition)
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, List, TypeVar
+from typing import Any, List, Literal, TypeVar
 
 from agno.utils.log import log_info, log_warning
 from agno.workflow.factory import WorkflowFactory
@@ -67,6 +67,10 @@ class SmsXmlInput(BaseModel):
     """Caller-supplied input for the SMS-XML ingest workflow."""
 
     path: str = Field(..., description="Absolute path to the SMS Backup & Restore XML file.")
+    source_principal: str = Field(..., min_length=1, description="Owner account/device identity in the export.")
+    caller_owns_conversation: Literal[True] = Field(
+        ..., description="Authenticated owner assertion required for first-party classification."
+    )
     domain: str = Field("evidence", description="Knowledge domain tag for the ingested records.")
     custody_tier: str = Field("full", description="Custody depth: 'full' (default) or 'light'.")
     mode: str = Field("auto", description="'auto' or 'supervised' (pause for approval between stages).")
@@ -95,7 +99,7 @@ def _input_of(ctx: Any, schema: type[_InputModel]) -> _InputModel:
     return schema.model_validate(data or {})
 
 
-def build_workflow_factories(db: Any, knowledge: Any) -> List[WorkflowFactory]:
+def build_workflow_factories(db: Any, knowledge: Any, native_projector: Any | None = None) -> List[WorkflowFactory]:
     """Build the WorkflowFactory list for ``AgentOS(workflows=...)``.
 
     ``db`` is the operational store (**PostgresDb** since the 2026-08-04
@@ -166,8 +170,13 @@ def build_workflow_factories(db: Any, knowledge: Any) -> List[WorkflowFactory]:
         args = _input_of(ctx, SmsXmlInput)
         wf, wf_ctx = build_sms_xml_workflow(
             path=args.path,
+            source_meta={
+                "message_corpus": "first_party",
+                "source_principal": args.source_principal,
+                "caller_owns_conversation": args.caller_owns_conversation,
+            },
             domain=args.domain,
-            knowledge=knowledge,
+            knowledge=native_projector,
             custody_tier=args.custody_tier,
         )
         return _ledgered("sms-xml", args, wf, wf_ctx)
@@ -192,7 +201,7 @@ def build_workflow_factories(db: Any, knowledge: Any) -> List[WorkflowFactory]:
     ]
 
 
-def registered_workflows(db: Any, knowledge: Any) -> List[WorkflowFactory]:
+def registered_workflows(db: Any, knowledge: Any, native_projector: Any | None = None) -> List[WorkflowFactory]:
     """Same as :func:`build_workflow_factories`, but never fatal at boot.
 
     Registration is a convenience surface, not the evidence spine — the CLI and
@@ -201,7 +210,7 @@ def registered_workflows(db: Any, knowledge: Any) -> List[WorkflowFactory]:
     error), so this logs loudly and returns an empty list instead of raising.
     """
     try:
-        factories = build_workflow_factories(db, knowledge)
+        factories = build_workflow_factories(db, knowledge, native_projector)
         log_info(f"registered {len(factories)} workflow factories: {[f.id for f in factories]}")
         return factories
     except Exception as exc:  # noqa: BLE001 - boot resilience is the whole point

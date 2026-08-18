@@ -1,3 +1,4 @@
+# Byline amendment: Codex · GPT-5 · 2026-08-18 (combined-change hygiene)
 """Unit tests for the three new forensic messaging parsers.
 
 messaging_transcript: transcript-marker grammar (.txt / .csv)
@@ -101,6 +102,26 @@ def test_transcript_participants_list(tmp_path):
     participants = result["records"][0]["participants"]
     assert "owner" in participants
     assert "Ex Partner" in participants
+
+
+def test_transcript_resolves_self_only_from_source_metadata(tmp_path):
+    p = _write(tmp_path, _TRANSCRIPT_TXT, "thread.txt")
+    result = transcript_parse(
+        {
+            "path": str(p),
+            "source_meta": {
+                "source_principal": "source-account@example.test",
+                "message_corpus": "acquired_third_party",
+            },
+        }
+    )
+    mine, theirs, _call = result["records"]
+    assert mine["sender"] == "source-account@example.test"
+    assert mine["role"] == "owner"
+    assert mine["recipients"] == [{"identity": "Ex Partner", "role": "to"}]
+    assert mine["message_corpus"] == "acquired_third_party"
+    assert theirs["sender"] == "Ex Partner"
+    assert theirs["recipients"] == [{"identity": "source-account@example.test", "role": "to"}]
 
 
 # ──────────────────────────────────────────────────────────────────────────────

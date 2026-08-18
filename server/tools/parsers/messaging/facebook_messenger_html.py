@@ -1,3 +1,4 @@
+# Byline amendment: Codex · GPT-5 · 2026-08-18 (combined-change hygiene)
 """Atomic tool: Facebook/Messenger HTML export -> NormalizedRecords.
 
 One format, one module, swappable. The owner has BOTH HTML and JSON Facebook
@@ -25,6 +26,7 @@ from typing import Any
 from server.contracts.records import DisclosureTier, NormalizedRecord, RecordType
 from server.tools.registry import register
 from server.tools._common import records_out
+from ._source_parties import enrich_message_parties
 
 # strptime patterns covering Facebook's HTML timestamp variants.
 _DATE_FORMATS = (
@@ -164,4 +166,5 @@ def parse(payload: dict[str, Any]) -> dict[str, Any]:
         )
 
     records.sort(key=lambda r: r.occurred_at or datetime.min.replace(tzinfo=timezone.utc))
+    records = enrich_message_parties(records, payload)
     return records_out(records, messages=len(records), participants=len(participants), layout=layout)

@@ -29,21 +29,31 @@ C2.6 (resilience + observability, 2026-07-20/21) additions:
 # Byline: Claude Code · Fable 5 · 2026-07-31 (Milvus→Weaviate doc-drift cleanup (ADR-0040))
 # Byline: Codex · GPT-5 · 2026-08-13 (ADR-0053 five-lane alignment)
 # Byline: Codex · GPT-5 · 2026-08-16 (matter/domain-aware neutral ingest writer)
+# Byline: Codex · GPT-5 · 2026-08-18 (authored source rows + derived chunk table)
+# Byline amendment: Codex · GPT-5 · 2026-08-18 (transactional governed message projections)
+# Byline amendment: Codex · GPT-5 · 2026-08-18 (mandatory message classification + duplicate acquisition link)
+# Byline amendment: Codex · GPT-5 · 2026-08-18 (native vector outbox receipt state)
 
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import time
+import uuid
 from collections import defaultdict
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Awaitable, Callable, TypeVar
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, TypeVar
 
 from sqlalchemy import create_engine, text
 
 from server.evidence.custody import ArtifactRef
-from server.contracts.records import NormalizedRecord
+from server.contracts.records import NormalizedRecord, NormalizedRecordChunk
+
+if TYPE_CHECKING:
+    from server.contracts.ingest import IngestRequest
 
 _engine = None
 
@@ -244,6 +254,9 @@ def store_records(
     *,
     case_id: str = "primary",
     domain: str = "evidence",
+    message_corpus: str | None = None,
+    source_principal: str | None = None,
+    caller_owns_conversation: bool = False,
 ) -> int:
     """Batch-insert canonical records into working.normalized_record.
 
@@ -256,10 +269,134 @@ def store_records(
     failure never risks a partial/duplicate insert — the prior attempt's
     transaction was already rolled back by the failure.
     """
+    projection_request = None
+    classified = records
+    candidates = [record for record in records if _requires_message_projection(record)]
+    if candidates:
+        if message_corpus is None:
+            raise ValueError(
+                "message persistence requires explicit message_corpus classification; "
+                "use first_party only when the caller owns the conversation"
+            )
+        if message_corpus != "first_party":
+            raise ValueError(
+                "legacy store_records supports only explicit first_party; use governed ingest for acquired data"
+            )
+        if not caller_owns_conversation:
+            raise ValueError("first_party classification requires caller_owns_conversation=True")
+        from server.contracts.ingest import IngestRequest
+        from server.contracts.records import MessageCorpus
+
+        classified = [
+            record.model_copy(update={"message_corpus": MessageCorpus.first_party})
+            if _requires_message_projection(record)
+            else record
+            for record in records
+        ]
+        projection_request = IngestRequest(
+            staged_path=artifact.source_ref,
+            message_corpus="first_party",
+            source_principal=source_principal,
+            caller_owns_conversation=True,
+            matter_id=case_id,
+        )
+    return store_record_batch(
+        classified,
+        [],
+        artifact,
+        attempts_log,
+        case_id=case_id,
+        domain=domain,
+        projection_request=projection_request,
+    )
+
+
+def _source_record_key(record: NormalizedRecord) -> str | None:
+    """Return only parser-stable identity; never synthesize an index identity."""
+
+    for key in ("message_id", "source_record_id", "source_position", "source_pos"):
+        value = record.attrs.get(key)
+        if value is not None and str(value).strip():
+            return str(value)
+    return None
+
+
+def _requires_message_projection(record: NormalizedRecord) -> bool:
+    """Distinguish actual communications from legacy whole-document records."""
+
+    return record.record_type.value == "message" and bool(
+        record.message_corpus is not None
+        or record.sender
+        or record.recipients
+        or record.conversation_id
+        or record.participants
+        or record.attrs.get("direction")
+    )
+
+
+def store_record_batch(
+    records: list[NormalizedRecord],
+    chunks: list[NormalizedRecordChunk],
+    artifact: ArtifactRef,
+    attempts_log: list[dict[str, Any]] | None = None,
+    *,
+    case_id: str = "primary",
+    domain: str = "evidence",
+    projection_request: IngestRequest | None = None,
+) -> int:
+    """Atomically store source records, chunks, and governed message projections."""
+
     if not records:
+        if chunks:
+            raise ValueError("derived chunks cannot exist without source records")
         return 0
+    unclassified = [
+        index
+        for index, record in enumerate(records)
+        if _requires_message_projection(record) and record.message_corpus is None
+    ]
+    if unclassified:
+        raise ValueError(
+            "message records require explicit first_party or acquired_third_party classification "
+            f"before persistence (record indexes: {unclassified})"
+        )
+    if any(_requires_message_projection(record) for record in records) and projection_request is None:
+        raise ValueError("classified message records require a projection_request so no message can be stored unrouted")
+    if projection_request is not None:
+        request_corpus = projection_request.message_corpus
+        mismatched = [
+            index
+            for index, record in enumerate(records)
+            if _requires_message_projection(record)
+            and (record.message_corpus is None or record.message_corpus.value != request_corpus)
+        ]
+        if mismatched:
+            raise ValueError(
+                f"projection_request message_corpus must match every classified message (record indexes: {mismatched})"
+            )
+        if request_corpus == "first_party":
+            if not projection_request.caller_owns_conversation:
+                raise ValueError("first_party persistence requires authenticated caller ownership assertion")
+            unresolved = []
+            for index, record in enumerate(records):
+                if not _requires_message_projection(record):
+                    continue
+                actual_parties = {
+                    value.strip()
+                    for value in [record.sender, *record.participants, *(item.identity for item in record.recipients)]
+                    if value and value.strip()
+                }
+                if not record.sender or len(actual_parties) < 2:
+                    unresolved.append(index)
+            if unresolved:
+                raise ValueError(
+                    "first_party message parties are unresolved before persistence: every message needs an actual "
+                    f"sender and at least one counterparty (record indexes: {unresolved})"
+                )
+    record_ids = [str(uuid.uuid4()) for _ in records]
     rows = [
         {
+            "id": record_ids[index],
             "artifact_id": artifact.artifact_id,
             "record_type": r.record_type.value,
             "source": r.source,
@@ -273,26 +410,106 @@ def store_records(
             "attrs": json.dumps(r.attrs),
             "case_id": case_id,
             "domain": domain,
+            "source_record_key": _source_record_key(r),
+            "source_content_sha256": hashlib.sha256(r.content.encode("utf-8")).digest(),
+            "sender": r.sender,
+            "recipients": json.dumps([participant.model_dump(mode="json") for participant in r.recipients]),
+            "message_corpus": r.message_corpus.value if r.message_corpus is not None else None,
         }
-        for r in records
+        for index, r in enumerate(records)
     ]
+
+    chunk_rows = []
+    for chunk in chunks:
+        if chunk.source_record_index >= len(record_ids):
+            raise ValueError("chunk source_record_index is outside the source-record batch")
+        chunk_rows.append(
+            {
+                "normalized_record_id": record_ids[chunk.source_record_index],
+                "chunker_id": chunk.chunker_id,
+                "chunk_index": chunk.chunk_index,
+                "content": chunk.content,
+                "content_sha256": bytes.fromhex(chunk.content_sha256),
+                "source_content_sha256": bytes.fromhex(chunk.source_content_sha256),
+                "char_start": chunk.char_start,
+                "char_end": chunk.char_end,
+                "token_count": chunk.token_count,
+                "attrs": json.dumps(chunk.attrs),
+            }
+        )
 
     def _do_insert() -> None:
         with _get_engine().begin() as conn:
             conn.execute(
                 text(
                     "INSERT INTO working.normalized_record "
-                    "(artifact_id, record_type, source, conversation_id, role, participants, "
-                    " content, occurred_at, knowledge_time, disclosure_tier, attrs, case_id, domain) "
-                    "VALUES (:artifact_id, :record_type, :source, :conversation_id, :role, "
+                    "(id, artifact_id, record_type, source, conversation_id, role, participants, "
+                    " content, occurred_at, knowledge_time, disclosure_tier, attrs, case_id, domain, "
+                    " source_record_key, source_content_sha256, sender, recipients, message_corpus) "
+                    "VALUES (CAST(:id AS uuid), :artifact_id, :record_type, :source, :conversation_id, :role, "
                     " CAST(:participants AS jsonb), :content, :occurred_at, :knowledge_time, "
-                    " :disclosure_tier, CAST(:attrs AS jsonb), :case_id, :domain)"
+                    " :disclosure_tier, CAST(:attrs AS jsonb), :case_id, :domain, :source_record_key, "
+                    " :source_content_sha256, :sender, CAST(:recipients AS jsonb), :message_corpus)"
                 ),
                 rows,
             )
+            if chunk_rows:
+                conn.execute(
+                    text(
+                        "INSERT INTO working.normalized_record_chunk "
+                        "(normalized_record_id, chunker_id, chunk_index, content, content_sha256, "
+                        " source_content_sha256, char_start, char_end, token_count, attrs) "
+                        "VALUES (CAST(:normalized_record_id AS uuid), :chunker_id, :chunk_index, :content, "
+                        " :content_sha256, :source_content_sha256, :char_start, :char_end, :token_count, "
+                        " CAST(:attrs AS jsonb))"
+                    ),
+                    chunk_rows,
+                )
+            if projection_request is not None:
+                from server.evidence.message_projection import write_message_projections
 
-    _retry_sync(f"store_records[{artifact.artifact_id}]", _do_insert, attempts_log)
+                write_message_projections(conn, records, record_ids, artifact, projection_request)
+
+    _retry_sync(f"store_record_batch[{artifact.artifact_id}]", _do_insert, attempts_log)
     return len(rows)
+
+
+def link_duplicate_artifact_acquisition(artifact: Any, *, asserted_by: str) -> int:
+    """Link a new duplicate-upload acquisition without rewriting canonical rows."""
+
+    if artifact.acquisition_id is None:
+        return 0
+    from server.evidence.message_projection import link_duplicate_acquisition
+
+    with _get_engine().begin() as conn:
+        linked = link_duplicate_acquisition(
+            conn,
+            artifact_id=artifact.artifact_id,
+            acquisition_id=artifact.acquisition_id,
+            asserted_by=asserted_by,
+        )
+        if linked:
+            from server.core.audit import record as audit_record
+
+            payload = json.dumps(
+                {
+                    "artifact_id": artifact.artifact_id,
+                    "acquisition_id": artifact.acquisition_id,
+                    "conversation_links": linked,
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            audit_record(
+                "approval",
+                str(artifact.acquisition_id),
+                actor=asserted_by,
+                ctx={"artifact_id": artifact.artifact_id, "conversation_links": linked},
+                object_schema="working.third_party_conversation_acquisition",
+                payload_hash=hashlib.sha256(payload.encode("utf-8")).hexdigest(),
+                connection=conn,
+            )
+        return linked
 
 
 def records_exist_for_artifact(artifact_id: str) -> bool:
@@ -304,6 +521,56 @@ def records_exist_for_artifact(artifact_id: str) -> bool:
                 {"artifact_id": artifact_id},
             ).scalar()
         )
+
+
+def native_projection_jobs_for_artifact(artifact_id: str) -> int | None:
+    """Return committed native-vector jobs, or ``None`` before held 0026 exists."""
+
+    with _get_engine().connect() as conn:
+        available = conn.execute(
+            text("SELECT to_regclass('working.evidence_vector_projection_job') IS NOT NULL")
+        ).scalar_one()
+        if not available:
+            return None
+        return int(
+            conn.execute(
+                text(
+                    "SELECT count(*) FROM working.evidence_vector_projection_job job "
+                    "JOIN working.normalized_record_chunk chunk ON chunk.id=job.chunk_id "
+                    "JOIN working.normalized_record nr ON nr.id=chunk.normalized_record_id "
+                    "WHERE nr.artifact_id=:artifact_id"
+                ),
+                {"artifact_id": artifact_id},
+            ).scalar_one()
+        )
+
+
+def load_artifact_ref(artifact_id: str) -> ArtifactRef:
+    """Load the immutable custody coordinates needed for approved replay."""
+
+    with _get_engine().connect() as conn:
+        row = (
+            conn.execute(
+                text(
+                    "SELECT id, encode(digest, 'hex') AS sha256, source_ref, blob_key, hashed_at "
+                    "FROM evidence.evidence_hash WHERE id=CAST(:artifact_id AS uuid)"
+                ),
+                {"artifact_id": artifact_id},
+            )
+            .mappings()
+            .first()
+        )
+    if row is None:
+        raise ValueError("approved reprojection artifact does not exist")
+    return ArtifactRef(
+        artifact_id=str(row["id"]),
+        sha256=str(row["sha256"]),
+        source_ref=str(row["source_ref"] or ""),
+        blob_key=str(row["blob_key"] or ""),
+        size_bytes=0,
+        duplicate=True,
+        ingested_at=row["hashed_at"].isoformat(),
+    )
 
 
 def load_records_for_artifact(artifact_id: str) -> list[NormalizedRecord]:
@@ -323,7 +590,7 @@ def load_records_for_artifact(artifact_id: str) -> list[NormalizedRecord]:
         rows = (
             conn.execute(
                 text(
-                    "SELECT record_type, source, conversation_id, role, participants, "
+                    "SELECT id, record_type, source, conversation_id, role, participants, sender, recipients, message_corpus, "
                     "content, occurred_at, knowledge_time, disclosure_tier, attrs "
                     "FROM working.normalized_record WHERE artifact_id = :a "
                     "ORDER BY occurred_at NULLS LAST"
@@ -342,6 +609,12 @@ def load_records_for_artifact(artifact_id: str) -> list[NormalizedRecord]:
         attrs = row["attrs"]
         if isinstance(attrs, str):
             attrs = json.loads(attrs)
+        attrs = dict(attrs or {})
+        if row.get("id") is not None:
+            attrs["_normalized_record_id"] = str(row["id"])
+        recipients = row.get("recipients") or []
+        if isinstance(recipients, str):
+            recipients = json.loads(recipients)
         records.append(
             NormalizedRecord(
                 record_type=row["record_type"],
@@ -349,17 +622,25 @@ def load_records_for_artifact(artifact_id: str) -> list[NormalizedRecord]:
                 conversation_id=row["conversation_id"],
                 role=row["role"],
                 participants=participants or [],
+                sender=row.get("sender"),
+                recipients=recipients or [],
+                message_corpus=row.get("message_corpus"),
                 content=row["content"] or "",
                 occurred_at=row["occurred_at"],
                 knowledge_time=row["knowledge_time"],
                 disclosure_tier=row["disclosure_tier"],
-                attrs=attrs or {},
+                attrs=attrs,
             )
         )
     return records
 
 
-def horizon_axes(recs: list[NormalizedRecord], case_id: str = "primary") -> dict[str, Any]:
+def horizon_axes(
+    recs: list[NormalizedRecord],
+    case_id: str = "primary",
+    *,
+    authoritative_source_available_from: dict[str, datetime] | None = None,
+) -> dict[str, Any]:
     """The horizon axes for ONE retrievable document, computed conservatively.
 
     C-01 (Codex deep analysis): vector documents carried no temporal axes at
@@ -370,17 +651,14 @@ def horizon_axes(recs: list[NormalizedRecord], case_id: str = "primary") -> dict
     A conversation document bundles many records, so its axes must be the
     SAFE aggregate, not an average:
 
-    * ``visible_from`` = MAX(occurred_at) across the bundle — THE horizon clock
-      (ADR-0045 §A). The document is not knowable until its last piece occurred;
+    * ``source_available_from`` = occurrence for first-party messages and the
+      approved PostgreSQL acquisition clock for acquired third-party messages. A document
+      is not knowable until its last bundled source became available;
       taking the minimum would expose a future message hidden inside an older
       thread. This is the PROJECTION written into Weaviate metadata; the
       AUTHORITATIVE per-record clock lives in PG as
-      ``working.visible_from(record_id)`` (= COALESCE of the earliest APPROVED
-      ``realization_event.realized_at``, occurred_at). This in-memory bundle has
-      no realization data (events are written separately, W1.2), so the
-      conservative DEGENERATE form is MAX(occurred_at): until a discovery is
-      recorded, a record is knowable when it occurred. The derivation engine
-      (W1.3) refreshes this projection when realization events move a clock.
+      ``working.source_available_from(record_id)``. Realization events are
+      separate horizon atoms and never move a raw source's availability.
     * ``knowledge_time`` = MAXIMUM across the bundle, AUDIT ONLY (SUPERSEDED
       0008:247; ADR-0045 §A — records row-write time, never a horizon input).
       Retained for backward compatibility with existing reads; do NOT filter on it.
@@ -398,13 +676,35 @@ def horizon_axes(recs: list[NormalizedRecord], case_id: str = "primary") -> dict
     tiers = {str(getattr(r.disclosure_tier, "value", r.disclosure_tier) or "contemporaneous") for r in recs}
     tier = "hindsight" if "hindsight" in tiers else ("discovered" if "discovered" in tiers else "contemporaneous")
     kmax = max(ktimes) if ktimes else None
-    omax = max(otimes) if otimes else None
+    available_times = []
+    availability_complete = True
+    for record in recs:
+        corpus = getattr(record.message_corpus, "value", record.message_corpus)
+        if record.record_type.value != "message" or corpus == "first_party":
+            available = record.occurred_at
+        elif corpus == "acquired_third_party":
+            # Only working.source_available_from(), after route/conversation/
+            # entity/acquisition approval, may establish this clock.  Parser
+            # attrs and normalized_record scalars are never authority.
+            record_id = str(record.attrs.get("_normalized_record_id") or "")
+            available = (
+                authoritative_source_available_from.get(record_id)
+                if authoritative_source_available_from is not None
+                else None
+            )
+        else:
+            available = None
+        if available is None:
+            availability_complete = False
+        else:
+            available_times.append(available)
     actors = {str(r.attrs.get("knowledge_actor") or "owner") for r in recs}
     axes: dict[str, Any] = {
         "case_id": case_id,
         "disclosure_tier": tier,
         "knowledge_actor": actors.pop() if len(actors) == 1 else "multiple",
         "record_count": len(recs),
+        "source_availability_complete": availability_complete,
     }
     # knowledge_time is AUDIT ONLY (ADR-0045 §A, SUPERSEDED 0008:247) — retained
     # for backward compatibility, never a horizon input.
@@ -415,11 +715,16 @@ def horizon_axes(recs: list[NormalizedRecord], case_id: str = "primary") -> dict
         axes["occurred_at_min"] = min(otimes).isoformat()
         axes["occurred_at_max"] = max(otimes).isoformat()
         axes["occurred_at_min_epoch"] = int(min(otimes).timestamp())
-    # THE horizon clock (ADR-0045 §A), conservative degenerate form
-    # (no realization data in-memory at ingest time): see the docstring above.
-    if omax is not None:
-        axes["visible_from"] = omax.isoformat()
-        axes["visible_from_epoch"] = int(omax.timestamp())
+    # Fail closed: one unrouted/missing-acquisition message withholds the whole
+    # bundle rather than leaking it through vector similarity before ranking.
+    if availability_complete and available_times:
+        source_available = max(available_times)
+        axes["source_available_from"] = source_available.isoformat()
+        axes["source_available_from_epoch"] = int(source_available.timestamp())
+        # Compatibility key for existing retrieval adapters. It now aliases
+        # source availability; realization events are indexed independently.
+        axes["visible_from"] = source_available.isoformat()
+        axes["visible_from_epoch"] = int(source_available.timestamp())
     return axes
 
 
@@ -459,6 +764,7 @@ async def ingest_into_knowledge(
     derived_dir: str | Path = "data/derived/transcripts",
     attempts_log: list[dict[str, Any]] | None = None,
     case_id: str = "primary",
+    authoritative_source_available_from: dict[str, datetime] | None = None,
 ) -> int:
     """Render per-conversation markdown, persist under ``derived_dir``, and
     ainsert into the engine with the domain tag (agents filter on
@@ -496,7 +802,11 @@ async def ingest_into_knowledge(
         # C-01: every vector document carries the horizon axes, or no agent
         # read can pre-filter on them. Computed from THIS conversation's own
         # records so text and metadata can never disagree.
-        axes = horizon_axes(by_conv.get(conv_id, []), case_id=case_id)
+        axes = horizon_axes(
+            by_conv.get(conv_id, []),
+            case_id=case_id,
+            authoritative_source_available_from=authoritative_source_available_from,
+        )
 
         async def _do_insert(doc_path: Path = doc_path, conv_id: str = conv_id, axes: dict[str, Any] = axes) -> None:
             await knowledge.ainsert(

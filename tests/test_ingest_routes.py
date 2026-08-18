@@ -1,3 +1,4 @@
+# Byline amendment: Codex · GPT-5 · 2026-08-18 (combined-change hygiene)
 """HTTP and folder-walk tests for the framework-neutral ingest boundary.
 
 Byline: Codex · GPT-5 · 2026-08-16
@@ -83,6 +84,53 @@ def test_upload_route_rejects_non_object_source_identity(tmp_path, monkeypatch) 
         headers={"Authorization": "Bearer test-ingest-key"},
     )
     assert response.status_code == 422
+
+
+def test_upload_route_accepts_typed_third_party_acquisition(tmp_path, monkeypatch) -> None:
+    seen: list[IngestRequest] = []
+    monkeypatch.setenv("INGEST_STAGING_ROOT", str(tmp_path))
+    monkeypatch.setenv("OS_SECURITY_KEY", "test-ingest-key")
+
+    async def fake_submit(request: IngestRequest):
+        seen.append(request)
+        return "receipt-third-party"
+
+    monkeypatch.setattr(ingest_routes, "_submit_ingest", fake_submit)
+    app = FastAPI()
+    ingest_routes.register_ingest_routes(app)
+    response = TestClient(app).post(
+        "/v1/ingest",
+        files={"file": ("friends.json", b"{}", "application/json")},
+        data={
+            "lane": "evidence",
+            "message_corpus": "acquired_third_party",
+            "source_principal": "alex",
+            "acquisition": '{"acquired_at":"2025-03-04T12:00:00Z","method":"voluntary_third_party",'
+            '"asserted_by":"spoofed"}',
+        },
+        headers={"Authorization": "Bearer test-ingest-key"},
+    )
+    assert response.status_code == 202
+    assert seen[0].message_corpus == "acquired_third_party"
+    assert seen[0].source_principal == "alex"
+    assert seen[0].acquisition is not None
+    assert seen[0].acquisition.acquired_at.isoformat() == "2025-03-04T12:00:00+00:00"
+    assert seen[0].acquisition.asserted_by == "owner"
+
+
+def test_first_party_upload_requires_explicit_authenticated_ownership(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("INGEST_STAGING_ROOT", str(tmp_path))
+    monkeypatch.setenv("OS_SECURITY_KEY", "test-ingest-key")
+    app = FastAPI()
+    ingest_routes.register_ingest_routes(app)
+    response = TestClient(app).post(
+        "/v1/ingest",
+        files={"file": ("messages.xml", b"<smses/>", "application/xml")},
+        data={"message_corpus": "first_party", "source_principal": "owner-device"},
+        headers={"Authorization": "Bearer test-ingest-key"},
+    )
+    assert response.status_code == 422
+    assert "caller_owns_conversation" in response.text
 
 
 def test_ingest_and_knowledge_routes_fail_closed_without_bearer(monkeypatch) -> None:

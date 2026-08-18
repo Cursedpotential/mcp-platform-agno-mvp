@@ -1,3 +1,4 @@
+# Byline amendment: Codex · GPT-5 · 2026-08-18 (combined-change hygiene)
 """server/analysis/sbv_transcript.py — the GO parse engine for the context lane.
 
 The Go half of the engine-dynamic parse seam (owner, 2026-08-12: "the pipeline
@@ -34,6 +35,7 @@ from pathlib import Path
 from typing import Any
 
 from server.contracts.records import DisclosureTier, NormalizedRecord, RecordType
+from server.tools.parsers.messaging._source_parties import enrich_message_parties
 
 
 def _parse_ts(value: Any) -> datetime | None:
@@ -60,7 +62,9 @@ def _parse_ts(value: Any) -> datetime | None:
     return None
 
 
-def _row_to_record(row: dict[str, Any], default_source: str) -> NormalizedRecord:
+def _row_to_record(
+    row: dict[str, Any], default_source: str, source_meta: dict[str, Any] | None = None
+) -> NormalizedRecord:
     """Map ONE SBV canonical record row -> NormalizedRecord (chat-aware).
 
     SBV emits chat context/role/conversation in the record's `metadata` map
@@ -76,6 +80,9 @@ def _row_to_record(row: dict[str, Any], default_source: str) -> NormalizedRecord
         participants = []
     participants = [str(v) for v in participants if v not in (None, "")]
 
+    # Preserve the legacy display/compatibility role.  This is not reused as
+    # the neutral sender field: enrich_message_parties resolves sender under
+    # the source-principal rules below.
     role = (
         metadata.get("role")
         or metadata.get("author_role")
@@ -100,17 +107,20 @@ def _row_to_record(row: dict[str, Any], default_source: str) -> NormalizedRecord
     if title:
         attrs["conversation_title"] = title
 
-    return NormalizedRecord(
+    record = NormalizedRecord(
         record_type=RecordType.call if row.get("kind") == "call" else RecordType.message,
         source=source,
         conversation_id=str(conversation_id) if conversation_id else None,
         role=str(role) if role else None,
         participants=participants,
+        sender=str(row.get("sender")) if row.get("sender") else None,
+        recipients=row.get("recipients") if isinstance(row.get("recipients"), list) else [],
         content=str(row.get("content") or ""),
         occurred_at=_parse_ts(row.get("occurred_at")),
         disclosure_tier=DisclosureTier.contemporaneous,
         attrs=attrs,
     )
+    return enrich_message_parties([record], {"source_meta": source_meta or {}})[0]
 
 
 def parse_via_sbv(
@@ -148,7 +158,9 @@ def parse_via_sbv(
     rows = client.import_records(int(import_id))
 
     default_source = f"sbv-go:{format}" if format else "sbv-go"
-    records = [_row_to_record(row, default_source) for row in rows if str(row.get("content") or "").strip()]
+    records = [
+        _row_to_record(row, default_source, source_meta) for row in rows if str(row.get("content") or "").strip()
+    ]
     parser_id = f"sbv-go:{format or 'auto-detect'}"
     attempts.append({"tool": parser_id, "ok": True, "import_id": import_id, "record_count": len(records)})
     return records, parser_id, attempts

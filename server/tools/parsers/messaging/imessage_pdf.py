@@ -1,3 +1,4 @@
+# Byline amendment: Codex · GPT-5 · 2026-08-18 (combined-change hygiene)
 """Atomic tool: iMessage PDF -> NormalizedRecords (via text extraction + the TXT grammar).
 
 ReagentX/imessage-exporter has NO native PDF exporter, so an iMessage PDF is a
@@ -23,6 +24,7 @@ from server.contracts.records import RecordType
 from server.tools.registry import register
 from server.tools._common import records_out
 from .imessage_txt import looks_like_imessage_txt, parse_txt_text
+from ._source_parties import enrich_message_parties
 
 
 def _extract_pdf_text(path: Path) -> str:
@@ -71,4 +73,5 @@ def parse(payload: dict[str, Any]) -> dict[str, Any]:
     messages = sum(1 for r in records if r.record_type == RecordType.message)
     calls = sum(1 for r in records if r.record_type == RecordType.call)
     events = sum(1 for r in records if r.record_type == RecordType.event)
+    records = enrich_message_parties(records, payload)
     return records_out(records, messages=messages, calls=calls, announcements=events, source="pdf")

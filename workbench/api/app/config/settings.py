@@ -1,5 +1,6 @@
 # Byline: Claude Code · Sonnet (agent) · 2026-07-19 (agno 2.8 MCP door migration + Graphiti pane wiring 2026-07-23)
 # Byline: Codex · GPT-5 · 2026-08-16 (Portkey-routed neutral chat settings)
+# Byline: Codex · GPT-5 · 2026-08-18 (owner-only evidence-search capability)
 """Workbench settings — S3-agnostic object store (R2 now, B2/any-S3 = env swap later).
 
 Env var names are the pydantic-settings default (uppercase of the field name)
@@ -30,6 +31,9 @@ class Settings(BaseSettings):
     # --- Existing platform ingestion API (the promote target + the run spine) ---
     agentos_api_url: str = "http://100.72.169.40:8000"
     agentos_api_token: str | None = None
+    # Separate from the shared AgentOS service bearer. Only the operator
+    # Workbench receives this capability; agent calls must use walk context.
+    evidence_operator_security_key: str = ""
 
     # --- MCP tool servers (Tool Explorer) ---
     # ContextForge is the authored registry; Portkey is the downstream audited

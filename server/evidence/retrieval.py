@@ -2,6 +2,8 @@
 
 Byline: Claude Code · Fable 5 · 2026-08-11
 Byline: Codex · GPT-5 · 2026-08-13 (make the injected audit seam type-safe)
+Byline amendment: Codex · GPT-5 · 2026-08-18 (source-availability clock split)
+Byline amendment: Codex · GPT-5 · 2026-08-18 (native Weaviate pre-ranking retrieval)
 
 CONTRACT (ADR-0050 §4, owner-ruled 2026-08-10):
 - This module is the ONLY sanctioned read path into the evidence knowledge
@@ -18,27 +20,25 @@ CONTRACT (ADR-0050 §4, owner-ruled 2026-08-10):
   this is the first live caller of the S5 read interface). If the audit write
   fails, the search fails: an unaudited evidence read must not be served.
 
-VISIBILITY CLOCK (ADR-0045, Option A):
-``visible_from = COALESCE(earliest approved realization, occurred_at)``.
-Until S6 lands realization events there are zero approved realizations, so
-the live computation degenerates to ``occurred_at`` — this module therefore
-reads ``visible_from`` from metadata when present (S6 will write it) and
-falls back to ``occurred_at_min`` (written by ``store.horizon_axes`` today).
-Neither present → deny. Timestamps are ISO-8601 UTC strings; lexicographic
-comparison is correct for them and keeps the whole predicate flat-scalar
-(the platform's Weaviate dict-filters-only constraint — filtering happens
-app-side here because agno serializes metadata into one ``meta_data`` blob,
-so no store-side range filter can reach it).
+SOURCE AVAILABILITY (ADR-0059): first-party sources use occurrence; acquired
+third-party sources use their approved acquisition. Realization events are
+separate knowledge atoms and never move this raw-source boundary. Missing or
+incomplete availability metadata is denied. The current Agno Weaviate adapter
+can prefilter exact dict fields (case here) but stores metadata as JSON text,
+so its missing range-prefilter support remains an activation hold; this seam
+retains a defensive postcondition and never treats over-fetch as proof of a
+safe horizon query.
 """
 
 from __future__ import annotations
 
 import hashlib
-from typing import Any, Callable
+from datetime import datetime
+from typing import Any, Callable, Sequence
 
 from server.core.knowledge_handle import resolve_knowledge
 
-__all__ = ["evidence_search", "EvidenceSearchResult"]
+__all__ = ["evidence_search", "native_evidence_search", "EvidenceSearchResult"]
 
 # Over-fetch multiplier: the horizon filter runs AFTER vector search, so we
 # pull extra candidates to keep post-filter recall reasonable. Bounded — the
@@ -59,10 +59,75 @@ class EvidenceSearchResult:
         self.audit_id = audit_id
 
 
+def native_evidence_search(
+    store: Any,
+    embed_query: Callable[[str], Sequence[float]],
+    query: str,
+    *,
+    horizon: datetime | None,
+    actor: str,
+    disclosure_tiers: Sequence[str],
+    case_id: str = "primary",
+    limit: int = 10,
+    mode: str = "hybrid",
+    audit: Callable[..., int] | None = None,
+) -> EvidenceSearchResult:
+    """Native horizon-safe search with permission-derived disclosure tiers.
+
+    The caller must resolve tiers from authenticated permissions.  There is no
+    ``allow_hindsight`` convenience flag because that would turn authorization
+    into caller-controlled query input.
+    """
+
+    from server.core.evidence_vector_store import EVIDENCE_EMBED_DIM, NativeEvidenceVectorStore
+
+    if not isinstance(store, NativeEvidenceVectorStore):
+        raise TypeError("native_evidence_search requires NativeEvidenceVectorStore")
+    allowed = {"contemporaneous", "discovered", "hindsight"}
+    tiers = list(dict.fromkeys(disclosure_tiers))
+    if not tiers or not set(tiers).issubset(allowed):
+        raise ValueError("disclosure_tiers must be a non-empty permission-derived tier set")
+    vector = embed_query(query)
+    if vector is None or len(vector) != EVIDENCE_EMBED_DIM:
+        actual = "none" if vector is None else str(len(vector))
+        raise RuntimeError(f"query embedder returned dimension {actual}; expected {EVIDENCE_EMBED_DIM}")
+    response = store.search(
+        vector=vector,
+        query=query if mode == "hybrid" else None,
+        mode=mode,  # type: ignore[arg-type]
+        horizon=horizon,
+        case_id=case_id,
+        disclosure_tiers=tiers,  # type: ignore[arg-type]
+        limit=limit,
+    )
+    documents = list(response.objects)
+    if audit is None:
+        from server.core.audit import record_read
+
+        audit = record_read
+    audit_id = audit(
+        hashlib.sha256(query.encode("utf-8")).hexdigest(),
+        actor=actor,
+        ctx={
+            "case_id": case_id,
+            "horizon": horizon.isoformat() if horizon is not None else None,
+            "unbounded_hindsight": horizon is None,
+            "disclosure_tiers": tiers,
+            "lane": "evidence-native-weaviate",
+            "kept": len(documents),
+            "denied": 0,
+            "prefiltered": True,
+        },
+        object_schema="knowledge/evidence-native",
+    )
+    return EvidenceSearchResult(documents, kept=len(documents), denied=0, audit_id=audit_id)
+
+
 def _visible_from(meta: dict[str, Any]) -> str | None:
-    """ADR-0045 COALESCE(realized visibility, occurred_at) over the metadata
-    that exists today. Returns None when the document has no usable clock."""
-    value = meta.get("visible_from") or meta.get("occurred_at_min")
+    """Return the raw-source boundary, failing closed on incomplete metadata."""
+    if meta.get("source_availability_complete") is False:
+        return None
+    value = meta.get("source_available_from") or meta.get("visible_from")
     return value if isinstance(value, str) and value else None
 
 
@@ -113,7 +178,11 @@ async def evidence_search(
         raise RuntimeError("evidence knowledge base unavailable (handle unresolved)")
 
     fetch = min(max(limit * _OVERFETCH, limit), _MAX_FETCH)
-    raw = await engine.async_search(query, max_results=fetch)
+    # Weaviate accepts dictionaries and drops FilterExpr lists. This exact
+    # case predicate is therefore applied before ranking. Horizon range
+    # prefiltering remains a release hold until the adapter exposes scalar
+    # metadata properties instead of one JSON text property.
+    raw = await engine.async_search(query, max_results=fetch, filters={"case_id": case_id})
 
     kept: list[Any] = []
     denied = 0

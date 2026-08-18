@@ -1,6 +1,6 @@
 """Fail-closed, read-only activation preflight for the Matter MVP.
 
-Byline: Codex · GPT-5 · 2026-08-15
+Byline: Codex · GPT-5 · 2026-08-15; native Weaviate amendment 2026-08-18
 
 The command never applies migrations, writes database rows, deploys services, or
 prints secret values. Static mode verifies the release contract in the checkout.
@@ -14,11 +14,12 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Literal, TypedDict, cast
+from typing import Any, Literal, TypedDict, cast
 from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin
 from urllib.request import Request, urlopen
@@ -29,6 +30,35 @@ Status = Literal["PASS", "FAIL", "BLOCKED"]
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 MIGRATIONS = tuple(range(26, 31))
 REQUIRED_EXTENSIONS = frozenset({"pg_duckdb", "pgcrypto", "postgis", "vector"})
+NATIVE_EVIDENCE_COLLECTION_VERSION = 1
+NATIVE_EVIDENCE_COLLECTION = "EvidenceChunkV1"
+NATIVE_EVIDENCE_ALIAS = "EvidenceChunks"
+MIN_WEAVIATE_SERVER_VERSION = (1, 26, 0)
+REQUIRED_NATIVE_PROPERTIES = {
+    "chunk_id": ("uuid", False),
+    "artifact_id": ("uuid", False),
+    "source_sha256": ("text", False),
+    "case_id": ("text", False),
+    "disclosure_tier": ("text", False),
+    "source_kind": ("text", False),
+    "projection_kind": ("text", False),
+    "authority_state": ("text", False),
+    "source_availability_complete": ("boolean", False),
+    "occurred_at": ("date", True),
+    "source_available_from": ("date", True),
+    "source_available_from_epoch": ("int", True),
+    "normalized_record_id": ("uuid", False),
+    "conversation_id": ("text", False),
+    "chunker_id": ("text", False),
+    "embed_model": ("text", False),
+    "embed_dimension": ("int", False),
+    "embedder_version": ("text", False),
+    "projection_version": ("text", False),
+    "projection_hash": ("text", False),
+    "content_hash": ("text", False),
+    "source_content_hash": ("text", False),
+    "content": ("text", False),
+}
 
 
 @dataclass(frozen=True)
@@ -50,8 +80,79 @@ def _check(check_id: str, passed: bool, summary: str, failure: str) -> Check:
     return Check(check_id, "PASS" if passed else "FAIL", summary if passed else failure)
 
 
+def _data_type_name(property_: Any) -> str:
+    data_type = getattr(property_, "dataType", None)
+    return str(getattr(data_type, "value", data_type)).lower()
+
+
+def evaluate_native_evidence_contract(module: Any) -> list[Check]:
+    """Evaluate the local native schema without creating a client or contacting Weaviate."""
+
+    properties = {property_.name: property_ for property_ in module.evidence_vector_properties()}
+    identity_matches = (
+        module.EVIDENCE_VECTOR_COLLECTION_VERSION == NATIVE_EVIDENCE_COLLECTION_VERSION
+        and module.EVIDENCE_VECTOR_COLLECTION == NATIVE_EVIDENCE_COLLECTION
+        and module.EVIDENCE_VECTOR_ALIAS == NATIVE_EVIDENCE_ALIAS
+        and module.EVIDENCE_EMBED_MODEL == "nvidia/nv-embed-v1"
+        and module.EVIDENCE_EMBED_DIM == 4096
+    )
+    required_properties_match = all(
+        name in properties
+        and _data_type_name(properties[name]) == expected_type
+        and (not requires_range or getattr(properties[name], "indexRangeFilters", False) is True)
+        for name, (expected_type, requires_range) in REQUIRED_NATIVE_PROPERTIES.items()
+    )
+    return [
+        _check(
+            "weaviate.native_contract_identity",
+            identity_matches,
+            "Native evidence collection is V1 with stable alias and pinned self-provided embedding contract",
+            "Native evidence collection name, version, alias, embedder, or dimension does not match V1",
+        ),
+        _check(
+            "weaviate.native_contract_properties",
+            required_properties_match and "realized_at" not in properties,
+            "Native evidence properties include typed, range-indexed source clocks and no realized_at field",
+            "Native evidence properties lost a required type/range index or introduced realized_at",
+        ),
+    ]
+
+
+def native_evidence_contract_checks() -> list[Check]:
+    try:
+        from server.core import evidence_vector_store
+
+        return evaluate_native_evidence_contract(evidence_vector_store)
+    except Exception as error:
+        return [
+            Check(
+                "weaviate.native_contract_import",
+                "FAIL",
+                "Native evidence collection contract could not be evaluated",
+                type(error).__name__,
+            )
+        ]
+
+
+def pinned_weaviate_version_checks(root: Path = PROJECT_ROOT) -> list[Check]:
+    """Validate the declared server image only; this function performs no network I/O."""
+
+    deploy_path = root / "deploy" / "data-weaviate.yaml"
+    deploy = deploy_path.read_text(encoding="utf-8") if deploy_path.exists() else ""
+    match = re.search(r"image:\s*[^\s#]*weaviate:(\d+)\.(\d+)\.(\d+)", deploy)
+    version = tuple(int(part) for part in match.groups()) if match else None
+    return [
+        _check(
+            "weaviate.server_version_floor",
+            version is not None and version >= MIN_WEAVIATE_SERVER_VERSION,
+            f"Pinned Weaviate server {'.'.join(map(str, version or ()))} meets the >=1.26 contract",
+            "Pinned Weaviate server image is missing, unparseable, or older than 1.26",
+        )
+    ]
+
+
 def static_checks(root: Path = PROJECT_ROOT) -> list[Check]:
-    checks: list[Check] = []
+    checks: list[Check] = native_evidence_contract_checks() + pinned_weaviate_version_checks(root)
     migration_paths: list[Path] = []
     for number in MIGRATIONS:
         matches = sorted((root / "sql").glob(f"{number:04d}_*.sql"))

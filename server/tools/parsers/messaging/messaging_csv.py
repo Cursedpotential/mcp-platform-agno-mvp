@@ -1,3 +1,4 @@
+# Byline amendment: Codex · GPT-5 · 2026-08-18 (combined-change hygiene)
 """Atomic tool: tabular messaging CSV export -> NormalizedRecords.
 
 Covers the CSV message exports that imessage-exporter does NOT produce (it does
@@ -31,6 +32,7 @@ from typing import Any
 from server.contracts.records import DisclosureTier, NormalizedRecord, RecordType
 from server.tools.registry import register
 from server.tools._common import parse_timestamp, records_out
+from ._source_parties import enrich_message_parties
 
 OWNER = "owner"
 
@@ -74,6 +76,8 @@ _SENDER_ID_KEYS = (
     "handle id",
 )
 _RECIPIENT_KEYS = ("recipient", "to", "to number", "recipient id", "recipients")
+_CC_KEYS = ("cc", "cc recipients", "carbon copy")
+_BCC_KEYS = ("bcc", "bcc recipients", "blind carbon copy")
 _DIR_KEYS = ("is from me", "fromme", "type", "direction", "sent/received", "kind", "message type")
 _SERVICE_KEYS = ("service", "platform", "protocol", "account")
 _CHAT_KEYS = (
@@ -136,6 +140,10 @@ def _pick(row: dict[str, str], keys: tuple[str, ...]) -> str:
         if k in row and str(row[k]).strip():
             return str(row[k]).strip()
     return ""
+
+
+def _split_parties(value: str) -> list[str]:
+    return [part.strip() for part in re.split(r"[;,]", value) if part.strip()]
 
 
 def _parse_dt(raw: str) -> datetime | None:
@@ -233,6 +241,9 @@ def parse_csv_rows(
         text = _pick(row, _TEXT_KEYS)
         sender = _pick(row, _SENDER_KEYS)
         sender_id = _pick(row, _SENDER_ID_KEYS)
+        to_value = _pick(row, _RECIPIENT_KEYS)
+        cc_value = _pick(row, _CC_KEYS)
+        bcc_value = _pick(row, _BCC_KEYS)
         service = _pick(row, _SERVICE_KEYS)
         attachment = _pick(row, _ATTACH_KEYS)
         chat = _pick(row, _CHAT_KEYS)
@@ -275,6 +286,11 @@ def parse_csv_rows(
             attrs["attachments"] = [attachment]
         if read:
             attrs["read_receipt"] = {"raw": read}
+        attrs["recipient_roles"] = [
+            *({"identity": value, "role": "to"} for value in _split_parties(to_value)),
+            *({"identity": value, "role": "cc"} for value in _split_parties(cc_value)),
+            *({"identity": value, "role": "bcc"} for value in _split_parties(bcc_value)),
+        ]
 
         records.append(
             NormalizedRecord(
@@ -315,4 +331,5 @@ def parse(payload: dict[str, Any]) -> dict[str, Any]:
     records = parse_csv_rows(rows, conv_id=path.stem, orig_rows=orig_rows)
     messages = sum(1 for r in records if r.record_type == RecordType.message)
     calls = sum(1 for r in records if r.record_type == RecordType.call)
+    records = enrich_message_parties(records, payload)
     return records_out(records, messages=messages, calls=calls, source="csv", rows=len(rows))

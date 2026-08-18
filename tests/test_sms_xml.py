@@ -1,3 +1,4 @@
+# Byline amendment: Codex · GPT-5 · 2026-08-18 (combined-change hygiene)
 """Unit tests for server.tools.parsers.messaging.sms_xml — "SMS Backup & Restore" parser.
 
 Court-critical forensic logic: sent/received attribution, MMS body extraction,

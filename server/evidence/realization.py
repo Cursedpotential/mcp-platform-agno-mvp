@@ -1,21 +1,20 @@
 """server/evidence/realization.py — realization-event writers (Wave 1.2, ADR-0045 §A.4).
 
-Realization events are the horizon CLOCK source of truth: a discovery that
-can reveal many records at once (reading one export surfaces hundreds), and
-whose ``realized_at`` pushes those records' ``visible_from`` past their
-``occurred_at``. This module is the WRITE side of that clock — the read side
-is ``working.visible_from(record_id)`` (landed W1.1, ``sql/0026``).
+Realization events are separate, plural knowledge atoms: a discovery can link
+to many records at once (reading one export may surface hundreds), but its
+``realized_at`` never rewrites when the raw source became available. Raw-source
+availability is computed by ``working.source_available_from(record_id)``;
+approved realizations enter ``working.vw_horizon_atom`` at their own dates.
 
 Lifecycle (append-only; never UPDATE an approved row's content — supersede it):
 
     propose  ->  realization_event(approval_state='proposed')   # INERT for visible_from
-    approve  ->  approval_state='approved', approved_at/by set  # visible_from now moves
-    supersede->  approval_state='superseded'                    # visible_from reverts
+    approve  ->  approval_state='approved', approved_at/by set  # knowledge atom appears
+    supersede->  approval_state='superseded'                    # atom leaves active horizon
 
 Two independent gates (reconciled here, per W1.1 pre-mortem F6):
-  * DB-level: ``visible_from`` reads ONLY ``approval_state='approved'`` events
-    (fail-closed — a 'proposed' row changes no record's clock, regardless of
-    how it was written).
+  * DB-level: ``vw_horizon_atom`` reads ONLY approved realization events
+    (fail-closed — a proposed row changes no horizon, regardless of writer).
   * agno-level: the ``@approval`` run-pause on ``realization_approve`` /
     ``realization_supersede`` (``server/agents/tools/realization_tools.py``)
     gates the approve/supersede TOOL bodies — a human must resolve the pending
@@ -23,11 +22,9 @@ Two independent gates (reconciled here, per W1.1 pre-mortem F6):
     thin SQL inserter like ``server/evidence/store.py::store_records``; the
     human gate lives on the ``@approval``-decorated tool that calls it.
 
-F5 app-side guard: ``realized_at >= min(linked occurred_at)`` is NOT
-DB-enforceable (cross-table CHECK not expressible); ``propose_realization``
-rejects (not clamps) a ``realized_at`` that precedes the earliest linked
-``occurred_at``, or the clock could move backwards. See the WARNING on
-``working.realization_event.realized_at`` (sql/0026).
+The app-side guard requires ``realized_at`` to be at or after every linked
+record's source-availability boundary. Cross-table CHECK constraints cannot
+express this, so missing/unrouted records fail closed here.
 
 Writes ride the platform write engine (``server.core.url.db_url``), NOT an
 agent's read-only engine (ADR-0005 — agent connections are read-only by
@@ -36,6 +33,7 @@ infrastructure). ``connection=`` lets a caller share an outer transaction
 rollback-transaction validation).
 
 Byline: Claude Code . glm-5.2:cloud . 2026-08-14
+Byline amendment: Codex · GPT-5 · 2026-08-18 (separate source and realization clocks)
 """
 
 from __future__ import annotations
@@ -103,9 +101,8 @@ def propose_realization(
     """Propose a realization event + its record links. Writes a ``proposed``
     (INERT) row — ``visible_from`` changes for NO record until it is approved.
 
-    F5 guard: rejects ``realized_at < min(linked occurred_at)`` — a realization
-    cannot predate what it reveals, or the clock moves backwards (the DB
-    cannot enforce this cross-table; sql/0026 WARNING).
+    Rejects a realization before any linked source was available. Missing,
+    unrouted, or cross-case record ids fail closed.
 
     Returns the new ``realization_event.id``.
     """
@@ -116,18 +113,28 @@ def propose_realization(
     record_ids = list(record_ids or [])
 
     def _do(conn: Any) -> uuid.UUID:
-        # F5 app-side ordering guard: realized_at >= min(linked occurred_at).
+        # Cross-table ordering guard: realization >= every source boundary.
         if record_ids and realized_at is not None:
             stmt = text(
-                "SELECT MIN(occurred_at) FROM working.normalized_record WHERE id IN :ids AND occurred_at IS NOT NULL"
+                "SELECT COUNT(*)::int, COUNT(working.source_available_from(id))::int, "
+                "       MAX(working.source_available_from(id)) "
+                "FROM working.normalized_record WHERE case_id = :case_id AND id IN :ids"
             ).bindparams(bindparam("ids", expanding=True))
-            min_occ = conn.execute(stmt, {"ids": [str(r) for r in record_ids]}).scalar()
-            if min_occ is not None and realized_at < min_occ:
+            row = conn.execute(
+                stmt,
+                {"ids": [str(r) for r in record_ids], "case_id": case_id},
+            ).fetchone()
+            expected = len(set(record_ids))
+            found, available, latest_boundary = row if row is not None else (0, 0, None)
+            if found != expected or available != expected or latest_boundary is None:
                 raise ValueError(
-                    f"realized_at {realized_at.isoformat()} precedes the earliest "
-                    f"linked occurred_at {min_occ.isoformat()}; a realization cannot "
-                    f"predate what it reveals (F5 guard, ADR-0045 §A.4 / sql/0026 "
-                    f"WARNING). Rejecting — not clamping."
+                    "every linked record must exist in the case and have an approved "
+                    "source-availability boundary; rejecting realization"
+                )
+            if realized_at < latest_boundary:
+                raise ValueError(
+                    f"realized_at {realized_at.isoformat()} precedes the latest linked "
+                    f"source availability {latest_boundary.isoformat()}; rejecting — not clamping"
                 )
 
         evid_id = conn.execute(
@@ -208,9 +215,8 @@ def supersede_realization(
 ) -> bool:
     """Mark an approved realization event ``superseded``. This is the ONE
     sanctioned UPDATE of an approved row (only ``approval_state``, never the
-    content — append-only model, ADR-0045 §A.4). Once superseded, ``visible_from``
-    no longer reads the event and the affected records' clock reverts to the
-    next approved event or their ``occurred_at``. Returns True if an approved
+    content — append-only model, ADR-0045 §A.4). Once superseded, the realization
+    atom leaves active horizon views; raw-source availability is unchanged. Returns True if an approved
     row was superseded, False if the id was missing or not in the 'approved'
     state (idempotent).
     """

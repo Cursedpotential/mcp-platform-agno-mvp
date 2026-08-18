@@ -35,6 +35,8 @@ Routes:
 """
 # Byline: Claude Code · Sonnet (agent) · 2026-07-22
 # Byline: Codex · GPT-5 · 2026-08-16 (read-only Data Explorer contracts)
+# Byline: Codex · GPT-5 · 2026-08-18 (message projection and realization read model)
+# Byline amendment: Codex · GPT-5 · 2026-08-18 (governed third-party review HTTP surface)
 
 from __future__ import annotations
 
@@ -44,11 +46,12 @@ import shutil
 import tempfile
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 
 from server.api.uploads import safe_upload_name
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import create_engine, text
 
 from server.core.knowledge_handle import resolve_knowledge
@@ -210,6 +213,14 @@ def _row_to_record(row: dict[str, Any]) -> dict[str, Any]:
         "full_len": len(full_text),
         "attrs": _jsonb(row["attrs"]) or {},
         "created_at": row["created_at"],
+        "source_kind": row.get("source_kind", "unclassified"),
+        "projection_kind": row.get("projection_kind", "authored_normalized"),
+        "source_available_from": row.get("source_available_from"),
+        "normalized_lineage": _jsonb(row.get("normalized_lineage"))
+        or {"normalized_record_id": str(row["id"]), "artifact_id": str(row["artifact_id"])},
+        "third_party_conversation": _jsonb(row.get("third_party_conversation")),
+        "third_party_review": _jsonb(row.get("third_party_review")),
+        "realization_events": _jsonb(row.get("realization_events")) or [],
     }
 
 
@@ -245,25 +256,80 @@ def _register_records_routes(app: FastAPI) -> None:
     ) -> dict[str, Any]:
         resolved_artifact_id = _resolve_artifact_id(artifact_id, run_id)
 
-        where = ["artifact_id = :artifact_id"]
+        where = ["nr.artifact_id = :artifact_id"]
         params: dict[str, Any] = {"artifact_id": resolved_artifact_id}
         if q:
-            where.append("content ILIKE :q")
+            where.append("nr.content ILIKE :q")
             params["q"] = f"%{q}%"
         where_clause = " AND ".join(where)
 
         with _get_engine().connect() as conn:
             total = conn.execute(
-                text(f"SELECT count(*) FROM working.normalized_record WHERE {where_clause}"), params
+                text(f"SELECT count(*) FROM working.normalized_record nr WHERE {where_clause}"), params
             ).scalar()
             rows = (
                 conn.execute(
                     text(
-                        "SELECT id, artifact_id, record_type, source, conversation_id, role, participants, "
-                        "content, occurred_at, knowledge_time, disclosure_tier, attrs, created_at, "
-                        "row_number() OVER (PARTITION BY artifact_id ORDER BY occurred_at NULLS LAST, id) AS seq "
-                        f"FROM working.normalized_record WHERE {where_clause} "
-                        "ORDER BY occurred_at NULLS LAST, id "
+                        "SELECT nr.id, nr.artifact_id, nr.record_type, nr.source, nr.conversation_id, nr.role, "
+                        "nr.participants, nr.content, nr.occurred_at, nr.knowledge_time, nr.disclosure_tier, "
+                        "nr.attrs, nr.created_at, "
+                        "row_number() OVER (PARTITION BY nr.artifact_id ORDER BY nr.occurred_at NULLS LAST, nr.id) AS seq, "
+                        "CASE WHEN route.projection_kind='first_party' THEN 'first_party' "
+                        "WHEN route.projection_kind='acquired_third_party' THEN 'third_party_acquired' "
+                        "ELSE 'unclassified' END AS source_kind, "
+                        "CASE WHEN route.projection_kind='acquired_third_party' THEN 'derived_third_party' "
+                        "ELSE 'authored_normalized' END AS projection_kind, "
+                        "working.source_available_from(nr.id) AS source_available_from, "
+                        "jsonb_build_object('normalized_record_id',nr.id,'artifact_id',nr.artifact_id) AS normalized_lineage, "
+                        "CASE WHEN route.decision_state<>'approved' OR conversation.review_status<>'approved' "
+                        "OR conversation.id IS NULL OR acquisition.acquired_at IS NULL THEN NULL ELSE "
+                        "jsonb_build_object('id',conversation.id,'external_thread_key',conversation.external_thread_key, "
+                        "'platform',conversation.platform,'title',conversation.title,'acquisition_id',acquisition.acquisition_id, "
+                        "'acquired_at',acquisition.acquired_at,'actual_sender',message.sender_raw, "
+                        "'actual_recipients',COALESCE(parties.recipients,'[]'::jsonb), "
+                        "'actual_participants',COALESCE(parties.participants,'[]'::jsonb)) END AS third_party_conversation, "
+                        "CASE WHEN route.projection_kind='acquired_third_party' "
+                        "AND (route.decision_state IS DISTINCT FROM 'approved' "
+                        "OR conversation.review_status IS DISTINCT FROM 'approved') THEN "
+                        "jsonb_build_object('conversation_id',conversation.id,'review_status',conversation.review_status, "
+                        "'decision_state',route.decision_state,'messages',COALESCE(review_messages.messages,'[]'::jsonb)) "
+                        "ELSE NULL END AS third_party_review, "
+                        "COALESCE(realizations.events,'[]'::jsonb) AS realization_events "
+                        "FROM working.normalized_record nr "
+                        "LEFT JOIN working.message_projection_route route ON route.normalized_record_id=nr.id "
+                        "LEFT JOIN working.third_party_message message ON message.normalized_record_id=nr.id "
+                        "AND route.projection_kind='acquired_third_party' "
+                        "LEFT JOIN working.third_party_conversation conversation ON conversation.id=message.conversation_id "
+                        "LEFT JOIN LATERAL (SELECT link.acquisition_id, event.acquired_at "
+                        "FROM working.third_party_conversation_acquisition link "
+                        "JOIN evidence.acquisition event ON event.id=link.acquisition_id "
+                        "WHERE link.conversation_id=conversation.id AND link.approval_state='approved' "
+                        "AND event.acquired_at IS NOT NULL ORDER BY event.acquired_at, link.id LIMIT 1) acquisition ON true "
+                        "LEFT JOIN LATERAL (SELECT jsonb_agg(p.participant_raw ORDER BY p.role,p.id) "
+                        "FILTER (WHERE p.role IN ('to','cc','bcc','group')) AS recipients, "
+                        "jsonb_agg(p.participant_raw ORDER BY p.role,p.id) AS participants "
+                        "FROM working.third_party_message_participant p WHERE p.message_id=message.id) parties ON true "
+                        "LEFT JOIN LATERAL (SELECT jsonb_agg(jsonb_build_object('id',review_message.id, "
+                        "'normalized_record_id',review_message.normalized_record_id,'sender_raw',review_message.sender_raw, "
+                        "'sender_entity_id',review_message.sender_entity_id,'participants',COALESCE(review_parties.rows,'[]'::jsonb)) "
+                        "ORDER BY review_message.occurred_at,review_message.id) AS messages "
+                        "FROM working.third_party_message review_message "
+                        "LEFT JOIN LATERAL (SELECT jsonb_agg(jsonb_build_object('id',review_party.id, "
+                        "'participant_raw',review_party.participant_raw,'role',review_party.role, "
+                        "'entity_id',review_party.entity_id) ORDER BY review_party.role,review_party.id) AS rows "
+                        "FROM working.third_party_message_participant review_party "
+                        "WHERE review_party.message_id=review_message.id) review_parties ON true "
+                        "WHERE review_message.conversation_id=conversation.id) review_messages ON true "
+                        "LEFT JOIN LATERAL (SELECT jsonb_agg(jsonb_build_object('id',e.id,'kind',e.kind, "
+                        "'realized_at',e.realized_at,'approval_state',e.approval_state,'trigger_record_id',e.trigger_record_id, "
+                        "'evidence_pointer',e.evidence_pointer,'proposer',e.proposer,'proposed_at',e.proposed_at, "
+                        "'approved_at',e.approved_at,'approved_by',e.approved_by,'notes',e.notes) "
+                        "ORDER BY e.realized_at,e.proposed_at,e.id) AS events "
+                        "FROM working.realization_event_record link JOIN working.realization_event e "
+                        "ON e.id=link.realization_event_id WHERE link.normalized_record_id=nr.id "
+                        "AND link.case_id=nr.case_id AND e.case_id=nr.case_id) realizations ON true "
+                        f"WHERE {where_clause} "
+                        "ORDER BY nr.occurred_at NULLS LAST, nr.id "
                         "LIMIT :limit OFFSET :offset"
                     ),
                     {**params, "limit": limit, "offset": offset},
@@ -801,6 +867,68 @@ class RecordMetaPatch(BaseModel):
     attrs_patch: dict[str, Any] | None = None
 
 
+class ThirdPartyApprovalRequest(BaseModel):
+    """Exact row-ID resolutions supplied by a human reviewer."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    sender_entity_ids: dict[UUID, UUID]
+    participant_entity_ids: dict[UUID, UUID]
+    reason: str
+
+
+def _register_third_party_review_route(app: FastAPI, native_projector: Any | None) -> None:
+    @app.post("/v1/third-party-conversations/{conversation_id}/approve")
+    async def approve_third_party(conversation_id: UUID, body: ThirdPartyApprovalRequest) -> dict[str, Any]:
+        from server.evidence.message_projection import approve_third_party_conversation
+        from server.evidence.workflows import reproject_approved_third_party
+
+        try:
+            result = approve_third_party_conversation(
+                str(conversation_id),
+                sender_entity_ids={str(key): str(value) for key, value in body.sender_entity_ids.items()},
+                participant_entity_ids={str(key): str(value) for key, value in body.participant_entity_ids.items()},
+                actor="owner",
+                reason=body.reason,
+            )
+        except ValueError as exc:
+            status = 404 if str(exc) == "third-party conversation does not exist" else 422
+            raise HTTPException(status, str(exc)) from None
+        except RuntimeError as exc:
+            raise HTTPException(409, str(exc)) from None
+
+        approval = {
+            "conversation_id": result.conversation_id,
+            "approved_record_count": result.approved_record_count,
+            "audit_ledger_id": result.audit_ledger_id,
+            "vector_reprojection": {
+                "artifact_id": result.vector_reprojection.artifact_id,
+                "normalized_record_ids": list(result.vector_reprojection.normalized_record_ids),
+                "source_available_from": result.vector_reprojection.source_available_from,
+            },
+        }
+        projector = native_projector
+        if projector is None:
+            return {
+                "approval": approval,
+                "reprojection": {
+                    "status": "replay_pending",
+                    "reason": "knowledge projector unavailable; approval handoff is retained for explicit replay",
+                },
+            }
+        try:
+            replayed = await reproject_approved_third_party(result.vector_reprojection, projector)
+        except Exception as exc:  # noqa: BLE001 - approval committed; surface durable replay debt
+            return {
+                "approval": approval,
+                "reprojection": {
+                    "status": "replay_pending",
+                    "reason": f"knowledge replay failed; retry the returned approval handoff ({str(exc)[:200]})",
+                },
+            }
+        return {"approval": approval, "reprojection": {"status": "completed", "record_count": replayed}}
+
+
 def _register_record_meta_route(app: FastAPI) -> None:
     @app.patch("/v1/records/{record_id}/meta")
     async def patch_record_meta(record_id: str, body: RecordMetaPatch) -> dict[str, Any]:
@@ -821,6 +949,25 @@ def _register_record_meta_route(app: FastAPI) -> None:
             raise HTTPException(422, "at least one of title/labels/attrs_patch must be given")
 
         with _get_engine().begin() as conn:
+            authority = (
+                conn.execute(
+                    text(
+                        "SELECT nr.id IS NOT NULL AS exists, route.projection_kind "
+                        "FROM working.normalized_record nr LEFT JOIN working.message_projection_route route "
+                        "ON route.normalized_record_id=nr.id WHERE nr.id=:id"
+                    ),
+                    {"id": record_id},
+                )
+                .mappings()
+                .first()
+            )
+            if authority is None:
+                raise HTTPException(404, f"record {record_id!r} not found")
+            if authority.get("projection_kind") == "acquired_third_party":
+                raise HTTPException(
+                    409,
+                    "acquired third-party rows are derived and read-only; edit governed acquisition authority",
+                )
             row = (
                 conn.execute(
                     text(
@@ -838,7 +985,13 @@ def _register_record_meta_route(app: FastAPI) -> None:
             )
         if row is None:
             raise HTTPException(404, f"record {record_id!r} not found")
-        out = _row_to_record({**dict(row), "seq": None})
+        out = _row_to_record(
+            {
+                **dict(row),
+                "seq": None,
+                "source_kind": "first_party" if authority.get("projection_kind") == "first_party" else "unclassified",
+            }
+        )
         return out
 
 
@@ -1000,7 +1153,7 @@ def _register_flags_routes(app: FastAPI) -> None:
 # =============================================================================
 
 
-def register_inspect_routes(app: FastAPI, knowledge: Any) -> None:
+def register_inspect_routes(app: FastAPI, knowledge: Any, native_projector: Any | None = None) -> None:
     """Register every C3 inspector/curation route on the FastAPI app.
 
     Parameters
@@ -1018,4 +1171,5 @@ def register_inspect_routes(app: FastAPI, knowledge: Any) -> None:
     _register_verify_route(app)
     _register_parse_dryrun_route(app)
     _register_record_meta_route(app)
+    _register_third_party_review_route(app, native_projector)
     _register_flags_routes(app)

@@ -4,6 +4,7 @@ This module exposes canonical rows and their custody provenance without
 depending on Agno or a vector-store projection.
 
 Byline: Codex · GPT-5 · 2026-08-16
+Byline amendment: Codex · GPT-5 · 2026-08-18 (source records and derived chunks split)
 """
 
 from __future__ import annotations
@@ -46,11 +47,13 @@ def list_items(*, matter_id: str = "primary", lane: IngestLane | None = None, li
                 "SELECT r.artifact_id::text AS artifact_id, encode(e.digest, 'hex') AS source_sha256, "
                 "       min(coalesce(r.attrs->>'source_name', e.source_ref)) AS source_name, "
                 "       min(coalesce(r.attrs->>'source_path', e.source_ref)) AS source_path, "
-                "       min(r.attrs->>'parser_id') AS parser_id, min(r.attrs->>'chunker_id') AS chunker_id, "
+                "       min(r.attrs->>'parser_id') AS parser_id, min(c.chunker_id) AS chunker_id, "
                 "       min(coalesce(r.attrs->>'lane', r.domain)) AS lane, r.case_id AS matter_id, "
-                "       count(*)::int AS record_count, min(r.created_at) AS created_at "
+                "       count(DISTINCT r.id)::int AS record_count, count(c.id)::int AS chunk_count, "
+                "       min(r.created_at) AS created_at "
                 "FROM working.normalized_record r "
                 "JOIN evidence.evidence_hash e ON e.id = r.artifact_id "
+                "LEFT JOIN working.normalized_record_chunk c ON c.normalized_record_id = r.id "
                 "WHERE r.case_id = :case_id "
                 f"{domain_clause} "
                 "GROUP BY r.artifact_id, e.digest, r.case_id "
@@ -62,7 +65,7 @@ def list_items(*, matter_id: str = "primary", lane: IngestLane | None = None, li
 
 
 def get_item(artifact_id: str, *, matter_id: str = "primary") -> dict[str, Any] | None:
-    """Return one artifact and its normalized rows with custody provenance."""
+    """Return authored source rows and rebuildable chunks as separate collections."""
     with _get_engine().connect() as conn:
         rows = list(
             conn.execute(
@@ -80,6 +83,21 @@ def get_item(artifact_id: str, *, matter_id: str = "primary") -> dict[str, Any] 
                 {"artifact_id": artifact_id, "case_id": matter_id},
             ).mappings()
         )
+        chunks = list(
+            conn.execute(
+                text(
+                    "SELECT c.id::text AS chunk_id, c.normalized_record_id::text AS normalized_record_id, "
+                    "       c.chunker_id, c.chunk_index, c.content, encode(c.content_sha256, 'hex') AS content_sha256, "
+                    "       encode(c.source_content_sha256, 'hex') AS source_content_sha256, "
+                    "       c.char_start, c.char_end, c.token_count, c.attrs, c.derived_at "
+                    "FROM working.normalized_record_chunk c "
+                    "JOIN working.normalized_record r ON r.id = c.normalized_record_id "
+                    "WHERE r.artifact_id = CAST(:artifact_id AS uuid) AND r.case_id = :case_id "
+                    "ORDER BY r.created_at, r.id, c.chunk_index, c.id"
+                ),
+                {"artifact_id": artifact_id, "case_id": matter_id},
+            ).mappings()
+        )
     if not rows:
         return None
     first = rows[0]
@@ -90,5 +108,7 @@ def get_item(artifact_id: str, *, matter_id: str = "primary") -> dict[str, Any] 
         "blob_key": first["blob_key"],
         "matter_id": first["matter_id"],
         "record_count": len(rows),
+        "chunk_count": len(chunks),
         "records": [dict(row) for row in rows],
+        "chunks": [dict(row) for row in chunks],
     }

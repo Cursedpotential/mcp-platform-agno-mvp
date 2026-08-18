@@ -1,6 +1,11 @@
 -- 0029_pass_grants.sql — default-deny grants for the pass-corpora derivation lane (ADR-0045 §B / ADR-0052).
 --
 -- Byline: Claude Code . glm-5.2:cloud . 2026-08-14
+-- Byline amendment: Codex GPT-5 . 2026-08-18
+-- Byline amendment: Codex GPT-5 . 2026-08-18 (native vector outbox grants)
+-- Supersession: the HELD draft now covers the projection/acquisition review
+-- boundary, version-pinned materialization, realization atoms, and resumable
+-- checkpoints. Role creation is idempotent before first application.
 --
 -- ⚠ HELD FOR OWNER — DRAFTED + ROLLBACK-VALIDATED 2026-08-14, NOT APPLIED TO PROD.
 -- ⚠ INERT WHILE SUPERUSER (the decisive finding): the agno app connects as the role
@@ -55,7 +60,11 @@ BEGIN;
 -- Roles (NOLOGIN — assumed via SET ROLE or a dedicated non-superuser connection,
 -- never logged into directly).
 -- ---------------------------------------------------------------------------
-CREATE ROLE pass_refresher NOLOGIN;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='pass_refresher') THEN
+    CREATE ROLE pass_refresher NOLOGIN;
+  END IF;
+END $$;
 
 COMMENT ON ROLE pass_refresher IS
   'Sole writer of pass corpora (ADR-0045 §B refresher). Owns INSERT/UPDATE '
@@ -63,7 +72,17 @@ COMMENT ON ROLE pass_refresher IS
   'base_version; attests each step to ops.audit_ledger. INERT while the app '
   'connects as the `ai` superuser — see 0029 header + W1.4 pre-mortem.';
 
-CREATE ROLE pass_reader NOLOGIN;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='pass_reader') THEN
+    CREATE ROLE pass_reader NOLOGIN;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='projection_refresher') THEN
+    CREATE ROLE projection_refresher NOLOGIN;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='horizon_reviewer') THEN
+    CREATE ROLE horizon_reviewer NOLOGIN;
+  END IF;
+END $$;
 
 COMMENT ON ROLE pass_reader IS
   'Agent read of the DERIVED pass corpus only (working.walk_run/walk_step/'
@@ -124,5 +143,103 @@ GRANT SELECT ON TABLE
   TO pass_reader;
 -- Readers do NOT get record_visible_from (refresher-maintained projection), canonical
 -- base tables, or ops.audit_ledger. They read the pass corpus the refresher produced.
+
+-- ---------------------------------------------------------------------------
+-- 2026-08-18 held-draft amendment: complete default-deny object boundary.
+-- ---------------------------------------------------------------------------
+GRANT USAGE ON SCHEMA working, evidence, ops TO projection_refresher, horizon_reviewer;
+GRANT USAGE ON SCHEMA evidence TO pass_refresher;
+
+REVOKE ALL ON TABLE
+  working.normalized_record_chunk,
+  working.message_projection_route,
+  working.conversation,
+  working.message,
+  working.message_participant,
+  working.third_party_conversation,
+  working.third_party_message,
+  working.third_party_message_participant,
+  working.third_party_conversation_acquisition,
+  working.evidence_vector_projection_job,
+  working.walk_checkpoint,
+  working.walk_step_realization_retrieval,
+  working.record_visible_from
+  FROM PUBLIC;
+
+-- The projection refresher writes only derived projections. It cannot author
+-- normalized_record, acquisition, realization_event, entity, or person rows.
+GRANT SELECT ON TABLE
+  working.normalized_record, working.entity, working.person,
+  evidence.acquisition, evidence.evidence_hash
+  TO projection_refresher;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
+  working.normalized_record_chunk,
+  working.message_projection_route,
+  working.conversation,
+  working.message,
+  working.message_participant,
+  working.third_party_conversation,
+  working.third_party_message,
+  working.third_party_message_participant,
+  working.third_party_conversation_acquisition
+  TO projection_refresher;
+GRANT SELECT, INSERT, UPDATE ON TABLE working.evidence_vector_projection_job
+  TO projection_refresher;
+GRANT EXECUTE ON FUNCTION working.enqueue_evidence_vector_projection(UUID[], TEXT)
+  TO projection_refresher;
+
+-- Human review may transition proposed visibility decisions. Application code
+-- remains responsible for the audited transition API; deferred constraints
+-- enforce that an invalid approved projection cannot commit.
+GRANT SELECT ON TABLE
+  working.normalized_record, working.message_projection_route,
+  working.conversation, working.message, working.message_participant,
+  working.third_party_conversation, working.third_party_message,
+  working.third_party_message_participant,
+  working.third_party_conversation_acquisition,
+  working.realization_event, working.realization_event_record,
+  working.person, working.entity, evidence.acquisition
+  TO horizon_reviewer;
+GRANT UPDATE ON TABLE
+  working.message_projection_route,
+  working.third_party_conversation,
+  working.third_party_message,
+  working.third_party_message_participant,
+  working.third_party_conversation_acquisition,
+  working.realization_event
+  TO horizon_reviewer;
+GRANT SELECT, INSERT ON TABLE working.realization_event_record TO horizon_reviewer;
+GRANT SELECT, INSERT ON TABLE ops.audit_ledger TO horizon_reviewer;
+GRANT EXECUTE ON FUNCTION working.source_available_from(UUID) TO horizon_reviewer;
+
+GRANT SELECT ON TABLE
+  working.normalized_record_chunk,
+  working.message_projection_route,
+  working.third_party_conversation,
+  working.third_party_message,
+  working.third_party_conversation_acquisition,
+  working.realization_event_record,
+  evidence.acquisition,
+  working.vw_horizon_atom,
+  working.vw_walk_base_version_input
+  TO pass_refresher;
+GRANT SELECT, INSERT, UPDATE ON TABLE
+  working.walk_checkpoint, working.walk_step_realization_retrieval
+  TO pass_refresher;
+GRANT SELECT ON TABLE
+  working.walk_checkpoint, working.walk_step_realization_retrieval,
+  working.vw_walk_contamination, working.vw_walk_delta
+  TO pass_reader;
+
+GRANT EXECUTE ON FUNCTION
+  working.source_available_from(UUID),
+  working.visible_from(UUID),
+  working.horizon_record_visible(UUID,TIMESTAMPTZ,TEXT)
+  TO pass_refresher;
+
+COMMENT ON ROLE projection_refresher IS
+  'Sole writer of derived chunks and mutually-exclusive first/third-party message projections; never an authored-source writer.';
+COMMENT ON ROLE horizon_reviewer IS
+  'Human-review transition role for route, acquisition-link, conversation, and realization approval state.';
 
 COMMIT;

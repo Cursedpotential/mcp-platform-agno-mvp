@@ -15,6 +15,9 @@ which sit behind the HITL gate at the agent boundary.
 Pattern proven in extracted-code/sbv/sbv-ingestion.ts (hash -> insert -> rollback).
 """
 
+# Byline amendment: Codex · GPT-5 · 2026-08-18 (append-only acquisition propagation)
+# Byline amendment: Codex · GPT-5 · 2026-08-18 (human authority category + asserter identity)
+
 from __future__ import annotations
 
 import hashlib
@@ -114,6 +117,9 @@ class ArtifactRef:
     size_bytes: int
     duplicate: bool  # True if this digest was already in custody
     ingested_at: str  # ISO timestamp
+    source_id: str | None = None
+    acquisition_id: str | None = None
+    acquired_at: datetime | None = None
     # Two-tier custody (operator-console-requirements.md addendum 2, C2).
     # 'full' (default) — unchanged historical behavior. 'light' — same
     # sha256+blob+dedupe write here, but the caller (workflows.py's
@@ -132,7 +138,45 @@ def _sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
-def ingest_artifact(src: str | Path, source_meta: dict | None = None, *, tier: str = "full") -> ArtifactRef:
+def _insert_acquisition(conn, acquisition: dict | None) -> str | None:
+    """Append a human-asserted acquisition event and return its identity."""
+
+    if acquisition is None:
+        return None
+    acquired_at = acquisition.get("acquired_at")
+    if acquired_at is None:
+        raise ValueError("acquisition requires acquired_at")
+    return str(
+        conn.execute(
+            text(
+                "INSERT INTO evidence.acquisition "
+                "(method, authority, source_device, device_custodian, acquired_at, notes, "
+                " asserted_by, asserted_by_identity) "
+                "VALUES (:method, :authority, :source_device, :device_custodian, :acquired_at, :notes, "
+                " :asserted_by_category, :asserted_by_identity) "
+                "RETURNING id"
+            ),
+            {
+                "method": acquisition.get("method", "unknown"),
+                "authority": acquisition.get("authority", "unclear"),
+                "source_device": acquisition.get("source_device"),
+                "device_custodian": acquisition.get("device_custodian"),
+                "acquired_at": acquired_at,
+                "notes": acquisition.get("notes"),
+                "asserted_by_category": acquisition.get("asserted_by_category", "human"),
+                "asserted_by_identity": acquisition.get("asserted_by", "owner"),
+            },
+        ).scalar_one()
+    )
+
+
+def ingest_artifact(
+    src: str | Path,
+    source_meta: dict | None = None,
+    *,
+    tier: str = "full",
+    acquisition: dict | None = None,
+) -> ArtifactRef:
     """Take custody of one file. Returns an immutable ArtifactRef.
 
     Idempotent: re-ingesting the same bytes returns the EXISTING artifact
@@ -175,7 +219,7 @@ def ingest_artifact(src: str | Path, source_meta: dict | None = None, *, tier: s
         row = (
             conn.execute(
                 text(
-                    "SELECT id, source_ref, blob_key, hashed_at FROM evidence.evidence_hash "
+                    "SELECT id, source_id, source_ref, blob_key, hashed_at FROM evidence.evidence_hash "
                     "WHERE digest = :d AND algo = 'sha256' LIMIT 1"
                 ),
                 {"d": digest},
@@ -184,6 +228,10 @@ def ingest_artifact(src: str | Path, source_meta: dict | None = None, *, tier: s
             .first()
         )
     if row is not None:
+        acquisition_id = None
+        if acquisition is not None:
+            with engine.begin() as conn:
+                acquisition_id = _insert_acquisition(conn, acquisition)
         # A duplicate hit reuses the EXISTING artifact regardless of which
         # tier this call requested — the artifact was already in custody.
         # We report this call's requested tier (not whatever the original
@@ -197,6 +245,9 @@ def ingest_artifact(src: str | Path, source_meta: dict | None = None, *, tier: s
             size_bytes=size,
             duplicate=True,
             ingested_at=row["hashed_at"].isoformat(),
+            source_id=str(row.get("source_id")) if row.get("source_id") else None,
+            acquisition_id=acquisition_id,
+            acquired_at=acquisition.get("acquired_at") if acquisition else None,
             custody_tier=tier,
         )
 
@@ -224,6 +275,7 @@ def ingest_artifact(src: str | Path, source_meta: dict | None = None, *, tier: s
     sf = _source_fields(path, size, meta)
 
     with engine.begin() as conn:
+        acquisition_id = _insert_acquisition(conn, acquisition)
         # 1) File-level SOURCE row FIRST. The evidence_hash_subject_ck CHECK
         #    (live DDL captured in sql/_manual/20260802_reconcile_evidence_ddl.sql
         #    — NOT in numbered migrations; the earlier "migration 0005" citation
@@ -236,13 +288,19 @@ def ingest_artifact(src: str | Path, source_meta: dict | None = None, *, tier: s
                 "INSERT INTO evidence.source "
                 "(sha256, md5_prefilter, byte_size, mime_type, original_filename, "
                 " source_type, source_platform, acquisition_source, acquisition_method, "
-                " r2_bucket, r2_key, local_path, original_metadata) "
+                " r2_bucket, r2_key, local_path, original_metadata, acquired_at_utc, acquisition_id) "
                 "VALUES (:sha, :md5, :size, :mime, :fname, :stype, :splat, :acq, :meth, "
-                " :bucket, :key, :lpath, CAST(:meta AS jsonb)) "
+                " :bucket, :key, :lpath, CAST(:meta AS jsonb), :acquired_at, CAST(:acquisition_id AS uuid)) "
                 "ON CONFLICT (sha256) DO UPDATE SET sha256 = EXCLUDED.sha256 "
                 "RETURNING id"
             ),
-            {"sha": digest, "meta": json.dumps(meta), **sf},
+            {
+                "sha": digest,
+                "meta": json.dumps(meta),
+                "acquired_at": acquisition.get("acquired_at") if acquisition else None,
+                "acquisition_id": acquisition_id,
+                **sf,
+            },
         ).scalar()
 
         # 2) H1 file-level custody hash, now carrying level + source_id so the
@@ -277,6 +335,9 @@ def ingest_artifact(src: str | Path, source_meta: dict | None = None, *, tier: s
         size_bytes=size,
         duplicate=False,
         ingested_at=new["hashed_at"].isoformat() if isinstance(new["hashed_at"], datetime) else str(new["hashed_at"]),
+        source_id=str(source_id),
+        acquisition_id=acquisition_id,
+        acquired_at=acquisition.get("acquired_at") if acquisition else None,
         custody_tier=tier,
     )
 

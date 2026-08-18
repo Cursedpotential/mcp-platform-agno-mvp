@@ -5,13 +5,15 @@ Knowledge retrieval metadata is never trusted: every promotion re-resolves
 the selected normalized record through the custody tables in one transaction.
 
 Byline: Codex · GPT-5 · 2026-08-15
+Byline amendment: Codex · GPT-5 · 2026-08-18 (third-party projection and plural realization detail)
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
-from typing import Any
+from pathlib import Path
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import create_engine, text
@@ -21,6 +23,8 @@ from server.contracts.case_management import (
     AssertionReadinessGate,
     AuthenticationReadinessGate,
     CanonicalRecordDetail,
+    ConversationContext,
+    ConversationMessage,
     ConfidenceReadinessGate,
     ContentReviewGate,
     CourtCase,
@@ -48,16 +52,21 @@ from server.contracts.case_management import (
     MatterCreate,
     MatterDetail,
     MatterList,
+    OriginalSourceContent,
     ProvenanceReadinessGate,
     RedactionReadinessGate,
+    RealizationEventDetail,
     ReviewState,
     SensitivityReadinessGate,
     FileNodeDetail,
     SourceCustodyDetail,
     SourceCandidate,
+    ThirdPartyConversationContext,
 )
 
 _engine: Any = None
+_CONTEXT_WINDOW_MAX = 100
+_ORIGINAL_SOURCE_MAX_BYTES = 8 * 1024 * 1024
 
 
 class CaseRepositoryError(Exception):
@@ -122,6 +131,9 @@ def _candidate_from_row(row: dict[str, Any]) -> SourceCandidate:
         role=row.get("role"),
         content=row["content"],
         occurred_at=row.get("occurred_at"),
+        source_kind=row.get("source_kind", "unclassified"),
+        projection_kind=row.get("projection_kind", "authored_normalized"),
+        source_available_from=row.get("source_available_from"),
         disclosure_tier=row["disclosure_tier"],
         review_status=row["review_status"],
     )
@@ -151,7 +163,15 @@ def _evidence_item_from_row(row: dict[str, Any]) -> EvidenceItem:
     )
 
 
-def _evidence_detail_from_row(row: dict[str, Any]) -> EvidenceItemDetail:
+def _evidence_detail_from_row(
+    row: dict[str, Any],
+    *,
+    source_kind: str = "unclassified",
+    projection_kind: str = "authored_normalized",
+    source_available_from: Any = None,
+    third_party_conversation: ThirdPartyConversationContext | None = None,
+    realization_events: list[RealizationEventDetail] | None = None,
+) -> EvidenceItemDetail:
     file_node = None
     if row.get("detail_file_node_id") is not None:
         file_node = FileNodeDetail(
@@ -186,9 +206,17 @@ def _evidence_detail_from_row(row: dict[str, Any]) -> EvidenceItemDetail:
             role=row.get("record_role"),
             content=row["record_content"],
             occurred_at=row.get("record_occurred_at"),
-            acquired_at=row.get("record_acquired_at"),
+            source_kind=source_kind,
+            projection_kind=projection_kind,
+            source_available_from=source_available_from,
+            third_party_conversation=third_party_conversation,
+            realization_events=realization_events or [],
+            # Compatibility scalars are deliberately not sourced from the
+            # superseded normalized_record columns.  Current consumers use the
+            # acquisition context and zero-to-many realization_events above.
+            acquired_at=(third_party_conversation.acquired_at if third_party_conversation else None),
             ingested_at=row["record_ingested_at"],
-            realized_at=row.get("record_realized_at"),
+            realized_at=None,
             disclosure_tier=row["record_disclosure_tier"],
             review_status=row["record_review_status"],
             case_id=row["record_case_id"],
@@ -224,6 +252,135 @@ def _evidence_detail_from_row(row: dict[str, Any]) -> EvidenceItemDetail:
         ),
         file_node=file_node,
     )
+
+
+def _linked_realization_events(conn: Any, record_id: UUID, case_id: str) -> list[RealizationEventDetail]:
+    """Load linked realization history when the additive Wave-1 tables exist.
+
+    Deployments on the held pre-Wave-1 schema return an empty list.  Other
+    database errors are not swallowed.
+    """
+
+    availability = (
+        conn.execute(
+            text(
+                "SELECT to_regclass('working.realization_event') IS NOT NULL "
+                "AND to_regclass('working.realization_event_record') IS NOT NULL AS ready"
+            )
+        )
+        .mappings()
+        .first()
+    )
+    if not availability or not availability["ready"]:
+        return []
+    rows = (
+        conn.execute(
+            text(
+                "SELECT e.id, e.kind, e.realized_at, e.approval_state, "
+                "e.trigger_record_id, e.evidence_pointer, e.proposer, e.proposed_at, "
+                "e.approved_at, e.approved_by, e.notes "
+                "FROM working.realization_event_record link "
+                "JOIN working.realization_event e ON e.id = link.realization_event_id "
+                "WHERE link.normalized_record_id = :record_id "
+                "AND link.case_id = :case_id AND e.case_id = :case_id "
+                "ORDER BY e.realized_at, e.proposed_at, e.id"
+            ),
+            {"record_id": record_id, "case_id": case_id},
+        )
+        .mappings()
+        .all()
+    )
+    return [RealizationEventDetail.model_validate(dict(row)) for row in rows]
+
+
+def _record_projection_context(
+    conn: Any,
+    record_id: UUID,
+    case_id: str,
+) -> tuple[str, str, Any, ThirdPartyConversationContext | None]:
+    """Resolve approved projection and acquisition context without guessing.
+
+    Missing/unapproved routing returns an unclassified, unavailable source.
+    This is the fail-closed behavior required for message horizon reads.
+    """
+
+    if not _projection_context_available(conn):
+        return "unclassified", "authored_normalized", None, None
+
+    row = (
+        conn.execute(
+            text(
+                "SELECT route.projection_kind, working.source_available_from(nr.id) AS source_available_from, "
+                "conversation.id AS conversation_id, conversation.external_thread_key, "
+                "conversation.platform, conversation.title, acquisition.acquisition_id, "
+                "acquired.acquired_at, message.sender_raw AS actual_sender, "
+                "COALESCE(array_agg(participant.participant_raw ORDER BY participant.role, participant.id) "
+                "FILTER (WHERE participant.role IN ('to','cc','bcc','group')), ARRAY[]::text[]) "
+                "AS actual_recipients, "
+                "COALESCE(array_agg(participant.participant_raw ORDER BY participant.role, participant.id) "
+                "FILTER (WHERE participant.id IS NOT NULL), ARRAY[]::text[]) AS actual_participants "
+                "FROM working.normalized_record nr "
+                "JOIN working.message_projection_route route ON route.normalized_record_id=nr.id "
+                "AND route.decision_state='approved' "
+                "LEFT JOIN working.third_party_message message ON message.normalized_record_id=nr.id "
+                "AND route.projection_kind='acquired_third_party' "
+                "LEFT JOIN working.third_party_conversation conversation ON conversation.id=message.conversation_id "
+                "AND conversation.case_id=:case_id AND conversation.review_status='approved' "
+                "LEFT JOIN LATERAL (SELECT link.id, link.acquisition_id "
+                "FROM working.third_party_conversation_acquisition link "
+                "JOIN evidence.acquisition event ON event.id=link.acquisition_id "
+                "WHERE link.conversation_id=conversation.id AND link.approval_state='approved' "
+                "AND event.acquired_at IS NOT NULL ORDER BY event.acquired_at, link.id LIMIT 1) acquisition ON true "
+                "LEFT JOIN evidence.acquisition acquired ON acquired.id=acquisition.acquisition_id "
+                "LEFT JOIN working.third_party_message_participant participant ON participant.message_id=message.id "
+                "WHERE nr.id=:record_id AND nr.case_id=:case_id "
+                "GROUP BY route.projection_kind, nr.id, conversation.id, conversation.external_thread_key, "
+                "conversation.platform, conversation.title, acquisition.acquisition_id, acquired.acquired_at, "
+                "message.sender_raw"
+            ),
+            {"record_id": record_id, "case_id": case_id},
+        )
+        .mappings()
+        .first()
+    )
+    if row is None:
+        return "unclassified", "authored_normalized", None, None
+    source_available_from = row.get("source_available_from")
+    if row["projection_kind"] == "first_party":
+        return "first_party", "authored_normalized", source_available_from, None
+    if row.get("conversation_id") is None or row.get("acquired_at") is None:
+        return "third_party_acquired", "derived_third_party", None, None
+    context = ThirdPartyConversationContext(
+        id=row["conversation_id"],
+        external_thread_key=row["external_thread_key"],
+        platform=row["platform"],
+        title=row.get("title"),
+        acquisition_id=row.get("acquisition_id"),
+        acquired_at=row["acquired_at"],
+        actual_sender=row.get("actual_sender"),
+        actual_recipients=list(row.get("actual_recipients") or []),
+        actual_participants=list(row.get("actual_participants") or []),
+    )
+    return "third_party_acquired", "derived_third_party", source_available_from, context
+
+
+def _projection_context_available(conn: Any) -> bool:
+    """Return whether the additive 0026 projection read surface is installed."""
+    availability = (
+        conn.execute(
+            text(
+                "SELECT to_regclass('working.message_projection_route') IS NOT NULL "
+                "AND to_regclass('working.third_party_message') IS NOT NULL "
+                "AND to_regclass('working.third_party_conversation') IS NOT NULL "
+                "AND to_regclass('working.third_party_conversation_acquisition') IS NOT NULL "
+                "AND to_regclass('working.third_party_message_participant') IS NOT NULL "
+                "AND to_regprocedure('working.source_available_from(uuid)') IS NOT NULL AS ready"
+            )
+        )
+        .mappings()
+        .first()
+    )
+    return bool(availability and availability.get("ready"))
 
 
 def _court_readiness_from_row(row: dict[str, Any]) -> CourtReadiness:
@@ -969,9 +1126,7 @@ def get_evidence_detail(matter_id: UUID, evidence_item_id: UUID) -> EvidenceItem
             record.role AS record_role,
             record.content AS record_content,
             record.occurred_at AS record_occurred_at,
-            record.acquired_at AS record_acquired_at,
             record.ingested_at AS record_ingested_at,
-            record.realized_at AS record_realized_at,
             record.disclosure_tier AS record_disclosure_tier,
             record.review_status AS record_review_status,
             record.case_id AS record_case_id,
@@ -1062,9 +1217,358 @@ def get_evidence_detail(matter_id: UUID, evidence_item_id: UUID) -> EvidenceItem
             .mappings()
             .first()
         )
-    if row is None:
-        raise CaseRepositoryError("promoted evidence item not found in this matter", 404)
-    return _evidence_detail_from_row(dict(row))
+        if row is None:
+            raise CaseRepositoryError("promoted evidence item not found in this matter", 404)
+        source_kind, projection_kind, source_available_from, third_party_conversation = _record_projection_context(
+            conn,
+            record_id=row["record_id"],
+            case_id=row["record_case_id"],
+        )
+        realization_events = _linked_realization_events(
+            conn,
+            record_id=row["record_id"],
+            case_id=row["record_case_id"],
+        )
+    return _evidence_detail_from_row(
+        dict(row),
+        source_kind=source_kind,
+        projection_kind=projection_kind,
+        source_available_from=source_available_from,
+        third_party_conversation=third_party_conversation,
+        realization_events=realization_events,
+    )
+
+
+def _custody_blob_row(conn: Any, detail: EvidenceItemDetail) -> dict[str, Any] | None:
+    row = (
+        conn.execute(
+            text(
+                "SELECT eh.blob_key, encode(eh.digest, 'hex') AS h1, "
+                "(SELECT encode(h2.digest, 'hex') FROM evidence.evidence_hash h2 "
+                " WHERE h2.level='H2' AND h2.source_id=eh.source_id "
+                " AND h2.file_node_id IS NOT DISTINCT FROM eh.file_node_id "
+                " ORDER BY h2.hashed_at DESC, h2.id DESC LIMIT 1) AS h2, "
+                "(SELECT encode(h3.digest, 'hex') FROM evidence.evidence_hash h3 "
+                " WHERE h3.level='H3' AND h3.source_id=eh.source_id "
+                " ORDER BY h3.hashed_at DESC, h3.id DESC LIMIT 1) AS h3 "
+                "FROM evidence.evidence_hash eh "
+                "WHERE eh.id=:evidence_hash_id AND eh.source_id=:source_id "
+                "AND eh.file_node_id IS NOT DISTINCT FROM :file_node_id "
+                "AND eh.level='H1' AND eh.algo='sha256'"
+            ),
+            {
+                "evidence_hash_id": detail.item.evidence_hash_id,
+                "source_id": detail.item.source_id,
+                "file_node_id": detail.item.file_node_id,
+            },
+        )
+        .mappings()
+        .first()
+    )
+    return dict(row) if row is not None else None
+
+
+def _safe_custody_path(blob_key: str) -> Path:
+    """Resolve only a custody blob key below the configured immutable root."""
+    from server.evidence.custody import blob_root
+
+    root = blob_root().resolve()
+    candidate = (root / blob_key).resolve()
+    try:
+        candidate.relative_to(root)
+    except ValueError:
+        raise CaseRepositoryError("custody blob pointer is outside the evidence root", 409) from None
+    return candidate
+
+
+def _read_original_text(path: Path, *, start: int | None, end: int | None, expected_sha256: str) -> tuple[bytes, int]:
+    """Read an H1-attested source (or node byte span) without normalization."""
+    try:
+        size = path.stat().st_size
+    except OSError:
+        raise CaseRepositoryError("original source content is unavailable", 404) from None
+    if start is None and end is None:
+        start, end = 0, size
+    elif start is None or end is None or start < 0 or end < start or end > size:
+        raise CaseRepositoryError("custody file-node byte span is invalid", 409)
+    assert start is not None and end is not None
+    if end - start > _ORIGINAL_SOURCE_MAX_BYTES or size > _ORIGINAL_SOURCE_MAX_BYTES:
+        raise CaseRepositoryError("original source content exceeds the readable text bound", 409)
+    try:
+        raw = path.read_bytes()
+    except OSError:
+        raise CaseRepositoryError("original source content is unavailable", 404) from None
+    if hashlib.sha256(raw).hexdigest() != expected_sha256.lower():
+        raise CaseRepositoryError("custody blob failed H1 verification", 409)
+    return raw[start:end], size
+
+
+def get_original_source_content(matter_id: UUID, evidence_item_id: UUID) -> OriginalSourceContent:
+    """Return text only when the exact promoted H1 source is readable.
+
+    The normalized record is used solely to establish the selected lineage via
+    ``get_evidence_detail``.  Its content is never a fallback for a missing,
+    binary, or unreadable custody blob.
+    """
+    detail = get_evidence_detail(matter_id, evidence_item_id)
+    with _get_engine().connect() as conn:
+        custody = _custody_blob_row(conn, detail)
+    if custody is None or not custody.get("blob_key"):
+        raise CaseRepositoryError("original source blob is unavailable", 404)
+    h1 = str(custody["h1"] or "").lower()
+    if h1 != detail.custody_hash.digest_sha256.lower():
+        raise CaseRepositoryError("custody H1 does not match the promoted evidence item", 409)
+    path = _safe_custody_path(str(custody["blob_key"]))
+    raw, _actual_size = _read_original_text(
+        path,
+        start=detail.file_node.byte_span_start if detail.file_node else None,
+        end=detail.file_node.byte_span_end if detail.file_node else None,
+        expected_sha256=h1,
+    )
+    mime_type = (detail.file_node.mime_type if detail.file_node else None) or detail.source.mime_type
+    normalized_mime = (mime_type or "").split(";", 1)[0].strip().lower()
+    binary_mimes = normalized_mime.startswith(("image/", "audio/", "video/")) or normalized_mime in {
+        "application/octet-stream",
+        "application/pdf",
+        "application/zip",
+        "application/gzip",
+    }
+    if binary_mimes or b"\x00" in raw:
+        raise CaseRepositoryError("original source is binary and cannot be returned as text", 409)
+    try:
+        content = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        raise CaseRepositoryError("original source text encoding is unreadable", 409) from None
+    pointer = detail.promotion.source_pointer.model_dump(mode="json", exclude={"quote"})
+    provenance = {
+        "matter_id": str(matter_id),
+        "evidence_item_id": str(evidence_item_id),
+        "normalized_record_id": str(detail.item.normalized_record_id),
+        "source_id": str(detail.item.source_id),
+        "file_node_id": str(detail.item.file_node_id) if detail.item.file_node_id else None,
+        "evidence_hash_id": str(detail.item.evidence_hash_id),
+        "byte_span_start": detail.file_node.byte_span_start if detail.file_node else None,
+        "byte_span_end": detail.file_node.byte_span_end if detail.file_node else None,
+    }
+    return OriginalSourceContent(
+        matter_id=matter_id,
+        evidence_item_id=evidence_item_id,
+        normalized_record_id=detail.item.normalized_record_id,
+        source_id=detail.item.source_id,
+        file_node_id=detail.item.file_node_id,
+        evidence_hash_id=detail.item.evidence_hash_id,
+        sha256=h1,
+        byte_size=detail.source.byte_size,
+        content_byte_size=len(raw),
+        mime_type=mime_type,
+        original_filename=detail.source.original_filename,
+        content=content,
+        encoding="utf-8",
+        source_pointer=pointer,
+        provenance=provenance,
+        h1=h1,
+        h2=cast(str | None, custody.get("h2")),
+        h3=cast(str | None, custody.get("h3")),
+    )
+
+
+def _conversation_message_from_detail(conn: Any, detail: EvidenceItemDetail) -> ConversationMessage:
+    source_kind, projection_kind, source_available_from, third_party = _record_projection_context(
+        conn, detail.record.id, detail.record.case_id
+    )
+    # This fallback is only used when the normalized record has no conversation
+    # key.  Never substitute the owner for an absent source party.
+    pointer = detail.promotion.source_pointer.model_dump(mode="json", exclude={"quote"})
+    return ConversationMessage(
+        id=detail.record.id,
+        normalized_record_id=detail.record.id,
+        content=detail.record.content,
+        sender=third_party.actual_sender if third_party else None,
+        recipients=third_party.actual_recipients if third_party else [],
+        occurred_at=detail.record.occurred_at,
+        source_kind=source_kind,
+        projection_kind=projection_kind,
+        source_available_from=source_available_from,
+        source_pointer=pointer,
+    )
+
+
+def get_conversation_context(
+    matter_id: UUID,
+    evidence_item_id: UUID,
+    *,
+    before: int,
+    after: int,
+) -> ConversationContext:
+    """Return a bounded, deterministic window over normalized source messages."""
+    if not 0 <= before <= _CONTEXT_WINDOW_MAX or not 0 <= after <= _CONTEXT_WINDOW_MAX:
+        raise CaseRepositoryError("conversation context bounds must be between 0 and 100", 422)
+    detail = get_evidence_detail(matter_id, evidence_item_id)
+    selected_id = detail.record.id
+    conversation_id = detail.record.conversation_id
+    with _get_engine().connect() as conn:
+        projection_available = _projection_context_available(conn)
+    if not projection_available:
+        pointer = detail.promotion.source_pointer.model_dump(mode="json", exclude={"quote"})
+        selected_message = ConversationMessage(
+            id=selected_id,
+            normalized_record_id=selected_id,
+            content=detail.record.content,
+            occurred_at=detail.record.occurred_at,
+            source_kind="unclassified",
+            projection_kind="authored_normalized",
+            source_available_from=None,
+            source_pointer=pointer,
+        )
+        return ConversationContext(
+            matter_id=matter_id,
+            evidence_item_id=evidence_item_id,
+            selected_normalized_record_id=selected_id,
+            messages=[selected_message],
+            before=0,
+            after=0,
+            total=1,
+            context_available=False,
+            context_complete=False,
+            availability_reason="conversation projection schema is unavailable",
+        )
+    if not conversation_id:
+        with _get_engine().connect() as conn:
+            message = _conversation_message_from_detail(conn, detail)
+        return ConversationContext(
+            matter_id=matter_id,
+            evidence_item_id=evidence_item_id,
+            selected_normalized_record_id=selected_id,
+            messages=[message],
+            before=0,
+            after=0,
+            total=1,
+            context_available=False,
+            context_complete=False,
+            availability_reason="normalized record has no conversation key",
+        )
+
+    query = text(
+        """
+        WITH scoped AS (
+            SELECT nr.id, nr.artifact_id, nr.source, nr.conversation_id, nr.content,
+                   nr.occurred_at, nr.provenance_id AS source_run_id,
+                   working.source_available_from(nr.id) AS source_available_from,
+                   route.projection_kind,
+                   ROW_NUMBER() OVER (ORDER BY nr.occurred_at NULLS LAST, nr.id) AS seq,
+                   eh.id AS evidence_hash_id, eh.source_id, eh.file_node_id,
+                   encode(eh.digest, 'hex') AS sha256,
+                   CASE WHEN route.projection_kind='first_party' THEN 'first_party'
+                        WHEN route.projection_kind='acquired_third_party'
+                             AND third_conv.review_status='approved'
+                             AND acquisition.acquired_at IS NOT NULL THEN 'third_party_acquired'
+                        ELSE 'unclassified' END AS source_kind,
+                   CASE WHEN route.projection_kind='acquired_third_party'
+                        THEN 'derived_third_party' ELSE 'authored_normalized' END AS public_projection_kind,
+                   COALESCE(first_party.sender, third_party.sender) AS sender,
+                   CASE WHEN route.projection_kind='acquired_third_party'
+                        THEN COALESCE(third_party.recipients, ARRAY[]::text[])
+                        ELSE COALESCE(first_party.recipients, ARRAY[]::text[]) END AS recipients
+            FROM working.normalized_record nr
+            LEFT JOIN working.message_projection_route route
+              ON route.normalized_record_id=nr.id AND route.decision_state='approved'
+            LEFT JOIN evidence.evidence_hash eh
+              ON eh.id=nr.artifact_id AND eh.level='H1' AND eh.algo='sha256'
+            LEFT JOIN working.third_party_message third_msg
+              ON third_msg.normalized_record_id=nr.id
+             AND route.projection_kind='acquired_third_party'
+            LEFT JOIN working.third_party_conversation third_conv
+              ON third_conv.id=third_msg.conversation_id
+             AND third_conv.case_id=nr.case_id
+            LEFT JOIN LATERAL (
+                SELECT third_msg.sender_raw AS sender,
+                       array_agg(tp.participant_raw ORDER BY tp.role, tp.id)
+                         FILTER (WHERE tp.role IN ('to','cc','bcc','group')) AS recipients
+                FROM working.third_party_message_participant tp
+                WHERE tp.message_id=third_msg.id
+            ) third_party ON true
+            LEFT JOIN LATERAL (
+                SELECT first_msg.sender_raw AS sender,
+                       array_agg(fp.participant_raw ORDER BY fp.role, fp.id)
+                         FILTER (WHERE fp.role IN ('to','cc','bcc','group')) AS recipients
+                FROM working.message first_msg
+                LEFT JOIN working.message_participant fp ON fp.message_id=first_msg.id
+                WHERE first_msg.derived_from_record_id=nr.id
+            ) first_party ON true
+            LEFT JOIN LATERAL (
+                SELECT acq.acquired_at
+                FROM working.third_party_conversation_acquisition link
+                JOIN evidence.acquisition acq ON acq.id=link.acquisition_id
+                WHERE link.conversation_id=third_conv.id
+                  AND link.approval_state='approved'
+                  AND acq.acquired_at IS NOT NULL
+                ORDER BY acq.acquired_at, link.id
+                LIMIT 1
+            ) acquisition ON true
+            WHERE nr.case_id=:case_id AND nr.conversation_id=:conversation_id
+        ), selected AS (
+            SELECT seq FROM scoped WHERE id=:selected_id
+        )
+        SELECT scoped.* FROM scoped CROSS JOIN selected
+        WHERE scoped.seq BETWEEN selected.seq - :before AND selected.seq + :after
+        ORDER BY scoped.seq
+        """
+    )
+    with _get_engine().connect() as conn:
+        rows = [
+            dict(row)
+            for row in conn.execute(
+                query,
+                {
+                    "case_id": detail.record.case_id,
+                    "conversation_id": conversation_id,
+                    "selected_id": selected_id,
+                    "before": before,
+                    "after": after,
+                },
+            )
+            .mappings()
+            .all()
+        ]
+    if not rows:
+        raise CaseRepositoryError("conversation context is unavailable for this evidence item", 404)
+    messages = [
+        ConversationMessage(
+            id=row["id"],
+            normalized_record_id=row["id"],
+            content=row["content"],
+            sender=row.get("sender"),
+            recipients=list(row.get("recipients") or []),
+            occurred_at=row.get("occurred_at"),
+            source_kind=row.get("source_kind") or "unclassified",
+            projection_kind=row.get("public_projection_kind") or "authored_normalized",
+            source_available_from=row.get("source_available_from"),
+            source_pointer={
+                "matter_id": str(matter_id),
+                "normalized_record_id": str(row["id"]),
+                "artifact_id": str(row["artifact_id"]),
+                "evidence_hash_id": str(row["evidence_hash_id"]) if row.get("evidence_hash_id") else None,
+                "source_id": str(row["source_id"]) if row.get("source_id") else None,
+                "file_node_id": str(row["file_node_id"]) if row.get("file_node_id") else None,
+                "source_run_id": str(row["source_run_id"]) if row.get("source_run_id") else None,
+                "sha256": row.get("sha256"),
+                "conversation_id": conversation_id,
+            },
+        )
+        for row in rows
+    ]
+    selected_index = next((idx for idx, row in enumerate(rows) if row["id"] == selected_id), None)
+    if selected_index is None:
+        raise CaseRepositoryError("conversation context selected record is not in the returned window", 409)
+    return ConversationContext(
+        matter_id=matter_id,
+        evidence_item_id=evidence_item_id,
+        selected_normalized_record_id=selected_id,
+        messages=messages,
+        before=selected_index,
+        after=len(messages) - selected_index - 1,
+        total=max(int(row.get("seq") or 0) for row in rows),
+    )
 
 
 def get_court_readiness(matter_id: UUID, evidence_item_id: UUID) -> CourtReadiness:

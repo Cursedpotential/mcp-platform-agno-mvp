@@ -1,3 +1,4 @@
+# Byline amendment: Codex · GPT-5 · 2026-08-18 (combined-change hygiene)
 """Unit tests for server.tools.parsers.messaging.facebook_messenger_html.
 
 Covers both DOM layouts Facebook emits (legacy div.message, card _a6-g), fuzzy

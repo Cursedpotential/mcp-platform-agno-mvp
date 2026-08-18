@@ -1,3 +1,4 @@
+# Byline: Codex · GPT-5 · 2026-08-18 (native evidence capability boundaries)
 # Byline: Claude Code · Kimi K3 (drift-fix, comments only) · 2026-08-12 —
 #         LiteLLM labels marked stale (ADR-0042). No values/ports changed.
 #         2026-08-12b — FUNCTIONAL (owner ruling): graphiti-mcp LLM+embeddings
@@ -66,6 +67,16 @@ services:
       DB_USER: ${DB_USER:-ai}
       DB_PASS: ${DB_PASS:-ai}
       DB_DATABASE: ${DB_DATABASE:-ai}
+      # Native evidence reads are enabled only after alias/schema activation.
+      # Agent reads use exact walk-transition capabilities; Workbench uses a
+      # separate owner-only credential. Never reuse OS_SECURITY_KEY here.
+      NATIVE_EVIDENCE_ENABLED: ${NATIVE_EVIDENCE_ENABLED:-false}
+      NATIVE_EVIDENCE_DRAIN_BATCH_LIMIT: ${NATIVE_EVIDENCE_DRAIN_BATCH_LIMIT:-100}
+      NATIVE_EVIDENCE_DRAIN_INTERVAL_SECONDS: ${NATIVE_EVIDENCE_DRAIN_INTERVAL_SECONDS:-5}
+      NATIVE_EVIDENCE_DRAIN_ERROR_BACKOFF_SECONDS: ${NATIVE_EVIDENCE_DRAIN_ERROR_BACKOFF_SECONDS:-15}
+      NATIVE_EVIDENCE_DRAIN_MAX_BACKOFF_SECONDS: ${NATIVE_EVIDENCE_DRAIN_MAX_BACKOFF_SECONDS:-60}
+      WALK_PASS_SIGNING_KEY: ${WALK_PASS_SIGNING_KEY:-}
+      EVIDENCE_OPERATOR_SECURITY_KEY: ${EVIDENCE_OPERATOR_SECURITY_KEY:-}
       # R2 blob landing zone (ADR-0007) — S3-compatible reads via boto3/agno;
       # set in .env when the bucket is provisioned. No FUSE mount needed.
       R2_BUCKET_NAME: ${R2_BUCKET_NAME:-}

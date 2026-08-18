@@ -1,3 +1,4 @@
+# Byline amendment: Codex · GPT-5 · 2026-08-18 (combined-change hygiene)
 """SBV promotion & universal-import forensic parity.
 
 Byline: Claude Code . Fable 5 . 2026-08-09 (S2 build-and-test-green task 4)

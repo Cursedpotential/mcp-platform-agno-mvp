@@ -10,6 +10,7 @@ simplified app is not verified — that exact shortcut let a broken db_id
 middleware ship green tests into a silent production failure earlier the same day.
 """
 # Byline: Claude Code · Opus 5 · 2026-08-01
+# Byline amendment: Codex · GPT-5 · 2026-08-18 (native evidence composition)
 
 from __future__ import annotations
 
@@ -76,7 +77,39 @@ def test_missing_required_path_is_rejected():
 
 
 def test_sms_input_defaults_to_evidence_domain():
-    assert SmsXmlInput(path="/tmp/x.xml").domain == "evidence"
+    assert (
+        SmsXmlInput(path="/tmp/x.xml", source_principal="owner-device", caller_owns_conversation=True).domain
+        == "evidence"
+    )
+
+
+def test_sms_factory_selects_native_projector_and_never_agno(monkeypatch, tmp_path):
+    import server.evidence.workflows as workflows
+    import server.evidence.run_ledger as run_ledger
+
+    source = tmp_path / "messages.xml"
+    source.write_text("<smses/>", encoding="utf-8")
+    agno_knowledge = object()
+    native_projector = object()
+    captured = {}
+
+    def fake_sms(**kwargs):
+        captured.update(kwargs)
+        return object(), {}
+
+    monkeypatch.setattr(workflows, "build_sms_xml_workflow", fake_sms)
+    monkeypatch.setattr(run_ledger, "create_run", lambda **kwargs: (_ for _ in ()).throw(RuntimeError("no db")))
+    factories = {item.id: item for item in build_workflow_factories(_fake_db(), agno_knowledge, native_projector)}
+    factories["sms-xml"].factory(
+        _Ctx(SmsXmlInput(path=str(source), source_principal="owner-device", caller_owns_conversation=True))
+    )
+    assert captured["knowledge"] is native_projector
+    assert captured["knowledge"] is not agno_knowledge
+    assert captured["source_meta"] == {
+        "message_corpus": "first_party",
+        "source_principal": "owner-device",
+        "caller_owns_conversation": True,
+    }
 
 
 def test_registration_never_raises_on_the_boot_path(monkeypatch):

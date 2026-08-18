@@ -27,6 +27,7 @@ from server.contracts.case_management import (
     EvidenceReviewCreate,
     EvidenceReviewList,
     EvidenceReviewResult,
+    ConversationContext,
     KnowledgeSourceResolution,
     KnowledgeSourceResolveRequest,
     Matter,
@@ -34,6 +35,7 @@ from server.contracts.case_management import (
     MatterDetail,
     MatterList,
     ReviewState,
+    OriginalSourceContent,
 )
 
 
@@ -163,5 +165,36 @@ def register_case_management_routes(app: FastAPI) -> None:
                 review_status=review_status,
                 limit=limit,
                 offset=offset,
+            )
+        )
+
+    @app.get(
+        "/v1/matters/{matter_id}/evidence-items/{evidence_item_id}/source-content",
+        response_model=OriginalSourceContent,
+        tags=["case-management"],
+    )
+    def get_original_source_content(
+        matter_id: UUID,
+        evidence_item_id: UUID,
+    ) -> OriginalSourceContent:
+        return _translate(lambda: service.get_original_source_content(matter_id, evidence_item_id))
+
+    @app.get(
+        "/v1/matters/{matter_id}/evidence-items/{evidence_item_id}/conversation-context",
+        response_model=ConversationContext,
+        tags=["case-management"],
+    )
+    def get_conversation_context(
+        matter_id: UUID,
+        evidence_item_id: UUID,
+        before: Annotated[int, Query(ge=0, le=100)] = 25,
+        after: Annotated[int, Query(ge=0, le=100)] = 25,
+    ) -> ConversationContext:
+        return _translate(
+            lambda: service.get_conversation_context(
+                matter_id,
+                evidence_item_id,
+                before=before,
+                after=after,
             )
         )

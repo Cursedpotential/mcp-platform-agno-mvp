@@ -1,5 +1,6 @@
 # Byline: Claude Code · Sonnet (agent) · 2026-07-20 (custody_tier added — C2 gate controls)
 # Byline: Codex · GPT-5 · 2026-08-13 (review action request)
+# Byline: Codex · GPT-5 · 2026-08-18 (conversation source-boundary intake)
 """Request shape for the JSON branch of POST /api/runs.
 
 The multipart branch (a fresh file drop) is parsed by hand in
@@ -16,6 +17,7 @@ help.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
@@ -33,6 +35,26 @@ class RunCreateRequest(BaseModel):
     # defaults this per-workflow (chat-transcript -> light, sms-xml -> full)
     # when omitted, so it stays optional here too.
     custody_tier: str | None = None
+    message_corpus: Literal["first_party", "acquired_third_party"]
+    source_principal: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
+    caller_owns_conversation: bool = False
+    acquisition: "AcquisitionInput | None" = None
+
+
+class AcquisitionInput(BaseModel):
+    """Operator assertion; authenticated identity is added by the runtime."""
+
+    model_config = ConfigDict(extra="forbid")
+    acquired_at: datetime
+    method: Literal[
+        "own_device", "household_device", "voluntary_third_party", "legal_process", "public_source", "unknown"
+    ] = "unknown"
+    authority: Literal[
+        "device_owner", "parent_guardian", "account_holder", "consent_given", "court_order", "unclear"
+    ] = "unclear"
+    source_device: str | None = None
+    device_custodian: str | None = None
+    notes: str | None = None
 
 
 class RunReviewActionRequest(BaseModel):

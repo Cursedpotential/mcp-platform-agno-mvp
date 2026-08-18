@@ -11,6 +11,7 @@ env coupling) — this module does not invent a second connection helper.
 
 Byline: Claude Code · Sonnet (agent) · 2026-07-20
 Byline: Codex · GPT-5 · 2026-08-13 (durable run reports and review actions)
+Byline: Codex · GPT-5 · 2026-08-18 (durable source/acquisition replay context)
 """
 
 from __future__ import annotations
@@ -64,6 +65,7 @@ def create_run(
     domain: str | None = None,
     parent_run_id: str | None = None,
     custody_tier: str = "full",
+    source_context: dict[str, Any] | None = None,
 ) -> str:
     """Insert a new ops.workflow_run row (status='running'). Returns run_id.
 
@@ -77,8 +79,9 @@ def create_run(
         run_id = conn.execute(
             text(
                 "INSERT INTO ops.workflow_run "
-                "(workflow, mode, source_name, source_path, domain, parent_run_id, custody_tier) "
-                "VALUES (:workflow, :mode, :source_name, :source_path, :domain, :parent_run_id, :custody_tier) "
+                "(workflow, mode, source_name, source_path, domain, parent_run_id, custody_tier, source_context) "
+                "VALUES (:workflow, :mode, :source_name, :source_path, :domain, :parent_run_id, :custody_tier, "
+                "        CAST(:source_context AS jsonb)) "
                 "RETURNING run_id"
             ),
             {
@@ -89,6 +92,7 @@ def create_run(
                 "domain": domain,
                 "parent_run_id": parent_run_id,
                 "custody_tier": custody_tier,
+                "source_context": json.dumps(source_context or {}),
             },
         ).scalar()
     return str(run_id)
@@ -408,6 +412,7 @@ def get_run(run_id: str) -> dict[str, Any] | None:
     if run.get("parent_run_id") is not None:
         run["parent_run_id"] = str(run["parent_run_id"])
     run["summary"] = _jsonb(run.get("summary"))
+    run["source_context"] = _jsonb(run.get("source_context")) or {}
 
     stages = []
     for row in stage_rows:
@@ -436,7 +441,7 @@ def list_runs(limit: int = 50, status: str | None = None) -> list[dict[str, Any]
     sql = text(
         "SELECT r.run_id, r.workflow, r.mode, r.source_name, r.source_path, r.sha256, "
         "       r.artifact_id, r.domain, r.status, r.summary, r.error, r.created_at, r.updated_at, "
-        "       r.gate_state, r.parent_run_id, r.custody_tier, "
+        "       r.gate_state, r.parent_run_id, r.custody_tier, r.source_context, "
         "       s.seq, s.name AS stage_name, s.status AS stage_status, s.content AS stage_content "
         f"FROM (SELECT * FROM ops.workflow_run {where_clause} "
         "       ORDER BY created_at DESC LIMIT :limit) r "
@@ -472,6 +477,7 @@ def list_runs(limit: int = 50, status: str | None = None) -> list[dict[str, Any]
                 "gate_state": row.get("gate_state"),
                 "parent_run_id": str(parent_run_id) if parent_run_id is not None else None,
                 "custody_tier": row.get("custody_tier", "full"),
+                "source_context": _jsonb(row.get("source_context")) or {},
                 "summary": _jsonb(row["summary"]),
                 "error": row["error"],
                 "created_at": row["created_at"],

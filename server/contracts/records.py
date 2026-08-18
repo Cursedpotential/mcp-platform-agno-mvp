@@ -13,6 +13,8 @@ Two record families:
 Home (ADR-0035, Option A): import-light, no heavy deps, facade-safe.
 """
 
+# Byline amendment: Codex · GPT-5 · 2026-08-18 (source-party and chunk lineage)
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -40,6 +42,34 @@ class RecordType(str, Enum):
     media = "media"
 
 
+class MessageCorpus(str, Enum):
+    """Mutually exclusive communication projections for evidence messages."""
+
+    first_party = "first_party"
+    acquired_third_party = "acquired_third_party"
+
+
+class MessageParticipant(BaseModel):
+    """One actual sender/recipient coordinate, without case-owner inference."""
+
+    identity: str
+    role: str
+
+    @field_validator("identity")
+    @classmethod
+    def _identity_required(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("participant identity must not be blank")
+        return value
+
+    @field_validator("role")
+    @classmethod
+    def _known_role(cls, value: str) -> str:
+        if value not in {"from", "to", "cc", "bcc", "group"}:
+            raise ValueError("participant role must be from, to, cc, bcc, or group")
+        return value
+
+
 class NormalizedRecord(BaseModel):
     """Canonical record for evidence-type data. Parsers for non-chat formats
     emit these; store.py persists them to working.normalized_record."""
@@ -49,6 +79,9 @@ class NormalizedRecord(BaseModel):
     conversation_id: str | None = None
     role: str | None = None  # sender / author role
     participants: list[str] = Field(default_factory=list)
+    sender: str | None = None
+    recipients: list[MessageParticipant] = Field(default_factory=list)
+    message_corpus: MessageCorpus | None = None
     content: str = ""
     occurred_at: datetime | None = None  # valid time
     knowledge_time: datetime | None = None  # filled at normalize time if unset
@@ -61,6 +94,28 @@ class NormalizedRecord(BaseModel):
         if v is not None and v.tzinfo is None:
             return v.replace(tzinfo=timezone.utc)
         return v
+
+
+class NormalizedRecordChunk(BaseModel):
+    """Rebuildable child text for retrieval; never an authored spine record."""
+
+    source_record_index: int = Field(ge=0)
+    chunk_index: int = Field(ge=0)
+    chunker_id: str
+    content: str
+    content_sha256: str
+    source_content_sha256: str
+    char_start: int | None = Field(default=None, ge=0)
+    char_end: int | None = Field(default=None, ge=0)
+    token_count: int | None = Field(default=None, ge=0)
+    attrs: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("chunker_id", "content_sha256", "source_content_sha256")
+    @classmethod
+    def _chunk_identity_required(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("chunk identity fields must not be blank")
+        return value
 
 
 def finalize(records: Iterable[NormalizedRecord]) -> list[NormalizedRecord]:

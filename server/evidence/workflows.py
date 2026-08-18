@@ -68,6 +68,8 @@ C2.6 additions (resilience + observability, 2026-07-20/21):
 """
 # Byline: Claude Code · Sonnet (agent) · 2026-07-21 (C0 run-ledger instrumentation 2026-07-20; C2 gates+retry+custody_tier 2026-07-20; C2.6 resilience+observability 2026-07-21; drift-fix 2026-08-12 Claude Code · Kimi K3: Milvus-503 comments → Weaviate/historical per ADR-0040)
 # Byline: Codex · GPT-5 · 2026-08-13 (ADR-0054 structured terminal reasons)
+# Byline amendment: Codex · GPT-5 · 2026-08-18 (classified message writes + approved vector replay)
+# Byline amendment: Codex · GPT-5 · 2026-08-18 (native Weaviate outbox replay; Agno path legacy)
 
 from __future__ import annotations
 
@@ -84,7 +86,7 @@ from agno.workflow import Step, Workflow
 from agno.workflow.types import OnError, StepInput, StepOutput
 
 from server.evidence.custody import ArtifactRef, ingest_artifact, utcnow_iso
-from server.contracts.records import NormalizedRecord, finalize
+from server.contracts.records import MessageCorpus, NormalizedRecord, finalize
 from server.tools.registry import load_builtin_tools, registry
 from server.evidence.store import (
     ingest_into_knowledge,
@@ -440,6 +442,14 @@ def _store_step_impl(ctx: dict[str, Any]) -> StepOutput:
             success=True,
         )
     records = finalize([NormalizedRecord.model_validate(r) for r in ctx["raw_records"]])
+    corpus = ctx.get("message_corpus")
+    if corpus is not None:
+        records = [
+            record.model_copy(update={"message_corpus": MessageCorpus(corpus)})
+            if record.record_type.value == "message"
+            else record
+            for record in records
+        ]
     # provenance stamp: which tool parsed, and whether an alternate (backup)
     # parser produced it — a backup parse must never be indistinguishable
     # from the primary
@@ -451,18 +461,37 @@ def _store_step_impl(ctx: dict[str, Any]) -> StepOutput:
     ctx["records"] = records
     attempts_log: list[dict[str, Any]] = []
     ctx["store_attempts"] = attempts_log
-    ctx["stored"] = store_records(records, artifact, attempts_log=attempts_log)
+    classification_kwargs = (
+        {
+            "message_corpus": corpus,
+            "source_principal": ctx.get("source_principal"),
+            "caller_owns_conversation": bool(ctx.get("caller_owns_conversation")),
+        }
+        if corpus is not None
+        else {}
+    )
+    ctx["stored"] = store_records(
+        records,
+        artifact,
+        attempts_log=attempts_log,
+        **classification_kwargs,
+    )
     note = " [ALT-PARSE — primary unavailable, see alt_parse_detail]" if ctx.get("alt_parse") else ""
     return StepOutput(content=f"store: {ctx['stored']} rows -> working.normalized_record{note}", success=True)
 
 
 async def _knowledge_step_impl(ctx: dict[str, Any], knowledge: Any) -> StepOutput:
-    """Shared knowledge-step body for both build_*_workflow builders."""
+    """Shared projection step; native projector preferred, Agno retained as legacy."""
     domain = ctx["domain"]
     if knowledge is None:
         ctx["knowledge_skipped"] = True
         ctx["knowledge_docs"] = 0
-        return StepOutput(content="knowledge: no engine handle passed — skipped (CLI --no-knowledge)", success=True)
+        detail = (
+            "knowledge: native projection remains durably pending — projector not attached"
+            if ctx.get("native_evidence_required")
+            else "knowledge: no engine handle passed — skipped (CLI --no-knowledge)"
+        )
+        return StepOutput(content=detail, success=True)
     if not ctx.get("records"):
         ctx["knowledge_skipped"] = True
         ctx["knowledge_docs"] = 0
@@ -472,12 +501,67 @@ async def _knowledge_step_impl(ctx: dict[str, Any], knowledge: Any) -> StepOutpu
             else "parse produced no records"
         )
         return StepOutput(content=f"knowledge: no records to ingest — skipped ({reason})", success=True)
+    if any(record.message_corpus is MessageCorpus.acquired_third_party for record in ctx["records"]):
+        ctx["knowledge_skipped"] = True
+        ctx["knowledge_docs"] = 0
+        return StepOutput(
+            content="knowledge: acquired-third-party projection awaits governed approval replay",
+            success=True,
+        )
+    from server.evidence.vector_projection import NativeEvidenceProjector
+
+    if isinstance(knowledge, NativeEvidenceProjector):
+        result = knowledge.drain()
+        if result.failed:
+            raise RuntimeError(f"native vector projection failed for {result.failed} queued chunk(s)")
+        ctx["knowledge_skipped"] = False
+        ctx["knowledge_docs"] = result.completed
+        return StepOutput(
+            content=(
+                f"knowledge: native outbox drained {result.completed} chunk(s) "
+                f"({result.deactivated} authority-deactivated)"
+            ),
+            success=True,
+        )
+    if ctx.get("native_evidence_required"):
+        raise TypeError("evidence projection requires NativeEvidenceProjector; Agno Knowledge is forbidden")
     attempts_log: list[dict[str, Any]] = []
     ctx["knowledge_attempts"] = attempts_log
     n = await ingest_into_knowledge(knowledge, ctx["records"], ctx["artifact"], domain, attempts_log=attempts_log)
     ctx["knowledge_skipped"] = False
     ctx["knowledge_docs"] = n
     return StepOutput(content=f"knowledge: {n} conversation doc(s) -> domain={domain}", success=True)
+
+
+async def reproject_approved_third_party(
+    handoff: Any,
+    projector: Any,
+    *,
+    domain: str = "evidence",
+    attempts_log: list[dict[str, Any]] | None = None,
+) -> int:
+    """Enqueue and drain an approved handoff through the native PG outbox.
+
+    Handoff timestamps are checked for completeness only as a review receipt;
+    the projector re-reads ``working.source_available_from`` authoritatively.
+    ``domain`` and ``attempts_log`` remain compatibility parameters for callers
+    during the Agno retirement and do not affect native projection.
+    """
+
+    if not handoff.normalized_record_ids or set(handoff.source_available_from) != set(handoff.normalized_record_ids):
+        raise ValueError("approved vector handoff must contain availability for every record")
+    from server.evidence.vector_projection import NativeEvidenceProjector
+
+    if not isinstance(projector, NativeEvidenceProjector):
+        raise TypeError("approved third-party replay requires NativeEvidenceProjector, not Agno Knowledge")
+    projector.enqueue(
+        handoff.normalized_record_ids,
+        reason=f"approved_third_party:{handoff.conversation_id}",
+    )
+    result = projector.drain()
+    if result.failed:
+        raise RuntimeError(f"approved third-party projection failed for {result.failed} chunk(s)")
+    return result.completed
 
 
 def attach_ledger(wf: Workflow, ctx: dict[str, Any], run_id: str, mode: str = "auto") -> None:
@@ -529,6 +613,9 @@ def build_chat_transcript_workflow(
         "attempts": [],
         "custody_tier": custody_tier,
         "parent_run_id": parent_run_id,
+        "message_corpus": "first_party",
+        "caller_owns_conversation": True,
+        "source_principal": (source_meta or {}).get("source_principal"),
     }
 
     def custody_step(step_input: StepInput) -> StepOutput:
@@ -637,6 +724,10 @@ def build_sms_xml_workflow(
         "alt_parse_detail": None,
         "custody_tier": custody_tier,
         "parent_run_id": parent_run_id,
+        "message_corpus": (source_meta or {}).get("message_corpus"),
+        "caller_owns_conversation": bool((source_meta or {}).get("caller_owns_conversation")),
+        "source_principal": (source_meta or {}).get("source_principal"),
+        "native_evidence_required": True,
     }
 
     def custody_step(step_input: StepInput) -> StepOutput:
@@ -1028,7 +1119,19 @@ async def run_knowledge_from_store(
                 },
             )
         else:
-            n = await ingest_into_knowledge(knowledge, records, artifact, domain, attempts_log=attempts_log)
+            from server.evidence.vector_projection import NativeEvidenceProjector
+
+            if workflow == "sms-xml":
+                if not isinstance(knowledge, NativeEvidenceProjector):
+                    raise TypeError("evidence retry requires NativeEvidenceProjector; Agno Knowledge is forbidden")
+                record_ids = [str(record.attrs.get("_normalized_record_id") or "") for record in records]
+                knowledge.enqueue([record_id for record_id in record_ids if record_id], reason="retry_from_store")
+                drained = knowledge.drain()
+                if drained.failed:
+                    raise RuntimeError(f"native vector retry failed for {drained.failed} queued chunk(s)")
+                n = drained.completed
+            else:
+                n = await ingest_into_knowledge(knowledge, records, artifact, domain, attempts_log=attempts_log)
             duration_s = round(time.monotonic() - k_t0, 3)
             content = (
                 f"knowledge: {n} conversation doc(s) -> domain={domain} "

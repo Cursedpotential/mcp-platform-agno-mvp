@@ -1,5 +1,10 @@
 // Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: records, schemas, verify, parse-dryrun, flags; C4: knowledge search/browse + Graphiti pane types added 2026-07-23)
+// Byline: Codex · GPT-5 · 2026-08-18 (conversation intake and governed entities)
 // Byline: Codex · GPT-5 · 2026-08-15 (durable reports and Matter court-readiness contracts)
+// Byline: Codex · GPT-5 · 2026-08-18 (message projection, realization, and chunk lineage contracts)
+// Byline amendment: Codex · GPT-5 · 2026-08-18 (third-party human review contracts)
+// Byline amendment: Codex · GPT-5 · 2026-08-18 (Evidence Operations Desk source/context contracts)
+// Byline: Codex · GPT-5 · 2026-08-18 (native evidence search compatibility envelope)
 /**
  * Types for the Knowledge Workbench staged-file record.
  *
@@ -392,7 +397,7 @@ export interface ToolServerGroup {
 // independently verified — same posture as the Runs types above).
 // ---------------------------------------------------------------------------
 
-/** One row of `GET /api/records` — a normalized_record. */
+/** One row of `GET /api/records` — authored normalized lineage plus projection context. */
 export interface RecordRow {
   id: string;
   /** Position within its artifact — the split-boundary/turn-order signal. */
@@ -405,6 +410,16 @@ export interface RecordRow {
   /** Untruncated character length of the full record text. */
   full_len: number;
   attrs: Record<string, unknown>;
+  source_kind: RecordSourceKind;
+  projection_kind: RecordProjectionKind;
+  source_available_from?: string | null;
+  normalized_lineage: {
+    normalized_record_id: string;
+    artifact_id: string;
+  };
+  third_party_conversation?: ThirdPartyConversationContext | null;
+  third_party_review?: ThirdPartyPendingReview | null;
+  realization_events: RealizationEventDetail[];
 }
 
 /** `GET /api/records` response. */
@@ -431,8 +446,11 @@ export interface SchemaColumn {
   type: string;
 }
 
+export type TableAuthority = "authored" | "derived" | "audit-control";
+
 export interface SchemaTable {
   table: string;
+  authority: TableAuthority;
   row_count: number;
   row_count_is_estimate: boolean;
   columns: SchemaColumn[];
@@ -489,6 +507,7 @@ export interface TableDetailIndex {
 export interface TableDetail {
   schema: PgSchemaName;
   table: string;
+  authority: TableAuthority;
   limit: number;
   columns: TableDetailColumn[];
   indexes: TableDetailIndex[];
@@ -625,7 +644,8 @@ export interface FlagUpdateRequest {
 // chunk, metadata, and custody-provenance inspection.
 // ---------------------------------------------------------------------------
 
-/** One hit from `GET /api/knowledge/search` — mirrors agno's `VectorSearchResult`. */
+/** One hit from `GET /api/knowledge/search`. Evidence hits are normalized from
+ * the native horizon-prefiltered store; other lanes retain Agno compatibility. */
 export interface KnowledgeSearchHit {
   id: string;
   content: string;
@@ -640,8 +660,7 @@ export interface KnowledgeSearchHit {
   size?: number | null;
 }
 
-/** Shared pagination envelope agno's PaginatedResponse uses for both
- * knowledge search and content-browse. */
+/** Shared pagination envelope used by knowledge search and content browse. */
 export interface KnowledgePageMeta {
   page: number;
   limit: number;
@@ -700,6 +719,95 @@ export interface KnowledgeRecord {
   matter_id: string;
   domain: string;
   created_at: string;
+  source_kind: RecordSourceKind;
+  projection_kind: RecordProjectionKind;
+  source_available_from?: string | null;
+  normalized_lineage: { normalized_record_id: string; artifact_id: string };
+  third_party_conversation?: ThirdPartyConversationContext | null;
+  realization_events: RealizationEventDetail[];
+}
+
+export interface ThirdPartyPendingParticipant {
+  id: string;
+  participant_raw: string | null;
+  role: "from" | "to" | "cc" | "bcc" | "group";
+  entity_id: string | null;
+}
+
+export interface ThirdPartyPendingMessage {
+  id: string;
+  normalized_record_id: string;
+  sender_raw: string | null;
+  sender_entity_id: string | null;
+  participants: ThirdPartyPendingParticipant[];
+}
+
+export interface ThirdPartyPendingReview {
+  conversation_id: string;
+  review_status: "pending" | "approved" | "rejected";
+  decision_state: "proposed" | "approved";
+  messages: ThirdPartyPendingMessage[];
+}
+
+export interface ThirdPartyApprovalRequest {
+  sender_entity_ids: Record<string, string>;
+  participant_entity_ids: Record<string, string>;
+  reason: string;
+}
+
+export type MessageCorpus = "first_party" | "acquired_third_party";
+
+export interface AcquisitionAssertionInput {
+  acquired_at: string;
+  method: "own_device" | "household_device" | "voluntary_third_party" | "legal_process" | "public_source" | "unknown";
+  authority: "device_owner" | "parent_guardian" | "account_holder" | "consent_given" | "court_order" | "unclear";
+  source_device?: string | null;
+  device_custodian?: string | null;
+  notes?: string | null;
+}
+
+export interface GovernedEntity {
+  id: string;
+  display_name: string;
+  entity_type: string;
+  review_status: string;
+  safe_for_legal_use: boolean;
+}
+
+export interface GovernedEntitiesResponse {
+  entities: GovernedEntity[];
+}
+
+export interface ThirdPartyApprovalResponse {
+  approval: {
+    conversation_id: string;
+    approved_record_count: number;
+    audit_ledger_id: number;
+    vector_reprojection: {
+      artifact_id: string;
+      normalized_record_ids: string[];
+      source_available_from: Record<string, string>;
+    };
+  };
+  reprojection:
+    | { status: "completed"; record_count: number }
+    | { status: "replay_pending"; reason: string };
+}
+
+/** Rebuildable derived chunk; never an authored record or editing target. */
+export interface KnowledgeChunk {
+  chunk_id: string;
+  normalized_record_id: string;
+  chunker_id: string;
+  chunk_index: number;
+  content: string;
+  content_sha256: string;
+  source_content_sha256: string;
+  char_start?: number | null;
+  char_end?: number | null;
+  token_count?: number | null;
+  attrs?: Record<string, unknown> | null;
+  derived_at: string;
 }
 
 /** Canonical item detail from `GET /api/knowledge/contents/{artifactId}`. */
@@ -715,7 +823,9 @@ export interface KnowledgeItemDetail {
   parser_id?: string | null;
   chunker_id?: string | null;
   record_count: number;
+  chunk_count: number;
   records: KnowledgeRecord[];
+  chunks: KnowledgeChunk[];
 }
 
 // ---------------------------------------------------------------------------
@@ -739,6 +849,8 @@ export type EvidenceReviewDecision =
   | "escalated"
   | "hold";
 export type KnowledgeLane = "platform" | "legal" | "personal_history" | "context" | "evidence";
+export type RecordSourceKind = "first_party" | "third_party_acquired" | "unclassified";
+export type RecordProjectionKind = "authored_normalized" | "derived_third_party";
 
 export interface Matter {
   id: string;
@@ -802,6 +914,9 @@ export interface SourceCandidate {
   role?: string | null;
   content: string;
   occurred_at?: string | null;
+  source_kind: RecordSourceKind;
+  projection_kind: RecordProjectionKind;
+  source_available_from?: string | null;
   disclosure_tier: string;
   review_status: ReviewState;
 }
@@ -866,6 +981,32 @@ export interface EvidencePromotionDetail {
   promoted_at: string;
 }
 
+export interface ThirdPartyConversationContext {
+  id: string;
+  external_thread_key: string;
+  platform: string;
+  title?: string | null;
+  acquisition_id?: string | null;
+  acquired_at: string;
+  actual_sender?: string | null;
+  actual_recipients: string[];
+  actual_participants: string[];
+}
+
+export interface RealizationEventDetail {
+  id: string;
+  kind: string;
+  realized_at: string;
+  approval_state: "proposed" | "approved" | "superseded";
+  trigger_record_id?: string | null;
+  evidence_pointer: Record<string, unknown>;
+  proposer: "algorithm" | "owner";
+  proposed_at: string;
+  approved_at?: string | null;
+  approved_by?: string | null;
+  notes?: string | null;
+}
+
 export interface CanonicalRecordDetail {
   id: string;
   record_type: string;
@@ -874,8 +1015,15 @@ export interface CanonicalRecordDetail {
   role?: string | null;
   content: string;
   occurred_at?: string | null;
+  source_kind: RecordSourceKind;
+  projection_kind: RecordProjectionKind;
+  source_available_from?: string | null;
+  third_party_conversation?: ThirdPartyConversationContext | null;
+  realization_events: RealizationEventDetail[];
+  /** @deprecated Use third_party_conversation.acquired_at. */
   acquired_at?: string | null;
   ingested_at: string;
+  /** @deprecated Use realization_events. */
   realized_at?: string | null;
   disclosure_tier: string;
   review_status: ReviewState;
@@ -932,6 +1080,34 @@ export interface EvidenceDetail {
   custody_hash: CustodyHashDetail;
   source: EvidenceSourceDetail;
   file_node?: EvidenceFileNodeDetail | null;
+}
+
+/** Read-only source bytes/text projection for the Evidence Operations Desk. */
+export interface EvidenceSourceContent {
+  content: string;
+  mime_type?: string | null;
+  source_pointer?: EvidenceSourcePointerDetail | null;
+  provenance?: Record<string, unknown> | null;
+  h1?: string | null;
+  h2?: string | null;
+  h3?: string | null;
+}
+
+export interface EvidenceConversationMessage {
+  id: string;
+  content: string;
+  sender?: string | null;
+  recipients: string[];
+  occurred_at?: string | null;
+  source_pointer?: Record<string, unknown> | null;
+}
+
+/** Context window around the selected normalized message. */
+export interface EvidenceConversationContext {
+  messages: EvidenceConversationMessage[];
+  before: number;
+  after: number;
+  total?: number | null;
 }
 
 export type CourtReadinessBlocker =

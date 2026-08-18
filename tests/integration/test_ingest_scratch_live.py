@@ -4,6 +4,7 @@ Run only with ``HORIZON_SCRATCH_LIVE=1`` and scratch DB/SBV environment
 variables. The test refuses the canonical ``primary`` matter scope.
 
 Byline: Codex · GPT-5 · 2026-08-16
+Byline amendment: Codex · GPT-5 · 2026-08-18 (source/chunk read-model split)
 """
 
 from __future__ import annotations
@@ -44,6 +45,9 @@ def test_markdown_and_sbv_export_land_in_scratch_postgres() -> None:
         IngestRequest(
             staged_path=str(_FIXTURES / "sms.xml"),
             lane=IngestLane.evidence,
+            message_corpus="first_party",
+            source_principal="scratch-owner",
+            caller_owns_conversation=True,
             matter_id=_MATTER_ID,
             coverage_hint="smsbackuprestore-xml",
             engine="auto",
@@ -72,6 +76,7 @@ def test_markdown_and_sbv_export_land_in_scratch_postgres() -> None:
     assert markdown_item is not None
     assert markdown_item["source_sha256"] == markdown.source_sha256
     assert markdown.chunker_id == "chonkie.recursive@1.7.0:1500-chars"
-    assert markdown.chunk_count == len(markdown_item["records"]) > 1
-    assert all(record["attrs"]["chunker_id"] == markdown.chunker_id for record in markdown_item["records"])
-    assert [record["attrs"]["chunk_index"] for record in markdown_item["records"]] == list(range(markdown.chunk_count))
+    assert markdown_item["record_count"] == len(markdown_item["records"]) == markdown.record_count == 1
+    assert markdown.chunk_count == markdown_item["chunk_count"] == len(markdown_item["chunks"]) > 1
+    assert all(chunk["chunker_id"] == markdown.chunker_id for chunk in markdown_item["chunks"])
+    assert [chunk["chunk_index"] for chunk in markdown_item["chunks"]] == list(range(markdown.chunk_count))

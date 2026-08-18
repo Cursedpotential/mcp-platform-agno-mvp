@@ -1,5 +1,8 @@
 // Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: records, schemas, verify, parse-dryrun, flags; C4: knowledge search/browse + Graphiti pane added 2026-07-23)
 // Byline: Codex · GPT-5 · 2026-08-15 (run reports, review actions, and court readiness)
+// Byline: Codex · GPT-5 · 2026-08-18 (conversation intake and governed entities)
+// Byline amendment: Codex · GPT-5 · 2026-08-18 (third-party review client)
+// Byline: Codex · GPT-5 · 2026-08-18 (native evidence horizon search parameter)
 /**
  * API client for the Knowledge Workbench.
  *
@@ -14,6 +17,8 @@ import type {
   CourtCase,
   CourtCaseStatus,
   EvidenceDetail,
+  EvidenceSourceContent,
+  EvidenceConversationContext,
   CourtReadiness,
   EvidenceItemListResponse,
   EvidencePromotionResult,
@@ -57,6 +62,12 @@ import type {
   RunSummary,
   SchemasResponse,
   TableDetail,
+  ThirdPartyApprovalRequest,
+  ThirdPartyApprovalResponse,
+  AcquisitionAssertionInput,
+  GovernedEntitiesResponse,
+  GovernedEntity,
+  MessageCorpus,
   StagedFile,
   StagedFileMeta,
   ToolServerGroup,
@@ -263,6 +274,10 @@ export async function createRunFromStaged(params: {
   mode: RunMode;
   custodyTier?: CustodyTier;
   sourceMeta?: Record<string, unknown>;
+  messageCorpus: MessageCorpus;
+  sourcePrincipal: string;
+  callerOwnsConversation: boolean;
+  acquisition?: AcquisitionAssertionInput;
 }) {
   return apiFetch<RunCreateResponse>("/api/runs", {
     method: "POST",
@@ -274,6 +289,10 @@ export async function createRunFromStaged(params: {
       mode: params.mode,
       custody_tier: params.custodyTier ?? null,
       source_meta: params.sourceMeta ?? null,
+      message_corpus: params.messageCorpus,
+      source_principal: params.sourcePrincipal,
+      caller_owns_conversation: params.callerOwnsConversation,
+      acquisition: params.acquisition ?? null,
     }),
   });
 }
@@ -286,6 +305,10 @@ export async function createRunFromFile(params: {
   mode: RunMode;
   custodyTier?: CustodyTier;
   sourceMeta?: Record<string, unknown>;
+  messageCorpus: MessageCorpus;
+  sourcePrincipal: string;
+  callerOwnsConversation: boolean;
+  acquisition?: AcquisitionAssertionInput;
 }) {
   const formData = new FormData();
   formData.append("file", params.file);
@@ -294,6 +317,10 @@ export async function createRunFromFile(params: {
   formData.append("mode", params.mode);
   if (params.custodyTier) formData.append("custody_tier", params.custodyTier);
   if (params.sourceMeta) formData.append("source_meta", JSON.stringify(params.sourceMeta));
+  formData.append("message_corpus", params.messageCorpus);
+  formData.append("source_principal", params.sourcePrincipal);
+  formData.append("caller_owns_conversation", String(params.callerOwnsConversation));
+  if (params.acquisition) formData.append("acquisition", JSON.stringify(params.acquisition));
   return apiFetch<RunCreateResponse>("/api/runs", { method: "POST", body: formData });
 }
 
@@ -388,6 +415,34 @@ export async function getSchemas() {
   return apiFetch<SchemasResponse>("/api/schemas");
 }
 
+export async function approveThirdPartyConversation(
+  conversationId: string,
+  review: ThirdPartyApprovalRequest,
+) {
+  return apiFetch<ThirdPartyApprovalResponse>(
+    `/api/third-party-conversations/${encodeURIComponent(conversationId)}/approve`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(review),
+    },
+  );
+}
+
+export async function listGovernedEntities(query = "", limit = 20) {
+  const qs = new URLSearchParams({ limit: String(limit) });
+  if (query.trim()) qs.set("q", query.trim());
+  return apiFetch<GovernedEntitiesResponse>(`/api/entities?${qs.toString()}`);
+}
+
+export async function createGovernedEntity(payload: { display_name: string; entity_type?: string }) {
+  return apiFetch<GovernedEntity>("/api/entities", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function getTableDetail(schema: PgSchemaName, table: string, limit = 5) {
   const qs = new URLSearchParams({ limit: String(limit) });
   return apiFetch<TableDetail>(
@@ -473,6 +528,9 @@ export interface SearchKnowledgeParams {
   caseId?: string;
   lane?: string;
   limit?: number;
+  /** Optional as-lived ceiling. The evidence service clamps omitted searches
+   * to the current instant and never accepts disclosure tiers from callers. */
+  horizon?: string;
 }
 
 export async function searchKnowledge(query: string, params: SearchKnowledgeParams = {}) {
@@ -480,6 +538,7 @@ export async function searchKnowledge(query: string, params: SearchKnowledgePara
   qs.set("case_id", params.caseId || "primary");
   if (params.lane) qs.set("lane", params.lane);
   if (params.limit) qs.set("limit", String(params.limit));
+  if (params.horizon) qs.set("horizon", params.horizon);
   return apiFetch<KnowledgeSearchResponse>(`/api/knowledge/search?${qs.toString()}`);
 }
 
@@ -598,6 +657,18 @@ export async function listEvidenceItems(matterId: string, limit = 50, offset = 0
 export async function getEvidenceDetail(matterId: string, evidenceItemId: string) {
   return apiFetch<EvidenceDetail>(
     `/api/matters/${encodeURIComponent(matterId)}/evidence-items/${encodeURIComponent(evidenceItemId)}`,
+  );
+}
+
+export async function getEvidenceSourceContent(matterId: string, evidenceItemId: string) {
+  return apiFetch<EvidenceSourceContent>(
+    `/api/matters/${encodeURIComponent(matterId)}/evidence-items/${encodeURIComponent(evidenceItemId)}/source-content`,
+  );
+}
+
+export async function getEvidenceConversationContext(matterId: string, evidenceItemId: string) {
+  return apiFetch<EvidenceConversationContext>(
+    `/api/matters/${encodeURIComponent(matterId)}/evidence-items/${encodeURIComponent(evidenceItemId)}/conversation-context?before=25&after=25`,
   );
 }
 

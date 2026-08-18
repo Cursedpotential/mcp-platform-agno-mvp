@@ -1,6 +1,7 @@
 """tests/test_evidence_retrieval.py — the horizon-gated evidence seam (ADR-0050 §4, Phase 3).
 
 Byline: Claude Code · Fable 5 · 2026-08-11
+Byline amendment: Codex · GPT-5 · 2026-08-18 (source-availability clock split)
 
 Observed-behavior tests per the approved plan's Phase 3 verification: seed
 documents with different visibility clocks, query at an intermediate horizon,
@@ -28,8 +29,10 @@ class _FakeKnowledge:
 
     def __init__(self, docs: list[_Doc]) -> None:
         self._docs = docs
+        self.filters = None
 
-    async def async_search(self, query: str, max_results: int = 10, **_: object) -> list[_Doc]:
+    async def async_search(self, query: str, max_results: int = 10, **kwargs: object) -> list[_Doc]:
+        self.filters = kwargs.get("filters")
         return self._docs[:max_results]
 
 
@@ -41,15 +44,18 @@ def _audit_recorder(calls: list[dict]):
     return _audit
 
 
-EARLY = _Doc("early", {"case_id": "primary", "occurred_at_min": "2024-01-01T00:00:00+00:00"})
-LATE = _Doc("late", {"case_id": "primary", "occurred_at_min": "2025-06-01T00:00:00+00:00"})
+EARLY = _Doc("early", {"case_id": "primary", "source_available_from": "2024-01-01T00:00:00+00:00"})
+LATE = _Doc("late", {"case_id": "primary", "source_available_from": "2025-06-01T00:00:00+00:00"})
 UNDATED = _Doc("undated", {"case_id": "primary"})
-OTHER_CASE = _Doc("other", {"case_id": "someone-else", "occurred_at_min": "2024-01-01T00:00:00+00:00"})
-REALIZED = _Doc(
-    "realized",
-    # visible_from (S6 surface) WINS over occurred_at_min per ADR-0045 COALESCE:
-    # occurred early, but only became visible late.
-    {"case_id": "primary", "occurred_at_min": "2024-01-01T00:00:00+00:00", "visible_from": "2025-09-01T00:00:00+00:00"},
+OTHER_CASE = _Doc("other", {"case_id": "someone-else", "source_available_from": "2024-01-01T00:00:00+00:00"})
+ACQUIRED = _Doc(
+    "acquired",
+    # The message occurred early but entered the corpus only upon acquisition.
+    {
+        "case_id": "primary",
+        "occurred_at_min": "2024-01-01T00:00:00+00:00",
+        "source_available_from": "2025-09-01T00:00:00+00:00",
+    },
 )
 
 
@@ -83,11 +89,11 @@ def test_undated_documents_are_denied():
     assert res.denied == 1
 
 
-def test_visible_from_wins_over_occurred_at():
+def test_acquisition_boundary_wins_over_third_party_occurrence():
     calls: list[dict] = []
     res = asyncio.run(
         evidence_search(
-            _FakeKnowledge([REALIZED]),
+            _FakeKnowledge([ACQUIRED]),
             "q",
             horizon="2025-01-01T00:00:00+00:00",  # after occurred_at, BEFORE visible_from
             actor="test",
@@ -95,6 +101,21 @@ def test_visible_from_wins_over_occurred_at():
         )
     )
     assert res.documents == [] and res.denied == 1
+
+
+def test_exact_case_dict_filter_is_sent_before_ranking():
+    calls: list[dict] = []
+    knowledge = _FakeKnowledge([EARLY])
+    asyncio.run(
+        evidence_search(
+            knowledge,
+            "q",
+            horizon="2026-01-01T00:00:00+00:00",
+            actor="test",
+            audit=_audit_recorder(calls),
+        )
+    )
+    assert knowledge.filters == {"case_id": "primary"}
 
 
 def test_foreign_case_id_is_denied():

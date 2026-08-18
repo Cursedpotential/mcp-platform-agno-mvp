@@ -1,3 +1,4 @@
+# Byline amendment: Codex · GPT-5 · 2026-08-18 (combined-change hygiene)
 """Unit tests for server.tools.parsers.messaging.imessage_html — imessage-exporter HTML export.
 
 The DOM discriminator (div.message > div.sent|received > timestamp+sender) is

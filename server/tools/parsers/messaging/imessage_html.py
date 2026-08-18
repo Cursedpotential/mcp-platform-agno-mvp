@@ -1,3 +1,4 @@
+# Byline amendment: Codex · GPT-5 · 2026-08-18 (combined-change hygiene)
 """Atomic tool: ReagentX/imessage-exporter HTML export  ->  NormalizedRecords.
 
 One format, one module, swappable. Handles the HTML produced by
@@ -49,6 +50,7 @@ from typing import Any
 from server.contracts.records import DisclosureTier, NormalizedRecord, RecordType
 from server.tools.registry import register
 from server.tools._common import records_out
+from ._source_parties import enrich_message_parties
 
 OWNER = "owner"
 ME = "Me"
@@ -404,7 +406,7 @@ def parse(payload: dict[str, Any]) -> dict[str, Any]:
         # Owner-CUSTOM export variant (div.bubble.from-me/them + .meta) — the real
         # vault format. Parsed separately; document order preserved.
         if looks_like_owner_imessage_html(soup):
-            owner_records = _parse_owner_format(soup, conv_id)
+            owner_records = enrich_message_parties(_parse_owner_format(soup, conv_id), payload)
             return records_out(
                 owner_records,
                 messages=sum(1 for r in owner_records if r.record_type == RecordType.message),
@@ -442,4 +444,5 @@ def parse(payload: dict[str, Any]) -> dict[str, Any]:
     messages = sum(1 for r in records if r.record_type == RecordType.message)
     calls = sum(1 for r in records if r.record_type == RecordType.call)
     events = sum(1 for r in records if r.record_type == RecordType.event)
+    records = enrich_message_parties(records, payload)
     return records_out(records, messages=messages, calls=calls, announcements=events, participants=len(participants))

@@ -20,12 +20,14 @@ from app.types.case_management import (
     EvidenceReviewCreate,
     EvidenceReviewList,
     EvidenceReviewResult,
+    ConversationContext,
     KnowledgeSourceRef,
     KnowledgeSourceResolution,
     Matter,
     MatterCreate,
     MatterDetail,
     MatterList,
+    OriginalSourceContent,
 )
 from app.types.evidence_detail import CourtReadiness, EvidenceDetail
 
@@ -129,6 +131,38 @@ def get_court_readiness_endpoint(matter_id: UUID, evidence_item_id: UUID):
     if readiness.matter_id != matter_id or readiness.evidence_item_id != evidence_item_id:
         raise HTTPException(status_code=502, detail="Spine returned court readiness for a different evidence item")
     return readiness
+
+
+@router.get(
+    "/matters/{matter_id}/evidence-items/{evidence_item_id}/source-content",
+    response_model=OriginalSourceContent,
+)
+def get_original_source_content_endpoint(matter_id: UUID, evidence_item_id: UUID):
+    try:
+        return service.get_original_source_content(matter_id, evidence_item_id)
+    except service.SpineError as error:
+        _raise_spine(error)
+
+
+@router.get(
+    "/matters/{matter_id}/evidence-items/{evidence_item_id}/conversation-context",
+    response_model=ConversationContext,
+)
+def get_conversation_context_endpoint(
+    matter_id: UUID,
+    evidence_item_id: UUID,
+    before: Annotated[int, Query(ge=0, le=100)] = 25,
+    after: Annotated[int, Query(ge=0, le=100)] = 25,
+):
+    try:
+        return service.get_conversation_context(
+            matter_id,
+            evidence_item_id,
+            before=before,
+            after=after,
+        )
+    except service.SpineError as error:
+        _raise_spine(error)
 
 
 @router.post(

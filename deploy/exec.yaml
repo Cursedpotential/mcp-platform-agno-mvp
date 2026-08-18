@@ -3,6 +3,8 @@
 #         annotated superseded/down (ADR-0040, D-042, data-vector off since 2026-08-10).
 # Byline: Codex · GPT-5 · 2026-08-13 — restore the live AgentOS Traefik
 #         route lost during compose consolidation; auth remains OS_SECURITY_KEY.
+# Byline: Codex · GPT-5 · 2026-08-18 — native-evidence blue/green activation
+#         inputs; secrets remain Coolify-managed and are never committed.
 # =============================================================================
 # EXEC TIER (RUMP) — deploy on OVH-1 ("ovh1-agno"; tailnet 100.72.169.40, salem
 # private 10.1.1.122, public 40.160.5.19), the execution + surfaces box.
@@ -105,6 +107,16 @@ services:
       CF_GATEWAY_TOKEN: ${CF_GATEWAY_TOKEN:-}           # long-lived client JWT (mint w/ create_jwt_token)
       # Knowledge embedder via OpenRouter symmetric models (ADR-0027).
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      # Native evidence vectors are an explicit, fail-closed cutover. The blue
+      # Weaviate app publishes REST 8082 / gRPC 50052 side by side with the old
+      # instance. Coolify must supply the target host and both security keys;
+      # no secret or production host is baked into this manifest.
+      NATIVE_EVIDENCE_ENABLED: ${NATIVE_EVIDENCE_ENABLED:?set true only after native evidence canaries pass}
+      WEAVIATE_HTTP_HOST: ${WEAVIATE_HTTP_HOST:?set the blue Weaviate host in Coolify}
+      WEAVIATE_HTTP_PORT: ${WEAVIATE_HTTP_PORT:-8082}
+      WEAVIATE_GRPC_PORT: ${WEAVIATE_GRPC_PORT:-50052}
+      WALK_PASS_SIGNING_KEY: ${WALK_PASS_SIGNING_KEY:?set WALK_PASS_SIGNING_KEY in Coolify app env}
+      EVIDENCE_OPERATOR_SECURITY_KEY: ${EVIDENCE_OPERATOR_SECURITY_KEY:?set EVIDENCE_OPERATOR_SECURITY_KEY in Coolify app env}
       # R2 blob landing zone (ADR-0007) — S3-compatible reads via boto3/agno.
       R2_BUCKET_NAME: ${R2_BUCKET_NAME:-}
       R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}

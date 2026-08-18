@@ -20,6 +20,10 @@ Hard rules:
 # Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3 spine boot resilience — KnowledgeHandle wired in place of a direct create_knowledge() call; register_inspect_routes added)
 # Byline: Claude Code · Sonnet · 2026-07-23 (agno 2.8 service accounts — AgentOS admin-plane db switched from SurrealDb to a dedicated PostgresDb; agents/teams keep SurrealDb unchanged)
 # Byline: Claude Code · Fable 5 · 2026-07-31 (Milvus→Weaviate doc-drift cleanup (ADR-0040))
+# Byline: Codex · GPT-5 · 2026-08-18 (native evidence-search route registration)
+# Byline: Codex · GPT-5 · 2026-08-18 (feature-gated native evidence runtime lifecycle)
+# Byline: Codex · GPT-5 · 2026-08-18 (governed canonical-entity routes)
+# Byline: Codex · GPT-5 · 2026-08-18 (remove legacy Agno evidence base; native-only fail-closed cutover)
 # Byline: Codex · GPT-5 · 2026-08-13 (ADR-0053 alignment; ADR-0054 optional Langfuse OTLP export)
 # Byline: Codex · GPT-5 · 2026-08-16 (framework-neutral ingest and canonical knowledge routes)
 # Byline: Claude Code · Opus 5 · 2026-08-05 (SurrealDB→Postgres doc-drift cleanup — the
@@ -32,6 +36,7 @@ Hard rules:
 
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 from functools import partial
 from os import getenv
@@ -74,7 +79,7 @@ scheduler_base_url: str = getenv("AGENTOS_URL", "http://127.0.0.1:8000")
 # the background retry loop after the app object exists.
 _knowledge_handle = KnowledgeHandle(partial(create_knowledge, "platform", "platform_knowledge"))
 
-# Named knowledge bases — the SIX-LANE architecture (ADR-0050, 2026-08-10).
+# Named Agno compatibility knowledge bases (ADR-0050, 2026-08-10).
 # AgentOS takes a LIST; each entry becomes its own selectable base.
 #
 # Storage (ADR-0050 Phase 1): each base gets its OWN contents table (per-table
@@ -82,20 +87,22 @@ _knowledge_handle = KnowledgeHandle(partial(create_knowledge, "platform", "platf
 # Weaviate collection — the embedder is a pinned per-collection contract
 # (ADR-0010; all lanes currently nv-embed-v1 per owner ruling 2026-08-10,
 # per-lane embedders are a future experiment) and mixing corpora in one
-# collection silently destroys retrieval margin. Evidence isolation is
-# STRUCTURAL: a missed filter can never leak evidence into other lanes.
+# collection silently destroys retrieval margin. Evidence is intentionally
+# absent: it is available only through the native, capability-bound routes.
 #
 # Each base gets its OWN handle so a vector-store outage degrades one base
 # instead of all of them (same boot-resilience contract as the platform handle).
 _KNOWLEDGE_BASES: dict[str, str] = {
     "legal": "legal_knowledge",  # strategy + documents ONLY (owner 2026-08-10)
-    "evidence": "evidence_knowledge",  # custody-approved records ONLY; horizon-gated retrieval
     "personal_history": "personal_history_knowledge",  # ADR-0053: includes relationship history
     "context": "platform_context",  # AI chats (ADR-0044 context corpus; existing collection)
 }
 _extra_knowledge_handles: dict[str, KnowledgeHandle] = {
     name: KnowledgeHandle(partial(create_knowledge, name, table)) for name, table in _KNOWLEDGE_BASES.items()
 }
+_native_evidence_runtime: Any | None = None
+_native_evidence_stop: asyncio.Event | None = None
+_native_evidence_task: asyncio.Task[None] | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -108,6 +115,8 @@ async def lifespan(app: Any) -> Any:
     """AgentOS lifespan: ensure pg_duckdb R2 secret on startup, start the
     knowledge-handle background reconnect if boot-time connect failed, log
     shutdown."""
+    global _native_evidence_stop, _native_evidence_task
+
     log_info("AgentOS lifespan: startup")
     from server.core import ensure_duckdb_r2_secret
 
@@ -119,11 +128,36 @@ async def lifespan(app: Any) -> Any:
                 "starting background reconnect (retries every 60s)"
             )
             handle.start_background_retry()
+    if _native_evidence_runtime is not None:
+        from server.core.native_evidence_runtime import run_native_projection_worker
+
+        _native_evidence_stop = asyncio.Event()
+        _native_evidence_task = asyncio.create_task(
+            run_native_projection_worker(
+                _native_evidence_runtime,
+                _native_evidence_stop,
+                batch_limit=int(getenv("NATIVE_EVIDENCE_DRAIN_BATCH_LIMIT", "100")),
+                idle_interval_s=float(getenv("NATIVE_EVIDENCE_DRAIN_INTERVAL_SECONDS", "5")),
+                error_backoff_s=float(getenv("NATIVE_EVIDENCE_DRAIN_ERROR_BACKOFF_SECONDS", "15")),
+                max_error_backoff_s=float(getenv("NATIVE_EVIDENCE_DRAIN_MAX_BACKOFF_SECONDS", "60")),
+            ),
+            name="native-evidence-projection-drain",
+        )
     try:
         yield
     finally:
         for handle in (_knowledge_handle, *_extra_knowledge_handles.values()):
             handle.stop_background_retry()
+        if _native_evidence_runtime is not None:
+            if _native_evidence_stop is not None:
+                _native_evidence_stop.set()
+            try:
+                if _native_evidence_task is not None:
+                    await _native_evidence_task
+            finally:
+                _native_evidence_runtime.close()
+                _native_evidence_stop = None
+                _native_evidence_task = None
         log_info("AgentOS lifespan: shutdown")
 
 
@@ -246,6 +280,8 @@ def _build_app() -> Any:
     so runs/evidence-imports/reindex started AFTER a background reconnect
     succeeds see the real knowledge engine without a process restart.
     """
+    global _native_evidence_runtime
+
     _assert_agno_version()
     model = build_model()
     db = get_agno_db()
@@ -292,6 +328,16 @@ def _build_app() -> Any:
     # 2.8.0 source 2026-08-02). PostgresDb implements the full protocol.
     learning = build_learning(admin_db, model, knowledge)
 
+    from server.core.native_evidence_runtime import (
+        create_native_evidence_runtime,
+        native_evidence_enabled,
+    )
+
+    _native_evidence_runtime = (
+        create_native_evidence_runtime(validate_activation=True) if native_evidence_enabled() else None
+    )
+    native_projector = _native_evidence_runtime.projector if _native_evidence_runtime is not None else None
+
     ctx = build_context(model, db, knowledge, learning, db_url)
     agents = build_agent_team(ctx)
 
@@ -326,21 +372,26 @@ def _build_app() -> Any:
     register_knowledge_routes(app, _knowledge_handle)
 
     from server.api.evidence_routes import register_evidence_routes
+    from server.api.entity_routes import register_entity_routes
     from server.api.case_management_routes import register_case_management_routes
     from server.api.inspect_routes import register_inspect_routes
     from server.api.ingest_routes import register_ingest_routes
+    from server.api.native_evidence_search_routes import register_native_evidence_search_routes
     from server.api.repair_routes import router as repair_router
     from server.api.run_routes import register_run_routes
 
-    # ADR-0050 Phase 1: messaging evidence (sms-xml) vectors into the EVIDENCE
-    # lane's handle — evidence_knowledge gets its first writer and stops
-    # leaking into the platform collection. evidence_routes is the
-    # chat-transcript vertical (CONTEXT per ADR-0044 §1) and stays on the
-    # platform handle until Phase 2 routes it to the context lane.
+    # Evidence vectors never receive an Agno Knowledge handle. SMS ingestion
+    # writes the native outbox only; when activation is disabled the projector
+    # and native search routes are both absent, with no legacy fallback.
+    # evidence_routes is the chat-transcript vertical (CONTEXT per ADR-0044
+    # §1) and stays on the platform handle until Phase 2 routes it to context.
     register_evidence_routes(app, _knowledge_handle)
-    register_run_routes(app, _knowledge_handle, evidence_knowledge=_extra_knowledge_handles["evidence"])
-    register_inspect_routes(app, _knowledge_handle)
-    register_ingest_routes(app)
+    register_run_routes(app, _knowledge_handle, native_projector=native_projector)
+    register_inspect_routes(app, _knowledge_handle, native_projector)
+    register_ingest_routes(app, native_projector)
+    if _native_evidence_runtime is not None:
+        register_native_evidence_search_routes(app, native_runtime=_native_evidence_runtime)
+    register_entity_routes(app)
     register_case_management_routes(app)
     app.include_router(repair_router)
 
@@ -381,10 +432,10 @@ def _build_app() -> Any:
         # note above). AgentOS wants a list; pass [] rather than [None] so
         # `_auto_discover_knowledge_instances`'s isinstance(k, Knowledge)
         # filter doesn't have to special-case a None entry.
-        # Every connected base is registered, so the UI lists Platform, Legal
-        # and Evidence as separate selectable knowledge bases rather than the
-        # single "platform" entry the owner kept hitting. A base that failed to
-        # connect is simply absent until its background retry succeeds.
+        # Every connected compatibility base is registered, so the UI lists
+        # Platform, Legal, Personal History, and Context. Evidence is never an
+        # AgentOS Knowledge base; native routes are its only retrieval surface.
+        # A base that failed to connect is absent until retry succeeds.
         knowledge=[k for k in (knowledge, *(h.instance for h in _extra_knowledge_handles.values())) if k is not None],
         # The evidence workflows existed but were never handed to AgentOS, so
         # `GET /workflows` returned [] and `POST /workflows/{id}/runs` did not
@@ -394,7 +445,9 @@ def _build_app() -> Any:
         # the factory per request with the caller's validated input.
         # `registered_workflows` never raises — registration is a convenience
         # surface and must not be able to crash-loop the boot path.
-        workflows=list[Workflow | RemoteWorkflow | WorkflowFactory](registered_workflows(db, knowledge)),
+        workflows=list[Workflow | RemoteWorkflow | WorkflowFactory](
+            registered_workflows(db, knowledge, native_projector)
+        ),
         base_app=app,
         enable_mcp_server=True,  # serve the OS as an MCP server at /mcp (extracted standalone by app/mcp_main.py — mounted /mcp 500s, see that file)
         on_route_conflict="preserve_base_app",

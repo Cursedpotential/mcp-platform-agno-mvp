@@ -1,4 +1,7 @@
 // Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: record browser detail — split-boundary view, curation, verify, flag)
+// Byline: Codex · GPT-5 · 2026-08-18 (third-party projection and plural realization detail)
+// Byline amendment: Codex · GPT-5 · 2026-08-18 (pending third-party human review form)
+// Byline: Codex · GPT-5 · 2026-08-18 (governed entity picker; authenticated reviewer)
 "use client";
 
 /**
@@ -34,7 +37,8 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { VerifyPanel } from "@/components/shared/verify-panel";
 import { FlagDialog } from "@/components/flags/flag-dialog";
-import { ApiError, patchRecordMeta } from "@/lib/api-client";
+import { EntityPicker } from "@/components/records/entity-picker";
+import { ApiError, approveThirdPartyConversation, patchRecordMeta } from "@/lib/api-client";
 import { formatDate } from "@/lib/utils";
 import type { RecordRow } from "@/lib/shared/types";
 
@@ -48,6 +52,8 @@ interface RecordDetailDrawerProps {
   sha256?: string | null;
   /** Called after a curation PATCH succeeds, so the parent can refresh its list. */
   onRecordUpdated?: (updated: RecordRow) => void;
+  /** Reloads the governed record view after a conversation-level approval. */
+  onReviewCompleted?: () => void;
 }
 
 function labelsOf(record: RecordRow): string[] {
@@ -68,6 +74,7 @@ export function RecordDetailDrawer({
   onSelect,
   sha256,
   onRecordUpdated,
+  onReviewCompleted,
 }: RecordDetailDrawerProps) {
   const [wrap, setWrap] = useState(true);
   const [mono, setMono] = useState(true);
@@ -75,6 +82,10 @@ export function RecordDetailDrawer({
   const [labelDraft, setLabelDraft] = useState("");
   const [saving, setSaving] = useState(false);
   const [flagOpen, setFlagOpen] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
+  const [reviewReason, setReviewReason] = useState("");
+  const [senderEntityIds, setSenderEntityIds] = useState<Record<string, string>>({});
+  const [participantEntityIds, setParticipantEntityIds] = useState<Record<string, string>>({});
 
   const index = records.findIndex((r) => r.id === selectedId);
   const record = index >= 0 ? records[index] : null;
@@ -85,9 +96,39 @@ export function RecordDetailDrawer({
     queueMicrotask(() => setTitleDraft(record ? titleOf(record) : ""));
   }, [record]);
 
+  useEffect(() => {
+    const review = record?.third_party_review;
+    queueMicrotask(() => {
+      setReviewReason("");
+      setSenderEntityIds(
+        Object.fromEntries((review?.messages ?? []).map((message) => [message.id, message.sender_entity_id ?? ""])),
+      );
+      setParticipantEntityIds(
+        Object.fromEntries(
+          (review?.messages ?? []).flatMap((message) =>
+            message.participants.map((participant) => [participant.id, participant.entity_id ?? ""]),
+          ),
+        ),
+      );
+    });
+  }, [record]);
+
   if (!record) return null;
 
   const labels = labelsOf(record);
+  const derivedProjection = record.projection_kind === "derived_third_party";
+  const pendingReview = record.third_party_review;
+  const reviewComplete = Boolean(
+    pendingReview &&
+      reviewReason.trim() &&
+      pendingReview.messages.length &&
+      pendingReview.messages.every(
+        (message) =>
+          senderEntityIds[message.id]?.trim() &&
+          message.participants.length &&
+          message.participants.every((participant) => participantEntityIds[participant.id]?.trim()),
+      ),
+  );
 
   const handleSaveTitle = async () => {
     setSaving(true);
@@ -132,6 +173,32 @@ export function RecordDetailDrawer({
     }
   };
 
+  const handleApproveThirdParty = async () => {
+    if (!pendingReview || !reviewComplete) return;
+    setReviewing(true);
+    try {
+      const result = await approveThirdPartyConversation(pendingReview.conversation_id, {
+        sender_entity_ids: Object.fromEntries(
+          Object.entries(senderEntityIds).map(([id, value]) => [id, value.trim()]),
+        ),
+        participant_entity_ids: Object.fromEntries(
+          Object.entries(participantEntityIds).map(([id, value]) => [id, value.trim()]),
+        ),
+        reason: reviewReason.trim(),
+      });
+      if (result.reprojection.status === "completed") {
+        toast.success(`Approved and replayed ${result.reprojection.record_count} record(s)`);
+      } else {
+        toast.warning(`Approved; vector replay pending: ${result.reprojection.reason}`);
+      }
+      onReviewCompleted?.();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Third-party approval failed");
+    } finally {
+      setReviewing(false);
+    }
+  };
+
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
@@ -141,6 +208,8 @@ export function RecordDetailDrawer({
               Record #{record.idx}
               <Badge variant="outline">{record.record_type}</Badge>
               {record.role && <Badge variant="secondary">{record.role}</Badge>}
+              <Badge variant="outline">{record.source_kind.replaceAll("_", " ")}</Badge>
+              <Badge variant="outline">{record.projection_kind.replaceAll("_", " ")}</Badge>
             </SheetTitle>
             <SheetDescription>
               {record.ts ? formatDate(record.ts) : "no timestamp"} · {record.full_len.toLocaleString()} chars
@@ -180,17 +249,93 @@ export function RecordDetailDrawer({
 
             <Separator />
 
+            <div className="space-y-2 rounded-md border p-3 text-xs">
+              <p className="font-medium uppercase tracking-wide text-muted-foreground">Source authority</p>
+              <p>Normalized record: <span className="font-mono">{record.normalized_lineage.normalized_record_id}</span></p>
+              <p>Source available: {record.source_available_from ? formatDate(record.source_available_from) : "not approved / unavailable"}</p>
+              {record.third_party_conversation && (
+                <>
+                  <p>Actual sender: {record.third_party_conversation.actual_sender || "not established"}</p>
+                  <p>Actual recipients: {record.third_party_conversation.actual_recipients.join(", ") || "not established"}</p>
+                  <p className="text-muted-foreground">The owner is not inferred as a participant. Acquisition authority controls visibility.</p>
+                </>
+              )}
+            </div>
+
+            {pendingReview && (
+              <div className="space-y-3 rounded-md border border-amber-500/40 bg-amber-500/5 p-3">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide">Pending third-party review</p>
+                  <p className="text-xs text-muted-foreground">
+                    Raw projection rows are read-only. Resolve every row to an existing entity UUID; the owner is never inferred or allowed as a participant.
+                  </p>
+                </div>
+                {pendingReview.messages.map((message) => (
+                  <div key={message.id} className="space-y-2 rounded-md border bg-background p-2 text-xs">
+                    <p className="font-mono text-muted-foreground">Message {message.id}</p>
+                    <p>Raw sender: <span className="font-medium">{message.sender_raw || "missing"}</span></p>
+                    <EntityPicker
+                      label="Sender"
+                      rawIdentity={message.sender_raw}
+                      value={senderEntityIds[message.id] ?? ""}
+                      onChange={(entityId) => setSenderEntityIds((current) => ({ ...current, [message.id]: entityId }))}
+                      disabled={reviewing}
+                    />
+                    {message.participants.map((participant) => (
+                      <div key={participant.id} className="space-y-1 border-l-2 pl-2">
+                        <p>
+                          Raw {participant.role}: <span className="font-medium">{participant.participant_raw || "missing"}</span>
+                        </p>
+                        <EntityPicker
+                          label={participant.role}
+                          rawIdentity={participant.participant_raw}
+                          value={participantEntityIds[participant.id] ?? ""}
+                          onChange={(entityId) => setParticipantEntityIds((current) => ({ ...current, [participant.id]: entityId }))}
+                          disabled={reviewing}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ))}
+                <p className="text-xs text-muted-foreground">Reviewer: authenticated owner (set by the server)</p>
+                <Input
+                  value={reviewReason}
+                  onChange={(event) => setReviewReason(event.target.value)}
+                  placeholder="Approval reason (required)"
+                  aria-label="Approval reason"
+                  disabled={reviewing}
+                />
+                <Button onClick={handleApproveThirdParty} disabled={reviewing || !reviewComplete}>
+                  {reviewing ? "Approving…" : "Approve resolved conversation"}
+                </Button>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Realization links</p>
+              {record.realization_events.length ? record.realization_events.map((event) => (
+                <div key={event.id} className="rounded-md border p-2 text-xs">
+                  {event.kind.replaceAll("_", " ")} · {event.approval_state} · {formatDate(event.realized_at)}
+                </div>
+              )) : <p className="text-xs text-muted-foreground">No linked realization events.</p>}
+            </div>
+
+            <Separator />
+
             {/* Curation: title + label chips (analysis-lane metadata only) */}
             <div className="space-y-2">
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Curation</p>
+              {derivedProjection && (
+                <p className="text-xs text-muted-foreground">This third-party row is a read-only derived projection. Correct acquisition authority at its governed source.</p>
+              )}
               <div className="flex gap-2">
                 <Input
                   value={titleDraft}
                   onChange={(e) => setTitleDraft(e.target.value)}
                   placeholder="Title this record…"
-                  disabled={saving}
+                  disabled={saving || derivedProjection}
                 />
-                <Button size="sm" onClick={handleSaveTitle} disabled={saving || titleDraft === titleOf(record)}>
+                <Button size="sm" onClick={handleSaveTitle} disabled={saving || derivedProjection || titleDraft === titleOf(record)}>
                   Save
                 </Button>
               </div>
@@ -201,7 +346,7 @@ export function RecordDetailDrawer({
                     <button
                       type="button"
                       onClick={() => handleRemoveLabel(label)}
-                      disabled={saving}
+                      disabled={saving || derivedProjection}
                       className="ml-0.5 opacity-70 hover:opacity-100"
                       aria-label={`Remove label ${label}`}
                     >
@@ -219,7 +364,7 @@ export function RecordDetailDrawer({
                     }
                   }}
                   placeholder="add label…"
-                  disabled={saving}
+                  disabled={saving || derivedProjection}
                   className="h-7 w-28 text-xs"
                 />
               </div>

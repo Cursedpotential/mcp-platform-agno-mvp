@@ -1,5 +1,6 @@
 # Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: parse-dryrun endpoint)
 # Byline: Codex · GPT-5 · 2026-08-13 (report and review-action endpoints)
+# Byline: Codex · GPT-5 · 2026-08-18 (authenticated conversation intake)
 """POST /api/runs, GET /api/runs, GET /api/runs/{id} — proxy to the spine's run pipeline.
 
 POST /api/runs accepts EITHER a JSON body ({staged_id, workflow, domain,
@@ -46,7 +47,21 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["runs"])
 
 
+def _authenticated_owner(request: Request) -> str:
+    principal = getattr(request.state, "principal", None)
+    if principal != "owner":
+        raise HTTPException(status_code=401, detail="authenticated owner required")
+    return principal
+
+
+def _acquisition_with_principal(value: dict | None, request: Request) -> dict | None:
+    if value is None:
+        return None
+    return {**value, "asserted_by_category": "human", "asserted_by": _authenticated_owner(request)}
+
+
 async def _start_from_multipart(request: Request) -> dict:
+    _authenticated_owner(request)
     form = await request.form()
     upload = form.get("file")
     if upload is None or not hasattr(upload, "read"):
@@ -58,6 +73,14 @@ async def _start_from_multipart(request: Request) -> dict:
     except (TypeError, ValueError):
         raise HTTPException(status_code=400, detail="source_meta must be valid JSON") from None
 
+    acquisition_raw = form.get("acquisition")
+    try:
+        acquisition = json.loads(acquisition_raw) if acquisition_raw else None
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="acquisition must be valid JSON") from None
+    if acquisition is not None and not isinstance(acquisition, dict):
+        raise HTTPException(status_code=400, detail="acquisition must be a JSON object")
+
     file_bytes = await upload.read()
     return start_run(
         workflow=str(form.get("workflow", "")),
@@ -65,12 +88,17 @@ async def _start_from_multipart(request: Request) -> dict:
         mode=str(form.get("mode", "auto")),
         custody_tier=form.get("custody_tier") or None,
         source_meta=source_meta,
+        message_corpus=str(form.get("message_corpus") or ""),
+        source_principal=str(form.get("source_principal") or ""),
+        caller_owns_conversation=str(form.get("caller_owns_conversation") or "false").lower() in {"1", "true", "yes"},
+        acquisition=_acquisition_with_principal(acquisition, request),
         file_bytes=file_bytes,
         filename=upload.filename,
     )
 
 
 async def _start_from_json(request: Request) -> dict:
+    _authenticated_owner(request)
     try:
         body = await request.json()
         payload = RunCreateRequest.model_validate(body)
@@ -84,6 +112,13 @@ async def _start_from_json(request: Request) -> dict:
         mode=payload.mode,
         custody_tier=payload.custody_tier,
         source_meta=payload.source_meta,
+        message_corpus=payload.message_corpus,
+        source_principal=payload.source_principal,
+        caller_owns_conversation=payload.caller_owns_conversation,
+        acquisition=_acquisition_with_principal(
+            payload.acquisition.model_dump(mode="json") if payload.acquisition else None,
+            request,
+        ),
     )
 
 

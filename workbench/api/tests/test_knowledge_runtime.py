@@ -1,5 +1,6 @@
 # Byline: Codex · GPT-5 · 2026-08-15 (Knowledge runtime boundary coverage)
 # Byline: Codex · GPT-5 · 2026-08-16 (canonical item detail boundary coverage)
+# Byline: Codex · GPT-5 · 2026-08-18 (native evidence horizon proxy coverage)
 """HTTP contract tests for bounded Knowledge and Graphiti query parameters."""
 
 from __future__ import annotations
@@ -30,7 +31,30 @@ def test_search_forwards_case_and_lane(monkeypatch):
     )
 
     assert response.status_code == 200
-    assert captured == {"query": "custody", "case_id": "primary", "lane": "evidence", "limit": 5}
+    assert captured == {
+        "query": "custody",
+        "case_id": "primary",
+        "lane": "evidence",
+        "limit": 5,
+        "horizon": None,
+    }
+
+
+def test_search_parses_and_forwards_horizon(monkeypatch):
+    captured = {}
+
+    def fake_search(query, **kwargs):
+        captured.update(query=query, **kwargs)
+        return {"data": [], "meta": {"total_count": 0}}
+
+    monkeypatch.setattr(runtime.knowledge_service, "search", fake_search)
+    response = _client().get(
+        "/api/knowledge/search",
+        params={"q": "what was visible", "lane": "evidence", "horizon": "2025-06-01T12:30:00Z"},
+    )
+
+    assert response.status_code == 200
+    assert captured["horizon"] == "2025-06-01T12:30:00+00:00"
 
 
 def test_contents_requires_case_and_lane():

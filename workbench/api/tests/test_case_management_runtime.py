@@ -1,6 +1,7 @@
 """HTTP boundary coverage for Matter source resolution and promotion.
 
 Byline: Codex · GPT-5 · 2026-08-15
+Byline amendment: Codex · GPT-5 · 2026-08-18 (third-party detail compatibility coverage)
 """
 
 from __future__ import annotations
@@ -24,6 +25,9 @@ PROMOTION_ID = "77777777-7777-4777-8777-777777777777"
 ITEM_ID = "88888888-8888-4888-8888-888888888888"
 TASK_ID = "99999999-9999-4999-8999-999999999999"
 DECISION_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+CONVERSATION_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+ACQUISITION_ID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+REALIZATION_ID = "dddddddd-dddd-4ddd-8ddd-dddddddddddd"
 SHA256 = "a" * 64
 SOURCE_SHA256 = "b" * 64
 NOW = "2026-08-15T12:00:00Z"
@@ -328,6 +332,11 @@ def _evidence_detail():
             "role": "sender",
             "content": "Exact normalized record text",
             "occurred_at": NOW,
+            "source_kind": "unclassified",
+            "projection_kind": "authored_normalized",
+            "source_available_from": None,
+            "third_party_conversation": None,
+            "realization_events": [],
             "acquired_at": NOW,
             "ingested_at": NOW,
             "realized_at": None,
@@ -433,12 +442,141 @@ def test_evidence_detail_is_matter_scoped_and_sanitized(monkeypatch):
     assert "quote" not in body["promotion"]["source_pointer"]
 
 
+def test_evidence_detail_preserves_third_party_acquisition_and_realization_history(monkeypatch):
+    detail = _evidence_detail()
+    detail["record"].update(
+        source_kind="third_party_acquired",
+        projection_kind="derived_third_party",
+        source_available_from=NOW,
+        third_party_conversation={
+            "id": CONVERSATION_ID,
+            "external_thread_key": "thread-friends",
+            "platform": "iMessage",
+            "acquisition_id": ACQUISITION_ID,
+            "acquired_at": NOW,
+            "actual_sender": "Friend",
+            "actual_recipients": ["Her"],
+            "actual_participants": ["Friend", "Her"],
+        },
+        realization_events=[
+            {
+                "id": REALIZATION_ID,
+                "kind": "deceit",
+                "realized_at": NOW,
+                "approval_state": "approved",
+                "evidence_pointer": {"record_id": RECORD_ID},
+                "proposer": "owner",
+                "proposed_at": NOW,
+                "approved_at": NOW,
+                "approved_by": "owner",
+            }
+        ],
+        realized_at=None,
+    )
+    monkeypatch.setattr(runtime.service, "get_evidence_detail", lambda matter_id, item_id: detail)
+
+    response = _client().get(f"/api/matters/{MATTER_ID}/evidence-items/{ITEM_ID}")
+
+    assert response.status_code == 200
+    record = response.json()["record"]
+    assert record["third_party_conversation"]["actual_sender"] == "Friend"
+    assert record["third_party_conversation"]["actual_recipients"] == ["Her"]
+    assert record["realization_events"][0]["id"] == REALIZATION_ID
+    assert record["realized_at"] is None
+
+
 def test_evidence_detail_rejects_non_h1_custody():
     detail = _evidence_detail()
     detail["custody_hash"]["level"] = "H2"
 
     with pytest.raises(ValidationError, match="requires an H1 SHA-256 custody hash"):
         EvidenceDetail.model_validate(detail)
+
+
+def test_evidence_detail_rejects_third_party_without_approved_acquisition_context():
+    detail = _evidence_detail()
+    detail["record"].update(
+        source_kind="third_party_acquired",
+        projection_kind="derived_third_party",
+        source_available_from=None,
+        third_party_conversation=None,
+    )
+
+    with pytest.raises(ValidationError, match="requires approved acquisition context"):
+        EvidenceDetail.model_validate(detail)
+
+
+def test_original_source_endpoint_is_matter_scoped(monkeypatch):
+    monkeypatch.setattr(
+        runtime.service,
+        "get_original_source_content",
+        lambda matter_id, evidence_item_id: {
+            "matter_id": matter_id,
+            "evidence_item_id": evidence_item_id,
+            "normalized_record_id": RECORD_ID,
+            "source_id": SOURCE_ID,
+            "evidence_hash_id": HASH_ID,
+            "sha256": SHA256,
+            "byte_size": 8,
+            "content_byte_size": 8,
+            "mime_type": "text/plain",
+            "original_filename": "message.txt",
+            "content": "original",
+            "encoding": "utf-8",
+            "source_pointer": {"source_id": SOURCE_ID},
+            "provenance": {"source_id": SOURCE_ID},
+            "h1": SHA256,
+            "h2": None,
+            "h3": None,
+        },
+    )
+
+    response = _client().get(f"/api/matters/{MATTER_ID}/evidence-items/{ITEM_ID}/source-content")
+
+    assert response.status_code == 200
+    assert response.json()["content"] == "original"
+    assert response.json()["matter_id"] == MATTER_ID
+
+
+def test_conversation_context_endpoint_preserves_source_parties_and_bounds(monkeypatch):
+    monkeypatch.setattr(
+        runtime.service,
+        "get_conversation_context",
+        lambda matter_id, evidence_item_id, *, before, after: {
+            "matter_id": matter_id,
+            "evidence_item_id": evidence_item_id,
+            "selected_normalized_record_id": RECORD_ID,
+            "messages": [
+                {
+                    "id": RECORD_ID,
+                    "normalized_record_id": RECORD_ID,
+                    "content": "full source message",
+                    "sender": "Actual sender",
+                    "recipients": ["Actual recipient"],
+                    "occurred_at": NOW,
+                    "source_kind": "third_party_acquired",
+                    "projection_kind": "derived_third_party",
+                    "source_available_from": NOW,
+                    "source_pointer": {"normalized_record_id": RECORD_ID},
+                }
+            ],
+            "before": before,
+            "after": after,
+            "total": 1,
+        },
+    )
+
+    response = _client().get(
+        f"/api/matters/{MATTER_ID}/evidence-items/{ITEM_ID}/conversation-context",
+        params={"before": 2, "after": 3},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["messages"][0]["content"] == "full source message"
+    assert response.json()["messages"][0]["sender"] == "Actual sender"
+    assert response.json()["messages"][0]["recipients"] == ["Actual recipient"]
+    assert response.json()["before"] == 2
+    assert response.json()["after"] == 3
 
 
 def test_court_readiness_is_matter_scoped_explicit_and_fail_closed(monkeypatch):

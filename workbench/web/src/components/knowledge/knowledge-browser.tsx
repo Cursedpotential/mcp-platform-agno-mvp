@@ -1,5 +1,6 @@
 // Byline: Codex · GPT-5 · 2026-08-15 (case-scoped Knowledge MVP)
 // Byline: Codex · GPT-5 · 2026-08-16 (canonical source/chunk inspector)
+// Byline: Codex · GPT-5 · 2026-08-18 (authored/derived source catalog labels)
 "use client";
 
 import { FormEvent, useState } from "react";
@@ -413,7 +414,7 @@ export function KnowledgeBrowser({ matterContext }: KnowledgeBrowserProps = {}) 
           <CardHeader>
             <CardTitle>Knowledge sources</CardTitle>
             <CardDescription>
-              Canonical PostgreSQL sources from the framework-neutral ingest port. Open a source to inspect chunks, provenance, parser, chunker, and raw metadata.
+              Authored normalized sources with separately labeled, rebuildable derived chunks. Open a source to inspect lineage and acquisition context.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -479,7 +480,7 @@ export function KnowledgeBrowser({ matterContext }: KnowledgeBrowserProps = {}) 
                         {row.status && <Badge variant={row.status === "completed" ? "secondary" : "outline"}>{row.status}</Badge>}
                       </div>
                       <Button type="button" size="sm" variant="outline" onClick={() => void openContent(row)}>
-                        <Eye className="size-4" aria-hidden="true" /> Inspect chunks
+                        <Eye className="size-4" aria-hidden="true" /> Inspect source
                       </Button>
                     </div>
                     {row.description && <p className="text-sm text-muted-foreground">{row.description}</p>}
@@ -487,7 +488,8 @@ export function KnowledgeBrowser({ matterContext }: KnowledgeBrowserProps = {}) 
                       {metadataBadges(row.metadata)}
                       {row.metadata?.parser_id !== undefined && row.metadata.parser_id !== null && <Badge variant="secondary">parser: {String(row.metadata.parser_id)}</Badge>}
                       {row.metadata?.chunker_id !== undefined && row.metadata.chunker_id !== null && <Badge variant="secondary">chunker: {String(row.metadata.chunker_id)}</Badge>}
-                      {row.metadata?.record_count !== undefined && <Badge variant="outline">{String(row.metadata.record_count)} records/chunks</Badge>}
+                      {row.metadata?.record_count !== undefined && <Badge variant="outline">{String(row.metadata.record_count)} authored records</Badge>}
+                      {row.metadata?.chunk_count !== undefined && <Badge variant="outline">{String(row.metadata.chunk_count)} derived chunks</Badge>}
                     </div>
                     {row.metadata?.source_sha256 !== undefined && row.metadata.source_sha256 !== null && (
                       <p className="break-all font-mono text-xs text-muted-foreground">

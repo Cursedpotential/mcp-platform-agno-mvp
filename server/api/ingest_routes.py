@@ -1,6 +1,7 @@
 """Framework-neutral HTTP ingest and canonical knowledge-read routes.
 
 Byline: Codex · GPT-5 · 2026-08-16
+Byline amendment: Codex · GPT-5 · 2026-08-18 (third-party acquisition input)
 """
 
 from __future__ import annotations
@@ -81,25 +82,35 @@ def _receipt_response(receipt) -> dict[str, Any]:
     }
 
 
-async def _run_reserved_ingest(payload: IngestRequest, journal: PostgresReceiptJournal, receipt_id: str) -> None:
+async def _run_reserved_ingest(
+    payload: IngestRequest,
+    journal: PostgresReceiptJournal,
+    receipt_id: str,
+    projector: Any | None = None,
+) -> None:
     try:
-        await asyncio.to_thread(ingest_file, payload, journal=journal, receipt_id=receipt_id)
+        await asyncio.to_thread(ingest_file, payload, journal=journal, receipt_id=receipt_id, projector=projector)
     except IngestError:
         # ingest_file already persisted the failed receipt.
         return
 
 
-async def _submit_ingest(payload: IngestRequest) -> str:
+async def _submit_ingest(payload: IngestRequest, projector: Any | None = None) -> str:
     journal = PostgresReceiptJournal()
     path = Path(payload.staged_path).resolve(strict=True)
     receipt_id = await asyncio.to_thread(journal.start, payload, path)
-    task = asyncio.create_task(_run_reserved_ingest(payload, journal, receipt_id))
+    worker = (
+        _run_reserved_ingest(payload, journal, receipt_id)
+        if projector is None
+        else _run_reserved_ingest(payload, journal, receipt_id, projector)
+    )
+    task = asyncio.create_task(worker)
     _INGEST_TASKS.add(task)
     task.add_done_callback(_INGEST_TASKS.discard)
     return receipt_id
 
 
-def register_ingest_routes(app: FastAPI) -> None:
+def register_ingest_routes(app: FastAPI, native_projector: Any | None = None) -> None:
     @app.post("/v1/ingest", status_code=202)
     async def ingest_upload(request: Request) -> dict[str, Any]:
         _authorize(request)
@@ -110,10 +121,19 @@ def register_ingest_routes(app: FastAPI) -> None:
         staged_path = await _stage_upload(upload)
         source_identity = _json_object(form.get("source_identity"), "source_identity")
         source_identity.setdefault("original_name", safe_upload_name(getattr(upload, "filename", None)))
+        acquisition = _json_object(form.get("acquisition"), "acquisition") if form.get("acquisition") else None
+        if acquisition is not None:
+            acquisition["asserted_by"] = "owner"
+            acquisition["asserted_by_category"] = "human"
         try:
             payload = IngestRequest(
                 staged_path=str(staged_path),
                 source_identity=source_identity,
+                message_corpus=form.get("message_corpus") or None,
+                source_principal=form.get("source_principal") or None,
+                caller_owns_conversation=str(form.get("caller_owns_conversation") or "false").lower()
+                in {"1", "true", "yes"},
+                acquisition=acquisition,
                 coverage_hint=form.get("coverage_hint") or None,
                 lane=str(form.get("lane") or "platform"),
                 matter_id=str(form.get("matter_id") or "primary"),
@@ -124,7 +144,11 @@ def register_ingest_routes(app: FastAPI) -> None:
         except ValidationError as error:
             raise HTTPException(422, json.loads(error.json())) from None
         try:
-            receipt_id = await _submit_ingest(payload)
+            receipt_id = (
+                await _submit_ingest(payload)
+                if native_projector is None
+                else await _submit_ingest(payload, native_projector)
+            )
         except Exception as error:
             raise HTTPException(503, f"cannot reserve ingest receipt: {error}") from None
         return {
@@ -137,8 +161,16 @@ def register_ingest_routes(app: FastAPI) -> None:
     @app.post("/v1/ingest/path", status_code=201)
     async def ingest_staged_path(payload: IngestRequest, request: Request) -> dict[str, Any]:
         _authorize(request)
+        if payload.acquisition is not None:
+            payload = payload.model_copy(
+                update={
+                    "acquisition": payload.acquisition.model_copy(
+                        update={"asserted_by": "owner", "asserted_by_category": "human"}
+                    )
+                }
+            )
         try:
-            receipt = await asyncio.to_thread(ingest_file, payload)
+            receipt = await asyncio.to_thread(ingest_file, payload, projector=native_projector)
         except (FileNotFoundError, IngestError) as error:
             detail = (
                 {"message": str(error), "receipt": error.receipt.model_dump(mode="json")}

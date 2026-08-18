@@ -1,3 +1,4 @@
+# Byline amendment: Codex · GPT-5 · 2026-08-18 (combined-change hygiene)
 """ChatMiner -> NormalizedRecord bridge (not a tool module itself —
 underscore prefix excludes it from auto-discovery).
 
@@ -21,6 +22,7 @@ from typing import Any
 from server.vendored.chatminer.core.base import BaseParser
 from server.vendored.chatminer.core.types import ParsedConversation, ParsedMessage, ParseResult
 from server.contracts.records import NormalizedRecord, RecordType
+from server.tools.parsers.messaging._source_parties import enrich_message_parties
 from ._common import records_out
 
 # chatminer's own auto-detection threshold (parsers/__init__.get_parser_for_file).
@@ -100,7 +102,11 @@ def run_chatminer_parser(
     records = to_normalized_records(result)
     if not records:
         raise ValueError(f"{parser_cls.SOURCE_NAME}: parsed 0 messages — hard-fail, no silent-empty")
-    return records_out(records, conversation_count=len(result.conversations), detection_confidence=round(score, 4))
+    return records_out(
+        enrich_message_parties(records, payload),
+        conversation_count=len(result.conversations),
+        detection_confidence=round(score, 4),
+    )
 
 
 def _participants(conv: ParsedConversation) -> list[str]:

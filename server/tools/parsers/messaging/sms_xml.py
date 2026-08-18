@@ -1,3 +1,4 @@
+# Byline amendment: Codex · GPT-5 · 2026-08-18 (combined-change hygiene)
 """Atomic tool: "SMS Backup & Restore" XML  ->  NormalizedRecords.
 
 One format, one module, swappable (owner architecture: parsers are separate
@@ -33,6 +34,7 @@ from xml.etree.ElementTree import Element
 from server.contracts.records import DisclosureTier, NormalizedRecord, RecordType
 from server.tools.registry import register
 from server.tools._common import parse_timestamp, records_out
+from ._source_parties import enrich_message_parties
 
 OWNER = "owner"
 
@@ -318,4 +320,5 @@ def parse(payload: dict[str, Any]) -> dict[str, Any]:
     messages = sum(1 for r in records if r.record_type == RecordType.message)
     calls = sum(1 for r in records if r.record_type == RecordType.call)
     blocked = sum(1 for r in records if r.attrs.get("blocked"))
+    records = enrich_message_parties(records, payload)
     return records_out(records, messages=messages, calls=calls, blocked_calls=blocked)

@@ -1,3 +1,4 @@
+# Byline amendment: Codex · GPT-5 · 2026-08-18 (combined-change hygiene)
 """Tests for the engine-dynamic parse seam (owner 2026-08-12: the pipeline
 must pull from EITHER the Go OR the Python parser, not be dedicated to one).
 
@@ -149,6 +150,39 @@ def test_row_to_record_pulls_chat_fields_from_metadata():
 def test_row_to_record_epoch_millis_timestamp():
     rec = _row_to_record({"content": "x", "occurred_at": 1735725600000, "metadata": {}}, "sbv-go")
     assert rec.occurred_at is not None and rec.occurred_at.year == 2025
+
+
+def test_row_to_record_uses_sbv_parties_and_never_participant_zero_as_sender():
+    row = {
+        "kind": "message",
+        "content": "explicit parties",
+        "participants": ["Alex", "self"],
+        "sender": "self",
+        "recipients": [{"identity": "Alex", "role": "to"}],
+        "metadata": {"direction": "outbound"},
+    }
+    rec = _row_to_record(
+        row,
+        "sbv-go",
+        {"source_principal": "source-account", "message_corpus": "acquired_third_party"},
+    )
+    assert rec.sender == "source-account"
+    assert rec.role == "Alex"
+    assert [(party.identity, party.role) for party in rec.recipients] == [("Alex", "to")]
+    assert rec.message_corpus.value == "acquired_third_party"
+
+    unresolved = _row_to_record(
+        {
+            "kind": "message",
+            "content": "no sender",
+            "participants": ["Alex"],
+            "metadata": {"direction": "outbound"},
+        },
+        "sbv-go",
+    )
+    assert unresolved.sender is None
+    assert unresolved.role == "Alex"
+    assert unresolved.attrs["source_party_review_required"] is True
 
 
 def test_parse_via_sbv_skips_empty_content(tmp_path):

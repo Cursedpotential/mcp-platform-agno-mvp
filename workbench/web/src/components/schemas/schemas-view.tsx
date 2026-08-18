@@ -1,5 +1,6 @@
 // Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3 schema inspection views)
 // Byline: Codex · GPT-5 · 2026-08-16 (PostgreSQL + Weaviate Data Explorer)
+// Byline: Codex · GPT-5 · 2026-08-18 (authored, derived, and audit-control authority labels)
 "use client";
 
 import Link from "next/link";
@@ -74,6 +75,7 @@ function PgTableRow({ schema, table, onInspect }: PgTableRowProps) {
           </Button>
         </TableCell>
         <TableCell className="font-mono text-sm">{table.table}</TableCell>
+        <TableCell><Badge variant={table.authority === "authored" ? "secondary" : "outline"}>{table.authority}</Badge></TableCell>
         <TableCell className="text-right text-sm text-muted-foreground">
           {table.row_count_is_estimate ? "≈" : ""}{table.row_count.toLocaleString()} rows
         </TableCell>
@@ -86,7 +88,7 @@ function PgTableRow({ schema, table, onInspect }: PgTableRowProps) {
       </TableRow>
       {expanded && (
         <TableRow>
-          <TableCell colSpan={5} className="bg-muted/20">
+          <TableCell colSpan={6} className="bg-muted/20">
             <div className="flex flex-wrap gap-1.5 py-1">
               {table.columns.map((column) => (
                 <Badge key={column.name} variant="outline" className="font-mono text-xs">
@@ -117,6 +119,7 @@ function PgSection({ pg, onInspect }: { pg?: SchemasResponse["pg"]; onInspect: P
                 <TableRow>
                   <TableHead className="w-8" />
                   <TableHead>Table</TableHead>
+                  <TableHead>Authority</TableHead>
                   <TableHead className="text-right">Rows</TableHead>
                   <TableHead className="text-right">Columns</TableHead>
                   <TableHead className="text-right">Detail</TableHead>
@@ -188,10 +191,11 @@ function TableDrawer({ detail, open, onOpenChange }: { detail: TableDetail | nul
       <SheetContent className="w-full overflow-y-auto sm:max-w-5xl">
         <SheetHeader>
           <SheetTitle className="font-mono">{detail ? `${detail.schema}.${detail.table}` : "PostgreSQL table"}</SheetTitle>
-          <SheetDescription>Read-only bounded row and field preview from the canonical PostgreSQL store.</SheetDescription>
+          <SheetDescription>Read-only bounded row and field preview. Authority is classified per table.</SheetDescription>
         </SheetHeader>
         {detail && (
           <div className="space-y-5 px-4 pb-6">
+            <div><Badge variant={detail.authority === "authored" ? "secondary" : "outline"}>{detail.authority}</Badge></div>
             <section>
               <h3 className="mb-2 text-sm font-semibold">Columns</h3>
               <div className="flex flex-wrap gap-2">
@@ -318,7 +322,7 @@ export function SchemasView() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2">
-          <Badge>PostgreSQL · canonical</Badge>
+          <Badge>PostgreSQL · mixed authority</Badge>
           <Badge variant="outline">Weaviate · projection, not authority</Badge>
         </div>
         <div className="flex gap-2">
@@ -334,7 +338,7 @@ export function SchemasView() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><Database className="size-5" /> PostgreSQL tables</CardTitle>
-              <CardDescription>Canonical schemas, columns, indexes, and bounded read-only row previews.</CardDescription>
+              <CardDescription>Authored, derived, and audit/control tables with columns, indexes, and bounded read-only row previews.</CardDescription>
             </CardHeader>
             <CardContent><PgSection pg={data?.pg} onInspect={(schema, table) => void inspectTable(schema, table)} /></CardContent>
           </Card>

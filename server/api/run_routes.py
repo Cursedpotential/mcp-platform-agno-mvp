@@ -1,3 +1,4 @@
+# Byline amendment: Codex · GPT-5 · 2026-08-18 (combined-change hygiene)
 """server/api/run_routes.py — REST surface for the C0/C2 operator-console run ledger.
 
 Modeled on server/api/evidence_routes.py's multipart pattern (same base_app
@@ -163,7 +164,12 @@ def _audit_report_read(run_id: str, report: dict[str, Any]) -> None:
     )
 
 
-def register_run_routes(app: FastAPI, knowledge: Any, evidence_knowledge: Any | None = None) -> None:
+def register_run_routes(
+    app: FastAPI,
+    knowledge: Any,
+    evidence_knowledge: Any | None = None,
+    native_projector: Any | None = None,
+) -> None:
     """Register the C0 run-ledger REST surface on the FastAPI app.
 
     Parameters
@@ -180,20 +186,17 @@ def register_run_routes(app: FastAPI, knowledge: Any, evidence_knowledge: Any | 
         though this module was only ever registered once. A raw Knowledge
         instance or None (every pre-C3 caller/test) passes through unchanged.
     evidence_knowledge:
-        ADR-0050 Phase 1 (2026-08-10): the EVIDENCE lane's handle. Messaging
-        evidence (the sms-xml workflow) vectors into `evidence_knowledge`, not
-        the platform collection — evidence and platform/legal must never mix.
-        chat-transcript stays on `knowledge` (AI chats are CONTEXT per
-        ADR-0044 §1 and move to the context lane in Phase 2 — handing them
-        the evidence handle would violate the evidence-vs-context boundary).
-        None (CLI/test callers) falls back to `knowledge`, preserving pre-0050
-        behavior.
+        Deprecated compatibility input. It is never selected for evidence.
+    native_projector:
+        Native PostgreSQL-outbox projector selected for every SMS/evidence run.
+        None leaves projection pending; it never falls back to Agno.
     """
 
     def _knowledge_for(workflow: str) -> Any:
-        # ADR-0050 lane routing, Phase 1 scope: sms-xml -> evidence lane.
-        if workflow == "sms-xml" and evidence_knowledge is not None:
-            return resolve_knowledge(evidence_knowledge)
+        # Evidence writes are native-only. The Agno evidence handle remains a
+        # deprecated parameter solely so older callers do not break at import.
+        if workflow == "sms-xml":
+            return native_projector
         return resolve_knowledge(knowledge)
 
     async def _execute_run(
@@ -296,6 +299,7 @@ def register_run_routes(app: FastAPI, knowledge: Any, evidence_knowledge: Any | 
             domain=domain,
             parent_run_id=run_id,
             custody_tier=custody_tier,
+            source_context=run.get("source_context") or {},
         )
         seed_stages(new_run_id, WORKFLOW_STAGE_NAMES[workflow])
 
@@ -328,7 +332,7 @@ def register_run_routes(app: FastAPI, knowledge: Any, evidence_knowledge: Any | 
 
         return {"run_id": new_run_id, "parent_run_id": run_id}
 
-    async def _knowledge_doc_exists_for_artifact(knowledge_instance: Any, sha256: str) -> bool | None:
+    async def _knowledge_doc_exists_for_artifact(workflow: str, knowledge_instance: Any, sha256: str) -> bool | None:
         """C3 retry-gap ("closes the reingest-after-collection-loss hole"):
         cheap, GUARDED Milvus existence check — does the knowledge collection
         still have at least one doc for this artifact? Filters on
@@ -348,6 +352,17 @@ def register_run_routes(app: FastAPI, knowledge: Any, evidence_knowledge: Any | 
         VERIFIABLY exists, so callers must treat None the same as False
         (allow the retry), never as an implicit True.
         """
+        if workflow == "sms-xml":
+            if native_projector is None:
+                return None
+            try:
+                return await asyncio.wait_for(
+                    asyncio.to_thread(native_projector.source_projection_exists, sha256),
+                    timeout=_HEALTH_DEPS_TIMEOUT_S,
+                )
+            except Exception as exc:
+                logger.warning("retry-gap: native source lookup failed (%s) — treating as unknown/allow", exc)
+                return None
         if knowledge_instance is None:
             return None
 
@@ -488,6 +503,7 @@ def register_run_routes(app: FastAPI, knowledge: Any, evidence_knowledge: Any | 
             source_path=str(tmp_path),
             domain=resolved_domain,
             custody_tier=resolved_tier,
+            source_context=meta,
         )
         seed_stages(run_id, WORKFLOW_STAGE_NAMES[workflow])
 
@@ -663,7 +679,9 @@ def register_run_routes(app: FastAPI, knowledge: Any, evidence_knowledge: Any | 
                         f"run {run_id!r} is completed but has no sha256 recorded — cannot verify whether "
                         "the knowledge collection already has this artifact's doc",
                     )
-                exists = await _knowledge_doc_exists_for_artifact(resolve_knowledge(knowledge), sha256)
+                exists = await _knowledge_doc_exists_for_artifact(
+                    str(run["workflow"]), resolve_knowledge(knowledge), sha256
+                )
                 if exists:
                     raise HTTPException(
                         409,
@@ -744,13 +762,13 @@ def register_run_routes(app: FastAPI, knowledge: Any, evidence_knowledge: Any | 
             domain=domain,
             parent_run_id=run_id,
             custody_tier=custody_tier,
+            source_context=run.get("source_context") or {},
         )
         seed_stages(new_run_id, WORKFLOW_STAGE_NAMES[workflow])
 
-        # source_meta isn't persisted anywhere in the ledger schema (only the
-        # derived custody/parse outputs are) — a retried run's source_meta is
-        # always {} (documented deviation; workflow/domain/mode/custody_tier
-        # and the original bytes are all faithfully re-used).
+        # Source identity/acquisition context is durable. A retry must replay it
+        # exactly; dropping it can reclassify an acquired third-party export as
+        # first-party and move the horizon boundary backwards.
         #
         # parent_run_id=run_id (C2.6): lets this new run's store step detect
         # "I just deduped AND my parent's knowledge stage failed" and
@@ -761,7 +779,7 @@ def register_run_routes(app: FastAPI, knowledge: Any, evidence_knowledge: Any | 
                 workflow,
                 tmp_path,
                 tmpdir,
-                {},
+                run.get("source_context") or {},
                 domain,
                 mode=mode,
                 custody_tier=custody_tier,

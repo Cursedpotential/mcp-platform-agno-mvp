@@ -1,11 +1,13 @@
 """Focused contracts for the Matter and Knowledge-to-Evidence spine API.
 
 Byline: Codex · GPT-5 · 2026-08-15
+Byline amendment: Codex · GPT-5 · 2026-08-18 (third-party acquisition read-model coverage)
 """
 
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
+from pathlib import Path
 from uuid import UUID
 
 import pytest
@@ -24,6 +26,8 @@ from server.contracts.case_management import (
     Matter,
     MatterCreate,
     MatterList,
+    ConversationContext,
+    OriginalSourceContent,
 )
 
 MATTER_ID = UUID("11111111-1111-1111-1111-111111111111")
@@ -36,6 +40,9 @@ RUN_ID = UUID("77777777-7777-7777-7777-777777777777")
 FILE_NODE_ID = UUID("12121212-1212-1212-1212-121212121212")
 TASK_ID = UUID("99999999-9999-9999-9999-999999999999")
 DECISION_ID = UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+CONVERSATION_ID = UUID("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+ACQUISITION_ID = UUID("cccccccc-cccc-cccc-cccc-cccccccccccc")
+REALIZATION_ID = UUID("dddddddd-dddd-dddd-dddd-dddddddddddd")
 NOW = datetime(2026, 8, 15, tzinfo=UTC)
 SHA256 = "ab" * 32
 
@@ -779,7 +786,7 @@ def test_promote_denies_foreign_court_case_before_source_write(monkeypatch: pyte
 def test_evidence_detail_uses_exact_matter_scoped_public_custody_join(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    engine = _FakeEngine([_detail_row()])
+    engine = _FakeEngine([_detail_row(), {"ready": False}, {"ready": False}])
     monkeypatch.setattr(repository, "_get_engine", lambda: engine)
 
     result = repository.get_evidence_detail(MATTER_ID, _item_row()["id"])
@@ -787,6 +794,9 @@ def test_evidence_detail_uses_exact_matter_scoped_public_custody_join(
     assert isinstance(result, EvidenceItemDetail)
     assert result.promotion.id == PROMOTION_ID
     assert result.record.content == "Exact source sentence with surrounding context."
+    assert result.record.source_kind == "unclassified"
+    assert result.record.source_available_from is None
+    assert result.record.realization_events == []
     assert result.custody_hash.digest_sha256 == SHA256
     assert result.source.sha256 == "ef" * 32
     assert result.source.hash_canon_version == "source-container-v2"
@@ -798,6 +808,8 @@ def test_evidence_detail_uses_exact_matter_scoped_public_custody_join(
     assert "custody_source.sha256 = custody_hash.digest" not in sql
     assert "custody_source.hash_canon_version = custody_hash.canon_version" not in sql
     assert "analysis.knowledge_evidence_pointer_hash" in sql
+    assert "record.realized_at" not in sql
+    assert "record.acquired_at" not in sql
     for private_column in ("local_path", "r2_bucket", "r2_key", "original_metadata", "derived_metadata"):
         assert private_column not in sql
 
@@ -830,7 +842,7 @@ def test_evidence_detail_exposes_optional_file_node_without_private_attrs(
         "file_node_locator": {"message_index": 42},
         "file_node_mime_type": "text/plain",
     }
-    engine = _FakeEngine([row])
+    engine = _FakeEngine([row, {"ready": False}, {"ready": False}])
     monkeypatch.setattr(repository, "_get_engine", lambda: engine)
 
     result = repository.get_evidence_detail(MATTER_ID, _item_row()["id"])
@@ -838,3 +850,179 @@ def test_evidence_detail_exposes_optional_file_node_without_private_attrs(
     assert result.file_node is not None
     assert result.file_node.node_path == "messages.42"
     assert result.file_node.locator == {"message_index": 42}
+
+
+def test_evidence_detail_exposes_approved_third_party_context_and_plural_realizations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    projection_row = {
+        "projection_kind": "acquired_third_party",
+        "source_available_from": NOW,
+        "conversation_id": CONVERSATION_ID,
+        "external_thread_key": "friend-thread-1",
+        "platform": "iMessage",
+        "title": "Actual third-party thread",
+        "acquisition_id": ACQUISITION_ID,
+        "acquired_at": NOW,
+        "actual_sender": "Her friend",
+        "actual_recipients": ["Her"],
+        "actual_participants": ["Her friend", "Her"],
+    }
+    realization_rows = [
+        {
+            "id": REALIZATION_ID,
+            "kind": "betrayal",
+            "realized_at": NOW,
+            "approval_state": "approved",
+            "trigger_record_id": RECORD_ID,
+            "evidence_pointer": {"record_id": str(RECORD_ID)},
+            "proposer": "owner",
+            "proposed_at": NOW,
+            "approved_at": NOW,
+            "approved_by": "owner",
+            "notes": "Later understood in context.",
+        }
+    ]
+    engine = _FakeEngine(
+        [
+            _detail_row(),
+            {"ready": True},
+            projection_row,
+            {"ready": True},
+            realization_rows,
+        ]
+    )
+    monkeypatch.setattr(repository, "_get_engine", lambda: engine)
+
+    result = repository.get_evidence_detail(MATTER_ID, _item_row()["id"])
+
+    assert result.record.source_kind == "third_party_acquired"
+    assert result.record.projection_kind == "derived_third_party"
+    assert result.record.source_available_from == NOW
+    assert result.record.third_party_conversation is not None
+    assert result.record.third_party_conversation.actual_sender == "Her friend"
+    assert result.record.third_party_conversation.actual_recipients == ["Her"]
+    assert "owner" not in result.record.third_party_conversation.actual_participants
+    assert [event.id for event in result.record.realization_events] == [REALIZATION_ID]
+
+
+def test_route_returns_custody_resolved_original_source_content(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = OriginalSourceContent(
+        matter_id=MATTER_ID,
+        evidence_item_id=_item_row()["id"],
+        normalized_record_id=RECORD_ID,
+        source_id=SOURCE_ID,
+        file_node_id=None,
+        evidence_hash_id=HASH_ID,
+        sha256=SHA256,
+        byte_size=23,
+        content_byte_size=23,
+        mime_type="text/plain",
+        original_filename="messages.txt",
+        content="Original source text.",
+        encoding="utf-8",
+        source_pointer={"source_id": str(SOURCE_ID), "evidence_hash_id": str(HASH_ID)},
+        provenance={"source_id": str(SOURCE_ID)},
+        h1=SHA256,
+        h2=None,
+        h3=None,
+    )
+    monkeypatch.setattr("server.case_management.service.get_original_source_content", lambda *_: source)
+
+    response = client.get(f"/v1/matters/{MATTER_ID}/evidence-items/{_item_row()['id']}/source-content")
+
+    assert response.status_code == 200
+    assert response.json()["content"] == "Original source text."
+    assert response.json()["source_id"] == str(SOURCE_ID)
+
+
+def test_route_returns_bounded_deterministic_conversation_context(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    context = ConversationContext(
+        matter_id=MATTER_ID,
+        evidence_item_id=_item_row()["id"],
+        selected_normalized_record_id=RECORD_ID,
+        messages=[
+            {
+                "id": RECORD_ID,
+                "normalized_record_id": RECORD_ID,
+                "content": "First source message.",
+                "sender": "Other party",
+                "recipients": ["Owner"],
+                "occurred_at": NOW,
+                "source_kind": "first_party",
+                "projection_kind": "authored_normalized",
+                "source_available_from": NOW,
+                "source_pointer": {"normalized_record_id": str(RECORD_ID)},
+            }
+        ],
+        before=0,
+        after=0,
+        total=1,
+    )
+    captured: dict[str, object] = {}
+
+    def fake_context(matter_id, evidence_item_id, *, before, after):
+        captured.update(before=before, after=after)
+        return context
+
+    monkeypatch.setattr("server.case_management.service.get_conversation_context", fake_context)
+    response = client.get(
+        f"/v1/matters/{MATTER_ID}/evidence-items/{_item_row()['id']}/conversation-context",
+        params={"before": 2, "after": 3},
+    )
+
+    assert response.status_code == 200
+    assert captured == {"before": 2, "after": 3}
+    assert response.json()["messages"][0]["sender"] == "Other party"
+    assert response.json()["messages"][0]["recipients"] == ["Owner"]
+
+
+def test_context_query_bounds_are_enforced(client: TestClient) -> None:
+    response = client.get(
+        f"/v1/matters/{MATTER_ID}/evidence-items/{_item_row()['id']}/conversation-context",
+        params={"before": 101},
+    )
+    assert response.status_code == 422
+
+
+def test_original_source_allows_container_sha_to_differ_from_raw_h1(monkeypatch: pytest.MonkeyPatch) -> None:
+    detail = repository._evidence_detail_from_row(_detail_row())
+    assert detail.source.sha256 != detail.custody_hash.digest_sha256
+    monkeypatch.setattr(repository, "get_evidence_detail", lambda *_: detail)
+    monkeypatch.setattr(repository, "_get_engine", lambda: _FakeEngine([]))
+    monkeypatch.setattr(
+        repository,
+        "_custody_blob_row",
+        lambda *_: {"blob_key": "aa/raw.txt", "h1": SHA256, "h2": None, "h3": None},
+    )
+    monkeypatch.setattr(repository, "_safe_custody_path", lambda _: Path("raw.txt"))
+    monkeypatch.setattr(repository, "_read_original_text", lambda *args, **kwargs: (b"raw source", 9))
+
+    result = repository.get_original_source_content(MATTER_ID, _item_row()["id"])
+
+    assert result.content == "raw source"
+    assert result.h1 == SHA256
+
+
+def test_context_pre_0026_schema_returns_selected_record_without_invented_parties(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    detail_row = _detail_row()
+    detail_row["record_conversation_id"] = "conversation-1"
+    detail = repository._evidence_detail_from_row(detail_row)
+    monkeypatch.setattr(repository, "get_evidence_detail", lambda *_: detail)
+    engine = _FakeEngine([{"ready": False}])
+    monkeypatch.setattr(repository, "_get_engine", lambda: engine)
+    monkeypatch.setattr(repository, "_projection_context_available", lambda *_: False)
+
+    result = repository.get_conversation_context(MATTER_ID, _item_row()["id"], before=25, after=25)
+
+    assert result.context_available is False
+    assert result.context_complete is False
+    assert result.messages[0].content == detail.record.content
+    assert result.messages[0].sender is None
+    assert result.messages[0].recipients == []

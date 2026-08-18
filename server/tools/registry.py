@@ -13,6 +13,8 @@ binaries, MCP servers, HTTP services like SBV) register with a runner that
 shells out / calls HTTP — same contract, different transport.
 """
 
+# Byline amendment: Codex · GPT-5 · 2026-08-18 (stable explicit tool priority)
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -29,6 +31,7 @@ class ToolPlugin(Protocol):
     description: str
     execution_policy: str
     side_effect: str
+    priority: int
 
     def accepts(self, media_hint: str, size_bytes: int) -> bool: ...
     def run(self, payload: dict[str, Any]) -> dict[str, Any]: ...
@@ -46,6 +49,7 @@ class FunctionTool:
     provenance: str = ""  # where the implementation came from (port source)
     execution_policy: str = "manual_or_auto"
     side_effect: str = "read_only"
+    priority: int = 0
 
     def accepts(self, media_hint: str, size_bytes: int) -> bool:
         return self.accept(media_hint, size_bytes)
@@ -73,9 +77,14 @@ class ToolRegistry:
         return list(self._tools.values())
 
     def resolve(self, capability: str, media_hint: str = "", size_bytes: int = 0) -> list[ToolPlugin]:
-        """All tools matching a capability that accept the input, in
-        registration order (first = preferred; rest = substitution candidates)."""
-        return [t for t in self._tools.values() if t.capability == capability and t.accepts(media_hint, size_bytes)]
+        """All accepting tools, highest explicit priority first.
+
+        Registration order remains the stable tie-breaker, so existing
+        capabilities retain their behavior while a declared primary is not
+        accidentally demoted by test/import order.
+        """
+        matches = [t for t in self._tools.values() if t.capability == capability and t.accepts(media_hint, size_bytes)]
+        return sorted(matches, key=lambda tool: getattr(tool, "priority", 0), reverse=True)
 
     def manifest(self) -> list[dict[str, str]]:
         return [
@@ -104,6 +113,7 @@ def register(
     provenance: str = "",
     execution_policy: str = "manual_or_auto",
     side_effect: str = "read_only",
+    priority: int = 0,
 ) -> Callable:
     """Decorator: register a payload->payload function as an atomic tool."""
 
@@ -118,6 +128,7 @@ def register(
                 provenance=provenance,
                 execution_policy=execution_policy,
                 side_effect=side_effect,
+                priority=priority,
             )
         )
         return fn

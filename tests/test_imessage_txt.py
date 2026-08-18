@@ -1,3 +1,4 @@
+# Byline amendment: Codex · GPT-5 · 2026-08-18 (combined-change hygiene)
 """Unit tests for server.tools.parsers.messaging.imessage_txt — imessage-exporter TXT grammar.
 
 Reconstructs message blocks (timestamp header + sender + body), read receipts,

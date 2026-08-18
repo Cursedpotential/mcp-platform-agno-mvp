@@ -1,6 +1,6 @@
 """Tests for the read-only Matter activation preflight.
 
-Byline: Codex · GPT-5 · 2026-08-15
+Byline: Codex · GPT-5 · 2026-08-15; native Weaviate amendment 2026-08-18
 """
 
 from __future__ import annotations
@@ -9,6 +9,8 @@ import importlib.util
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+
+from weaviate.classes.config import DataType, Property
 
 
 SCRIPT = Path(__file__).parents[1] / "scripts" / "_matter_activation_preflight.py"
@@ -32,6 +34,80 @@ def test_static_release_contract_is_current() -> None:
     checks = preflight.static_checks()
     assert checks
     assert {check.status for check in checks} == {"PASS"}
+
+
+def test_native_evidence_contract_requires_versioned_typed_source_clock() -> None:
+    good = SimpleNamespace(
+        EVIDENCE_VECTOR_COLLECTION_VERSION=1,
+        EVIDENCE_VECTOR_COLLECTION="EvidenceChunkV1",
+        EVIDENCE_VECTOR_ALIAS="EvidenceChunks",
+        EVIDENCE_EMBED_MODEL="nvidia/nv-embed-v1",
+        EVIDENCE_EMBED_DIM=4096,
+        evidence_vector_properties=lambda: [
+            Property(
+                name=name,
+                data_type={
+                    "text": DataType.TEXT,
+                    "uuid": DataType.UUID,
+                    "boolean": DataType.BOOL,
+                    "date": DataType.DATE,
+                    "int": DataType.INT,
+                }[data_type],
+                index_range_filters=requires_range or None,
+            )
+            for name, (data_type, requires_range) in preflight.REQUIRED_NATIVE_PROPERTIES.items()
+        ],
+    )
+    checks = preflight.evaluate_native_evidence_contract(good)
+    assert all(check.status == "PASS" for check in checks)
+
+    wrong = SimpleNamespace(**vars(good))
+    wrong.EVIDENCE_VECTOR_COLLECTION_VERSION = 2
+    wrong.evidence_vector_properties = lambda: [
+        property_ for property_ in good.evidence_vector_properties() if property_.name != "source_available_from"
+    ]
+    failed = preflight.evaluate_native_evidence_contract(wrong)
+    assert {check.check_id for check in failed if check.status == "FAIL"} == {
+        "weaviate.native_contract_identity",
+        "weaviate.native_contract_properties",
+    }
+
+
+def test_pinned_weaviate_version_floor_is_static_and_fail_closed(tmp_path) -> None:
+    deploy = tmp_path / "deploy"
+    deploy.mkdir()
+    manifest = deploy / "data-weaviate.yaml"
+
+    manifest.write_text("services:\n  weaviate:\n    image: semitechnologies/weaviate:1.26.0\n", encoding="utf-8")
+    assert preflight.pinned_weaviate_version_checks(tmp_path)[0].status == "PASS"
+
+    manifest.write_text("services:\n  weaviate:\n    image: semitechnologies/weaviate:1.25.9\n", encoding="utf-8")
+    assert preflight.pinned_weaviate_version_checks(tmp_path)[0].status == "FAIL"
+
+    manifest.write_text("services:\n  weaviate:\n    image: semitechnologies/weaviate:latest\n", encoding="utf-8")
+    assert preflight.pinned_weaviate_version_checks(tmp_path)[0].status == "FAIL"
+
+
+def test_static_scope_does_not_invoke_database_credentials_or_services(monkeypatch) -> None:
+    monkeypatch.setattr(preflight, "static_checks", lambda: [])
+    monkeypatch.setattr(preflight, "git_checks", lambda: [])
+    monkeypatch.setattr(preflight, "database_snapshot", lambda dsn: (_ for _ in ()).throw(AssertionError("database")))
+    monkeypatch.setattr(preflight, "credential_checks", lambda: (_ for _ in ()).throw(AssertionError("credentials")))
+    monkeypatch.setattr(preflight, "service_checks", lambda args: (_ for _ in ()).throw(AssertionError("services")))
+
+    checks, exit_code = preflight.run(
+        SimpleNamespace(
+            scope="static",
+            database_dsn_env="MATTER_PREFLIGHT_DATABASE_URL",
+            expected_migrations=None,
+            workbench_url="https://workbench.invalid",
+            spine_url="https://spine.invalid",
+            weaviate_url="https://weaviate.invalid",
+        )
+    )
+
+    assert checks == []
+    assert exit_code == 0
 
 
 def test_credentials_require_long_distinct_inbound_and_spine_keys() -> None:

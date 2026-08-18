@@ -1,5 +1,7 @@
 // Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: parse-quality record browser — requirements addendum 1)
 // Byline: Codex · GPT-5 · 2026-08-16 (canonical artifact deep-link correction)
+// Byline: Codex · GPT-5 · 2026-08-18 (source-class browser)
+// Byline amendment: Codex · GPT-5 · 2026-08-18 (review completion refresh)
 "use client";
 
 /**
@@ -12,6 +14,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { RefreshCw } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -173,6 +176,7 @@ export function RecordsBrowser() {
                     <TableHead className="w-16">Idx</TableHead>
                     <TableHead>Type</TableHead>
                     <TableHead>Role</TableHead>
+                    <TableHead>Source class</TableHead>
                     <TableHead>Timestamp</TableHead>
                     <TableHead>Text preview</TableHead>
                   </TableRow>
@@ -189,7 +193,12 @@ export function RecordsBrowser() {
                     >
                       <TableCell className="text-muted-foreground">{record.idx}</TableCell>
                       <TableCell>{record.record_type}</TableCell>
-                      <TableCell>{record.role || "—"}</TableCell>
+                      <TableCell>{record.third_party_conversation?.actual_sender || record.role || "—"}</TableCell>
+                      <TableCell>
+                        <Badge variant={record.source_kind === "unclassified" ? "destructive" : "outline"}>
+                          {record.source_kind.replaceAll("_", " ")}
+                        </Badge>
+                      </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
                         {record.ts ? formatDate(record.ts) : "—"}
                       </TableCell>
@@ -239,6 +248,7 @@ export function RecordsBrowser() {
         onSelect={setSelectedId}
         sha256={selectedRun?.sha256}
         onRecordUpdated={handleRecordUpdated}
+        onReviewCompleted={fetchRecords}
       />
     </>
   );

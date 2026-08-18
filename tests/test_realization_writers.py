@@ -7,6 +7,7 @@ moves, on the real ``working.visible_from``) lives in
 ``scripts/_wave1_validate_w12_realization.py``.
 
 Byline: Claude Code . glm-5.2:cloud . 2026-08-14
+Byline amendment: Codex · GPT-5 · 2026-08-18 (source-availability ordering guard)
 """
 
 from __future__ import annotations
@@ -54,9 +55,11 @@ class _Result:
 
 
 class _StubConn:
-    def __init__(self, *, min_occ: datetime | None = None) -> None:
+    def __init__(self, *, latest_available: datetime | None = None, found: int = 1, available: int = 1) -> None:
         self.calls: list[tuple[str, Any]] = []
-        self.min_occ = min_occ
+        self.latest_available = latest_available
+        self.found = found
+        self.available = available
         self.new_id = "00000000-0000-7000-8000-000000000001"
         self.approved_ids: list[str] = []
         self.supersede_hit = True
@@ -64,8 +67,8 @@ class _StubConn:
     def execute(self, stmt: Any, params: Any = None) -> _Result:
         sql = str(stmt)
         self.calls.append((sql, params))
-        if sql.startswith("SELECT MIN(occurred_at)"):
-            return _Result(scalar=self.min_occ)
+        if "MAX(working.source_available_from(id))" in sql:
+            return _Result(fetchone_row=(self.found, self.available, self.latest_available))
         if "INSERT INTO working.realization_event " in sql and "RETURNING id" in sql:
             return _Result(scalar=self.new_id)
         if "INSERT INTO working.realization_event_record" in sql:
@@ -86,12 +89,12 @@ class _StubConn:
 # ---------------------------------------------------------------------------
 
 
-def test_propose_rejects_realized_at_before_linked_occurred_at():
-    """F5 guard: a realization cannot predate what it reveals."""
-    occurred = datetime(2024, 6, 1, tzinfo=timezone.utc)
-    conn = _StubConn(min_occ=occurred)
+def test_propose_rejects_realized_at_before_linked_source_available_from():
+    """A realization cannot predate possession of any source it reveals."""
+    available = datetime(2024, 6, 1, tzinfo=timezone.utc)
+    conn = _StubConn(latest_available=available)
     rid = uuid.uuid4()
-    with pytest.raises(ValueError, match="precedes the earliest linked occurred_at"):
+    with pytest.raises(ValueError, match="precedes the latest linked source availability"):
         propose_realization(
             kind="manual",
             realized_at=datetime(2024, 5, 1, tzinfo=timezone.utc),  # before occurred
@@ -99,14 +102,14 @@ def test_propose_rejects_realized_at_before_linked_occurred_at():
             connection=conn,
         )
     # The guard SELECT ran, but NO insert followed (rejected before insert).
-    assert any("SELECT MIN(occurred_at)" in s for s, _ in conn.calls)
+    assert any("source_available_from" in s for s, _ in conn.calls)
     assert not any("INSERT INTO working.realization_event" in s for s, _ in conn.calls)
 
 
-def test_propose_accepts_realized_at_at_or_after_occurred_at():
-    occurred = datetime(2024, 6, 1, tzinfo=timezone.utc)
-    for realized in (occurred, occurred.replace(year=occurred.year + 1)):
-        conn = _StubConn(min_occ=occurred)
+def test_propose_accepts_realized_at_at_or_after_source_availability():
+    available = datetime(2024, 6, 1, tzinfo=timezone.utc)
+    for realized in (available, available.replace(year=available.year + 1)):
+        conn = _StubConn(latest_available=available)
         eid = propose_realization(
             kind="contradiction",
             realized_at=realized,
@@ -133,7 +136,7 @@ def test_propose_with_no_records_skips_guard():
         connection=conn,
     )
     assert eid == uuid.UUID(conn.new_id)
-    assert not any("SELECT MIN(occurred_at)" in s for s, _ in conn.calls)
+    assert not any("source_available_from" in s for s, _ in conn.calls)
     assert not any("realization_event_record" in s for s, _ in conn.calls)
 
 
@@ -161,7 +164,7 @@ def test_propose_rejects_empty_case_id():
 def test_propose_honors_caller_connection():
     """connection= must be used in place — no private engine created."""
     occurred = datetime(2024, 6, 1, tzinfo=timezone.utc)
-    conn = _StubConn(min_occ=occurred)
+    conn = _StubConn(latest_available=occurred)
     propose_realization(
         kind="manual",
         realized_at=occurred.replace(year=occurred.year + 1),
@@ -171,6 +174,17 @@ def test_propose_honors_caller_connection():
     # Every statement the writer issued landed on the stub, proving no separate
     # engine/transaction was opened.
     assert conn.calls, "writer issued no statements on the passed connection"
+
+
+def test_propose_fails_closed_when_linked_source_has_no_availability():
+    conn = _StubConn(latest_available=None, found=1, available=0)
+    with pytest.raises(ValueError, match="source-availability boundary"):
+        propose_realization(
+            kind="manual",
+            realized_at=datetime(2025, 1, 1, tzinfo=timezone.utc),
+            record_ids=[uuid.uuid4()],
+            connection=conn,
+        )
 
 
 # ---------------------------------------------------------------------------

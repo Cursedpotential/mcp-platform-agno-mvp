@@ -197,3 +197,41 @@ def test_court_readiness_forwards_exact_matter_item_scope(monkeypatch):
         "path": f"/v1/matters/{MATTER_ID}/evidence-items/{item_id}/court-readiness",
         "kwargs": {},
     }
+
+
+def test_original_source_forwards_exact_matter_item_scope(monkeypatch):
+    captured = {}
+
+    def fake_spine_json(method, path, **kwargs):
+        captured.update(method=method, path=path, kwargs=kwargs)
+        return {"content": "original"}
+
+    monkeypatch.setattr(case_management, "spine_json", fake_spine_json)
+    item_id = UUID("88888888-8888-4888-8888-888888888888")
+
+    assert case_management.get_original_source_content(MATTER_ID, item_id) == {"content": "original"}
+    assert captured == {
+        "method": "GET",
+        "path": f"/v1/matters/{MATTER_ID}/evidence-items/{item_id}/source-content",
+        "kwargs": {},
+    }
+
+
+def test_conversation_context_forwards_bounded_window(monkeypatch):
+    captured = {}
+
+    def fake_spine_json(method, path, **kwargs):
+        captured.update(method=method, path=path, kwargs=kwargs)
+        return {"messages": [], "before": 2, "after": 3, "total": 0}
+
+    monkeypatch.setattr(case_management, "spine_json", fake_spine_json)
+    item_id = UUID("88888888-8888-4888-8888-888888888888")
+
+    result = case_management.get_conversation_context(MATTER_ID, item_id, before=2, after=3)
+
+    assert result["messages"] == []
+    assert captured == {
+        "method": "GET",
+        "path": f"/v1/matters/{MATTER_ID}/evidence-items/{item_id}/conversation-context",
+        "kwargs": {"params": {"before": 2, "after": 3}},
+    }

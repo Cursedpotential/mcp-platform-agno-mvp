@@ -1,6 +1,7 @@
 # Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: parse_dryrun added)
 # Byline: Codex · GPT-5 · 2026-08-13 (durable report proxy)
 # Byline: Codex · GPT-5 · 2026-08-16 (neutral ingest submission)
+# Byline: Codex · GPT-5 · 2026-08-18 (conversation source-boundary forwarding)
 """Submit intake to the neutral ingest port; inspect its PostgreSQL run receipt.
 
 New in the workbench — the C1 Operator Console's replacement for the
@@ -111,6 +112,10 @@ def start_run(
     mode: str = "auto",
     custody_tier: str | None = None,
     source_meta: dict | None = None,
+    message_corpus: str,
+    source_principal: str,
+    caller_owns_conversation: bool,
+    acquisition: dict | None = None,
     staged_id: str | None = None,
     file_bytes: bytes | None = None,
     filename: str | None = None,
@@ -124,6 +129,14 @@ def start_run(
     """
     if not workflow:
         raise RunsError("workflow is required", 400)
+    if message_corpus not in {"first_party", "acquired_third_party"}:
+        raise RunsError("message_corpus must be first_party or acquired_third_party", 400)
+    if not source_principal.strip():
+        raise RunsError("source_principal is required", 400)
+    if message_corpus == "first_party" and not caller_owns_conversation:
+        raise RunsError("first-party ingestion requires explicit authenticated ownership confirmation", 400)
+    if message_corpus == "acquired_third_party" and acquisition is None:
+        raise RunsError("acquired third-party ingestion requires an acquisition assertion", 400)
 
     if staged_id:
         record = staging.get(staged_id)
@@ -160,6 +173,11 @@ def start_run(
         form["coverage_hint"] = "smsbackuprestore-xml"
     if source_meta is not None:
         form["source_identity"] = json.dumps(source_meta)
+    form["message_corpus"] = message_corpus
+    form["source_principal"] = source_principal.strip()
+    form["caller_owns_conversation"] = "true" if caller_owns_conversation else "false"
+    if acquisition is not None:
+        form["acquisition"] = json.dumps(acquisition)
 
     response = _spine_request(
         "POST",

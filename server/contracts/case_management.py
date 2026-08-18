@@ -5,6 +5,7 @@ only.  AgentOS/Agno knowledge-base identifiers are adapter details and must
 not become part of the case-management API.
 
 Byline: Codex · GPT-5 · 2026-08-15
+Byline amendment: Codex · GPT-5 · 2026-08-18 (source/projection and realization contracts)
 """
 
 from __future__ import annotations
@@ -17,6 +18,8 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 KnowledgeLane = Literal["platform", "legal", "personal_history", "context", "evidence"]
+RecordSourceKind = Literal["first_party", "third_party_acquired", "unclassified"]
+RecordProjectionKind = Literal["authored_normalized", "derived_third_party"]
 
 
 class ReviewState(StrEnum):
@@ -191,6 +194,9 @@ class SourceCandidate(BaseModel):
     role: str | None = None
     content: str
     occurred_at: datetime | None = None
+    source_kind: RecordSourceKind = "unclassified"
+    projection_kind: RecordProjectionKind = "authored_normalized"
+    source_available_from: datetime | None = None
     disclosure_tier: str
     review_status: ReviewState
 
@@ -286,6 +292,41 @@ class EvidencePromotionDetail(BaseModel):
     promoted_at: datetime
 
 
+class ThirdPartyConversationContext(BaseModel):
+    """Acquisition and actual-party context from the derived third-party projection.
+
+    Presence in this model never implies that the owner sent or received a
+    message.  Sender and recipient values must come from the source-backed
+    projection; an unavailable value remains absent.
+    """
+
+    id: UUID
+    external_thread_key: str
+    platform: str
+    title: str | None = None
+    acquisition_id: UUID | None = None
+    acquired_at: datetime
+    actual_sender: str | None = None
+    actual_recipients: list[str] = Field(default_factory=list)
+    actual_participants: list[str] = Field(default_factory=list)
+
+
+class RealizationEventDetail(BaseModel):
+    """One append-only realization linked to the normalized source record."""
+
+    id: UUID
+    kind: str
+    realized_at: datetime
+    approval_state: Literal["proposed", "approved", "superseded"]
+    trigger_record_id: UUID | None = None
+    evidence_pointer: dict[str, Any] = Field(default_factory=dict)
+    proposer: Literal["algorithm", "owner"]
+    proposed_at: datetime
+    approved_at: datetime | None = None
+    approved_by: str | None = None
+    notes: str | None = None
+
+
 class CanonicalRecordDetail(BaseModel):
     id: UUID
     record_type: str
@@ -294,9 +335,22 @@ class CanonicalRecordDetail(BaseModel):
     role: str | None = None
     content: str
     occurred_at: datetime | None = None
-    acquired_at: datetime | None = None
+    source_kind: RecordSourceKind = "unclassified"
+    projection_kind: RecordProjectionKind = "authored_normalized"
+    source_available_from: datetime | None = None
+    third_party_conversation: ThirdPartyConversationContext | None = None
+    realization_events: list[RealizationEventDetail] = Field(default_factory=list)
+    acquired_at: datetime | None = Field(
+        default=None,
+        deprecated=True,
+        description="Deprecated compatibility scalar; use third_party_conversation.acquired_at.",
+    )
     ingested_at: datetime
-    realized_at: datetime | None = None
+    realized_at: datetime | None = Field(
+        default=None,
+        deprecated=True,
+        description="Deprecated compatibility scalar; use realization_events (zero to many).",
+    )
     disclosure_tier: str
     review_status: ReviewState
     case_id: str
@@ -474,3 +528,61 @@ class EvidenceItemList(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class OriginalSourceContent(BaseModel):
+    """Read-only, custody-resolved original source text.
+
+    ``content`` is read from the H1 blob recorded by custody.  It is never
+    populated from ``working.normalized_record.content``; unreadable or
+    binary sources fail closed at the repository boundary instead.
+    """
+
+    matter_id: UUID
+    evidence_item_id: UUID
+    normalized_record_id: UUID
+    source_id: UUID
+    file_node_id: UUID | None = None
+    evidence_hash_id: UUID
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    byte_size: int = Field(ge=0)
+    content_byte_size: int = Field(ge=0)
+    mime_type: str | None = None
+    original_filename: str | None = None
+    content: str
+    encoding: str
+    source_pointer: dict[str, Any] = Field(default_factory=dict)
+    provenance: dict[str, Any] = Field(default_factory=dict)
+    h1: str
+    h2: str | None = None
+    h3: str | None = None
+
+
+class ConversationMessage(BaseModel):
+    """One source-backed normalized message in a bounded context window."""
+
+    id: UUID
+    normalized_record_id: UUID
+    content: str
+    sender: str | None = None
+    recipients: list[str] = Field(default_factory=list)
+    occurred_at: datetime | None = None
+    source_kind: RecordSourceKind = "unclassified"
+    projection_kind: RecordProjectionKind = "authored_normalized"
+    source_available_from: datetime | None = None
+    source_pointer: dict[str, Any] = Field(default_factory=dict)
+
+
+class ConversationContext(BaseModel):
+    """Deterministically ordered, bounded messages around one selected item."""
+
+    matter_id: UUID
+    evidence_item_id: UUID
+    selected_normalized_record_id: UUID
+    messages: list[ConversationMessage]
+    before: int = Field(ge=0)
+    after: int = Field(ge=0)
+    total: int = Field(ge=0)
+    context_available: bool = True
+    context_complete: bool = True
+    availability_reason: str | None = None

@@ -1,6 +1,11 @@
 -- 0027_walk_ledger.sql — ADR-0045 §B DERIVED pass materialization lands (W1.3).
 --
 -- Byline: Claude Code . glm-5.2:cloud . 2026-08-14
+-- Byline amendment: Codex GPT-5 . 2026-08-18
+-- Byline amendment: Codex GPT-5 . 2026-08-18 (legacy-view forward upgrade)
+-- Supersession: this HELD/unapplied draft now separates resumable healthy
+-- checkpoints from sealed failure snapshots and hashes every visibility-bearing
+-- base input (routes, acquisitions, and realization links), not only source rows.
 --
 -- ⚠ HELD FOR OWNER — COMMITTED + ROLLBACK-VALIDATED, NOT APPLIED TO PROD.
 -- Apply only through the reviewed 0026-0030 release sequence.
@@ -260,34 +265,136 @@ COMMENT ON VIEW working.vw_walk_contamination IS
   'corrupted. Uses visible_from (the §A clock), NOT the superseded knowledge_time.';
 
 -- ---------------------------------------------------------------------------
--- working.vw_walk_delta — THE deliverable: believed-then vs actual (canon §1).
+-- 2026-08-18 held-draft amendment: resumability and complete version inputs.
 -- ---------------------------------------------------------------------------
--- The delta between what the ignorant agent believed at each step (conclusion)
--- and what was actually true (the focal record's content + when it was really
--- knowable). realization_lag = visible_from - occurred_at: how long after the
--- event the party discovered it. This is the gaslighting/manipulation signal —
--- "what you were led to believe vs what was true vs when you found out."
-CREATE OR REPLACE VIEW working.vw_walk_delta AS
-SELECT s.walk_run_id,
-       s.step_no,
-       s.horizon_at,
-       s.record_id       AS focal_record_id,
-       s.conclusion      AS believed_then,
-       nr.content        AS actual,
-       nr.occurred_at    AS occurred_at,
-       working.visible_from(s.record_id) AS actual_known_from,
-       CASE WHEN working.visible_from(s.record_id) IS NOT NULL
-                 AND nr.occurred_at IS NOT NULL
-            THEN working.visible_from(s.record_id) - nr.occurred_at
-            END               AS realization_lag
+ALTER TABLE working.walk_run
+  DROP CONSTRAINT IF EXISTS walk_run_status_check;
+ALTER TABLE working.walk_run
+  ADD CONSTRAINT walk_run_status_check
+  CHECK (status IN ('running','paused','completed','sealed','failed','invalidated'));
+ALTER TABLE working.walk_run
+  ADD COLUMN IF NOT EXISTS rewalk_of_id UUID REFERENCES working.walk_run(id) ON DELETE RESTRICT,
+  ADD COLUMN IF NOT EXISTS resume_from_checkpoint_id UUID,
+  ADD COLUMN IF NOT EXISTS sealed_at TIMESTAMPTZ;
+
+CREATE TABLE IF NOT EXISTS working.walk_checkpoint (
+  id UUID PRIMARY KEY DEFAULT uuidv7(),
+  walk_run_id UUID NOT NULL REFERENCES working.walk_run(id) ON DELETE CASCADE,
+  checkpoint_no INTEGER NOT NULL CHECK (checkpoint_no>=0),
+  checkpoint_kind TEXT NOT NULL CHECK (checkpoint_kind IN ('healthy','failure_seal')),
+  last_completed_step_no INTEGER NOT NULL CHECK (last_completed_step_no>=0),
+  cursor JSONB NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(cursor)='object'),
+  belief_state JSONB NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(belief_state)='object'),
+  base_version TEXT NOT NULL CHECK (length(base_version)>0),
+  horizon_hash TEXT NOT NULL CHECK (length(horizon_hash)=64),
+  chain_hash TEXT NOT NULL CHECK (length(chain_hash)=64),
+  is_resumable BOOLEAN NOT NULL,
+  failure JSONB CHECK (failure IS NULL OR jsonb_typeof(failure)='object'),
+  captured_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(id, walk_run_id),
+  UNIQUE(walk_run_id, checkpoint_no),
+  CHECK ((checkpoint_kind='healthy' AND is_resumable AND failure IS NULL)
+      OR (checkpoint_kind='failure_seal' AND NOT is_resumable AND failure IS NOT NULL))
+);
+CREATE INDEX IF NOT EXISTS walk_checkpoint_run_latest_idx
+  ON working.walk_checkpoint(walk_run_id, checkpoint_no DESC);
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='walk_run_resume_checkpoint_fk'
+                  AND conrelid='working.walk_run'::regclass) THEN
+    ALTER TABLE working.walk_run ADD CONSTRAINT walk_run_resume_checkpoint_fk
+      FOREIGN KEY(resume_from_checkpoint_id, id)
+      REFERENCES working.walk_checkpoint(id, walk_run_id)
+      ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS working.walk_step_realization_retrieval (
+  id UUID PRIMARY KEY DEFAULT uuidv7(),
+  walk_step_id UUID NOT NULL REFERENCES working.walk_step(id) ON DELETE CASCADE,
+  realization_event_id UUID NOT NULL REFERENCES working.realization_event(id) ON DELETE RESTRICT,
+  store TEXT NOT NULL CHECK (store IN ('postgres','weaviate','graphiti','neo4j','other')),
+  rank INTEGER,
+  score REAL,
+  was_used BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(walk_step_id, realization_event_id, store)
+);
+CREATE INDEX IF NOT EXISTS walk_step_realization_retrieval_event_idx
+  ON working.walk_step_realization_retrieval(realization_event_id);
+
+-- Canonical rows for deterministic base_version hashing.  Consumers serialize
+-- these in (input_kind,input_key) order. Proposed decisions are included because
+-- approval transitions alter visibility and therefore must move the base version.
+CREATE OR REPLACE VIEW working.vw_walk_base_version_input AS
+SELECT nr.case_id, 'normalized_record'::TEXT AS input_kind, nr.id::TEXT AS input_key,
+       jsonb_build_object('content_sha256',encode(COALESCE(nr.source_content_sha256,
+         digest(convert_to(nr.content,'UTF8'),'sha256')),'hex'),
+         'occurred_at',nr.occurred_at,'disclosure_tier',nr.disclosure_tier) AS input_payload
+  FROM working.normalized_record nr
+UNION ALL
+SELECT nr.case_id, 'message_projection_route', r.normalized_record_id::TEXT,
+       jsonb_build_object('projection_kind',r.projection_kind,'decision_state',r.decision_state,
+                          'approved_at',r.approved_at,'deriver_version',r.deriver_version)
+  FROM working.message_projection_route r
+  JOIN working.normalized_record nr ON nr.id=r.normalized_record_id
+UNION ALL
+SELECT tc.case_id, 'third_party_acquisition', ca.id::TEXT,
+       jsonb_build_object('conversation_id',ca.conversation_id,'acquisition_id',ca.acquisition_id,
+                          'approval_state',ca.approval_state,'acquired_at',a.acquired_at)
+  FROM working.third_party_conversation_acquisition ca
+  JOIN working.third_party_conversation tc ON tc.id=ca.conversation_id
+  JOIN evidence.acquisition a ON a.id=ca.acquisition_id
+UNION ALL
+SELECT re.case_id, 'realization_event', re.id::TEXT,
+       jsonb_build_object('kind',re.kind,'realized_at',re.realized_at,
+                          'approval_state',re.approval_state,'trigger_record_id',re.trigger_record_id)
+  FROM working.realization_event re
+UNION ALL
+SELECT rer.case_id, 'realization_event_record',
+       rer.realization_event_id::TEXT || ':' || rer.normalized_record_id::TEXT,
+       jsonb_build_object('realization_event_id',rer.realization_event_id,
+                          'normalized_record_id',rer.normalized_record_id)
+  FROM working.realization_event_record rer;
+
+-- NULL availability is a fail-closed contamination, not an invisible success.
+CREATE OR REPLACE VIEW working.vw_walk_contamination AS
+SELECT s.walk_run_id, s.step_no, s.horizon_at, ret.record_id, ret.store, ret.was_used,
+       working.source_available_from(ret.record_id) AS visible_from
   FROM working.walk_step s
-  JOIN working.normalized_record nr ON nr.id = s.record_id
+  JOIN working.walk_step_retrieval ret ON ret.walk_step_id=s.id
+ WHERE working.source_available_from(ret.record_id) IS NULL
+    OR (s.horizon_at IS NOT NULL
+        AND working.source_available_from(ret.record_id)>s.horizon_at)
+UNION ALL
+SELECT s.walk_run_id, s.step_no, s.horizon_at, NULL::UUID, ret.store, ret.was_used,
+       re.realized_at
+  FROM working.walk_step s
+  JOIN working.walk_step_realization_retrieval ret ON ret.walk_step_id=s.id
+  JOIN working.realization_event re ON re.id=ret.realization_event_id
+ WHERE re.approval_state<>'approved'
+    OR (s.horizon_at IS NOT NULL AND re.realized_at>s.horizon_at);
+
+CREATE OR REPLACE VIEW working.vw_walk_delta AS
+SELECT s.walk_run_id, s.step_no, s.horizon_at, s.record_id AS focal_record_id,
+       s.conclusion AS believed_then, nr.content AS actual, nr.occurred_at,
+       working.source_available_from(s.record_id) AS actual_known_from,
+       CASE WHEN rz.first_realized_at IS NOT NULL AND nr.occurred_at IS NOT NULL
+            THEN rz.first_realized_at-nr.occurred_at END AS realization_lag,
+       rz.first_realized_at
+  FROM working.walk_step s
+  JOIN working.normalized_record nr ON nr.id=s.record_id
+  LEFT JOIN LATERAL (
+    SELECT min(re.realized_at) AS first_realized_at
+      FROM working.realization_event_record rer
+      JOIN working.realization_event re ON re.id=rer.realization_event_id
+     WHERE rer.normalized_record_id=s.record_id AND re.approval_state='approved'
+  ) rz ON true
  WHERE s.record_id IS NOT NULL;
 
-COMMENT ON VIEW working.vw_walk_delta IS
-  'THE deliverable (canon §1): what the ignorant agent believed at each step '
-  '(believed_then) vs what was actually true (actual), with realization_lag = '
-  'visible_from - occurred_at (how long after the event the party found out). '
-  'The delta between this and the hindsight walk IS the gaslighting/manipulation.';
+COMMENT ON TABLE working.walk_checkpoint IS
+  'Healthy checkpoints are resumable. Failure seals are immutable diagnostic snapshots and never resume; create rewalk_of_id for a clean rewalk.';
+COMMENT ON VIEW working.vw_walk_base_version_input IS
+  'Deterministically ordered inputs for a walk base-version hash, including visibility-bearing projection, acquisition, and realization decisions.';
 
 COMMIT;

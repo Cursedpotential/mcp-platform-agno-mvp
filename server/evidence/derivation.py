@@ -41,24 +41,24 @@ Two schedules (canon §1 — a pass is a knowledge horizon bound to an agent):
 
   * **As-lived (ignorant).** The horizon ADVANCES each step; the agent lives
     events as they were actually discovered. Each step appends the
-    newly-visible slice (``visible_from(record) <= horizon_at``) and
+    newly-visible source and realization atoms (``visible_from <= horizon_at``) and
     chain-hashes it. Gaslighting works here, and only here — the delta vs the
     hindsight walk IS the manipulation.
   * **Hindsight.** A single step with ``horizon_at IS NULL`` (no cutoff) — the
     whole case, including hindsight-tagged records, is visible at once.
 
 Contamination (the silent killer, AGENTS.md WHY THIS EXISTS): the visible slice
-for an ignorant step uses ``working.visible_from(record_id) <= horizon_at`` AND
-``disclosure_tier <> 'hindsight'``. A record whose ``visible_from`` is after the
-step horizon is excluded BEFORE it enters the slice — not filtered out of top-k
-afterward. ``working.vw_walk_contamination`` (0027) flags any that slipped
-through (a non-empty view = the delta is silently corrupted).
+reads ``working.vw_horizon_atom``. Raw sources use source availability
+(occurrence for first-party; acquisition for acquired third-party); approved
+realizations are separate atoms at their own dates. NULL availability fails
+closed for an as-lived step.
 
 Writes ride the platform write engine (``server.core.url.db_url``), NOT an
 agent's read-only engine (ADR-0005). ``connection=`` lets a caller share an outer
 transaction (atomic audit / rollback-transaction validation).
 
 Byline: Claude Code . glm-5.2:cloud . 2026-08-14
+Byline amendment: Codex · GPT-5 · 2026-08-18 (source availability + realization atoms)
 """
 
 from __future__ import annotations
@@ -139,39 +139,16 @@ def _canonical_json(fields: dict[str, Any]) -> str:
 
 
 def _compute_base_version(conn: Any, case_id: str) -> str:
-    """The content-hash of the authored store for a case: its normalized
-    records (id + occurred_at) and its APPROVED realization events (id +
-    realized_at + linked record ids). Deterministic + reproducible — if the
-    authored store is unchanged, this is unchanged, and a re-derivation at this
-    base_version reproduces the identical hash chain. Moving the base forward
-    (a new record, a newly-approved realization) produces a different
-    base_version => a NEW run, never a mutation of an old one.
-    """
-    records = conn.execute(
-        text("SELECT id, occurred_at FROM working.normalized_record WHERE case_id = :cid ORDER BY id"),
-        {"cid": case_id},
-    ).fetchall()
-    events = conn.execute(
+    """Hash every visibility-bearing source, route, acquisition, and realization input."""
+    rows = conn.execute(
         text(
-            "SELECT e.id, e.realized_at, "
-            "       (SELECT array_agg(l.normalized_record_id ORDER BY l.normalized_record_id) "
-            "          FROM working.realization_event_record l "
-            "         WHERE l.realization_event_id = e.id) AS linked "
-            "  FROM working.realization_event e "
-            " WHERE e.case_id = :cid AND e.approval_state = 'approved' "
-            " ORDER BY e.id"
+            "SELECT input_kind, input_key, input_payload "
+            "FROM working.vw_walk_base_version_input "
+            "WHERE case_id=:cid ORDER BY input_kind, input_key"
         ),
         {"cid": case_id},
     ).fetchall()
-    canon = _canonical_json(
-        {
-            "records": [{"id": str(r[0]), "occurred_at": _utc_iso(r[1])} for r in records],
-            "events": [
-                {"id": str(e[0]), "realized_at": _utc_iso(e[1]), "linked": [str(x) for x in (e[2] or [])]}
-                for e in events
-            ],
-        }
-    )
+    canon = _canonical_json({"inputs": [{"kind": str(row[0]), "key": str(row[1]), "payload": row[2]} for row in rows]})
     return hashlib.sha256(canon.encode("utf-8")).hexdigest()
 
 
@@ -182,19 +159,20 @@ def _genesis_hash(base_version: str, parameters: dict[str, Any]) -> str:
 
 def _canonical_slice(visible_rows: list[Any], horizon_at: datetime | None) -> str:
     """Deterministic serialization of a step's visible slice for hashing.
-    ``visible_rows`` are (id, occurred_at, visible_from, disclosure_tier) tuples.
-    Sorted by (occurred_at NULLS LAST, id) so re-derivation is order-stable.
+    ``visible_rows`` are (atom_kind, atom_id, occurred_at, visible_from,
+    disclosure_tier) tuples. Sorted by kind/id so re-derivation is stable.
     """
     payload = [
         {
-            "id": str(r[0]),
-            "occurred_at": _utc_iso(r[1]),
-            "visible_from": _utc_iso(r[2]),
-            "disclosure_tier": r[3],
+            "atom_kind": str(r[0]),
+            "atom_id": str(r[1]),
+            "occurred_at": _utc_iso(r[2]),
+            "visible_from": _utc_iso(r[3]),
+            "disclosure_tier": r[4],
         }
         for r in sorted(
             visible_rows,
-            key=lambda r: (r[1] is None, r[1], str(r[0])),
+            key=lambda r: (str(r[0]), str(r[1])),
         )
     ]
     return _canonical_json({"horizon_at": _utc_iso(horizon_at), "slice": payload})
@@ -211,16 +189,17 @@ def _step_corpus_hash(prev_hash: str, slice_canonical: str) -> str:
 # ---------------------------------------------------------------------------
 
 _SLICE_SQL = """
-    SELECT id, occurred_at, working.visible_from(id) AS visible_from, disclosure_tier
-      FROM working.normalized_record
+    SELECT atom_kind, atom_id, occurred_at, visible_from, disclosure_tier
+      FROM working.vw_horizon_atom
      WHERE case_id = :cid
-       AND working.visible_from(id) <= :horizon
+       AND visible_from IS NOT NULL
+       AND visible_from <= :horizon
        AND disclosure_tier <> 'hindsight'
 """
 
 _HINDSIGHT_SLICE_SQL = """
-    SELECT id, occurred_at, working.visible_from(id) AS visible_from, disclosure_tier
-      FROM working.normalized_record
+    SELECT atom_kind, atom_id, occurred_at, visible_from, disclosure_tier
+      FROM working.vw_horizon_atom
      WHERE case_id = :cid
 """
 
@@ -335,16 +314,26 @@ def derive_walk(
                 },
             ).scalar()
 
-            # Record the retrieved visible slice as walk_step_retrieval
-            # (provenance for the contamination + delta views).
-            if slice_rows:
+            # Preserve typed provenance; realization UUIDs are not record UUIDs.
+            record_rows = [row for row in slice_rows if row[0] == "normalized_record"]
+            realization_rows = [row for row in slice_rows if row[0] == "realization_event"]
+            if record_rows:
                 conn.execute(
                     text(
                         "INSERT INTO working.walk_step_retrieval "
                         "(walk_step_id, record_id, store, was_used) "
                         "VALUES (:sid, :rid, 'postgres', true)"
                     ),
-                    [{"sid": str(step_id), "rid": str(r[0])} for r in slice_rows],
+                    [{"sid": str(step_id), "rid": str(row[1])} for row in record_rows],
+                )
+            if realization_rows:
+                conn.execute(
+                    text(
+                        "INSERT INTO working.walk_step_realization_retrieval "
+                        "(walk_step_id, realization_event_id, store, was_used) "
+                        "VALUES (:sid, :eid, 'postgres', true)"
+                    ),
+                    [{"sid": str(step_id), "eid": str(row[1])} for row in realization_rows],
                 )
 
             # Hash-attest this step to ops.audit_ledger, atomically with the write.
