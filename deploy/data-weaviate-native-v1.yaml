@@ -1,0 +1,30 @@
+# data-weaviate-native-v1 — side-by-side Weaviate blue deployment
+# Byline: Codex · GPT-5 · 2026-08-18
+#
+# This application is intentionally isolated from data-weaviate-files:
+# distinct host ports and a distinct bind mount permit validation before cutover.
+services:
+  weaviate-native-v1:
+    image: semitechnologies/weaviate:1.38.7
+    command: ["--host", "0.0.0.0", "--port", "8080", "--scheme", "http"]
+    ports:
+      - "${BIND_IP:-127.0.0.1}:${WEAVIATE_REST_PORT:-8082}:8080"
+      - "${BIND_IP:-127.0.0.1}:${WEAVIATE_GRPC_PORT:-50052}:50051"
+    environment:
+      QUERY_DEFAULTS_LIMIT: "25"
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: "true"
+      PERSISTENCE_DATA_PATH: /var/lib/weaviate
+      DEFAULT_VECTORIZER_MODULE: none
+      ENABLE_MODULES: ""
+      CLUSTER_HOSTNAME: node1
+      CLUSTER_ADVERTISE_ADDR: 127.0.0.1
+      CLUSTER_ADVERTISE_PORT: "7946"
+      DISK_USE_READONLY_PERCENTAGE: "95"
+    volumes:
+      - /data/agno/volumes/weaviate-native-v1:/var/lib/weaviate
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/v1/.well-known/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
