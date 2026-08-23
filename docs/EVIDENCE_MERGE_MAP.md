@@ -375,6 +375,17 @@ _Byline: Claude Code · Sonnet 4.6 · 2026-06-13_
 
 ### Located but deferred / elsewhere
 
-- **CORRECTION:** the owner's trained behavioral ML, **Tether, IS in dial-stack** — at `dial-stack/utilities/apps/ml-nlp/Tether/` (working HuggingFace models `SamanthaStorm/tether-*`: 18-label abuse detection, DARVO regressor, boundary-health, 140+ motif regexes). It sits under the **deferred `utilities/` area**, so it was intentionally not scanned this session. The `py-mcp-server/tools/user_detection.py` placeholder wrapper is *not* Tether — the real models are in utilities. (Earlier "Tether missing" note was wrong: it was a scope artifact of deferring `utilities/`.)
+- ~~**CORRECTION:** the owner's trained behavioral ML, **Tether, IS in dial-stack** — at `dial-stack/utilities/apps/ml-nlp/Tether/` (working HuggingFace models `SamanthaStorm/tether-*`: 18-label abuse detection, DARVO regressor, boundary-health, 140+ motif regexes). It sits under the **deferred `utilities/` area**, so it was intentionally not scanned this session.~~ **SUPERSEDED 2026-08-23 (Claude Code · Opus 5) — the path is wrong.** `dial-stack/` has **no `utilities/` directory at all** (verified: its top level is AGENTS.md, CLAUDE.md, docs, drizzle, mcp-servers, migrations, ontologies, scripts, server, shared, plus config files). Tether is real, but it lives at the **workspace root**, not inside dial-stack:
+
+      E:/AI_Workspace/utilities/External_Utils_Lib/Context_Analysis_Suite/ml-nlp/Tether
+
+  Verified contents: `app.py`, `abuse_type_mapping.py`, `motif_tagging.py`, `README.md`,
+  `requirements.txt`. Real HuggingFace model IDs in `app.py`:
+  `SamanthaStorm/tether-multilabel-v6` (:64), `tether-sentiment-v3` (:69-70),
+  `tether-darvo-regressor-v1` (:83-84).
+  The `py-mcp-server/tools/user_detection.py` placeholder wrapper is still *not* Tether — that part
+  of the note stands.
+  **Relevance note:** per owner ruling 2026-08-23 the behavioral-analysis mechanism over-flags and
+  needs a full rework, so wiring Tether is deferred behind that redesign, not queued as-is.
 - **ChatMiner's AI-chat parsers** live in `Agno-MCP-Platform-alpha` (confirmed separate corpus).
 - **Chat Parser App v2.0** `ParserSchema` two-pass *runner* (the `schemaResolvers` table exists; the LLM schema-proposing runner may be in `MCP_Tool_Platform-REF-READ-ONLY`).

@@ -11,6 +11,9 @@
 > _2026-08-15 amendment: Codex · GPT-5 (legacy custody-digest readiness verifier debt)._
 > _2026-08-16 amendment: Codex · GPT-5 (Swift MVP ingest/Chonkie observed-state tracking)._
 > _2026-08-16 amendment: Codex · GPT-5 (neutral Workbench source/chunk inspection and Data Explorer consolidation)._
+> _2026-08-18 amendment: Codex · GPT-5 (ADR-0059 source clocks, derived third-party projections,
+> and resumable-versus-terminal walk debt)._
+> _2026-08-18 amendment: Codex · GPT-5 (native evidence-vector cutover governance)._
 
 ## Horizon Swift MVP audit items (2026-08-16)
 
@@ -24,6 +27,7 @@
 | Workbench lacks Vercel AI SDK stream | **Resolved locally:** `ai@7` / `@ai-sdk/react@4` drive `/copilot` through a framework-neutral `POST /v1/chat` plain-text stream. The FastAPI adapter calls Portkey's OpenAI-compatible stream with a required saved fallback config, trace id, and audit metadata; public chat contracts import no Agno/OpenCode/Graphiti/Surreal/AgentOS type. Next production build and the full Workbench API suite pass. | **Activation held:** live Coolify remains healthy on `workbench/sprint`; owner approval plus `PORTKEY_CONFIG`/credential provisioning is required before advancing that branch or redeploying. |
 | MCP registry bypass / split gateway | **Resolved in local consumer/config contracts:** ContextForge is the only authored registry; a declarative `source_exact` publication manifest and read-only MCP catalog verifier compare it with Portkey and enforce ADR-0046 annotations. Workbench defaults to zero MCP doors and accepts Portkey entries only; direct doors require an explicit diagnostic bypass. ContextForge compose now requires a dedicated PostgreSQL DSN while preserving SQLite solely for migration/rollback. | **Activation held:** provision a separate PG database/role on ovh-files, migrate and reconcile the SQLite registry, establish a hosted/enterprise Portkey MCP control plane (the OSS LLM gateway is insufficient proof), publish exact virtual servers, provision credentials, produce correlated ContextForge/Portkey/`ops.audit_ledger` traces, then advance/redeploy. |
 | Parked Surreal vs new disposable target | **D1/D2 complete; execution held.** The logical slice design, normative pre-mortem, and exact physical proposal are committed; the parked deployment remains denied. | R12 requires separate **D3** target/credential creation authority and **D4** schema/adapter/live-T0 authority. Do not create an adapter, schema, compose overlay, target, or credential until the matching gate is explicitly approved. |
+| Agno JSON-metadata evidence vectors | **Native V1 contract accepted locally:** `EvidenceChunkV1` carries typed/range-indexed source clocks and self-provided vectors; static preflight checks the contract and pinned Weaviate >=1.26 without network access. | **Cutover held:** migrations `0026`–`0029`, live collection creation, PG-chunk backfill, exact count/hash/canary receipt, `EvidenceChunks` alias switch, reader rebinding, and deploy each require their release gate. Preserve the old Agno evidence collection for rollback. |
 
 _Byline: Codex · GPT-5 · 2026-08-16._
 
@@ -74,15 +78,19 @@ Source: `scripts/_wave0_inventory.py` + `scripts/_wave0_fresh_restore.py` agains
 `100.91.190.107:5432` db `ai` (PG 18.1). Full signed baseline:
 `docs/INVENTORY-BASELINE-2026-08-14.md`.
 
-1. **Horizon clock = superseded `knowledge_time` (LIVE-CONFIRMED).** `working.horizon_visible`
-   filters on `row_knowledge_time <= p_horizon`, NOT ADR-0045 §A's
-   `visible_from = COALESCE(realized_at, occurred_at)` — so the predicate is inert. This is
-   GAP-04 / INVENTORY N1 confirmed against the **running DB** (previously only source-confirmed).
-   **Wave 1** replaces it (clock migration → `realization_event` → `visible_from` derivation).
-   Not a new debt row — sharpens the existing N1 finding to "live-verified."
+1. **Horizon predicate = superseded `knowledge_time` (LIVE-CONFIRMED), and the held replacement
+   now also needs ADR-0059 conformance.** `working.horizon_visible` still filters on
+   `row_knowledge_time <= p_horizon`, so the live predicate is inert. ADR-0059 supersedes the
+   proposed universal realization/occurrence replacement: first-party source availability equals
+   occurrence; acquired-third-party availability equals acquisition; realization stays plural.
+   Wave 1 must implement that source-class predicate and dedicated derived projections before any
+   reader activation. This remains GAP-04 / INVENTORY N1, sharpened to “live-verified and
+   superseded-design-aware.”
 
-2. **ADR-0045 §A/§B unbuilt** (live-confirmed): `working.realization_event`, `working.walk_ledger`
-   do not exist. Wave 1.
+2. **ADR-0045 §B plus ADR-0059 derivation/lifecycle contracts are unbuilt live:** the current
+   database has no active plural realization/source-availability derivation, dedicated acquired-
+   third-party projection, durable healthy checkpoint/resume path, or terminal seal/linked-rewalk
+   path. The local disposable implementation is not production activation. Wave 1 remains held.
 
 3. **ADR-0053 schema BUILT but EMPTY** (live-confirmed): `chat_conversation`/`chat_message`/
    `chat_chunk` (+ lane/embedding/projection) exist, 0 rows; `chat_cdc_cursor` +
@@ -108,7 +116,13 @@ Source: `scripts/_wave0_inventory.py` + `scripts/_wave0_fresh_restore.py` agains
 > `server/tools/parsers/{messaging,ai_chat,generic}/` + `server/tools/extractors/`; the
 > `docker/tools/tools/facade.py` facade still `load_builtin_tools()`-backed — spot-checked,
 > not exhaustively re-run). Planned rows re-verified open: "Evidence schemas populated by a
-> real pipeline" (P2/P4), `evals/cases.py` still `CASES: tuple[Case, ...] = ()`, and Backups
+> real pipeline" (P2/P4), ~~`evals/cases.py` still `CASES: tuple[Case, ...] = ()`~~ **[CORRECTED
+> 2026-08-23, Claude Code · Opus 5: this was already stale when written. `evals/cases.py` is 145
+> lines with 8 populated `Case(` entries; `CASES: tuple[Case, ...] = (` opens at line 80. The
+> underlying gap still stands in a narrower form — none of the 8 cases exercise citation
+> grounding or retrieval quality, which is what the eval lane actually lacks. This stale claim was
+> inherited verbatim by two independent gap analyses on 2026-08-23, neither of which opened the
+> file.]**, and Backups
 > (pg_dump + neo4j dump → R2) still has no recurring implementation — `scripts/backup_ovhdata_hot.sh`
 > exists but is a one-time host-retirement snapshot (Postgres/SurrealDB/Weaviate only, explicitly
 > skips Neo4j/Milvus to a cold-copy phase), not the recurring R2 lane this row tracks. The

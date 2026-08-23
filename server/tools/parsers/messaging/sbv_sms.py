@@ -11,12 +11,27 @@ fallback server/tools/sms_xml.py produces — so Workflow A, store, and the
 knowledge engine never care which parser ran.
 
 DUAL-PARSER / MESH SUBSTITUTION (ADR-0023, owner architecture): this tool and
-sms_xml.py BOTH register capability `parse.sms-xml`. The registry returns them
-in registration order, so importing this module FIRST makes SBV the preferred
-parser and sms_xml.py the automatic fallback when SBV is unreachable/unhealthy
-or rejects the input. Import order is enforced in server/tools/__init__... no —
-auto-discovery imports modules alphabetically, and "sbv_sms" sorts before
-"sms_xml", so SBV registers first naturally. (Verified: `sbv_sms` < `sms_xml`.)
+sms_xml.py BOTH register capability `parse.sms-xml`. SBV wins by an EXPLICIT
+PRIORITY, not by import order: this module declares `priority=100` below,
+sms_xml.py declares none (defaults to 0), and
+`server/tools/registry.py:87` resolves a capability with
+
+    sorted(matches, key=lambda tool: getattr(tool, "priority", 0), reverse=True)
+
+sms_xml.py is the automatic fallback when SBV is unreachable/unhealthy or
+rejects the input — note this module's `accept` predicate also requires
+`_sbv_enabled()`, so when SBV is unwired it does not match at all and
+resolution falls through to sms_xml.py, which performs NO custody hashing.
+
+CAUTION: per-record custody reconciliation is additionally gated on the
+`SBV_CUSTODY_ENABLED` env var (see `_reconcile_custody` below), which has no
+default. Unset means custody reconciliation is skipped even on the SBV path.
+
+Byline amendment: Claude Code · Opus 5 · 2026-08-23 — the previous version of
+this paragraph explained precedence as alphabetical registration order
+("`sbv_sms` sorts before `sms_xml`"). That was wrong: registry.py sorts by the
+priority field, so renaming either file changes nothing. Outcome was the same,
+mechanism was not.
 
 Auth + endpoints: see server/tools/_sbv_client.py (session-cookie, /api/...).
 

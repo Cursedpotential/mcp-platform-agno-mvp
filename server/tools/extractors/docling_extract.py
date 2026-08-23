@@ -1,10 +1,25 @@
 """Atomic structured document extraction through optional Docling.
 
 Docling is imported lazily so registry discovery remains safe in lightweight
-containers. The extraction caller falls through to native/Tesseract when the
-``document-ai`` extra is unavailable or conversion fails.
+containers.
+
+Fallback behaviour is asymmetric — read this before assuming coverage:
+
+- ``.pdf`` — the caller (``server/ingest/service.py:_extract_document``) also appends
+  ``documents.extract-text``, so a missing ``document-ai`` extra degrades to
+  native/Tesseract extraction as intended.
+- ``.docx`` / ``.pptx`` / ``.xlsx`` / ``.html`` / ``.htm`` — **no fallback is registered**
+  (``service.py:155-158`` adds ``extract-text`` for ``.pdf`` only). Because the import below
+  is lazy, this module imports cleanly without docling, gets registered, and then raises at
+  call time; the caller exhausts its extractor list and fails the whole ingest.
+
+So without the ``document-ai`` extra installed, those five office formats do not degrade —
+they fail. Tracked as URGENT-TODO #17.
 
 Byline: Codex · GPT-5 · 2026-08-13
+Byline amendment: Claude Code · Opus 5 · 2026-08-23 (corrected the fallback claim — the
+previous docstring stated the caller falls through to native/Tesseract, which holds for
+``.pdf`` only)
 """
 
 from __future__ import annotations
