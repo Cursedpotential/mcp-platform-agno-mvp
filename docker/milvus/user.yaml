@@ -2,62 +2,56 @@
 # Byline: Claude Code · Opus 4.8 · 2026-06-13
 # Updated: Claude Code · Opus 5 · 2026-08-05 (Storage V3)
 # Updated: Claude Code · Fable 5 · 2026-08-12 (S3/R2 object store for memsearch rebuild)
+# Updated: Claude Code · Opus 5 · 2026-08-23 (R2/S3 BACKED OUT -> local; Storage V3 off)
+#
+# THIS FILE IS THE HUMAN-READABLE SOURCE OF TRUTH. The live config is the
+# `configs: user_yaml:` block embedded in deploy/data-vector.yaml (no host
+# bind-mount, no SSH). The two MUST be updated together.
 #
 # (1) Auth ON so the store isn't open to anyone who reaches 19530.
 #     Default credential after first boot: user "root", password "Milvus"
 #       -> client token = "root:Milvus"   (CHANGE IT on first boot — see README §Security)
-# (2) Object store = Cloudflare R2 (S3-compatible) via the `minio:` block below.
-#     WoodPecker (Milvus 3.0 streaming WAL) stays LOCAL — it is the hot WAL path
-#     and doesn't belong on S3; metadata rides the embedded etcd. Only the segment
-#     / binlog object store moved to R2 (common.storageType: remote).
-# (3) Storage V3 enabled 2026-08-05 — see the block at the bottom.
+#
+# (2) Object store = LOCAL disk on the fresh volume.
+#     ~~Cloudflare R2 (S3-compatible) via a `minio:` block, 2026-08-12.~~
+#     **BACKED OUT 2026-08-23 (owner call).** The R2 build never reached a healthy
+#     boot: the app sat in `restarting`, and bucket `milvus-memsearch` stayed at
+#     0 objects across every attempt — Milvus died before writing anything. The
+#     failure could not be read out: Coolify's /logs endpoint returns only the
+#     attu container, and SSH to that box is barred by owner directive
+#     (2026-08-12, "all the work should be done through Coolify").
+#     NB the 6 prior corruptions were EMBEDDED ETCD, not the object store, so
+#     local storage does NOT reintroduce that failure class. It also removes an
+#     R2 Class-A op on every binlog flush.
+#     Revert path: set common.storageType back to `remote`, restore the `minio:`
+#     block, and re-add MINIO_* to the compose env (the Coolify app envs are
+#     still set). The R2 bucket is retained, empty.
+#
+# (3) Storage V3 (storage.useLoonFFI) DISABLED 2026-08-23.
+#     ~~Enabled 2026-08-05.~~ Milvus docs call V3 one-way ("downgrading to a
+#     version that cannot read Storage V3 is not supported") — but that binds
+#     only once data is WRITTEN in V3. This store is empty, so turning it off
+#     costs nothing and removes an exotic code path from an already-failing boot.
+#     Pre-V3 rollback snapshot of the OLD volume (unrelated to this fresh one):
+#       /data/agno/backups/milvus-volume-pre-storagev3-20260805.tar.gz
 #
 # NOTE: `common:` must appear EXACTLY ONCE. A second top-level `common:` key
 # silently overrides the first in YAML, which would drop authorizationEnabled
-# and leave the store unauthenticated. Keep security + storageType + storage in
-# ONE block.
+# and leave the store unauthenticated.
 #
-# *** CREDENTIALS *** accessKeyID / secretAccessKey are deliberately OMITTED here
-# so secrets never enter git. They are injected at deploy time via the
-# MINIO_ACCESS_KEY_ID / MINIO_SECRET_ACCESS_KEY env vars (confirmed in
-# docs/configure_minio.md), which override the YAML defaults at boot. The host
-# copy at /data/agno/config/milvus/user.yaml is generated from this template +
-# live creds during the gated deploy step.
+# No credentials live in this file, and none are needed while storageType=local.
 
 common:
   security:
     authorizationEnabled: true
-  # External S3 object store (was: local). "minio" value is deprecated in v3 -> "remote".
-  storageType: remote
-  # Storage V3 (Milvus 3.0 versioned storage layout). Enabled 2026-08-05:
-  # the volume held 409 MB for 7.8 MB of real vectors (etcd 124 MB + RocksDB
-  # WAL 147 MB + meta 131 MB). V3 migrates existing data gradually via
-  # background compaction.
-  #
-  # *** ONE-WAY *** Milvus docs: "Once Milvus writes data in Storage V3,
-  # downgrading to a Milvus version that cannot read Storage V3 is not
-  # supported." Disabling it later does NOT convert the data back.
-  # Rollback snapshot:
-  #   /data/agno/backups/milvus-volume-pre-storagev3-20260805.tar.gz
-  storage:
-    useLoonFFI: true
+  # Local disk object store (was: remote/R2 2026-08-12 -> 2026-08-23).
+  storageType: local
 
-# R2 (S3-compatible) object store for segments/binlogs. Path-style addressing
-# (useVirtualHost: false) for max R2 compatibility; region "auto" is R2's only
-# valid region. cloudProvider: aws -> Milvus uses the AWS S3 SDK client against R2.
-minio:
-  address: 1a7406c497493a52128bb282f499e7b8.r2.cloudflarestorage.com
-  port: 443
-  bucketName: milvus-memsearch          # GATED: provisional name, swappable
-  rootPath: milvus
-  useSSL: true
-  region: auto
-  useIAM: false
-  cloudProvider: aws
-  useVirtualHost: false
-  requestTimeoutMs: 30000
-  # accessKeyID / secretAccessKey: set via env (MINIO_ACCESS_KEY_ID /
-  # MINIO_SECRET_ACCESS_KEY) at deploy — NOT committed here.
+# Segment / binlog store. Lives on the same fresh volume as etcd + the WAL,
+# i.e. /data/agno/volumes/milvus-memsearch on the host. Back that path up —
+# since 2026-08-23 it is the ONLY copy of the memsearch vectors.
+localStorage:
+  path: /var/lib/milvus/data
 
 woodpecker:
   meta:
@@ -66,10 +60,3 @@ woodpecker:
   storage:
     type: local
     rootPath: /var/lib/milvus/woodpecker
-
-dataCoord:
-  compaction:
-    bumpSchemaVersion:
-      enabled: true
-    storageVersion:
-      enabled: true

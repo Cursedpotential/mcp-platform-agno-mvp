@@ -26,8 +26,9 @@
 #  - Data volume = /data/agno/volumes/milvus-memsearch (FRESH path). Docker
 #    auto-creates it on first up -> starts with clean etcd/WAL, no need to clear
 #    the old corrupt /data/agno/volumes/milvus (retired in place, not deleted).
-#  - R2 creds (MINIO_ACCESS_KEY_ID / MINIO_SECRET_ACCESS_KEY) + BIND_IP are Coolify
-#    app env vars, substituted into the rendered compose at deploy. NOT in git.
+#  - BIND_IP is a Coolify app env var, substituted into the rendered compose at
+#    deploy. NOT in git. R2 creds (MINIO_*) remain set as Coolify envs but are
+#    UNUSED since 2026-08-23 (storageType=local) — kept only for a fast revert.
 # Gated deploy steps (push, Coolify env set, Coolify deploy, re-index) require
 # owner sign-off.
 # =============================================================================
@@ -56,20 +57,25 @@ services:
       ETCD_USE_EMBED: "true"
       ETCD_DATA_DIR: /var/lib/milvus/etcd
       ETCD_CONFIG_PATH: /milvus/configs/embedEtcd.yaml
-      COMMON_STORAGETYPE: remote        # was: local — segment/binlog store now on R2 (see user.yaml config)
+      # 2026-08-23 (Opus 5): R2/S3 object store BACKED OUT — see user.yaml note (2).
+      # The R2 build never reached a healthy boot: bucket milvus-memsearch stayed at
+      # 0 objects across every attempt, and Coolify's log endpoint only surfaces the
+      # attu container, so the S3 error could not be read out without SSH (barred).
+      # Owner call 2026-08-23: drop S3, store locally. NB the 6 prior corruptions were
+      # EMBEDDED ETCD, not the object store — local storage does NOT reintroduce that
+      # failure class, and it drops an R2 Class-A op on every binlog flush.
+      COMMON_STORAGETYPE: local
       DEPLOY_MODE: STANDALONE
-      # R2 creds — Coolify app env, substituted into the rendered compose. NOT in git.
-      # MINIO_ACCESS_KEY_ID / MINIO_SECRET_ACCESS_KEY override the user.yaml minio:
-      # block defaults at boot (confirmed in docs/configure_minio.md).
-      MINIO_ACCESS_KEY_ID: "${MINIO_ACCESS_KEY_ID}"
-      MINIO_SECRET_ACCESS_KEY: "${MINIO_SECRET_ACCESS_KEY}"
+      # MINIO_* deliberately NOT passed: ignored when storageType=local. The Coolify
+      # app envs are left in place so reverting to the S3 build is a one-line change.
       # FIX: image ships LD_PRELOAD=":/milvus/lib/libjemalloc.so" (leading colon → ld.so SIGSEGV). Clean paths:
       LD_PRELOAD: /milvus/lib/libjemalloc.so
       LD_LIBRARY_PATH: /milvus/lib
     volumes:
-      # FRESH data volume — only embedded etcd + Woodpecker WAL live here (segments
-      # are on R2 now). Auto-created by Docker on first up. Old /data/agno/volumes/milvus
-      # (corrupt etcd from 08-10) is retired in place — NOT mounted, NOT deleted.
+      # FRESH data volume — embedded etcd + Woodpecker WAL + (since 2026-08-23) the
+      # segment/binlog store all live here. Auto-created by Docker on first up. Old
+      # /data/agno/volumes/milvus (corrupt etcd from 08-10) is retired in place —
+      # NOT mounted, NOT deleted. Back this path up; it is now the only copy.
       - /data/agno/volumes/milvus-memsearch:/var/lib/milvus
     configs:
       # LONG FORM required: short `- <name>` mounts at `/<name>`, but Milvus reads
@@ -142,29 +148,20 @@ configs:
       # Fable 5 · 2026-08-12 (S3/R2 for memsearch rebuild).
       #
       # (1) Auth ON. Default first-boot credential: root/Milvus -> CHANGE on first boot.
-      # (2) Object store = Cloudflare R2 (S3-compatible) via the minio: block. WoodPecker
-      #     WAL stays LOCAL (hot path); only segments/binlogs moved to R2.
-      # (3) Storage V3 (useLoonFFI) enabled 2026-08-05 — ONE-WAY, not downgradeable.
+      # (2) Object store = LOCAL disk on the fresh volume. ~~Cloudflare R2 via a
+      #     minio: block (2026-08-12)~~ BACKED OUT 2026-08-23: that build crash-looped
+      #     and never wrote a single object to the bucket. Everything now lives under
+      #     /var/lib/milvus on the fresh volume.
+      # (3) Storage V3 (useLoonFFI) DISABLED 2026-08-23. It is one-way only on a store
+      #     that HAS data; this store is empty (0 objects), so switching it off costs
+      #     nothing and removes an exotic code path from an already-failing boot.
       # NOTE: common: must appear EXACTLY ONCE (a second common: drops authorizationEnabled).
-      # CREDENTIALS: accessKeyID/secretAccessKey OMITTED here (no secrets in git) —
-      # injected via MINIO_ACCESS_KEY_ID / MINIO_SECRET_ACCESS_KEY env (Coolify app env).
       common:
         security:
           authorizationEnabled: true
-        storageType: remote
-        storage:
-          useLoonFFI: true
-      minio:
-        address: 1a7406c497493a52128bb282f499e7b8.r2.cloudflarestorage.com
-        port: 443
-        bucketName: milvus-memsearch
-        rootPath: milvus
-        useSSL: true
-        region: auto
-        useIAM: false
-        cloudProvider: aws
-        useVirtualHost: false
-        requestTimeoutMs: 30000
+        storageType: local
+      localStorage:
+        path: /var/lib/milvus/data
       woodpecker:
         meta:
           type: etcd
@@ -172,12 +169,6 @@ configs:
         storage:
           type: local
           rootPath: /var/lib/milvus/woodpecker
-      dataCoord:
-        compaction:
-          bumpSchemaVersion:
-            enabled: true
-          storageVersion:
-            enabled: true
 
 networks:
   vector:
