@@ -98,32 +98,37 @@ services:
       - vector
       - agno                # shared external net — cross-app docker DNS on ovh-files
 
-  attu:
-    image: zilliz/attu:v3.0.0-beta.6
-    platform: linux/amd64
-    container_name: attu
-    restart: unless-stopped
-    environment:
-      MILVUS_ADDRESS: milvus:19530
-      ATTU_DB_PATH: /data/attu.db
-    volumes:
-      - /data/agno/volumes/attu:/data
-    ports:
-      - "${BIND_IP:-127.0.0.1}:3001:3000"     # Attu UI — tailnet-only
-    depends_on:
-      milvus:
-        condition: service_started   # DIAGNOSTIC: was service_healthy — lets the deploy
-                                       # succeed so Coolify /logs returns Milvus boot output
-                                       # even if it crash-loops. Revert to service_healthy
-                                       # once Milvus boots cleanly.
-    networks:
-      - vector
-      - agno                # shared external net — so other ovh-files containers can
-                            # reach milvus:19530 via docker DNS (cross-app)
+      # --- TEMPORARILY DISABLED 2026-08-23 (Opus 5) for log capture ---
+      # Coolify's /applications/{uuid}/logs returns ONLY the attu container
+      # regardless of ?container=/?service=, so Milvus's crash-loop output is
+      # unreadable while attu exists. SSH is barred (owner, 2026-08-12), so the
+      # only way to read Milvus is to be the sole container. RESTORE after diag.
+#  attu:
+#    image: zilliz/attu:v3.0.0-beta.6
+#    platform: linux/amd64
+#    container_name: attu
+#    restart: unless-stopped
+#    environment:
+#      MILVUS_ADDRESS: milvus:19530
+#      ATTU_DB_PATH: /data/attu.db
+#    volumes:
+#      - /data/agno/volumes/attu:/data
+#    ports:
+#      - "${BIND_IP:-127.0.0.1}:3001:3000"     # Attu UI — tailnet-only
+#    depends_on:
+#      milvus:
+#        condition: service_started   # DIAGNOSTIC: was service_healthy — lets the deploy
+#                                       # succeed so Coolify /logs returns Milvus boot output
+#                                       # even if it crash-loops. Revert to service_healthy
+#                                       # once Milvus boots cleanly.
+#    networks:
+#      - vector
+#      - agno                # shared external net — so other ovh-files containers can
+#                            # reach milvus:19530 via docker DNS (cross-app)
 
-# Milvus config, embedded as compose configs (no host bind-mount -> no SSH to edit).
-# SOURCE OF TRUTH: docker/milvus/embedEtcd.yaml + docker/milvus/user.yaml — keep
-# these `configs:` blocks in sync with those files when you edit either side.
+## Milvus config, embedded as compose configs (no host bind-mount -> no SSH to edit).
+## SOURCE OF TRUTH: docker/milvus/embedEtcd.yaml + docker/milvus/user.yaml — keep
+## these `configs:` blocks in sync with those files when you edit either side.
 configs:
   embedEtcd_yaml:
     content: |
