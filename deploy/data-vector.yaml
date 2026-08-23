@@ -44,6 +44,15 @@ services:
     image: milvusdb/milvus:3.0-20260811-7169df25-amd64   # dated 2026-08-11 (newest); explicit amd64 tag — multi-arch manifest segfaults at jemalloc here
     platform: linux/amd64
     container_name: milvus
+    # ROOT CAUSE FIX 2026-08-23 (Opus 5): the container could not write its own
+    # bind-mounted volume. Docker auto-creates /data/agno/volumes/milvus-memsearch
+    # as root:root, but this image runs Milvus as a NON-root user, so boot died at
+    #   [FATAL] "failed to mkdir" [localStoragePath=/var/lib/milvus/data]
+    #   [error="mkdir /var/lib/milvus/data: permission denied"] -> panic -> rc=134
+    # This is why the 2026-08-12 R2 build ALSO crash-looped and never wrote a single
+    # object: same wall, hit earlier on ETCD_DATA_DIR=/var/lib/milvus/etcd. S3 was
+    # never the cause. Running as root matches upstream's own standalone compose.
+    user: "0:0"
     # --- TEMPORARY DIAGNOSTIC 2026-08-23 (Opus 5) ---
     # Milvus crash-loops and Coolify's /logs endpoint 400s with "Application is
     # not running", so the boot error is never readable. Wrap the run so the
