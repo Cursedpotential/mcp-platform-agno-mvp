@@ -44,8 +44,18 @@ services:
     image: milvusdb/milvus:3.0-20260811-7169df25-amd64   # dated 2026-08-11 (newest); explicit amd64 tag — multi-arch manifest segfaults at jemalloc here
     platform: linux/amd64
     container_name: milvus
-    command: ["milvus", "run", "standalone"]
-    restart: unless-stopped
+    # --- TEMPORARY DIAGNOSTIC 2026-08-23 (Opus 5) ---
+    # Milvus crash-loops and Coolify's /logs endpoint 400s with "Application is
+    # not running", so the boot error is never readable. Wrap the run so the
+    # container OUTLIVES the crash: milvus output goes to stdout, then the shell
+    # sleeps, keeping the container up long enough for /logs to return it.
+    # restart: "no" stops the loop from racing the log fetch.
+    # RESTORE to: command: ["milvus", "run", "standalone"] + restart: unless-stopped
+    command:
+      - bash
+      - -lc
+      - "milvus run standalone 2>&1; echo \"=== MILVUS EXITED rc=$? ===\"; sleep 3600"
+    restart: "no"
     # Embedded etcd needs time to flush its WAL on SIGTERM. Coolify's default
     # stop_grace_period (10s) SIGKILLs milvus before the flush completes ->
     # corrupt WAL -> next start panics "etcdserver: leader changed". Has
