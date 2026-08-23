@@ -49,8 +49,44 @@ documented 07-21→23 etcd outage this settles the demotion.
    OWN Milvus (`casebible_ai_conversations`, the memsearch lane) which ADR-0040 does NOT govern —
    that stays as a separate SORT-owned concern until its own migration/retirement.
 
+## Amendment 2026-08-23 — memsearch Milvus is LIVE (local storage)
+
+> _Byline: Claude Code · Opus 5 · 2026-08-23_
+
+The memsearch-only Milvus described in "Remaining execution steps" #4 was designed and
+committed 2026-08-12 but **never actually deployed** — Coolify showed only the old
+`data-vector` app sitting `exited:unhealthy`. It is now live.
+
+**Root cause of the crash loop: bind-mount permissions, not S3.** Boot died at
+`[FATAL] paramtable/component_param.go:4721 "failed to mkdir" [localStoragePath=
+/var/lib/milvus/data] [error="mkdir ...: permission denied"]` → panic → SIGABRT rc=134.
+Docker auto-creates `/data/agno/volumes/milvus-memsearch` as root:root, but the
+`milvusdb/milvus:3.0-*` image runs Milvus as a non-root user. Fix: `user: "0:0"` on the
+service (matches upstream's standalone compose); attu needs it too. The 2026-08-12 R2 build
+failed for the SAME reason, hit earlier on `ETCD_DATA_DIR` — which is why bucket
+`milvus-memsearch` stayed at 0 objects throughout.
+
+**R2/S3 backed out to local storage** (owner call, 2026-08-23) — `common.storageType: local`
++ `localStorage.path`, Storage V3 disabled. Fewer moving parts, and no R2 Class-A op per
+binlog flush. The 6 historical corruptions were EMBEDDED ETCD, not the object store, so this
+does not reintroduce that failure class. The R2 bucket is retained empty for a fast revert.
+
+**Verified live:** Milvus healthz 200, Coolify `running:healthy`; memsearch re-indexed across
+scopes (`agent_session_memory`, `ms_agno_mcp_platform_*`, `ms_legal_workspace_*`,
+`ms_the_platform_workspace_*`) and semantic search returns real scored results.
+
+**Open:** Milvus still uses the default credential `root:Milvus` — change it. And
+`/data/agno/volumes/milvus-memsearch` is now the ONLY copy of these vectors — back it up.
+
+Scope unchanged: this is the memsearch lane only. The Agno platform stays on Weaviate.
+
 ## Consequences
 
 - Graphiti/agent memory unaffected (graph-side, see ADR-0041).
-- memsearch and any Milvus-pinned consumers need connection-string-level migration.
+- ~~memsearch and any Milvus-pinned consumers need connection-string-level migration.~~
+  **Corrected 2026-08-23 (Claude Code · Opus 5): connection-string-level migration was never
+  possible.** memsearch's `store.py` is a single `MilvusStore` class — Milvus-only, no
+  pluggable backend — so there is no connection string that reaches Weaviate. Reaching
+  Weaviate would require writing a store adapter. This is why the step sat undone from
+  2026-08-09 to 2026-08-23 while semantic recall was dead in 5/10 scopes.
 - Attu retires with Milvus; Weaviate has its own console.
