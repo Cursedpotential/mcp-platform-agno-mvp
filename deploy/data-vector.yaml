@@ -53,18 +53,8 @@ services:
     # object: same wall, hit earlier on ETCD_DATA_DIR=/var/lib/milvus/etcd. S3 was
     # never the cause. Running as root matches upstream's own standalone compose.
     user: "0:0"
-    # --- TEMPORARY DIAGNOSTIC 2026-08-23 (Opus 5) ---
-    # Milvus crash-loops and Coolify's /logs endpoint 400s with "Application is
-    # not running", so the boot error is never readable. Wrap the run so the
-    # container OUTLIVES the crash: milvus output goes to stdout, then the shell
-    # sleeps, keeping the container up long enough for /logs to return it.
-    # restart: "no" stops the loop from racing the log fetch.
-    # RESTORE to: command: ["milvus", "run", "standalone"] + restart: unless-stopped
-    command:
-      - bash
-      - -lc
-      - "milvus run standalone 2>&1; echo \"=== MILVUS EXITED rc=$? ===\"; sleep 3600"
-    restart: "no"
+    command: ["milvus", "run", "standalone"]
+    restart: unless-stopped
     # Embedded etcd needs time to flush its WAL on SIGTERM. Coolify's default
     # stop_grace_period (10s) SIGKILLs milvus before the flush completes ->
     # corrupt WAL -> next start panics "etcdserver: leader changed". Has
@@ -117,37 +107,30 @@ services:
       - vector
       - agno                # shared external net — cross-app docker DNS on ovh-files
 
-      # --- TEMPORARILY DISABLED 2026-08-23 (Opus 5) for log capture ---
-      # Coolify's /applications/{uuid}/logs returns ONLY the attu container
-      # regardless of ?container=/?service=, so Milvus's crash-loop output is
-      # unreadable while attu exists. SSH is barred (owner, 2026-08-12), so the
-      # only way to read Milvus is to be the sole container. RESTORE after diag.
-#  attu:
-#    image: zilliz/attu:v3.0.0-beta.6
-#    platform: linux/amd64
-#    container_name: attu
-#    restart: unless-stopped
-#    environment:
-#      MILVUS_ADDRESS: milvus:19530
-#      ATTU_DB_PATH: /data/attu.db
-#    volumes:
-#      - /data/agno/volumes/attu:/data
-#    ports:
-#      - "${BIND_IP:-127.0.0.1}:3001:3000"     # Attu UI — tailnet-only
-#    depends_on:
-#      milvus:
-#        condition: service_started   # DIAGNOSTIC: was service_healthy — lets the deploy
-#                                       # succeed so Coolify /logs returns Milvus boot output
-#                                       # even if it crash-loops. Revert to service_healthy
-#                                       # once Milvus boots cleanly.
-#    networks:
-#      - vector
-#      - agno                # shared external net — so other ovh-files containers can
-#                            # reach milvus:19530 via docker DNS (cross-app)
+  attu:
+    image: zilliz/attu:v3.0.0-beta.6
+    platform: linux/amd64
+    container_name: attu
+    user: "0:0"          # same bind-mount ownership issue as milvus (/data/agno/volumes/attu)
+    restart: unless-stopped
+    environment:
+      MILVUS_ADDRESS: milvus:19530
+      ATTU_DB_PATH: /data/attu.db
+    volumes:
+      - /data/agno/volumes/attu:/data
+    ports:
+      - "${BIND_IP:-127.0.0.1}:3001:3000"     # Attu UI — tailnet-only
+    depends_on:
+      milvus:
+        condition: service_healthy   # restored 2026-08-23: Milvus now boots clean
+    networks:
+      - vector
+      - agno                # shared external net — so other ovh-files containers can
+                            # reach milvus:19530 via docker DNS (cross-app)
 
-## Milvus config, embedded as compose configs (no host bind-mount -> no SSH to edit).
-## SOURCE OF TRUTH: docker/milvus/embedEtcd.yaml + docker/milvus/user.yaml — keep
-## these `configs:` blocks in sync with those files when you edit either side.
+# Milvus config, embedded as compose configs (no host bind-mount -> no SSH to edit).
+# SOURCE OF TRUTH: docker/milvus/embedEtcd.yaml + docker/milvus/user.yaml — keep
+# these `configs:` blocks in sync with those files when you edit either side.
 configs:
   embedEtcd_yaml:
     content: |
