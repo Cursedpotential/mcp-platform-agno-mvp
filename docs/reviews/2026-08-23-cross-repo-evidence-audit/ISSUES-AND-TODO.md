@@ -479,6 +479,46 @@ removes the trust dependency on SBV's own computation at write time.
 **TODO-206 · Schedule `verify_chain()`** (ISS-024) — a startup check plus a cron, not just a manual
 script.
 
+## Wave 2b — Owner additions, 2026-08-23 evening (recorded verbatim intent, sequenced after ingest testing)
+
+**TODO-210 · Apply bitemporal properties to the Neo4j entity/fact graph** _(owner directive)_
+
+The graph Semantica's extractions build in Neo4j must carry the same two-clock awareness the
+Postgres spine has: when a relationship was true vs when we learned it, with supersession instead
+of overwrite. Today the graph has neither — facts land as timeless edges. Prerequisite thinking
+exists (the spine's `occurred_at` / availability / realization model is the template); the work is
+projecting those fields onto graph edges and teaching graph queries to filter by horizon the same
+way `vw_spine_horizon` does. Sequenced AFTER ingest testing establishes real data flow.
+
+**TODO-211 · Agent memory: explore engines, temporal awareness is the hard requirement** _(owner directive)_
+
+> Owner: "there has to be some agent memory going on and right now I don't believe Surreal is the
+> ticket but I'm not sure — maybe it is — but we do need agent memory, it should be temporally
+> aware, so we need to explore that at some point."
+
+Candidates to evaluate, all against the same bar (bitemporal belief tracking, cheap horizon
+queries, CPU-friendly, fits the tailnet fleet):
+- **Memgraph** — exploration already opened as ADR-0041 (2026-07-28), never concluded; in-memory
+  graph, Cypher-compatible, would also bear on TODO-210's engine choice
+- **SurrealDB** — the ruled analytical surface (D-061); owner is unconvinced it fits the *agent
+  memory* role specifically — evaluate, don't assume
+- **Postgres-native** — the run ledger + walk checkpoints already persist run-scoped state; with
+  Temporal keeping live workflow state, the residual "memory" need may be smaller than it looks
+- **Graphiti** — the incumbent for exactly this role; write-only client, zero rows drained.
+  **Owner's stated retirement rationale (2026-08-23, verbatim intent): the self-hosted MCP server
+  never worked like Zep's hosted version** — the custom image exists only because upstream drops
+  the Neo4j database field, the case-lane read path never functioned, and it "keeps getting
+  fucked and not functioning properly, so I just gave up." The retirement is OPERATIONAL, not
+  conceptual — the temporal-KG idea was sound, the self-hosted implementation was not. Two
+  consequences for the bake-off: (1) any candidate must be judged on operability-as-self-hosted
+  first, features second — that is the failure mode that actually killed the incumbent;
+  (2) Zep's HOSTED service technically remains an option if the memory involved is never case
+  evidence, but that conflicts with keeping case-adjacent data on owned infrastructure — treat
+  hosted-Zep as excluded unless the owner explicitly says otherwise.
+
+Explicitly sequenced: **after ingest testing** produces real corpus data to evaluate against.
+Not before.
+
 ## Wave 3 — Build the missing capabilities
 
 Ordered by dependency, not by size:
