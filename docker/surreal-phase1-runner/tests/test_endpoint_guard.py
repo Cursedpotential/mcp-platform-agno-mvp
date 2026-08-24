@@ -1,13 +1,18 @@
 """Fail-closed endpoint identity tests for the disposable T0 target.
 
 Byline: Codex · GPT-5 · 2026-08-16
+# Byline amendment: Codex · GPT-5 · 2026-08-18 (combined-change hygiene)
 """
 
 from dataclasses import replace
 
 import pytest
 
-from horizon_surreal_phase1.identity import TargetIdentity, validate_target_identity
+from horizon_surreal_phase1.identity import (
+    APPROVED_RESTORE_TARGET,
+    TargetIdentity,
+    validate_target_identity,
+)
 
 
 APPROVED = TargetIdentity(
@@ -20,6 +25,10 @@ APPROVED = TargetIdentity(
 
 def test_exact_approved_identity_is_accepted() -> None:
     assert validate_target_identity(APPROVED) == APPROVED
+
+
+def test_exact_restore_identity_inside_the_same_target_is_accepted() -> None:
+    assert validate_target_identity(APPROVED_RESTORE_TARGET) == APPROVED_RESTORE_TARGET
 
 
 @pytest.mark.parametrize(

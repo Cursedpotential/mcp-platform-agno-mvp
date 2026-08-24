@@ -1,5 +1,6 @@
 -- Exact filtered cosine is the authoritative Phase-1 path.
 -- Byline: Codex · GPT-5 · 2026-08-16
+-- Byline amendment: Codex · GPT-5 · 2026-08-18 (combined-change hygiene)
 
 LET $eligible = SELECT platform_id, chunk_id, embedding
   FROM embedding_t0_v1
@@ -14,8 +15,8 @@ LET $eligible = SELECT platform_id, chunk_id, embedding
       OR (
         $mode = "as_lived_so_far"
         AND disclosure_tier != "hindsight"
-        AND visible_from IS NOT NONE
-        AND visible_from <= <datetime>$horizon_at
+        AND source_available_from IS NOT NONE
+        AND source_available_from <= <datetime>$horizon_at
       )
     );
 
