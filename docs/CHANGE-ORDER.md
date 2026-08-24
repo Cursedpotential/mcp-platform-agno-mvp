@@ -10,6 +10,40 @@
 
 ## 2026-08-23
 
+### CH-16 — Temporal P0 executed: live DB role/databases + deployment scaffold (D-067)
+
+> _Byline: Claude Code · Opus 5 · 2026-08-23._
+
+Per D-067 (owner ruling, same day — see `docs/plans/TEMPORAL-INTEGRATION-PLAN-2026-08-23.md`
+§5): Temporal persists into the **existing** PG18 on `ovh-files` (100.91.190.107), not a new
+database container.
+
+- **Role `temporal` created live** on `100.91.190.107` PG18. Verified: non-superuser, DDL-as-owner
+  OK (can create/alter objects it owns — needed for `auto-setup`'s schema init), connection limit
+  30.
+- **Databases `temporal` and `temporal_visibility` created live**, owned by role `temporal`, on
+  the same PG18 instance — no second Postgres container, consistent with the plan's explicit
+  reasoning (Milvus's embedded etcd corrupted six times; every new self-managed stateful service
+  is a new corruption surface).
+- **Password delivered out-of-band to Coolify.** Never written to any file, never committed.
+  `TEMPORAL_DB_PASSWORD` is set as a Coolify env var on the `temporal-server` app only.
+- **Deployment artifacts added** (infra scaffold only, no pipeline change — this is plan §2 P0):
+  - `deploy/temporal/compose.temporal.yaml` — `temporal-server` (`temporalio/auto-setup:1.25`)
+    + `temporal-ui` (`temporalio/ui:2.31`), tailnet-only (`100.91.190.107`), joins the shared
+    `agno` docker network, no Traefik route, no new Prometheus/Grafana.
+  - `docker/temporal-worker/Dockerfile` — the first real P0 build artifact; carries the full
+    `server/` dependency stack (Activities call the existing pipeline code unchanged) plus
+    `temporalio`.
+  - `deploy/temporal/README.md` — the three-Coolify-app deployment steps, env var list, the
+    `temporal operator namespace update --retention 720h` bounded-retention command, and the
+    P0 exit test verbatim from the plan.
+- **Not yet done (tracked as P1):** `server/temporal/worker.py` (the worker's actual entrypoint
+  module) does not exist yet — the Dockerfile's `CMD` targets it in advance. No workflow/Activity
+  code has been written. The P0 exit test (start a trivial workflow, restart the worker mid-run,
+  confirm resume-from-history) cannot run until that module lands.
+
+---
+
 ### CH-15 — Migration chain completed (0030 applied); standard non-superuser DB role created
 
 > _Byline: Claude Code · Opus 5 · 2026-08-23. Owner instruction, this session._

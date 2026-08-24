@@ -1,0 +1,99 @@
+# =============================================================================
+# TEMPORAL P0 — server + web UI only (infra scaffold, no pipeline change).
+# Byline: Claude Code · Opus 5 · 2026-08-23
+#
+# Context: D-067 (owner ruling, 2026-08-23) — Temporal persists into the
+# EXISTING PG18 on ovh-files (100.91.190.107), as two databases `temporal` +
+# `temporal_visibility`, dedicated non-superuser role `temporal` (created live
+# the same night). NOT a new database container — see the Milvus/embedded-etcd
+# corruption history (6x) that this rule exists to avoid.
+# Full plan: docs/plans/TEMPORAL-INTEGRATION-PLAN-2026-08-23.md
+#
+# DEPLOY AS ITS OWN Coolify "Docker Compose" app(s) on ovh-files (same box as
+# data-pg-files, so event-history writes stay on the local `agno` bridge —
+# no tailnet hairpin). Per separate-everything-separable: `temporal-server`
+# and `temporal-ui` are declared here as two services in one compose file
+# (mirrors data-vector.yaml's milvus+attu pairing); `temporal-worker` is its
+# OWN Coolify app with its own Dockerfile (docker/temporal-worker/Dockerfile)
+# and is NOT declared in this file.
+#
+# Tailnet-only: no Traefik route, no public surface. Ports bind to the
+# ovh-files tailnet IP directly (this app is pinned to that one host, unlike
+# the portable BIND_IP-env apps elsewhere in deploy/), matching the
+# tailnet-binding pattern used in Legal-Workspace (commit 26a1aeb there).
+#
+# NO Prometheus/Grafana pair here (owner call, plan §2 P0): Grafana already
+# exists on ovh-app; point it at Temporal's metrics endpoint over tailnet
+# instead of shipping a second monitoring stack (no-parallel-stacks rule).
+#
+# TEMPORAL_DB_PASSWORD is a Coolify env var for BOTH services below — it is
+# the password for the `temporal` Postgres role created live tonight on
+# 100.91.190.107. It is NEVER written to this file or any other tracked file.
+#
+# Retention (run once after temporal-server is healthy, from any host that can
+# reach the tailnet-published frontend, e.g. via temporal-admin-tools or the
+# `temporal` CLI pointed at 100.91.190.107:7233):
+#   temporal operator namespace update --retention 720h default
+# (720h = 30d bounded retention, per plan §2 P0 — history must not grow
+# unbounded against the evidence system-of-record's disk.)
+#
+# HOST-PREP (once, before first deploy):
+#   docker network inspect agno >/dev/null 2>&1 || docker network create agno
+#   (PG18 databases `temporal` / `temporal_visibility` + role `temporal`
+#   already created live on 100.91.190.107 — see docs/CHANGE-ORDER.md CH-16.)
+# =============================================================================
+
+services:
+  temporal-server:
+    image: temporalio/auto-setup:1.25
+    container_name: temporal-server
+    restart: unless-stopped
+    environment:
+      DB: postgres12
+      DB_PORT: "5432"
+      POSTGRES_SEEDS: "100.91.190.107"
+      POSTGRES_USER: temporal
+      POSTGRES_PWD: ${TEMPORAL_DB_PASSWORD:?set in Coolify env — never in git}
+      DBNAME: temporal
+      VISIBILITY_DBNAME: temporal_visibility
+      TEMPORAL_ADDRESS: 0.0.0.0:7233
+    ports:
+      # gRPC frontend — tailnet-only; never 0.0.0.0 beyond the container bind above
+      - "100.91.190.107:7233:7233"
+    healthcheck:
+      # auto-setup image carries the `temporal` CLI; equivalent to `tctl cluster health`
+      test: ["CMD", "temporal", "operator", "cluster", "health", "--address", "127.0.0.1:7233"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - temporal
+      - agno                # shared external net — reachable as `temporal-server` by
+                             # temporal-worker (its own Coolify app) via docker DNS
+
+  temporal-ui:
+    image: temporalio/ui:2.31
+    container_name: temporal-ui
+    restart: unless-stopped
+    environment:
+      TEMPORAL_ADDRESS: temporal-server:7233
+      TEMPORAL_UI_PORT: "8233"
+    ports:
+      # web UI — tailnet-only; note coolify-proxy owns host 8080 on every
+      # node, so this is intentionally NOT 8080
+      - "100.91.190.107:8233:8080"
+    depends_on:
+      temporal-server:
+        condition: service_healthy
+    networks:
+      - temporal
+      - agno
+
+networks:
+  temporal:
+  agno:
+    external: true          # pre-created on ovh-files (`docker network create agno`)
+
+# No named volumes — Temporal's only state is the two Postgres databases on
+# the existing, operated PG18 (100.91.190.107). Nothing to bind-mount here.
