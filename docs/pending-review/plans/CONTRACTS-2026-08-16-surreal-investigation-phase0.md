@@ -1,6 +1,7 @@
 # Phase-0 Contracts — Surreal Investigation, Projection, and Walk Memory
 
-> _Byline: Codex · GPT-5 · 2026-08-16 · owner-ruling amendment 2026-08-16_
+> _Byline: Codex · GPT-5 · 2026-08-16 · owner-ruling amendment 2026-08-16 ·
+> ADR-0059 supersession amendment 2026-08-18_
 >
 > **Status:** ACCEPTED BY OWNER 2026-08-16 — logical contracts only
 > **Implementation authority:** NONE. This document does not authorize schema, migration,
@@ -65,25 +66,29 @@ typed `ProjectionLocator` and never become the public identity.
 
 ## 4. Time and horizon contract
 
-The five clocks are distinct and never silently substituted:
+The source and experience clocks are distinct and never silently substituted:
 
 | Clock | Meaning |
 |---|---|
 | `valid_time` | When the asserted event/state occurred in the world; may be an interval |
-| `realized_time` | When the selected subject first learned/realized it, after governed approval |
+| `source_available_time` | When the source first became accessible to the selected subject: occurrence for first-party messages, acquisition for acquired-third-party messages |
+| `realization_event_time` | Zero-to-many governed moments/intervals when the selected subject formed later derived understanding |
 | `recorded_time` | When the platform recorded the representation; audit only |
 | `decision_time` | When a review, promotion, or belief decision was made |
 | `walk_observed_time` | When one walk agent actually encountered it |
 
-For current canonical records, visibility is derived from the approved realization clock or
-occurrence clock under ADR-0045: `visible_from = COALESCE(approved realized_at, occurred_at)`.
+Source retrieval uses ADR-0059's `source_available_from`: `occurred_at` for first-party messages
+and custody-backed `acquired_at` for acquired-third-party messages. The acquired thread retains
+its actual sender, recipients, and participants; the owner is not a historical participant.
+Realization events are plural linked derivations and never replace or backdate source availability.
 `knowledge_time` remains audit-only and is never a horizon predicate.
 
 When realization is uncertain, the contract preserves the earliest and latest plausible bounds
 plus a computed midpoint proposal. The midpoint is not an approved timestamp. HITL review must
 approve it, choose another evidence-supported point, narrow the interval, or leave the realization
-unresolved. Until that attributable decision exists, the estimate is ineligible for as-lived
-retrieval. Later clarification creates a new realization revision; it never rewrites the prior
+unresolved. Until that attributable decision exists, the proposed realization is ineligible for
+realization/belief views; it does not hide an otherwise source-available message. Later
+clarification creates a new realization revision; it never rewrites the prior
 interval, decision, or historical walk.
 
 `HorizonContext` is immutable and contains:
@@ -121,7 +126,12 @@ and sensitivity/access policy. A quote without its exact locator and custody pat
 Represents source-level approved normalized content. It is eligible only after explicit
 `full_normalized_text` approval. Approval of one span never implies source-level approval.
 
-### `StructuralAtom`, `RetrievalChunk`, and `EmbeddingInstance`
+### First-party/acquired-third-party projections, `StructuralAtom`, `RetrievalChunk`, and `EmbeddingInstance`
+
+- Canonical normalized messages are authored once. Analytical first-party and acquired-third-party
+  message tables are separate version-pinned derived projections, not independent truth stores.
+- Acquired-third-party projections require actual sender/recipient/participant identities, exclude
+  the owner from participants, and link zero-to-many realization records separately.
 
 - A structural atom is parser-emitted source structure with a stable locator within a parser
   and source revision.
@@ -239,9 +249,14 @@ Every as-lived read is bound to exactly one walk and horizon before ranking or t
 profile, consolidation, prompt-assembly, and retrieval state must include the Matter, walk,
 horizon, projection revision, and policy identity or be unavailable to the as-lived path.
 
-### `WalkSnapshot` and linked rewalk
+### `WalkCheckpoint`, `WalkSnapshot`, and linked rewalk
 
-On revocation, projection drift, hash mismatch, or outage, the service pauses and seals the walk.
+A healthy pause writes a resumable checkpoint containing current step/horizon, projection and
+eligible-manifest hashes, state/trace hashes, and belief/retrieval references. It resumes the same
+walk identity only when the checkpoint and projection still reconcile exactly.
+
+On revocation, projection drift, hash mismatch, or another terminal integrity failure, the service
+fails closed and seals the walk.
 The immutable snapshot binds its step/horizon, projection and eligible-record manifests/hashes,
 belief-event state, retrieved context and traces, versions, and failure reason. It is historical,
 read-only, non-resumable, and ineligible for active recall. After reconciliation, a fresh walk
@@ -303,7 +318,7 @@ matter matches
 AND authority/review state is eligible
 AND promotion is active at the requested revision
 AND source/span access is authorized
-AND visible_from <= selected horizon for as-lived mode
+AND source_available_from <= selected horizon for as-lived mode
 AND disclosure policy permits the item
 AND projection revision reconciles to canonical hashes
 AND any agent-belief lookup matches the bound walk_id
@@ -321,9 +336,13 @@ prove prefiltering is ineligible for the as-lived path.
 - Reconciliation compares canonical eligible membership and content hashes with target state.
 - Missing, extra, stale, or hash-mismatched target objects quarantine the affected
   Matter/projection revision and block its as-lived reads until repaired.
-- A blocked walk is sealed as an immutable historical snapshot before repair. Repair never resumes
-  or rewrites it; a reconciled projection receives a new linked walk.
+- A healthy paused walk resumes from its exact checkpoint only while its original projection remains
+  active and reconciled. A terminally blocked walk is sealed before repair; repair never resumes or
+  rewrites it, and a reconciled projection receives a new linked walk.
 - Rebuild starts from canonical decisions and receipts; it never imports truth from Surreal.
+- Deterministic export/import includes source-class projections, plural realization links,
+  checkpoints, terminal snapshots, and rewalk edges. Equal export hashes and equal restored
+  horizon-filtered retrieval are independent required postconditions.
 - Original binaries remain in custody storage. Optional verified replication never changes
   authority or approval.
 
@@ -354,5 +373,6 @@ Those choices require the evaluation gates and owner rulings in the companion Ph
 8. Contract tests import no Agno, Graphiti, SurrealDB, Weaviate, or database client.
 9. R9 activation holds remain unchanged.
 10. Historical walk snapshots remain replayable but cannot become active retrieval fallback.
-11. Unapproved realization midpoint proposals produce zero as-lived visibility.
+11. Unapproved realization midpoint proposals produce zero realization/belief-view visibility;
+    independently source-available messages remain retrievable under their source clock.
 12. Raw duplicate count cannot inflate independent corroboration count.

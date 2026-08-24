@@ -1,6 +1,7 @@
 # COORDINATION — multi-chat war room for Agno-MCP-Platform
 
 > _Byline: Claude Code · Fable 5 · 2026-07-08 (TODO/Ledger update: Claude Opus 4.8 · 2026-07-10)_
+> _Byline amendment: Codex · GPT-5 · 2026-08-18 (combined-change hygiene)._
 > **Purpose:** two (or more) Claude chats work this repo concurrently. This file is the
 > shared ledger: who owns what, what's in flight, what's frozen, and handoffs. **Append,
 > don't rewrite history** — add timestamped entries under your lane; strike (~~…~~) items
@@ -499,3 +500,33 @@ walk-agent retrieval remain owner decisions.
 
 R11 changed no application, database, migration, deployment, corpus, or service state. The parked
 Surreal deployment was not contacted. Phase 1 and every R9 activation hold remain in force.
+
+## 2026-08-18 — R14/ADR-0059 source-clock and resumable-walk correction
+
+> _Byline: Codex · GPT-5 · 2026-08-18. Append-only status block; it does not rewrite the
+> historical R10/R11 observations above._
+
+| Boundary | Current contract/state |
+|---|---|
+| Authorship | One canonical normalized message spine; first-party and acquired-third-party tables are derived projections only |
+| Temporal | First-party `source_available_from=occurred_at`; acquired-third-party `source_available_from=acquired_at`; zero-to-many realization links remain separate |
+| Attribution | Acquired threads retain actual sender/recipients/participants; owner absent from participants |
+| Chunking | Chunks/embeddings are derived from the correct source-class projection and inherit its source boundary |
+| Healthy walk | Exact checkpoint resumes the same identity only with equal projection/state/trace/belief/retrieval references |
+| Terminal walk | Drift/revocation/mismatch seals immutable non-resumable state and requires an exact linked `rewalk_of` |
+| Execution | Disposable ADR-0059 artifacts/tests exist locally; pre-amendment R14 target run is historical/stopped and no amended live rerun is claimed |
+
+Production migrations/corpus copy, production Horizon activation, production-agent binding,
+Graphiti replacement, and any use of the parked legacy Surreal deployment remain held. Do not
+infer live readiness from local contract tests or D3/D4's narrowly named synthetic authority.
+
+## 2026-08-18 — Production delivery rule and authoritative resume documents
+
+> _Byline: Codex · GPT-5 · 2026-08-18._
+
+All build/add/finish/change requests mean production implementation + Coolify deployment +
+live verification. Local, staged, and mockup work are not completion unless the owner
+explicitly requests a mockup. Root coordinates; the least-expensive subagent capable of
+reliable completion executes each bounded task, with escalation for complexity or risk.
+Resume documents: `docs/MASTER-TODO-2026-08-18.md` (entire application) and
+`docs/HANDOFF-2026-08-18-evidence-operations-desk-mvp.md` (immediate MVP).

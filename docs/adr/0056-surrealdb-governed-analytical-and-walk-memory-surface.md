@@ -2,7 +2,13 @@
 
 > _Byline: Codex · GPT-5 · 2026-08-15 · owner-ruling amendment 2026-08-16_
 
-- **Status:** Accepted (owner approval 2026-08-15)
+> **Narrow supersession notice (2026-08-18, ADR-0059; Codex · GPT-5):** Decision 10 is
+> superseded only where it collapses every pause into a terminal seal/new identity. A healthy,
+> reconciled checkpoint resumes the same walk identity. Projection revocation, drift, mismatch,
+> or another terminal integrity failure still seals an immutable non-resumable snapshot and
+> requires an explicitly linked rewalk. All other ADR-0056 decisions remain in force.
+
+- **Status:** Accepted; Decision 10 superseded in part by ADR-0059 (owner approval 2026-08-15)
 - **Decision:** D-061, refined by D-064
 - **Relates:** ADR-0014, ADR-0024, ADR-0032, ADR-0040, ADR-0043, ADR-0045, ADR-0052
 
@@ -49,6 +55,9 @@ but its self-hosted binary is prerelease/private and cannot be a hard dependency
     The system seals an immutable, read-only historical walk snapshot, reconciles or
     rebuilds the projection, then starts a new linked rewalk. Historical snapshots are
     replayable and comparable but are never active retrieval fallback state.
+    **Superseded in part by ADR-0059:** a healthy operational pause with an exactly reconciled
+    projection/checkpoint resumes the same walk; terminal integrity failures follow the sealed
+    snapshot plus linked-rewalk path above.
 11. A walk may form explicitly uncertain candidate beliefs only from horizon-eligible
     inputs. It cannot import corpus-wide candidates or extraction findings produced
     under a broader horizon.

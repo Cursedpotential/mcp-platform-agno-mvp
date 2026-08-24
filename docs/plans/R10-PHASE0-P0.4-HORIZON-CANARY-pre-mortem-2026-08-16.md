@@ -1,5 +1,11 @@
 # R10 Phase 0.4 Pre-Mortem — Planted-Future-Fact Contract Canary
 
+> **ADR-0059 supersession addendum (2026-08-18, Codex · GPT-5):** Preserve the original canary
+> result as historical evidence. Its successor must prove first-party occurrence visibility,
+> acquired-third-party acquisition visibility with actual participants/owner absent, plural
+> realization links, derived chunks, healthy same-walk resume, and terminal drift seal plus exact
+> linked rewalk. No live adapter/deployment claim is added.
+
 > _Byline: Codex · GPT-5 · 2026-08-16_
 >
 > **Task status:** COMPLETE FOR REVIEW — synthetic fixture and test-only reference harness

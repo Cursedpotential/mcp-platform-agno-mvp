@@ -2,19 +2,21 @@
 
 > **Authoritative for:** what we build next, in order. Entry point: `docs/PROJECT_CANON.md` (§0 Document Contract).
 > Supersedes `docs/planning/*` (EXECUTION_PLAN, BUILD_TODO, MIGRATION_PLAN_v8) for **forward** work — those are history.
-> Last updated: 2026-08-16 (ADR-0056–0058 Phase-0 review package complete; no implementation
-> or deployment claim).
+> Last updated: 2026-08-18 (ADR-0059 blast-radius correction and local disposable T0 contract
+> implementation; prior pre-ADR-0059 R14 target stopped, no current amended live proof or
+> production activation claim).
 > _Byline: Claude Code · Opus 4.8 · 2026-06-13; phase-status refresh 2026-07-11
 > Claude Code · Sonnet 5; ADR-0053 amendment Codex · GPT-5 · 2026-08-13;
-> documentation true-up Codex · GPT-5 · 2026-08-15; Phase-0 status Codex · GPT-5 · 2026-08-16._
+> documentation true-up Codex · GPT-5 · 2026-08-15; Phase-0 status Codex · GPT-5 · 2026-08-16;
+> ADR-0059 correction Codex · GPT-5 · 2026-08-18._
 <!-- Updated by: Codex (migration-passes/doc-patching) | Date: 2026-08-15 | Rev: 1 | Platform: Codex / win32 | Changes: Clarify Wave-1, Knowledge, and Semantica status | Context: Prevent uncommitted working-tree implementation from being read as applied or deployed -->
 
 > _Current-entry-point repair: Codex · GPT-5 · 2026-08-15._
 
-## Current forward plan — 2026-08-15
+## Current forward plan — 2026-08-18
 
 The detailed execution source is
-[`PLAN-2026-08-15-platform-runtime-migration.md`](PLAN-2026-08-15-platform-runtime-migration.md),
+[`PLAN-2026-08-15-platform-runtime-migration.md`](pending-review/plans/PLAN-2026-08-15-platform-runtime-migration.md),
 with bounded lanes indexed in [`HANDOFFS.md`](HANDOFFS.md). The older Phase A–E narrative
 below remains useful history, but any Agno-first or AgentOS-UI wording in it is superseded by
 this current direction:
@@ -27,17 +29,27 @@ this current direction:
 6. Add request-scoped provider routing and persistent OpenCode workspace control with isolated jobs.
 7. Evaluate AG2 behind `OrchestrationPort`; retain the current Agno adapter until gates pass.
 8. Expand the custom Workbench as the primary product surface.
-9. After R9 activation gates, freeze the ADR-0056–0058 contracts and build a disposable
-   Surreal vertical slice: promoted manifest/span, one claim investigation, one established
+9. Preserve the R9 activation gates and apply ADR-0059 to the ADR-0056–0058 contracts. The
+   disposable Surreal vertical slice covers promoted manifest/span, separate derived first-party
+   and acquired-third-party messages, one claim investigation, one established
    fact subgraph, and one as-lived memory scope. **Phase-0 contracts/evaluation/canary package is
-   complete for owner review; S1–S6 remain pending and Phase 1 is not authorized.** Do not
-   reactivate the parked legacy deployment.
+   complete, D3/D4 authorized only the exact isolated synthetic target/implementation, and local
+   schema/runner contracts exist.** R14's prior target run is stopped and does not prove the
+   amended contract live; these changes authorize no production path. Do not reactivate the
+   parked legacy deployment.
 10. Build Find Evidence, Reconstruct Event, Discover Patterns, and the scoped Behavioral
     Analysis Agent only after gold-corpus, planted-future-fact, provenance, and bounded-query
-    gates pass. The Phase-0 specification and synthetic 14-test canary exist; live-store and
-    full-corpus gates have not run. See `GOALS-2026-08-15-surreal-investigation-memory.md`.
+    gates pass. The historical Phase-0 specification/canary remains valid as an observed baseline;
+    the ADR-0059 disposable runner contract suite passes locally. Live-store and full-corpus gates
+    have not run. See `GOALS-2026-08-15-surreal-investigation-memory.md`.
 
 ### Locally built and held
+
+The isolated Phase-1 T0 Surreal schema/runner, source-class fixture, checkpoint/snapshot/rewalk
+contracts, and focused tests exist locally. They are disposable synthetic artifacts only. R14's
+pre-ADR-0059 target run remains historical/stopped; there is no current amended live proof.
+No credential installation, production corpus copy, production Horizon/agent binding,
+parked-target mutation, or Graphiti replacement is claimed.
 
 The Matter/CourtCase foundation, neutral spine APIs, Workbench adapters/UI, and
 Knowledge-to-Evidence promotion are pushed to `main`. Migration
@@ -114,8 +126,10 @@ Inventory complete (`EVIDENCE_MERGE_MAP.md`).
 ## Phase D — Bitemporal substrate (P3) + two-pass machinery
 
 **Goal:** the cognition substrate that makes Part 2 possible.
-- Wire `occurred_at` / `knowledge_time` / `disclosure_tier` through `store.py` + Graphiti;
-  stand up **Semantica as a VIP semantic-intelligence and decision/provenance service**.
+- Derive `source_available_from` by source class (`occurred_at` first-party; `acquired_at`
+  acquired-third-party), retain plural realization links, keep `knowledge_time` audit-only,
+  and build separate derived message/chunk surfaces through every prefilter. Stand up
+  **Semantica as a VIP semantic-intelligence and decision/provenance service**.
   Semantica itself is not a “candidate service” and must not be replaced or forked around.
   Its entity/claim/time/event **candidate outputs** remain proposals: they enter the
   governed review/promotion path and do not become authored canonical truth without human

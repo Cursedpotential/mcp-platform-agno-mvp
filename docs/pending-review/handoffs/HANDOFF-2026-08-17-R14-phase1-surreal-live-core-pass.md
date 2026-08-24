@@ -1,5 +1,11 @@
 # HANDOFF — R14 Phase-1 Surreal Live Core Pass (2026-08-17)
 
+> **ADR-0059 supersession addendum (2026-08-18, Codex · GPT-5):** Preserve every observed R14
+> result below; the isolated target was stopped. Those results predate the new source-class,
+> participant, plural-realization, derived-chunk, checkpoint/resume, and terminal-rewalk contract
+> and therefore are not current live proof. The ADR-0059 implementation has local focused tests
+> only until a separately authorized rerun. Production/parked-target holds remain unchanged.
+
 > _Byline: Codex · GPT-5 · 2026-08-17_
 
 STATUS: CORE LIVE GATES PASS; FULL R13 GATE SET PARTIAL; TARGET STOPPED
@@ -88,4 +94,3 @@ restart once to load the edited hook commands. No plugin was disabled or removed
 4. Add these three results to the one-shot report and require all gates before changing Phase-1
    status to complete.
 5. Re-run focused gates, then the full repository suite before a final completion claim.
-

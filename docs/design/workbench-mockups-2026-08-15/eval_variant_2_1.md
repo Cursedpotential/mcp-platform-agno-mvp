@@ -2,6 +2,18 @@
 
 > _Byline: Codex · GPT-5 · 2026-08-15_
 
+> **Superseding evaluation addendum — ADR-0059 (2026-08-18; Codex · GPT-5):**
+> The historical observations below remain valid for the version inspected. The
+> current mockup must additionally expose conversation acquisition independently
+> from zero-to-many realization links, show actual third-party sender/recipients with
+> the owner absent, demonstrate healthy same-identity Pause/Resume, and permit a new
+> linked Re-walk only after terminal sealing. These are static/local demonstrations;
+> the no-deploy and no-live-execution hold remains in force.
+>
+> **Active debt/change-order gate:** The mockup supplies no human projection-review
+> API/UI and performs no approved vector reprojection. Those capabilities remain
+> unimplemented here and must not be described as activated.
+
 ## Overall Verdict: PASS
 
 ## Overall Assessment

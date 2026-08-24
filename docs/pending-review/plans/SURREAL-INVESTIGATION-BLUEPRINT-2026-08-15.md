@@ -1,10 +1,14 @@
 # Blueprint — Surreal Analytical Surface, Investigation, and Temporal Memory
 
-> _Byline: Codex · GPT-5 · 2026-08-15 · owner-ruling update 2026-08-16_
+> _Byline: Codex · GPT-5 · 2026-08-15 · owner-ruling update 2026-08-16 ·
+> ADR-0059 amendment Codex · GPT-5 · 2026-08-18_
 >
 > **Status:** Accepted architecture boundaries; Phase-0 logical contracts/evaluation and S1–S6
-> owner review complete 2026-08-16.
-> **Build status:** Research/design only; no Surreal activation, schema, or deploy claim.
+> owner review complete 2026-08-16; source-class clock and walk-lifecycle contract superseded in
+> part by accepted ADR-0059/D-065 on 2026-08-18.
+> **Build status:** Disposable T0 design/schema/runner artifacts exist locally. R14's pre-ADR-0059
+> target execution is historical and stopped; the amended contract has no current live rerun or
+> production activation claim. All production holds stand.
 
 ## 1. Governing boundaries
 
@@ -16,6 +20,9 @@
 - Graphiti is the current accumulating belief-memory baseline.
 - SurrealDB is a governed analytical projection and experimental walk-memory runtime.
 - A pass is a retrieval policy/horizon bound to an agent, never a table or second corpus.
+- One authored normalized message spine feeds separate derived first-party and acquired-third-party
+  projections. Source availability is occurrence for first-party and acquisition for third-party;
+  realization is zero-to-many linked knowledge, not the source clock.
 
 ## 2. Target topology
 
@@ -55,8 +62,12 @@ flowchart LR
     SRC[Custody-backed source] --> MAN[Promoted manifest]
     MAN --> SPAN[Approved spans]
     MAN --> FULL[Full normalized source when source-approved]
-    SPAN --> CHUNK[Retrieval chunks]
-    FULL --> CHUNK
+    SPAN --> FP[First-party derived messages]
+    SPAN --> TP[Acquired-third-party derived messages]
+    FULL --> FP
+    FULL --> TP
+    FP --> CHUNK[Derived retrieval chunks]
+    TP --> CHUNK
     CHUNK --> EMB[Versioned embedding instances]
     EMB --> SUR[(SurrealDB)]
 ```
@@ -107,6 +118,10 @@ chunking is source-specific: sections/paragraphs for legal documents, clauses/ar
 contracts, turns/segments for conversations, message boundaries for email, AST symbols for
 code, table-aware structures, and observation records for TraceIQ data. Retrieval enrichment
 never replaces exact source locators.
+
+Acquired-third-party message projections preserve actual sender, recipients, and participants
+with the owner absent. Both source-class projections and every chunk/embedding generation carry
+`source_available_from`; plural realization links remain separate from chunk identity.
 
 Routing uses independent axes:
 
@@ -182,8 +197,10 @@ and policy; experiential beliefs bind to `walk_id`. Promoted knowledge is not co
 Stateful facilities such as caches, profiles, consolidation, and prompt assembly must prove the
 same Matter/walk/horizon/revision bindings or remain unavailable to the as-lived agent.
 
-Revocation, drift, mismatch, or outage pauses and seals the current walk as immutable historical
-experience. After reconciliation, a new `rewalk_of` execution produces an attributable delta.
+Healthy operational pause writes an exact checkpoint and resumes the same walk only while its
+projection, state, trace, belief references, and retrieval references still reconcile. Revocation,
+drift, mismatch, or another terminal integrity failure seals the current walk as immutable
+historical experience. After reconciliation, a new `rewalk_of` execution produces an attributable delta.
 Uncertain realization keeps its interval and requires HITL clarification of a midpoint proposal.
 Corroboration reports independent source-family count separately from raw derivative hits.
 
@@ -217,9 +234,9 @@ The executable Phase-0 contract canary and full gate specification are in
 
 ## 12. Resolved boundaries and deferred design decisions
 
-D-064 resolves exclusive post-parity Surreal retrieval, shared-Context walk isolation,
+D-064 plus D-065/ADR-0059 resolve exclusive post-parity Surreal retrieval, shared-Context walk isolation,
 fail-closed sealed snapshots/rewalks, horizon-local candidate beliefs, midpoint-plus-HITL
-realization, and source-family corroboration.
+realization, source-family corroboration, source-class projections/clocks, and healthy resume.
 
 Still deferred: physical schemas/API versioning, Weaviate named-vector versus collection
 lifecycle, memory versus corpus embedding profiles, TraceIQ precision/uncertainty/retention,

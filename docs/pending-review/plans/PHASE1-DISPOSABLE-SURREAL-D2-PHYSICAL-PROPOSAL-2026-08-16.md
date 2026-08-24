@@ -1,12 +1,18 @@
 # Phase 1 — Disposable Surreal D2 Physical Proposal
 
-> _Byline: Codex · GPT-5 · 2026-08-16 · official-documentation verification refresh 2026-08-16_
+> _Byline: Codex · GPT-5 · 2026-08-16 · official-documentation verification refresh 2026-08-16 ·
+> ADR-0059 physical-contract amendment Codex · GPT-5 · 2026-08-18_
 >
 > **Status:** OWNER APPROVED FOR D3/D4 T0 EXECUTION — 2026-08-16. The owner separately approved
 > creating and implementing only the named isolated synthetic slice and requested that the
 > current SurrealDB GUI be incorporated into Workbench. Corpus copy, production migration,
 > production-agent binding, Graphiti replacement, and E1–E5 adoption remain unauthorized.
 > _Execution addendum byline: Codex · GPT-5 · 2026-08-16._
+> **Current execution status (2026-08-18, Codex · GPT-5):** the isolated T0 schema/runner and
+> contract tests exist locally. R14's earlier target execution is preserved in its handoff and the
+> target is stopped; ADR-0059 has not been rerun live. This documentation pass did not deploy,
+> create/install credentials, copy a corpus, bind an agent, or alter the parked service.
+> Production and live-activation holds below remain unchanged.
 >
 > **Companions:** [logical slice design](PHASE1-DISPOSABLE-SURREAL-SLICE-DESIGN-2026-08-16.md),
 > [pre-mortem](plans/R12-PHASE1-DISPOSABLE-SLICE-pre-mortem-2026-08-16.md), and
@@ -39,6 +45,7 @@ The governing sources are [PROJECT_CANON.md](PROJECT_CANON.md), D-064,
 [ADR-0056](adr/0056-surrealdb-governed-analytical-and-walk-memory-surface.md),
 [ADR-0057](adr/0057-claim-centered-evidence-assembly-and-established-facts.md),
 [ADR-0058](adr/0058-investigation-search-and-behavioral-analysis-modes.md), the
+[ADR-0059](adr/0059-first-party-and-acquired-third-party-message-projections.md), the
 [Phase-0 contracts](CONTRACTS-2026-08-16-surreal-investigation-phase0.md), the
 [evaluation specification](EVALUATION-2026-08-16-surreal-investigation-phase0.md), and R12.
 
@@ -173,14 +180,15 @@ policy_version, policy_hash, trace_id, projection_revision, canonical_content_ha
 Every searchable or traversable evidence-bearing row additionally carries:
 
 ```text
-promotion_state, exposure_scope, visible_from?, disclosure_tier,
-source_family_id, sensitivity_tier, projection_guard_id
+promotion_state, exposure_scope, source_class, occurred_at,
+source_available_from, disclosure_tier, source_family_id,
+sensitivity_tier, projection_guard_id
 ```
 
 `knowledge_time` and `recorded_time` may be retained for audit but are never indexed or accepted
-as horizon predicates. Realization intervals retain `realized_earliest`, `realized_latest`,
-`midpoint_proposed`, and `realization_decision_id`; `visible_from` remains absent until an
-attributable approval permits it.
+as horizon predicates. First-party `source_available_from = occurred_at`; acquired-third-party
+`source_available_from = acquired_at`. Realization intervals/events remain zero-to-many linked
+records with independent approval/provenance and never replace source availability.
 
 ### 6.1 Exact table catalog
 
@@ -195,6 +203,10 @@ attributable approval permits it.
 | `source_manifest` | `source_id`, `h1_sha256`, `byte_size`, `media_type`, `custody_version`, `normalization_revision`, `content_exposure`, `binary_replication` | Append revisions only |
 | `promoted_span` | `span_id`, `source_revision_id`, `typed_locator`, `normalized_text`, `content_binding_hash`, temporal fields, `promotion_decision_id` | Append only |
 | `normalized_representation` | `source_revision_id`, `normalizer_version`, `normalized_text`, `structure_hash` | Full-text exposure only; append only |
+| `first_party_message` | normalized record/conversation IDs, `occurred_at`, actual sender/recipients/participants, `source_available_from=occurred_at` | Rebuildable derived projection; append revision only |
+| `third_party_conversation` | canonical acquisition ID/time, actual participant IDs, owner subject ID kept separate | Rebuildable derived projection; owner forbidden from participant set |
+| `third_party_message` | conversation/normalized record IDs, `occurred_at`, `acquired_at`, actual sender/recipients/participants, content hash | Rebuildable derived projection; append revision only |
+| `message_realization_link` | message ID, realization event/interval, kind, provenance, proposer, approval state | Zero-to-many append-only links; never source clock |
 | `structural_atom` | `atom_id`, `source_revision_id`, `parser_version`, `typed_locator`, `atom_text`, `atom_hash` | Append only |
 | `retrieval_chunk` | `chunk_id`, `generation`, `atom_ids`, `chunk_text`, `chunk_hash`, `chunk_policy_version` | Append generations only |
 | `embedding_t0_v1` | `embedding_id`, `chunk_id`, `profile_id`, `provider`, `model`, `dimensions=8`, `numeric_type=f32`, `normalization`, `input_hash`, `vector` | Append only; T0 profile only |
@@ -210,6 +222,7 @@ attributable approval permits it.
 | `walk` | run/role/mode, schedule hash, initial horizon, projection/policy bindings, `rewalk_of?` | Identity record; append only |
 | `walk_step` | walk ID, sequence, horizon ID, observed time, eligible manifest/hash, input/output state hashes | Append-only monotonic sequence |
 | `walk_guard` | walk ID, current step, status, projection guard, pause/failure reason | Coordinator transitions only; sealed is terminal |
+| `walk_checkpoint` | walk/step/horizon IDs, projection/eligible/state/trace hashes, belief IDs, retrieval IDs, captured time | Immutable resumable state; selectable only while same walk is paused and projection remains active |
 | `belief_event` | walk/run/role/horizon IDs, event kind, proposition, upstream IDs, decision/observation times, uncertainty, versions, prior/event hash | Append-only hash chain |
 | `walk_snapshot` | walk/step/horizon IDs, projection/eligible/state hashes, belief IDs, context/trace hashes, versions, failure reason, sealed time | Immutable, non-resumable, excluded from recall |
 | `memory_state` | walk/event sequence/horizon, replay manifest, state hash | Append-only derived projection |
@@ -240,7 +253,7 @@ existence; it does not by itself prove backup/restore completeness.
 | Table | Index |
 |---|---|
 | Every scoped table | composite lookup on `(matter_id, projection_revision, authority_state)` |
-| Evidence-bearing tables/edges | composite eligibility lookup on `(matter_id, projection_revision, promotion_state, disclosure_tier, visible_from)` |
+| Evidence-bearing tables/edges | composite eligibility lookup on `(matter_id, projection_revision, promotion_state, disclosure_tier, source_available_from)` |
 | `projection_guard` | unique `revision_id`; lookup on `(status, checked_at)` |
 | `source_manifest` | unique `(source_id, revision)`; lookup on `h1_sha256` |
 | `promoted_span` | unique `(span_id, revision)`; lookup on `(source_revision_id, content_binding_hash)` |
@@ -275,8 +288,8 @@ AND row.exposure_scope is permitted
 AND disclosure policy permits the row
 AND (
   token.mode = hindsight
-  OR (token.mode = as_lived_so_far AND row.visible_from exists
-      AND row.visible_from <= token.horizon_at)
+  OR (token.mode = as_lived_so_far AND row.source_available_from exists
+      AND row.source_available_from <= token.horizon_at)
 )
 AND, for experiential state, row.walk_id = token.walk_id
 ```
@@ -284,9 +297,14 @@ AND, for experiential state, row.walk_id = token.walk_id
 Projection INSERT permissions require every row field to equal the projector token's Matter,
 revision, policy, and experiment scope. Investigation and walk INSERT permissions additionally
 require the bound run/walk/horizon and an upstream eligible-manifest hash. Evidence, decisions,
-beliefs, dossiers, facts, snapshots, and relation edges deny UPDATE and DELETE. Guard records have
-the only narrow state transitions; terminal `quarantined` and `sealed` states cannot transition
-back.
+beliefs, dossiers, facts, checkpoints, snapshots, and relation edges deny UPDATE and DELETE.
+Acquired-third-party projection writes additionally fail if the owner appears in participants,
+the sender is absent from participants, any recipient is absent from participants, or
+`source_available_from != acquired_at`; first-party writes fail unless
+`source_available_from = occurred_at`.
+Guard records have the only narrow state transitions: active→paused→active requires the same
+healthy projection/checkpoint; active/paused→sealed requires terminal failure/quarantine; terminal
+`quarantined` and `sealed` states cannot transition back.
 
 No permission expression may perform a write. This avoids a class of permission-side-effect
 failures and keeps authorization deterministic. D4 includes direct negative tests for each role,
@@ -348,9 +366,11 @@ fields, negative tests, and D2 revision.
 4. Investigation freezes its plan, records all retrieval stages and rejected hits, freezes the
    dossier, and requires the synthetic reviewer principal to establish a fact.
 5. Walk steps append eligible manifests, retrieval traces, belief-event hashes, and memory states.
-6. Revocation, stale hash, missing/extra membership, invalid edge, scope mismatch, or target outage
-   stops reads, transitions the projection guard to `quarantined`, pauses the walk, and seals an
-   immutable snapshot.
+   A healthy pause writes an immutable checkpoint and resumes the same identity only after exact
+   projection/state/trace/belief/retrieval-reference reconciliation.
+6. Revocation, stale hash, missing/extra membership, invalid edge, scope mismatch, or an outage
+   whose unchanged projection cannot be proven
+   stops reads, transitions the projection guard to `quarantined`, and seals an immutable snapshot.
 7. Reconciliation builds a new projection revision. It never repairs the old projection in place.
    A new walk links through `rewalk_of`; the old snapshot stays excluded from active recall.
 8. No Surreal failure triggers evidence retrieval from PostgreSQL, Weaviate, Neo4j, Graphiti, or
@@ -412,7 +432,7 @@ The companion pre-mortem remains normative. D2 adds these physical failure modes
 | ANN ranks globally then filters | `EXPLAIN FULL` or candidate trace includes forbidden IDs | Reject ANN path and quarantine result |
 | Permission protects vertices but not edges | Cross-scope edge appears during traversal | Stop; require edge and endpoint checks |
 | Projection quarantine races a live token | Read succeeds after guard becomes quarantined | Seal walk; fail D4 concurrency gate |
-| Export/import omits or changes relation edges | Edge count/hash differs after import | Fail reproducibility; no success claim |
+| Export/import omits/changes realization, checkpoint, snapshot, or relation state | Row/edge/export hash differs, or restored horizon retrieval differs | Fail reproducibility; no success claim |
 | “Internal” target becomes externally reachable | Published port, proxy label, or shared network appears | Stop deployment and quarantine target |
 | Bootstrap secret remains in runtime | Secret inventory shows it in runner/app | Stop; revoke/rotate before testing |
 | Disposable volume is auto-removed | Teardown contains delete/drop/volume removal | Stop; replace with stop-and-quarantine |
@@ -437,7 +457,8 @@ without contacting or creating any Surreal target:
 - `TYPE RELATION ... ENFORCED` is documented in 3.2 as rejecting relations whose endpoints do not
   exist. No official source was found for the prior draft's claim that pre-3.3 export/restore
   silently drops enforced edges, so that claim has been removed. Export/import parity remains a
-  mandatory independent gate.
+  mandatory independent gate and includes checkpoint/snapshot/realization/rewalk state plus
+  restored horizon-retrieval equality.
 
 Image digest, signature/provenance, current advisory disposition, and effective runtime
 capabilities remain D3 preflight evidence because they depend on the exact artifact selected at

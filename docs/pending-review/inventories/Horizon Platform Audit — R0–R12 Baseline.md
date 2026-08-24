@@ -1,5 +1,11 @@
 # Horizon Platform (mcp-platform-agno-mvp) — Structured Audit
 
+> **ADR-0059 supersession addendum (2026-08-18, Codex · GPT-5):** This observed baseline is not
+> rewritten. Current design separates first-party occurrence visibility from acquired-third-party
+> acquisition visibility, preserves plural realization links and actual third-party participants,
+> derives chunks, and distinguishes healthy same-walk resume from terminal seal/linked rewalk.
+> No deployment or production activation follows from this note.
+
 > _Byline: Owner-provided audit · captured by Codex · GPT-5 · 2026-08-16_
 >
 > **Status note:** This is the accepted baseline at commit `229baff`, not a statement of current

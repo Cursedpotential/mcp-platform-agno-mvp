@@ -1,6 +1,6 @@
 # Architecture Blueprint — Polyglot, Framework-Neutral Platform
 
-> _Byline: Codex · GPT-5 · 2026-08-15_
+> _Byline: Codex · GPT-5 · 2026-08-15 · ADR-0059 amendment Codex · GPT-5 · 2026-08-18_
 
 ## Component ownership
 
@@ -15,6 +15,7 @@
 | Belief projection | Graphiti/Neo4j memory DB | Run-scoped semantic/temporal belief recall | Evidence truth or cross-run authorization |
 | Evidence graph | Neo4j evidence DB | Approved factual projection | Agent belief state |
 | Retrieval projection | Weaviate | Horizon-filtered similarity/hybrid search | Canonical data or post-filter-only enforcement |
+| Curated analytical/walk projection | SurrealDB candidate | Separate derived first-party/acquired-third-party messages, plural realization links, chunks, checkpoints, terminal snapshots, linked rewalks | Authored evidence truth, invented third-party participants, or sealed-state fallback |
 
 ## Go parallel ingestion design
 
@@ -29,6 +30,12 @@ Public requests use stable platform IDs and neutral schemas. The selected coordi
 ## Temporal memory design
 
 PostgreSQL `belief_event` is authoritative. A Graphiti projector writes only agent-visible beliefs into `belief:{case}:{workflow}:{run}:{role}`. Hindsight and ignorant runs never share a group. `group_id` is a namespace, not an authorization boundary; the gateway enforces allowed group IDs.
+
+Canonical normalized messages are authored once. Derived first-party source availability equals
+occurrence; acquired-third-party availability equals acquisition and its participant set excludes
+the owner. Zero-to-many realization links remain independent. Derived chunks inherit the source
+boundary. A healthy checkpoint resumes the same walk only on exact reconciliation; terminal
+integrity failure seals immutable state and requires an attested linked rewalk.
 
 ## Model route semantics
 

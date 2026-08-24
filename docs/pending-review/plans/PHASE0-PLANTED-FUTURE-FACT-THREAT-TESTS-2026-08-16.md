@@ -1,6 +1,7 @@
 # Phase 0 — Planted Future-Fact Horizon-Leak Tests
 
-> _Byline: Codex · GPT-5 · 2026-08-16 · owner-ruling amendment 2026-08-16_
+> _Byline: Codex · GPT-5 · 2026-08-16 · owner-ruling amendment 2026-08-16 ·
+> ADR-0059 supersession amendment 2026-08-18_
 >
 > **Status:** Threat-test contract plus validated synthetic oracle vectors.
 > **Integration status:** BLOCKED — target store/service adapters do not yet implement this contract.
@@ -22,7 +23,8 @@ Each `ThreatCase` records:
 - case/contract version, attack vector, store/stage under test, and immutable policy hash;
 - Matter, scope revision, source revision set, horizon mode/cutoff, and disclosure tiers;
 - planted sentinel fact and semantically similar eligible controls;
-- occurrence, realization/visibility, recording, approval, and source-span state;
+- source class, occurrence, acquisition/source availability, plural realization links, recording,
+  approval, participant attribution, and source-span state;
 - forbidden and allowed result IDs at each checkpoint;
 - positive-control horizon at which the planted fact must become visible;
 - expected filter/authorization attestation and fail-closed error behavior.
@@ -35,7 +37,7 @@ answers, or logs shown to the agent before the positive-control horizon.
 | ID | Attack | Required assertion |
 |---|---|---|
 | HF-01 | Future fact has the highest vector similarity | Prefilter removes it before top-k; eligible results still fill k |
-| HF-02 | Event occurred earlier but was realized later | `realized_at` controls visibility; occurrence alone cannot leak it |
+| HF-02 | Third-party message occurred earlier but its conversation was acquired later | Acquisition-backed `source_available_from` controls source visibility; occurrence alone cannot leak it |
 | HF-03 | Fact sits outside approved spans of a partially approved source | Manifest is visible, planted text is not searchable |
 | HF-04 | Neo4j/Surreal graph neighbor crosses the horizon | Expansion predicate runs before neighbor scoring/traversal return |
 | HF-05 | TraceIQ geo join finds a later-known location fact | Temporal/authorization predicate applies inside the geo query |
@@ -46,6 +48,9 @@ answers, or logs shown to the agent before the positive-control horizon.
 | HF-10 | Hindsight Graphiti belief enters an as-lived run | Context mismatch excludes belief; it may remain an auditable lead elsewhere |
 | HF-11 | Cross-Matter semantic match dominates ranking | Matter prefilter removes it before all ranking/traversal stages |
 | HF-12 | Reranker/model sees raw unfiltered candidates | Input trace proves only eligible candidate IDs reach the reranker/model |
+| HF-13 | First-party message is bulk-ingested later | Occurrence controls source visibility; ingest/acquisition time cannot erase what the owner contemporaneously knew |
+| HF-14 | One acquired-third-party message has several realization links | Links stay separate and cannot backdate source visibility or overwrite each other |
+| HF-15 | Walk pauses normally, then projection drift is injected | Healthy pause resumes the same identity and exact state; drift seals it and a new exact `rewalk_of` identity is required |
 
 ## 4. Stage assertions
 
@@ -61,7 +66,8 @@ For every forbidden sentinel:
 - missing/stale/unverifiable filter attestation produces a typed failure, not partial success.
 
 When enough eligible records exist, filtering before top-k must still return the requested k.
-The positive control must retrieve the planted fact under hindsight or after its realization.
+The positive control must retrieve the planted source under hindsight or after its
+`source_available_from`; realization-specific views separately test approved realization links.
 A threat case that blocks both forbidden and positive controls is broken, not safe.
 
 ## 5. Store and orchestration matrix
@@ -88,7 +94,7 @@ different immutable horizon policies. Their traces remain separate. The planted 
 
 - absent from every as-lived stage before visibility;
 - present in the hindsight positive control;
-- present in an as-lived rerun only after the cutoff passes `visible_from`;
+- present in an as-lived rerun only after the cutoff passes `source_available_from`;
 - represented in the delta as newly available evidence, not as an earlier hidden intuition.
 
 ## 7. Executable Phase-0 vectors
@@ -113,13 +119,18 @@ oracle data is internally coherent. It does **not** prove a production adapter,
 store, cache, planner, model, or agent is safe. Phase-1+ adapters must consume these same vectors
 and attach their traces before integration status can change from `BLOCKED`.
 
+That 18-test result is preserved as the observed 2026-08-16 baseline. ADR-0059 supersedes its
+universal realization-clock interpretation. Phase-1 fixtures must additionally prove first-party
+occurrence visibility, acquired-third-party acquisition visibility and real participants, plural
+realization links, healthy same-walk resume, and terminal drift seal plus linked rewalk.
+
 HF-03 through HF-12 remain required integration cases even where the first synthetic canary
 models their authority/scope failure only indirectly. Later fixtures extend this contract; they
 do not weaken or replace the first canary.
 
 ## 8. Failure handling
 
-On contamination: stop the run, quarantine its checkpoint/materialization, record the policy,
+On contamination: stop the run, quarantine its materialization, record the policy,
 scope, candidate IDs, adapter revision, and first contaminated stage. Seal an immutable historical
 walk snapshot with its horizon, eligible manifest, belief state, context/decision traces, versions,
 and failure cause. That snapshot remains replayable for experiential comparison but is read-only,
@@ -127,7 +138,11 @@ non-resumable, and forbidden from active retrieval. Reconcile or rebuild, then c
 walk and measure the before/after delta. Never repair a contaminated as-lived result by deleting
 the offending sentence or rewriting the old walk.
 
-An uncertain realization midpoint is also a planted-fact boundary: before attributable HITL
-approval it must appear in zero candidate pools and agent-visible surfaces. Derivative copies must
+A healthy operational pause is not contamination: persist an exact resumable checkpoint and
+resume the same identity only after proving its projection and state/trace/references unchanged.
+
+An uncertain realization midpoint is also a derived-knowledge boundary: before attributable HITL
+approval it must appear in zero realization/belief views. It does not suppress or backdate source
+retrieval once that source passes `source_available_from`. Derivative copies must
 increase raw-hit count without increasing independent-source-family count unless a separate
 provenance review proves independence.

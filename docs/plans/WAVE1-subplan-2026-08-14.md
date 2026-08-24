@@ -1,5 +1,11 @@
 # Wave 1 Sub-Plan — Temporal truth + horizon enforcement
 
+> **ADR-0059 supersession addendum (2026-08-18, Codex · GPT-5):** This is a historical plan.
+> Replace universal realization/occurrence visibility with source-class availability; keep actual
+> third-party participants with owner absent, plural realization links, and derived chunks. Add
+> healthy same-walk checkpoint/resume separately from terminal seal/linked rewalk. Nothing here is
+> newly authorized for deployment or live migration.
+
 > **STATUS CORRECTION 2026-08-15:** code and migrations 0026–0029 now exist in
 > the dirty tree, but the independent R0 replay found cutover-blocking defects.
 > They remain uncommitted, unapplied, and quarantined from product execution.

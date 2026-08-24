@@ -1,7 +1,8 @@
 # Architecture Decision Records (ADRs)
 
 > _Byline: Claude Code · Kimi K3 (drift-fix) · 2026-08-12; Codex · GPT-5 ·
-> 2026-08-15 (ADR-0053–0058 index and architecture decisions)._
+> 2026-08-15 (ADR-0053–0058 index and architecture decisions); Codex · GPT-5 ·
+> 2026-08-18 (ADR-0059 index and supersession links)._
 
 Lightweight [MADR](https://adr.github.io/madr/)-style records of decisions that are **locked** —
 so they are not silently re-litigated or forgotten across sessions/agents.
@@ -58,7 +59,7 @@ guarantee gets an ADR. One short record. Supersede (don't edit) when a decision 
 | 0042 | Portkey replaces LiteLLM as THE model gateway; LiteLLM retired | Accepted (2026-07-29; supersedes 0015; teardown pending) |
 | 0043 | Semantica as a governed extraction worker (pinned fork); SurrealDB exits the critical path | Accepted (2026-08-02; index row backfilled 2026-08-05 — the file shipped without one) |
 | 0044 | Evidence-vs-Context boundary + forensic transcript data model | **Accepted** (2026-06-27; merged 2026-08-05, renumbered from ~~0033~~ — `main` had already shipped a different ADR-0033) |
-| 0045 | Horizon clocks (visible_from, computed live) + checkpoint-derivation architecture + A.4 realization_event amendment (found-out knowledge in its own table; contradiction events = the lie register); ratifies the six-clock ruling; amends canon §1; closes OQ-1 | **Accepted** (owner signed 2026-08-09, Option A + A.4; D-042 — S6 unblocked) |
+| 0045 | Horizon clocks (visible_from, computed live) + checkpoint-derivation architecture + A.4 realization_event amendment (found-out knowledge in its own table; contradiction events = the lie register); ratifies the six-clock ruling; amends canon §1; closes OQ-1 | **Accepted; A/A.4 superseded in part by ADR-0059** — §B/C remain in force (owner signed 2026-08-09, Option A + A.4; D-042) |
 | 0046 | Universal MCP exposure contract: progressive disclosure, annotations, pagination, server-side horizon binding (pays canon §5's "needs ADR") | **Accepted** (owner signed 2026-08-09; D-042) |
 | 0047 | Audit-everything ledger: ops.audit_ledger, hash-chained, append-only, READS included | **Accepted** (owner signed 2026-08-09; D-042) |
 | 0048 | Go worker layer = the SBV universal import engine (not a second binary); messaging lane first, Google Timeline parked | **Accepted / Realized** (architecture shipped in PR #18 `aacf21c` 2026-08-06; status corrected from ~~PROPOSED~~ 2026-08-10, D-044 — index row backfilled the same day, the file shipped without one) |
@@ -69,9 +70,10 @@ guarantee gets an ADR. One short record. Supersede (don't edit) when a decision 
 | 0053 | Five-lane AI-chat ingestion; explicit conversation/message/chunk truth; post-chunk multi-label routing; selective confidence HITL; tags; multimodal assets/OCR ladder; human investigation register | **Accepted** — owner rulings 2026-08-13; supersedes 0050/0051/0052 in part |
 | 0054 | Mandatory durable run reports + append-only review actions + correlated Agno/OpenTelemetry/Langfuse observability | **Accepted** — owner ruling 2026-08-13; Postgres authoritative, Langfuse diagnostic only; D-059 |
 | 0055 | Matter and CourtCase identity boundary + legacy text-partition bridge + idempotent Knowledge-to-Evidence promotion | **Accepted** — owner approval 2026-08-15; narrowly supersedes D-041 identity consequence while retaining single-owner scope; D-060 |
-| 0056 | SurrealDB governed analytical projection + platform-owned Spectron-compatible walk memory | **Accepted** — owner approval 2026-08-15; supersedes ADR-0043 only as to SurrealDB's future analytical/memory role; D-061 |
+| 0056 | SurrealDB governed analytical projection + platform-owned Spectron-compatible walk memory | **Accepted; decision 10 superseded in part by ADR-0059** — owner approval 2026-08-15; remaining governed projection role stands; D-061 |
 | 0057 | Claim-centered evidence assembly + immutable established facts with exact multi-source provenance | **Accepted** — owner approval 2026-08-15; D-062 |
 | 0058 | Investigation Search + scoped hindsight/as-lived behavioral-analysis modes and internal lens vocabulary | **Accepted** — owner approval 2026-08-15; D-063 |
+| 0059 | First-party and acquired-third-party derived message projections; three clocks; resumable checkpoints vs terminal rewalks | **Accepted** — owner ruling 2026-08-18; supersedes ADR-0045 A/A.4 and ADR-0056 decision 10 in part; D-065 |
 
 > The full vision, current stack, roadmap, access, and gotchas live in
 > [`docs/PROJECT_CANON.md`](../PROJECT_CANON.md) (the durable source of truth).

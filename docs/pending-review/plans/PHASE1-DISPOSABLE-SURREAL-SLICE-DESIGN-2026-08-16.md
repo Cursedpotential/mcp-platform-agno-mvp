@@ -1,13 +1,15 @@
 # Phase 1 — Disposable Surreal Slice Design
 
-> _Byline: Codex · GPT-5 · 2026-08-16_
+> _Byline: Codex · GPT-5 · 2026-08-16 · ADR-0059 amendment Codex · GPT-5 · 2026-08-18_
 >
-> **Status:** DESIGN ONLY — proposed experiment boundary; no physical target exists or is
-> authorized by this document.
+> **Status:** LOGICAL DESIGN BASELINE, amended by ADR-0059. Later D3/D4 authority covered only
+> the exact isolated T0 target/implementation. The pre-ADR-0059 R14 target was run and stopped;
+> amended artifacts have local tests but no current live-store rerun. Every production hold remains.
 > **Authority:** [PROJECT_CANON.md](PROJECT_CANON.md), D-064,
 > [ADR-0056](adr/0056-surrealdb-governed-analytical-and-walk-memory-surface.md),
 > [ADR-0057](adr/0057-claim-centered-evidence-assembly-and-established-facts.md),
 > [ADR-0058](adr/0058-investigation-search-and-behavioral-analysis-modes.md), the accepted
+> [ADR-0059](adr/0059-first-party-and-acquired-third-party-message-projections.md),
 > [Phase-0 contracts](CONTRACTS-2026-08-16-surreal-investigation-phase0.md),
 > [evaluation specification](EVALUATION-2026-08-16-surreal-investigation-phase0.md), and
 > [R12 handoff](HANDOFF-2026-08-16-R12-surreal-investigation-owner-rulings.md).
@@ -19,6 +21,12 @@
 > repository's current head. Subsequent platform work does not expand the Surreal authorization
 > boundary above; every R9 activation hold remains active. Current repository state must always
 > be verified from Git and the newest handoff rather than inferred from this design document.
+
+> **Supersession addendum (2026-08-18, Codex · GPT-5):** the “not authorized” sentence in the
+> historical R12 paragraph above is retained as history. The later D3/D4 ruling authorized only
+> the named isolated synthetic target and implementation. It did not authorize deployment by
+> this documentation pass, production data, production Horizon/agent binding, parked-target use,
+> or Graphiti replacement.
 
 ## 1. Answer first
 
@@ -61,8 +69,8 @@ The slice answers one bounded question:
 
 > Can the platform project a frozen synthetic authority set into an isolated shared Context,
 > assemble an auditable claim dossier and reviewed fact, walk the evidence without future leakage,
-> seal on drift, and create a linked rewalk—while preserving exact provenance, Matter/walk
-> isolation, reproducibility, and parity evidence against Graphiti?
+> pause and resume a healthy walk, seal on drift, and create a linked rewalk—while preserving
+> exact provenance, Matter/walk isolation, reproducibility, and parity evidence against Graphiti?
 
 It does not answer whether Surreal should replace Graphiti or become production infrastructure.
 
@@ -75,15 +83,16 @@ No source text may resemble or be derived from the owner's real evidence.
 | Item | Minimum slice content | Purpose |
 |---|---|---|
 | Matters | Matter A plus a cross-Matter decoy | Prove mandatory Matter isolation |
-| Sources | 6–10 fabricated sources with immutable hashes and revisions | Exercise source/span authority without real corpus |
+| Sources | 6–10 fabricated sources including first-party messages and one acquired-third-party conversation with immutable hashes/revisions | Exercise source/span authority without real corpus |
+| Third-party attribution | Actual sender, recipients, and participants; owner absent | Prevent fabricated first-party attribution |
 | Promotion states | Full synthetic source, manifest-only source, selected-span source, revoked source | Prove partial exposure and revocation |
 | Evidence roles | Supporting, contradicting, qualifying, contextual, unresolved, missing expected | Build a non-confirmatory dossier |
 | Derivative lineage | At least three raw copies in one source family plus one independent source | Prove raw-hit versus independent-source counts |
 | Claims | One horizon-eligible candidate plus one broader-horizon forbidden candidate | Prove walk-local uncertainty and candidate isolation |
-| Realization | One approved point and one interval with an unapproved midpoint proposal | Prove HITL withholding and later attributable visibility |
+| Realization | Zero-to-many links per message, including several approved/proposed dates | Prove plural derived knowledge without changing source availability |
 | Walks | Two same-Matter walks with different modes/roles plus one cross-Matter walk | Prove shared-Context isolation |
-| Horizons | Pre-realization, post-approved-realization, and hindsight positive control | Prove the realization delta |
-| Faults | Stale hash, revoked promotion, missing membership, simulated outage | Prove seal/reconcile/rewalk behavior |
+| Horizons | First-party post-occurrence, third-party pre/post-acquisition, realization-specific, and hindsight controls | Prove source possession and later understanding separately |
+| Faults | Healthy pause, stale hash, revoked promotion, missing membership, simulated outage | Prove resume versus seal/reconcile/rewalk behavior |
 
 The manifest pins source, parser, normalizer, chunk, embedding, retrieval, projection, policy,
 prompt, tool, model-route, and evaluation versions even when a deterministic test double supplies
@@ -139,7 +148,8 @@ that cannot prove these bindings are disabled for the as-lived path.
 
 ## 7. Minimal vertical journey
 
-1. **Freeze authority inputs.** Content-address the T0 manifest, synthetic promotion decisions,
+1. **Freeze authority inputs.** Content-address the T0 manifest, source classes/acquisition,
+   actual participants, synthetic promotion decisions,
    realization revisions, scope, source-family rulings, policies, and expected outputs.
 2. **Compile eligibility.** Produce an inspectable pre-ranking/traversal eligibility plan for each
    adapter. Unsupported or unverifiable predicates return a typed failure.
@@ -156,7 +166,9 @@ that cannot prove these bindings are disabled for the as-lived path.
    query generation, context, belief events, responses, and state hashes.
 8. **Run positive controls.** Execute hindsight and the approved later horizon with identical
    policies and budgets, then produce the expected realization delta.
-9. **Inject failure.** Introduce revocation/hash drift and a simulated outage. Pause the walk,
+9. **Prove healthy resume, then inject failure.** Pause at an exact checkpoint, resume the same
+   walk with equal state/trace/belief/retrieval references, then introduce revocation/hash drift.
+   Pause the affected execution,
    quarantine the projection revision, and seal a non-resumable snapshot.
 10. **Reconcile and rewalk.** Rebuild from canonical decisions, create a new linked `rewalk_of`,
     and attribute input/projection changes separately from prompt/model/tool/reasoning changes.
@@ -177,7 +189,7 @@ it is not a court-safe export.
 
 ## 9. Failure, sealing, and disposal behavior
 
-Revocation, missing membership, stale content hash, projection mismatch, or outage blocks the
+Revocation, missing membership, stale content hash, projection mismatch, or an unverifiable outage blocks the
 affected as-lived read. The system must not serve stale state or fall back to broad PostgreSQL,
 Weaviate, Neo4j, Graphiti, another walk, or a sealed snapshot.
 
@@ -185,6 +197,10 @@ Before reconciliation, the walk snapshot binds its horizon, eligible manifest, p
 hashes, belief events, retrieved context, traces, versions, and failure cause. It is immutable,
 read-only, replayable, non-resumable, and excluded from active retrieval. Repair produces a new
 projection revision and linked rewalk.
+
+A healthy pause instead writes a distinct resumable checkpoint and preserves the same walk
+identity. If the original projection guard or any checkpoint hash/reference no longer reconciles,
+the pause becomes terminal and follows the seal/rewalk path.
 
 At experiment end, the future physical target is stopped, access is revoked, and its final
 manifest/report is preserved for review. No automated deletion or destructive cleanup is part of
@@ -221,7 +237,7 @@ a stop condition. Merely renaming the parked deployment does not create an isola
 | E4 Provenance | Every cited/fact assertion resolves to exact span, source revision, and synthetic custody binding | Stop |
 | E5 Promotion | Manifest-only/selected-span exposure holds; revocation and mismatch fail closed | Seal and reconcile |
 | E6 Reproducibility | Manifests, dossiers, eligible sets, receipts, snapshots, state hashes, and rewalk deltas reproduce | Stop |
-| E6a HITL time | Unapproved midpoint has zero as-lived visibility; approval is attributable and revisioned | Stop |
+| E6a HITL time | Unapproved midpoint has zero realization/belief-view visibility without hiding an independently source-available message; approval is attributable and revisioned | Stop |
 | E6b Corroboration | Derivative raw hits do not inflate independent-source count | Stop |
 | E7 Bounded investigation | Budgets, disconfirmation path, and termination reason are complete | Stop |
 | E8 Behavioral safety | Not exercised beyond a negative no-diagnosis/no-release assertion; reported as out of slice | No behavioral promotion claim |

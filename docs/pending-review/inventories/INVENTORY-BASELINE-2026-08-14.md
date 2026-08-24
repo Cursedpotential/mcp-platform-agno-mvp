@@ -1,5 +1,11 @@
 # Live Inventory Baseline — 2026-08-14 (Wave 0)
 
+> **ADR-0059 supersession addendum (2026-08-18, Codex · GPT-5):** Counts and observed live
+> state below remain point-in-time evidence. Any planned horizon repair must now use separate
+> first-party/acquired-third-party derived projections, source availability by occurrence versus
+> acquisition, plural realization links, derived chunks, and healthy resume versus terminal
+> seal/rewalk. This addendum does not apply or deploy that repair.
+
 > _Byline: Claude Code · glm-5.2:cloud · 2026-08-14_
 > Signed read-only snapshot of the live tailnet PG **before** any Wave 1+ change.
 > Source: `scripts/_wave0_inventory.py` + `scripts/_wave0_fresh_restore.py` run against

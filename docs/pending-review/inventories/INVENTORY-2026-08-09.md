@@ -1,4 +1,11 @@
 # Master Action Inventory — 2026-08-09
+> _Byline amendment: Codex · GPT-5 · 2026-08-18 (ADR-0059 supersession)._
+> **ADR-0059 supersession addendum (2026-08-18, Codex · GPT-5):** Preserve every inventory
+> observation below. The proposed universal `visible_from` repair is no longer current: derive
+> source availability from occurrence for first-party and acquisition for acquired-third-party,
+> retain zero-to-many realization links, derived chunks, and healthy-checkpoint versus terminal-
+> rewalk semantics. Production/live holds remain unchanged.
+>
 > Every task, gap, or debt mentioned or discovered in the 2026-08-09 audit + planning session.
 > Each item maps to at least one handoff segment (column S; primary owner listed first).
 > Verified by adversarial coverage pass 2026-08-09; 22 findings fixed same day.

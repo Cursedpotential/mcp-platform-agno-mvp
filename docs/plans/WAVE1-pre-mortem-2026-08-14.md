@@ -1,5 +1,11 @@
 # Pre-Mortem: Wave 1 (Temporal Truth + Horizon Enforcement)
 
+> **ADR-0059 supersession addendum (2026-08-18, Codex · GPT-5):** Preserve the failure analysis
+> and rollback observations below. Supersede its universal `visible_from` proposal with separate
+> first-party occurrence and acquired-third-party acquisition availability, plural realization
+> links, derived chunks, and healthy-checkpoint versus terminal-rewalk tests. Migrations and live
+> activation remain held.
+
 > **R0 AUDIT BANNER 2026-08-15:** later independent replay found the Wave-1
 > build is **not cutover-ready**. Migrations 0026–0029 remain unapplied; see
 > `../HANDOFF-2026-08-15-R0-wave1-audit.md` for proposal-contamination,

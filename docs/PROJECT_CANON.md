@@ -4,8 +4,11 @@
 > repeated compaction never loses the vision, decisions, or plan. It is kept
 > current as decisions are made. If something here conflicts with an older ADR,
 > this file's "Locked Decisions" section wins and the ADR should be updated.
-> _Byline amendment: Codex · GPT-5 · 2026-08-16 owner-ruling synchronization._
-> Last updated: 2026-08-16 (ADR-0056–0058 Phase-0 logical contracts, synthetic
+> _Byline amendment: Codex · GPT-5 · 2026-08-18 ADR-0059 source-clock, walk-lifecycle,
+> and native evidence-vector ruling._
+> Last updated: 2026-08-18 (ADR-0059 separates first-party/acquired-third-party
+> derived message projections, source availability, plural realizations, and healthy resume
+> from terminal rewalk; prior 2026-08-16: ADR-0056–0058 Phase-0 logical contracts, synthetic
 > planted-future-fact tests, evaluation gates, and S1–S6 owner review are complete;
 > no implementation/activation authority; prior 2026-08-15: governed Surreal analytical/walk-memory
 > projection, claim-centered evidence assembly, Investigation Search, and scoped
@@ -36,7 +39,7 @@
 ## 0. Document Contract (ONE of each — read this to know what's authoritative)
 
 To stop architecture/plan drift, **each concern has exactly ONE authoritative file.**
-This canon is the entry point and names them. Everything else (the ADR set through ADR-0058, `docs/planning/*`,
+This canon is the entry point and names them. Everything else (the ADR set through ADR-0059, `docs/planning/*`,
 the wiki, `glossary.md`) is **subordinate history/reference**, not a competing source of truth.
 
 | Concern ("one X") | Authoritative file |
@@ -89,16 +92,22 @@ connected), **Final pass full disclosure** (incl. facts discovered later). A
 "pass" is a **knowledge horizon** — a filter over a bitemporal graph. The
 **delta between Pass 1 and the final pass for the same event IS the abuse made
 legible** ("what you were led to believe vs what was true vs when you found
-out"). Every evidence atom must carry **valid-time + knowledge-time +
-disclosure-tier**. This is why Graphiti/Neo4j is the cognition substrate.
-**Amendment (ADR-0045, signed 2026-08-09):** the horizon clock is
-`visible_from = COALESCE(realized_at, occurred_at)`, NOT `knowledge_time` (now
-audit-only / superseded — the predicate that filtered on it is inert, see
-INVENTORY N1). And **version-pinned DERIVED pass materializations** (as-lived
-incremental via `working.walk_ledger` + hindsight on-prompt; single-writer
-refresher; hash-attested to `ops.audit_ledger`) are **sanctioned** — parallel
-AUTHORED as-lived/hindsight stores are FORBIDDEN. Decided; build underway
-(Wave 1). See ADR-0045 §A (clocks) / §B (derivation).
+out"). Every horizon-eligible projection must preserve event time, source
+availability, plural realization provenance, and disclosure policy. This is why
+Graphiti/Neo4j is the cognition substrate.
+
+**Current clock and projection ruling (ADR-0059, owner 2026-08-18; narrowly
+supersedes ADR-0045 §A/A.4):** keep three concepts separate. `occurred_at` is
+event time. `source_available_from` is the source-retrieval horizon: occurrence
+for a first-party message, custody-backed acquisition for an acquired-third-party
+message. A message has zero-to-many separate realization links; realization does
+not overwrite or backdate source availability. First-party and acquired-third-party
+message surfaces are separate **derived projections** from one authored normalized
+spine. The acquired thread preserves its real sender, recipients, and participants;
+the owner is not one of those participants. Chunks/embeddings are derived and carry
+the same source boundary. ADR-0045 §B still sanctions version-pinned derived pass
+materializations (single-writer, hash-attested) and still forbids parallel AUTHORED
+as-lived/hindsight stores.
 
 **The end-goal frame (the platform itself):** beneath the three-part arc, the
 durable product is a **multi-surface tool-platform GATEWAY** — it **serves** its
@@ -147,6 +156,12 @@ classification remains searchable in `context` and enters selective human review
 Lanes answer “which broad corpus?” while normalized tags answer “what is this about?”.
 Tags retain provenance, confidence, and review state. Raw messages do not carry lane,
 horizon, disclosure, as-experienced, or hindsight judgments.
+
+Message source class is likewise not an analytical belief. Governed derived projections
+separate first-party conversations from acquired-third-party conversations (ADR-0059).
+Third-party rows preserve actual sender/recipients/participants with the owner absent;
+their source becomes walk-visible at acquisition. Realization remains a plural linked
+derivation above the normalized message, never a replacement message date.
 
 All created works and attachments are ingested with the archive. Original bytes remain in
 R2 and PG records provenance plus derived text/OCR/transcript/keyframe representations.
@@ -203,14 +218,24 @@ S3 API + pg_duckdb httpfs (`read_text('s3://nexus/...')`).
 
 ## 5. Locked decisions
 
+- **Message source clocks and walk lifecycle = ADR-0059:** one authored normalized
+  spine feeds separate first-party and acquired-third-party derived message projections.
+  First-party source availability equals occurrence; acquired-third-party availability
+  equals acquisition, and the owner is absent from its actual participant set. Messages
+  may have zero-to-many realization links; chunks remain derived. A healthy reconciled
+  checkpoint resumes the same walk identity. Projection drift/revocation/mismatch or
+  another terminal integrity failure seals a non-resumable snapshot and starts an
+  explicitly linked rewalk. This supersedes ADR-0045 A/A.4 and ADR-0056 decision 10 only
+  to that extent; their remaining one-store/governance decisions stand.
 - **Surreal analytical/walk-memory surface = ADR-0056:** PostgreSQL remains
   canonical; SurrealDB is a governed, rebuildable projection and experimental
   platform-owned Spectron-compatible memory/runtime. Original binaries stay in
   custody storage. Partial source approval exposes approved spans only. Graphiti
   remains the baseline until bake-off. One shared product/environment Context carries
   Matter-scoped promoted knowledge; first-class walks and walk-bound experiential state
-  isolate executions. Failed/superseded walks are sealed for replay and compared to linked
-  rewalks. The parked legacy deployment is not activated.
+  isolate executions. Healthy reconciled pauses resume the same walk; terminally failed or
+  superseded walks are sealed for replay and compared to linked rewalks. The parked legacy
+  deployment is not activated.
 - **Claim-centered fact assembly = ADR-0057:** candidate claims generate bounded,
   auditable cross-system investigations. Human/governed review creates immutable
   established facts linked to exact supporting, contradicting, and qualifying spans;
@@ -542,15 +567,24 @@ pointer below — corrected 2026-08-09) — Part 1 complete + memory substrate:*
 
 ## 10. Open threads / parking lot
 
-- **ADR-0056–0058 Phase 0 — owner review complete, not implementation:** logical
+- **ADR-0056–0059 Phase 0/Phase 1 design — owner review complete; activation still held:** logical
   contracts, unresolved-question inventory, gold/evaluation specification, synthetic
   planted-future-fact contract tests, and the compact owner packet are indexed in
   `docs/HANDOFF-2026-08-16-R12-surreal-investigation-owner-rulings.md`. D-064 records S1–S6:
   exclusive post-parity Surreal retrieval, shared-Context walks, sealed historical
   snapshots plus linked rewalks, horizon-local candidate beliefs, midpoint-plus-HITL
-  realization, and source-family corroboration. Disposable Phase-1 design may proceed;
+  realization, source-family corroboration, separate acquired-third-party projections,
+  three-clock semantics, and resumable-vs-terminal walk transitions. Disposable Phase-1
+  design may proceed;
   target creation, physical schema, activation, corpus copy, deploy, production agent binding,
   and Graphiti replacement remain held; all R9 activation holds continue unchanged.
+- **Native evidence vectors accepted; cutover held (ADR-0059 / D-066):** the evidence-vector
+  projection moves off Agno's JSON metadata schema to immutable `EvidenceChunkV1`, with typed
+  `occurred_at` and range-indexed `source_available_from`, self-provided 4096-d nv-embed vectors,
+  and the stable `EvidenceChunks` reader alias. The old Agno evidence collection stays intact as
+  rollback. Collection creation, migrations `0026`–`0029`, backfill, alias movement, live reader
+  binding, and deployment remain owner-gated; follow the held count/hash/canary reconciliation
+  runbook in `docs/plans/WEAVIATE-NATIVE-EVIDENCE-CUTOVER-RUNBOOK-2026-08-18.md`.
 - Owner had one more idea that slipped away (2026-06-11) — to be added when recalled.
 - Knowledge-engine domain separation: finalize collection scheme + ingestion routing.
 - Legal Team: inventory the Gemini Gems personas to port.

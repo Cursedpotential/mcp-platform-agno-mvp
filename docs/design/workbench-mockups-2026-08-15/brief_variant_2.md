@@ -2,6 +2,19 @@
 
 > _Byline: Codex · GPT-5 · 2026-08-15_
 
+> **Superseding addendum — ADR-0059 (2026-08-18; Codex · GPT-5):** Preserve this
+> historical brief, but interpret the mockup with three clocks: first-party source
+> availability at occurrence, acquired-third-party source availability at conversation
+> acquisition, and zero-to-many later realization atoms. Acquired-third-party threads
+> show their actual sender/recipients with the owner absent. Healthy Pause/Resume keeps
+> one walk identity; a terminal failure is sealed and non-resumable before a separately
+> identified, explicitly linked Re-walk is allowed. These remain local prototype states,
+> not authorization to deploy or execute a backend walk.
+>
+> **Active debt/change-order gate:** Human projection-review API/UI and approved
+> vector reprojection are not implemented by this artifact. Do not present either
+> as active until its implementation and live proof land separately.
+
 ## Objective
 
 Create a self-contained HTML mockup that makes the platform's defining knowledge-horizon mechanism visually primary: the operator must understand what was known as-lived, what hindsight reveals, and the delta between them.

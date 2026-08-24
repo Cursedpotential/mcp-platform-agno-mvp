@@ -1,4 +1,10 @@
 # Completion Plan — Master Index
+> **ADR-0059 supersession addendum (2026-08-18, Codex · GPT-5):** This dated plan remains
+> historical. Wherever it depends on universal realization/occurrence visibility or treats every
+> pause as terminal, substitute ADR-0059's source-class availability, plural realizations, derived
+> message/chunk projections, healthy same-identity checkpoint/resume, and terminal linked rewalk.
+> No deployment/live authorization is added.
+>
 > _Byline: Claude (Cowork) · Fable 5 · 2026-08-09 · repo @ a68fabd (local checkout verified identical)_
 > Source: full repo audit 2026-08-09 + owner planning session. Companion: `INVENTORY-2026-08-09.md`
 > (every finding/ruling maps to at least one segment, primary owner first; adversarial coverage

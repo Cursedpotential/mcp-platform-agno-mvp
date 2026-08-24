@@ -2,7 +2,15 @@
 
 > _Byline: Claude (Cowork) · Fable 5 · 2026-08-09_
 
-- **Status:** **Accepted** (owner signed 2026-08-09 — Option A, WITH the A.4 realization-events amendment; recorded as D-042)
+> **Narrow supersession notice (2026-08-18, ADR-0059; Codex · GPT-5):** Decision A/A.4's
+> universal `visible_from = COALESCE(approved realization, occurred_at)` rule and statement that
+> `acquired_at` is never a horizon input are superseded. First-party source availability is its
+> occurrence; acquired-third-party source availability is its custody-backed acquisition; each
+> message may have zero-to-many separate realization links. Decision B's one-authored-spine and
+> version-pinned derived-materialization architecture, and Decision C, remain in force.
+
+- **Status:** **Accepted; Decision A/A.4 superseded in part by ADR-0059** (owner signed
+  2026-08-09 — Option A, WITH the A.4 realization-events amendment; recorded as D-042)
 - **Context sources:** 2026-08-09 full-repo audit (findings N1, N2, N3, FA, F-E, FC); owner
   rulings 2026-08-09 (checkpoint-derivation architecture, audit-everything, never multi-case);
   `docs/COMPACT-SUMMARY-2026-08-01.md` (six-clock design conversation — ratified here);
@@ -37,6 +45,9 @@ as-lived/hindsight stores") — provided both are derived from the canonical fac
 ## Decision
 
 ### A. The horizon clock is `visible_from = COALESCE(realized_at, occurred_at)`
+
+> **Superseded in part by ADR-0059.** This formula remains historical rationale, not the current
+> universal source-retrieval predicate. See the notice above.
 
 - **Semantics:** the time the party knew the fact. A contemporaneous message was known when it
   occurred (you know your own messages) → `occurred_at`. A later-discovered fact was known when

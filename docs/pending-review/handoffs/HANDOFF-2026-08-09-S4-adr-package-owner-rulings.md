@@ -1,4 +1,11 @@
 # HANDOFF S4 — ADR package + owner rulings sheet
+> _Byline amendment: Codex · GPT-5 · 2026-08-18 (ADR-0059 supersession)._
+> **ADR-0059 supersession addendum (2026-08-18, Codex · GPT-5):** Retain this handoff as
+> historical evidence. Its universal realization/occurrence visibility rule is superseded:
+> first-party source availability equals occurrence, acquired-third-party availability equals
+> acquisition, and realization is zero-to-many linked knowledge. ADR-0045 §B's one-authored-spine
+> rule remains. This addendum authorizes no deployment, migration, corpus copy, or live activation.
+>
 > _2026-08-09 · repo @ a68fabd · STATUS: READY · Depends: none · Blocks: S6 (ADR-0045), S5 (ADR-0047)_
 > Inventory items: FA(ratification), SD-2, SD-9(void record), DA-1..9, M-2, TR-5(draft half), R-2 entry, OQ-1..11 dispositions.
 > MANDATORY: read PLAN-2026-08-09-completion-master.md §Standing constraints before executing.

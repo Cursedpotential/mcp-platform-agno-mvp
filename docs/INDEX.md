@@ -1,6 +1,6 @@
 # Documentation Index — Current Entry Points
 
-> _Byline: Codex · GPT-5 · 2026-08-15 · updated 2026-08-16 (Codex · GPT-5)._
+> _Byline: Codex · GPT-5 · 2026-08-15 · updated 2026-08-18 (Codex · GPT-5)._ 
 
 Use this page to distinguish durable canon, the accepted 2026-08-15 target, current local
 implementation, and historical planning. A file describing a target does not prove it is
@@ -12,23 +12,13 @@ deployed.
 |---|---|---|
 | Product invariant and locked decisions | [PROJECT_CANON.md](PROJECT_CANON.md) | Durable canon |
 | Current forward order | [BUILD_PLAN.md](BUILD_PLAN.md) | Forward entry point |
-| Framework-neutral migration plan | [PLAN-2026-08-15-platform-runtime-migration.md](PLAN-2026-08-15-platform-runtime-migration.md) | Accepted target |
-| Product surfaces | [PRODUCT-BLUEPRINT-2026-08-15.md](PRODUCT-BLUEPRINT-2026-08-15.md) | Accepted target |
-| Surreal/investigation goal hierarchy | [GOALS-2026-08-15-surreal-investigation-memory.md](GOALS-2026-08-15-surreal-investigation-memory.md) | Accepted goals; implementation not started |
-| Surreal/investigation technical blueprint | [SURREAL-INVESTIGATION-BLUEPRINT-2026-08-15.md](SURREAL-INVESTIGATION-BLUEPRINT-2026-08-15.md) | Accepted boundaries + proposed contracts |
-| Phase-0 logical contracts | [CONTRACTS-2026-08-16-surreal-investigation-phase0.md](CONTRACTS-2026-08-16-surreal-investigation-phase0.md) | Proposed for owner review; no implementation authority |
-| Gold corpus and evaluation gates | [EVALUATION-2026-08-16-surreal-investigation-phase0.md](EVALUATION-2026-08-16-surreal-investigation-phase0.md) | Proposed gates; synthetic canary only |
-| Horizon-leak threat-test contract | [PHASE0-PLANTED-FUTURE-FACT-THREAT-TESTS-2026-08-16.md](PHASE0-PLANTED-FUTURE-FACT-THREAT-TESTS-2026-08-16.md) | Threat matrix; live integration blocked |
-| Surreal/investigation open questions | [UNRESOLVED-QUESTIONS-2026-08-16-surreal-investigation-phase0.md](UNRESOLVED-QUESTIONS-2026-08-16-surreal-investigation-phase0.md) | Active inventory |
-| Surreal/investigation owner packet | [Phase-0 pending decisions](PENDING-OWNER-DECISIONS-SURREAL-INVESTIGATION-2026-08-16.md) | Six pending choices; not an ADR |
-| Workbench HTML design review | [mockup comparison](../workbench/design-mockups/index.html) | Local review artifact |
-| Component boundaries | [ARCHITECTURE-BLUEPRINT-2026-08-15.md](ARCHITECTURE-BLUEPRINT-2026-08-15.md) | Accepted target |
-| Migration/dependency views | [MIGRATION-DIAGRAMS-2026-08-15.md](MIGRATION-DIAGRAMS-2026-08-15.md) | Accepted target |
-| Agent/lane ownership | [TASK-DISTRIBUTION-2026-08-15.md](TASK-DISTRIBUTION-2026-08-15.md) | Coordination contract |
-| Executable handoffs | [HANDOFFS.md](HANDOFFS.md) | Current R0–R11 index |
-| Pending Matter decisions | [Matter MVP owner packet](PENDING-OWNER-DECISIONS-MATTER-MVP-2026-08-15.md) | Pending owner ruling; not an ADR |
+| Entire application TODO | [MASTER-TODO-2026-08-18.md](MASTER-TODO-2026-08-18.md) | Authoritative production resume ledger |
+| Independent verification of the above | [OWNER-REVIEW-2026-08-18-verified-todo-audit.md](OWNER-REVIEW-2026-08-18-verified-todo-audit.md) | Confirms/contradicts MASTER-TODO against live code+DB; lists gaps and owner-blocked items |
+| Evidence Desk handoff | [HANDOFF-2026-08-18-evidence-operations-desk-mvp.md](HANDOFF-2026-08-18-evidence-operations-desk-mvp.md) | Immediate production MVP |
 | Repository placement | [REPO_STRUCTURE.md](REPO_STRUCTURE.md) | Structural index |
 | Live multi-lane log | [COORDINATION.md](COORDINATION.md) | Append-only coordination history |
+| Pending historical review | [pending-review/README.md](pending-review/README.md) | Moved records; all claims UNVERIFIED |
+| Archive policy | [archive/README.md](archive/README.md) | Verified or explicitly historical records only |
 
 ## Current truth in one paragraph
 
@@ -54,7 +44,12 @@ It does not verify live adapters or authorize Phase 1. Six compact owner choices
 The Matter/CourtCase foundation, migration `0030`, neutral spine APIs,
 Workbench adapters/UI, provenance-preserving Knowledge-to-Evidence promotion,
 custody inspection, court-readiness read side, and activation preflight are
-committed and pushed to `main`. The worktree is clean. Migrations `0026–0030`
+committed and pushed to `main`. ~~The worktree is clean.~~ **Corrected
+2026-08-18 (Claude Code · Fable 5): the worktree is currently DIRTY** — live
+`git status` shows uncommitted changes (docs reorg, SurrealDB runner files,
+`AGENTS.md`, compose/deploy yaml); see
+[OWNER-REVIEW-2026-08-18-verified-todo-audit.md](OWNER-REVIEW-2026-08-18-verified-todo-audit.md)
+Part 2. Migrations `0026–0030`
 remain unapplied and the feature remains undeployed; no live-service proof is
 claimed. Use the R9 handoff and activation preflight pre-mortem for current
 verification and release gates.
@@ -63,20 +58,9 @@ Three divergent self-contained Workbench mockups and their evaluation reports
 are available through the comparison page above. They are prototypes, not the
 deployed Workbench.
 
-## Lane packets
+## Archived lane packets and historical plans
 
-- [R0 Wave-1 audit](HANDOFF-2026-08-15-R0-wave1-audit.md)
-- [R1 Go ingestion](HANDOFF-2026-08-15-R1-go-ingestion.md)
-- [R2 horizon engine](HANDOFF-2026-08-15-R2-horizon-engine.md)
-- [R3 Semantica VIP](HANDOFF-2026-08-15-R3-semantica.md)
-- [R4 Graphiti/Zep memory](HANDOFF-2026-08-15-R4-graphiti-zep-memory.md)
-- [R5 AG2 coordination](HANDOFF-2026-08-15-R5-ag2-coordination.md)
-- [R6 provider switching](HANDOFF-2026-08-15-R6-provider-switching.md)
-- [R7 OpenCode workspace](HANDOFF-2026-08-15-R7-opencode-workspace.md)
-- [R8 custom Workbench](HANDOFF-2026-08-15-R8-workbench.md)
-- [R9 Knowledge-to-case MVP](HANDOFF-2026-08-15-R9-knowledge-to-case-mvp.md)
-- [R10 Surreal analytical memory and investigation design](HANDOFF-2026-08-15-R10-surreal-investigation-design.md)
-- [R11 Surreal investigation Phase 0](HANDOFF-2026-08-16-R11-surreal-investigation-phase0.md)
+- [R0–R14 packets](pending-review/handoffs/) (pending independent review)
 
-R9's earlier “Matter missing” statement is superseded by the committed local implementation above;
-the packet remains valuable as its design and safety rationale.
+Historical packets, dated plans, inventories, summaries, evaluations, and design history are
+archived by category. They remain read-only context and never override current production truth.
