@@ -56,6 +56,10 @@ services:
       POSTGRES_PWD: ${TEMPORAL_DB_PASSWORD:?set in Coolify env — never in git}
       DBNAME: temporal
       VISIBILITY_DBNAME: temporal_visibility
+      # Both databases pre-exist (CH-16) and the `temporal` role deliberately has no
+      # CREATEDB — without this flag auto-setup crash-loops on "permission denied to
+      # create database" (found live 2026-08-24).
+      SKIP_DB_CREATE: "true"
       TEMPORAL_ADDRESS: 0.0.0.0:7233
     ports:
       # gRPC frontend — tailnet-only; never 0.0.0.0 beyond the container bind above
