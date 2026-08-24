@@ -7,7 +7,15 @@
 -- boundary, version-pinned materialization, realization atoms, and resumable
 -- checkpoints. Role creation is idempotent before first application.
 --
--- ⚠ HELD FOR OWNER — DRAFTED + ROLLBACK-VALIDATED 2026-08-14, NOT APPLIED TO PROD.
+-- ✅ APPLIED TO PROD — verified live 2026-08-23 against 100.91.190.107:5432 db=ai by direct
+--    introspection (Claude Code · Opus 5). All four roles — pass_refresher, pass_reader,
+--    projection_refresher, horizon_reviewer — confirmed PRESENT in pg_roles.
+--    ⚠ STILL INERT, exactly as this file's own header below predicted: the app connects as
+--    role `ai`, re-verified 2026-08-23 as rolsuper=True AND rolbypassrls=True. Superusers
+--    bypass every GRANT and all RLS, so these roles remain the schema contract for the
+--    target isolation, not an enforcing guard. Closing that gap needs a connection-model
+--    change, not another migration.
+-- ~~⚠ HELD FOR OWNER — DRAFTED + ROLLBACK-VALIDATED 2026-08-14, NOT APPLIED TO PROD.~~  (historical)
 -- ⚠ INERT WHILE SUPERUSER (the decisive finding): the agno app connects as the role
 --   `ai`, which is a SUPERUSER (verified live 2026-08-14: rolsuper=True,
 --   rolcreaterole=True; the only login role; owner of every working./ops. table).

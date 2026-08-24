@@ -3,7 +3,15 @@
 --
 -- Byline: Codex · GPT-5 · 2026-08-15
 --
--- ⚠ HELD FOR OWNER — DRAFTED + STATIC-VALIDATED, NOT APPLIED TO ANY DATABASE.
+-- ✅ APPLIED TO PROD 2026-08-23 on owner instruction — 100.91.190.107:5432 db=ai
+--    (Claude Code · Opus 5). Applied via the file's own BEGIN/COMMIT, then verified:
+--    analysis.matter, analysis.court_case, analysis.matter_knowledge_partition and
+--    analysis.knowledge_evidence_promotion all CREATED; both promotion triggers
+--    (knowledge_evidence_promotion_guard, knowledge_evidence_promotion_append_only)
+--    installed; analysis.evidence_item gained matter_id + court_case_id while retaining
+--    the legacy case_id column, and its row count was 0 before and 0 after.
+--    Pre-flight confirmed the file contains no DROP/DELETE/TRUNCATE/UPDATE.
+-- ~~⚠ HELD FOR OWNER — DRAFTED + STATIC-VALIDATED, NOT APPLIED TO ANY DATABASE.~~  (historical)
 -- ⚠ Apply only after migrations 0026-0029 have completed their separate review
 --   and promotion path. Never apply this file out of numerical order.
 --

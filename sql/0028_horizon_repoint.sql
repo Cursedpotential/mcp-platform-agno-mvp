@@ -7,7 +7,13 @@
 -- This revision version-pins cached values, treats NULL as deny, and keeps
 -- realization atoms separate from raw-source availability.
 --
--- ⚠ HELD FOR OWNER — DRAFTED + ROLLBACK-VALIDATED 2026-08-14, NOT APPLIED TO PROD.
+-- ✅ APPLIED TO PROD — verified live 2026-08-23 against 100.91.190.107:5432 db=ai by direct
+--    introspection (Claude Code · Opus 5). record_visible_from and horizon_record_visible()
+--    are PRESENT, and working.vw_spine_horizon's WHERE clause calls
+--    working.horizon_record_visible(id, app.horizon, app.base_version) — which resolves
+--    through working.source_available_from(). The knowledge_time predicate that 0008
+--    disowned is GONE from the live view. The wrong-clock defect is fixed in production.
+-- ~~⚠ HELD FOR OWNER — DRAFTED + ROLLBACK-VALIDATED 2026-08-14, NOT APPLIED TO PROD.~~  (historical)
 -- ⚠ This is the LIVE-BEHAVIOR FLIP (the cutover from the superseded knowledge_time
 --   predicate to the ADR-0045 §A visible_from clock). It DEPENDS on the F4 ruling
 --   (bundled-doc degenerate visible_from: per-record occurred_at vs occurred_at_max).

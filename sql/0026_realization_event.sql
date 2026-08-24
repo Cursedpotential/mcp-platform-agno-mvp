@@ -1,5 +1,10 @@
 -- 0026_realization_event.sql
--- HELD FOR OWNER / NOT APPLIED FOUNDATION REWRITE -- 2026-08-18
+-- ✅ APPLIED TO PROD — verified live 2026-08-23 against 100.91.190.107:5432 db=ai by direct
+--    introspection (Claude Code · Opus 5). realization_event, realization_event_record,
+--    message_projection_route, third_party_conversation/message/participant/acquisition,
+--    normalized_record_chunk, evidence_vector_projection_job, source_available_from(),
+--    visible_from() and vw_horizon_atom all confirmed PRESENT.
+-- ~~HELD FOR OWNER / NOT APPLIED FOUNDATION REWRITE -- 2026-08-18~~  (historical)
 -- Byline amendment: Codex GPT-5 -- acquired-third-party visibility split.
 -- Byline amendment: Codex GPT-5 -- governed projection writer contract.
 -- Byline amendment: Codex GPT-5 -- native Weaviate projection outbox.

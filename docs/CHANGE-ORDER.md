@@ -1,11 +1,132 @@
 # CHANGE-ORDER — Agno-MCP-Platform
 
-> _Byline: Claude Code · Fable 5 · 2026-08-12; Codex · GPT-5 · 2026-08-13_
+> _Byline: Claude Code · Fable 5 · 2026-08-12; Codex · GPT-5 · 2026-08-13;
+> ADR-0059/native-Weaviate addendum Codex · GPT-5 · 2026-08-18_
 > Running, append-only ledger of executed changes (newest on top). Per the workspace
 > memory contract: append the same turn as any executed change. Complements
 > `DECISION_LOG.md` (the why) — this is the what/where/verified. Strike; never delete.
 
 ---
+
+## 2026-08-23
+
+### CH-15 — Migration chain completed (0030 applied); standard non-superuser DB role created
+
+> _Byline: Claude Code · Opus 5 · 2026-08-23. Owner instruction, this session._
+
+**The headline finding is doc drift, not a migration.** All five of `sql/0026`–`sql/0030` carried
+`HELD FOR OWNER / NOT APPLIED` banners. Direct introspection of live Postgres
+(`100.91.190.107:5432`, db `ai`) showed **0026, 0027, 0028 and 0029 were already applied.** Only
+0030 was genuinely missing. That single stale line caused at least three sessions — including
+tonight's — to treat finished work as a pending owner decision.
+
+- **`sql/0028` was already live, so the wrong-clock defect is already fixed in production.**
+  `working.vw_spine_horizon`'s WHERE clause calls
+  `working.horizon_record_visible(id, app.horizon, app.base_version)`, which resolves through
+  `working.source_available_from()`. The `knowledge_time` predicate that `sql/0008:246-250`
+  disowned is **absent** from the live view. An earlier check in this session wrongly reported
+  otherwise — it grepped the view text for the column name, but the view calls a *function*.
+  Owner had said on 2026-08-12 that this "was already fixed"; owner was right.
+- **`sql/0030` APPLIED** via the file's own `BEGIN/COMMIT`. Pre-flight confirmed zero
+  `DROP`/`DELETE`/`TRUNCATE`/`UPDATE`; its single `ALTER TABLE` targets `analysis.evidence_item`,
+  which had 0 rows. Verified after: `analysis.matter`, `court_case`, `matter_knowledge_partition`,
+  `knowledge_evidence_promotion` all created; both promotion triggers installed;
+  `evidence_item` gained `matter_id` + `court_case_id` while **retaining** legacy `case_id`;
+  row count 0 before and after. Migration seeded exactly one matter, "Primary matter" —
+  consistent with the owner's 2026-08-18 ruling that this is a single-case system.
+  **No backup was taken** — judged unnecessary for additive DDL on empty tables inside a
+  transaction; recording that as a deliberate call, not an oversight.
+- **All five migration headers restamped** with verified live state, old banner struck through
+  rather than deleted.
+
+**New role `agno_app`** — `LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOINHERIT`.
+Granted `USAGE` + `SELECT/INSERT/UPDATE/DELETE` + sequence + `EXECUTE` on `working`, `evidence`,
+`ops`, `analysis`, `reference`, `ai`, `public`, `duckdb`, plus `ALTER DEFAULT PRIVILEGES FOR ROLE ai`
+so future objects are covered. Verified by connecting **as** the role: reads OK, INSERT/UPDATE/DELETE
+OK (all rolled back, zero net write), and `ALTER TABLE` correctly refused with *"must be owner of
+table matter"* — proving it is genuinely not a superuser.
+
+- **Why:** the app connects as `ai`, re-verified today as `rolsuper=True` **and**
+  `rolbypassrls=True`, owning all 253 objects. Superusers bypass every GRANT, which is exactly why
+  `sql/0029`'s role scoping is inert — its own header predicted this.
+- **NOT switched over.** `DB_USER`/`DB_PASS` still point at `ai`. Cutover is an owner action:
+  set both in Coolify and **redeploy** — Coolify bakes env values into the rendered compose, so a
+  restart alone will not pick it up. Password was generated, printed once to the session, and
+  deliberately **not** written to any file.
+- **Note:** 0 tables currently have row-level security enabled, so `BYPASSRLS` is moot today; the
+  meaningful gain from the cutover is losing SUPERUSER, which makes the 0029 grants enforcing.
+
+**Review artefacts landed in-repo:** the cross-repo evidence/document-handling audit (26 files,
+~669 KB) moved out of the throwaway worktree `.full-review/` into
+`docs/reviews/2026-08-23-cross-repo-evidence-audit/`, so it survives worktree cleanup.
+
+**Live state for context:** `evidence.evidence_hash`=3, `working.normalized_record`=11,
+`analysis.evidence_item`=0, `working.context_record`=1741. The schema for third-party separation,
+realization events and walk ledgers now exists and is empty — the remaining gap is the ingest
+pipeline, not the schema.
+
+---
+
+## 2026-08-18
+
+### CH-14 — Independent verification audit of MASTER-TODO-2026-08-18
+
+> _Byline: Claude Code · Fable 5 · 2026-08-18._
+
+Owner asked for an independent second pass on Codex's same-day `docs/pending-review/` reorg and
+`MASTER-TODO-2026-08-18.md`: reconcile every task-thread iteration to date, verify claims against
+live code/tests/git/production Postgres (not doc text), and consolidate undone/ambiguous items.
+Ran 9 parallel subagents (live read-only DuckDB probe against prod Postgres `100.91.190.107`;
+4 code/test verification passes; a DEBT/DECISION_LOG/CHANGE-ORDER/RULINGS/UNRESOLVED-QUESTIONS
+sweep; two sweeps of the 33 handoffs + 17 plans in `docs/pending-review/`).
+
+**Result:** MASTER-TODO-2026-08-18.md is accurate everywhere checked — no overstated claims
+found. Gaps are in *coverage*, not correctness: 5 real work threads (Investigation/Behavioral
+Analysis surface, CDC worker, MCP-registry/Portkey split, parser-lane debt items, TraceIQ) are
+untracked in its 11-row table. Caught two live contradictions: `docs/INDEX.md` claimed "the
+worktree is clean" (false — corrected same turn) and `requirements.txt` pins `agno==2.8.7` while
+the installed venv runs `2.8.6` (the FilterExpr-drop landmine re-verification was actually
+against 2.8.6, not 2.8.7 as AGENTS.md claims). Confirmed retrieval-side horizon filtering has
+zero code wiring (`grep "app.horizon"` → 0 matches server-wide) — a real gap beyond "migrations
+unapplied." Confirmed the Surreal R14 thread and the production Postgres Horizon-walk mechanism
+are two distinct efforts sharing vocabulary, correctly kept apart in code, but easy to conflate
+in a one-line status summary. Full detail, evidence, and the consolidated owner-review list:
+`docs/OWNER-REVIEW-2026-08-18-verified-todo-audit.md` (linked from `docs/INDEX.md`).
+
+Fixed in the same turn: `docs/INDEX.md:46` worktree claim struck through and corrected with a
+dated banner (this repo's doc-drift convention — correct visibly, never silently delete).
+
+### CH-13 — Native evidence-vector contract and held cutover controls
+
+> _Byline: Codex · GPT-5 · 2026-08-18._
+
+- Recorded the owner decision to move evidence vectors off Agno's JSON-metadata schema to
+  versioned `EvidenceChunkV1` with the stable `EvidenceChunks` alias and typed source clocks.
+- Added a held operator runbook for PG-chunk backfill, exact count/manifest-hash/canary
+  reconciliation, alias switch, rollback, and preservation of the old Agno collection.
+- Extended Matter static preflight to validate the local native collection identity/properties
+  and the pinned Weaviate >=1.26 server contract without network access.
+- **Safety:** no live service was contacted or changed. Migrations `0026`–`0029`, collection
+  creation, backfill, alias movement, reader rebinding, and deploy remain held.
+
+### CH-12 — ADR-0059 source-class, clock, chunk, and walk-lifecycle correction
+
+> _Byline: Codex · GPT-5 · 2026-08-18._
+
+- Supersedes CH-11 and earlier Wave-1 entries only where they use one universal
+  `visible_from = COALESCE(realization, occurrence)` contract. First-party source availability
+  equals occurrence; acquired-third-party availability equals acquisition; zero-to-many
+  realization links remain separate derived knowledge.
+- One authored normalized spine remains. Separate first-party and acquired-third-party message
+  tables are version-pinned derived projections. The acquired thread preserves its actual
+  sender/recipients/participants with the owner absent. Chunks/embeddings remain derived and
+  inherit the source-availability boundary.
+- Healthy exactly reconciled checkpoints resume the same walk identity. Drift, revocation,
+  mismatch, or another terminal integrity failure seals a non-resumable snapshot and requires
+  a new attested `rewalk_of` identity.
+- Documentation and disposable T0 contracts changed; migrations `0026`–`0030`, production
+  corpus copy, production Horizon activation, production-agent binding, Graphiti replacement,
+  and the parked Surreal deployment remain held and untouched.
 
 ## 2026-08-14
 

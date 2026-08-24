@@ -7,7 +7,10 @@
 -- checkpoints from sealed failure snapshots and hashes every visibility-bearing
 -- base input (routes, acquisitions, and realization links), not only source rows.
 --
--- ⚠ HELD FOR OWNER — COMMITTED + ROLLBACK-VALIDATED, NOT APPLIED TO PROD.
+-- ✅ APPLIED TO PROD — verified live 2026-08-23 against 100.91.190.107:5432 db=ai by direct
+--    introspection (Claude Code · Opus 5). walk_run, walk_step, walk_step_retrieval and
+--    walk_checkpoint all confirmed PRESENT.
+-- ~~⚠ HELD FOR OWNER — COMMITTED + ROLLBACK-VALIDATED, NOT APPLIED TO PROD.~~  (historical)
 -- Apply only through the reviewed 0026-0030 release sequence.
 --
 -- WHAT THIS IS

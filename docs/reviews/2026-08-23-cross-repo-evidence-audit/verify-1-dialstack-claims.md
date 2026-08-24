@@ -1,0 +1,62 @@
+# Verification: "dial-stack donor corpus" claims (gaps.md)
+
+> Byline: Claude Code · Sonnet 5 · 2026-08-23
+
+## Headline finding
+
+**"dial-stack" IS real code on disk**, not a doc-only construct. It lives at:
+
+```
+E:/AI_Workspace/Projects/the-platform-workspace/dev-resources/Archives/dial-stack/
+```
+
+(documented in `AGENTS.md` line 82 as "older SUBSET of those servers (history/diff only)" under the
+canonical `MCP_PLATFORM/` tree). It is a full git-tracked project tree — `server/`, `server/mcp/plugins/`,
+`server/mcp/storage/`, `mcp-servers/{js,py,ts}-mcp-server/`, `migrations/`, `docs/architecture/`, etc. —
+not a doc-only reference. Most of the 13 claims below check out against real files. Two claims
+(#8 systemRouter tiers, #11 Tether location) contain material inaccuracies even though the underlying
+artifacts are real.
+
+None of the dial-stack code is present in the live `Agno-MCP-Platform/` repo (checked directly for
+claims #4 and #10) — only doc/planning mentions exist there, confirming the "not yet ported" framing
+used throughout gaps.md.
+
+---
+
+## Verdict table
+
+| # | Claim | Verdict | Evidence |
+|---|-------|---------|----------|
+| 1 | 11 OCR/doc-intelligence engines (Tesseract, Docling, docTR, OCRopus, Pandoc, Unstructured, GLM-OCR, LlamaParse, AWS Textract, Google DocAI, IBM watsonx) | **CONFIRMED** | `dial-stack/mcp-servers/py-mcp-server/src/document_intelligence/engines/` contains exactly these 11 files: `tesseract_engine.py`, `docling_engine.py`, `doctr_engine.py`, `ocropus_engine.py`, `pandoc_engine.py`, `unstructured_engine.py`, `glm_ocr_engine.py`, `llamaparse_engine.py`, `aws_textract_engine.py`, `google_docai_engine.py`, `ibm_watsonx_engine.py` |
+| 2 | Unified `DocumentEngine`/`EngineRegistry` abstraction with cost-tier and locality-based fallback chains | **CONFIRMED** | `engine_registry.py:36-117` — `EngineRegistry` class with `LOCALITY_PREFERENCE`/`COST_PREFERENCE` ordered lists, `recommend()` and `build_fallback_chain()` methods that sort candidate engines by `(loc_score, cost_score)`. All 11 engines subclass `DocumentEngine` (imported from `.base`) |
+| 3 | 5 engines (Tesseract, Docling, docTR, Pandoc, Unstructured) "fully functional without cloud credentials" | **CONFIRMED** | Each of the 5 engine files declares `cost_tier → CostTier.FREE`, `locality → Locality.LOCAL`, and `is_available()` checks only local binary/package presence (`shutil.which("tesseract"/"pandoc")`, `import docling/doctr/unstructured`) — no API keys anywhere. `process()` methods contain real (non-stub) calls into the respective local libraries. Minor caveat: `doctr_engine.py` and `docling_engine.py` carry a stale `# TODO: Full implementation requires owner approval` docstring even though the code below it is a complete, non-placeholder implementation |
+| 4 | `sqlite_wal_parser.py` — deleted-message recovery from WAL journals, "not yet ported to the live repo" | **CONFIRMED** | File exists at `dial-stack/mcp-servers/py-mcp-server/src/tools/sqlite_wal_parser.py` (575 lines): `SQLiteWALParser` parses WAL header/frames, `recover_deleted_messages()` + `SMSDatabaseWALParser` subclass extract iOS/Android SMS records. Note: extraction is explicitly self-documented as "simplified"/"heuristic" (regex/pattern matching over page bytes, not true SQLite B-tree parsing) — "forensic gold" is gaps.md's characterization, not a claim the file makes about itself. **Not ported**: grep for `WALParser`/`recover_deleted_messages`/`sqlite_wal_parser.py` across `Agno-MCP-Platform/server/` returns zero hits; only doc/planning mentions exist (`docs/wiki/...CRITICAL_PIPELINE_ADDITIONS.md`, `docs/planning/DEV_RESOURCES_INDEX.md`, etc.) |
+| 5 | `retrieval.ts` — BM25 keyword retrieval + hybrid BM25+embedding search with supporting-span extraction | **CONFIRMED** | `dial-stack/server/mcp/plugins/retrieval.ts` exports `retrieveSupportingSpans()` (line 57), `bm25Search()` (line 117), `hybridSearch()` (line 162), `findAnswerPassages()` (line 220). BM25 params (`BM25_K1=1.2`, `BM25_B=0.75`) defined at top; `retrieveSupportingSpans` generates `Citation[]` with offsets |
+| 6 | Dual-backend vector store (Chroma+FAISS) + separate pluggable Qdrant/pgvector/Chroma store with tiered TTL | **CONFIRMED** | Two distinct files: `server/mcp/plugins/vector-store.ts` — "Pluggable vector store supporting Chroma and FAISS" (`import { ChromaClient } from 'chromadb'; import * as faiss from 'faiss-node'`, `VectorStoreConfig.type: 'chroma' \| 'faiss'`). `server/mcp/plugins/vector-db.ts` — separate file, "Vector Database Plugin (Configurable)... Qdrant / pgvector / Chroma (internal working memory with TTL retention)", `VectorProvider = "qdrant" \| "pgvector" \| "chroma"`, `chroma.retentionHours: 72` default, explicit TTL cleanup function `// Clean up expired Chroma collections based on TTL` |
+| 7 | Forensic text-mining router: ripgrep vs ugrep dispatch by content type, timeline extraction from timestamps | **CONFIRMED** | `server/mcp/plugins/text-miner.ts` — header comment "Auto-selects between ugrep and ripgrep based on content type: ugrep: conversations/JSON/CSV/forensic/Unicode; ripgrep: code/repos/binary". `selectEngine()`-style logic at lines 143-176 prefers ripgrep for code/git repos, ugrep for conversations/forensic data. `extractTimestamp()` (line 180) + `result.timeline` array (lines 39-44, built at 324-326) turn timestamped matches into a timeline |
+| 8 | `systemRouter.ts` — storage-tier router promoting Chroma (Tier 1) → Postgres (Tier 2) → LanceDB (Tier 3) → Neo4j (Tier 4) | **REFUTED** (materially different) | Two files share this basename: `server/core/systemRouter.ts` is an unrelated tRPC health/notify router (28 lines, no storage logic). `server/mcp/storage/systemRouter.ts` implements `TrinityRouter` — a real 4-tier storage orchestrator, but the tiers/backends and mechanism claimed are wrong: actual architecture per its own header comment is **Tier 1: PostgreSQL + Neo4j/Graphiti + Directus** (three systems at Tier 1, not one), **Tier 2: ChromaDB** (72hr TTL working memory), **Tier 3: PGVector**. **LanceDB does not appear anywhere in the file or anywhere in `dial-stack/server`** (verified via grep, zero hits). There is no "promotion" mechanism — `storeEvidence()` (line 118) writes to all systems in parallel/sequence per-call, it does not migrate/promote data between tiers. The claimed ordering (Chroma→Postgres→LanceDB→Neo4j) does not match the real tier assignment or the real backend set at all |
+| 9 | "dial-stack MCP plugin catalog" of ~100 tools, inventoried but unwrapped | **CONFIRMED** (approximate count holds) | `server/mcp/plugins/registry.ts` registers 72 dot-namespaced tool specs (`name: "search.ripgrep"`, `"doc.ocr_image_or_pdf"`, etc., counted via pattern match on `name: "x.y"` entries). `mcp-servers/py-mcp-server/src/` adds 32 more `@mcp.tool`-decorated functions. Combined ≈104, in line with "approximately 100." A real catalog doc exists: `docs/architecture/TOOL_CATALOG.md` ("AI DIAL Stack — MCP Tool Catalog... catalogs every tool exposed across all three MCP servers"), though that specific doc's table lists a smaller subset (36 Built + 7 Planned = 43 rows) — it is a curated/older snapshot, not the full registry. None of this dial-stack tool set exists in the live `Agno-MCP-Platform` server code |
+| 10 | Dial-stack chain-of-custody design: Ed25519 signatures, hash-linked, `verify_custody_chain` plpgsql function, NOT ported to live `custody.py` | **CONFIRMED** | `dial-stack/migrations/004_chain_of_custody.sql`: header "Chain of Custody with Ed25519 Signatures", `evidence_signatures` table with `algorithm TEXT DEFAULT 'Ed25519'`, hash-linked `previous_hash`/`entry_hash` columns computed via `digest(...)`, and `CREATE OR REPLACE FUNCTION verify_custody_chain(...)` (line 186) that walks the chain checking `v_entry.previous_hash != v_prev_hash`. **Not ported**: live `Agno-MCP-Platform/server/evidence/custody.py` (546 lines) has zero matches for `ed25519`, `signature`, `verify_custody_chain` — it implements a different, simpler design (SHA-256 `evidence_hash` H1/H2/H3 levels, `verify_artifact()` re-hash-and-compare, no signatures, no plpgsql chain-verify function) |
+| 11 | Trained ML models `SamanthaStorm/tether-*` (18-label abuse classifier, DARVO regressor, boundary-health scorer, 140+ motif regexes) in a deferred `utilities/` dir **inside the dial-stack donor tree** | **PARTIAL — models are real, claimed location is wrong** | The models are real: `dev-resources/Archives/archive/TheBigOne_SAFE_COPY/04_Utilities/Tether/app.py` (2,903 lines) contains live `AutoModelForSequenceClassification.from_pretrained(...)` calls to `SamanthaStorm/tether-multilabel-v6`, `SamanthaStorm/tether-sentiment-v3`, `SamanthaStorm/tether-darvo-regressor-v1`, `SamanthaStorm/healthy-boundary-predictor` — these are genuine published HuggingFace Hub model IDs referenced by working inference code (not local weights, downloaded at runtime). Label count: `LABELS` = 16 multilabel classes + `SENTIMENT_LABELS` = 2 → 18 total across the two models, matching "18-label" only if you sum both models. Motif/phrase count: `THREAT_MOTIFS` alone = 64 items; summed across all `*_indicators`/`*_phrases`/`*_patterns`/`*_words` lists in the file = 237 — so "140+" is defensible in aggregate, but these are plain-string/substring matches (`normalize(motif) in norm_msg`), **not compiled regexes** as the claim states. **Location is false as stated**: there is no `utilities/` directory anywhere inside `dial-stack` (verified — zero hits for `utilities` or `tether` under the entire dial-stack tree), and the specific path asserted elsewhere in this codebase's own docs (`Agno-MCP-Platform/docs/EVIDENCE_MERGE_MAP.md:378`: *"dial-stack/utilities/apps/ml-nlp/Tether/"*) also does not exist on disk — verified directly, path not found. The real Tether code lives in a completely separate, unrelated archive (`dev-resources/Archives/archive/TheBigOne_SAFE_COPY/04_Utilities/Tether/` and its sibling copies), never inside dial-stack at all. Separately, two identically-named-but-empty `Tether`/`TetherPro` directories exist under `dev-resources/Archives/TheBigOne/archive/04_Utilities/` (0 bytes, no files) — a decoy that would mislead anyone who found that path first |
+| 12 | `user_detection.py` exists and is "a placeholder, not the real model" | **CONFIRMED** | `dial-stack/mcp-servers/py-mcp-server/src/tools/user_detection.py` (164 lines). All three functions (`user_behavioral_detection`, `user_darvo_detection`, `user_coercive_control`) return hardcoded empty/zero results with `"status": "placeholder — connect to user's ... detection system"` and inline `# TODO: Replace with actual ... system call`. Docstring literally states "TODO: Connect to user's actual detection system implementation." No model loading, no inference, no real logic anywhere in the file |
+| 13 | `behavior-service.ts` — only 4 hardcoded regex patterns as default rule set | **CONFIRMED** | `dial-stack/server/mcp/forensics/behavior-service.ts:14-19` — `const DEFAULT_PATTERNS = [...]` contains exactly 4 entries (id 1-4: "Direct Threat", "Gaslighting", "Blame Shifting", "Minimizing"), each a simple `\b(word|word)\b` regex string. Comment confirms: "Default behavioral patterns for analysis (until DB table is created)" — the DB-backed pattern table is explicitly not yet implemented (`// TODO: Add behavioralPatterns table`), so these 4 are the only patterns actually used at runtime |
+
+---
+
+## Summary counts
+
+- **CONFIRMED**: 1, 2, 3, 4, 5, 6, 7, 9, 10, 12, 13 (11 of 13)
+- **REFUTED** (materially different from stated): 8
+- **PARTIAL**: 11
+- **UNVERIFIABLE**: none
+
+## Key caveat for whoever consumes gaps.md next
+
+Claims 8 and 11 show the failure mode to watch for: **real underlying artifacts, but a claim built on top of them
+that doesn't match what's actually in the file/path.** For #8, a real tiered storage router exists but the
+specific tier/backend list in the claim is fabricated (no LanceDB anywhere in the codebase). For #11, real
+trained models exist and are referenced by real inference code, but the file path claimed for them (and even
+asserted as a "CORRECTION" in this repo's own `EVIDENCE_MERGE_MAP.md`) does not exist — the models actually
+live in an entirely different, unrelated archive tree. Anyone porting work forward off gaps.md should
+re-locate the Tether code at `dev-resources/Archives/archive/TheBigOne_SAFE_COPY/04_Utilities/Tether/app.py`,
+not at the claimed `dial-stack/utilities/...` path.
