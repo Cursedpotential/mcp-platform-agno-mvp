@@ -535,6 +535,26 @@ queries, CPU-friendly, fits the tailnet fleet):
 Explicitly sequenced: **after ingest testing** produces real corpus data to evaluate against.
 Not before.
 
+**TODO-213 · Consolidate the knowledge-timing name: `disclosure_horizon` vs `disclosure_tier`**
+_(owner-flagged 2026-08-23; verified live the same night)_
+
+The owner flagged the old `disclosure_tier` enum collision (public/restricted/sealed vs the
+temporal values). Live introspection shows that ORIGINAL collision was resolved by `sql/0008` —
+the misnamed enum is gone; the access concept lives correctly as `sensitivity_tier`
+(public/restricted/sealed). **But the same check exposed the surviving cousin:** the
+knowledge-timing concept (contemporaneous/hindsight/discovered) exists live under TWO names and
+TWO typings — `disclosure_horizon` as a proper enum on `analysis.time_assertion` /
+`analysis.timeline_event`, and `disclosure_tier` as plain TEXT+CHECK on
+`working.normalized_record` and its views (`vw_spine_horizon`, `vw_horizon_atom`,
+`vw_record_disclosure`). Same three values, different clothes; a join across timeline and spine
+must simply *know* they're the same concept.
+
+Consolidation direction: one name (`disclosure_horizon` — "tier" is what caused the original
+collision with sensitivity), one enum type, everywhere. The spine-side rename is a breaking
+change under the no-compatibility-aliases policy, so it is owner-gated, sequenced with the next
+deliberate schema wave — not a late-night patch. Until then: any new table takes
+`disclosure_horizon` (the enum), never a new `disclosure_tier` column.
+
 **TODO-212 · Framework roles under Temporal — ruled by discussion, 2026-08-23 evening**
 
 | Job | Handled by |
