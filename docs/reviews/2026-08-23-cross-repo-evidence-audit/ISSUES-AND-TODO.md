@@ -535,6 +535,20 @@ queries, CPU-friendly, fits the tailnet fleet):
 Explicitly sequenced: **after ingest testing** produces real corpus data to evaluate against.
 Not before.
 
+**TODO-212 · Framework roles under Temporal — ruled by discussion, 2026-08-23 evening**
+
+| Job | Handled by |
+|---|---|
+| Sequencing, retries, gates, durability | Temporal (workflows) |
+| Classification & extraction model calls | **DSPy programs** — compiled against owner-labeled gold sets, schema-enforced JSON via Portkey, run inside Activities. Owner named DSPy for this slot; it operationalizes the debt register's own demands (human-labeled eval, LLM challenger, sampled audit) and gives a systematic recompile-and-compare answer when models change. Cost to plan: the gold set is the real work — a few hundred labeled chunks to start lane classification; substantially more before the behavioral-analysis rework leans on it. |
+| Tool-rich single agents, knowledge/RAG | Agno (as today — no rip-out; ingest barely touches agents) |
+| Multi-agent deliberation (investigation/analysis) | AG2, per the existing 08-15 coordination lane — review that handoff against the Temporal plan before restarting it, since it predates the Temporal ruling |
+| Visual pipeline driving | Workbench (deployment already a Temporal-P2 prerequisite) |
+
+LangGraph: benched — its durable-graph niche is Temporal's job here, and deliberation is AG2's;
+revisit only if a concrete in-step graph appears that neither covers. Dify: struck — was a
+misreading of the owner's "DSPy" and would have been a parallel platform anyway.
+
 ## Wave 3 — Build the missing capabilities
 
 Ordered by dependency, not by size:
