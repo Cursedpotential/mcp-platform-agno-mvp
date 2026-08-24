@@ -190,7 +190,26 @@ P1, so `GET /v1/runs/{id}/report` is byte-comparable before and after.
 
 ---
 
-## 5. Decision asks for the owner (3)
+## 5. Decision asks for the owner (3) — **ALL RULED 2026-08-23 (D-067)**
+
+> Owner answers, same day: **(1) = A** — persistence inside the existing PG18, two databases,
+> no second database server. **(2) = A** — one-move live cutover, fix forward. **(3) = yes** —
+> workbench console is the approval surface, demo web-ui discarded, **with the owner's caveat
+> that the workbench is not deployed yet** ("none of that is live and functional yet"). Deploying
+> the workbench is therefore a **P2 prerequisite**, not an assumption — the deployed copy on
+> :8020 is a stale build (MASTER-TODO-2026-08-18: Workbench/API "IMPLEMENTED LOCAL ONLY").
+>
+> **Review amendments folded in (Claude Code · Opus 5 · 2026-08-23):**
+> - **P1.5 named:** the richer CLI-only chat ingest (`server/analysis/context_chat_ingest.py`,
+>   conversation modeling + lane classification + per-lane projection, today reachable only via
+>   `scripts/ingest_context_chat.py`) is the follow-on wrap after P1 — it is the path the owner
+>   actually uses for knowledge ingest, and must not be forgotten because P1 targeted
+>   `workflows.py`'s flat chat-transcript.
+> - **P0 build artifact made explicit:** the Temporal worker is its own Coolify app whose image
+>   carries the full `server/` dependency stack (agno, sqlalchemy, weaviate client, chonkie).
+>   Building that image is the first concrete P0 task, before any workflow code.
+
+The original asks, kept for the record:
 
 1. **Should Temporal's own bookkeeping live inside the same Postgres that holds the evidence?**
    Recommendation: yes — two extra databases in the PG18 already running on the files box,
