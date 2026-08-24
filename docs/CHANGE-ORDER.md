@@ -8,6 +8,31 @@
 
 ---
 
+## 2026-08-24
+
+### CH-19 — human_label stripped to prompt-example essentials (0032); JSONL second copy; handoff written
+
+> _Byline: Claude Code · Fable 5 · 2026-08-24. Owner rulings tonight: the 1,918-row table is
+> EXAMPLE data for few-shot prompting — deliberately UNLINKED (linking broke every test);
+> "strip the IDs, strip the hashes, strip anything that's not necessary for a labeled
+> message to prompt examples"; golden labeling pass comes later._
+
+- **`sql/0032_strip_human_label_to_examples.sql` written + APPLIED live + verified.**
+  `analysis.human_label` reduced to 9 columns: conversation_key, seq (natural PK, pre-existing),
+  occurred_at, who, message_text, labels, is_clean, severity, notes. Dropped: message_id,
+  ai_flagged, ai_flag_count, relink_status, created_at, labeled_by, labeled_at.
+  `vw_human_label_long` rebuilt over surviving columns. **`analysis.human_label_gold`
+  untouched** — full-fidelity pre-strip archive (never-delete satisfied).
+- **Honest state note:** message_text present on all 1,918 rows; label fields currently EMPTY
+  on every row in BOTH copies — the labeling pass itself has not happened yet.
+- **Second durable copy:** `OneDrive/AI Space/exports/human-label-examples-2026-08-24.jsonl`
+  (1,918 rows). Kept OUT of git — real message content (no-PII-in-git hard rule).
+- **`docs/HANDOFF-2026-08-24-ingest-testing.md`** written (gap-report remainder + ingest-testing
+  start sequence), then corrected same night: the "re-link the 1,918 labels" step STRUCK —
+  no re-linking, ever, per owner ruling above.
+
+---
+
 ## 2026-08-23
 
 ### CH-18 — Dev-mode immutability gate (0031); test-residue purge; custody canon backed up

@@ -18,7 +18,7 @@ Companion docs (this handoff supersedes neither — it indexes what's LEFT):
 | Migrations 0026–0031 | ALL applied to prod (`100.91.190.107:5432` db `ai`), headers stamped. 0031 = dev-mode immutability gate. |
 | Immutability | OFF everywhere until go-live. One switch arms it all: `ALTER DATABASE ai SET app.evidence_live = 'on';` |
 | Evidence schema | TRUE ZERO — 28 test-residue rows purged 2026-08-24 (evidence.source / evidence_hash / custody_event / spine all empty, verified). |
-| Human-labeled gold set | 1,918 rows intact in `analysis.human_label(_gold)` — the precious data; survived the purge. Old derived hashes on that table: worthless, abandoned (owner ruling). |
+| Prompt-example set | ~~1,918 labeled rows~~ **Corrected 2026-08-24 (later the same night):** 1,918 rows in `analysis.human_label`, message TEXT present on every row, label fields currently EMPTY (labeling pass still to be done — "golden example later"). Table is deliberately UNLINKED from live tables (linking broke every test) and was STRIPPED to message+label essentials by migration 0032 (applied+verified). Full-fidelity pre-strip archive: `analysis.human_label_gold`. Second durable copy: `OneDrive/AI Space/exports/human-label-examples-2026-08-24.jsonl` (kept out of git — real message content). **This table is DONE — no re-linking, ever.** |
 | Hash recipes for ALL future ingest | Persisted in triplicate: `docs/reference/CUSTODY-HASH-CANON.md` + `tests/test_custody_canon_vectors.py` (5/5) + live `public.canon_registry`. Pushed at `1a30f51`. |
 | DB roles | `agno_app` (non-superuser app role) and `temporal` created live. Databases `temporal` + `temporal_visibility` created. Passwords printed ONCE to owner's terminal — in NO file. |
 | Temporal code | P0/P1 scaffolds committed & INERT (compose, worker Dockerfile, 4 activities, chat-transcript workflow, Signal approval gate, framework bake harness). Nothing deployed. |
@@ -49,7 +49,7 @@ Everything below is from the runbook (`docs/INGESTION-READINESS-2026-08-23.md`);
 
 8. Re-ingest the 1,741 stranded context conversations from their ORIGINAL export ZIPs through the new lane (owner ruling: originals, not table migration). Every message gets recomputable hashes under the current canon.
 9. Stamp the old `context_record` table superseded; fix the two drain scripts whose docstrings still describe the old lane (`context_drain.py`, `drain_context.py`).
-10. Re-link the 1,918 human labels to the re-ingested messages — match by content + sequence, not by old row IDs. **This is the one non-regenerable task in the do-over.**
+10. ~~Re-link the 1,918 human labels to the re-ingested messages~~ **STRUCK 2026-08-24 (owner ruling, same night):** the label table is UNLINKED by design — linking it caused problems in every test. It is a self-contained example set (message text + label in the same row) for few-shot prompting; stripped to essentials by 0032 and DONE. No re-linking task exists. The remaining work on it is the labeling pass itself, owner-driven, later.
 
 ---
 
@@ -92,7 +92,7 @@ Everything below is from the runbook (`docs/INGESTION-READINESS-2026-08-23.md`);
 1. Owner: Coolify passwords + Temporal stack deploy + app-role cutover (steps 1–3 above).
 2. Agent: first chat-ZIP ingest via docker exec + SQL verify + purge (steps 4–6).
 3. Agent: Temporal durability exit test (step 7).
-4. Agent: re-ingest the 1,741-conversation context corpus from originals; supersede the old table; re-link the 1,918 labels (steps 8–10).
+4. Agent: re-ingest the 1,741-conversation context corpus from originals; supersede the old table (steps 8–9; step 10 struck — no label re-linking, ever).
 5. Then work the "queued behind ingest" list top-to-bottom.
 
 ## Owner working-style contract
