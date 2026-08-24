@@ -10,6 +10,32 @@
 
 ## 2026-08-23
 
+### CH-17 — Full table-health validation: 210 tables examined, 5 dormant constraints cured
+
+> _Byline: Claude Code · Opus 5 · 2026-08-23. Owner instruction ("all tables validated for
+> illness or lack thereof")._
+
+Read-only health sweep of every table in the eight app schemas on live PG18
+(`100.91.190.107:5432` db `ai`): exact row counts, primary-key presence, invalid indexes,
+NOT-VALID constraints, disabled triggers.
+
+- **Result: 206/210 healthy outright; 0 invalid indexes; 0 missing PKs; 0 disabled triggers;
+  0 count failures; 44 tables contain data.**
+- The only findings were **five NOT-VALID constraints** (enforced for new rows, never checked
+  against pre-existing rows): `evidence_hash_subject_ck`, `processing_run_replayable_needs_code_ref`,
+  `message_requires_spine_ck`, `message_route_fk`, `normrec_clock_ordering`.
+- **All five cured via `VALIDATE CONSTRAINT` — every one passed**, meaning no existing row
+  violated any rule. Re-check confirms **zero NOT-VALID constraints remain database-wide.**
+  No data was modified; validation either upgrades trust or errors, and none erred.
+- **Side-finding worth its own line: the DSPy gold set partially exists already.**
+  `analysis.human_label` and `analysis.human_label_gold` each hold **1,918 rows** of
+  owner-labeled ground truth (the hand-labeled set the 2026-08-01 manual clear deliberately
+  preserved), alongside `reference.detection_pattern` (527) and the behavior-category
+  references. The framework-roles plan (TODO-212) budgeted gold-set labeling as the main DSPy
+  cost — a substantial down payment is already in the database.
+
+---
+
 ### CH-16 — Temporal P0 executed: live DB role/databases + deployment scaffold (D-067)
 
 > _Byline: Claude Code · Opus 5 · 2026-08-23._
