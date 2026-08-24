@@ -60,13 +60,10 @@ services:
     ports:
       # gRPC frontend — tailnet-only; never 0.0.0.0 beyond the container bind above
       - "100.91.190.107:7233:7233"
-    healthcheck:
-      # auto-setup image carries the `temporal` CLI; equivalent to `tctl cluster health`
-      test: ["CMD", "temporal", "operator", "cluster", "health", "--address", "127.0.0.1:7233"]
-      interval: 15s
-      timeout: 10s
-      retries: 10
-      start_period: 30s
+    # ~~healthcheck via `temporal operator cluster health`~~ REMOVED 2026-08-24: the
+    # auto-setup image does NOT reliably carry the `temporal` CLI — the check failed on
+    # every boot and gated the whole deploy (verified live, deploy kiv41fzepblu).
+    # Liveness is verified externally instead: TCP probe of 7233 + UI on 8233 post-deploy.
     networks:
       - temporal
       - agno                # shared external net — reachable as `temporal-server` by
@@ -85,7 +82,7 @@ services:
       - "100.91.190.107:8233:8080"
     depends_on:
       temporal-server:
-        condition: service_healthy
+        condition: service_started   # was service_healthy; healthcheck removed 2026-08-24 (see above)
     networks:
       - temporal
       - agno
