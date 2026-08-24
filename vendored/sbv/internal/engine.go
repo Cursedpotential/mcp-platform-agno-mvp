@@ -1,5 +1,7 @@
 package internal
 
+// Byline amendment: Codex · GPT-5 · 2026-08-18 (combined-change hygiene).
+
 // engine.go — the universal import engine.
 //
 // One import = one immutable identity (imports row, created BEFORE parsing) +
@@ -233,13 +235,20 @@ func (s *engineSink) Record(rec *SourceRecord) error {
 	if rec.OccurredAt != nil {
 		occurredAt = rec.OccurredAt.Unix()
 	}
-	var participantsJSON, metadataJSON interface{}
+	var participantsJSON, recipientsJSON, metadataJSON interface{}
 	if len(rec.Participants) > 0 {
 		b, err := json.Marshal(rec.Participants)
 		if err != nil {
 			return fmt.Errorf("marshal participants: %w", err)
 		}
 		participantsJSON = string(b)
+	}
+	if len(rec.Recipients) > 0 {
+		b, err := json.Marshal(rec.Recipients)
+		if err != nil {
+			return fmt.Errorf("marshal recipients: %w", err)
+		}
+		recipientsJSON = string(b)
 	}
 	if len(rec.Metadata) > 0 {
 		b, err := json.Marshal(rec.Metadata)
@@ -258,7 +267,7 @@ func (s *engineSink) Record(rec *SourceRecord) error {
 	}
 	if _, err := s.insertRecord.Exec(
 		s.importID, s.seq, kind, s.format, status, rec.SourcePos, h2, canon,
-		occurredAt, participantsJSON, rec.Content, metadataJSON, legacyID, rawSize,
+		occurredAt, participantsJSON, rec.Sender, recipientsJSON, rec.Content, metadataJSON, legacyID, rawSize,
 	); err != nil {
 		return fmt.Errorf("insert import record: %w", err)
 	}
@@ -500,8 +509,8 @@ func RunImport(userDB *sql.DB, r io.Reader, opts ImportOptions) (*ImportSummary,
 	var err error
 	sink.insertRecord, err = userDB.Prepare(`INSERT INTO import_records
 		(import_id, seq, kind, format, status, source_pos, record_hash, record_hash_canon,
-		 occurred_at, participants, content, metadata, legacy_row_id, raw_size)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+		 occurred_at, participants, sender, recipients, content, metadata, legacy_row_id, raw_size)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		_ = FinalizeImport(userDB, importID, ImportStatusError, err.Error(), "",
 			nil, 0, 0, 0, 0, 0, ReconciliationDiscrepancy)
@@ -630,6 +639,8 @@ type ImportRecordRow struct {
 	RecordHashCanon string                 `json:"record_hash_canon"`
 	OccurredAt      *int64                 `json:"occurred_at"` // unix seconds, null when unknown
 	Participants    []string               `json:"participants,omitempty"`
+	Sender          string                 `json:"sender,omitempty"`
+	Recipients      []SourceParty          `json:"recipients,omitempty"`
 	Content         string                 `json:"content,omitempty"`
 	Metadata        map[string]interface{} `json:"metadata,omitempty"`
 	LegacyRowID     *int64                 `json:"legacy_row_id,omitempty"`
@@ -652,7 +663,7 @@ type ImportRejectionRow struct {
 // encounter order, optionally filtered by kind and/or status.
 func GetImportRecords(userDB *sql.DB, importID int64, kind, status string, limit, offset int) ([]ImportRecordRow, error) {
 	query := `SELECT id, import_id, seq, kind, format, status, source_pos, record_hash, record_hash_canon,
-	                 occurred_at, COALESCE(participants, ''), COALESCE(content, ''), COALESCE(metadata, ''),
+	                 occurred_at, COALESCE(participants, ''), COALESCE(sender, ''), COALESCE(recipients, ''), COALESCE(content, ''), COALESCE(metadata, ''),
 	                 legacy_row_id, COALESCE(raw_size, 0)
 	          FROM import_records WHERE import_id = ?`
 	args := []interface{}{importID}
@@ -677,10 +688,10 @@ func GetImportRecords(userDB *sql.DB, importID int64, kind, status string, limit
 	for rows.Next() {
 		var r ImportRecordRow
 		var occurred, legacyID sql.NullInt64
-		var participants, metadata string
+		var participants, recipients, metadata string
 		if err := rows.Scan(&r.ID, &r.ImportID, &r.Seq, &r.Kind, &r.Format, &r.Status,
 			&r.SourcePos, &r.RecordHash, &r.RecordHashCanon,
-			&occurred, &participants, &r.Content, &metadata, &legacyID, &r.RawSize); err != nil {
+			&occurred, &participants, &r.Sender, &recipients, &r.Content, &metadata, &legacyID, &r.RawSize); err != nil {
 			return nil, err
 		}
 		if occurred.Valid {
@@ -693,6 +704,9 @@ func GetImportRecords(userDB *sql.DB, importID int64, kind, status string, limit
 		}
 		if participants != "" {
 			_ = json.Unmarshal([]byte(participants), &r.Participants)
+		}
+		if recipients != "" {
+			_ = json.Unmarshal([]byte(recipients), &r.Recipients)
 		}
 		if metadata != "" {
 			_ = json.Unmarshal([]byte(metadata), &r.Metadata)

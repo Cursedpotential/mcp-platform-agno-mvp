@@ -1,5 +1,7 @@
 package internal
 
+// Byline amendment: Codex · GPT-5 · 2026-08-18 (combined-change hygiene).
+
 import (
 	"bufio"
 	"bytes"
@@ -192,13 +194,18 @@ func projectFacebookHTML(root *html.Node, raw []byte, pos string) (*SourceRecord
 	if strings.EqualFold(sender, "me") || strings.EqualFold(sender, "you") {
 		direction = "outbound"
 	}
+	actualSender := sender
+	recipients := []SourceParty{{Identity: "self", Role: "to"}}
+	if direction == "outbound" {
+		actualSender, recipients = "self", nil
+	}
 	metadata := map[string]interface{}{
 		"platform": "facebook", "format": "html", "layout": layout,
 		"direction": direction, "sender_label": sender, "raw_timestamp": timestamp,
 		"msg_type": facebookMessageType(content), "attachments": attachmentMetadata,
 	}
 	return &SourceRecord{Kind: KindMessage, SourcePos: pos, Raw: raw, RawCanon: RecordHashCanonRawV1,
-		OccurredAt: parseMessagingTime(timestamp), Participants: uniqueStrings(role), Content: content,
+		OccurredAt: parseMessagingTime(timestamp), Participants: uniqueStrings("self", role), Sender: actualSender, Recipients: recipients, Content: content,
 		Metadata: metadata, AttachmentReferences: attachmentRefs}, nil
 }
 
@@ -223,8 +230,13 @@ func projectIMessageHTML(root *html.Node, raw []byte, pos string) (*SourceRecord
 		if outbound {
 			role, direction = ownerRole, "outbound"
 		}
+		actualSender := sender
+		recipients := []SourceParty{{Identity: "self", Role: "to"}}
+		if outbound {
+			actualSender, recipients = "self", nil
+		}
 		return &SourceRecord{Kind: classifyMessageContent(content), SourcePos: pos, Raw: raw, RawCanon: RecordHashCanonRawV1,
-			OccurredAt: parseMessagingTime(timestamp), Participants: uniqueStrings(ownerRole, role), Content: content,
+			OccurredAt: parseMessagingTime(timestamp), Participants: uniqueStrings("self", role), Sender: actualSender, Recipients: recipients, Content: content,
 			Metadata: map[string]interface{}{"platform": "imessage", "format": "html", "variant": "owner-custom",
 				"direction": direction, "sender_label": sender, "raw_timestamp": timestamp, "attachments": attachments},
 			AttachmentReferences: attachmentRefs}, nil
@@ -273,8 +285,13 @@ func projectIMessageHTML(root *html.Node, raw []byte, pos string) (*SourceRecord
 	if outbound {
 		role, direction = ownerRole, "outbound"
 	}
+	actualSender := sender
+	recipients := []SourceParty{{Identity: "self", Role: "to"}}
+	if outbound {
+		actualSender, recipients = "self", nil
+	}
 	return &SourceRecord{Kind: classifyMessageContent(content), SourcePos: pos, Raw: raw, RawCanon: RecordHashCanonRawV1,
-		OccurredAt: parseMessagingTime(timestamp), Participants: uniqueStrings(ownerRole, role), Content: content,
+		OccurredAt: parseMessagingTime(timestamp), Participants: uniqueStrings("self", role), Sender: actualSender, Recipients: recipients, Content: content,
 		Metadata: map[string]interface{}{"platform": "imessage", "format": "html", "direction": direction,
 			"sender_label": sender, "raw_timestamp": timestamp, "attachments": attachments},
 		AttachmentReferences: attachmentRefs}, nil

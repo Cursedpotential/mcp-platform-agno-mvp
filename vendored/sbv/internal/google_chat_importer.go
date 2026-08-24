@@ -1,5 +1,7 @@
 package internal
 
+// Byline amendment: Codex · GPT-5 · 2026-08-18 (combined-change hygiene).
+
 import (
 	"bufio"
 	"bytes"
@@ -212,10 +214,15 @@ func projectGoogleChatMessage(raw []byte, pos string) (*SourceRecord, error) {
 	metadata["format"] = "takeout-messages-json"
 	metadata["bundle_context"] = "unresolved_missing_group_info"
 	metadata["attachment_references"] = attachments
+	sender := creatorEmail
+	if sender == "" {
+		sender = creatorName
+	}
 	return &SourceRecord{
 		Kind: KindMessage, SourcePos: pos, Raw: raw, RawCanon: RecordHashCanonRawV1,
 		OccurredAt:   firstTime(obj, "created_date", "create_time", "timestamp"),
-		Participants: uniqueStrings(creatorEmail, creatorName), Content: text, Metadata: metadata,
+		Participants: uniqueStrings(creatorEmail, creatorName), Sender: sender,
+		Content: text, Metadata: metadata,
 		AttachmentReferences: attachmentRefs,
 	}, nil
 }

@@ -1,5 +1,7 @@
 package internal
 
+// Byline amendment: Codex · GPT-5 · 2026-08-18 (combined-change hygiene).
+
 // ndjson_importer.go — bounded-memory NDJSON/JSONL plugin for the universal
 // import engine. Each non-empty physical line is one logical source record.
 // H2 is computed by the engine over that exact line without its LF/CRLF record
@@ -140,6 +142,16 @@ func decodeNDJSONRecord(raw []byte, pos string) (*SourceRecord, error) {
 	}
 	content := firstString(obj, "content", "text", "body", "message", "description")
 	participants := firstParticipants(obj, "participants", "addresses", "address", "sender", "author", "from", "to")
+	sender := firstString(obj, "sender", "author", "from")
+	recipients := make([]SourceParty, 0)
+	for _, spec := range []struct {
+		key  string
+		role string
+	}{{"to", "to"}, {"cc", "cc"}, {"bcc", "bcc"}, {"group", "group"}} {
+		for _, identity := range firstParticipants(obj, spec.key) {
+			recipients = append(recipients, SourceParty{Identity: identity, Role: spec.role})
+		}
+	}
 	occurred := firstTime(obj, "occurred_at", "timestamp", "datetime", "created_at", "date")
 
 	return &SourceRecord{
@@ -149,6 +161,8 @@ func decodeNDJSONRecord(raw []byte, pos string) (*SourceRecord, error) {
 		RawCanon:     RecordHashCanonRawV1,
 		OccurredAt:   occurred,
 		Participants: participants,
+		Sender:       sender,
+		Recipients:   recipients,
 		Content:      content,
 		Metadata:     obj,
 	}, nil

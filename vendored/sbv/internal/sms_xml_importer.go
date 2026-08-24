@@ -1,5 +1,7 @@
 package internal
 
+// Byline amendment: Codex · GPT-5 · 2026-08-18 (combined-change hygiene).
+
 // sms_xml_importer.go adapts the existing, battle-tested SMS Backup & Restore
 // conversions to the universal engine. Legacy message/call projections keep the
 // original viewer working, while every raw element also lands in the
@@ -451,9 +453,26 @@ func messageSourceRecord(raw []byte, pos string, msg *Message, source interface{
 	if msg.Address != "" {
 		participants = append(participants, msg.Address)
 	}
+	sender := msg.Sender
+	recipients := make([]SourceParty, 0)
+	if msg.Type == 1 {
+		if sender == "" {
+			sender = msg.Address
+		}
+		recipients = append(recipients, SourceParty{Identity: "self", Role: "to"})
+		participants = append(participants, "self")
+	} else if msg.Type == 2 || msg.Type == 4 || msg.Type == 5 || msg.Type == 6 {
+		sender = "self"
+		participants = append(participants, "self")
+		for _, address := range uniqueStrings(append(msg.Addresses, msg.Address)...) {
+			if address != "" {
+				recipients = append(recipients, SourceParty{Identity: address, Role: "to"})
+			}
+		}
+	}
 	return &SourceRecord{
 		Kind: KindMessage, SourcePos: pos, Raw: raw, RawCanon: RecordHashCanonVersion,
-		OccurredAt: &msg.Date, Participants: participants, Content: msg.Body,
+		OccurredAt: &msg.Date, Participants: participants, Sender: sender, Recipients: recipients, Content: msg.Body,
 		Metadata: structMetadata(source), LegacyMessage: msg,
 	}
 }

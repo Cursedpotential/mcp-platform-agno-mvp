@@ -1,5 +1,7 @@
 package internal
 
+// Byline amendment: Codex · GPT-5 · 2026-08-18 (combined-change hygiene).
+
 import (
 	"bufio"
 	"bytes"
@@ -193,6 +195,31 @@ func csvSourceRecord(header, norm, fields []string, raw []byte, pos string) *Sou
 	if role == "" {
 		role = "Unknown"
 	}
+	actualSender := sender
+	if actualSender == "" {
+		actualSender = senderID
+	}
+	recipients := make([]SourceParty, 0)
+	partyRoster := uniqueStrings(role, senderID, recipient)
+	if direction == "outbound" || strings.EqualFold(actualSender, "me") || strings.EqualFold(actualSender, "you") {
+		actualSender = "self"
+		partyRoster = uniqueStrings(append(partyRoster, "self")...)
+		target := recipient
+		if target == "" && !strings.EqualFold(sender, "me") && !strings.EqualFold(sender, "you") {
+			target = sender
+			if target == "" {
+				target = senderID
+			}
+		}
+		if target != "" {
+			recipients = append(recipients, SourceParty{Identity: target, Role: "to"})
+		}
+	} else if direction == "inbound" {
+		recipients = append(recipients, SourceParty{Identity: "self", Role: "to"})
+		partyRoster = uniqueStrings(append(partyRoster, "self")...)
+	} else if recipient != "" {
+		recipients = append(recipients, SourceParty{Identity: recipient, Role: "to"})
+	}
 	if text == "" && attachment != "" {
 		text = "[attachment: " + attachment + "]"
 	}
@@ -227,7 +254,7 @@ func csvSourceRecord(header, norm, fields []string, raw []byte, pos string) *Sou
 	return &SourceRecord{
 		Kind: kind, SourcePos: pos, Raw: raw, RawCanon: RecordHashCanonRawV1,
 		OccurredAt:   parseMessagingTime(pickField(row, csvTimeKeys...)),
-		Participants: uniqueStrings(ownerRole, role, senderID, recipient), Content: text,
+		Participants: partyRoster, Sender: actualSender, Recipients: recipients, Content: text,
 		Metadata: metadataJSONSizeSafe(metadata),
 	}
 }

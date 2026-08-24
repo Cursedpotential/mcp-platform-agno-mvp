@@ -1,5 +1,7 @@
 package internal
 
+// Byline amendment: Codex · GPT-5 · 2026-08-18 (combined-change hygiene).
+
 import (
 	"bufio"
 	"fmt"
@@ -77,6 +79,17 @@ func projectGoogleVoiceHTML(root *html.Node, raw []byte, pos string) (*SourceRec
 		return nil, fmt.Errorf("Google Voice record has no message, transcript, or audio reference")
 	}
 	direction := googleVoiceDirection(record, allText)
+	sender := ""
+	recipients := []SourceParty(nil)
+	if direction == "inbound" {
+		sender = contact
+		recipients = []SourceParty{{Identity: "self", Role: "to"}}
+	} else if direction == "outbound" {
+		sender = "self"
+		if contact != "" {
+			recipients = []SourceParty{{Identity: contact, Role: "to"}}
+		}
+	}
 	metadata := map[string]interface{}{
 		"platform": "google_voice", "format": "html", "direction": direction,
 		"contact_label": contact, "telephone": tel, "raw_timestamp": timestamp,
@@ -86,7 +99,8 @@ func projectGoogleVoiceHTML(root *html.Node, raw []byte, pos string) (*SourceRec
 	return &SourceRecord{
 		Kind: kind, SourcePos: pos, Raw: raw, RawCanon: RecordHashCanonRawV1,
 		OccurredAt: parseMessagingTime(timestamp), Participants: uniqueStrings(contact, tel),
-		Content: body, Metadata: metadata, AttachmentReferences: attachmentRefs,
+		Sender: sender, Recipients: recipients, Content: body,
+		Metadata: metadata, AttachmentReferences: attachmentRefs,
 	}, nil
 }
 

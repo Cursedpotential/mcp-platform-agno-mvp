@@ -1,5 +1,7 @@
 package internal
 
+// Byline amendment: Codex · GPT-5 · 2026-08-18 (combined-change hygiene).
+
 import (
 	"bufio"
 	"bytes"
@@ -249,6 +251,7 @@ func parseEmailProjection(sink ImportSink, r *bufio.Reader, pos string) (*Source
 	metadata["platform"] = "email"
 	metadata["format"] = "rfc5322-mime"
 	participants := emailParticipants(message.Header)
+	sender, recipients := emailParties(message.Header)
 	var occurred *time.Time
 	if rawDate := strings.TrimSpace(message.Header.Get("Date")); rawDate != "" {
 		if parsed, err := mail.ParseDate(rawDate); err == nil {
@@ -256,7 +259,8 @@ func parseEmailProjection(sink ImportSink, r *bufio.Reader, pos string) (*Source
 		}
 	}
 	return &SourceRecord{Kind: KindEmail, SourcePos: pos, RawCanon: RecordHashCanonRawV1,
-		OccurredAt: occurred, Participants: participants, Content: body, Metadata: metadata,
+		OccurredAt: occurred, Participants: participants, Sender: sender, Recipients: recipients,
+		Content: body, Metadata: metadata,
 		Attachments: state.attachments}, nil
 }
 
@@ -469,6 +473,28 @@ func emailParticipants(header mail.Header) []string {
 		}
 	}
 	return uniqueStrings(participants...)
+}
+
+func emailParties(header mail.Header) (string, []SourceParty) {
+	sender := strings.TrimSpace(header.Get("From"))
+	if addresses, err := mail.ParseAddressList(sender); err == nil && len(addresses) > 0 {
+		sender = addresses[0].Address
+	}
+	recipients := make([]SourceParty, 0)
+	for _, spec := range []struct{ key, role string }{{"To", "to"}, {"Cc", "cc"}, {"Bcc", "bcc"}} {
+		raw := header.Get(spec.key)
+		addresses, err := mail.ParseAddressList(raw)
+		if err != nil {
+			if strings.TrimSpace(raw) != "" {
+				recipients = append(recipients, SourceParty{Identity: strings.TrimSpace(raw), Role: spec.role})
+			}
+			continue
+		}
+		for _, address := range addresses {
+			recipients = append(recipients, SourceParty{Identity: address.Address, Role: spec.role})
+		}
+	}
+	return sender, recipients
 }
 
 func init() {

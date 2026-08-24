@@ -1,5 +1,7 @@
 package internal
 
+// Byline amendment: Codex · GPT-5 · 2026-08-18 (combined-change hygiene).
+
 // custody.go — forensic hashing for the SBV forensic fork.
 //
 // This file adds the H1/H2/H3 chain-of-custody hashes that the Python custody
@@ -43,6 +45,7 @@ import (
 //	                   (genesis = "", chain_i = sha256(chain_{i-1} + "\n" + H2_i)),
 //	                   named precisely. All NEW import rows carry this tag; it
 //	                   matches server/evidence/custody.py::H3_CANON.
+//
 // These canon tags now ALIAS the single source of truth in pkg/custodyhash, so the internal
 // call sites that reference them by name keep working and can never drift from the package.
 const (
@@ -419,6 +422,8 @@ func ensureCustodyColumns(db *sql.DB) error {
 		record_hash_canon TEXT NOT NULL,
 		occurred_at INTEGER,
 		participants TEXT,
+		sender TEXT,
+		recipients TEXT,
 		content TEXT,
 		metadata TEXT,
 		legacy_row_id INTEGER,
@@ -439,6 +444,20 @@ func ensureCustodyColumns(db *sql.DB) error {
 	if !has {
 		if _, err := db.Exec(`ALTER TABLE import_records ADD COLUMN raw_size INTEGER NOT NULL DEFAULT 0`); err != nil {
 			return err
+		}
+	}
+	for _, column := range []struct{ name, ddl string }{
+		{"sender", `ALTER TABLE import_records ADD COLUMN sender TEXT`},
+		{"recipients", `ALTER TABLE import_records ADD COLUMN recipients TEXT`},
+	} {
+		has, err = columnExists(db, "import_records", column.name)
+		if err != nil {
+			return err
+		}
+		if !has {
+			if _, err := db.Exec(column.ddl); err != nil {
+				return err
+			}
 		}
 	}
 

@@ -1,5 +1,7 @@
 package internal
 
+// Byline amendment: Codex · GPT-5 · 2026-08-18 (combined-change hygiene).
+
 // importer.go — the pluggable importer interface + registry for the universal
 // evidence parser engine.
 //
@@ -73,6 +75,8 @@ type SourceRecord struct {
 	RawSize       int64                  // exact logical span length (len(Raw) when materialized)
 	OccurredAt    *time.Time             // when the recorded event occurred, if derivable
 	Participants  []string               // who was involved, if derivable
+	Sender        string                 // actual raw sender identity; self markers remain neutral until source principal resolution
+	Recipients    []SourceParty          // actual explicit to/cc/bcc/group coordinates
 	Content       string                 // primary human-readable content, if derivable
 	Metadata      map[string]interface{} // full format-specific field map (never lossy)
 
@@ -86,6 +90,14 @@ type SourceRecord struct {
 	// Metadata so the API can reliably distinguish reference-only, missing,
 	// unsafe, and resolved attachment states across every source format.
 	AttachmentReferences []AttachmentReference
+}
+
+// SourceParty preserves one explicit recipient coordinate without inferring a
+// case owner. Identity may be a neutral self marker when the export says only
+// "Me"; the caller resolves it from source metadata or marks review required.
+type SourceParty struct {
+	Identity string `json:"identity"`
+	Role     string `json:"role"`
 }
 
 // AttachmentArtifact is a bounded file-backed child of one source record.

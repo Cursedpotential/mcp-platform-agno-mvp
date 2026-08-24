@@ -1,5 +1,7 @@
 package internal
 
+// Byline amendment: Codex · GPT-5 · 2026-08-18 (combined-change hygiene).
+
 import (
 	"bufio"
 	"bytes"
@@ -218,11 +220,17 @@ func TestMessagingCSVEmbeddedNewlineRawSpanAndSMSBRDirection(t *testing.T) {
 	if first.Content != "hello\nthere" || first.Metadata["direction"] != "inbound" {
 		t.Fatalf("first projection: %+v", first)
 	}
+	if first.Sender != "Ex Partner" || len(first.Recipients) != 1 || first.Recipients[0].Identity != "self" {
+		t.Fatalf("first parties: sender=%q recipients=%#v", first.Sender, first.Recipients)
+	}
 	if bytes.HasSuffix(first.Raw, []byte("\r\n")) || !bytes.Contains(first.Raw, []byte("hello\nthere")) {
 		t.Fatalf("CSV H2 span must retain embedded newline but exclude record terminator: %q", first.Raw)
 	}
 	if sink.records[1].Metadata["direction"] != "outbound" {
 		t.Fatalf("SMSBR type=4 direction: %+v", sink.records[1].Metadata)
+	}
+	if sink.records[1].Sender != "self" || len(sink.records[1].Recipients) != 1 || sink.records[1].Recipients[0].Identity != "Ex Partner" {
+		t.Fatalf("outbound parties: sender=%q recipients=%#v", sink.records[1].Sender, sink.records[1].Recipients)
 	}
 }
 
@@ -256,6 +264,9 @@ func TestTranscriptAndIMessageTXTConservativeDetectionAndBlocks(t *testing.T) {
 	if len(sink.records) != 1 || sink.records[0].Metadata["direction"] != "outbound" || sink.records[0].Content != "See attached" {
 		t.Fatalf("iMessage record: %+v", sink.records)
 	}
+	if sink.records[0].Sender != "self" {
+		t.Fatalf("outbound sender=%q", sink.records[0].Sender)
+	}
 	refs := sink.records[0].AttachmentReferences
 	if len(refs) != 1 || refs[0].URI != "Attachments/IMG_1.jpeg" ||
 		refs[0].ResolutionStatus != AttachmentReferenceOnly || !refs[0].SafeRelative {
@@ -286,6 +297,9 @@ func TestHTMLImportersDistinguishFacebookAndIMessage(t *testing.T) {
 	}
 	if len(sink.records) != 1 || sink.records[0].Content != "hello" || sink.records[0].Metadata["direction"] != "inbound" {
 		t.Fatalf("iMessage HTML record: %+v", sink.records)
+	}
+	if sink.records[0].Sender != "Ex" || len(sink.records[0].Recipients) != 1 || sink.records[0].Recipients[0].Identity != "self" {
+		t.Fatalf("iMessage parties: %+v", sink.records[0])
 	}
 }
 

@@ -1,5 +1,7 @@
 package internal
 
+// Byline amendment: Codex · GPT-5 · 2026-08-18 (combined-change hygiene).
+
 import (
 	"bufio"
 	"bytes"
@@ -582,10 +584,25 @@ func projectFacebookJSONMessage(raw []byte, pos string, sequence int, context fa
 	}
 	participants := append([]string(nil), context.participantsDisplay...)
 	participants = append(participants, senderDisplay)
+	recipientNames := make([]string, 0, len(participants))
+	for _, participant := range uniqueStrings(participants...) {
+		if participant != "" && participant != senderDisplay {
+			recipientNames = append(recipientNames, participant)
+		}
+	}
+	recipientRole := "to"
+	if len(recipientNames) > 1 {
+		recipientRole = "group"
+	}
+	recipients := make([]SourceParty, 0, len(recipientNames))
+	for _, participant := range recipientNames {
+		recipients = append(recipients, SourceParty{Identity: participant, Role: recipientRole})
+	}
 	return &SourceRecord{Kind: kind, SourcePos: pos, Raw: raw, RawCanon: RecordHashCanonRawV1,
 		RawSize:    int64(len(raw)),
 		OccurredAt: firstTime(obj, "timestamp_ms"), Participants: uniqueStrings(participants...),
-		Content: content, Metadata: metadata, AttachmentReferences: attachmentRefs}, nil
+		Sender: senderDisplay, Recipients: recipients, Content: content,
+		Metadata: metadata, AttachmentReferences: attachmentRefs}, nil
 }
 
 func facebookTimestamp(value interface{}) (int64, bool) {

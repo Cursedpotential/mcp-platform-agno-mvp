@@ -1,5 +1,7 @@
 package internal
 
+// Byline amendment: Codex · GPT-5 · 2026-08-18 (combined-change hygiene).
+
 import (
 	"bufio"
 	"bytes"
@@ -31,6 +33,9 @@ func TestEMLImporterGoldenMIMEAndExactH2(t *testing.T) {
 	if rec.Content != "The plain evidence body." || rec.OccurredAt == nil || rec.Metadata["message_id"] != "<message-1@example.com>" ||
 		rec.Metadata["in_reply_to"] != "<earlier@example.com>" {
 		t.Fatalf("projection=%+v", rec)
+	}
+	if rec.Sender == "" || len(rec.Recipients) == 0 || rec.Recipients[0].Role != "to" {
+		t.Fatalf("email parties: sender=%q recipients=%#v", rec.Sender, rec.Recipients)
 	}
 	if len(rec.Attachments) != 1 || rec.Attachments[0].OriginalName != "filing.pdf" ||
 		rec.Attachments[0].DecodedHash != HashBytesSHA256([]byte("evidence-attachment")) {

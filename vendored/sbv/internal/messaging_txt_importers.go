@@ -1,5 +1,7 @@
 package internal
 
+// Byline amendment: Codex · GPT-5 · 2026-08-18 (combined-change hygiene).
+
 import (
 	"bufio"
 	"bytes"
@@ -129,6 +131,13 @@ func runTextBlocks(sink ImportSink, r *bufio.Reader, marker textMarker, platform
 		if strings.EqualFold(sender, "me") || strings.EqualFold(sender, "you") {
 			role, direction = ownerRole, "outbound"
 		}
+		actualSender := sender
+		recipients := []SourceParty(nil)
+		if direction == "outbound" {
+			actualSender = "self"
+		} else {
+			recipients = []SourceParty{{Identity: "self", Role: "to"}}
+		}
 		kind := KindMessage
 		lower := strings.ToLower(content)
 		if strings.Contains(lower, "call") && (strings.Contains(lower, "facetime") || strings.Contains(lower, "missed") || strings.Contains(lower, "incoming") || strings.Contains(lower, "outgoing")) {
@@ -153,8 +162,9 @@ func runTextBlocks(sink ImportSink, r *bufio.Reader, marker textMarker, platform
 		}
 		return sink.Record(&SourceRecord{
 			Kind: kind, SourcePos: current.pos, Raw: current.raw, RawCanon: RecordHashCanonRawV1,
-			OccurredAt: parseMessagingTime(current.timestamp), Participants: uniqueStrings(ownerRole, role),
-			Content: content, Metadata: metadataJSONSizeSafe(metadata), AttachmentReferences: attachmentRefs,
+			OccurredAt: parseMessagingTime(current.timestamp), Participants: uniqueStrings("self", role),
+			Sender: actualSender, Recipients: recipients, Content: content,
+			Metadata: metadataJSONSizeSafe(metadata), AttachmentReferences: attachmentRefs,
 		})
 	}
 
