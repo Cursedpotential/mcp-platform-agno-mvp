@@ -500,6 +500,18 @@ exists (the spine's `occurred_at` / availability / realization model is the temp
 projecting those fields onto graph edges and teaching graph queries to filter by horizon the same
 way `vw_spine_horizon` does. Sequenced AFTER ingest testing establishes real data flow.
 
+**Extraction-lane contract (owner, 2026-08-24 evening):** discovery/realization attaches at the
+EXTRACTED layer — realization events widen their FK target from messages-only to extracted
+entities/events (timelines included) when this lane comes online; the evidencing messages ride
+along transitively because **no extracted event/entity may exist without message-evidence FKs**
+(grounding is the admission ticket, per the whitepaper court-safety line). And the dominant
+realization SOURCE is expected to be **ingested third-party messages**: acquiring someone else's
+conversations is what triggers "I now know X" — so third-party ingest (awareness date =
+acquisition, per the projection-routing decision D-065/ADR-0059) must be able to EMIT realization
+events against extracted entities/events as contradictions/confirmations are found, not just
+carry its own awareness dates. Derived timeline views then show, per extracted event: when it
+happened, when it became knowable, what evidences it.
+
 **TODO-211 · Agent memory: explore engines, temporal awareness is the hard requirement** _(owner directive)_
 
 > Owner: "there has to be some agent memory going on and right now I don't believe Surreal is the
