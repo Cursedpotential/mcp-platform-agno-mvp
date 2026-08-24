@@ -460,6 +460,16 @@ services, in an order that never locks you out. Not a patch.
   product. That is exactly the failure the Mary whitepapers describe.
 - **Do NOT delete the index** — it is the cheapest path to a named gap, and deletion violates the
   never-delete rule.
+- **Owner requirement (2026-08-24):** search must ultimately offer all four modes — full-text,
+  fuzzy, semantic, hybrid.
+- **Owner addition (2026-08-25): a multi-query expansion layer on the semantic/hybrid modes.**
+  Rationale (owner): querying 8.5 years of data, one phrasing rarely matches how things were
+  actually said — LLM-generated query variants raise the odds of surfacing the record. Design
+  notes agreed the same day: implement in OUR search service (not the n8n node) as a DSPy-able
+  step; rank by reciprocal-rank fusion across variants (not naive union); log WHICH variant
+  retrieved each record into the run ledger (explainable retrieval); every variant inherits the
+  REQUIRED as-of time window (temporal-awareness mandate); then rerank → hydrate full records
+  from PG by chunk→record ID.
 
 **TODO-202 · Chain H3 across batches** — seed `engine.go`'s sink from the previous import's
 `chain_hash` instead of `""` (ISS-006). **Requires a new canon tag** — the existing
