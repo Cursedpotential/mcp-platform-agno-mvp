@@ -63,14 +63,25 @@ should always go through Path A.
 
 ## Verify it landed (run after any ingest)
 
+> ⚠ **Corrected 2026-08-24 (schema-conformance review, `SCHEMA-CONFORMANCE-2026-08-23.md`):
+> new ingests do NOT land in `working.context_record`.** The ingest code was repointed to the
+> chat model (`working.chat_conversation` / `chat_message` / `chat_chunk`) on 2026-08-13
+> (commit `5ea3ede`); `context_record`'s 1,741 rows are the pre-repoint corpus awaiting
+> migration. Verify NEW ingests with:
+
 ```sql
--- rows by source, newest ingest visible immediately
-SELECT source, count(*), max(created_at) FROM working.context_record GROUP BY source;
--- projection status: NULL = not yet pushed to Weaviate (the drain is best-effort/deferred)
+-- conversations + messages landed by the newest ingest
+SELECT source_format, count(*) AS convs, max(created_at) AS newest
+FROM working.chat_conversation GROUP BY source_format;
+SELECT count(*) AS messages FROM working.chat_message;
+-- chunk projection status (Weaviate drain is deferred/best-effort)
 SELECT count(*) FILTER (WHERE weaviate_synced_at IS NULL) AS pending,
        count(*) FILTER (WHERE weaviate_synced_at IS NOT NULL) AS synced
-FROM working.context_record;
+FROM working.chat_chunk;
 ```
+
+Legacy check (pre-08-13 corpus only): `SELECT count(*) FROM working.context_record;` — 1,741,
+already fully projected; do not expect new rows here.
 
 Connect with `DB_HOST=100.91.190.107`, db `ai` (or the new non-superuser role `agno_app`).
 
