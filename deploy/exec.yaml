@@ -63,6 +63,12 @@ services:
     volumes:
       # R2 bucket "nexus" via rclone docker volume plugin — stack-wide blob store.
       - r2-nexus:/r2
+      # Ingest surfaces (owner order 2026-08-24): the sorted evidence bucket
+      # (read-only) + a host drop-dir, so data can be moved into the system and
+      # workflows triggered without any copy step. Mirrors the temporal-worker
+      # mounts on ovh-files (/data/ingest + /data/r2-sorted there).
+      - r2-casebible-sorted:/data/r2-sorted:ro
+      - /srv/ingest:/data/ingest
     env_file:
       - path: .env
         required: false
@@ -179,6 +185,14 @@ volumes:
       remote: "r2:nexus"
       allow_other: "true"
       vfs_cache_mode: "writes"
+  # Sorted evidence corpus (canonical vault copy) — READ-ONLY ingest source
+  # (owner order 2026-08-24). Same rclone plugin + host config as r2-nexus.
+  r2-casebible-sorted:
+    driver: rclone
+    driver_opts:
+      remote: "r2:casebible-sorted"
+      allow_other: "true"
+      vfs_cache_mode: "minimal"
 
 # Byline: Claude Code · Opus 4.8 · 2026-06-14
 # Byline: Claude Code · Fable 5 · 2026-07-07 (contextforge 0.8.0 -> v1.0.4: image bump + CSRF_ENABLED=false + PASSWORD_CHANGE_ENFORCEMENT_ENABLED=false)
