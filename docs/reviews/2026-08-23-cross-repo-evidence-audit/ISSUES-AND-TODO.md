@@ -565,9 +565,14 @@ deliberate schema wave — not a late-night patch. Until then: any new table tak
 | Multi-agent deliberation (investigation/analysis) | AG2, per the existing 08-15 coordination lane — review that handoff against the Temporal plan before restarting it, since it predates the Temporal ruling |
 | Visual pipeline driving | Workbench (deployment already a Temporal-P2 prerequisite) |
 
-LangGraph: benched — its durable-graph niche is Temporal's job here, and deliberation is AG2's;
-revisit only if a concrete in-step graph appears that neither covers. Dify: struck — was a
-misreading of the owner's "DSPy" and would have been a parallel platform anyway.
+~~LangGraph: benched — its durable-graph niche is Temporal's job here, and deliberation is AG2's;
+revisit only if a concrete in-step graph appears that neither covers.~~ **Corrected 2026-08-25
+(owner: "LangGraph is very much back on the table"):** LangGraph is UNDER EVALUATION again —
+candidate for in-Activity agent reasoning graphs, and it is the substrate n8n's AI tooling wraps,
+so it pairs with the n8n-as-edge-layer direction (n8n agents/parsers/MCP exposure under owner
+review the same day). It competes in the same slot as the Agno-vs-PydanticAI P1 bake, not with
+Temporal (durability stays Temporal's). Dify: struck — was a misreading of the owner's "DSPy"
+and would have been a parallel platform anyway.
 
 ## Wave 3 — Build the missing capabilities
 
