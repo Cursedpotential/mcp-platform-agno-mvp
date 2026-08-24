@@ -10,6 +10,40 @@
 
 ## 2026-08-24
 
+### CH-20 — n8n Public API key stored; NVIDIA + Weaviate credentials created on the live instance
+
+> _Byline: Claude Code · Opus 5 · 2026-08-24. Owner approval "YES" for the two credentials;
+> API key minted by owner in the n8n UI and pasted for storage._
+
+- **`~/.secrets/n8n-ovh2.env`** (backup `.bak-preapikey-20260824`) gained `N8N_API_URL=`
+  `https://n8n.mitechconsult.com/api/v1` and `N8N_API_KEY=<jwt>`.
+  **⏰ `exp=1790136000` → the key STOPS WORKING 2026-09-22.** All API automation 401s
+  silently after that date; it must be re-minted at Settings → n8n API.
+- **Distinct from the MCP token** already in the same file (`N8N_MCP_SERVER_TOKEN`,
+  `aud=mcp-server-api`). The two are NOT interchangeable: the MCP JWT returns **401** on
+  `/api/v1`, and the MCP tool list has `list_credentials` but **no `create_credential`** —
+  which is why the Public API key was required to seed credentials at all.
+- **Credentials created** via `POST /api/v1/credentials` (both HTTP 200, both confirmed
+  present via MCP `list_credentials`, `count:2`, personal project `TVeMXcVuQeUOr8jM`):
+  - `NVIDIA NIM` — type `nvidiaApi`, id **`8rIx3JdfHxiCigW8`**,
+    `url=https://integrate.api.nvidia.com/v1`, `apiKey` from `NVIDIA_API_KEY` in `~/.secrets`.
+  - `Weaviate (ovh2 :8081)` — type `weaviateApi`, id **`GqrgbHVa6M7gI4f8`**,
+    `connection_type=custom_connection`, http `100.91.190.107:8081` (secure=false),
+    grpc `100.91.190.107:50051` (secure=false), `weaviate_api_key=""` (instance is
+    `AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED=true`; the API-key field is not `required`).
+- **Verified:** stored + enumerable by the workflow/Agent builder. The underlying values
+  were separately proven live earlier today (same NVIDIA key ran the Omni vision tests;
+  Weaviate `:8081`/`:50051` reached from inside the n8n container).
+  **NOT verified:** end-to-end auth *through an executing n8n node*. Attempted via
+  `explore_node_resources`, which does not apply here — `lmChatNvidia`'s model field is a
+  **static enum**, not a `@searchListMethod` dropdown, so there is no live fetch to trigger.
+  Real proof requires executing a node; not yet done.
+- **Incidental finding:** `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning` (the chosen vision
+  model) IS in `lmChatNvidia`'s shipped enum — selectable from the dropdown, no custom
+  model string needed.
+- **Still blocked:** Google OAuth credential — awaiting a new **Web** client in project
+  `drive-479520` with redirect `https://n8n.mitechconsult.com/rest/oauth2-credential/callback`.
+
 ### CH-19 — human_label stripped to prompt-example essentials (0032); JSONL second copy; handoff written
 
 > _Byline: Claude Code · Fable 5 · 2026-08-24. Owner rulings tonight: the 1,918-row table is
