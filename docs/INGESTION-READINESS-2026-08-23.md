@@ -39,9 +39,12 @@ ssh ovh-app 'docker exec -w /app $(docker ps -qf name=agentos-api) \
   python scripts/ingest_context_chat.py /app/_ingest_test/your-export.zip --engine auto'
 ```
 
-To run from the desktop instead, override the docker-internal DB host first:
-`DB_HOST=100.91.190.107 uv run --no-sync python scripts/ingest_context_chat.py <zip>` from the
-repo root (the `.env` ships `DB_HOST=agentos-db`, which only resolves inside compose).
+**Convention (owner, 2026-08-23): database-touching work runs on the VPS, inside the container.**
+There is no "override" on that path — the config's `DB_HOST=agentos-db` resolves natively where
+production runs, which is the whole point. Running a DB script from the desktop is the exception,
+not a supported path; the address override that requires is the tell that the work is standing in
+the wrong place. If a desktop run is ever genuinely unavoidable, that is what
+`DB_HOST=100.91.190.107` is for — and it should feel like the workaround it is.
 
 ### Path B — markdown / text / text-layer PDFs → the HTTP path
 
