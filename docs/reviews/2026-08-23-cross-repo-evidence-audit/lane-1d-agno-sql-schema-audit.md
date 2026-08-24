@@ -52,6 +52,15 @@ match_method`) and, critically, `disclosure_tier AS ENUM ('public','restricted',
 a **sensitivity** concept colliding in name with 0003's **knowledge** concept. Domains
 (`confidence, canonical_id, geo_point`), `source_ref` composite.
 
+> ⚠ **DO NOT CITE THIS COLLISION AS LIVE. Verified against production 2026-08-23 (same night,
+> later session): the misnamed enum is GONE** — `sql/0008:548` dropped it; the access concept
+> lives correctly as `sensitivity_tier` (public/restricted/sealed) and no live column carries a
+> `disclosure_tier` enum. The paragraph above describes migration-file history only. The
+> *surviving* issue is different: the knowledge-timing values exist under two names/typings —
+> enum `disclosure_horizon` on timeline tables vs TEXT `disclosure_tier` on the spine — tracked
+> as TODO-213 in `ISSUES-AND-TODO.md`. An agent quoting this section as a current defect on
+> 2026-08-23 is what prompted this stamp.
+
 **0005_workflow_run_ledger** — `analysis.workflow_run` / `workflow_run_stage` (`:18-48`). `sha256 TEXT`
 on `workflow_run` (`:25`) is a cache, not verified.
 
