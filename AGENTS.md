@@ -8,7 +8,9 @@
 > drift-fix 2026-08-14 Claude Code · glm-5.2:cloud: agent topology adds `transcript_miner`
 > (mounted under Platform Ops since 2026-08-04, was in code but omitted from docs);
 > §1 ADR-0045 "drafted/pending signature" → signed D-042 + §B derived-materialization
-> sanction + FORBIDS parallel authored stores (doc-drift rule)_
+> sanction + FORBIDS parallel authored stores (doc-drift rule);
+> 2026-08-18 Codex · GPT-5: ADR-0059 source clocks, third-party projections, and
+> resumable-vs-terminal walk lifecycle)_
 
 > **This is the first file any agent (Claude Code, Codex, Gemini CLI, opencode) reads.**
 > Keep it short: universal context + navigation index. **Closest file wins** — nested
@@ -58,25 +60,23 @@ and which agents have hindsight."* How many passes exist is a workflow decision.
 
 Consequences that are easy to get wrong:
 
-- **One store, filtered per agent.** Do NOT design parallel AUTHORED as-lived /
-  hindsight stores. (ADR-0045 §B **sanctions version-pinned DERIVED**
-  materializations — a single-writer refresher that re-derives pass checkpoints from
-  the one authored store; these are projections, never a second authored truth.)
-  Everything is written once carrying `occurred_at` (valid time),
-  `knowledge_time`, and `disclosure_tier` on `working.normalized_record`
-  (~~`analysis.normalized_record`~~ until the 2026-08-02 schema split, sql/0014) —
-  ~~live enum `ai.disclosure_horizon`~~ **corrected 2026-08-09: as-built,
-  `working.normalized_record.disclosure_tier` is `TEXT NOT NULL` + a CHECK
-  constraint** (`contemporaneous` / `hindsight` / `discovered`), not an enum.
-  The `ai.disclosure_horizon` enum is real, but lives elsewhere — on
-  `analysis.time_assertion.disclosure_horizon` and
-  `analysis.timeline_event.disclosure_horizon` only. See ADR-0045
-  (**signed 2026-08-09, D-042**) — Decision C settles disclosure_tier (the parser
-  hardcode is CORRECT; the defect is the missing derivation layer above it, not the
-  hardcode), and **§B sanctions version-pinned DERIVED pass materializations**
-  (as-lived incremental + hindsight on-prompt, single-writer refresher, hash-attested)
-  and **FORBIDS parallel AUTHORED as-lived/hindsight stores** — amending canon §1.
-  TEXT+CHECK stands as-built by that decision. Build underway (Wave 1).
+- **One authored spine, filtered per agent.** Do NOT design parallel AUTHORED as-lived /
+  hindsight or first-party/third-party stores. ADR-0045 §B sanctions version-pinned,
+  single-writer **DERIVED** materializations only. ADR-0059 adds separate derived
+  first-party and acquired-third-party message projections because their source clocks
+  and participant semantics differ. Preserve three concepts: `occurred_at` (event time),
+  `source_available_from` (occurrence for first-party; custody-backed acquisition for
+  acquired third-party), and zero-to-many realization links. The acquired conversation
+  keeps its actual sender/recipients/participants; the owner MUST NOT be invented as a
+  participant. Chunks/embeddings inherit the source boundary and remain derived.
+  `knowledge_time` remains row-write audit time, never a horizon predicate. ADR-0045
+  Decision C's as-built `working.normalized_record.disclosure_tier` TEXT+CHECK contract
+  remains for that evidence-spine table; horizon meaning is derived above normalized data.
+- **Healthy pause is resumable; terminal failure is not.** A healthy walk checkpoints
+  step/horizon, state+trace hashes, and belief/retrieval references, then resumes the same
+  identity only if its projection still reconciles exactly. Drift, revocation, mismatch,
+  or another terminal integrity failure seals an immutable non-resumable snapshot and
+  starts a new walk connected by an attested `rewalk_of` edge (ADR-0059).
 - **Extraction is not analysis.** Semantica may read everything; it forms no beliefs.
   The horizon discipline belongs at the AGENT layer, never the extraction layer.
 - **Enforce the horizon as a PRE-filter in every store** — Postgres, Weaviate,
@@ -141,12 +141,17 @@ path inside it — only the owner deletes) · FastAPI base_app pattern.
 | Typecheck | `uv run mypy server` |
 | Test (default, unit) | `uv run pytest -q` |
 | Test (one file) | `uv run pytest -q tests/test_<name>.py` |
-| Integration tests (opt-in, live services) | `uv run pytest -m integration` |
+| Integration tests (live services) — **REQUIRED before any "done"** | `uv run pytest -m integration` |
 | Go build/test (`vendored/sbv`) | `go build -tags fts5 ./...` / `go test -tags fts5 ./...` |
 
 ⚠ The `fts5` build tag is **mandatory** for `vendored/sbv`. A plain `go test ./...`
 fails every DB-backed test with `no such module: fts5` — that is a missing build
 tag, not a code defect. Use the `vendored/sbv/Makefile` targets, which set it for you.
+
+~~Integration tests are opt-in.~~ **Corrected 2026-08-20 (owner directive):** live
+integration tests are **mandatory**, not opt-in. `pytest -q` alone never establishes that
+something works — see the LIVE ONLY testing policy below. Unit runs are a fast local
+smoke check only.
 
 All Python is `uv`-managed — never invoke a bare `python`/`pip`/`pytest`.
 
@@ -215,6 +220,30 @@ AI commits carry: `Co-Authored-By: <agent name and model> <noreply@anthropic.com
 
 <!-- End claude-reflect section -->
 
+## Documentation lifecycle
+
+Current truth is indexed by `docs/INDEX.md`; completed or superseded documents move under
+`docs/archive/` in the same change. ADRs and append-only `docs/DECISION_LOG.md` remain in
+place. Mockup/design history is never production truth.
+
+## Owner delivery rule — production means production
+
+> _Owner directive · 2026-08-18._
+
+Every request to build, add, finish, or change a product capability means production
+implementation, Coolify deployment, and live verification. Local, staged, preview, or
+mockup work is never completion unless the owner explicitly says “mockup.” Use the
+least-expensive subagent that can reliably complete each bounded task; escalate model or
+specialist capability when task risk or complexity requires it. The root agent orchestrates,
+records decisions, integrates results, and prevents duplicate work.
+
+## Repository-wide discovery rule
+
+Use CocoIndex Code (`ccc`) / CocoIndex v1 privately for repository-wide discovery, semantic
+code indexing, and blast-radius analysis when available. Do not use CocoIndex v0 APIs. Do
+not mention this development assistance in application architecture, RAG design,
+implementation plans, TODOs, handoffs, or product-status reporting.
+
 ### Session Learnings 2026-08-02
 - Test data must never become canonical: design-phase ingests are disposable and re-runnable from originals; only reference.* and hand-labeled gold are precious. Wipe + re-ingest once the design settles (owner ruling; executed 2026-08-02).
 - Config accepted ≠ feature working: agno accepted `EntityMemoryConfig(mode=PROPOSE)` for months and silently did nothing. Verify features via docs + an observed write, never via config acceptance.
@@ -226,3 +255,38 @@ AI commits carry: `Co-Authored-By: <agent name and model> <noreply@anthropic.com
 - Owner vocabulary: "artifact" = created WORKS (AI chats, generated documents/code). Never name extraction output tables/columns `artifact_*` — fact-claims are `claim_candidate` (entities can be merged/deduped; claims accumulate and are NEVER rewritten). Locked in ADR-0052 ruling Q6 / D-054.
 - Parent-workspace worktrees (E:/AI_Workspace/.claude/worktrees/*) materialize this repo as an EMPTY directory — it's a gitlink (mode 160000) in the parent tree, not files. Cross-tree drift checks must compare gitlink pins and main's log, not file contents; a pinned worktree is always an ancestor check away from proving divergence.
 - Engine-split routing is COVERAGE-based, never size-based (ADR-0052 ruling Q3): Go parses every format it has a decoder for, any size; Python serves uncovered formats or logged failure-fallback only. No byte thresholds anywhere in the router.
+
+---
+
+<!-- live-testing-policy:start -->
+## Testing & Deployment Policy — LIVE ONLY, SPRINT MODE
+
+> _Owner directive 2026-08-20 · recorded by Claude Code · Opus 5._
+> _Supersedes any prior testing, staging, or change-approval guidance in this file._
+
+- **Sprint mode is the default.** Bias to action. Ship the smallest working increment now,
+  verify it live, keep moving. Do not stall on approval gates for routine work.
+- **All testing is live testing.** Verify against the real deployed service, real data, real
+  endpoints. A proxy signal is not verification.
+- **No out-of-band testing.** No mocks, stubs, or synthetic fixtures standing in for a real
+  dependency. A green unit test is not evidence the thing works.
+- **No stubs. Write the whole function.** If it is a function, implement it fully. A stub is
+  permitted ONLY when the real data or upstream service genuinely does not exist yet.
+- **Any stub that must exist is marked LOUDLY and tracked.** Inline `# STUB:` / `// STUB:` at the
+  site, plus an entry in `docs/URGENT-TODO.md`. A silent stub is a defect.
+- **Ship and watch.** If it works, it stays up. If it breaks, fix it and put it back up.
+  Breakage is the feedback loop, not a reason to stage.
+- **On success, purge the test data.** Clear every row and artifact the live run created, then
+  move on. Test data must never become canonical.
+- **On failure, adjust in place and retry live.** Fix the real thing and run it again — never
+  retreat to a mock, a staging copy, or a parallel instance to "prove" it.
+- **No parallel stacks.** One live instance per service. No shadow deploys, no staging copies,
+  no side-by-side `v2` beside `v1` — replace in place.
+- **Fix forward.** Roll back only to restore service, never as a substitute for fixing the cause.
+- **Mid-task feedback is QUEUED, not switched to.** If input arrives that is not about the task in
+  flight, append it to `docs/URGENT-TODO.md` and keep going. Finish the current task; address the
+  queued item at the point that work was already scheduled. Do not context-switch mid-task.
+
+**Still stop and ask for:** destroying data, terminating/wiping a host, anything outward-facing
+(publishing, sending, paying), and irreversible spend. Sprint mode removes ceremony, not judgment.
+<!-- live-testing-policy:end -->

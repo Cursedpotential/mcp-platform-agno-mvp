@@ -1,6 +1,6 @@
 """Framework-neutral Phase-0 planted-future-fact contract tests.
 
-Byline: Codex · GPT-5 · 2026-08-16 · owner-ruling extension 2026-08-16
+Byline: Codex · GPT-5 · 2026-08-16 · ADR-0059 amendment 2026-08-18
 
 These tests validate the accepted logical contract and synthetic gold fixture. They do
 not prove any live PostgreSQL, Weaviate, Neo4j, Graphiti, or Surreal adapter.
@@ -49,9 +49,15 @@ def _parse_time(value: str) -> datetime:
 class Document:
     id: str
     matter_id: str
+    source_class: Literal["first_party", "acquired_third_party"]
+    conversation_id: str
     occurred_at: datetime
-    visible_from: datetime
+    acquired_at: datetime | None
+    source_available_from: datetime
     recorded_at: datetime
+    sender_id: str
+    recipient_ids: tuple[str, ...]
+    participant_ids: tuple[str, ...]
     disclosure_tier: str
     authority_state: str
     promotion_state: str
@@ -84,11 +90,33 @@ class Belief:
 
 @dataclass(frozen=True)
 class WalkSnapshot:
+    snapshot_id: str
     walk_id: str
     projection_revision: str
     state_hash: str
+    trace_hash: str
+    resumable: bool
     status: Literal["historical_read_only"] = "historical_read_only"
     active_retrieval_eligible: bool = False
+
+
+@dataclass(frozen=True)
+class WalkCheckpoint:
+    checkpoint_id: str
+    walk_id: str
+    projection_revision: str
+    current_step: int
+    state_hash: str
+    trace_hash: str
+    belief_ids: tuple[str, ...]
+    retrieval_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class WalkState:
+    walk_id: str
+    projection_revision: str
+    status: Literal["active", "paused", "sealed"]
 
 
 @dataclass(frozen=True)
@@ -108,9 +136,15 @@ def _load_fixture() -> tuple[dict[str, Any], tuple[Document, ...]]:
         Document(
             id=row["id"],
             matter_id=row["matter_id"],
+            source_class=row["source_class"],
+            conversation_id=row["conversation_id"],
             occurred_at=_parse_time(row["occurred_at"]),
-            visible_from=_parse_time(row["visible_from"]),
+            acquired_at=_parse_time(row["acquired_at"]) if row["acquired_at"] else None,
+            source_available_from=_parse_time(row["source_available_from"]),
             recorded_at=_parse_time(row["recorded_at"]),
+            sender_id=row["sender_id"],
+            recipient_ids=tuple(row["recipient_ids"]),
+            participant_ids=tuple(row["participant_ids"]),
             disclosure_tier=row["disclosure_tier"],
             authority_state=row["authority_state"],
             promotion_state=row["promotion_state"],
@@ -122,6 +156,21 @@ def _load_fixture() -> tuple[dict[str, Any], tuple[Document, ...]]:
     return payload, documents
 
 
+def _validated_source_available_from(document: Document, *, subject_id: str) -> datetime:
+    participants = set(document.participant_ids)
+    if document.sender_id not in participants or not set(document.recipient_ids) <= participants:
+        raise ValueError("sender and recipients must be actual conversation participants")
+    if document.source_class == "first_party":
+        if document.acquired_at is not None or document.source_available_from != document.occurred_at:
+            raise ValueError("first-party source availability must equal occurrence")
+        return document.source_available_from
+    if document.acquired_at is None or document.source_available_from != document.acquired_at:
+        raise ValueError("acquired third-party source availability must equal acquisition")
+    if subject_id in participants:
+        raise ValueError("the owner must be absent from acquired third-party participants")
+    return document.source_available_from
+
+
 def _eligible(document: Document, request: HorizonRequest) -> bool:
     if document.matter_id != request.matter_id:
         return False
@@ -130,7 +179,10 @@ def _eligible(document: Document, request: HorizonRequest) -> bool:
     if document.promotion_state != "active":
         return False
     if request.mode == "as_lived_so_far":
-        return document.visible_from <= request.horizon_at and document.disclosure_tier != "hindsight"
+        return (
+            _validated_source_available_from(document, subject_id="owner-synthetic") <= request.horizon_at
+            and document.disclosure_tier != "hindsight"
+        )
     return True
 
 
@@ -184,17 +236,55 @@ def _approved_realization(
     return interval_start, interval_end, midpoint, decision.approved_point
 
 
-def test_fixture_is_versioned_and_has_two_distinct_future_fact_shapes() -> None:
+def _pause_walk(walk: WalkState, checkpoint: WalkCheckpoint) -> WalkState:
+    if walk.status != "active":
+        raise ValueError("only an active walk can pause")
+    if (walk.walk_id, walk.projection_revision) != (checkpoint.walk_id, checkpoint.projection_revision):
+        raise ValueError("checkpoint identity must match the walk")
+    return WalkState(walk.walk_id, walk.projection_revision, "paused")
+
+
+def _resume_walk(walk: WalkState, checkpoint: WalkCheckpoint) -> WalkState:
+    if walk.status != "paused":
+        raise ValueError("only a healthy paused walk can resume")
+    if (walk.walk_id, walk.projection_revision) != (checkpoint.walk_id, checkpoint.projection_revision):
+        raise ValueError("resume must use the same walk identity and projection revision")
+    return WalkState(walk.walk_id, walk.projection_revision, "active")
+
+
+def _seal_walk(walk: WalkState, snapshot: WalkSnapshot) -> WalkState:
+    if snapshot.resumable:
+        raise ValueError("terminal snapshots must be non-resumable")
+    if (walk.walk_id, walk.projection_revision) != (snapshot.walk_id, snapshot.projection_revision):
+        raise ValueError("terminal snapshot identity must match the failed walk")
+    return WalkState(walk.walk_id, walk.projection_revision, "sealed")
+
+
+def test_fixture_is_versioned_and_distinguishes_occurrence_from_acquisition() -> None:
     payload, documents = _load_fixture()
-    assert payload["schema_version"] == "phase0-horizon-canary-v1"
+    assert payload["schema_version"] == "phase0-horizon-canary-v2-adr0059"
     by_id = {document.id: document for document in documents}
     future_occurring = by_id["future-occurring-canary"]
-    late_realized = by_id["late-realized-old-source-canary"]
+    first_party = by_id["first-party-occurrence-a"]
+    acquired_third_party = by_id["acquired-third-party-canary"]
     early_horizon = _parse_time(payload["horizons"]["early"])
 
     assert future_occurring.occurred_at > early_horizon
-    assert late_realized.occurred_at < early_horizon < late_realized.visible_from
-    assert late_realized.recorded_at < early_horizon
+    assert first_party.occurred_at == first_party.source_available_from < early_horizon
+    assert first_party.recorded_at > early_horizon
+    assert acquired_third_party.occurred_at < early_horizon < acquired_third_party.acquired_at
+    assert acquired_third_party.source_available_from == acquired_third_party.acquired_at
+
+
+def test_acquired_third_party_uses_actual_participants_and_excludes_owner() -> None:
+    payload, documents = _load_fixture()
+    acquired = next(document for document in documents if document.id == "acquired-third-party-canary")
+
+    assert acquired.sender_id == "partner-synthetic"
+    assert acquired.recipient_ids == ("friend-synthetic",)
+    assert set(acquired.participant_ids) == {"partner-synthetic", "friend-synthetic"}
+    assert payload["subject_id"] not in acquired.participant_ids
+    assert _validated_source_available_from(acquired, subject_id=payload["subject_id"]) == acquired.acquired_at
 
 
 @pytest.mark.parametrize("surface", SURFACES)
@@ -231,7 +321,7 @@ def test_canary_detects_rank_then_filter_top_k_shrinkage() -> None:
     assert len(bad_results) < request.top_k
 
 
-def test_late_realized_old_source_is_hidden_by_visible_from_not_other_clocks() -> None:
+def test_acquired_third_party_is_hidden_until_acquisition_not_realization() -> None:
     payload, documents = _load_fixture()
     request = HorizonRequest(
         matter_id=payload["matter_id"],
@@ -242,11 +332,26 @@ def test_late_realized_old_source_is_hidden_by_visible_from_not_other_clocks() -
     results, _ = _prefilter_then_rank("reference", documents, request)
     result_ids = {document.id for document in results}
 
-    assert "late-realized-old-source-canary" not in result_ids
-    late_realized = next(document for document in documents if document.id == "late-realized-old-source-canary")
-    assert late_realized.occurred_at < request.horizon_at
-    assert late_realized.recorded_at < request.horizon_at
-    assert late_realized.visible_from > request.horizon_at
+    assert "acquired-third-party-canary" not in result_ids
+    acquired = next(document for document in documents if document.id == "acquired-third-party-canary")
+    first_realization = min(
+        _parse_time(link["realized_at"]) for link in payload["realization_links"] if link["message_id"] == acquired.id
+    )
+    assert acquired.occurred_at < request.horizon_at < acquired.acquired_at
+    assert acquired.source_available_from == acquired.acquired_at < first_realization
+
+
+def test_realizations_are_zero_to_many_separate_atoms_not_message_columns() -> None:
+    payload, _ = _load_fixture()
+    links = payload["realization_links"]
+    acquired_links = [link for link in links if link["message_id"] == "acquired-third-party-canary"]
+    first_party_links = [link for link in links if link["message_id"] == "first-party-occurrence-a"]
+
+    assert first_party_links == []
+    assert [link["id"] for link in acquired_links] == payload["expected"]["third_party_realization_ids"]
+    assert len({link["id"] for link in acquired_links}) == 3
+    assert len({link["realized_at"] for link in acquired_links}) == 3
+    assert [link["approval_state"] for link in acquired_links] == ["approved", "approved", "proposed"]
 
 
 def test_late_as_lived_and_hindsight_have_explicit_expected_deltas() -> None:
@@ -323,18 +428,60 @@ def test_shared_context_keeps_experiential_beliefs_walk_scoped() -> None:
     assert [belief.id for belief in visible] == ["belief-a"]
 
 
-def test_failed_walk_snapshot_is_historical_and_rewalk_gets_new_identity() -> None:
-    snapshot = WalkSnapshot("walk-001", "projection-r7", "state-hash-before")
-    rewalk = {"walk_id": "walk-002", "rewalk_of": snapshot.walk_id, "projection_revision": "projection-r8"}
+def test_healthy_checkpoint_resumes_same_walk_with_complete_state_references() -> None:
+    payload, _ = _load_fixture()
+    case = payload["walk_cases"]["healthy"]
+    checkpoint = WalkCheckpoint(
+        checkpoint_id=case["checkpoint_id"],
+        walk_id=case["walk_id"],
+        projection_revision=case["projection_revision"],
+        current_step=case["current_step"],
+        state_hash=case["state_hash"],
+        trace_hash=case["trace_hash"],
+        belief_ids=tuple(case["belief_ids"]),
+        retrieval_ids=tuple(case["retrieval_ids"]),
+    )
+    active = WalkState(case["walk_id"], case["projection_revision"], "active")
+
+    paused = _pause_walk(active, checkpoint)
+    resumed = _resume_walk(paused, checkpoint)
+
+    assert resumed.walk_id == active.walk_id
+    assert resumed.projection_revision == active.projection_revision
+    assert resumed.status == "active"
+    assert checkpoint.current_step == 1
+    assert checkpoint.state_hash and checkpoint.trace_hash
+    assert checkpoint.belief_ids and checkpoint.retrieval_ids
+
+
+def test_failed_walk_is_sealed_and_rewalk_has_new_identity_with_exact_link() -> None:
+    payload, _ = _load_fixture()
+    terminal = payload["walk_cases"]["terminal"]
+    rewalk = payload["walk_cases"]["rewalk"]
+    snapshot = WalkSnapshot(
+        terminal["snapshot_id"],
+        terminal["walk_id"],
+        terminal["projection_revision"],
+        terminal["state_hash"],
+        terminal["trace_hash"],
+        terminal["resumable"],
+    )
+    failed = WalkState(snapshot.walk_id, snapshot.projection_revision, "active")
+    sealed = _seal_walk(failed, snapshot)
 
     assert snapshot.status == "historical_read_only"
     assert snapshot.active_retrieval_eligible is False
+    assert snapshot.resumable is False
+    assert sealed.status == "sealed"
+    with pytest.raises(ValueError, match="healthy paused"):
+        _resume_walk(sealed, WalkCheckpoint("unused", sealed.walk_id, sealed.projection_revision, 1, "s", "t", (), ()))
     assert rewalk["walk_id"] != snapshot.walk_id
     assert rewalk["rewalk_of"] == snapshot.walk_id
     assert rewalk["projection_revision"] != snapshot.projection_revision
+    assert rewalk["change_manifest_hash"]
 
 
-def test_realization_midpoint_is_not_visible_until_hitl_approval() -> None:
+def test_realization_midpoint_is_not_approved_until_hitl_review() -> None:
     start = _parse_time("2024-01-01T00:00:00Z")
     end = _parse_time("2024-03-01T00:00:00Z")
     unreviewed = _approved_realization(start, end, decision=None)

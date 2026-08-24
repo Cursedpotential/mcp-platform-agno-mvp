@@ -66,9 +66,20 @@ def _factories():
     return {f.id: f for f in wr.build_workflow_factories(db=_FakeDb(), knowledge=None)}
 
 
+# ADR-0059 (governed conversations) made SmsXmlInput require an authenticated
+# first-party owner assertion: `source_principal` and `caller_owns_conversation`.
+# These tests never execute a workflow, so any non-empty principal satisfies the
+# contract — but the fields must be present or the factory 500s inside
+# `_input_of` (server/api/workflow_registry.py:99) before reaching the ledger.
+_OWNER_ASSERTION = {
+    "source_principal": "owner@test-device",
+    "caller_owns_conversation": True,
+}
+
+
 def test_sms_factory_creates_a_ledger_run(captured):
     f = _factories()["sms-xml"]
-    f.factory(SimpleNamespace(input={"path": "/tmp/a.xml", "domain": "evidence"}))
+    f.factory(SimpleNamespace(input={"path": "/tmp/a.xml", "domain": "evidence", **_OWNER_ASSERTION}))
     assert captured["created"] is not None, "AgentOS launch must create a run row"
     assert captured["created"]["workflow"] == "sms-xml"
     assert captured["created"]["source_name"] == "a.xml"
@@ -78,7 +89,7 @@ def test_sms_factory_creates_a_ledger_run(captured):
 def test_supervised_mode_reaches_the_gate(captured):
     """The whole point: mode must survive the factory, not be parsed and dropped."""
     f = _factories()["sms-xml"]
-    f.factory(SimpleNamespace(input={"path": "/tmp/a.xml", "mode": "supervised"}))
+    f.factory(SimpleNamespace(input={"path": "/tmp/a.xml", "mode": "supervised", **_OWNER_ASSERTION}))
     assert captured["created"]["mode"] == "supervised"
     assert captured["attached"]["mode"] == "supervised"
 
@@ -101,5 +112,5 @@ def test_ledger_failure_does_not_block_the_ingest(monkeypatch):
     monkeypatch.setattr(ledger, "create_run", boom)
     monkeypatch.setattr(workflows, "build_sms_xml_workflow", lambda **kw: (_FakeWorkflow(), {}))
     f = _factories()["sms-xml"]
-    wf = f.factory(SimpleNamespace(input={"path": "/tmp/a.xml"}))
+    wf = f.factory(SimpleNamespace(input={"path": "/tmp/a.xml", **_OWNER_ASSERTION}))
     assert wf is not None and len(wf.steps) == 3
