@@ -68,8 +68,17 @@
 
 ## The lesson this table encodes
 
-`h2-filebound-v1` is what happens when a hash construction lives only in running code: the
-session died and the recipe died with it, permanently. That is why every canon here carries its
-recipe, its reference implementation path, AND test vectors — and why this file now exists in
-git. **Any new hash construction gets a row in `canon_registry`, an entry here, and a test
-vector, before its first production use.**
+**This loss was carelessness, not bad luck** (owner ruling, 2026-08-24). The standing discipline
+— everything persists, always; work gets a durable home the same session it is created; a second
+copy is baseline practice, not extra credit — applies to CODE exactly as it applies to data.
+`h2-filebound-v1` computed production custody hashes from code that had no durable home and no
+second copy anywhere. When the session died, the recipe died, permanently: prose descriptions
+("sha256 of the canonical message") underdetermine bytes, and ~1.5M serialization guesses could
+not rediscover one delimiter choice. Any single one of the three persistence forms would have
+saved it.
+
+That is why every canon here carries its recipe, its reference implementation path, AND test
+vectors; why this file exists in git; and why `tests/test_custody_canon_vectors.py` rebuilds
+every active recipe from this document's prose alone on every test run. **Any new hash
+construction gets a row in `canon_registry`, an entry here, and a vector test, before its first
+production use — the scratchpad path to production is closed.**
