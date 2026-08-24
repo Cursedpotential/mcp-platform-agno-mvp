@@ -10,6 +10,41 @@
 
 ## 2026-08-23
 
+### CH-18 — Dev-mode immutability gate (0031); test-residue purge; custody canon backed up
+
+> _Byline: Claude Code · Opus 5 · 2026-08-24. Owner rulings same night: "program a dev flag —
+> disables immutability until switched to prod"; "clean — nothing is immutable until we go
+> live"; "back the canon up into a regular file"._
+
+- **`sql/0031_dev_mode_immutability_gate.sql` written + APPLIED live.** Extends the existing
+  `app.evidence_live` flag (invented by 0009 for the raw_* guards) to the three remaining
+  unconditional immutability functions: `evidence.source_immutable_core`,
+  `evidence.forbid_mutation`, `working.forbid_mutation`. Dev mode (flag unset) = guards pass
+  through; **the one go-live command that arms everything:**
+  `ALTER DATABASE ai SET app.evidence_live = 'on'`. The custody hash-chain COMPUTATION trigger
+  stays ungated (it computes, never blocks). Verified live: all three functions now carry the
+  gate; flag currently unset.
+- **Test residue purged — 28 rows, one transaction, per-step verification, zero production
+  data touched.** The three all-test `ai.casebible_*test*` tables (5), the `ingest-smoke-test`
+  knowledge row (1), the `/tmp` proof custody chain — `evidence.source` (3),
+  `evidence.evidence_hash` (3), plus the 11 `working.normalized_record` rows that FK'd them
+  (adjudicated by content: throwaway tech-chat AI conversations from the proof ingests, which
+  ADR-0044 forbids in the spine anyway) — and 5 stuck CDC outbox probe events. The evidence
+  schema and spine are now at true zero, ready for real ingest. The purge ran through the 0031
+  dev gate with no trigger manipulation — its live proof.
+- **Custody-hash canon backed up to `docs/reference/CUSTODY-HASH-CANON.md`** — verbatim capture
+  of `public.canon_registry` (h1-rawbytes-v1, h2-canonical-v2, h3-chain-v1 incl. the
+  1,918/1,918 proof, and the LOST h2-filebound-v1 with its reconstruction test vectors). Until
+  now these recipes existed only inside the live database. Follow-up: a numbered migration to
+  make the table itself reproducible.
+- Conformance-review rulings recorded the same night: promotion columns to be defaulted from
+  the single case (owner: ruled "loudly, 17 times"); one run ledger — fold `ops.processing_run`
+  into `ops.workflow_run*` during the Temporal cutover and repoint the 35 provenance FKs;
+  context corpus (1,741 rows) to be **re-ingested from originals** rather than migrated, then
+  the stranded table stamped superseded.
+
+---
+
 ### CH-17 — Full table-health validation: 210 tables examined, 5 dormant constraints cured
 
 > _Byline: Claude Code · Opus 5 · 2026-08-23. Owner instruction ("all tables validated for
