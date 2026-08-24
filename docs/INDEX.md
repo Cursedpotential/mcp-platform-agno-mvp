@@ -1,6 +1,9 @@
 # Documentation Index — Current Entry Points
 
-> _Byline: Codex · GPT-5 · 2026-08-15 · updated 2026-08-18 (Codex · GPT-5)._ 
+> _Byline: Codex · GPT-5 · 2026-08-15 · updated 2026-08-18 (Codex · GPT-5)._
+> _2026-08-23 amendment: Claude Code · Opus 5 — corrected the "Held activation" migration
+> claim (0026-0030 are applied, CH-15/CH-16) and added the Temporal plan, ingestion-readiness
+> note, and cross-repo review directory to Start Here._
 
 Use this page to distinguish durable canon, the accepted 2026-08-15 target, current local
 implementation, and historical planning. A file describing a target does not prove it is
@@ -19,6 +22,9 @@ deployed.
 | Live multi-lane log | [COORDINATION.md](COORDINATION.md) | Append-only coordination history |
 | Pending historical review | [pending-review/README.md](pending-review/README.md) | Moved records; all claims UNVERIFIED |
 | Archive policy | [archive/README.md](archive/README.md) | Verified or explicitly historical records only |
+| Temporal adoption plan | [plans/TEMPORAL-INTEGRATION-PLAN-2026-08-23.md](plans/TEMPORAL-INTEGRATION-PLAN-2026-08-23.md) | Phased adoption plan; D-067 ruled it 2026-08-23 |
+| Ingestion readiness | [INGESTION-READINESS-2026-08-23.md](INGESTION-READINESS-2026-08-23.md) | What's up and working for tonight's ingest |
+| Cross-repo evidence audit | [reviews/2026-08-23-cross-repo-evidence-audit/](reviews/2026-08-23-cross-repo-evidence-audit/) | Issues/TODO register (ISS-/TODO-numbered), framework-roles ruling (TODO-212), custody ruling (TODO-101/207) |
 
 ## Current truth in one paragraph
 
@@ -49,8 +55,12 @@ committed and pushed to `main`. ~~The worktree is clean.~~ **Corrected
 `git status` shows uncommitted changes (docs reorg, SurrealDB runner files,
 `AGENTS.md`, compose/deploy yaml); see
 [OWNER-REVIEW-2026-08-18-verified-todo-audit.md](OWNER-REVIEW-2026-08-18-verified-todo-audit.md)
-Part 2. Migrations `0026–0030`
-remain unapplied and the feature remains undeployed; no live-service proof is
+Part 2. ~~Migrations `0026–0030`
+remain unapplied~~ **Corrected 2026-08-23 (Claude Code · Opus 5, CH-15/CH-16): migrations
+`0026`–`0030` are APPLIED** to live PG18 (`100.91.190.107:5432`, db `ai`) — `0026`-`0029`
+were found already live (stale banners), `0030` was applied the same night on owner
+instruction. The **feature** (Matter/CourtCase-aware evidence pipeline, native evidence
+vectors) remains undeployed; no live-service proof beyond the applied schema is
 claimed. Use the R9 handoff and activation preflight pre-mortem for current
 verification and release gates.
 

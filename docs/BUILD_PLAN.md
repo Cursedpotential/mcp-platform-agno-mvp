@@ -2,13 +2,16 @@
 
 > **Authoritative for:** what we build next, in order. Entry point: `docs/PROJECT_CANON.md` (§0 Document Contract).
 > Supersedes `docs/planning/*` (EXECUTION_PLAN, BUILD_TODO, MIGRATION_PLAN_v8) for **forward** work — those are history.
-> Last updated: 2026-08-18 (ADR-0059 blast-radius correction and local disposable T0 contract
+> Last updated: 2026-08-23 (migrations `0026`–`0030` corrected from "unapplied"/"do not cut
+> over" to APPLIED — CH-15/CH-16, see the dated corrections at line ~24 and below; prior
+> 2026-08-18: ADR-0059 blast-radius correction and local disposable T0 contract
 > implementation; prior pre-ADR-0059 R14 target stopped, no current amended live proof or
 > production activation claim).
 > _Byline: Claude Code · Opus 4.8 · 2026-06-13; phase-status refresh 2026-07-11
 > Claude Code · Sonnet 5; ADR-0053 amendment Codex · GPT-5 · 2026-08-13;
 > documentation true-up Codex · GPT-5 · 2026-08-15; Phase-0 status Codex · GPT-5 · 2026-08-16;
-> ADR-0059 correction Codex · GPT-5 · 2026-08-18._
+> ADR-0059 correction Codex · GPT-5 · 2026-08-18; migration-status correction
+> Claude Code · Opus 5 · 2026-08-23._
 <!-- Updated by: Codex (migration-passes/doc-patching) | Date: 2026-08-15 | Rev: 1 | Platform: Codex / win32 | Changes: Clarify Wave-1, Knowledge, and Semantica status | Context: Prevent uncommitted working-tree implementation from being read as applied or deployed -->
 
 > _Current-entry-point repair: Codex · GPT-5 · 2026-08-15._
@@ -21,7 +24,13 @@ with bounded lanes indexed in [`HANDOFFS.md`](HANDOFFS.md). The older Phase A–
 below remains useful history, but any Agno-first or AgentOS-UI wording in it is superseded by
 this current direction:
 
-1. Preserve and audit the unapplied Wave-1 tree; do not cut over migrations `0026–0029`.
+1. ~~Preserve and audit the unapplied Wave-1 tree; do not cut over migrations `0026–0029`.~~
+   **Corrected 2026-08-23 (Claude Code · Opus 5, CH-15):** migrations `0026`–`0029` were found
+   already applied to live PG18 — the "HELD FOR OWNER / NOT APPLIED" banners on those files were
+   stale (now restamped in the sql files themselves). Migration `0030` was applied the same
+   night on owner instruction (CH-15/CH-16). The Wave-1 tree is no longer "unapplied"; what
+   remains open is the ingest pipeline that populates the new schema, not the schema itself —
+   see `docs/DEBT.md`.
 2. Complete coverage-based Go ingestion and deterministic ordered custody. Never route by size.
 3. Separate horizon-blind Knowledge ingestion from immutable horizon replay and agent experience.
 4. Integrate Semantica as the VIP semantic-intelligence service; only its outputs may be candidates.
@@ -53,8 +62,12 @@ parked-target mutation, or Graphiti replacement is claimed.
 
 The Matter/CourtCase foundation, neutral spine APIs, Workbench adapters/UI, and
 Knowledge-to-Evidence promotion are pushed to `main`. Migration
-`sql/0030_matter_case_foundation.sql` and focused tests exist, but the migration is
-**unapplied** and no deployment/live claim is made. Commit `be286a8` adds exact
+`sql/0030_matter_case_foundation.sql` and focused tests exist, but ~~the migration is
+**unapplied**~~ **Corrected 2026-08-23 (Claude Code · Opus 5, CH-15):** the migration **was
+applied** to live PG18 the night of 2026-08-23 on owner instruction — verified: `analysis.matter`,
+`court_case`, `matter_knowledge_partition`, `knowledge_evidence_promotion` all created, both
+promotion triggers installed, `evidence_item` gained `matter_id`/`court_case_id` while retaining
+legacy `case_id`. No deployment/live-service claim is made beyond the schema itself. Commit `be286a8` adds exact
 canonical-record and H1 custody inspection before human review; it changes no
 schema and is pushed to `main` but remains undeployed.
 Commit `7b6aaf6` adds a read-only court-export/readiness explanation:
@@ -66,8 +79,13 @@ evidence and residual legacy-digest debt.
 
 > **Current-state correction — 2026-08-15.** Wave 1 has implementation files in the
 > working tree (`sql/0026_realization_event.sql` through `sql/0029_pass_grants.sql`,
-> `server/evidence/realization.py`, and `server/evidence/derivation.py`), but they are
-> **pushed to `main` and not recorded as applied to the live database**. Treat the Wave-1
+> `server/evidence/realization.py`, and `server/evidence/derivation.py`), but ~~they are
+> **pushed to `main` and not recorded as applied to the live database**~~. **Corrected
+> 2026-08-23 (Claude Code · Opus 5, CH-15/CH-16):** direct introspection of live PG18
+> (`100.91.190.107:5432`, db `ai`) showed `0026`–`0029` were already applied — the "HELD FOR
+> OWNER / NOT APPLIED" banners on those files were stale, and have since been restamped in the
+> sql files themselves with verified-live confirmation. `0030` was applied the same night on
+> owner instruction. Treat the Wave-1
 > sub-plan's older “no code/migration written yet” banner as historical drift, not as
 > proof that the work has landed. The Workbench Knowledge page/API is implemented and
 > locally validated and pushed to `main`; it is not deployed. Current verification

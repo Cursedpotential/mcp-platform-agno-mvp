@@ -4,9 +4,17 @@
 > repeated compaction never loses the vision, decisions, or plan. It is kept
 > current as decisions are made. If something here conflicts with an older ADR,
 > this file's "Locked Decisions" section wins and the ADR should be updated.
-> _Byline amendment: Codex · GPT-5 · 2026-08-18 ADR-0059 source-clock, walk-lifecycle,
-> and native evidence-vector ruling._
-> Last updated: 2026-08-18 (ADR-0059 separates first-party/acquired-third-party
+> _Byline amendment: Claude Code · Opus 5 · 2026-08-23 — doc-sync to tonight's executed
+> reality: migrations 0026–0030 confirmed/applied live (CH-15/CH-16); D-067 Temporal
+> persistence + role ruling; TODO-212 framework roles ruled; TODO-101/207 custody-mandatory
+> ruling; Graphiti retirement direction recorded._
+> Last updated: 2026-08-23 (§4 ovh-files PG18 row gains `temporal`/`temporal_visibility`
+> databases + `agno_app`/`temporal` roles per D-067/CH-16; §4 `data-graphiti` row gains the
+> owner's retirement-direction note; §5 gains D-067, the TODO-212 framework-roles line, and the
+> TODO-101/207 custody-mandatory-at-capture line; §6 notes 0026–0030 are no longer held and the
+> Temporal P0 scaffold is underway; §10's native-evidence-vector entry corrected — SCHEMA
+> (migrations 0026–0029) is applied, only the collection/backfill/alias/deploy activation
+> remains held; prior 2026-08-18: ADR-0059 separates first-party/acquired-third-party
 > derived message projections, source availability, plural realizations, and healthy resume
 > from terminal rewalk; prior 2026-08-16: ADR-0056–0058 Phase-0 logical contracts, synthetic
 > planted-future-fact tests, evaluation gates, and S1–S6 owner review are complete;
@@ -206,7 +214,7 @@ is preserved in git history + `docs/planning/`.)
 | `ion-control` (Ionos 3.8 GB) | Coolify control plane | — (Coolify itself) |
 | `ovh-app` `100.72.169.40` | Exec tier (the old exec bundle split into independent apps, owner rule "separate everything separable") | `exec-tier` (agentos-api + db rump) · `exec-gateway` (OpenCode; LiteLLM deprecated → teardown pending, ADR-0042) · `exec-contextforge` (tool gateway) · `exec-platform-tools` (SBV forensic fork + tools-facade) · `exec-sandbox` · `exec-desktop` (Kasm) · `portkey` (THE model gateway, ADR-0042) · `knowledge-workbench` (staged-ingest console, :8020) · `agent-ui` · `browser` · `coolify-mcp` |
 | `ovh-data` `100.119.96.29` | Data tier — independent apps on the shared external `agno` docker network (172.30.0.0/16; cross-app DNS — `neo4j:7687`, `milvus:19530`, …). **Stale as of 2026-08-06/07** (see the ovh-files row): the `data-neo4j`/`data-weaviate` apps here went `exited:unhealthy` and code defaults were repointed away from them; do not treat this row as live for those two. | `data-surreal` (the ONE app that legitimately stays here — PARKED read-only since 2026-08-04, ADR-0043, RETIRED/zero-callers per `server/core/session.py`, owner-gated deletion) · `data-neo4j` (⚠ unhealthy since ≥2026-08-06, superseded by its ovh-files twin) · `data-weaviate` (⚠ unhealthy since ≥2026-08-06, superseded by its ovh-files twin; sidelined-Milvus framing below is otherwise unaffected) · `data-vector` (Milvus — sidelined per ADR-0040; **DOWN deliberately since 2026-08-10** — 6th embedded-etcd corruption, docs/COORDINATION.md; D-042 cutover verified 2026-08-09) · `nocodb` (review front-end, ADR-0029 lineage) |
-| `ovh-files` `100.91.190.107` | Files + chat surfaces — **also now the live data-tier host for PG/Neo4j/Weaviate**, migrated off ovh-data in two waves: PG (`data-pg-files`, PG18: pg_duckdb + pgvector + PostGIS; tailnet `DB_HOST=100.91.190.107`) moved 2026-08-02 (`docs/DECISION_LOG.md`); Neo4j (Graphiti's graph, `bolt://100.91.190.107:7687`) + Weaviate (ADR-0040 substrate, `http://100.91.190.107:8081`) defaults corrected 2026-08-06/07 after their ovh-data twins went unhealthy — verified live from inside agentos-api, commits `75ec196`/`5e829ab`/`a68fabd` (`server/core/session.py`, `server/analysis/semantica_wiring.py`) | `data-pg-files` · `data-neo4j` (live twin) · `data-graphiti` (Graphiti MCP) · `data-weaviate` (live twin) · `librechat` (:3080) · `librechat-mongo` (real Mongo — owner waiver of the FerretDB rule) · file services (Cloudreve, casebible rclone lane) |
+| `ovh-files` `100.91.190.107` | Files + chat surfaces — **also now the live data-tier host for PG/Neo4j/Weaviate**, migrated off ovh-data in two waves: PG (`data-pg-files`, PG18: pg_duckdb + pgvector + PostGIS; tailnet `DB_HOST=100.91.190.107`) moved 2026-08-02 (`docs/DECISION_LOG.md`); Neo4j (Graphiti's graph, `bolt://100.91.190.107:7687`) + Weaviate (ADR-0040 substrate, `http://100.91.190.107:8081`) defaults corrected 2026-08-06/07 after their ovh-data twins went unhealthy — verified live from inside agentos-api, commits `75ec196`/`5e829ab`/`a68fabd` (`server/core/session.py`, `server/analysis/semantica_wiring.py`). **Added 2026-08-23 (D-067, CH-16):** the same PG18 instance now also owns two new databases, `temporal` + `temporal_visibility` (Temporal's own persistence — no second Postgres container, per the data-vector six-corruption lesson), under a new non-superuser role `temporal` (connection limit 30, password delivered out-of-band, never in git). A second new role, `agno_app` (non-superuser, `sql/0029` grants), was created the same night for the app itself but the app **still connects as the superuser `ai`** — cutover to `agno_app` is an owner-gated Coolify env change + redeploy, not yet done (see `docs/DEBT.md`). | `data-pg-files` · `data-neo4j` (live twin) · `data-graphiti` (Graphiti MCP — **retirement direction confirmed by owner 2026-08-23**: the self-hosted MCP server never worked like Zep's hosted service, the case-lane client is write-only, zero rows have ever been drained; it stays only as a bake-off comparison point while an agent-memory replacement — Cognee frontrunner, Memgraph/ADR-0041, Surreal, Postgres-native also candidates — is evaluated, judged on self-hosted operability first; see `docs/reviews/2026-08-23-cross-repo-evidence-audit/ISSUES-AND-TODO.md` TODO-211) · `data-weaviate` (live twin) · `librechat` (:3080) · `librechat-mongo` (real Mongo — owner waiver of the FerretDB rule) · file services (Cloudreve, casebible rclone lane) |
 
 **Off-Coolify:** Homepage dashboard `http://100.72.169.40:3010` (plain compose,
 `/data/dashboards` on ovh-app); n8n on its own server (tailnet `100.98.98.38`); AgentOS
@@ -218,6 +226,35 @@ S3 API + pg_duckdb httpfs (`read_text('s3://nexus/...')`).
 
 ## 5. Locked decisions
 
+- **Temporal adoption ruled = D-067 (2026-08-23):** persistence lands inside the existing
+  PG18 on `ovh-files` — two new databases, `temporal` + `temporal_visibility`, no second
+  database server (see §4). The chat-transcript ingest cutover happens in ONE move on live
+  traffic, fix-forward — no shadow deploy, no parallel v2. Approvals route through the
+  existing knowledge-workbench console (`:8020`); the reference project's separate
+  approval web-UI is discarded. The workbench is **not live yet**, so deploying it is now a
+  P2 prerequisite of this ruling, not an assumption. Plan: `docs/plans/TEMPORAL-INTEGRATION-PLAN-2026-08-23.md`;
+  P0 infra (roles, databases, Coolify compose scaffold, worker Dockerfile) executed same
+  night — CH-16. Full ruling text: `docs/DECISION_LOG.md` D-067.
+- **Framework roles under Temporal ruled (2026-08-23, TODO-212):** Temporal owns sequencing/
+  retries/gates/durability. Classification and extraction model calls move to **DSPy**
+  programs — compiled against owner-labeled gold sets, schema-enforced JSON via Portkey, run
+  inside Activities (owner-named; operationalizes the debt register's own human-labeled-eval/
+  challenger/audit demands). Tool-rich single agents and knowledge/RAG stay on **Agno as a
+  library** (no rip-out). Multi-agent deliberation (investigation/analysis) stays **AG2**,
+  though its 2026-08-15 handoff needs review against this ruling. The Workbench remains the
+  visual pipeline surface. PydanticAI-vs-Agno-as-library for the knowledge step specifically is
+  being settled by a live two-implementation bake (`server/temporal/knowledge_harness/`,
+  `KNOWLEDGE_HARNESS=agno|pydantic_ai` env flip) inside Temporal P1 — in progress, not yet
+  decided. LangGraph is benched (Temporal covers its durable-graph niche here; AG2 covers
+  deliberation). Dify is struck (was a misreading of "DSPy"). See
+  `docs/reviews/2026-08-23-cross-repo-evidence-audit/ISSUES-AND-TODO.md` TODO-212.
+- **Custody hashing ruled mandatory at capture (2026-08-23, TODO-101/207):** evidence-lane
+  ingest must refuse when hashing is unavailable — silent degradation is not acceptable. Owner's
+  decisive follow-up: custody hashing must first be extracted into a **standalone callable
+  process** (wraps `vendored/sbv/pkg/custodyhash`) usable from the SBV path, the fallback path,
+  or anything else, so either path can call it regardless of which one fails. Sequencing:
+  TODO-207 (the standalone process) lands **before** the mandatory-at-capture rule (TODO-101)
+  is enforced.
 - **Message source clocks and walk lifecycle = ADR-0059:** one authored normalized
   spine feeds separate first-party and acquired-third-party derived message projections.
   First-party source availability equals occurrence; acquired-third-party availability
@@ -445,7 +482,23 @@ pointer below — corrected 2026-08-09) — Part 1 complete + memory substrate:*
   `planned` (`DEBT.md`) — live PG evidence schema is near-empty (`evidence_hash`=26 rows,
   verified 2026-07-11); the RESTART-0001 per-source raw-table redesign (6 `source.*` tables
   + `file_custody` anchor, h1/h2/h3 as row columns) is DRAFT awaiting owner sign-off (D-008,
-  `docs/DECISION_LOG.md`) and the old ingestion schema is DEAD per owner.
+  `docs/DECISION_LOG.md`) and the old ingestion schema is DEAD per owner. **Corrected
+  2026-08-23 (CH-15/CH-16):** migrations `0026`–`0030` are no longer "held" — direct
+  introspection of live PG18 (`100.91.190.107:5432`, db `ai`) showed `0026`–`0029` were
+  already applied despite stale "HELD FOR OWNER / NOT APPLIED" banners (now restamped in the
+  sql files themselves), and `0030` was applied that same night on owner instruction. The
+  `working.vw_spine_horizon` wrong-clock defect that `0028` fixes is confirmed live in
+  production. This does not close "Evidence schemas populated by a real pipeline": the new
+  tables (`realization_event`, `walk_ledger`, `matter`/`court_case`, …) exist and are
+  schema-only — the gap is the ingest pipeline populating them, not the schema. See
+  `docs/DEBT.md` and §10 below for the activation steps (collection creation, backfill,
+  alias switch, deploy) that remain held.
+- **Temporal P0 scaffold underway (2026-08-23, D-067/CH-16):** live `temporal` role +
+  `temporal`/`temporal_visibility` databases created on the existing PG18; Coolify compose
+  scaffold (`deploy/temporal/compose.temporal.yaml`) and the worker image
+  (`docker/temporal-worker/Dockerfile`) committed. Not yet done: `server/temporal/worker.py`
+  (the worker entrypoint) and any workflow/Activity code — tracked as P1. See
+  `docs/plans/TEMPORAL-INTEGRATION-PLAN-2026-08-23.md`.
 - P3 bitemporal substrate (valid/knowledge-time + disclosure-tier; Semantica stand-up)
 - P4 SBV as Workflow A (custody-gated vertical + iframe + CLI + export) 🟡 **largely landed,
   updated 2026-08-09**: forensic fork LIVE in prod with H1/H2/H3 custody hashing
@@ -582,9 +635,14 @@ pointer below — corrected 2026-08-09) — Part 1 complete + memory substrate:*
   projection moves off Agno's JSON metadata schema to immutable `EvidenceChunkV1`, with typed
   `occurred_at` and range-indexed `source_available_from`, self-provided 4096-d nv-embed vectors,
   and the stable `EvidenceChunks` reader alias. The old Agno evidence collection stays intact as
-  rollback. Collection creation, migrations `0026`–`0029`, backfill, alias movement, live reader
-  binding, and deployment remain owner-gated; follow the held count/hash/canary reconciliation
-  runbook in `docs/plans/WEAVIATE-NATIVE-EVIDENCE-CUTOVER-RUNBOOK-2026-08-18.md`.
+  rollback. ~~Collection creation, migrations `0026`–`0029`, backfill, alias movement, live
+  reader binding, and deployment remain owner-gated~~ **Corrected 2026-08-23 (CH-15/CH-16):
+  the SCHEMA is applied** — direct introspection of live PG18 confirmed `0026`–`0029` were
+  already live (stale banners, now restamped in the sql files). **Still held:** live Weaviate
+  collection creation, PG-chunk backfill, the count/hash/canary reconciliation, the
+  `EvidenceChunks` alias switch, reader rebinding, and deploy — none of those activation steps
+  have run. Follow the held runbook in
+  `docs/plans/WEAVIATE-NATIVE-EVIDENCE-CUTOVER-RUNBOOK-2026-08-18.md`.
 - Owner had one more idea that slipped away (2026-06-11) — to be added when recalled.
 - Knowledge-engine domain separation: finalize collection scheme + ingestion routing.
 - Legal Team: inventory the Gemini Gems personas to port.

@@ -1,6 +1,13 @@
 # sql/ — Progressive Disclosure Map
 
 > _Byline: Codex · GPT-5 · 2026-08-15 (entry-point bootstrap correction)_
+> _2026-08-23 amendment: Claude Code · Opus 5 — the numbered chain is applied through `0030`
+> as of tonight. Direct introspection of live PG18 (`100.91.190.107:5432`, db `ai`) showed
+> `0026`–`0029` were already applied despite stale "HELD FOR OWNER / NOT APPLIED" banners
+> (now restamped in the files themselves); `0030` was applied the same night on owner
+> instruction. See `docs/CHANGE-ORDER.md` CH-15/CH-16. The replay-from-empty-database
+> caveats below remain true and are unaffected by this note — do not replay the chain
+> against an empty database; bootstrap from `sql/bootstrap/schema_baseline.sql`._
 >
 > PostgreSQL schema history and bootstrap artifacts. The numbered migrations
 > are immutable history but **are not an empty-database bootstrap path** after
