@@ -13,6 +13,12 @@ Lanes: **A** = restructure · **B** = ingestion/table redesign · **C** = infra/
 
 ---
 
+## 2026-08-24
+
+| # | Decision | Lane | Status | Rationale / notes |
+|---|---|---|---|---|
+| D-068 | **Pipeline architecture: n8n is the agent/integration layer, Temporal is the durable spine; the custody path is an in-code Temporal interlude at a logical breakpoint** | B | owner-ruled 2026-08-24 (evening) | Owner's target structure, stated and then refined the same night: agents and modular workflow chunks are built IN n8n (visual, community nodes, exposed via webhook/MCP); Temporal executes the sequence durably and owns human-in-the-loop via the existing Signal gate (n8n is the notification/approve-reject surface that fires the Signal); HITL results flow back to whichever n8n agent comes next. **The custody path — ingest, hash, store — stays in-code Temporal activities**: owner ruling verbatim intent, "that can be one of the logical breakpoints in the workflow where it hands it back to Temporal … durably recorded, and if it fails or stalls it restarts, then hands back to the workflow to continue in n8n" with the platform's patterns/agents/categories/customizations. Promotion stays gated: n8n agents prepare and propose; the PG promotion table's approval is what flips evidence status; Surreal receives projections of approved events (PG remains truth). Framework implication: n8n agents join the P1 knowledge-activity bake alongside Agno/PydanticAI (callable over HTTP/MCP), and LangGraph is back under evaluation (owner, same day). Supporting research: `docs/research/N8N-CAPABILITY-ASSESSMENT-2026-08-25.md` — key caveats absorbed: first-class n8n Agents are self-hosted **Preview** (no queue mode, no native Weaviate — wrap via Workflow-tool/MCP), n8n has no durable execution (removed stalled-job retry in 2.0), so nothing n8n does is load-bearing for durability; at-least-once triggers require Temporal workflow IDs derived from object keys for dedup. rel: D-067, D-060 (promotion gate), TODO-201 (search modes + multi-query), temporal-awareness mandate 2026-08-24. _Byline: Claude Code · Fable 5 · 2026-08-24._ |
+
 ## 2026-08-18
 
 | # | Decision | Lane | Status | Rationale / notes |
