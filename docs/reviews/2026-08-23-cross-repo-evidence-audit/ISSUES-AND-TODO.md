@@ -496,8 +496,24 @@ way `vw_spine_horizon` does. Sequenced AFTER ingest testing establishes real dat
 > ticket but I'm not sure — maybe it is — but we do need agent memory, it should be temporally
 > aware, so we need to explore that at some point."
 
+**Hard requirements, owner 2026-08-23 (verbatim intent): "graph based and temporal with hybrid
+search — I want all the features."** Judging order: self-hosted operability first (what killed
+Graphiti), then feature completeness, then benchmarks.
+
+**Likely frontrunner — Cognee.** This is almost certainly the system the owner remembers
+("another memory system that's supposed to have all of those things and an SQLite database for
+fast indexing"): Cognee's three-store architecture is exactly graph store + vector store +
+**relational store (SQLite by default) for fast metadata indexing**, with 14 hybrid search modes
+spanning all three, temporal/self-improving graph features (`memify`), and a fully customizable
+ingest pipeline. It beat Mem0, Graphiti, and LightRAG on multi-hop reasoning (HotPotQA EM/F1).
+Trade-off to test: heavier ingest-time processing — and per the LIVE ONLY policy this deploys and
+gets tested **on the fleet, in place** (a Coolify app beside the data tier), never on the local
+machine; embedding/LLM calls route through Portkey like everything else, so the fleet's
+CPU-only constraint applies to Cognee's local processing stages, not its model calls.
+
 Candidates to evaluate, all against the same bar (bitemporal belief tracking, cheap horizon
 queries, CPU-friendly, fits the tailnet fleet):
+- **Cognee** — the frontrunner above; graph+vector+SQLite, hybrid modes, self-hostable Python
 - **Memgraph** — exploration already opened as ADR-0041 (2026-07-28), never concluded; in-memory
   graph, Cypher-compatible, would also bear on TODO-210's engine choice
 - **SurrealDB** — the ruled analytical surface (D-061); owner is unconvinced it fits the *agent
