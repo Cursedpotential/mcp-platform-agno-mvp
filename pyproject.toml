@@ -105,6 +105,18 @@ observability = ["opentelemetry-exporter-otlp-proto-http>=1.44,<2"]
 # module's docstring for the concrete wiring plan. Install with:
 #   uv pip install -e ".[claude-code]"
 claude-code = ["claude-agent-sdk"]
+# Temporal durable-execution skeleton (server/temporal/, INERT — nothing
+# dispatches to it yet; see docs/plans/TEMPORAL-INTEGRATION-PLAN-2026-08-23.md
+# and D-067). Deliberately NOT a base dependency and deliberately absent from
+# requirements.txt: the production image is unchanged until the P1 seam flips.
+# The temporal-worker Coolify app installs this extra on top of the same
+# server/ dependency stack.
+temporal = ["temporalio>=1.7,<2"]
+# The knowledge-step framework bake (server/temporal/knowledge_harness/BAKE.md):
+# the PydanticAI side of a two-implementation comparison behind one interface.
+# Strictly optional, and it goes away entirely if the agno side wins — the
+# losing harness is deleted, not kept as a parallel path.
+temporal-bake = ["pydantic-ai>=0.0.49"]
 
 [build-system]
 requires = ["setuptools"]
@@ -171,6 +183,9 @@ module = [
   # optional ingestion/agent extras; imports are lazy and availability-gated
   "chonkie.*",
   "claude_agent_sdk.*",
+  # knowledge-harness bake side B; ships only in the `temporal-bake` extra and
+  # is imported lazily (server/temporal/knowledge_harness/pydantic_ai_harness.py)
+  "pydantic_ai.*",
 ]
 ignore_missing_imports = true
 
