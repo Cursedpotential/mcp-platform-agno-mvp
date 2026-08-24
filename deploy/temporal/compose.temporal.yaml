@@ -79,7 +79,7 @@ services:
     ports:
       # web UI — tailnet-only; note coolify-proxy owns host 8080 on every
       # node, so this is intentionally NOT 8080
-      - "100.91.190.107:8233:8080"
+      - "100.91.190.107:8233:8233"   # was :8080 — but TEMPORAL_UI_PORT=8233 makes the UI listen on 8233 in-container (mismatch found live 2026-08-24)
     depends_on:
       temporal-server:
         condition: service_started   # was service_healthy; healthcheck removed 2026-08-24 (see above)
