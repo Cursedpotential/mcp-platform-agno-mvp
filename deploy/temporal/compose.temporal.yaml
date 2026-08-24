@@ -45,7 +45,7 @@
 
 services:
   temporal-server:
-    image: temporalio/auto-setup:1.25
+    image: temporalio/auto-setup:1.29.7   # 1.25 bare tag does not exist on Docker Hub (deploy failed 2026-08-24); pinned to current stable
     container_name: temporal-server
     restart: unless-stopped
     environment:
@@ -73,7 +73,7 @@ services:
                              # temporal-worker (its own Coolify app) via docker DNS
 
   temporal-ui:
-    image: temporalio/ui:2.31
+    image: temporalio/ui:2.53.3          # 2.31 does not exist on Docker Hub (deploy failed 2026-08-24); pinned to current stable
     container_name: temporal-ui
     restart: unless-stopped
     environment:
