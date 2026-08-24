@@ -353,3 +353,27 @@ class ChatTranscriptIngest:
             aborted_at=self._aborted_at,
             step_log=step_log,
         )
+
+
+# ---------------------------------------------------------------------------
+# P0 exit-test probe (deploy/temporal/README.md "P0 exit test"): a trivial,
+# deterministic workflow that takes ~a minute across several timer ticks so an
+# operator can `docker restart` the worker mid-run and watch it resume from
+# history. No activities, no I/O — timers only.
+# Byline: Claude Code · Fable 5 · 2026-08-24
+# ---------------------------------------------------------------------------
+
+
+@workflow.defn(name="P0DurabilityProbe")
+class P0DurabilityProbe:
+    """Sleeps ``ticks`` × ``tick_seconds`` via workflow timers, returning the
+    tick log. Restarting the worker mid-run must NOT restart the count — ticks
+    already in history replay instantly and the run completes with all ticks."""
+
+    @workflow.run
+    async def run(self, ticks: int = 6, tick_seconds: int = 10) -> list[str]:
+        log: list[str] = []
+        for i in range(ticks):
+            await workflow.sleep(tick_seconds)
+            log.append(f"tick {i + 1}/{ticks} at {workflow.now().isoformat()}")
+        return log
