@@ -154,3 +154,12 @@ Tested with a real base64 `image_url` payload:
 
 That last row matters: the main chat model **cannot** accept images, so vision requires its own node
 with its own model. It cannot ride on `N8N_INSTANCE_AI_MODEL`.
+
+## 2026-08-24 — EvidenceChunkV1 (+ chat-lane collections): add numeric epoch mirror fields BEFORE backfill
+- The n8n Weaviate node's range filters (greaterThan/lessThan) take NUMBERS only — its typed-date
+  fields are invisible to it (docs page n8n-nodes-langchain.vectorstoreweaviate, verified 2026-08-24).
+- Add `occurred_at_epoch` + `source_available_from_epoch` (int, epoch seconds) to the native
+  collection schema(s) now, while activation/backfill is still held (D-066) — retrofit later = full
+  re-projection. Applies to any collection n8n-side agents will query (D-068 architecture).
+- Standing rule from the same review: n8n gets READ-ONLY retrieval against evidence collections —
+  its Insert mode carries a "Clear Data" wipe option and must never point at them.
