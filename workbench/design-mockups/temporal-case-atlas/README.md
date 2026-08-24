@@ -1,6 +1,6 @@
 # Temporal Case Atlas Mockup
 
-> _Byline: Codex · GPT-5 · 2026-08-15_
+> _Byline: Codex · GPT-5 · 2026-08-15 · ADR-0059 amendment 2026-08-18_
 
 This standalone mockup explores the platform’s defining temporal experience:
 comparing the belief state available during an as-lived walk with a full-corpus
@@ -24,11 +24,24 @@ production integration, or build step.
   layer, separate from canonical evidence and generated work product.
 - Provider routing shows requested route versus actual model and makes clear
   that switching takes effect on the next turn.
+- First-party messages become source-visible at occurrence. Separately projected
+  acquired-third-party conversations become source-visible only at acquisition;
+  their actual sender and recipients are shown and the owner is not a participant.
+- Acquisition is not realization. A conversation can link to zero, one, or many
+  later realization atoms without rewriting the message or its availability clock.
 
 ## Safety and interaction
 
-The slider and checkpoint controls move only a visual boundary. Re-walk and
-checkpoint execution buttons remain disabled and explicitly marked held because
-the execution path is not yet proven safe. Event nodes update a readout without
-changing evidence or memory. At tablet widths, the drawer moves below the map
-while the chronology retains its scanning width.
+The slider and checkpoint controls move only a visual boundary. The local-only
+walk-state demonstrator can pause and resume a healthy checkpoint under the same
+walk identity. A failed walk must first be sealed as terminal and non-resumable;
+only then does its prototype Re-walk control become available under a new identity
+with an explicit `rewalk_of` link. None of these controls execute a backend walk,
+change evidence, or mutate memory. At tablet widths, the drawer moves below the
+map while the chronology retains its scanning width.
+
+## Active implementation hold
+
+This mockup does not activate a human projection-review API/UI or approved vector
+reprojection. Both remain implementation debt/change-order gates; the displayed
+approval and projection states are fictional UI examples only.

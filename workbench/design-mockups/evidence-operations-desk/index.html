@@ -385,6 +385,25 @@
       font-weight: 800;
     }
 
+    /* Evidence desk viewer: every transformation stays inspectable beside the jacket. */
+    .evidence-viewer { margin: 12px 18px 0 46px; border: 1px solid var(--rule-dark); background: #fffefa; }
+    .viewer-tabs { display: grid; grid-template-columns: repeat(4, 1fr); border-bottom: 1px solid var(--rule); background: var(--paper-deep); }
+    .viewer-tab { border: 0; border-right: 1px solid var(--rule); padding: 8px 5px; background: transparent; color: var(--muted); font-size: 10px; font-weight: 800; cursor: pointer; }
+    .viewer-tab:last-child { border-right: 0; }
+    .viewer-tab.active { color: var(--indigo-deep); background: #fffefa; box-shadow: inset 0 -3px var(--indigo); }
+    .viewer-panel { min-height: 170px; padding: 11px 12px; }
+    .viewer-panel[hidden] { display: none; }
+    .viewer-label { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 8px; color: var(--muted); font: 9px var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+    .message-card { padding: 9px 10px; border-left: 3px solid var(--blue-grey); background: #f0ece3; font-family: Georgia, serif; font-size: 12px; line-height: 1.5; }
+    .message-card.owner { border-left-color: var(--indigo); background: var(--indigo-pale); }
+    .message-card + .message-card { margin-top: 7px; }
+    .message-meta { display: block; margin-bottom: 3px; color: var(--muted); font: 10px var(--mono); }
+    .json-view { margin: 0; max-height: 180px; overflow: auto; white-space: pre-wrap; color: #374251; font: 10px/1.5 var(--mono); }
+    .review-decision { padding: 9px 10px; border: 1px solid #d49a47; background: var(--amber-pale); font-size: 11px; }
+    .review-decision strong { display: block; margin-bottom: 4px; color: #69420e; }
+    .decision-row { display: grid; grid-template-columns: 75px 1fr; gap: 7px; margin-top: 6px; font-size: 10px; }
+    .decision-row b { color: var(--muted); font-weight: 600; }
+
     .provenance-rail { position: relative; padding: 8px 18px 30px 46px; }
     .provenance-rail::before { content: ""; position: absolute; top: 17px; bottom: 34px; left: 31px; width: 2px; background: linear-gradient(var(--blue-grey), var(--indigo), var(--amber), var(--rule)); }
     .rail-section { position: relative; padding: 13px 0 15px; border-bottom: 1px solid var(--rule); }
@@ -642,6 +661,30 @@
           <p id="inspector-record">EV-DRAFT-0142 · SMS-00482</p>
         </header>
         <div class="warning-band" id="inspector-warning">UNSAFE FOR LEGAL USE · human review required</div>
+        <section class="evidence-viewer" aria-label="Evidence content viewer">
+          <div class="viewer-tabs" role="tablist" aria-label="Evidence views">
+            <button class="viewer-tab active" role="tab" aria-selected="true" aria-controls="view-original" data-view="original">Original</button>
+            <button class="viewer-tab" role="tab" aria-selected="false" aria-controls="view-normalized" data-view="normalized">Normalized</button>
+            <button class="viewer-tab" role="tab" aria-selected="false" aria-controls="view-context" data-view="context">Conversation</button>
+            <button class="viewer-tab" role="tab" aria-selected="false" aria-controls="view-review" data-view="review">Human review</button>
+          </div>
+          <div class="viewer-panel" id="view-original" role="tabpanel">
+            <div class="viewer-label"><span>Canonical source · read only</span><span id="original-pointer">message 482</span></div>
+            <div id="original-content"></div>
+          </div>
+          <div class="viewer-panel" id="view-normalized" role="tabpanel" hidden>
+            <div class="viewer-label"><span>Derived normalized record · not source</span><span>record view</span></div>
+            <pre class="json-view" id="normalized-content"></pre>
+          </div>
+          <div class="viewer-panel" id="view-context" role="tabpanel" hidden>
+            <div class="viewer-label"><span>Surrounding source messages</span><span>± 2 messages</span></div>
+            <div id="context-content"></div>
+          </div>
+          <div class="viewer-panel" id="view-review" role="tabpanel" hidden>
+            <div class="viewer-label"><span>Human decision log · non-canonical until approved</span><span id="review-stamp">awaiting review</span></div>
+            <div class="review-decision" id="review-content"></div>
+          </div>
+        </section>
         <div class="provenance-rail">
           <section class="rail-section">
             <i class="rail-node hash" id="custody-node" aria-hidden="true"></i>
