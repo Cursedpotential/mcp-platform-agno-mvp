@@ -10,7 +10,7 @@
 
 ## 2026-08-24
 
-### CH-20 — Temporal LIVE (P0 exit test passed); ingest mounts; agno_app cutover; n8n builder pipeline S1–S5
+### CH-21 — Temporal LIVE (P0 exit test passed); ingest mounts; agno_app cutover; n8n builder pipeline S1–S5
 
 > _Byline: Claude Code · Fable 5 · 2026-08-24. Two sessions, same day._
 
