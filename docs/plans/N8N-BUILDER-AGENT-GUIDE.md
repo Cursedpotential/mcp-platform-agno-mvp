@@ -156,3 +156,8 @@ every fucking thing." The new lane is EXPECTED TO SUCK AT FIRST and is built for
   supersedes the earlier "Claude SDK with long-lived token" line above for anything
   automated. The judge-gate workflow's pluggable slot fills with an HTTP Request to the
   Anthropic Messages API (key in Coolify env, never git).
+- **Top-judge availability ruling (owner, 2026-08-24 late):** the subscription OAuth token is
+  STAGED (worker env `CLAUDE_OAUTH_TOKEN`, gate `TOP_JUDGE_ENABLED=false`) so the capability
+  exists in the plumbing — but NOT wired: "let's see how the agents all do on their own" first.
+  Recipe when enabled: Anthropic SDK/HTTP with `auth_token` + header
+  `anthropic-beta: oauth-2025-04-20`. Enabling is an explicit owner flip, nothing implicit.
