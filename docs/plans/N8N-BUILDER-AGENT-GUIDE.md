@@ -82,3 +82,28 @@ Output contract: the final importable workflow JSON **plus a source-attribution 
   lives in Portkey config, not workflow logic.
 - **Priority: the custody handoff (shape 1) is the must-be-production-grade piece**; the rest
   may start as rough drafts and iterate.
+
+## Interview B outcomes (owner, 2026-08-24 — binding; discovery was ruled "narrow and shallow", scope widened)
+
+**Owner-added NATIVE nodes the discovery pass missed — all now IN the build set:**
+- Summarization Chain (`chainsummarization`) — the summarize leg of shape 3
+- Sentiment Analysis node — joins Information Extractor + Text Classifier in the classification suite
+- **Auto-fixing Output Parser** (`outputparserautofixing`) wrapped around the Structured Output
+  Parser — malformed JSON gets one LLM-corrected retry before failing; essential with free-tier
+  models on schema-constrained output
+- Default Data Loader (metadata passthrough) and the **Sort node** (chronological ordering —
+  temporal mandate applied inside n8n flows)
+- LangChain-layer leads to evaluate at Extract: code splitter, message serialization (maybe),
+  OpenAI metadata tagger (maybe), LLM caching (maybe), LangGraph short-term memory
+
+**Decisions:**
+- Shape 2: native Recursive splitter NOW; semantic upgrade later via (a) the community
+  semantic-splitter nodes OR (b) **wrapping chonkie/our own chunker in a Code node** — decided
+  at upgrade time, not now.
+- Shape 5: Portkey loadbalance primary. **Verify + test `n8n-nodes-roundrobin`** as supplement.
+- **NEW TIER (owner): the Claude SDK with the owner's long-lived token joins as the
+  HIGHEST-LEVEL judge** — used ONLY for the most consequential decisions/checks (top of the
+  verification gate, above the free-model judges). Verify `n8n-nodes-claude-cli` from the
+  owner's npm list as the integration path; token lives in Coolify env storage, never in git.
+- Shape 6: Portkey caps only; no PG ledger for now.
+- Shapes 1/3/4/7 winners stand, with the additions above folded in.
