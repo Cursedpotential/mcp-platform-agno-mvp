@@ -1,0 +1,207 @@
+{
+  "name": "D068 - Persist accepted results",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## PARAMETERIZED SQL ONLY\n\nThe query uses `$1 ... $13` placeholders and the Postgres node's\n**Query Parameters** option (`options.queryReplacement`), which n8n\nsanitizes. **No value is ever concatenated into the SQL string.**\n\nThis is a direct reaction to the documented anti-example\n(template 14036: 41 nodes, string-built SQL in all 6 Postgres nodes,\nzero error handling) - \"what NOT to copy\".\n\n`options.queryBatching = \"transaction\"` -> all rows in this activity\nland atomically or none do. That is what makes the activity safely\nretryable by Temporal.\n\n`ON CONFLICT ... DO NOTHING` makes a retry a no-op instead of a\nduplicate (idempotency rule).",
+        "height": 400,
+        "width": 460,
+        "color": 3
+      },
+      "id": "051a9e40-0000-0000-0000-00000000005e",
+      "name": "STICKY - NEVER string-built SQL",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -520,
+        -620
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## TABLE `analysis.chunk_classification` IS A PLACEHOLDER\n\nThe DDL is NOT part of this compose - Stage 5 owns it. Sketch of\nwhat the query assumes:\n\n```\nrecord_id           text    not null\nchunk_id            text    not null\nclassifier_version  text    not null   <-- versioned-drafts rule\nlabels              jsonb\nseverity            int\nsummary             text\nsentiment           text\njudge_verdict       text\njudge_confidence    numeric\noccurred_at         timestamptz        <-- when it HAPPENED\nclassified_at       timestamptz        <-- when it was labelled\npersisted_at        timestamptz        <-- when it landed\nbatch_id            text\nprimary key (record_id, chunk_id, classifier_version)\n```\n\nThe PK includes `classifier_version` **on purpose**: a re-classified\ncorpus writes NEW rows. Old labels are SUPERSEDED, never overwritten.\nNothing here promotes anything - promotion is a separate, human step.",
+        "height": 460,
+        "width": 500,
+        "color": 4
+      },
+      "id": "051a9e40-0000-0000-0000-00000000005f",
+      "name": "STICKY - Versioned drafts (table is a PLACEHOLDER)",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -20,
+        -620
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## PLACEHOLDERS\n- Credential **PLATFORM_PG (placeholder)** - type `postgres`.\n  Read/write ONLY on the `analysis` schema. n8n stays **read-only**\n  against evidence collections; it never writes `evidence.*`.\n- Table name `analysis.chunk_classification` - confirm at deploy.\n\n## CANNIBALIZED FROM\n- **native docs** Postgres v2.6 Execute Query + Query Parameters\n  (Shape-7 rank-1 pick) and Query Batching = Transaction.\n- **template 14036** used as an ANTI-example (string-built SQL).",
+        "height": 340,
+        "width": 440,
+        "color": 6
+      },
+      "id": "051a9e40-0000-0000-0000-000000000060",
+      "name": "STICKY - Placeholders + source attribution",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        500,
+        -620
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "d068/persist-results",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "051a9e40-0000-0000-0000-000000000061",
+      "name": "Webhook - persist results",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -520,
+        -60
+      ],
+      "webhookId": "72d1ec75-dfbe-495b-b6f1-18e68ba79b17"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Webhook body -> one item per ACCEPTED row, validated before it reaches SQL.\n// Expected POST body: { \"batch_id\": \"...\", \"items\": [ <accepted rows from wf-judge-gate> ] }\nconst body = $input.first().json.body || $input.first().json || {};\nconst items = body.items || [];\nif (!Array.isArray(items) || items.length === 0) {\n  throw new Error('persist-results: body.items must be a non-empty array of ACCEPTED rows');\n}\nconst now = Date.now();\nconst required = ['record_id', 'chunk_id', 'classifier_version'];\n\nreturn items.map((it, i) => {\n  for (const k of required) {\n    if (it[k] === undefined || it[k] === null || it[k] === '') {\n      throw new Error('persist-results: item ' + i + ' is missing ' + k);\n    }\n  }\n  if (it.gate_outcome && it.gate_outcome !== 'accepted') {\n    throw new Error('persist-results: item ' + i + ' is not accepted (gate_outcome=' +\n                    it.gate_outcome + '). needs_review rows do NOT persist here.');\n  }\n  return { json: {\n    record_id: String(it.record_id),\n    chunk_id: String(it.chunk_id),\n    classifier_version: String(it.classifier_version),\n    labels_json: JSON.stringify(it.labels || []),\n    severity: Number(it.severity != null ? it.severity : 0),\n    summary: it.summary || null,\n    sentiment: it.sentiment || null,\n    judge_verdict: it.judge_verdict || null,\n    judge_confidence: Number(it.judge_confidence != null ? it.judge_confidence : 0),\n    // TEMPORAL MANDATE: every persisted row carries when it happened, when it was labelled,\n    // and when it landed. All epoch-numeric so range filters work.\n    occurred_at_epoch_ms: Number(it.occurred_at_epoch_ms || 0),\n    classified_at_epoch_ms: Number(it.classified_at_epoch_ms || it.judged_at_epoch_ms || now),\n    persisted_at_epoch_ms: now,\n    persisted_at_iso: new Date(now).toISOString(),\n    batch_id: body.batch_id || it.batch_id || null,\n    activity_name: 'n8n.persist.results',\n  }};\n});\n"
+      },
+      "id": "051a9e40-0000-0000-0000-000000000062",
+      "name": "Normalize + Validate Accepted Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -260,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO analysis.chunk_classification (\n    record_id, chunk_id, classifier_version,\n    labels, severity, summary, sentiment,\n    judge_verdict, judge_confidence,\n    occurred_at, classified_at, persisted_at, batch_id\n) VALUES (\n    $1, $2, $3,\n    $4::jsonb, $5::int, $6, $7,\n    $8, $9::numeric,\n    to_timestamp($10::bigint / 1000.0),\n    to_timestamp($11::bigint / 1000.0),\n    to_timestamp($12::bigint / 1000.0),\n    $13\n)\nON CONFLICT (record_id, chunk_id, classifier_version) DO NOTHING\nRETURNING record_id, chunk_id, classifier_version, persisted_at;",
+        "options": {
+          "queryBatching": "transaction",
+          "queryReplacement": "={{ [ $json.record_id, $json.chunk_id, $json.classifier_version, $json.labels_json, $json.severity, $json.summary, $json.sentiment, $json.judge_verdict, $json.judge_confidence, $json.occurred_at_epoch_ms, $json.classified_at_epoch_ms, $json.persisted_at_epoch_ms, $json.batch_id ] }}",
+          "outputLargeFormatNumbers": "text"
+        }
+      },
+      "id": "051a9e40-0000-0000-0000-000000000063",
+      "name": "Postgres - Insert Classification (parameterized)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        40,
+        -60
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_ME",
+          "name": "PLATFORM_PG (placeholder)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "jsCode": "// Activity result: what landed, under which classifier version, and when.\nconst rows = $input.all().map(i => i.json);\nconst src = $('Normalize + Validate Accepted Rows').all().map(i => i.json);\nconst now = Date.now();\nreturn [{ json: {\n  activity_name: 'n8n.persist.results',\n  status: 'completed',\n  batch_id: src.length ? src[0].batch_id : null,\n  classifier_version: src.length ? src[0].classifier_version : null,\n  submitted_count: src.length,\n  inserted_count: rows.filter(r => r && r.record_id).length,\n  skipped_existing_count: src.length - rows.filter(r => r && r.record_id).length,\n  persisted_at_epoch_ms: now,\n  persisted_at_iso: new Date(now).toISOString(),\n  rows: rows,\n}}];\n"
+      },
+      "id": "051a9e40-0000-0000-0000-000000000064",
+      "name": "Build Confirmation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        340,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "051a9e40-0000-0000-0000-000000000065",
+      "name": "Respond - persist confirmation",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        620,
+        -60
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - persist results": {
+      "main": [
+        [
+          {
+            "node": "Normalize + Validate Accepted Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize + Validate Accepted Rows": {
+      "main": [
+        [
+          {
+            "node": "Postgres - Insert Classification (parameterized)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres - Insert Classification (parameterized)": {
+      "main": [
+        [
+          {
+            "node": "Build Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Confirmation": {
+      "main": [
+        [
+          {
+            "node": "Respond - persist confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "REPLACE_WITH_WF_ERROR_HANDLER_ID",
+    "timezone": "UTC"
+  },
+  "versionId": "582efa63-805a-449f-a3ca-bf7e68297f2a",
+  "meta": {
+    "instanceId": "REPLACE_WITH_N8N_INSTANCE_ID",
+    "templateCredsSetupCompleted": false
+  },
+  "tags": [
+    {
+      "name": "d068"
+    },
+    {
+      "name": "stage-4-composed"
+    }
+  ]
+}

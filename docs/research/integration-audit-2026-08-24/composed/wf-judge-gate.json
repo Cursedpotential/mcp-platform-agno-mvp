@@ -1,0 +1,681 @@
+{
+  "name": "D068 - Judge gate (accepted / needs_review)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## ANTI-OVER-FLAGGING (owner rule, load-bearing)\n\nThe previous attempt \"flagged every fucking thing\". This gate is\nbuilt so that CANNOT happen:\n\n- Two outcomes only: **accepted** and **needs_review**.\n  There is no flag branch. Low confidence -> **unreviewed**, never\n  a flag. A flag fired wrongly a thousand times is worse than no flag.\n- The gate is an AND: `confidence >= {{THRESHOLD}}` **and**\n  `verdict == \"pass\"`. Either miss -> needs_review.\n- needs_review is a QUEUE, not a finding. Nothing downstream may\n  render it as an alert, a hit, or evidence of anything.\n\n`{{THRESHOLD}}` default **0.7**; overridable per batch via\n`body.threshold`.",
+        "height": 380,
+        "width": 460,
+        "color": 3
+      },
+      "id": "051a9e40-0000-0000-0000-00000000002d",
+      "name": "STICKY - Anti-over-flagging",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -520,
+        -640
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## TOP-JUDGE SLOT - HIGH-STAKES ITEMS ONLY\n\nInterview B added a HIGHEST tier above the free-model judges:\nthe **Claude SDK / long-lived token**, used ONLY for the most\nconsequential decisions - never on every chunk.\n\nWiring it is a SEPARATE deploy task, deliberately NOT done here:\n- `n8n-nodes-claude-cli` (verified real, MIT, but ~6 weeks old,\n  single maintainer, 0 stars) needs the `claude` binary INSIDE the\n  n8n container -> a **custom n8n image via Coolify**, same shape as\n  the existing custom graphiti-mcp image.\n- Auth = `claude setup-token` long-lived token in Coolify env\n  storage (never git), or a read-only `~/.claude` mount.\n- **ToS caveat, raised by the package's own author**: driving a\n  Pro/Max subscription through recurring automation may conflict\n  with Anthropic's subscription terms. **PENDING OWNER RULING** -\n  do not enable on a schedule before that decision.\n\nThe disabled `TOP-JUDGE SLOT` No-Op node marks the insertion point.",
+        "height": 440,
+        "width": 500,
+        "color": 7
+      },
+      "id": "051a9e40-0000-0000-0000-00000000002e",
+      "name": "STICKY - TOP-JUDGE SLOT (pluggable, pending owner ruling)",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -20,
+        -640
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## OPTIONAL: COUNCIL PATTERN (reserved, NOT built)\n\nReference: **template-12316** \"OpenRouter council\"\n(n8n.io/workflows/12316, extracted in Stage 3).\n\n3 stages: N models answer independently -> responses are\n**anonymized** and cross-ranked by the models themselves ->\na chairman model synthesizes the verdict.\n\nInvoke it ONLY when this single-judge gate is inconclusive on a\nhigh-stakes chunk - never per chunk (cost/rate-limit sanity).\nThe anonymize-before-ranking step is the de-biasing detail worth\ncarrying over verbatim if this is ever built.\n\nAlso parked as a cheap pre-filter candidate:\n`bespoke-minicheck` via Ollama (awesome-hallucination-detection.json).",
+        "height": 400,
+        "width": 460,
+        "color": 5
+      },
+      "id": "051a9e40-0000-0000-0000-00000000002f",
+      "name": "STICKY - Optional council pattern",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        520,
+        -640
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## PLACEHOLDERS\n\n- `{{PORTKEY_BASE_URL}}` / `{{PORTKEY_CONFIG_ID}}` on credential\n  **PORTKEY_GATEWAY (placeholder)** (`openAiApi` type)\n- `{{PORTKEY_JUDGE_MODEL}}` - the SECOND model; it MUST NOT be the\n  same model that produced the classification.\n- `{{PORTKEY_FIXER_MODEL}}` - stronger tier for the auto-fix retry.\n- `{{THRESHOLD}}` - default 0.7.\n\n## CANNIBALIZED FROM\n- **template-15229** -> the IF-gate wiring: one confidence check\n  branching to a needs-review path vs a silent continue.\n  (Its `@easybits/...` extractor node was discarded - native\n  Structured Output Parser covers it.)\n- **template-12316** -> council pattern (reference only).\n- **native docs** Basic LLM Chain, Auto-fixing + Structured parsers,\n  IF v2.3, Loop Over Items v3.",
+        "height": 460,
+        "width": 460,
+        "color": 6
+      },
+      "id": "051a9e40-0000-0000-0000-000000000030",
+      "name": "STICKY - Placeholders + source attribution",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1020,
+        -640
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "d068/judge-gate",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "051a9e40-0000-0000-0000-000000000031",
+      "name": "Webhook - judge gate",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -520,
+        -80
+      ],
+      "webhookId": "56ca707d-7648-434f-b55d-a7cc308e9349"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Webhook body -> one item per classification result awaiting judgement.\n// Expected POST body:\n//   { \"batch_id\": \"...\", \"threshold\": 0.7, \"items\":\n//       [ { \"record_id\",\"chunk_id\",\"chunk_text\",\"labels\",\"severity\",\"summary\",\"sentiment\",\n//           \"occurred_at_epoch_ms\",\"classifier_version\" }, ... ] }\nconst body = $input.first().json.body || $input.first().json || {};\nconst items = body.items || [];\nif (!Array.isArray(items) || items.length === 0) {\n  throw new Error('judge-gate: body.items must be a non-empty array of classification results');\n}\nconst now = Date.now();\n// {{THRESHOLD}} - default 0.7. Caller may override per batch; deploy may hard-code it here.\nconst threshold = Number(body.threshold != null ? body.threshold : 0.7);\n\nreturn items.map((it, i) => ({ json: Object.assign({}, it, {\n  batch_id: body.batch_id || ('judge-' + now),\n  batch_index: i,\n  threshold: threshold,\n  judged_at_epoch_ms: now,\n  judged_at_iso: new Date(now).toISOString(),\n  activity_name: 'n8n.judge.gate',\n})}));\n"
+      },
+      "id": "051a9e40-0000-0000-0000-000000000032",
+      "name": "Normalize Classification Batch",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -280,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 10,
+        "options": {}
+      },
+      "id": "051a9e40-0000-0000-0000-000000000033",
+      "name": "Loop Over Items (small batches)",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -40,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "hasOutputParser": true,
+        "text": "=CHUNK (occurred {{ $json.occurred_at_iso }} / epoch ms {{ $json.occurred_at_epoch_ms }}):\n{{ $json.chunk_text }}\n\nDRAFT CLASSIFICATION produced by classifier_version {{ $json.classifier_version }}:\nlabels: {{ JSON.stringify($json.labels) }}\nseverity: {{ $json.severity }}\nsummary: {{ $json.summary }}\nsentiment: {{ $json.sentiment }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "You are an independent reviewer. You did NOT write the draft classification.\nDecide whether the draft is SUPPORTED BY THE CHUNK TEXT ALONE.\nJudge only against information available at or before the chunk timestamp.\nReport your calibrated confidence in your own verdict. If you are unsure, report LOW confidence - a low score routes the item to an unreviewed queue, which is the correct and harmless outcome. Never inflate confidence."
+            }
+          ]
+        }
+      },
+      "id": "051a9e40-0000-0000-0000-000000000034",
+      "name": "Judge - Second Model",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.5,
+      "position": [
+        260,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "{{PORTKEY_JUDGE_MODEL}}",
+          "cachedResultName": "{{PORTKEY_JUDGE_MODEL}}"
+        },
+        "options": {
+          "temperature": 0
+        }
+      },
+      "id": "051a9e40-0000-0000-0000-000000000035",
+      "name": "Portkey Gateway - Judge Tier",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        140,
+        320
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "REPLACE_ME",
+          "name": "PORTKEY_GATEWAY (placeholder)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "051a9e40-0000-0000-0000-000000000036",
+      "name": "Auto-fixing Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserAutofixing",
+      "typeVersion": 1,
+      "position": [
+        400,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"verdict\": {\n      \"type\": \"string\",\n      \"enum\": [\n        \"pass\",\n        \"fail\"\n      ],\n      \"description\": \"pass = the draft classification is supported by the chunk text.\"\n    },\n    \"confidence\": {\n      \"type\": \"number\",\n      \"minimum\": 0,\n      \"maximum\": 1,\n      \"description\": \"Your own calibrated confidence IN THE VERDICT. When unsure, go LOW.\"\n    },\n    \"reasons\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      },\n      \"description\": \"Short, concrete reasons quoting or pointing at the chunk.\"\n    }\n  },\n  \"required\": [\n    \"verdict\",\n    \"confidence\",\n    \"reasons\"\n  ],\n  \"additionalProperties\": false\n}"
+      },
+      "id": "051a9e40-0000-0000-0000-000000000037",
+      "name": "Structured Output Parser (verdict)",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        580,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "{{PORTKEY_FIXER_MODEL}}",
+          "cachedResultName": "{{PORTKEY_FIXER_MODEL}}"
+        },
+        "options": {
+          "temperature": 0
+        }
+      },
+      "id": "051a9e40-0000-0000-0000-000000000038",
+      "name": "Portkey Gateway - Fixer Tier (stronger)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        480
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "REPLACE_ME",
+          "name": "PORTKEY_GATEWAY (placeholder)"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "051a9e40-0000-0000-0000-000000000039",
+      "name": "TOP-JUDGE SLOT (Claude SDK - pending ToS ruling)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        260,
+        -300
+      ],
+      "disabled": true,
+      "notes": "Pluggable high-stakes judge. Not wired: needs a custom n8n image with the claude CLI + long-lived token, and an owner ToS decision."
+    },
+    {
+      "parameters": {
+        "options": {},
+        "conditions": {
+          "options": {
+            "version": 3,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "051a9e40-0000-0000-0000-00000000003a",
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              },
+              "leftValue": "={{ $json.output.confidence }}",
+              "rightValue": "={{ $('Loop Over Items (small batches)').item.json.threshold }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-00000000003b",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "leftValue": "={{ $json.output.verdict }}",
+              "rightValue": "pass"
+            }
+          ]
+        }
+      },
+      "id": "051a9e40-0000-0000-0000-00000000003c",
+      "name": "IF - confidence >= threshold AND verdict = pass",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        620,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "051a9e40-0000-0000-0000-00000000003d",
+              "name": "gate_outcome",
+              "type": "string",
+              "value": "accepted"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-00000000003e",
+              "name": "record_id",
+              "type": "string",
+              "value": "={{ $('Loop Over Items (small batches)').item.json.record_id }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-00000000003f",
+              "name": "chunk_id",
+              "type": "string",
+              "value": "={{ $('Loop Over Items (small batches)').item.json.chunk_id }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-000000000040",
+              "name": "labels",
+              "type": "array",
+              "value": "={{ $('Loop Over Items (small batches)').item.json.labels }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-000000000041",
+              "name": "severity",
+              "type": "number",
+              "value": "={{ $('Loop Over Items (small batches)').item.json.severity }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-000000000042",
+              "name": "summary",
+              "type": "string",
+              "value": "={{ $('Loop Over Items (small batches)').item.json.summary }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-000000000043",
+              "name": "sentiment",
+              "type": "string",
+              "value": "={{ $('Loop Over Items (small batches)').item.json.sentiment }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-000000000044",
+              "name": "classifier_version",
+              "type": "string",
+              "value": "={{ $('Loop Over Items (small batches)').item.json.classifier_version }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-000000000045",
+              "name": "occurred_at_epoch_ms",
+              "type": "number",
+              "value": "={{ $('Loop Over Items (small batches)').item.json.occurred_at_epoch_ms }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-000000000046",
+              "name": "threshold",
+              "type": "number",
+              "value": "={{ $('Loop Over Items (small batches)').item.json.threshold }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-000000000047",
+              "name": "batch_id",
+              "type": "string",
+              "value": "={{ $('Loop Over Items (small batches)').item.json.batch_id }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-000000000048",
+              "name": "judge_verdict",
+              "type": "string",
+              "value": "={{ $json.output.verdict }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-000000000049",
+              "name": "judge_confidence",
+              "type": "number",
+              "value": "={{ $json.output.confidence }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-00000000004a",
+              "name": "judge_reasons",
+              "type": "array",
+              "value": "={{ $json.output.reasons }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-00000000004b",
+              "name": "judged_at_epoch_ms",
+              "type": "number",
+              "value": "={{ Date.now() }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-00000000004c",
+              "name": "judged_at_iso",
+              "type": "string",
+              "value": "={{ new Date().toISOString() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "051a9e40-0000-0000-0000-00000000004d",
+      "name": "Mark accepted",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        900,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "051a9e40-0000-0000-0000-00000000004e",
+              "name": "gate_outcome",
+              "type": "string",
+              "value": "needs_review"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-00000000004f",
+              "name": "record_id",
+              "type": "string",
+              "value": "={{ $('Loop Over Items (small batches)').item.json.record_id }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-000000000050",
+              "name": "chunk_id",
+              "type": "string",
+              "value": "={{ $('Loop Over Items (small batches)').item.json.chunk_id }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-000000000051",
+              "name": "classifier_version",
+              "type": "string",
+              "value": "={{ $('Loop Over Items (small batches)').item.json.classifier_version }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-000000000052",
+              "name": "occurred_at_epoch_ms",
+              "type": "number",
+              "value": "={{ $('Loop Over Items (small batches)').item.json.occurred_at_epoch_ms }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-000000000053",
+              "name": "threshold",
+              "type": "number",
+              "value": "={{ $('Loop Over Items (small batches)').item.json.threshold }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-000000000054",
+              "name": "batch_id",
+              "type": "string",
+              "value": "={{ $('Loop Over Items (small batches)').item.json.batch_id }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-000000000055",
+              "name": "judge_verdict",
+              "type": "string",
+              "value": "={{ $json.output ? $json.output.verdict : null }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-000000000056",
+              "name": "judge_confidence",
+              "type": "number",
+              "value": "={{ $json.output ? $json.output.confidence : 0 }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-000000000057",
+              "name": "judge_reasons",
+              "type": "array",
+              "value": "={{ $json.output ? $json.output.reasons : [] }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-000000000058",
+              "name": "review_state",
+              "type": "string",
+              "value": "unreviewed"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-000000000059",
+              "name": "judged_at_epoch_ms",
+              "type": "number",
+              "value": "={{ Date.now() }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-00000000005a",
+              "name": "judged_at_iso",
+              "type": "string",
+              "value": "={{ new Date().toISOString() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "051a9e40-0000-0000-0000-00000000005b",
+      "name": "Mark needs_review (UNREVIEWED - not a flag)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        900,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Split the judged rows into the TWO outputs this activity promises.\n// ANTI-OVER-FLAGGING (owner rule): there is no \"flagged\" bucket here.\n// Anything that fails the gate goes to needs_review = UNREVIEWED. It is not a finding,\n// not an alert, and nothing downstream may treat it as one.\nconst rows = $input.all().map(i => i.json);\nconst accepted = rows.filter(r => r.gate_outcome === 'accepted');\nconst needsReview = rows.filter(r => r.gate_outcome !== 'accepted');\nconst now = Date.now();\nreturn [{ json: {\n  activity_name: 'n8n.judge.gate',\n  status: 'completed',\n  batch_id: rows.length ? rows[0].batch_id : null,\n  threshold: rows.length ? rows[0].threshold : null,\n  counts: { total: rows.length, accepted: accepted.length, needs_review: needsReview.length },\n  completed_at_epoch_ms: now,\n  completed_at_iso: new Date(now).toISOString(),\n  accepted: accepted,\n  needs_review: needsReview,\n}}];\n"
+      },
+      "id": "051a9e40-0000-0000-0000-00000000005c",
+      "name": "Split accepted / needs_review",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        -180
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "051a9e40-0000-0000-0000-00000000005d",
+      "name": "Respond - gate result",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        520,
+        -180
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - judge gate": {
+      "main": [
+        [
+          {
+            "node": "Normalize Classification Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Classification Batch": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items (small batches)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items (small batches)": {
+      "main": [
+        [
+          {
+            "node": "Split accepted / needs_review",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Judge - Second Model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Judge - Second Model": {
+      "main": [
+        [
+          {
+            "node": "IF - confidence >= threshold AND verdict = pass",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - confidence >= threshold AND verdict = pass": {
+      "main": [
+        [
+          {
+            "node": "Mark accepted",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark needs_review (UNREVIEWED - not a flag)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark accepted": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items (small batches)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark needs_review (UNREVIEWED - not a flag)": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items (small batches)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split accepted / needs_review": {
+      "main": [
+        [
+          {
+            "node": "Respond - gate result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Portkey Gateway - Judge Tier": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Judge - Second Model",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Portkey Gateway - Fixer Tier (stronger)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Auto-fixing Output Parser",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auto-fixing Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Judge - Second Model",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser (verdict)": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Auto-fixing Output Parser",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "REPLACE_WITH_WF_ERROR_HANDLER_ID",
+    "timezone": "UTC"
+  },
+  "versionId": "80ecebf2-39fa-4b15-b37d-f47707db6204",
+  "meta": {
+    "instanceId": "REPLACE_WITH_N8N_INSTANCE_ID",
+    "templateCredsSetupCompleted": false
+  },
+  "tags": [
+    {
+      "name": "d068"
+    },
+    {
+      "name": "stage-4-composed"
+    }
+  ]
+}

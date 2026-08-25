@@ -1,0 +1,353 @@
+{
+  "name": "D068 - Intake: drop-dir -> custody door",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## wf-intake-dropdir - DEPLOY PREREQUISITES\n\n**1. The trigger is DISABLED BY DEFAULT.**\n`n8n-nodes-base.localFileTrigger` ships inside the default\n`NODES_EXCLUDE` list from n8n 2.0\n(`[\"n8n-nodes-base.executeCommand\",\"n8n-nodes-base.localFileTrigger\"]`).\nIt must be removed from `NODES_EXCLUDE` **via env on the Coolify app**\nand the container redeployed (Coolify bakes env values into the rendered\ncompose at deploy - a restart is NOT enough).\n\n**2. `/data/ingest` is a CONTAINER PATH, not a host path.**\nIt must exist as a bind-mount into the n8n container. Host side is chosen\nat deploy; the workflow only ever sees `/data/ingest`.\n\n**3. Self-hosted only** - this node does not exist on n8n Cloud.\nTarget instance: n8n **2.36.6** self-hosted (lane-6 audit).",
+        "height": 480,
+        "width": 460,
+        "color": 3
+      },
+      "id": "051a9e40-0000-0000-0000-000000000001",
+      "name": "STICKY - Deploy prerequisites",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -460,
+        -560
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## CUSTODY BOUNDARY (D-068 - non-negotiable)\n\nn8n **never** hashes, never chunks, never stores evidence.\nThis activity hands the RAW FILE to the platform custody door\n(`POST {{PLATFORM_API}}/v1/ingest`, multipart) and receives\n**record/run IDs** back. Everything downstream consumes IDs.\n\nThe hash chain (H1/H2/H3), canon tags, registry + doc + vector\nwrites all happen **behind that door**, platform-side.\n\nIf this workflow ever grows a hashing node, that is a defect.",
+        "height": 360,
+        "width": 420,
+        "color": 7
+      },
+      "id": "051a9e40-0000-0000-0000-000000000002",
+      "name": "STICKY - Custody boundary",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        520,
+        -560
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## PLACEHOLDERS TO FILL AT DEPLOY\n\n- `{{PLATFORM_API}}` -> base URL of the platform API\n  (final URL: `{{PLATFORM_API}}/v1/ingest`)\n- Credential **PLATFORM_API_BEARER (placeholder)** - generic\n  `httpBearerAuth`; the door needs the global bearer **and**\n  re-checks route-locally (`/v1/ingest` -> `_authorize()`).\n- `/data/ingest` - confirm the container mount path.\n\n**NO credential VALUES live in this file.** Named placeholders only.",
+        "height": 320,
+        "width": 420,
+        "color": 6
+      },
+      "id": "051a9e40-0000-0000-0000-000000000003",
+      "name": "STICKY - Placeholders",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1000,
+        -560
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## CANNIBALIZED FROM\n\n- **template-2334** \"Organise your local file directories with AI\"\n  -> Local File Trigger -> downstream-handoff wiring.\n  (n8n.io/workflows/2334 - shape only; JSON was NOT extracted in\n  Stage 3, so the trigger config here comes from the native docs\n  snapshot in `extracted/native-node-notes.md`, not from the\n  template file. Flagged, not hidden.)\n- **template-3297** \"Monitor Dropbox folders ... with DB comparison\"\n  -> the diff/dedupe guard, and the \"hand off, don't do the heavy\n  work here\" boundary (its `executeWorkflow` nodes).\n  (n8n.io/workflows/3297 - JSON extracted, see `extracted/`.)\n- **native docs** Local File Trigger / HTTP Request / Read-Write\n  Files From Disk (Shape-1 rank-1 pick, native-first rule).",
+        "height": 420,
+        "width": 440,
+        "color": 5
+      },
+      "id": "051a9e40-0000-0000-0000-000000000004",
+      "name": "STICKY - Source attribution",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1480,
+        -560
+      ]
+    },
+    {
+      "parameters": {
+        "triggerOn": "folder",
+        "path": "/data/ingest",
+        "events": [
+          "add"
+        ],
+        "options": {
+          "followSymlinks": false,
+          "usePolling": true,
+          "depth": -1,
+          "ignored": "**/*.partial,**/*.crdownload,**/.DS_Store"
+        }
+      },
+      "id": "051a9e40-0000-0000-0000-000000000005",
+      "name": "Watch /data/ingest (add events, recursive)",
+      "type": "n8n-nodes-base.localFileTrigger",
+      "typeVersion": 1,
+      "position": [
+        -440,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "={{ $json.path }}",
+        "options": {
+          "dataPropertyName": "data"
+        }
+      },
+      "id": "051a9e40-0000-0000-0000-000000000006",
+      "name": "Read File From Disk",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        -160,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Idempotency key + in-run dedupe guard.\n// Cannibalized from template-3297 (\"Merge - Keep only new items\" diff/dedupe), reduced to a\n// STATELESS form: this activity body keeps no state between runs (wrap = activity principle).\n// Cross-run dedupe is the platform custody door's job: it derives run IDs from the object key,\n// so re-POSTing the same idempotency_key is a no-op there (standing idempotency rule).\n// NOTE: no require() anywhere - pure JS FNV-1a so the node works regardless of\n// NODE_FUNCTION_ALLOW_BUILTIN on the instance.\nfunction fnv1a(str) {\n  let h = 0x811c9dc5;\n  for (let i = 0; i < str.length; i++) {\n    h ^= str.charCodeAt(i);\n    h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;\n  }\n  return ('00000000' + h.toString(16)).slice(-8);\n}\n\nconst seen = new Set();\nconst out = [];\nconst nowMs = Date.now();\n\nfor (const item of $input.all()) {\n  const j = item.json || {};\n  const bin = (item.binary && item.binary.data) || {};\n  const path = j.path || j.fileName || bin.fileName || '';\n  // fileSize is a display string from Read/Write Files From Disk (e.g. \"12.3 kB\");\n  // fileSizeBytes is not guaranteed, so both are folded into the key material.\n  const sizeRaw = String(bin.fileSize != null ? bin.fileSize : (j.size != null ? j.size : ''));\n  const keyMaterial = path + '|' + sizeRaw;\n  const idempotencyKey = 'dropdir-' + fnv1a(keyMaterial) + '-' + fnv1a(path);\n\n  if (seen.has(idempotencyKey)) { continue; }   // duplicate inside THIS batch only\n  seen.add(idempotencyKey);\n\n  out.push({\n    json: {\n      idempotency_key: idempotencyKey,\n      source_path: path,\n      source_size_display: sizeRaw,\n      source_mime: bin.mimeType || null,\n      trigger_event: j.event || 'add',\n      // TEMPORAL MANDATE: epoch-numeric + ISO ride through every payload, every hop.\n      observed_at_epoch_ms: nowMs,\n      observed_at_iso: new Date(nowMs).toISOString(),\n      pipeline_stage: 'intake.dropdir',\n      activity_name: 'n8n.intake.dropdir',       // 1:1 with the Temporal activity (Stage 5)\n    },\n    binary: item.binary,\n  });\n}\n\nreturn out;\n"
+      },
+      "id": "051a9e40-0000-0000-0000-000000000007",
+      "name": "Idempotency Key + In-Run Dedupe Guard",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        120,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "{{PLATFORM_API}}/v1/ingest",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Idempotency-Key",
+              "value": "={{ $json.idempotency_key }}"
+            },
+            {
+              "name": "X-Observed-At-Epoch-Ms",
+              "value": "={{ $json.observed_at_epoch_ms }}"
+            }
+          ]
+        },
+        "contentType": "multipart-form-data",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "idempotency_key",
+              "value": "={{ $json.idempotency_key }}"
+            },
+            {
+              "name": "source_path",
+              "value": "={{ $json.source_path }}"
+            },
+            {
+              "name": "observed_at_epoch_ms",
+              "value": "={{ $json.observed_at_epoch_ms }}"
+            },
+            {
+              "name": "observed_at_iso",
+              "value": "={{ $json.observed_at_iso }}"
+            },
+            {
+              "name": "origin",
+              "value": "n8n.intake.dropdir"
+            }
+          ]
+        },
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 5,
+              "batchInterval": 1000
+            }
+          },
+          "response": {
+            "response": {
+              "neverError": false,
+              "fullResponse": false
+            }
+          },
+          "timeout": 120000
+        }
+      },
+      "id": "051a9e40-0000-0000-0000-000000000008",
+      "name": "POST -> Platform Custody Door",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        420,
+        -80
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "REPLACE_ME",
+          "name": "PLATFORM_API_BEARER (placeholder)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "051a9e40-0000-0000-0000-000000000009",
+              "name": "run_id",
+              "type": "string",
+              "value": "={{ $json.run_id }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-00000000000a",
+              "name": "workflow",
+              "type": "string",
+              "value": "={{ $json.workflow }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-00000000000b",
+              "name": "mode",
+              "type": "string",
+              "value": "={{ $json.mode }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-00000000000c",
+              "name": "status",
+              "type": "string",
+              "value": "={{ $json.status }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-00000000000d",
+              "name": "idempotency_key",
+              "type": "string",
+              "value": "={{ $('Idempotency Key + In-Run Dedupe Guard').item.json.idempotency_key }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-00000000000e",
+              "name": "source_path",
+              "type": "string",
+              "value": "={{ $('Idempotency Key + In-Run Dedupe Guard').item.json.source_path }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-00000000000f",
+              "name": "observed_at_epoch_ms",
+              "type": "number",
+              "value": "={{ $('Idempotency Key + In-Run Dedupe Guard').item.json.observed_at_epoch_ms }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-000000000010",
+              "name": "handed_off_at_epoch_ms",
+              "type": "number",
+              "value": "={{ Date.now() }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-000000000011",
+              "name": "handed_off_at_iso",
+              "type": "string",
+              "value": "={{ new Date().toISOString() }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-000000000012",
+              "name": "activity_name",
+              "type": "string",
+              "value": "n8n.intake.dropdir"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "051a9e40-0000-0000-0000-000000000013",
+      "name": "Emit Record IDs",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        700,
+        -80
+      ]
+    }
+  ],
+  "connections": {
+    "Watch /data/ingest (add events, recursive)": {
+      "main": [
+        [
+          {
+            "node": "Read File From Disk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read File From Disk": {
+      "main": [
+        [
+          {
+            "node": "Idempotency Key + In-Run Dedupe Guard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Idempotency Key + In-Run Dedupe Guard": {
+      "main": [
+        [
+          {
+            "node": "POST -> Platform Custody Door",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST -> Platform Custody Door": {
+      "main": [
+        [
+          {
+            "node": "Emit Record IDs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "REPLACE_WITH_WF_ERROR_HANDLER_ID",
+    "timezone": "UTC"
+  },
+  "versionId": "c3a9cc98-a615-4ece-b496-c52664054571",
+  "meta": {
+    "instanceId": "REPLACE_WITH_N8N_INSTANCE_ID",
+    "templateCredsSetupCompleted": false
+  },
+  "tags": [
+    {
+      "name": "d068"
+    },
+    {
+      "name": "stage-4-composed"
+    }
+  ]
+}

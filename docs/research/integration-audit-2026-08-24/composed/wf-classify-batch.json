@@ -1,0 +1,538 @@
+{
+  "name": "D068 - Classify batch (chunks -> draft labels)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## OWNER RULE: SMALL BATCHES, ALWAYS\n\n\"never giant runs - process in small batches, then STOP: test,\nlook at output together, adjust, run the next batch.\"\n\n`Loop Over Items` **Batch Size = 10** is a deliberately small\nSTART value, not a throughput target. Tune DOWN before up.\nRate-limit safety AND review cadence in one knob.\n\nPacing/quota enforcement itself lives in **Portkey** (per-provider\nlimits), not in n8n counters (Shape-6 ruling).",
+        "height": 300,
+        "width": 420,
+        "color": 3
+      },
+      "id": "051a9e40-0000-0000-0000-000000000014",
+      "name": "STICKY - Small batches rule",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -500,
+        -620
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## EVERY OUTPUT IS A DRAFT BY DESIGN\n\n`classifier_version` rides on every row. Nothing downstream may\ntreat these labels as authoritative; NOTHING auto-promotes off a\nclassification alone.\n\nRe-classification must be cheap and TOTAL: bump the version,\nre-run the corpus, compare. Old labels are **superseded, not\noverwritten**.\n\nAnti-over-flagging: the schema tells the model that low certainty\nbiases severity LOW. Flagging decisions are NOT made here - they\nare made (or refused) in `wf-judge-gate`.",
+        "height": 320,
+        "width": 440,
+        "color": 4
+      },
+      "id": "051a9e40-0000-0000-0000-000000000015",
+      "name": "STICKY - Everything here is a DRAFT",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -620
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## MODEL CALLS -> SELF-HOSTED PORTKEY (Shape 5)\n\nNo Portkey n8n node exists (verified: npm has none). The sanctioned\npath is the **native OpenAI Chat Model node pointed at our gateway**:\n\n- Credential **PORTKEY_GATEWAY (placeholder)** of type `openAiApi`\n  - Base URL = `{{PORTKEY_BASE_URL}}`  (OUR self-hosted gateway,\n    never api.portkey.ai)\n  - API Key  = the Portkey key whose attached config is\n    `{{PORTKEY_CONFIG_ID}}` (`strategy.mode = loadbalance`,\n    targets = NIM / Gemini x4 keys / OpenRouter free / Ollama)\n- Model id placeholders: `{{PORTKEY_CLASSIFY_MODEL}}` (cheap tier),\n  `{{PORTKEY_FIXER_MODEL}}` (stronger tier).\n- n8n will warn \"can't validate credential against OpenAI\" - expected\n  and harmless (confirmed by Portkey staff on the n8n forum).\n\nRotation across the free pool is the GATEWAY's job. n8n makes ONE call.",
+        "height": 420,
+        "width": 480,
+        "color": 6
+      },
+      "id": "051a9e40-0000-0000-0000-000000000016",
+      "name": "STICKY - Portkey placeholders",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        440,
+        -620
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## DEVIATION - RECORDED, NOT HIDDEN\n\nThe Stage-4 brief asked for **Information Extractor** with an\n**Auto-fixing Output Parser wrapped over a Structured Output Parser**.\n\nIn n8n 2.36.6 the Information Extractor node accepts **only** a\n`ai_languageModel` sub-node - it has no output-parser input and no\n\"Enable Auto-Fixing\" toggle (verified against docs.n8n.io on\n2026-08-24; it uses a Structured Output Parser internally).\n\nSo both instructions are honoured by splitting them:\n1. **Information Extractor (Define using JSON Schema)** = the primary\n   pass (native-first rule).\n2. On a parse/extract failure its **error output** routes to\n   **Repair - Basic LLM Chain**, which DOES carry\n   `Auto-fixing Output Parser -> Structured Output Parser` with a\n   STRONGER fix-up model. That is exactly the \"one LLM-corrected\n   retry before failing\" Interview B required for free-tier models.\n\nSub-node gotcha: expressions inside ANY sub-node resolve to the\nFIRST item only - never put per-item expressions in the parsers.",
+        "height": 460,
+        "width": 500,
+        "color": 7
+      },
+      "id": "051a9e40-0000-0000-0000-000000000017",
+      "name": "STICKY - Extractor vs auto-fixing parser (deviation, read me)",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        960,
+        -620
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## CANNIBALIZED FROM\n\n- **template-7633** \"Smart Gmail Labeling ... Text Classifier\"\n  -> the `Loop Over Items` (output 1 = loop) -> AI node -> action ->\n  loop-back-to-input wiring, and output 0 (done) as the collector.\n  n8n.io/workflows/7633\n- **native docs** Sort v2 (chronological, epoch field, ascending),\n  Information Extractor v1.2, Structured Output Parser v1.3,\n  Auto-fixing Output Parser, Loop Over Items v3.\n- **Portkey vendor docs** - base-URL override + loadbalance config.",
+        "height": 300,
+        "width": 440,
+        "color": 5
+      },
+      "id": "051a9e40-0000-0000-0000-000000000018",
+      "name": "STICKY - Source attribution",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1500,
+        -620
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "d068/classify-batch",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "051a9e40-0000-0000-0000-000000000019",
+      "name": "Webhook - classify batch",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -500,
+        -60
+      ],
+      "webhookId": "4481265a-b5f9-4f20-998b-312db0ac87ac"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Webhook body -> one item per chunk, with the temporal fields the Sort node needs.\n// Expected POST body:\n//   { \"batch_id\": \"...\", \"classifier_version\": \"...\", \"items\":\n//       [ { \"record_id\": \"...\", \"chunk_id\": \"...\", \"chunk_text\": \"...\",\n//           \"occurred_at_epoch_ms\": 1756070000000 }, ... ] }\nconst body = $input.first().json.body || $input.first().json || {};\nconst items = body.items || [];\nif (!Array.isArray(items) || items.length === 0) {\n  throw new Error('classify-batch: body.items must be a non-empty array of chunk records');\n}\nconst receivedAt = Date.now();\nconst batchId = body.batch_id || ('batch-' + receivedAt);\n// PLACEHOLDER: the classifier version travels with every row (versioned-drafts rule).\nconst classifierVersion = body.classifier_version || '{{CLASSIFIER_VERSION}}';\n\nreturn items.map((it, i) => {\n  if (!it.record_id || !it.chunk_id) {\n    throw new Error('classify-batch: every item needs record_id and chunk_id (IDs only - never raw evidence)');\n  }\n  const occurred = Number(it.occurred_at_epoch_ms || 0);\n  return { json: {\n    batch_id: batchId,\n    batch_index: i,\n    record_id: it.record_id,\n    chunk_id: it.chunk_id,\n    chunk_text: String(it.chunk_text || ''),\n    // TEMPORAL MANDATE: epoch-numeric so the Sort node compares numbers, plus ISO for humans.\n    occurred_at_epoch_ms: occurred,\n    occurred_at_iso: occurred ? new Date(occurred).toISOString() : null,\n    received_at_epoch_ms: receivedAt,\n    received_at_iso: new Date(receivedAt).toISOString(),\n    classifier_version: classifierVersion,\n    activity_name: 'n8n.classify.batch',\n  }};\n});\n"
+      },
+      "id": "051a9e40-0000-0000-0000-00000000001a",
+      "name": "Normalize Batch Items",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -260,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "type": "simple",
+        "sortFieldsUi": {
+          "sortField": [
+            {
+              "fieldName": "occurred_at_epoch_ms",
+              "order": "ascending"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "051a9e40-0000-0000-0000-00000000001b",
+      "name": "Sort Chronologically (occurred_at)",
+      "type": "n8n-nodes-base.sort",
+      "typeVersion": 2,
+      "position": [
+        -20,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 10,
+        "options": {}
+      },
+      "id": "051a9e40-0000-0000-0000-00000000001c",
+      "name": "Loop Over Items (small batches)",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        220,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "text": "={{ $json.chunk_text }}",
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"labels\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      },\n      \"description\": \"PLACEHOLDER taxonomy - replace with the real label set at deploy.\"\n    },\n    \"severity\": {\n      \"type\": \"integer\",\n      \"minimum\": 0,\n      \"maximum\": 10,\n      \"description\": \"0 = no concern, 10 = maximum. Low certainty MUST bias LOW.\"\n    },\n    \"summary\": {\n      \"type\": \"string\",\n      \"description\": \"One or two sentences, no speculation.\"\n    },\n    \"sentiment\": {\n      \"type\": \"string\",\n      \"enum\": [\n        \"positive\",\n        \"neutral\",\n        \"negative\",\n        \"mixed\"\n      ]\n    }\n  },\n  \"required\": [\n    \"labels\",\n    \"severity\",\n    \"summary\",\n    \"sentiment\"\n  ],\n  \"additionalProperties\": false\n}",
+        "options": {
+          "systemPromptTemplate": "You label one chunk of a conversation transcript.\nChunk occurred at {{ $json.occurred_at_iso }} (epoch ms {{ $json.occurred_at_epoch_ms }}) - weigh nothing that postdates it.\nIf you are not certain, choose FEWER labels and a LOWER severity. Under-calling is correct behaviour here; over-flagging is the failure mode we are fixing. Do not speculate beyond the text."
+        }
+      },
+      "id": "051a9e40-0000-0000-0000-00000000001d",
+      "name": "Extract Classification (JSON Schema)",
+      "type": "@n8n/n8n-nodes-langchain.informationExtractor",
+      "typeVersion": 1.2,
+      "position": [
+        520,
+        60
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "{{PORTKEY_CLASSIFY_MODEL}}",
+          "cachedResultName": "{{PORTKEY_CLASSIFY_MODEL}}"
+        },
+        "options": {
+          "temperature": 0
+        }
+      },
+      "id": "051a9e40-0000-0000-0000-00000000001e",
+      "name": "Portkey Gateway - Cheap Tier",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        420,
+        300
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "REPLACE_ME",
+          "name": "PORTKEY_GATEWAY (placeholder)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.chunk_text }}",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "The primary extractor failed to return schema-valid JSON for this chunk. Re-read the chunk and emit ONLY the required JSON object. If uncertain: fewer labels, lower severity."
+            }
+          ]
+        }
+      },
+      "id": "051a9e40-0000-0000-0000-00000000001f",
+      "name": "Repair - Basic LLM Chain (auto-fix)",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.5,
+      "position": [
+        820,
+        260
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "051a9e40-0000-0000-0000-000000000020",
+      "name": "Auto-fixing Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserAutofixing",
+      "typeVersion": 1,
+      "position": [
+        820,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"labels\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      },\n      \"description\": \"PLACEHOLDER taxonomy - replace with the real label set at deploy.\"\n    },\n    \"severity\": {\n      \"type\": \"integer\",\n      \"minimum\": 0,\n      \"maximum\": 10,\n      \"description\": \"0 = no concern, 10 = maximum. Low certainty MUST bias LOW.\"\n    },\n    \"summary\": {\n      \"type\": \"string\",\n      \"description\": \"One or two sentences, no speculation.\"\n    },\n    \"sentiment\": {\n      \"type\": \"string\",\n      \"enum\": [\n        \"positive\",\n        \"neutral\",\n        \"negative\",\n        \"mixed\"\n      ]\n    }\n  },\n  \"required\": [\n    \"labels\",\n    \"severity\",\n    \"summary\",\n    \"sentiment\"\n  ],\n  \"additionalProperties\": false\n}"
+      },
+      "id": "051a9e40-0000-0000-0000-000000000021",
+      "name": "Structured Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1000,
+        660
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "{{PORTKEY_FIXER_MODEL}}",
+          "cachedResultName": "{{PORTKEY_FIXER_MODEL}}"
+        },
+        "options": {
+          "temperature": 0
+        }
+      },
+      "id": "051a9e40-0000-0000-0000-000000000022",
+      "name": "Portkey Gateway - Fixer Tier (stronger)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        640,
+        660
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "REPLACE_ME",
+          "name": "PORTKEY_GATEWAY (placeholder)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": true,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "051a9e40-0000-0000-0000-000000000023",
+              "name": "record_id",
+              "type": "string",
+              "value": "={{ $('Loop Over Items (small batches)').item.json.record_id }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-000000000024",
+              "name": "chunk_id",
+              "type": "string",
+              "value": "={{ $('Loop Over Items (small batches)').item.json.chunk_id }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-000000000025",
+              "name": "occurred_at_epoch_ms",
+              "type": "number",
+              "value": "={{ $('Loop Over Items (small batches)').item.json.occurred_at_epoch_ms }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-000000000026",
+              "name": "classifier_version",
+              "type": "string",
+              "value": "={{ $('Loop Over Items (small batches)').item.json.classifier_version }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-000000000027",
+              "name": "classified_at_epoch_ms",
+              "type": "number",
+              "value": "={{ Date.now() }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-000000000028",
+              "name": "classified_at_iso",
+              "type": "string",
+              "value": "={{ new Date().toISOString() }}"
+            },
+            {
+              "id": "051a9e40-0000-0000-0000-000000000029",
+              "name": "is_draft",
+              "type": "boolean",
+              "value": "={{ true }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "051a9e40-0000-0000-0000-00000000002a",
+      "name": "Stamp Version + Timestamps",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1120,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Collect every looped item into ONE response payload for the caller (Temporal activity result).\nconst rows = $input.all().map(i => i.json);\nconst now = Date.now();\nreturn [{ json: {\n  activity_name: 'n8n.classify.batch',\n  status: 'completed',\n  batch_id: rows.length ? rows[0].batch_id : null,\n  classifier_version: rows.length ? rows[0].classifier_version : null,\n  count: rows.length,\n  // rows that came back without labels went through the repair chain and still failed -\n  // they are reported, never silently dropped.\n  unlabeled_count: rows.filter(r => !r.labels).length,\n  completed_at_epoch_ms: now,\n  completed_at_iso: new Date(now).toISOString(),\n  results: rows,\n}}];\n"
+      },
+      "id": "051a9e40-0000-0000-0000-00000000002b",
+      "name": "Collect Batch Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "051a9e40-0000-0000-0000-00000000002c",
+      "name": "Respond - classification batch",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        760,
+        -220
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - classify batch": {
+      "main": [
+        [
+          {
+            "node": "Normalize Batch Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Batch Items": {
+      "main": [
+        [
+          {
+            "node": "Sort Chronologically (occurred_at)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sort Chronologically (occurred_at)": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items (small batches)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items (small batches)": {
+      "main": [
+        [
+          {
+            "node": "Collect Batch Results",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract Classification (JSON Schema)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Classification (JSON Schema)": {
+      "main": [
+        [
+          {
+            "node": "Stamp Version + Timestamps",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Repair - Basic LLM Chain (auto-fix)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Repair - Basic LLM Chain (auto-fix)": {
+      "main": [
+        [
+          {
+            "node": "Stamp Version + Timestamps",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stamp Version + Timestamps": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items (small batches)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect Batch Results": {
+      "main": [
+        [
+          {
+            "node": "Respond - classification batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Portkey Gateway - Cheap Tier": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Extract Classification (JSON Schema)",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Portkey Gateway - Fixer Tier (stronger)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Repair - Basic LLM Chain (auto-fix)",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Auto-fixing Output Parser",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auto-fixing Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Repair - Basic LLM Chain (auto-fix)",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Auto-fixing Output Parser",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "REPLACE_WITH_WF_ERROR_HANDLER_ID",
+    "timezone": "UTC"
+  },
+  "versionId": "802d4519-2a2c-483f-8503-c86c8724ab02",
+  "meta": {
+    "instanceId": "REPLACE_WITH_N8N_INSTANCE_ID",
+    "templateCredsSetupCompleted": false
+  },
+  "tags": [
+    {
+      "name": "d068"
+    },
+    {
+      "name": "stage-4-composed"
+    }
+  ]
+}

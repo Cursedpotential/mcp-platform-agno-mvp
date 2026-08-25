@@ -1,0 +1,182 @@
+{
+  "name": "D068 - Error handler (shared)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## ATTACH, DON'T DUPLICATE\n\nOne handler serves EVERY parent workflow: set\n**Settings -> Error workflow** on each parent to this workflow.\n(The composed workflows ship with\n`settings.errorWorkflow = \"REPLACE_WITH_WF_ERROR_HANDLER_ID\"` -\nswap in this workflow's real ID after import.)\n\nThis workflow does **not** need to be activated to work.\n\nPayload gotcha: if a parent's own TRIGGER fails, there is no\n`execution` object at all - the payload is `trigger{}` instead.\nThe Code node branches on that; do not \"simplify\" it away.",
+        "height": 340,
+        "width": 460,
+        "color": 3
+      },
+      "id": "051a9e40-0000-0000-0000-000000000066",
+      "name": "STICKY - How to attach this handler",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -500,
+        -520
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## NOTIFY = GENERIC WEBHOOK PLACEHOLDER\n\ntemplate-1326's skeleton is `Error Trigger -> Slack`. **Slack was\ndeliberately swapped out**: the owner has not picked a channel.\n\nCurrent: HTTP Request POST to `{{ALERT_WEBHOOK_URL}}` with\n`onError: continueRegularOutput` so a bad/unset URL can never turn\nthe error handler itself into a second failure. It then falls\nthrough to a No-Op sink, so failures are always visible in the\nexecution list even with no channel wired.\n\n**OWNER DECISION NEEDED:** Slack / ntfy / email / platform inbox /\nTemporal-side alerting. Swap the one node, keep everything else.",
+        "height": 360,
+        "width": 460,
+        "color": 6
+      },
+      "id": "051a9e40-0000-0000-0000-000000000067",
+      "name": "STICKY - Notification channel is an OWNER CHOICE",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -20,
+        -520
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## PLACEHOLDERS\n- `{{ALERT_WEBHOOK_URL}}` - notification endpoint (owner's choice)\n- Credential **ALERT_WEBHOOK_AUTH (placeholder)** - generic\n  `httpHeaderAuth`; DELETE the auth block entirely if the chosen\n  channel needs none.\n\n## CANNIBALIZED FROM\n- **template-1326** \"Get a Slack alert when a workflow went wrong\"\n  (n8n.io/workflows/1326) - the entire 2-node skeleton\n  `errorTrigger -> notify`, kept as-is; only the notify node was\n  swapped. Its `alwaysOutputData: true` on the trigger is kept.\n- **native docs** Error Trigger payload shape (both variants).",
+        "height": 360,
+        "width": 460,
+        "color": 5
+      },
+      "id": "051a9e40-0000-0000-0000-000000000068",
+      "name": "STICKY - Placeholders + source attribution",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        460,
+        -520
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "051a9e40-0000-0000-0000-000000000069",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        40
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Standard failure payload.\n// The Error Trigger payload has TWO shapes (native-node-notes.md):\n//  A) the workflow ran and a node failed  -> { execution: {...}, workflow: {...} }\n//  B) the workflow's own TRIGGER failed   -> { trigger: { error: {name, cause, timestamp} }, workflow }\n// Branch on which one is present - do not assume `execution` exists.\nconst j = $input.first().json || {};\nconst now = Date.now();\nconst isTriggerFailure = !j.execution && !!j.trigger;\n\nconst err = isTriggerFailure\n  ? (j.trigger.error || {})\n  : ((j.execution && j.execution.error) || {});\n\nconst payload = {\n  activity_name: 'n8n.error.handler',\n  failure_kind: isTriggerFailure ? 'trigger_activation' : 'execution',\n  workflow_id: (j.workflow && j.workflow.id) || null,\n  workflow_name: (j.workflow && j.workflow.name) || null,\n  execution_id: (j.execution && j.execution.id) || null,\n  execution_url: (j.execution && j.execution.url) || null,\n  execution_mode: (j.execution && j.execution.mode) || null,\n  retry_of: (j.execution && j.execution.retryOf) || null,\n  last_node_executed: (j.execution && j.execution.lastNodeExecuted) || null,\n  error_name: err.name || null,\n  error_message: err.message || null,\n  error_cause: err.cause ? String(err.cause) : null,\n  error_stack: err.stack || null,\n  // TEMPORAL MANDATE: the failure timestamp rides through too.\n  failed_at_epoch_ms: Number(\n    (j.trigger && j.trigger.error && j.trigger.error.timestamp) || now),\n  reported_at_epoch_ms: now,\n  reported_at_iso: new Date(now).toISOString(),\n};\n\npayload.title = '[n8n FAILURE] ' + (payload.workflow_name || 'unknown workflow');\npayload.text = payload.title + '\\n' +\n  'kind: ' + payload.failure_kind + '\\n' +\n  'node: ' + (payload.last_node_executed || 'n/a') + '\\n' +\n  'error: ' + (payload.error_message || payload.error_name || 'unknown') + '\\n' +\n  'execution: ' + (payload.execution_url || 'n/a') + '\\n' +\n  'at: ' + payload.reported_at_iso;\n\nreturn [{ json: payload }];\n"
+      },
+      "id": "051a9e40-0000-0000-0000-00000000006a",
+      "name": "Format Standard Failure Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -220,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "{{ALERT_WEBHOOK_URL}}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": false
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "id": "051a9e40-0000-0000-0000-00000000006b",
+      "name": "Notify (generic webhook placeholder)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        60,
+        40
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_ME",
+          "name": "ALERT_WEBHOOK_AUTH (placeholder)"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {},
+      "id": "051a9e40-0000-0000-0000-00000000006c",
+      "name": "Failure Recorded (no-op sink)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        340,
+        40
+      ]
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Format Standard Failure Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Standard Failure Payload": {
+      "main": [
+        [
+          {
+            "node": "Notify (generic webhook placeholder)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify (generic webhook placeholder)": {
+      "main": [
+        [
+          {
+            "node": "Failure Recorded (no-op sink)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "timezone": "UTC"
+  },
+  "versionId": "ecc1b4a1-ae38-48bf-8af8-831f06ff257c",
+  "meta": {
+    "instanceId": "REPLACE_WITH_N8N_INSTANCE_ID",
+    "templateCredsSetupCompleted": false
+  },
+  "tags": [
+    {
+      "name": "d068"
+    },
+    {
+      "name": "stage-4-composed"
+    }
+  ]
+}
