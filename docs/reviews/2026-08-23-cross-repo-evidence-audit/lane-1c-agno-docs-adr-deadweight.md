@@ -275,3 +275,7 @@ disagreement or corruption — a heavy-handed manual versioning convention layer
    `scripts.zip`/`server/tools.zip` unexplained; root `iceberg` file is an empty DuckDB red herring;
    `knowledge/` real but sparse; `analytics/visit-locations` real and working, needs reconciliation
    against the Timeline-parked rule.
+
+---
+
+> _Note added 2026-08-25 by Claude Code · Fable 5: the LIVE-ONLY / grounded-mode testing policy referenced above was REMOVED by owner order ("you're grounded — remove it entirely"). Text above is historical record, left intact per the doc-drift rule; it no longer reflects active policy. Confirm-and-discuss-before-changing is back in force._

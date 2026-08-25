@@ -74,3 +74,7 @@ steps 1–3 are **DONE** (Temporal deployed, agno_app cutover executed) — see 
 - Answer-first, bullets, white space, plain English (never bare ID codes). Hyperfocus flow permanent.
 - Sprint mode: ship smallest increment, verify LIVE; small batches with review between; stop only for destructive/outward/irreversible-spend.
 - Never hard-delete (quarantine); byline every artifact; update EVERY stale doc same turn; community-check before finalizing anything; test data never becomes canonical (purge after review).
+
+---
+
+> _Note added 2026-08-25 by Claude Code · Fable 5: the LIVE-ONLY / grounded-mode testing policy referenced above was REMOVED by owner order ("you're grounded — remove it entirely"). Text above is historical record, left intact per the doc-drift rule; it no longer reflects active policy. Confirm-and-discuss-before-changing is back in force._

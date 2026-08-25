@@ -102,3 +102,7 @@ passed), agno_app cutover executed and verified. See `HANDOFF-2026-08-24-n8n-pip
 - Structured replies: bullets, labeled blocks, white space, answer-first. Plain English — never bare ID codes as subjects.
 - Sprint mode: ship + verify live; still stop for destructive/outward-facing/irreversible-spend actions.
 - Never hard-delete (quarantine); byline every artifact; verify before claiming done; update ALL stale docs in the same turn.
+
+---
+
+> _Note added 2026-08-25 by Claude Code · Fable 5: the LIVE-ONLY / grounded-mode testing policy referenced above was REMOVED by owner order ("you're grounded — remove it entirely"). Text above is historical record, left intact per the doc-drift rule; it no longer reflects active policy. Confirm-and-discuss-before-changing is back in force._
