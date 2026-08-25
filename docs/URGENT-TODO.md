@@ -192,3 +192,7 @@ with its own model. It cannot ride on `N8N_INSTANCE_AI_MODEL`.
   context_record=SUPERSEDED, human_label_gold=NON-CANONICAL ARCHIVE, ai_test_ingest
   database=OLD-SHAPE TEST CORPUS frozen. Owner: casebible db = the look-at-it-together copy;
   `ai` = canonical new shape.
+
+## 2026-08-24 — FYI (owner): other agents will wrap n8n tools/agents in Portkey + ContextForge
+- Goal: serve them outside the platform. Consistent with D-068 + MCP federation. No action here;
+  coordinate via COORDINATION.md if lanes touch the composed pipeline workflows.
