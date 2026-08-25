@@ -116,3 +116,20 @@ community-curated library/node/template than what's in hand. Rationale: the owne
 session out-discovered the dedicated discovery pass (auto-fixing parser, roundrobin, claude-cli,
 semantic-splitter-with-context were all sitting on npm). This check is part of EVERY stage's
 definition-of-done, not just Discover.
+
+## Classification expectations (owner, 2026-08-24 — design consequence, not mood)
+
+The previous classification/ontology/flagging attempt was "horrendously problematic — flagged
+every fucking thing." The new lane is EXPECTED TO SUCK AT FIRST and is built for iteration:
+
+- **Every classification output is a DRAFT by design** — labeled rows carry the classifier
+  version (prompt/config/model) that produced them; nothing downstream treats early labels as
+  authoritative and NOTHING auto-promotes off a classification alone.
+- **Re-classification must be cheap and total** — same philosophy as re-ingest-from-originals:
+  bump the classifier version, re-run the corpus through the (free) model pool, compare. Old
+  labels superseded, not overwritten.
+- **Anti-over-flagging bias:** low confidence routes to "unreviewed", NOT to a flag. A flag
+  fired wrongly a thousand times is worse than no flag — that was the exact failure mode.
+- **The iteration fuel is the example table** (analysis.human_label): owner-labeled examples
+  accumulate → few-shot prompts improve → eventually DSPy compiles against the gold set. The
+  verification gate (free judges + Claude-SDK top tier) filters what reaches human eyes.
