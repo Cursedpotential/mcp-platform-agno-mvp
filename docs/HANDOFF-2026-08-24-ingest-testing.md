@@ -33,6 +33,8 @@ Companion docs (this handoff supersedes neither — it indexes what's LEFT):
 Everything below is from the runbook (`docs/INGESTION-READINESS-2026-08-23.md`); this is the sequence.
 
 **Owner does first (Coolify, out-of-band — nothing else is blocked on it except step 4+):**
+~~(steps 1–3 below)~~ **DONE 2026-08-24 evening session** — Temporal stack deployed (P0 exit test
+passed), agno_app cutover executed and verified. See `HANDOFF-2026-08-24-n8n-pipeline-golive.md`.
 
 1. Paste the two role passwords (agno_app, temporal) from terminal scrollback into Coolify env storage.
 2. Deploy the Temporal stack (server + UI + worker) from `deploy/temporal/compose.temporal.yaml`.
