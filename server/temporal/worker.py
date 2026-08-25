@@ -35,6 +35,8 @@ from server.temporal.activities import (
     parse_activity,
     store_activity,
 )
+from server.temporal.classification_workflow import ClassificationBatchPipeline
+from server.temporal.n8n_activities import n8n_webhook_activity
 from server.temporal.workflows import ChatTranscriptIngest, P0DurabilityProbe
 
 log = logging.getLogger("temporal.worker")
@@ -60,11 +62,11 @@ async def main() -> None:
         worker = Worker(
             client,
             task_queue=task_queue,
-            workflows=[ChatTranscriptIngest, P0DurabilityProbe],
-            activities=[custody_activity, parse_activity, store_activity, knowledge_activity],
+            workflows=[ChatTranscriptIngest, P0DurabilityProbe, ClassificationBatchPipeline],
+            activities=[custody_activity, parse_activity, store_activity, knowledge_activity, n8n_webhook_activity],
             activity_executor=executor,
         )
-        log.info("worker running — workflows: ChatTranscriptIngest, P0DurabilityProbe")
+        log.info("worker running — workflows: ChatTranscriptIngest, P0DurabilityProbe, ClassificationBatchPipeline")
         await worker.run()
 
 
