@@ -95,3 +95,28 @@ Honest finding: the THINNEST shelf — no polished classify→judge→gate templ
 - **"Sitemap crawling to vector storage" (8707, 28 nodes, JSON verified)** — full trigger→chunk→embed→insert→status chain worth cannibalizing wholesale (swap embeddings to Portkey, Supabase writes to Postgres).
 - **n8n Evaluations feature** (docs.n8n.io/advanced-ai/evaluations) — native judge pipeline to study when building the Shape-4 gate.
 - Unverified leads (flagged, NOT candidates): RAG Starter Template 5010, Context-Aware Chunking 2871.
+
+## Owner-sourced npm leads (tab export, 2026-08-24 — NOT yet verified; verify at Extract)
+
+The owner's own npm research session surfaced ~120 community packages. Standouts mapped to shapes
+(all UNVERIFIED — Extract stage must fetch each package and confirm real, maintained, installable
+before adoption):
+
+| Package | Maps to | Why it matters here |
+|---|---|---|
+| `n8n-nodes-nvidia-nim` | Shape 5 | A dedicated NIM chat node — our primary free provider, first-class |
+| `n8n-nodes-roundrobin` | Shape 5 | A literal round-robin node — fallback if Portkey-side rotation ever doesn't fit |
+| `n8n-nodes-multi-model` / `n8n-nodes-universal-chatmodel` / `n8n-nodes-openrouter-*` family | Shape 5 | Multi-model + OpenRouter-specific chat nodes (several variants — pick ONE if any) |
+| `n8n-nodes-semantic-splitter-with-context` | Shape 2 | A THIRD semantic splitter — "with context" suggests metadata/context preservation, the exact gap flagged on the other two |
+| `n8n-nodes-ollama-reranker` | Retrieval stack | Reranker node backed by Ollama — the rerank hook on the Weaviate node needs a reranker; this could be the free local one |
+| `n8n-nodes-cognee` | Agent-memory bake-off (TODO-211) | Community node for Cognee — the bake-off frontrunner gets an n8n door for free |
+| `n8n-nodes-tesseractjs(7)` | Doc/OCR lane | Tesseract OCR node — matches the standing "Tesseract is the free local OCR tier" routing rule |
+| `n8n-nodes-exif-data` | Evidence media | EXIF extraction — media metadata (timestamps, GPS!) for the media evidence lane |
+| `n8n-nodes-zip` | Shape 1 | Archive handling at intake (chat exports arrive as ZIPs) |
+| `n8n-nodes-pdf-extractor` / `@custom-js/n8n-nodes-pdf-toolkit(-v2)` / `@mazix/n8n-nodes-converter-documents` / `n8n-nodes-document-embedding` | Doc lane | Document parsing/conversion/embedding shelf |
+| `@langfuse/n8n-nodes-langfuse` / `n8n-nodes-openai-langfuse` | Observability | LLM tracing for the n8n-side calls |
+| `n8n-nodes-mcp` / `n8n-nodes-a2a` | Agent plumbing | MCP client + agent-to-agent protocol nodes |
+| `n8n-nodes-smb2` / `n8n-nodes-sqlite3` / `n8n-nodes-milvus-db` | Misc integrations | File-share intake; sqlite; Milvus (NOTE: Milvus is deliberately DOWN — do not wire) |
+
+Also noted from the same session: the free registered-community license key email (unlocks
+selected paid features — folders etc.); worth activating on the instance.
