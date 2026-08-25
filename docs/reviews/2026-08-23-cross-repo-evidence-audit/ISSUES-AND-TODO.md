@@ -512,6 +512,16 @@ events against extracted entities/events as contradictions/confirmations are fou
 carry its own awareness dates. Derived timeline views then show, per extracted event: when it
 happened, when it became knowable, what evidences it.
 
+**Temporal-uncertainty addition (owner, same night):** occurred-at for EXTRACTED events is often
+NOT clear — extraction must capture contextual/conversational clues as TIME ASSERTIONS, not
+forced timestamps: (a) precision-honest values (moment/day/month/range — never fake precision);
+(b) RELATIVE relations as first-class data ("before/after/same-day-as" another event or an
+anchor message whose envelope timestamp IS reliable); (c) the verbatim clue text preserved as
+grounding for every assertion. Resolution is a recomputable DERIVATION over the assertion web
+that tightens as anchors accumulate (esp. from third-party ingest) — "figure it out better
+later" by design, clues never overwritten. `analysis.time_assertion` (live, empty) is the
+candidate home — verify its columns against this contract at build time before extending.
+
 **TODO-211 · Agent memory: explore engines, temporal awareness is the hard requirement** _(owner directive)_
 
 > Owner: "there has to be some agent memory going on and right now I don't believe Surreal is the
