@@ -171,3 +171,19 @@ with its own model. It cannot ride on `N8N_INSTANCE_AI_MODEL`.
 - Context note: owner personally moved compose.data-surreal.yaml + compose.surreal-phase1.yaml
   out of the repo root same night ("they don't belong there") — those deletions are the owner's
   to commit, not an agent's.
+
+## 2026-08-24 — FYI: Case Bible consolidation into the `casebible` DB (other session; owner-directed)
+- Another session is consolidating Case Bible data into the PG18 `casebible` database on ovh-files:
+  media tables (June LLM run: 15,252 enrichment + 3,113 screenshots, model/confidence/latency INLINE
+  on rows), plus COPIES of analysis.human_label(_gold), reference.* detection vocabulary,
+  working.context_record, and the ai_test_ingest evidence tables. Owner ruling: `ai_test_ingest`
+  = the OLD test corpus's permanent home ("a good place for the old test data to live") — the new
+  ingest shape gets NEW tests; never reuse the old ones.
+- **ONE CHECK before the behavioral-analysis rework ever resumes:** the other session skipped the
+  live-reader check on owner's order. If the reference.* tables (detection_pattern, behavior_category,
+  …) are ever DROPPED from `ai` (so far only copied), `server/analysis/detection.py` and the
+  migration baseline break — verify presence in `ai` or repoint readers first.
+- **Gift for the classification build:** the June run is a real PRIOR — per-model n/latency/confidence
+  across NIM/Gemini/OpenRouter/Ollama on THIS corpus (granite-4.1-8b: fast+cheap at 0.741 conf;
+  gemini-3-flash: 0.948; mistral-small: 0.962). No accuracy ground truth (labels never existed), but
+  it seeds the Portkey pool weights and the judge thresholds with data instead of guesses.
