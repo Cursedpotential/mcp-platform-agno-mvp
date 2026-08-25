@@ -163,3 +163,11 @@ with its own model. It cannot ride on `N8N_INSTANCE_AI_MODEL`.
   re-projection. Applies to any collection n8n-side agents will query (D-068 architecture).
 - Standing rule from the same review: n8n gets READ-ONLY retrieval against evidence collections —
   its Insert mode carries a "Clear Data" wipe option and must never point at them.
+
+## 2026-08-24 — Consolidate duplicate folders (owner order, queued)
+- Owner: duplicate folders need consolidating — TESTS, EVALS, and BUILD folders in particular.
+- Approach when picked up: inventory duplicates first (mine-before-retiring), propose merge
+  targets, owner approves, then consolidate — never-delete applies (quarantine, don't remove).
+- Context note: owner personally moved compose.data-surreal.yaml + compose.surreal-phase1.yaml
+  out of the repo root same night ("they don't belong there") — those deletions are the owner's
+  to commit, not an agent's.
