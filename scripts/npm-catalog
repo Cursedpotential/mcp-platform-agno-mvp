@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Quick-query tool for the n8n community-node catalog (.duckdb/AGENTS.md rule).
+# Byline: Claude Code · Fable 5 · 2026-08-24
+# Usage: scripts/npm-catalog search <term> | stats | fresh | rescan
+set -e
+cd "$(dirname "$0")/.."
+DB=".duckdb/npm-community-nodes.duckdb"
+DUCK="$(command -v duckdb || echo 'C:/Users/matts/AppData/Local/Microsoft/WinGet/Packages/DuckDB.cli_Microsoft.Winget.Source_8wekyb3d8bbwe/duckdb.exe')"
+case "${1:-help}" in
+  search) shift; "$DUCK" "$DB" -c "SELECT name, version, last_publish, left(description,90) AS description FROM packages WHERE name ILIKE '%$*%' OR description ILIKE '%$*%' OR list_contains(keywords,lower('$*')) ORDER BY last_publish DESC LIMIT 25";;
+  stats)  "$DUCK" "$DB" -c "SELECT count(*) AS packages, count(*) FILTER (WHERE last_publish >= strftime(now() - INTERVAL 6 MONTH, '%Y-%m-%d')) AS fresh_6mo FROM packages; SELECT * FROM scans ORDER BY scanned_at DESC LIMIT 5";;
+  fresh)  "$DUCK" "$DB" -c "SELECT max(scanned_at) AS last_scan, CASE WHEN max(scanned_at) < now() - INTERVAL 30 DAY THEN 'STALE - RESCAN (scripts/npm-catalog rescan)' ELSE 'fresh' END AS verdict FROM scans";;
+  rescan) uv run --no-sync python scripts/npm_catalog_rescan.py;;
+  *) echo "usage: scripts/npm-catalog search <term> | stats | fresh | rescan";;
+esac

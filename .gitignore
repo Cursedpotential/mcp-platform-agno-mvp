@@ -161,3 +161,7 @@ to_be_deleted/
 
 # local DuckDB databases (derived, rebuildable — e.g. npm community-node catalog)
 .duckdb/
+!.duckdb/
+.duckdb/*
+!.duckdb/AGENTS.md
+!.duckdb/CLAUDE.md
