@@ -55,8 +55,28 @@ Honest finding: the THINNEST shelf — no polished classify→judge→gate templ
 
 **Top pick (composite):** judge-LLM (Basic LLM Chain) → Structured Output Parser emitting `confidence` → IF gate — borrowing #3's threshold routing and #1's mechanics; #4's council pattern reserved for high-stakes chunks.
 
-## Shape 5 — LLM routing via Portkey — see addendum below
-## Shape 6 — Rate-limit / quota tracking — see addendum below
+## Shape 5 — LLM routing via Portkey
+
+| Rank | Candidate | Shelf | Source | Why | Verified |
+|---|---|---|---|---|---|
+| 1 | Native OpenAI Chat Model node → Portkey base URL (official Portkey n8n guide) | native + vendor doc | portkey.ai/docs/integrations/libraries/n8n | No dedicated node needed: point the built-in OpenAI Chat Model credential at the Portkey gateway base URL (for us: OUR self-hosted gateway, not api.portkey.ai). Satisfies the native-first tier by using n8n's own node | Fetched; exact credential fields + provider-slug + `override_params` config JSON confirmed |
+| 2 | Portkey Config Object — `loadbalance` strategy | vendor doc | portkey.ai/docs/api-reference/inference-api/config-object | THE rotation mechanism per Interview A: one n8n call, gateway rotates the pool (NIM, Gemini ×4 keys, OpenRouter free, Ollama) with per-target weights | Fetched; real JSON shape confirmed (`strategy.mode=loadbalance`, targets with weight/virtual_key/override_params) |
+| 3 | n8n community thread (Portkey team member) | forum | community.n8n.io/t/76909 | Confirms state of the world: NO Portkey node exists; base-URL override is the sanctioned path; harmless "can't validate against OpenAI" credential warnings are expected | Fetched |
+| ✗ | @port-labs/n8n-nodes-portio-experimental | npm (RULED OUT) | npmjs.com | **False positive — Port.io (dev portal), NOT Portkey.** Name collision only | Fetched + excluded |
+
+**npm searched directly: no `n8n-nodes-portkey` package exists.**
+**Top pick:** native chat-model node → our self-hosted Portkey gateway with a loadbalance config per model tier.
+
+## Shape 6 — Rate-limit / quota tracking (owner reframe: quotas, NOT dollars)
+
+| Rank | Candidate | Shelf | Source | Why | Verified |
+|---|---|---|---|---|---|
+| 1 | Portkey per-provider rate limits | vendor feature (the gateway we already route through) | portkey.ai/docs/product/ai-gateway/virtual-keys/rate-limits | Enforce per-provider/per-account caps (per minute/hour/day, request- OR token-based) at the gateway — no n8n counter infrastructure at all. **Caveat: a limit can't be edited once set — duplicate the provider to change it** | Fetched; intervals, rejection error, auto-reset confirmed |
+| 2 | Native node knobs: Retry On Fail + Wait Between Tries; HTTP Request Batching (items/batch + interval) | native | docs.n8n.io/integrations/builtin/handle-rate-limits/ | Zero-infra pacing + backoff on every call site | Fetched; exact settings confirmed |
+| 3 | Redis rate-limit template (increment→threshold→gate) | template | n8n.io/workflows/1236 | The counter-ledger pattern if per-account visibility is wanted — same shape drops onto native Postgres instead of Redis | Raw template JSON fetched via api.n8n.io; nodes confirmed |
+| 4 | Advanced retry/delay template (custom exponential backoff) | template | n8n.io/workflows/5447 | Beats the built-in 5-retry cap; the retry layer behind whichever counter gates the call | Raw JSON fetched; max_tries/delay-doubling loop confirmed |
+
+**Top pick:** Portkey-native limits as the enforcement point; native retry/batching knobs at call sites; the PG-counter ledger only if the owner wants usage visibility beyond enforcement.
 
 ## Shape 7 — Output / persistence + error handling
 
