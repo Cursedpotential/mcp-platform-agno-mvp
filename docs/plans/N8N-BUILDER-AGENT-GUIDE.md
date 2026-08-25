@@ -133,3 +133,7 @@ every fucking thing." The new lane is EXPECTED TO SUCK AT FIRST and is built for
 - **The iteration fuel is the example table** (analysis.human_label): owner-labeled examples
   accumulate → few-shot prompts improve → eventually DSPy compiles against the gold set. The
   verification gate (free judges + Claude-SDK top tier) filters what reaches human eyes.
+- **Small batches, always (owner, same night):** never giant runs — process in small batches
+  (bounded Loop-Over-Items batch sizes + Portkey caps + batch-interval pacing), then STOP:
+  test, look at output together, adjust, run the next batch. Rate-limit safety AND review
+  cadence in one rule; batch size is a tunable start-small parameter, not a throughput target.
