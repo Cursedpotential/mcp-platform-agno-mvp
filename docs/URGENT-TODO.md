@@ -187,3 +187,8 @@ with its own model. It cannot ride on `N8N_INSTANCE_AI_MODEL`.
   across NIM/Gemini/OpenRouter/Ollama on THIS corpus (granite-4.1-8b: fast+cheap at 0.741 conf;
   gemini-3-flash: 0.948; mistral-small: 0.962). No accuracy ground truth (labels never existed), but
   it seeds the Portkey pool weights and the judge thresholds with data instead of guesses.
+- **RESOLVED same night:** reference.* verified INTACT in `ai` (527/164/225/51/12/10/1 counts
+  confirmed live) — the consolidation was copy-not-move. Stamps applied in-database:
+  context_record=SUPERSEDED, human_label_gold=NON-CANONICAL ARCHIVE, ai_test_ingest
+  database=OLD-SHAPE TEST CORPUS frozen. Owner: casebible db = the look-at-it-together copy;
+  `ai` = canonical new shape.
