@@ -137,3 +137,9 @@ every fucking thing." The new lane is EXPECTED TO SUCK AT FIRST and is built for
   (bounded Loop-Over-Items batch sizes + Portkey caps + batch-interval pacing), then STOP:
   test, look at output together, adjust, run the next batch. Rate-limit safety AND review
   cadence in one rule; batch size is a tunable start-small parameter, not a throughput target.
+- **Chunking-upgrade tiebreak (owner check, 2026-08-24):** chonkie confirmed ACTIVELY
+  MAINTAINED (updated days ago) while the community semantic-splitter's upstream is DEAD
+  (extract finding) → the semantic upgrade path is (b): expose chonkie through a thin
+  platform `chunk` endpoint (it already ships in the worker image) and call it from n8n as a
+  tool — NOT literally inside a Code node (Pyodide can't run Python native deps). Same
+  wrap pattern as Semantica; chunk boundaries stay identical across n8n and the pipeline.
