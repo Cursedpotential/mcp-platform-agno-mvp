@@ -10,6 +10,40 @@
 
 ## 2026-08-24
 
+### CH-20 — Temporal LIVE (P0 exit test passed); ingest mounts; agno_app cutover; n8n builder pipeline S1–S5
+
+> _Byline: Claude Code · Fable 5 · 2026-08-24. Two sessions, same day._
+
+- **Temporal stack deployed via Coolify** (apps temporal-stack + temporal-worker on ovh-files):
+  fixed nonexistent image tags (→ auto-setup 1.29.7 / ui 2.53.3), removed unverifiable in-image
+  healthcheck, UI port mapping 8233:8233, SKIP_DB_CREATE=true (role has no CREATEDB), namespace
+  `default` registered with 720h retention. Worker entrypoint written (server/temporal/worker.py)
+  + P0DurabilityProbe. **P0 EXIT TEST PASSED live**: worker restarted mid-run via Coolify;
+  run resumed from history, 10/10 ticks.
+- **Ingest mounts (owner order)**: ovh-files host rclone mount of r2:casebible-sorted (read-only,
+  systemd, AppArmor local override for /srv/r2) + /srv/ingest drop dir; worker mounts via Coolify
+  storages API (/data/ingest rw, /data/r2-sorted ro — verified in-container). ovh-app: agentos
+  gets r2-casebible-sorted via the existing rclone docker-volume plugin + /srv/ingest bind
+  (deploy/exec.yaml). NOTE: agentos /data/r2-sorted listing came back EMPTY post-deploy —
+  UNVERIFIED, open item.
+- **agno_app cutover EXECUTED**: exec-tier DB_USER/DB_PASS → agno_app (password reset live, held
+  only in Coolify env), sequences/functions/default-privileges granted, redeployed; /health 200,
+  DB_USER=agno_app verified in-container. Superuser retired from the app path.
+- **Migration 0032** (human_label strip) + CH-19 items were the earlier session; this session
+  added no schema changes beyond grants.
+- **n8n builder pipeline S1–S5 executed** (D-068): integration audit (6 lanes, committed),
+  discovery (7 shapes + owner npm leads), full npm catalog (5,905 packages → JSONL + local
+  DuckDB .duckdb/ + scripts/npm-catalog tools + rescan rule), extract (5 templates, npm
+  verifications — roundrobin false lead, claude-cli rejected on ToS → DIRECT Anthropic API for
+  automated top-judge), compose (5 small workflow JSONs, validated), **Stage-5 injection code**:
+  server/temporal/n8n_activities.py + classification_workflow.py (ClassificationBatchPipeline)
+  registered on the worker — INERT until worker redeploy; deploy checklist in
+  docs/research/integration-audit-2026-08-24/composed/STAGE5-DEPLOY-CHECKLIST.md.
+- **Owner file move committed** (surreal compose → deploy/) + Coolify compose-location repointed;
+  workspace-level repo-consolidator agent + skill + ledger created at E:/AI_Workspace/.claude/.
+
+
+
 ### CH-20 — n8n Public API key stored; NVIDIA + Weaviate credentials created on the live instance
 
 > _Byline: Claude Code · Opus 5 · 2026-08-24. Owner approval "YES" for the two credentials;
