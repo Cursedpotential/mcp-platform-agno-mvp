@@ -143,3 +143,10 @@ every fucking thing." The new lane is EXPECTED TO SUCK AT FIRST and is built for
   platform `chunk` endpoint (it already ships in the worker image) and call it from n8n as a
   tool — NOT literally inside a Code node (Pyodide can't run Python native deps). Same
   wrap pattern as Semantica; chunk boundaries stay identical across n8n and the pipeline.
+- **THE WRAP IS THE ACTIVITY BOUNDARY (owner, 2026-08-24 — Stage-5 governing principle):**
+  every execution wrap (custody handoff, chunk call, classification batch, judge pass,
+  promotion prep, persist) maps 1:1 to a Temporal activity. Temporal tracks each process as
+  its own activity in durable history — natural retry granularity, natural restart points,
+  natural audit trail — and hands results back to the workflow, which dispatches the next
+  wrap. n8n (or in-code Python) is only ever the BODY of an activity, never the keeper of
+  sequence or state.
