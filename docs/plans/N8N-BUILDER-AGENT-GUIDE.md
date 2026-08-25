@@ -107,3 +107,12 @@ Output contract: the final importable workflow JSON **plus a source-attribution 
   owner's npm list as the integration path; token lives in Coolify env storage, never in git.
 - Shape 6: Portkey caps only; no PG ledger for now.
 - Shapes 1/3/4/7 winners stand, with the additions above folded in.
+
+## Standing rule — the community check (owner, 2026-08-24)
+
+**Always check the community — even when you think you have everything you need.** Before
+finalizing any shape/stage, run one targeted sweep for a better, more precise,
+community-curated library/node/template than what's in hand. Rationale: the owner's own npm
+session out-discovered the dedicated discovery pass (auto-fixing parser, roundrobin, claude-cli,
+semantic-splitter-with-context were all sitting on npm). This check is part of EVERY stage's
+definition-of-done, not just Discover.
