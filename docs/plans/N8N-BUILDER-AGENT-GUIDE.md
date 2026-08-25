@@ -56,10 +56,12 @@ Output contract: the final importable workflow JSON **plus a source-attribution 
   per-build.
 - First real build target (owner, 2026-08-24): SMS + AI-chat conversation workflow — ingest →
   semantic chunk → classify/tag/summarize per chunk → cheap-LLM round-robin → cost logging.
-- **Sourcing rule (owner, same night):** community-FIRST — community nodes, GitHub repos, the
-  template gallery, npm packages, cookbooks, blog recipes, patterns from ANYWHERE. Built-in
-  nodes are one shelf, not the default. Every adopted piece still lands in the
-  source-attribution table.
+- **Sourcing rule (owner, same night, refined):** pull templates/recipes/cookbooks/patterns
+  from ANYWHERE — but preference ORDER when candidates tie:
+  **native built-in > community npm node > raw GitHub template/code.**
+  (Native = maintained by n8n, survives upgrades; npm community node = versioned + installable;
+  GitHub JSON = copy-in, we own its drift.) Every adopted piece lands in the
+  source-attribution table regardless of shelf.
 
 ## Interview A outcomes (owner, 2026-08-24 — binding for build #1)
 
