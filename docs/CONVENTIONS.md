@@ -139,3 +139,14 @@ def run(payload: dict) -> dict:
 - **Polyglot:** TS/Go/HTTP/MCP tools register with a runner (shell-out / HTTP) under the same contract — same `id`/`capability`/`accepts`/`run`, different transport.
 - **Universal exposure — API-first + MCP-wrapped (canon §5):** EVERY tool, agent, AND workflow gets (1) an **internal API** (FastAPI/HTTP) for in-platform callers and (2) an **MCP wrapper over that API** for external/any-surface callers (federated by IBM ContextForge). Everything is **atomically callable**; tools also **compose into workflows** (which may hold a variable tool slot); workflows get the same API+MCP. **Everything gets an API; every API gets an MCP.**
 - **Tool exposure pattern (owner, 2026-06-13):** heavy, long-running, or non-Python tools are wrapped as **FastAPI (or similar) HTTP services** — the existing `platform-tools` *tools-facade* pattern — then registered via the registry's HTTP runner and/or federated through **IBM ContextForge**. Lightweight Python tools stay in-process via `@register` but still expose the API+MCP per the universal rule. Either way the *contract* (capability + `NormalizedRecord`/payload I/O) is identical.
+
+## Root-layout reconciliation (2026-08-24, owner order)
+
+- **`tests/`** = the pytest suite (code correctness). **`evals/`** = the standalone LLM-eval
+  harness (`python -m evals`; model/prompt quality — NOT pytest). **`build/`** = generated
+  outputs ONLY (gitignored); today that means `build/test-reports/` (pytest durable reports).
+  Point-in-time attestation/inventory snapshots do NOT live in build/ — they were moved to
+  `_stale/build-snapshots-20260824/` (never-delete).
+- Root loose files quarantined to `_stale/root-tidy-20260824/` (scratch inspect script, an
+  Aug-5 scripts/ backup zip). The stray root `iceberg` DuckDB database moved to
+  `.duckdb/iceberg.duckdb` (local, gitignored — the .duckdb/ convention).
