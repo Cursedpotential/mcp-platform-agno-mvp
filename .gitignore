@@ -158,3 +158,6 @@ to_be_deleted/
 # Pre-edit snapshot convention (multi-agent sessions). Snapshots belong in _stale/,
 # never alongside the live file, and never in git. Added 2026-08-23 during reconciliation.
 *.backup_*
+
+# local DuckDB databases (derived, rebuildable — e.g. npm community-node catalog)
+.duckdb/
