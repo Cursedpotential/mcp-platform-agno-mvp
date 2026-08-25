@@ -150,3 +150,9 @@ every fucking thing." The new lane is EXPECTED TO SUCK AT FIRST and is built for
   natural audit trail — and hands results back to the workflow, which dispatches the next
   wrap. n8n (or in-code Python) is only ever the BODY of an activity, never the keeper of
   sequence or state.
+- **Top-judge tier RESOLVED (owner, 2026-08-24, "yes"):** the Claude top tier runs on the
+  **direct Anthropic API** (metered key, clean terms) — NOT the claude-cli community node and
+  NOT the long-lived subscription token, which stays for interactive work only. This
+  supersedes the earlier "Claude SDK with long-lived token" line above for anything
+  automated. The judge-gate workflow's pluggable slot fills with an HTTP Request to the
+  Anthropic Messages API (key in Coolify env, never git).
