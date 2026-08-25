@@ -1,0 +1,1873 @@
+# npm Community Node Catalog — n8n Ecosystem
+
+> _Byline: npm-catalog agent · Sonnet · 2026-08-24_
+
+Full mechanical catalog of the n8n community-node ecosystem pulled from the npm registry search API (`keywords:n8n-community-node-package` + `text=n8n-nodes-` as a second net, deduped by package name). Registry metadata only — no tarballs fetched, nothing installed.
+
+## Totals
+
+- **Total unique packages catalogued:** 5905
+- Published in last 6 months: 3187
+- Published 6-12 months ago: 1578
+- Stale (>12 months since last publish): 1140
+- Owner-flagged (also appeared in the 300-tab sample in `stage-2-discovery-candidates.md`): 90
+
+Freshness is computed relative to 2026-08-24. Most packages outside the relevance groups below are SaaS-integration nodes (CRMs, e-commerce, marketing platforms) — counted in the total but not enumerated individually, per the task's scope.
+
+## Relevance-tagged shortlist
+
+Grouped by this platform's concerns. Only plausibly-relevant packages are listed per group (regex/keyword match over name + description + keywords — false positives are possible and false negatives are likely for oddly-named packages; treat as a shortlist to verify, not a final decision). `(owner-flagged)` = also named in the owner's 300-tab sample at the bottom of `stage-2-discovery-candidates.md`.
+
+### LLM providers / routing / round-robin (NIM, Gemini, OpenRouter, Ollama, multi-model, claude/codex CLIs)
+
+_258 matches._
+
+- **`@jayabraga/n8n-nodes-openrouter-reasoning`** **(owner-flagged)** (v1.0.0, last publish 2026-07-22) — OpenRouter Chat Model for n8n with silent reasoning output
+- **`@sateeshreddy/n8n-nodes-nvidia-nim`** **(owner-flagged)** (v2.0.8, last publish 2026-08-14) — n8n community node for NVIDIA NIM
+- **`@wdaan/n8n-nodes-openrouter-datadog`** **(owner-flagged)** (v0.3.0, last publish 2025-11-17) — n8n community node: Datadog LLM Observability + OpenRouter LLM provider
+- **`n8n-nodes-mcp-vertex-safe`** **(owner-flagged)** (v0.3.1, last publish 2026-08-11) — n8n nodes for Google Vertex AI: an MCP Client Tool that sanitizes tool schemas for Gemini's restricted JSON Schema subset, and a Chat Model node that calls C...
+- **`n8n-nodes-multi-model`** **(owner-flagged)** (v1.0.2, last publish 2026-08-11) — Production-grade n8n Chat Model node that chains multiple LLM providers (OpenRouter, OpenAI-compatible, Gemini) with automatic failover, retries, circuit bre...
+- **`n8n-nodes-nvidia-nim`** **(owner-flagged)** (v2.4.0, last publish 2026-05-10) — n8n community node for NVIDIA NIM - Chat completions and image analysis with NVIDIA AI models
+- **`n8n-nodes-nvidia-nim-chat`** **(owner-flagged)** (v0.2.14, last publish 2026-05-11) — NVIDIA NIM Chat Model for n8n
+- **`n8n-nodes-nvidia-nim-whisper-v2`** **(owner-flagged)** (v0.1.3, last publish 2026-03-22) — n8n community node for NVIDIA NIM Whisper Large V3 – speech recognition and translation via Riva gRPC API
+- **`n8n-nodes-ollama-reranker`** **(owner-flagged)** (v1.6.2, last publish 2026-04-25) — Reranker nodes for n8n - Custom rerank API (recommended), VL Classifier, Ollama Generate (experimental). Vector Store provider + workflow node.
+- **`n8n-nodes-openai-langfuse`** **(owner-flagged)** (v0.1.11, last publish 2025-09-22) — n8n community node: Langfuse + OpenAI-compatible LLM provider
+- **`n8n-nodes-openrouter`** **(owner-flagged)** (v0.3.37, last publish 2024-11-04) — n8n node for OpenRouter API integration
+- **`n8n-nodes-openrouter-advanced`** **(owner-flagged)** (v0.1.1, last publish 2026-08-15) — n8n community node for the full OpenRouter API — chat, responses, images, video, audio, embeddings and reranking, with provider routing, plugins, reasoning c...
+- **`n8n-nodes-openrouter-automaai`** **(owner-flagged)** (v0.3.0, last publish 2026-08-02) — OpenRouter Chat Model para n8n com cache de prompt, telemetria de tokenUsage e campo user para rastreio de custo por cliente. Fork de n8n-nodes-openrouter-ca...
+- **`n8n-nodes-openrouter-cache`** **(owner-flagged)** (v0.3.0, last publish 2026-02-19) — n8n node for OpenRouter Chat Model with Prompt Caching support
+- **`n8n-nodes-openrouter-cache-chat-model`** **(owner-flagged)** (v0.2.0, last publish 2026-04-21) — OpenRouter Chat Model with prompt caching support for n8n AI Agent workflows
+- **`n8n-nodes-openrouter-chat-model`** **(owner-flagged)** (v0.1.5, last publish 2026-07-19) — Custom n8n OpenRouter Chat Model sub-node with JSON options support (reasoning, max_tokens, etc.) for use with AI Agents and Chains.
+- **`n8n-nodes-openrouter-clean`** **(owner-flagged)** (v1.0.3, last publish 2026-06-28) — n8n community nodes for OpenRouter — full API support including reasoning control, multimodal content (images, video URLs), provider preferences, plugins (we...
+- **`n8n-nodes-openrouter-custom-v2`** **(owner-flagged)** (v0.3.0, last publish 2026-05-19) — n8n community node for sending chat completion requests through OpenRouter.
+- **`n8n-nodes-openrouter-embed`** **(owner-flagged)** (v0.1.0, last publish 2026-06-08) — n8n community sub-node for OpenRouter Embeddings – access embedding models from multiple providers via OpenRouter's unified API
+- **`n8n-nodes-openrouter-embeddings`** **(owner-flagged)** (v0.2.0, last publish 2026-02-19) — n8n community sub-node for OpenRouter Embeddings – access embedding models from multiple providers via OpenRouter's unified API
+- **`n8n-nodes-openrouter-image`** **(owner-flagged)** (v1.0.7, last publish 2026-01-03) — 
+- **`n8n-nodes-openrouter-official`** **(owner-flagged)** (v1.1.3, last publish 2026-08-22) — The Ultimate OpenRouter Toolkit for n8n. Includes a unified Multimodal Action Node, Embeddings, and Advanced Reranker to supercharge your RAG workflows.
+- **`n8n-nodes-openrouter-reasoning`** **(owner-flagged)** (v0.2.1, last publish 2026-07-03) — OpenRouter Chat Model community node for n8n with reasoning.effort support.
+- **`n8n-nodes-openrouter-selector`** **(owner-flagged)** (v0.13.2, last publish 2026-04-06) — n8n community node for intelligent OpenRouter model selection based on task, budget, and benchmarks
+- **`n8n-nodes-openrouter-stelio-ia`** **(owner-flagged)** (v1.0.0, last publish 2025-07-26) — n8n nodes for OpenRouter AI API integration
+- **`n8n-nodes-openrouter-tchik`** **(owner-flagged)** (v0.3.0, last publish 2026-08-02) — OpenRouter Chat Model community node for n8n with reasoning.effort, service_tier and app attribution headers.
+- **`n8n-nodes-openrouter-transcribe`** **(owner-flagged)** (v0.1.2, last publish 2026-02-24) — n8n node for transcribing audio to text using OpenRouter API
+- **`n8n-nodes-openroutercached`** **(owner-flagged)** (v0.4.3, last publish 2025-11-02) — n8n node for OpenRouter API integration with advanced features: prompt caching, reasoning tokens, vision, streaming, and more
+- **`n8n-nodes-roundrobin`** **(owner-flagged)** (v0.18.3, last publish 2025-04-05) — n8n node to store and retrieve messages in a round-robin fashion, particularly for LLM conversation loops with multiple personas
+- **`n8n-nodes-universal-chatmodel`** **(owner-flagged)** (v1.0.34, last publish 2026-08-14) — Production-oriented n8n community Chat Model for native Google Gemini and OpenAI-compatible APIs
+- **`@aibus/n8n-nodes-qwen-model`** (v0.1.4, last publish 2026-08-14) — n8n community node for a Qwen Cloud (DashScope) / OpenAI-compatible Chat Model with built-in JSON Schema structured output
+- **`@bitovi/n8n-nodes-embeddings-ollama`** (v0.1.2, last publish 2025-04-18) — N8N node for semantic text splitting
+- **`@bloodshop/n8n-nodes-codex-pro`** (v1.0.7, last publish 2026-04-20) — n8n node for local Codex CLI authentication via `codex login`, suitable for Codex-backed AI Agent workflows.
+- **`@bruno_groehs/n8n-nodes-chatmodel-reasoning`** (v1.2.1, last publish 2026-07-07) — n8n ChatModel node with extended reasoning/thinking support for OpenRouter, DeepSeek, and any OpenAI-compatible API
+- **`@brunodosanjos/n8n-nodes-vertex-ai-pdf`** (v1.1.0, last publish 2026-01-31) — n8n community node for Google Vertex AI (Gemini)
+- **`@castai/n8n-nodes-kimchi`** (v0.0.2, last publish 2026-04-09) — n8n community node for Kimchi (kimchi.dev) — OpenAI-compatible LLM router by CAST AI
+- **`@chrishdx/n8n-nodes-claude-cli`** (v1.1.1, last publish 2026-01-02) — n8n Community Node for Claude CLI as LangChain Chat Model
+- **`@chrishdx/n8n-nodes-codex-cli-lm`** (v1.0.0, last publish 2026-01-01) — n8n Community Node for Codex CLI as LangChain Chat Model
+- **`@clod_io/n8n-nodes-clod`** (v0.1.6, last publish 2026-05-07) — n8n community node for CLōD API (OpenAI-compatible)
+- **`@cloudcli-ai/n8n-nodes-cloud-cli`** (v1.0.9, last publish 2026-03-15) — n8n community node for CloudCLI - manage development environments and run AI coding agents on your own remote development environments on demand and from any...
+- **`@coderai/n8n-nodes-claude-agent`** (v0.1.19, last publish 2025-11-24) — n8n node for Claude Code AI agent integration - execute autonomous coding tasks and generate code
+- **`@cometapi-dev/n8n-nodes-cometapi`** (v0.1.5, last publish 2025-09-23) — n8n community node for CometAPI - AI language model integration. Official package by CometAPI development team.
+- **`@danielcastillo94/n8n-nodes-claudecode`** (v0.0.19, last publish 2026-05-28) — n8n node for Claude Code SDK integration with MCP support
+- **`@diego1carmo/n8n-nodes-litellm`** (v1.0.4, last publish 2025-11-13) — n8n node para integração com LiteLLM com manipulação de headers
+- **`@difyz/n8n-nodes-volcengine`** (v1.0.18, last publish 2026-07-18) — n8n community node — Volcengine Ark (火山方舟) Doubao Chat Model, Seedream Image Generation, Seedance Video Generation (OpenAI-compatible API, thinking mode).
+- **`@doomscrollr/n8n-nodes-doomscrollr`** (v0.1.6, last publish 2026-04-30) — n8n community node for DOOMSCROLLR owned-audience workflows: posts, subscribers, products, pages, Pinterest, RSS, and analytics.
+- **`@embraceableai/n8n-nodes-core`** (v2.3.7, last publish 2026-07-21) — n8n community nodes for embraceableAI - Conclusion generation via OpenAI-compatible API and new Conclusion API with automatic polling
+- **`@exado/n8n-nodes-exado`** (v0.1.6, last publish 2026-05-26) — n8n community node for the Exado AI API (RAG chat, OpenAI-compatible completions/embeddings, document ingestion, conversations).
+- **`@feedmob/n8n-nodes-feedmob-direct-spend-visualizer`** (v0.1.5, last publish 2026-02-10) — n8n nodes for orchestrating FeedMob direct spend visualizations through Claude Agent SDK plugins
+- **`@flaviohenriquecbc/n8n-nodes-claudecode`** (v3.1.20, last publish 2026-07-14) — n8n node for Claude Code SDK integration with MCP support
+- **`@frierensz_/n8n-nodes-litellm`** (v0.1.10, last publish 2026-08-23) — n8n community node for LiteLLM (OpenAI-compatible proxy) with dynamic model list and automatic DeepSeek reasoning support
+- **`@ggomez91npm/n8n-nodes-claude-code`** (v0.8.0, last publish 2026-07-21) — Use Claude Code in n8n with your existing Claude Pro/Max subscription. Invokes the local Claude Code CLI as a subprocess and returns structured JSON. No API ...
+- **`@heycool/n8n-nodes-plus`** (v0.2.3, last publish 2025-07-06) — A collection of n8n nodes.
+- **`@hienhoceo/n8n-nodes-zukijourney`** (v0.3.5, last publish 2025-09-12) — Professional n8n community node for Zukijourney AI - Free multi-model AI capabilities including Chat, Image Generation & Upscaling, Text-to-Speech, and Trans...
+- **`@holtweb/n8n-nodes-claudecode`** (v0.2.0, last publish 2025-07-21) — n8n node for Claude Code SDK integration with MCP support
+- **`@ibracob.dev/n8n-nodes-fal`** (v1.4.0, last publish 2026-01-23) — n8n node for Fal.ai - LLM text generation, image/video generation, image editing, and vision AI models
+- **`@ibracob.dev/n8n-nodes-falai`** (v1.2.0, last publish 2025-12-04) — n8n node for Fal.ai - LLM text generation, image/video generation, image editing, and vision AI models
+- **`@intrvls/n8n-nodes-google-gemini`** (v1.3.2, last publish 2026-06-21) — n8n community node for the Google Gemini Chat Model, built on @intrvls/langchain-google-genai (the @google/genai-based port of @langchain/google-genai)
+- **`@joaoveiga/n8n-nodes-claudecode`** (v0.11.0, last publish 2026-08-19) — Fork of @johnlindquist/n8n-nodes-claudecode: two n8n nodes for Claude Code v2 via the Claude Agent SDK — the agent, with effort, thinking, Ultracode, tool re...
+- **`@johnlindquist/n8n-nodes-claudecode`** (v0.5.2, last publish 2025-08-01) — n8n node for Claude Code SDK integration with MCP support
+- **`@kimio/n8n-nodes-litellm`** (v1.0.15, last publish 2026-03-22) — Custom n8n node to connect with LiteLLM embeddings API
+- **`@lbono/n8n-nodes-litellm`** (v0.1.6, last publish 2026-06-05) — n8n community node for LiteLLM proxy gateway integration
+- **`@leolin310148/n8n-nodes-gemini-ai-studio`** (v0.2.2, last publish 2026-04-29) — n8n community node for the Google Gemini API via direct AI Studio REST calls.
+- **`@lpil01/n8n-nodes-crawl4ai`** (v0.2.0, last publish 2025-09-14) — n8n nodes for Crawl4AI web crawler and data extraction with LLM-powered multiple item extraction
+- **`@maia-id/n8n-nodes-maia-router`** (v2.3.3, last publish 2026-04-24) — n8n community node for Maia Router API
+- **`@maia-id/n8n-nodes-maia-router-chat-action`** (v2.3.3, last publish 2026-04-24) — MAIA Router action nodes - Chat, Audio, Video, etc. (Cloud Compatible)
+- **`@marvynsoares/n8n-nodes-litellm`** (v0.1.0, last publish 2026-08-10) — n8n community nodes para LiteLLM (proxy compatível com a API da OpenAI): Chat Model, Embeddings e node de ação (chat/moderations).
+- **`@mayvrv/n8n-nodes-litellm`** (v0.1.5, last publish 2025-09-29) — LiteLLM custom node for n8n
+- **`@meliousai/n8n-nodes-melious`** (v0.1.2, last publish 2026-07-31) — n8n community node for Melious.ai — sovereign European AI inference (chat, embeddings, rerank, images, transcription, models).
+- **`@miskokodi/n8n-nodes-kie-ai`** (v0.1.4, last publish 2026-07-05) — n8n community node: KIE.ai Chat Model — use KIE's discounted LLM APIs (Gemini, GPT, Claude, DeepSeek, Grok) as a language model provider for AI Agents and ch...
+- **`@oden-kun/n8n-nodes-codex`** (v0.1.0, last publish 2026-05-08) — Unofficial n8n community node for running prompts with the Codex CLI.
+- **`@open-condo/n8n-nodes-llm-openai-langfuse`** (v1.8.0, last publish 2026-07-31) — n8n OpenAI Language Model with built-in Langfuse observability and tracing
+- **`@opperai/n8n-nodes-opper`** (v0.2.1, last publish 2026-08-05) — n8n community node for Opper — 300+ AI models through one EU-hosted, GDPR-compliant gateway
+- **`@paxa_terminator/n8n-nodes-kie-llm`** (v1.0.3, last publish 2026-07-13) — n8n node for Kie.ai models (Claude 4.5 Haiku, Gemini 3 Flash) with Web Search support
+- **`@planetarny/n8n-nodes-ollama-embeddings`** (v1.2.5, last publish 2026-07-25) — Custom Ollama Embeddings sub-node using ollamaEmbedApi credentials, model auto-detection, and dimension control
+- **`@poolsideai/n8n-nodes-poolside`** (v0.1.3, last publish 2026-08-10) — n8n community node that connects Poolside's Laguna models to AI Agents and chains via Poolside's OpenAI-compatible inference API
+- **`@prama13/n8n-nodes-advance-gemini`** (v0.4.20, last publish 2026-04-27) — Advanced Gemini Node for n8n - Unlock the full potential of Gemini AI with advanced image generation capabilities in n8n workflows.
+- **`@rlquilez/n8n-nodes-openai-litellm`** (v1.0.22, last publish 2025-09-20) — n8n community node: OpenAI-compatible LLM provider with structured JSON metadata injection
+- **`@rxap/n8n-nodes-litellm`** (v0.0.4, last publish 2025-05-16) — This package provides n8n nodes for interacting with LiteLLM, enabling users to leverage various AI models for chat, embeddings, and more within their n8n wo...
+- **`@salesmind-ai/n8n-nodes-vertex-advanced-chat-model`** (v1.1.1, last publish 2026-03-25) — n8n community nodes for Google Vertex AI and Gemini Chat Models with labels support for billing cost tracking
+- **`@sevenlab/n8n-nodes-litellm-chat-model`** (v1.1.1, last publish 2026-03-06) — n8n community node for LiteLLM — connect any LLM provider via a LiteLLM proxy using a simple JSON options field
+- **`@sirmrmarty/n8n-nodes-claudecode`** (v0.3.8, last publish 2025-08-08) — n8n node for Claude Code SDK integration with MCP support
+- **`@sirmrmarty/n8n-nodes-gemini-cli`** (v0.1.5, last publish 2025-08-08) — n8n node for Google Gemini CLI integration with AI-powered coding assistance
+- **`@sirmrmarty/n8n-nodes-tmux-orchestrator`** (v0.3.9, last publish 2025-08-20) — n8n nodes for orchestrating Claude AI agents through tmux sessions
+- **`@sureliving/n8n-nodes-claudecode`** (v0.1.36, last publish 2026-01-28) — n8n node for Claude Code SDK integration with MCP support
+- **`@torrix-ai/n8n-nodes-torrix`** (v0.1.11, last publish 2026-04-24) — n8n community node for Torrix — self-hosted LLM observability. Route LLM calls through Torrix to log tokens, cost, latency, and prompt traces.
+- **`@websitelabs/n8n-nodes-software-teams`** (v1.0.1, last publish 2026-08-18) — Software Teams specialist agents as n8n community nodes. Self-hosted only; requires the claude binary and a Claude subscription OAuth token or Anthropic API ...
+- **`@welsonviana/n8n-nodes-generic-rest-chat-model-ai`** (v0.1.2, last publish 2026-07-11) — Generic REST Chat Model sub-node for n8n AI Agent. Supports IBM watsonx Orchestrator and any OpenAI-compatible REST LLM.
+- **`@wiro-ai/n8n-nodes-wiroai`** (v2.0.1, last publish 2026-03-21) — n8n community node for Wiro AI — 290+ AI models: video, image, audio, LLM, 3D, and more.
+- **`@yuripetusko/n8n-nodes-gemini-search`** (v1.0.22, last publish 2025-05-07) — n8n nodes to interact with Google Gemini API for search and content generation
+- **`agentiffai-n8n-nodes`** (v0.0.1, last publish 2026-02-11) — Custom n8n nodes for Agentiff.AI workflows - webhook handling, SSE events, LLM gateway, PII redaction, and Gmail API integration
+- **`n8n-nodes-8links`** (v1.0.0, last publish 2024-11-06) — N8N nodes for 8links API
+- **`n8n-nodes-adacode`** (v0.1.0, last publish 2026-08-08) — n8n community node untuk adaCODE — pakai satu API key adaCODE untuk semua model (Claude, GPT, GLM, Qwen, MiniMax, adaCODE house) di workflow n8n, termasuk se...
+- **`n8n-nodes-agent-langfuse`** (v0.6.2, last publish 2026-08-17) — n8n AI Agent node with native Langfuse integration: tracing + prompt management
+- **`n8n-nodes-agent-pro`** (v3.5.2, last publish 2026-08-03) — Advanced n8n AI Agent node for Claude, OpenAI & Gemini — native PDF/image vision, Claude Max (Claude Code OAuth) support, Anthropic prompt caching, structure...
+- **`n8n-nodes-agentiffai`** (v0.0.6, last publish 2026-04-16) — Custom n8n nodes for Agentiff.AI workflows - webhook handling, SSE events, LLM gateway, PII redaction, and Gmail API integration
+- **`n8n-nodes-agy`** (v1.0.7, last publish 2026-08-18) — n8n community node to seamlessly integrate and execute Google Antigravity CLI (agy) commands
+- **`n8n-nodes-ai-fixer`** (v0.1.3, last publish 2025-07-30) — help fix litellm
+- **`n8n-nodes-ai-langfuse`** (v0.2.7, last publish 2026-02-23) — n8n community nodes: Langfuse integration for AI LLM providers (OpenAI, Google Gemini)
+- **`n8n-nodes-ai-media-gen`** (v0.0.7, last publish 2026-01-30) — n8n node for AI media generation with extensible architecture. Supports ModelScope, Nano Banana (Gemini), and Doubao Seedream APIs.
+- **`n8n-nodes-aimedia-ai`** (v0.20.0, last publish 2026-07-13) — Multi-provider AI Chat Model for n8n with sequential failover + retry. Any OpenAI-compatible provider (OpenAI, DeepSeek, NVIDIA, OpenRouter, Groq, ...), one ...
+- **`n8n-nodes-aistudio`** (v1.0.11, last publish 2024-11-06) — N8N nodes for Gemini API
+- **`n8n-nodes-aistudio-updated`** (v1.5.4, last publish 2025-03-18) — N8N nodes for AI APIs including Gemini, Claude, GPT, and more
+- **`n8n-nodes-aksesai`** (v0.4.0, last publish 2026-07-11) — n8n node for AksesAI — AI API Gateway Indonesia. 35+ model AI, chat, list models, embedding. Zero dependencies.
+- **`n8n-nodes-alltoken`** (v0.2.1, last publish 2026-05-18) — n8n community node for AllToken — unified OpenAI-compatible AI API (chat, image, video)
+- **`n8n-nodes-analytics`** (v1.0.1, last publish 2026-07-04) — Powerful n8n community node for execution analytics, AI token tracking, cost estimation, and workflow analysis. Replaces complex 10-20 node analytics workflo...
+- **`n8n-nodes-anyapi.ai`** (v0.1.5, last publish 2026-05-13) — n8n community node for AnyAPI.ai — unified AI gateway with 300+ LLM models
+- **`n8n-nodes-aot-harness`** (v0.5.1, last publish 2026-05-05) — CHIP + Atom of Thoughts (AoT) Agent Harness — multi-provider n8n community node with a Process Analyst Worker for operational case triage (email, document, a...
+- **`n8n-nodes-apexapi`** (v0.4.3, last publish 2026-08-12) — n8n community node for ApexApi — call 15+ AI providers (OpenAI, Anthropic, Google, Amazon Bedrock, Mistral, and more) through one OpenAI-compatible API, with...
+- **`n8n-nodes-astrolabe`** (v0.6.0, last publish 2026-06-22) — n8n node for Astrolabe — sovereign EU AI for the social economy: chat, embeddings and knowledge bases (OpenAI-compatible API).
+- **`n8n-nodes-aws-bedrock-assumerole`** (v1.6.5, last publish 2026-03-16) — n8n node for AWS Bedrock with AssumeRole authentication
+- **`n8n-nodes-azure-ai`** (v0.1.4, last publish 2026-07-30) — n8n community nodes for AI Foundary on LiteLLM proxy (OpenAI-compatible)
+- **`n8n-nodes-azure-anthropic`** (v0.1.10, last publish 2025-12-13) — n8n node to interact with Azure Anthropic models
+- **`n8n-nodes-better-ai-agent`** (v1.6.16, last publish 2025-08-22) — A better AI Agent node for n8n with improved memory management and modern AI SDK integration
+- **`n8n-nodes-better-ayla-agent`** (v1.7.8, last publish 2025-11-16) — An improved Ayla Agent node for n8n with improved memory management and modern AI SDK integration
+- **`n8n-nodes-bozonx-free-llm-router-microservice`** (v1.11.0, last publish 2025-12-28) — n8n node for Free LLM Router Microservice
+- **`n8n-nodes-bozonx-translate-gateway-microservice`** (v1.11.0, last publish 2025-12-23) — n8n node for text translation via Translate Gateway microservice (Google, DeepL, DeepSeek, OpenRouter)
+- **`n8n-nodes-brainiall`** (v0.1.0, last publish 2026-02-27) — n8n community node for Brainiall LLM Gateway - 113+ AI models (Claude, DeepSeek, Llama, Qwen, Mistral) via OpenAI-compatible API
+- **`n8n-nodes-brikko`** (v0.1.0, last publish 2026-05-07) — Privacy-aware n8n nodes by Brikko: mask Russian and English PII before LLM calls (152-ФЗ compliant)
+- **`n8n-nodes-browser-chat`** (v1.0.3, last publish 2026-07-22) — n8n Community Node for No-API Web Browser AI Automation (ChatGPT, Claude, Gemini, DeepSeek)
+- **`n8n-nodes-claude`** (v2.1.0, last publish 2025-10-28) — n8n nodes for Anthropic Claude AI and PRD Agent - includes session management, PRD generation, and automatic Markdown documentation
+- **`n8n-nodes-claude-chat`** (v0.2.5, last publish 2025-12-16) — n8n community node for Claude Chat - Conversational AI powered by Claude Agent SDK with skills support
+- **`n8n-nodes-claude-cli`** (v0.1.5, last publish 2026-07-10) — n8n community node that runs Claude through your local, subscription-authenticated Claude CLI — no API key. Chat + Agentic modes, local exec, no Docker socket.
+- **`n8n-nodes-claude-cli-bridge`** (v0.2.3, last publish 2026-06-16) — n8n community node that calls the locally-installed, subscription-authenticated Claude CLI directly — no Anthropic API key, no separate server process
+- **`n8n-nodes-claude-code-cli`** (v1.10.0, last publish 2026-08-10) — n8n community node for Claude Code CLI integration - execute AI-assisted coding tasks
+- **`n8n-nodes-claude-code-cli-aspruyt`** (v1.11.0, last publish 2026-08-23) — n8n community node for Claude Code CLI integration - execute AI-assisted coding tasks
+- **`n8n-nodes-claude-pro`** (v2.0.20, last publish 2026-03-17) — n8n node for Claude Pro via setup-token authentication. No CLI required on the server.
+- **`n8n-nodes-claude-sdk-agent`** (v1.9.4, last publish 2026-07-07) — n8n community nodes — Claude Agent SDK with Model Selector, Provider credentials, streaming, MCP and skills.
+- **`n8n-nodes-claudecode-enhanced`** (v1.0.9, last publish 2025-07-22) — Enhanced n8n node for Claude Code with native authentication, advanced MCP support, and enterprise features
+- **`n8n-nodes-cloudflare-ai-gateway`** (v0.1.3, last publish 2026-07-03) — n8n community node: Cloudflare AI Gateway as a Language Model for AI Agent/Chain nodes
+- **`n8n-nodes-cloudflare-workers-ai`** (v0.1.2, last publish 2026-07-08) — Use Cloudflare Workers AI (@cf/…) models through AI Gateway as a chat model for n8n AI Agents and chains
+- **`n8n-nodes-codex`** (v1.2.0, last publish 2026-01-26) — Codex digital library node for n8n
+- **`n8n-nodes-codex-cli`** (v0.1.5, last publish 2026-07-10) — n8n community node that runs OpenAI Codex through your local, subscription-authenticated Codex CLI (Sign in with ChatGPT) — no API key. Chat + Agentic modes,...
+- **`n8n-nodes-cortexx-ai`** (v1.0.0, last publish 2026-07-19) — n8n community node for Cortexx AI (Omniroute) — unified AI router with 160+ providers, smart auto-routing and OpenAI-compatible API
+- **`n8n-nodes-crawl4ai-enhanced`** (v0.3.6, last publish 2025-09-17) — n8n nodes for Crawl4AI web crawler and data extraction with LLM-powered multiple item extraction
+- **`n8n-nodes-custom-anthropic`** (v1.0.14, last publish 2025-02-12) — Custom Anthropic node for n8n
+- **`n8n-nodes-custom-litellm`** (v0.4.2, last publish 2026-07-28) — LiteLLM chat models, embeddings, credentials, and tool-calling AI agent nodes for n8n
+- **`n8n-nodes-databricks-ai`** (v0.3.15, last publish 2025-02-22) — n8n node for Databricks AI models
+- **`n8n-nodes-deepseek-next`** (v1.0.15, last publish 2026-05-16) — n8n community node — DeepSeek Chat Model (OpenAI-compatible API, thinking mode, ChatDeepSeek).
+- **`n8n-nodes-demeterics`** (v0.1.46, last publish 2026-02-06) — n8n community node for Demeterics LLM Gateway - Access multiple AI providers (Groq, OpenAI, Anthropic, Google Gemini) through a unified API with built-in obs...
+- **`n8n-nodes-demeterics-lite`** (v0.1.46, last publish 2026-02-06) — n8n community node for Demeterics LLM Gateway - Access multiple AI providers through a unified API with built-in observability and cost tracking. (Lite versi...
+- **`n8n-nodes-dolphin-mixtral`** (v0.1.10, last publish 2025-01-28) — n8n node to interact with local Ollama models
+- **`n8n-nodes-edenai`** (v0.1.16, last publish 2026-08-19) — n8n community node for Eden AI — access 300+ models from 50+ providers through a single European AI gateway
+- **`n8n-nodes-embedings-nvidia`** (v0.0.4, last publish 2025-10-16) — Generate text and image embeddings via NVIDIA (OpenAI-compatible)
+- **`n8n-nodes-entity-enricher`** (v3.0.1, last publish 2026-08-06) — n8n community node for Entity Enricher — enrich entities with multi-model LLM fusion, multilingual output, and expertise-driven strategies
+- **`n8n-nodes-eurouter`** (v1.2.1, last publish 2026-04-15) — n8n community node for EUrouter — the European AI gateway with 100+ EU-hosted, GDPR-friendly models
+- **`n8n-nodes-falai-pro`** (v1.3.3, last publish 2025-12-19) — n8n node for Fal.ai - LLM text generation, image/video generation, image editing, and vision AI models
+- **`n8n-nodes-fallback-chat-model`** (v0.1.8, last publish 2026-07-14) — n8n sub-node that chains multiple chat models (OpenAI, Anthropic, Mistral, Ollama/llama.cpp, ...) and automatically switches to the next model when one fails.
+- **`n8n-nodes-ferentin`** (v1.2.2, last publish 2025-10-26) — n8n Language Model for Ferentin AI with OAuth2 authentication and LangChain integration
+- **`n8n-nodes-file-search`** (v1.1.3, last publish 2026-05-13) — n8n node for Google File Search (Gemini API RAG)
+- **`n8n-nodes-flowengine`** (v1.10.22, last publish 2025-12-14) — n8n nodes for FlowEngine AI + Zero-Setup Email Testing + AI Session Manager + Data Cleaner - AI automation made easy
+- **`n8n-nodes-flowengine-chat-model`** (v1.0.2, last publish 2025-11-28) — n8n community node for FlowEngine Chat Model - Access 100+ AI models
+- **`n8n-nodes-fusion`** (v0.6.31, last publish 2025-12-19) — n8n community node for Fusion AI (NeuroSwitch multi-provider orchestration)
+- **`n8n-nodes-gagem`** (v1.0.15, last publish 2025-12-22) — n8n node for Gagem (Google Gemini) API
+- **`n8n-nodes-gemini`** (v1.3.0, last publish 2022-04-21) — This is Gemini Exchange n8n node.
+- **`n8n-nodes-gemini-ai`** (v0.6.8, last publish 2025-06-11) — n8n community node for Google Gemini AI integration with text generation, file upload & analysis, and TTS (Text-to-Speech) support
+- **`n8n-nodes-gemini-cli-tool`** (v1.3.1, last publish 2025-06-29) — A custom n8n node to interact with the Gemini CLI via a wrapper API.
+- **`n8n-nodes-gemini-embedding-plus`** (v0.2.8, last publish 2025-08-30) — Enhanced Google Gemini embeddings node for n8n with direct API integration and custom dimensions support
+- **`n8n-nodes-gemini-file-search`** (v1.0.8, last publish 2025-12-03) — n8n community nodes for Google Gemini File Search Tool API - Build powerful document search and RAG systems with AI-powered semantic search
+- **`n8n-nodes-gemini-file-search-store`** (v0.2.0, last publish 2025-11-18) — n8n community node for Gemini File Search (cloud-safe store management & query)
+- **`n8n-nodes-gemini-grounding`** (v0.4.0, last publish 2025-04-28) — n8n node with Gemini API grounding functionality
+- **`n8n-nodes-gemini-nano-banana-pro`** (v1.1.3, last publish 2025-11-26) — n8n community node for generating images using Google Gemini API
+- **`n8n-nodes-gemini-search`** (v1.2.1, last publish 2025-10-06) — n8n nodes to interact with Google Gemini API for search and content generation
+- **`n8n-nodes-gemini-web-api`** (v1.7.0, last publish 2026-07-25) — n8n community node for Google Gemini Web API using browser cookies (no API key required)
+- **`n8n-nodes-gemini-wolfhub`** (v1.2.2, last publish 2026-07-24) — n8n nodes for Google AI Studio WolfHub: Music (Lyria), Speech TTS, Images (Imagen), Videos (Veo)
+- **`n8n-nodes-gemini3-vertex`** (v0.2.6, last publish 2026-05-20) — n8n community nodes exposing Gemini 3 features for Google Vertex AI
+- **`n8n-nodes-geminiclone-v3`** (v1.0.8, last publish 2025-11-20) — Custom Gemini Clone node with Google Search grounding and all original Gemini functionality
+- **`n8n-nodes-gen-img-ver-tex-ai`** (v1.6.0, last publish 2026-05-01) — n8n community node for Gemini Vertex AI (Nano Banana) - supports text-to-image and multi-image editing
+- **`n8n-nodes-genconverter`** (v0.1.0-beta5, last publish 2025-04-26) — Convert speech to text, image to text, and youtube to text using Gemini API
+- **`n8n-nodes-geotechlitellm`** (v0.1.2, last publish 2026-02-12) — n8n nodes for LiteLLM (OCR, Perplexity Search)
+- **`n8n-nodes-github-copilot`** (v4.5.3, last publish 2026-04-13) — n8n community node for GitHub Copilot with CLI integration, Chat API access, and AI Chat Model for workflows with full tools and function calling support - a...
+- **`n8n-nodes-github-copilot-agent-tool`** (v0.1.1, last publish 2026-03-31) — GitHub Copilot nodes for n8n with AI Agent Tool support — access GPT-4, Claude, Gemini and more using your Copilot subscription
+- **`n8n-nodes-google-files-api`** (v1.0.11, last publish 2026-01-16) — n8n nodes for Google Gemini File Search Store (RAG)
+- **`n8n-nodes-google-gemini-embeddings-extended`** (v0.2.3, last publish 2025-10-20) — n8n community sub-node for Google Gemini Embeddings with extended features like output dimensions support
+- **`n8n-nodes-google-vertex-ai`** (v0.1.3, last publish 2026-06-09) — Community n8n node for Google Vertex AI (Gemini text, multimodal analysis, Nano Banana image generation/editing, and Veo video). Unofficial, not affiliated w...
+- **`n8n-nodes-google-vertex-cached`** (v0.2.11, last publish 2025-12-14) — n8n node for Google Vertex AI Chat with Context Caching and Google Search Grounding support
+- **`n8n-nodes-grok-official`** (v0.1.0, last publish 2026-08-10) — n8n community nodes for the Grok API from xAI — text with reasoning (thinking) mode, image generation & editing, video generation, and voice (text-to-speech ...
+- **`n8n-nodes-groq-chat`** (v2.3.7, last publish 2025-12-01) — n8n supply node for Groq API - Provides Groq language models for use with Basic LLM Chain and other AI nodes. Ultra-fast inference with Llama, Mixtral, Gemma...
+- **`n8n-nodes-helicone`** (v1.0.4, last publish 2025-10-30) — n8n node for Helicone AI gateway and observability
+- **`n8n-nodes-hybrid-chat`** (v1.0.0, last publish 2026-08-07) — Hybrid Chat Model with OpenAI, Gemini, and vLLM automatic fallback
+- **`n8n-nodes-ionos`** (v1.21.0, last publish 2026-01-15) — n8n nodes for IONOS DNS, Domain, SSL/Certificate management, Cloud AI, Cloud Infrastructure, Container Registry, Database as a Service, CDN, VPN Gateway, Act...
+- **`n8n-nodes-json-parser`** (v0.1.5, last publish 2025-09-08) — n8n node for extracting and parsing JSON from text, including AI model outputs
+- **`n8n-nodes-k2think`** (v0.1.5, last publish 2026-06-05) — n8n community node for the K2 Think V2 reasoning model (MBZUAI-IFM), OpenAI-compatible gateway at api.k2think.ai
+- **`n8n-nodes-kie-pro`** (v0.14.0, last publish 2026-04-05) — n8n community nodes for Kie.ai — 26 AI model nodes: Flux-2 Pro, Flux Kontext, Sora 2, Kling 3.0, Veo3 4K, Wan 2.6, Hailuo 2.3, Runway Gen4, Seedream 5, Seeda...
+- **`n8n-nodes-langchain`** (v1.2.0, last publish 2025-02-12) — N8N nodes for Langchain integration with Anthropic models
+- **`n8n-nodes-langchain-alexg`** (v1.2.0, last publish 2025-02-12) — N8N nodes for Langchain integration with Anthropic models
+- **`n8n-nodes-ldxhub`** (v0.10.0, last publish 2026-07-03) — n8n community node for LDX hub — AI-powered document processing platform with vision document analysis (AnalyzeDoc), text-based PDF conversion (CastDoc), doc...
+- **`n8n-nodes-litellm-call`** (v0.0.4, last publish 2025-08-22) — n8n node for LiteLLM to interact with self-hosted LLMs
+- **`n8n-nodes-litellm-chat-model`** (v0.0.6, last publish 2025-08-21) — LiteLLM node for n8n
+- **`n8n-nodes-llm-chat`** (v0.1.0, last publish 2026-05-20) — n8n nodes for LLM chat via OpenAI-compatible Chat Completions API (llama-server, Ollama /v1, vLLM, etc.)
+- **`n8n-nodes-llm-observability`** (v0.10.40, last publish 2025-12-02) — n8n community nodes: Standalone AI Agent with multi-provider LLM support and integrated Langfuse/Phoenix/Helicone observability
+- **`n8n-nodes-llmpulse`** (v0.1.2, last publish 2026-07-05) — n8n community node for LLM Pulse, the AI visibility analytics platform. Track brand mentions, citations and share of voice across ChatGPT, Perplexity, Gemini...
+- **`n8n-nodes-lmrrkeys`** (v0.1.5, last publish 2025-04-25) — Round-robin key for LLM Model (Gemini, OpenAi)
+- **`n8n-nodes-makehub`** (v1.0.37, last publish 2025-03-06) — N8N node to interact with MakeHub AI's LLM API for advanced language model capabilities
+- **`n8n-nodes-manifest`** (v0.2.1, last publish 2026-07-31) — Use Manifest's OpenAI-compatible model router from n8n workflows.
+- **`n8n-nodes-margiq`** (v0.2.5, last publish 2026-08-03) — Workflow-aware model recommendation and observation nodes for n8n
+- **`n8n-nodes-merge`** (v0.3.1, last publish 2026-06-15) — n8n community nodes for Merge - connect AI agents to Merge Tool Packs via Agent Handler and use any LLM provider via Merge Gateway chat models
+- **`n8n-nodes-microsoftfoundry`** (v0.2.2, last publish 2026-07-13) — n8n community node to use any Microsoft Foundry model deployment (OpenAI, Anthropic/Claude, DeepSeek, Kimi, and more) as a chat model for AI Agents
+- **`n8n-nodes-miniagent`** (v0.2.2, last publish 2025-12-24) — Lightweight AI Agent node for n8n - zero dependencies, built-in memory, RAG support, multi-LLM
+- **`n8n-nodes-minimax-unified`** (v1.0.0, last publish 2026-06-02) — n8n community node for MiniMax AI. Supports both the international (api.minimax.io) and China (api.minimaxi.com) endpoints, Standard and Coding Plan keys, an...
+- **`n8n-nodes-nabugate`** (v1.0.0, last publish 2026-08-17) — n8n community node for NabuGate AI gateway & multi-agent flows
+- **`n8n-nodes-nano-banana`** (v1.2.0, last publish 2026-03-27) — n8n node for Nano Banana (Gemini) Image Generation
+- **`n8n-nodes-nele-ai`** (v1.0.4, last publish 2025-10-30) — Use all nele.ai AI tools, chat completions and image generators via n8n.
+- **`n8n-nodes-nemotron`** (v0.1.9, last publish 2025-05-23) — n8n community node for integrating NVIDIA's Nemotron Ultra 253B AI model
+- **`n8n-nodes-nilai`** (v0.1.6, last publish 2026-07-22) — Use Nillion nilAI — private LLM inference in a TEE, OpenAI-compatible — directly in n8n, with built-in cryptographic verification of every response.
+- **`n8n-nodes-nils-codex`** (v0.3.0, last publish 2026-06-25) — Self-hosted n8n Nils Codex node via ChatGPT subscription device-code auth
+- **`n8n-nodes-nim`** (v1.0.2, last publish 2025-09-09) — NVIDIA NIM node for n8n
+- **`n8n-nodes-niyoos`** (v0.1.0, last publish 2026-07-31) — Use Niyoos-governed LLMs (Anthropic via the Niyoos proxy) as a LangChain chat model in n8n.
+- **`n8n-nodes-nl-ai-gateway`** (v1.0.1, last publish 2026-08-13) — Sovereign, GDPR-compliant AI for n8n — Dutch-hosted LLM with zero data retention. Drop-in replacement for OpenAI nodes.
+- **`n8n-nodes-notion-advanced`** (v1.2.35-beta, last publish 2025-08-02) — Advanced n8n Notion nodes: Full-featured workflow node + AI Agent Tool for intelligent Notion automation with 25+ block types (BETA)
+- **`n8n-nodes-nvidia-chat-modell`** (v2.0.1, last publish 2026-03-09) — n8n community node - Multi-provider Chat Model (NVIDIA NIM, Google Gemini, Anthropic Claude) for AI Agents and Chains
+- **`n8n-nodes-nvidia-kimik2`** (v1.0.2, last publish 2026-02-24) — n8n custom node for NVIDIA NIM API (LLM Chat Completions)
+- **`n8n-nodes-nvidia-suite`** (v2.1.1, last publish 2026-06-19) — Full NVIDIA AI suite for n8n — Chat, Embeddings, and Reranker via NVIDIA NIM
+- **`n8n-nodes-ocr-ai`** (v1.0.3-104, last publish 2025-12-22) — n8n community node for OCR and document extraction using multiple AI providers (Gemini, OpenAI, Claude, Grok, Vertex)
+- **`n8n-nodes-openai-advanced`** (v0.1.25, last publish 2026-03-31) — n8n community node for OpenAI with LiteLLM prompt caching support
+- **`n8n-nodes-openai-compatible-chat-trigger`** (v1.0.6, last publish 2026-07-04) — OpenAI-compatible chat trigger and helper nodes for n8n.
+- **`n8n-nodes-orchestrator-agent`** (v1.2.3, last publish 2026-06-09) — Orchestrator Agent Node for n8n — intelligent multi-output classifier with LLM routing
+- **`n8n-nodes-palatine-speech`** (v1.1.1, last publish 2026-05-28) — n8n node for integrating Palatine Speech API into workflow
+- **`n8n-nodes-panda-free-llm`** (v0.4.1, last publish 2026-06-27) — An n8n node that sends a prompt to multiple FREE LLM providers (Groq, Cerebras, Google Gemini, OpenRouter, Mistral) with automatic failover when one hits its...
+- **`n8n-nodes-payi`** (v1.0.5, last publish 2026-06-05) — n8n community node for routing LLM requests through Pay-i proxy with cost tracking and budget enforcement
+- **`n8n-nodes-pikoolev-openrouter-pro`** (v0.3.9, last publish 2026-02-13) — Professional OpenRouter integration nodes for n8n workflows with advanced AI model routing, multimodal support, and structured outputs.
+- **`n8n-nodes-prenzllmgateway`** (v0.1.2, last publish 2026-05-31) — Chat Model node for n8n — use a private LLM gateway as the LLM behind an AI Agent or LLM Chain (with tool calling).
+- **`n8n-nodes-prodex`** (v0.5.1, last publish 2026-06-26) — Self-hosted n8n ProDex node via ChatGPT subscription device-code auth
+- **`n8n-nodes-promptforge-ai`** (v0.1.4, last publish 2026-07-23) — Generate optimized prompts for ChatGPT, Claude, Gemini, Grok and other LLMs.
+- **`n8n-nodes-qiyu-deerapi`** (v1.0.7, last publish 2026-02-04) — N8N nodes for DeerAPI multi-model integration
+- **`n8n-nodes-qwen-embedding`** (v0.10.2, last publish 2026-06-29) — n8n nodes for Ollama embeddings - Dynamic model loading + Support for Qwen, EmbeddingGemma, Nomic and more. Generate text embeddings for vector stores and AI...
+- **`n8n-nodes-regoloai`** (v0.3.0, last publish 2026-06-05) — RegoloAI integration for n8n.io
+- **`n8n-nodes-reranker-ollama`** (v0.0.7, last publish 2025-10-20) — Use Ollama Reranker to reorder documents after retrieval from a vector store by relevance to the given query.
+- **`n8n-nodes-rooyai-chat`** (v0.5.25, last publish 2026-07-06) — Access Google Gemini AI models from Rooyai.com in n8n! Get your free API key at https://rooyai.com and use Gemini 2.5 Pro, Gemini 2.5 Flash, Gemini 2.0 Flash...
+- **`n8n-nodes-rooyai-image`** (v0.1.1, last publish 2026-08-17) — Rooyai Image / Vision Model node for n8n - Multimodal AI image analysis, OCR, visual reasoning, and question answering
+- **`n8n-nodes-rooyai-message`** (v0.3.19, last publish 2026-07-06) — Rooyai Message / Chat Model for n8n - A first-class LLM provider node compatible with AI Agent, Basic LLM Chain, and other n8n AI workflows
+- **`n8n-nodes-runway-video`** (v1.0.0, last publish 2026-07-28) — n8n community node for Runway's text_to_video API — model selection (Gen-4.5, Veo 3/3.1, Seedance 2, Happyhorse, Gemini Omni Flash), model-aware ratio/durati...
+- **`n8n-nodes-siliconflow`** (v1.4.2, last publish 2025-09-01) — n8n community node for SiliconFlow AI models - chat completions, vision language models, embeddings, and reranking
+- **`n8n-nodes-siliconflow-ai`** (v0.6.0, last publish 2026-06-29) — n8n community node for SiliconFlow (硅基流动). Zero runtime dependencies. Provides a SiliconFlow action node (Chat / Vision / Embeddings / Image / Rerank / Audio...
+- **`n8n-nodes-smart-qdrant`** (v1.1.4, last publish 2025-11-05) — Smart Qdrant Vector Store node for n8n with Ollama and OpenAI embeddings support
+- **`n8n-nodes-smartgent`** (v0.2.4, last publish 2025-12-09) — SmartGent custom nodes for n8n - AI-powered automation and intelligent workflow integrations including LiteLLM chat completions, SharePoint file monitoring, ...
+- **`n8n-nodes-stacktree`** (v0.2.0, last publish 2026-08-17) — Publish agent-made HTML to a private, unguessable URL. Gate it with a password or email domain, expire or burn it, and read the feedback viewers leave.
+- **`n8n-nodes-tokensense`** (v0.1.15, last publish 2026-07-22) — Track AI costs per workflow in n8n. Budget caps, per-step attribution, and usage logs across OpenAI, Anthropic, Google, and more.
+- **`n8n-nodes-tool-augmented-reasoning-agent-with-rag-bigboss`** (v1.7.1, last publish 2026-01-12) — Tool-Augmented Reasoning Agent with RAG - Advanced agentic AI system with streaming, memory, tools, and multi-iteration reasoning for n8n
+- **`n8n-nodes-trustedrouter`** (v0.1.3, last publish 2026-08-07) — Use hundreds of AI models through TrustedRouter in n8n workflows
+- **`n8n-nodes-unicraft`** (v2.1.8, last publish 2025-09-27) — UniCraft N8N custom nodes - Unified AI Model Router with Multi-Modal Support by CloudCraft Labs for OpenAI, Anthropic, Google Gemini, and more
+- **`n8n-nodes-unify-llm`** (v0.1.3, last publish 2026-03-14) — n8n community node for multi-provider LLM orchestration via Unify LLM (OpenAI, Anthropic, Gemini, Ollama).
+- **`n8n-nodes-vector-store-processor`** (v1.8.15, last publish 2025-11-06) — n8n node for intelligent document chunking and processing for vector store ingestion with Smart Qdrant Vector Store supporting Ollama and OpenAI embeddings
+- **`n8n-nodes-vertex-ai`** (v0.1.9, last publish 2026-02-03) — n8n community node for Google Vertex AI (Gemini)
+- **`n8n-nodes-vibe-chat`** (v0.2.1, last publish 2026-07-27) — Secure multi-provider Vibe chat node for n8n
+- **`n8n-nodes-video-ai`** (v0.4.11, last publish 2025-04-05) — n8n node for AI-powered video Operations (analysis, Review, Summarize, etc), currently supporting Google Gemini.
+- **`n8n-nodes-vlm`** (v3.4.4, last publish 2026-06-29) — Vision-Language Models for n8n - Lightweight specialized VLMs for document analysis and classification
+- **`n8n-nodes-volcengine-next`** (v1.0.16, last publish 2026-05-15) — n8n community node — Volcengine Ark (火山方舟) Doubao Chat Model (OpenAI-compatible API, thinking mode).
+- **`n8n-nodes-wildbots-gemini`** (v0.1.11, last publish 2026-04-11) — Google Gemini AI nodes for n8n with built-in proxy — bypass regional restrictions effortlessly
+- **`n8n-nodes-wolfhub`** (v1.2.29, last publish 2026-08-10) — n8n community node for WolfHub AI API - Image, Video, TTS generation, Chat Language Model, and AI Tools
+- **`n8n-nodes-workflow-generator`** (v0.6.1, last publish 2026-01-07) — Generate n8n workflows from natural language using Claude AI
+- **`n8n-nodes-wrouter`** (v0.2.0, last publish 2026-07-31) — n8n community node for WRouter — use any model from the WRouter OpenAI-compatible AI gateway as a Chat Model in n8n AI workflows
+- **`n8n-nodes-yescale`** (v1.5.8, last publish 2026-08-19) — YEScale nodes for n8n
+- **`n8n-nodes-zai`** (v0.3.4, last publish 2026-05-08) — n8n community node for Z.ai API — AI chat completions with GLM language models, streaming support, built-in web search, and image generation with CogView-4 a...
+- **`n8n-nodes-zenlayer-chatmodel`** (v0.1.1, last publish 2026-03-18) — n8n nodes for Zenlayer Chat Model API
+- **`n8n-nodes-zihin`** (v0.7.0, last publish 2026-06-28) — n8n nodes for Zihin AI - Chat Model with Tool Calling, Image Analysis, Audio Transcription, Document Parsing
+- **`n8n-nvidia-chat-agent`** (v1.0.0, last publish 2026-02-27) — NVIDIA NIM Chat Agent node for n8n - Integrate with Llama, Mixtral, DeepSeek and other NVIDIA NIM models
+- **`n8n-validator-mcp`** (v1.0.2, last publish 2025-07-22) — MCP server for validating n8n nodes against official specifications
+
+### Output parsing / schema enforcement / validation
+
+_42 matches._
+
+- **`@amrzaher027/n8n-nodes-mcp-enhanced`** **(owner-flagged)** (v0.2.3, last publish 2025-06-25) — Enhanced MCP nodes for n8n with AI tool calling support, auto-fix paths, and advanced parameter validation
+- **`n8n-nodes-mcp-vertex-safe`** **(owner-flagged)** (v0.3.1, last publish 2026-08-11) — n8n nodes for Google Vertex AI: an MCP Client Tool that sanitizes tool schemas for Gemini's restricted JSON Schema subset, and a Chat Model node that calls C...
+- **`n8n-nodes-openrouter-clean`** **(owner-flagged)** (v1.0.3, last publish 2026-06-28) — n8n community nodes for OpenRouter — full API support including reasoning control, multimodal content (images, video URLs), provider preferences, plugins (we...
+- **`@aibus/n8n-nodes-qwen-extractor`** (v0.1.4, last publish 2026-08-16) — n8n node that extracts structured data from conversations using Qwen and a strict JSON Schema
+- **`@aibus/n8n-nodes-qwen-model`** (v0.1.4, last publish 2026-08-14) — n8n community node for a Qwen Cloud (DashScope) / OpenAI-compatible Chat Model with built-in JSON Schema structured output
+- **`@bdzscaler/n8n-nodes-aiguard`** (v0.1.3, last publish 2026-04-14) — n8n community node for Zscaler AI Guard (AI Runtime Security) API integration
+- **`@catalogicus-international/n8n-nodes-flow-state`** (v0.2.5, last publish 2026-07-29) — Redis-backed, schema-validated flow sessions and state change events for n8n
+- **`@cdmx/n8n-nodes-schema-validator`** (v0.1.19, last publish 2026-03-16) — AJV JSON Schema validation node for n8n workflows with support for multiple schemas, formats, and enhanced error messages
+- **`@iamfj/n8n-nodes-schema-validation`** (v0.1.2, last publish 2025-10-21) — JSON Schema validation node for n8n workflows with dual output routing
+- **`@jsoma/n8n-nodes-opik`** (v0.1.17, last publish 2025-11-16) — n8n community node for Comet Opik tracing, prompts, guardrails, and feedback.
+- **`@mephistojb/n8n-nodes-lmstudio`** (v0.1.11, last publish 2026-06-20) — N8N nodes for LM Studio integration with JSON schema support
+- **`@neuroverseos/n8n-nodes-neuroverse`** (v0.3.1, last publish 2026-03-24) — NeuroVerse Guard node for n8n. Evaluate AI agent actions against governance rules and route workflows with ALLOW, BLOCK, or PAUSE decisions.
+- **`@radware/n8n-nodes-radware-agentic-protection`** (v0.3.2, last publish 2026-08-04) — n8n community node for Radware Agentic AI Protection in-path enforcement
+- **`@requesty/n8n-nodes-requesty`** (v1.1.2, last publish 2026-06-19) — n8n community node for Requesty: access 300+ AI models through one unified gateway with structured output, web search and reasoning.
+- **`@scan5/ai-guard-n8n-node`** (v1.0.5, last publish 2026-07-14) — Evaluate prompts, outputs, and tool calls against AI Guard security policies within n8n workflows. Protect LLM applications from prompt injection, data leaka...
+- **`@sitelevelai/n8n-nodes-sitelevel`** (v0.2.8, last publish 2025-11-28) — AI agent node that can handle structured output
+- **`n8n-nodes-absysco`** (v0.1.0, last publish 2026-07-30) — n8n community nodes: document conversion, JSON Schema validation, async job polling, QR codes, OCR and templating
+- **`n8n-nodes-advanced-ai-agent`** (v0.1.1, last publish 2026-07-09) — Advanced AI Agent node for n8n with output validation (code checkers + AI validator), automatic retries with error feedback, required-tool-call enforcement, ...
+- **`n8n-nodes-advanced-output-parser`** (v1.0.1, last publish 2025-06-22) — Advanced Output Parser node for n8n with dynamic expression support
+- **`n8n-nodes-agent-pro`** (v3.5.2, last publish 2026-08-03) — Advanced n8n AI Agent node for Claude, OpenAI & Gemini — native PDF/image vision, Claude Max (Claude Code OAuth) support, Anthropic prompt caching, structure...
+- **`n8n-nodes-apexapi`** (v0.4.3, last publish 2026-08-12) — n8n community node for ApexApi — call 15+ AI providers (OpenAI, Anthropic, Google, Amazon Bedrock, Mistral, and more) through one OpenAI-compatible API, with...
+- **`n8n-nodes-data-validation`** (v1.0.1, last publish 2022-08-27) — This n8n community node validates input data using JSON Schemas.
+- **`n8n-nodes-data-validator`** (v1.3.0, last publish 2026-07-31) — n8n community node to validate input data against a JSON Schema
+- **`n8n-nodes-decionis`** (v0.1.0, last publish 2026-07-30) — n8n community node for Decionis. Every automation step asks permission: gate any workflow step through the Decionis decision protocol and branch on the retur...
+- **`n8n-nodes-deepkeep`** (v0.2.7, last publish 2026-08-19) — n8n community node for the DeepKeep AI Firewall API
+- **`n8n-nodes-extract-monster`** (v1.0.3, last publish 2025-11-16) — AI-powered data extraction from PDFs, images, documents, audio, and video. Extract invoices, receipts, forms, tables, and custom data with flexible JSON sche...
+- **`n8n-nodes-input-validation`** (v1.0.9, last publish 2026-06-16) — Validate webhook/API input with condition groups and Valid/Invalid outputs for n8n
+- **`n8n-nodes-json-validator`** (v0.2.0, last publish 2025-06-09) — A Node to validate a JSON against a JSON Schema
+- **`n8n-nodes-lmstudio`** (v0.1.1, last publish 2026-02-10) — N8N nodes for LM Studio integration with JSON schema support
+- **`n8n-nodes-openai-structured-outputs`** (v0.1.18, last publish 2025-07-02) — This is a community node for n8n that enables you to extract structured JSON from unstructured text by leveraging OpenAI’s **Structured Outputs** feature wit...
+- **`n8n-nodes-openbox-hook`** (v0.4.4, last publish 2026-08-24) — OpenBox governance community node for n8n
+- **`n8n-nodes-palatine-speech`** (v1.1.1, last publish 2026-05-28) — n8n node for integrating Palatine Speech API into workflow
+- **`n8n-nodes-pdfvector`** (v2.1.6, last publish 2026-06-11) — n8n community node for PDF Vector — parse PDF, Word, Excel, and image documents, extract structured data with JSON Schema, ask AI questions, and search acade...
+- **`n8n-nodes-pikoolev-openrouter-pro`** (v0.3.9, last publish 2026-02-13) — Professional OpenRouter integration nodes for n8n workflows with advanced AI model routing, multimodal support, and structured outputs.
+- **`n8n-nodes-promptlock-guard`** (v1.0.19, last publish 2026-07-22) — AI-powered security guardrails for n8n workflows - analyze, redact, or block content based on HIPAA, GDPR, and PCI compliance frameworks
+- **`n8n-nodes-qorami`** (v0.2.3, last publish 2026-07-03) — n8n community node for Qorami — check an email before your workflow sends it (send / ask a human / block).
+- **`n8n-nodes-reeflex`** (v0.1.2, last publish 2026-07-19) — Reeflex Gate node for n8n - govern what your workflow's agents may do before it happens; route each risky step on allow/hold/deny, decided on real impact (vi...
+- **`n8n-nodes-schema-inferrer`** (v1.0.7, last publish 2026-07-15) — An n8n community node for inferring JSON schemas from sample data using quicktype-core.
+- **`n8n-nodes-sitemap-validator`** (v0.2.1, last publish 2026-08-08) — n8n node to load a sitemap and validate every URL inside it: 404 links, 5xx errors, redirect chains, timeouts, and missing lastmod. Can output an Excel report
+- **`n8n-nodes-soterai`** (v0.6.1, last publish 2026-08-24) — SoterAI helps protect n8n AI workflows by detecting prompt injection, jailbreaks, secrets, PII, and unsafe AI instructions.
+- **`n8n-nodes-trusera`** (v0.8.14, last publish 2026-03-28) — n8n community node for AI security: static scanning + runtime policy enforcement via Trusera
+- **`n8n-nodes-veritheia`** (v0.2.0, last publish 2025-05-18) — n8n nodes for Veritheia
+
+### Chunking / splitters / RAG / retrievers / rerankers / embeddings
+
+_185 matches._
+
+- **`n8n-nodes-document-embedding`** **(owner-flagged)** (v0.6.31, last publish 2026-08-03) — n8n community node to vectorize (embed) documents and data fields with optional text splitting.
+- **`n8n-nodes-ollama-reranker`** **(owner-flagged)** (v1.6.2, last publish 2026-04-25) — Reranker nodes for n8n - Custom rerank API (recommended), VL Classifier, Ollama Generate (experimental). Vector Store provider + workflow node.
+- **`n8n-nodes-openrouter-advanced`** **(owner-flagged)** (v0.1.1, last publish 2026-08-15) — n8n community node for the full OpenRouter API — chat, responses, images, video, audio, embeddings and reranking, with provider routing, plugins, reasoning c...
+- **`n8n-nodes-openrouter-embed`** **(owner-flagged)** (v0.1.0, last publish 2026-06-08) — n8n community sub-node for OpenRouter Embeddings – access embedding models from multiple providers via OpenRouter's unified API
+- **`n8n-nodes-openrouter-embeddings`** **(owner-flagged)** (v0.2.0, last publish 2026-02-19) — n8n community sub-node for OpenRouter Embeddings – access embedding models from multiple providers via OpenRouter's unified API
+- **`n8n-nodes-openrouter-official`** **(owner-flagged)** (v1.1.3, last publish 2026-08-22) — The Ultimate OpenRouter Toolkit for n8n. Includes a unified Multimodal Action Node, Embeddings, and Advanced Reranker to supercharge your RAG workflows.
+- **`n8n-nodes-openrouter-selector`** **(owner-flagged)** (v0.13.2, last publish 2026-04-06) — n8n community node for intelligent OpenRouter model selection based on task, budget, and benchmarks
+- **`n8n-nodes-openrouter-stelio-ia`** **(owner-flagged)** (v1.0.0, last publish 2025-07-26) — n8n nodes for OpenRouter AI API integration
+- **`n8n-nodes-roundrobin`** **(owner-flagged)** (v0.18.3, last publish 2025-04-05) — n8n node to store and retrieve messages in a round-robin fashion, particularly for LLM conversation loops with multiple personas
+- **`n8n-nodes-semantic-splitter-with-context`** **(owner-flagged)** (v0.6.2, last publish 2025-10-20) — Semantic Splitter with Context for n8n with LangChain integration
+- **`@adam-fisher/n8n-nodes-tag-media`** (v1.0.1, last publish 2026-03-02) — n8n nodes for embedding metadata into audio, media, and Office document files
+- **`@aistemsplitter/n8n-nodes-aistemsplitter`** (v0.1.11, last publish 2026-05-16) — n8n community node and automation integration helpers for AIStemSplitter.
+- **`@bedrijfsdatanl/n8n-nodes-bedrijfsdata`** (v0.1.9, last publish 2025-08-24) — n8n node for Bedrijfsdata.nl API - Search and retrieve Dutch company information
+- **`@bergetai/n8n-nodes`** (v1.0.3, last publish 2025-10-11) — Complete collection of Berget AI n8n nodes - AI chat, agent, embeddings, OCR, speech, and rerank
+- **`@bergetai/n8n-nodes-all`** (v1.1.0, last publish 2025-12-28) — Complete collection of Berget AI n8n nodes - AI chat, agent, embeddings, OCR, speech, and rerank
+- **`@bergetai/n8n-nodes-berget-ai-rerank`** (v1.1.0, last publish 2025-12-28) — n8n node for Berget AI rerank models
+- **`@bitovi/n8n-nodes-embeddings-ollama`** (v0.1.2, last publish 2025-04-18) — N8N node for semantic text splitting
+- **`@bitovi/n8n-nodes-semantic-text-splitter`** (v0.1.3, last publish 2025-08-06) — N8N node for semantic text splitting
+- **`@blickwerk/n8n-nodes-microsoft-planner`** (v1.5.5, last publish 2026-03-09) — n8n node for Microsoft Planner - Create and retrieve tasks
+- **`@boazlai/n8n-nodes-lightrag`** (v0.2.2, last publish 2026-04-15) — n8n community node for LightRAG Knowledge Graph indexing and retrieval via CosmosDB vCore
+- **`@catalogicus-international/n8n-nodes-light-rag`** (v0.1.4, last publish 2026-06-21) — n8n workflow and AI Agent tool nodes for the LightRAG API server
+- **`@cryptodevops/n8n-nodes-blockchain-explorer`** (v1.0.3, last publish 2025-08-08) — n8n node for accessing multiple blockchain networks (Ethereum, BSC, Polygon, Fantom, Avalanche, Arbitrum, Optimism, etc.) with comprehensive analytics and da...
+- **`@ctera/n8n-nodes-ctera-ai`** (v0.7.0, last publish 2026-07-16) — n8n community nodes for CTERA Portal - includes AI/RAG integration and filesystem operations via MCP
+- **`@elefai/n8n-nodes-elefaibrain-memory-lab`** (v0.1.0-lab.52, last publish 2026-05-14) — Tembory Memory node for n8n AI Agents with profile, tools, timeline, graph and semantic memory
+- **`@enconvert/n8n-nodes-enconvert`** (v1.1.0, last publish 2026-08-06) — Convert files, scrape web pages and crawl sites into AI-ready data with EnConvert
+- **`@exado/n8n-nodes-exado`** (v0.1.6, last publish 2026-05-26) — n8n community node for the Exado AI API (RAG chat, OpenAI-compatible completions/embeddings, document ingestion, conversations).
+- **`@falkordb/n8n-nodes-graphrag`** (v0.3.0, last publish 2026-08-02) — n8n community node — wraps the FalkorDB GraphRAG-Server REST API for knowledge-graph ingestion and retrieval.
+- **`@gladiator1st/n8n-nodes-upstash`** (v1.0.8, last publish 2026-08-17) — n8n community node suite for Upstash Serverless Vector (RAG), Redis Caching & QStash Scheduler
+- **`@growsalesai/n8n-nodes-supermemory`** (v0.3.4, last publish 2026-05-20) — n8n community node for Supermemory - AI-powered memory and document management
+- **`@ionos-cloud/n8n-nodes-ionos-cloud`** (v2.0.1, last publish 2026-07-27) — Official n8n community nodes for IONOS Cloud services (Infrastructure, Certificate Manager, DNS, CDN, AI Model Hub)
+- **`@jep182/n8n-nodes-whatsthat`** (v0.5.6, last publish 2026-03-12) — n8n community nodes with embedded Baileys runtime for multi-session chat automation
+- **`@kimio/n8n-nodes-litellm`** (v1.0.15, last publish 2026-03-22) — Custom n8n node to connect with LiteLLM embeddings API
+- **`@latinvx/n8n-nodes-deepinfra`** (v0.2.5, last publish 2025-05-21) — DeepInfra Embedding node for n8n
+- **`@letzai/n8n-nodes-letzai`** (v0.1.0, last publish 2025-03-27) — A collection of custom n8n nodes for integrating with LetzAI, enabling image creation and retrieval using LetzAI's API.
+- **`@lucifer666333/n8n-nodes-discord-bot`** (v1.0.1, last publish 2026-06-08) — Advanced n8n nodes for Discord integration - trigger workflows from Discord events, send interactive messages with buttons/selects, use slash commands, and m...
+- **`@marvynsoares/n8n-nodes-litellm`** (v0.1.0, last publish 2026-08-10) — n8n community nodes para LiteLLM (proxy compatível com a API da OpenAI): Chat Model, Embeddings e node de ação (chat/moderations).
+- **`@matheusprm-nodes/n8n-nodes-tool-vector-store-custom-prompt`** (v0.1.9, last publish 2025-12-20) — n8n community node for Vector Store QA Tool with customizable prompt
+- **`@meliousai/n8n-nodes-melious`** (v0.1.2, last publish 2026-07-31) — n8n community node for Melious.ai — sovereign European AI inference (chat, embeddings, rerank, images, transcription, models).
+- **`@migastonesrl/n8n-nodes-migasender`** (v0.4.2, last publish 2026-03-25) — Production-ready n8n community node package for MIGASENDER messaging and log retrieval.
+- **`@mixpeek/n8n-nodes-mixpeek`** (v1.0.462, last publish 2026-08-24) — n8n community node for Mixpeek - multimodal data processing and semantic search API
+- **`@needle-ai/needle-n8n-nodes`** (v1.1.3, last publish 2025-03-04) — Needle AI n8n nodes
+- **`@original-land/n8n-nodes-embedding`** (v0.4.7, last publish 2025-09-04) — Custom original.land embedding node for n8n
+- **`@oshankhz/n8n-nodes-bee2bee`** (v0.3.9, last publish 2025-10-26) — n8n nodes to index GitHub repositories, extract metadata, and generate embeddings for RAG
+- **`@pinecone-database/n8n-nodes-pinecone-assistant`** (v0.1.11, last publish 2026-05-05) — A Pinecone Assistant node for n8n
+- **`@planetarny/n8n-nodes-ollama-embeddings`** (v1.2.5, last publish 2026-07-25) — Custom Ollama Embeddings sub-node using ollamaEmbedApi credentials, model auto-detection, and dimension control
+- **`@postnitro/n8n-nodes-postnitro-ai`** (v0.2.2, last publish 2026-07-17) — Turn ideas, articles, or posts into branded carousels and images — then schedule them straight to your social accounts
+- **`@qontext/n8n-nodes-qontext`** (v0.1.5, last publish 2026-03-30) — Retrieve and ingest context to and from Qontext vaults
+- **`@rxap/n8n-nodes-ipfs`** (v1.0.4, last publish 2026-01-23) — An n8n node to download files from IPFS, supporting download as file, JSON, or text, with options for specifying the IPFS gateway, CID, and file path. It all...
+- **`@rxap/n8n-nodes-litellm`** (v0.0.4, last publish 2025-05-16) — This package provides n8n nodes for interacting with LiteLLM, enabling users to leverage various AI models for chat, embeddings, and more within their n8n wo...
+- **`@seed-ship/n8n-nodes-voyage-embeddings`** (v0.2.6, last publish 2025-02-11) — n8n node to embed content with voyageai embeddings
+- **`@shaundai/n8n-nodes-govai`** (v1.5.1, last publish 2025-05-28) — n8n node for chatting with – and now uploading files to – GovAI assistants
+- **`@stackflo-labs/n8n-nodes-retainr`** (v0.4.1, last publish 2026-03-20) — n8n community node for retainr.dev — AI agent memory persistence API. Store, search, and retrieve semantic memories for AI agents across workflow runs.
+- **`@surreal7/n8n-nodes-mem0`** (v1.3.7, last publish 2025-11-16) — N8N community node for Mem0 - intelligent memory layer for AI applications
+- **`@tiagopigatto/n8n-nodes-json-text-splitter`** (v0.2.4, last publish 2025-12-14) — N8N node for automatic JSON object chunk splitting
+- **`@ulyxie/n8n-nodes-docmost`** (v0.0.4, last publish 2026-08-22) — n8n community nodes for Docmost (create and update pages, embed images, and read/write base rows)
+- **`@unwarkz/n8n-nodes-assistant-set`** (v1.1.6, last publish 2026-03-29) — N8N community node package — full assistant set: Mem0 memory, Gotenberg PDF, Telegram Bot, Outline Wiki, Qdrant vector store (regular + AI tools)
+- **`@unwarkz/n8n-nodes-mem0`** (v1.3.22, last publish 2026-03-29) — N8N community node for Mem0 - intelligent memory layer for AI applications
+- **`@unwarkz/n8n-nodes-qdrant`** (v1.0.6, last publish 2026-03-29) — N8N community node for Qdrant vector store — semantic search, embedding storage, and full collection management for AI Agent workflows
+- **`@wiro-ai/n8n-nodes-wiroai`** (v2.0.1, last publish 2026-03-21) — n8n community node for Wiro AI — 290+ AI models: video, image, audio, LLM, 3D, and more.
+- **`@yoda.digital/n8n-nodes-memscend-memory`** (v1.0.11, last publish 2025-10-09) — Production-ready n8n memory node with true semantic search for Memscend multi-tenant memory service
+- **`n8n-nodes-agent-brains-rag`** (v2.2.0, last publish 2026-05-06) — AgentBrains RAG node for n8n
+- **`n8n-nodes-agentic-rag-ai-bigboss`** (v1.0.6, last publish 2026-01-10) — Premium Agentic RAG System for n8n
+- **`n8n-nodes-aksesai`** (v0.4.0, last publish 2026-07-11) — n8n node for AksesAI — AI API Gateway Indonesia. 35+ model AI, chat, list models, embedding. Zero dependencies.
+- **`n8n-nodes-aliyun-oss-vector`** (v0.2.43, last publish 2026-05-16) — n8n community node for Alibaba Cloud OSS Vector Bucket — supports insert, retrieve and delete operations with built-in OSS v4 signing.
+- **`n8n-nodes-aot-harness`** (v0.5.1, last publish 2026-05-05) — CHIP + Atom of Thoughts (AoT) Agent Harness — multi-provider n8n community node with a Process Analyst Worker for operational case triage (email, document, a...
+- **`n8n-nodes-aqbanking`** (v0.1.7, last publish 2025-07-30) — n8n community node to interact with German banks using FinTS/HBCI protocol for account balance queries and transaction retrieval - Development/Testing versio...
+- **`n8n-nodes-astrolabe`** (v0.6.0, last publish 2026-06-22) — n8n node for Astrolabe — sovereign EU AI for the social economy: chat, embeddings and knowledge bases (OpenAI-compatible API).
+- **`n8n-nodes-autobricksai`** (v0.3.2, last publish 2026-07-05) — n8n community nodes for AutoBricks AI — chat models, embeddings, and more, backed by api.autobricksai.com.
+- **`n8n-nodes-aws-cost-explorer`** (v0.1.12, last publish 2025-06-13) — N8N node for AWS Cost Explorer to retrieve cost and usage data
+- **`n8n-nodes-azure-cohere-reranker`** (v0.1.0, last publish 2026-04-22) — n8n community node for Azure Cohere Reranker
+- **`n8n-nodes-azure-openai-ms-oauth2`** (v1.6.1, last publish 2026-06-15) — Azure OpenAI Chat Model and Embeddings with MS OAuth2 for n8n
+- **`n8n-nodes-berget-mk`** (v0.5.0, last publish 2026-04-25) — n8n community node for Berget AI. Multi-resource action node (chat, image analysis, rerank, speech-to-text) plus Chat Model, Embeddings Model, and Reranker s...
+- **`n8n-nodes-bgv-splitter`** (v1.0.0, last publish 2026-07-23) — n8n Community Node for Background Verification (BGV) candidate document splitting, OCR classification, and ID archiving
+- **`n8n-nodes-bozonx-page-scraper-microservice`** (v1.11.0, last publish 2025-12-25) — n8n node for Page Scraper microservice - extract structured content, retrieve HTML, and process URLs in batches
+- **`n8n-nodes-caedral`** (v1.2.0, last publish 2026-08-05) — n8n community node for Caedral AI — chat, images, embeddings, audio, rerank, AI agents, vector stores, and triggers
+- **`n8n-nodes-callrail`** (v0.8.0, last publish 2026-08-05) — n8n community node for CallRail — call tracking webhooks, call retrieval, and tracker (tracking number / number pool) listing
+- **`n8n-nodes-chat-data`** (v1.2.1, last publish 2025-12-09) — Chatdata integration for n8n. Manage chatbots, send messages, and retrieve leads from your Chatdata account.
+- **`n8n-nodes-chatwork-api`** (v1.0.2, last publish 2025-04-03) — Provides n8n nodes to retrieve data from Chatwork API.
+- **`n8n-nodes-companybrain`** (v0.1.0, last publish 2026-07-24) — n8n community node for CompanyBrain — search, add, and ask your company memory in any workflow.
+- **`n8n-nodes-compliance-web-intel`** (v1.0.0, last publish 2026-01-28) — N8n community node for Compliance-Grade Web Intelligence - The scraper AI agents trust. Extract grounded facts with citations for RAG, LangChain, and complia...
+- **`n8n-nodes-configcat`** (v0.1.12, last publish 2024-10-16) — n8n node for retrieving and branching based on ConfigCat feature flags
+- **`n8n-nodes-context-optimizer`** (v1.0.1, last publish 2026-08-03) — Provider-neutral n8n nodes that reduce AI Agent input tokens with quality guards and exact retrieval.
+- **`n8n-nodes-contextualai`** (v0.1.11, last publish 2026-03-23) — n8n community node for Contextual AI - enterprise-grade RAG agents, document parsing, querying, reranking, and evaluation
+- **`n8n-nodes-crawlchat`** (v0.2.1, last publish 2025-10-30) — CrawlChat API Node for n8n
+- **`n8n-nodes-custom-embedding`** (v1.0.2, last publish 2025-08-31) — Custom embedding nodes for n8n with support for both standalone and sub-node modes
+- **`n8n-nodes-custom-litellm`** (v0.4.2, last publish 2026-07-28) — LiteLLM chat models, embeddings, credentials, and tool-calling AI agent nodes for n8n
+- **`n8n-nodes-deepseek-embeddings`** (v0.1.3, last publish 2025-06-18) — DeepSeek Embeddings for n8n
+- **`n8n-nodes-docutray`** (v0.5.2, last publish 2025-10-21) — n8n community nodes for Docutray OCR, document identification, and knowledge base search services
+- **`n8n-nodes-docx-converter-enhanced`** (v1.0.0, last publish 2025-08-31) — Enhanced n8n community node for DOCX to text conversion with RAG capabilities, page-aware chunking, and metadata extraction. Fork of n8n-nodes-docx-converter...
+- **`n8n-nodes-ecohash`** (v1.0.3, last publish 2026-08-13) — n8n community nodes for EcoHash: Chat Model for AI Agents, Reranker (BGE) and Embeddings powered by the EcoHash API
+- **`n8n-nodes-elasticsearch-vector-store`** (v0.4.0, last publish 2026-07-19) — n8n community node for using Elasticsearch as a LangChain vector store (RAG, similarity search, AI agent tool)
+- **`n8n-nodes-embeddings-aws-cohere`** (v0.1.2, last publish 2026-02-12) — n8n community node - Embeddings AWS Bedrock (embeddingsAwsCohere)
+- **`n8n-nodes-embeddings-voyageai`** (v1.0.17, last publish 2026-06-21) — n8n community node for Voyage AI Embeddings
+- **`n8n-nodes-embedings-nvidia`** (v0.0.4, last publish 2025-10-16) — Generate text and image embeddings via NVIDIA (OpenAI-compatible)
+- **`n8n-nodes-eurouter`** (v1.2.1, last publish 2026-04-15) — n8n community node for EUrouter — the European AI gateway with 100+ EU-hosted, GDPR-friendly models
+- **`n8n-nodes-file-search`** (v1.1.3, last publish 2026-05-13) — n8n node for Google File Search (Gemini API RAG)
+- **`n8n-nodes-firecrawl-scraper`** (v1.1.7, last publish 2025-03-06) — A custom n8n node based off of firecrawl.
+- **`n8n-nodes-gemini-embedding-plus`** (v0.2.8, last publish 2025-08-30) — Enhanced Google Gemini embeddings node for n8n with direct API integration and custom dimensions support
+- **`n8n-nodes-gemini-file-search`** (v1.0.8, last publish 2025-12-03) — n8n community nodes for Google Gemini File Search Tool API - Build powerful document search and RAG systems with AI-powered semantic search
+- **`n8n-nodes-github-copilot-models`** (v0.2.3, last publish 2026-03-12) — n8n community node for GitHub Copilot chat model and embeddings integration
+- **`n8n-nodes-gitlab-code-splitter`** (v0.2.3, last publish 2025-09-01) — n8n community nodes for GitLab Code Splitter API with Stem4 GCP integration
+- **`n8n-nodes-google-files-api`** (v1.0.11, last publish 2026-01-16) — n8n nodes for Google Gemini File Search Store (RAG)
+- **`n8n-nodes-google-gemini-embeddings-extended`** (v0.2.3, last publish 2025-10-20) — n8n community sub-node for Google Gemini Embeddings with extended features like output dimensions support
+- **`n8n-nodes-google-vertex-embeddings-extended`** (v0.8.1, last publish 2025-10-20) — n8n community sub-node for Google Vertex AI Embeddings with output dimensions and configurable batch size support - resolves LangChain compatibility issues
+- **`n8n-nodes-graphorlm`** (v0.1.28, last publish 2026-05-22) — n8n community nodes for Graphor - Intelligent document processing, RAG pipelines, and document chat API
+- **`n8n-nodes-guidedmind`** (v0.2.5, last publish 2026-08-23) — n8n community node for GuidedMind — RAG knowledge base, document ingestion, and short/long agent memory.
+- **`n8n-nodes-hologres-vectorstore`** (v0.1.5, last publish 2026-03-23) — n8n community node for Hologres Vector Store with HGraph index support
+- **`n8n-nodes-hyperspacedb`** (v3.1.47, last publish 2026-06-17) — HyperspaceDB integration for n8n (Vector Store, Embeddings, API)
+- **`n8n-nodes-hyperspell`** (v0.8.0, last publish 2026-08-12) — n8n community node for Hyperspell — add documents, semantic search, and AI-grounded answers from any workflow.
+- **`n8n-nodes-imap`** (v2.17.1, last publish 2026-07-02) — This node allows you to connect to an IMAP server and retrieve emails.
+- **`n8n-nodes-imap-email`** (v0.1.6, last publish 2025-10-27) — N8N custom node for IMAP email retrieval and filtering
+- **`n8n-nodes-imap-fork-test`** (v2.16.3, last publish 2026-05-06) — This node allows you to connect to an IMAP server and retrieve emails.
+- **`n8n-nodes-infranodus`** (v0.1.8, last publish 2025-12-09) — n8n community node to work with the InfraNodus GraphRAG API
+- **`n8n-nodes-jira-project-tasks`** (v0.9.0, last publish 2026-08-04) — n8n community node to retrieve tasks for a project from a Jira Cloud-compatible REST API, with email + API key authentication and dynamic project selection.
+- **`n8n-nodes-knowledgelib`** (v0.1.6, last publish 2026-02-16) — n8n community node for knowledgelib.io — query pre-verified, cited knowledge units for AI agents
+- **`n8n-nodes-lmstudio-embeddings`** (v1.1.1, last publish 2026-03-23) — n8n community node for LM Studio Embeddings API with encoding format selection
+- **`n8n-nodes-localith`** (v0.1.17, last publish 2026-03-11) — n8n community node for Localith — access your Google Business reviews, listings, and location metrics. Build automations, dashboards, or your own reputation ...
+- **`n8n-nodes-logosdb`** (v1.0.2, last publish 2026-07-21) — n8n node for LogosDB semantic vector database — insert, search, delete, info
+- **`n8n-nodes-md2notion`** (v1.6.2, last publish 2026-02-14) — Convert markdown to Notion pages with advanced chunking and error handling - supports large documents, complex content, and provides detailed error messages
+- **`n8n-nodes-mediavox`** (v1.8.1, last publish 2026-07-25) — n8n community node for Mediavox: mediaAPI (48+ endpoints — sanctions, threats, data quality, OCR, KYC), Turing AI (chat with RAG + function calling), Documen...
+- **`n8n-nodes-mem0-self`** (v0.2.13, last publish 2026-04-18) — n8n community node for Mem0 Self-Hosted with LangChain-compliant AI memory
+- **`n8n-nodes-memara`** (v2.1.1, last publish 2026-04-22) — n8n community node for Memara memory system - Store and retrieve memories with semantic search in your workflows
+- **`n8n-nodes-milvus-enhanced`** (v1.1.12, last publish 2025-08-23) — n8n community node for Milvus vector database with enhanced metric type switching
+- **`n8n-nodes-miniagent`** (v0.2.2, last publish 2025-12-24) — Lightweight AI Agent node for n8n - zero dependencies, built-in memory, RAG support, multi-LLM
+- **`n8n-nodes-minimemory`** (v0.4.0, last publish 2025-12-24) — n8n community node for embedded vector database - perform similarity search directly within n8n without external servers
+- **`n8n-nodes-mysql-variables`** (v0.5.1, last publish 2026-06-30) — n8n community node to store variables (cookies, API keys, client id/secret) in MySQL or embedded SQLite — flat key→value store with per-credential isolation ...
+- **`n8n-nodes-nemix`** (v0.3.1, last publish 2026-07-12) — Nemix ERP integration for n8n. Action mode (all resources + all operations as prefab forms) + Custom API Call (truly free request builder) + Nemix Knowledge ...
+- **`n8n-nodes-neo4j-extended`** (v1.1.0, last publish 2025-10-01) — n8n community node for Neo4j with vector search, auto-create indexes, dynamic dropdowns, and enhanced security
+- **`n8n-nodes-neura-ianustec`** (v0.7.1, last publish 2025-12-07) — n8n Community Node for NEURA | IANUSTEC AI - LangChain compatible Chat Model and Knowledge RAG Tool
+- **`n8n-nodes-newscatcher-catchall-pernode`** (v0.1.44, last publish 2026-07-30) — n8n community node for Newscatcher CatchAll API - submit jobs, retrieve results, manage monitors, and receive webhook triggers.
+- **`n8n-nodes-notion-overlimit-writer`** (v2.15.0, last publish 2026-04-03) — Enhanced n8n node for unlimited Notion content with professional markdown-to-rich-text conversion, robust property management, comprehensive file support, fu...
+- **`n8n-nodes-nvidia-suite`** (v2.1.1, last publish 2026-06-19) — Full NVIDIA AI suite for n8n — Chat, Embeddings, and Reranker via NVIDIA NIM
+- **`n8n-nodes-openai-analytics`** (v0.1.7, last publish 2025-05-15) — n8n node for OpenAI Analytics
+- **`n8n-nodes-openclaw-chat`** (v1.0.8, last publish 2026-04-05) — n8n node to interact with OpenClaw Gateway HTTP API (chat completions, embeddings, models, responses, tools)
+- **`n8n-nodes-pdf-tesseract-ocr`** (v0.2.0, last publish 2026-08-04) — Renders scanned PDF pages to real bitmaps via pdf.js and OCRs them with tesseract.js - works regardless of the PDF's internal image compression (CCITT, JBIG2...
+- **`n8n-nodes-pgvector-advanced`** (v1.7.3, last publish 2025-12-20) — Advanced PGVector + Postgres nodes for n8n with full CRUD control
+- **`n8n-nodes-postgres-advanced-memory`** (v2.3.7, last publish 2026-04-17) — Postgres Memory+ node for n8n with schema support, thread management, and optimized semantic search
+- **`n8n-nodes-privy`** (v1.0.0, last publish 2026-04-25) — A comprehensive n8n community node for Privy wallet-as-a-service platform, providing user management, embedded wallets, server wallets, delegated wallets, an...
+- **`n8n-nodes-puter-ai`** (v2.0.4, last publish 2025-08-11) — Advanced n8n node for Puter.js AI with RAG agentic capabilities, document processing, audio transcription, Supabase integration, and cost-optimized model pri...
+- **`n8n-nodes-qdrant-context-retriever`** (v1.0.3, last publish 2026-07-28) — n8n community node for Qdrant — retrieves semantically relevant context from a Qdrant vector database using text embeddings, for RAG and semantic search work...
+- **`n8n-nodes-qdrant-hybrid-search`** (v1.0.3, last publish 2026-05-28) — n8n node for Qdrant semantic & hybrid search (dense + sparse BM25). Supports server-side inference. Built by mecode.pro
+- **`n8n-nodes-qoqon`** (v1.0.8, last publish 2026-03-08) — n8n node for DOC — document management platform (files, folders, semantic search, embeddings)
+- **`n8n-nodes-query-retriever-rerank`** (v0.4.1, last publish 2025-06-17) — Advanced n8n community node for intelligent document retrieval with multi-step reasoning, reranking, and comprehensive debugging
+- **`n8n-nodes-qwen-embedding`** (v0.10.2, last publish 2026-06-29) — n8n nodes for Ollama embeddings - Dynamic model loading + Support for Qwen, EmbeddingGemma, Nomic and more. Generate text embeddings for vector stores and AI...
+- **`n8n-nodes-rag-architect`** (v1.0.1, last publish 2026-01-24) — n8n community node for RAG-Architect - Transform any website into AI-ready knowledge chunks
+- **`n8n-nodes-rckflr-textembeddings`** (v1.0.7, last publish 2025-06-20) — N8N node for generating text embeddings using Transformer.js with direct text input
+- **`n8n-nodes-reranker-nvidia`** (v0.0.1, last publish 2025-10-16) — Use Nvidia Reranker to reorder documents after retrieval from a vector store by relevance to the given query.
+- **`n8n-nodes-reranker-ollama`** (v0.0.7, last publish 2025-10-20) — Use Ollama Reranker to reorder documents after retrieval from a vector store by relevance to the given query.
+- **`n8n-nodes-reranker-voyageai`** (v1.0.4, last publish 2026-07-30) — Voyage AI Reranker node for n8n
+- **`n8n-nodes-sap-ai-core`** (v1.0.1, last publish 2025-08-10) — n8n nodes for SAP AI Core LLM and embeddings integration
+- **`n8n-nodes-sap-ai-core-orchestration`** (v1.0.20, last publish 2026-07-30) — n8n community node for SAP AI Core with Orchestration support. Adaptation of n8n-nodes-sap-ai-core by Pon Murugesh Devendren, extended to enable the SAP AI C...
+- **`n8n-nodes-search1api`** (v0.1.3, last publish 2026-07-31) — Search and retrieve live public web content with Search1API in n8n workflows.
+- **`n8n-nodes-signatrust`** (v0.4.2, last publish 2026-08-21) — n8n community node for Signatrust. Generate, verify, and retrieve cryptographically signed AI Decision Receipts (Ed25519) for autonomous AI agents. Cloud and...
+- **`n8n-nodes-siliconflow`** (v1.4.2, last publish 2025-09-01) — n8n community node for SiliconFlow AI models - chat completions, vision language models, embeddings, and reranking
+- **`n8n-nodes-siliconflow-ai`** (v0.6.0, last publish 2026-06-29) — n8n community node for SiliconFlow (硅基流动). Zero runtime dependencies. Provides a SiliconFlow action node (Chat / Vision / Embeddings / Image / Rerank / Audio...
+- **`n8n-nodes-sleeper`** (v0.2.0, last publish 2026-08-08) — Retrieve public Sleeper fantasy football data with n8n.
+- **`n8n-nodes-smart-qdrant`** (v1.1.4, last publish 2025-11-05) — Smart Qdrant Vector Store node for n8n with Ollama and OpenAI embeddings support
+- **`n8n-nodes-solar`** (v0.3.54, last publish 2025-11-07) — Solar LLM and Embeddings nodes for n8n
+- **`n8n-nodes-solar-sm`** (v0.4.2, last publish 2025-08-28) — Solar LLM and Embeddings nodes for n8n
+- **`n8n-nodes-stemsplit`** (v0.1.7, last publish 2026-05-22) — Separate vocals, drums, bass, and other stems from any audio file inside N8N. Remove vocals, isolate instrumentals, extract drum tracks, or split full 6-stem...
+- **`n8n-nodes-teckel-ipfs`** (v1.0.10, last publish 2026-05-12) — Store, retrieve and pin encrypted files on IPFS via the teckel platform.
+- **`n8n-nodes-tls-utils`** (v0.1.3, last publish 2024-06-27) — retrieve and validate ssl certificate from remote tcp endpoints
+- **`n8n-nodes-tool-augmented-reasoning-agent-with-rag-bigboss`** (v1.7.1, last publish 2026-01-12) — Tool-Augmented Reasoning Agent with RAG - Advanced agentic AI system with streaming, memory, tools, and multi-iteration reasoning for n8n
+- **`n8n-nodes-torqdata`** (v0.1.67, last publish 2025-05-12) — n8n nodes for TorqData integration including LangChain text embedding capabilities
+- **`n8n-nodes-tts-bigboss`** (v2.0.8, last publish 2026-01-12) — Professional TTS node with multi-engine support, text chunking, and accurate SRT generation
+- **`n8n-nodes-universal-reranker`** (v1.0.5, last publish 2025-11-01) — Universal Reranker Node for n8n - supports vLLM, LocalAI, Infinity, Cohere and custom endpoints
+- **`n8n-nodes-upstage`** (v0.4.1, last publish 2026-03-24) — Upstage LLM and Embeddings nodes for n8n
+- **`n8n-nodes-upstage-with-reasoning`** (v1.0.1, last publish 2025-11-16) — Upstage LLM and Embeddings nodes for n8n
+- **`n8n-nodes-url-to-md`** (v0.1.3, last publish 2026-05-22) — n8n node to fetch a URL and convert the page to clean Markdown
+- **`n8n-nodes-useapi-net`** (v0.7.0, last publish 2026-03-24) — n8n community nodes for useapi.net - AI generation services (Midjourney, Dreamina, Kling, Runway, PixVerse, MiniMax, GoogleFlow, InsightFaceSwap, Mureka, Tem...
+- **`n8n-nodes-vector-store-processor`** (v1.8.15, last publish 2025-11-06) — n8n node for intelligent document chunking and processing for vector store ingestion with Smart Qdrant Vector Store supporting Ollama and OpenAI embeddings
+- **`n8n-nodes-vectorgov`** (v0.1.6, last publish 2026-01-20) — n8n node para busca semântica em documentos jurídicos brasileiros via VectorGov
+- **`n8n-nodes-venice-ai-ultraviolet`** (v0.2.5, last publish 2025-08-27) — n8n node for Venice AI API integration
+- **`n8n-nodes-vertex-ai-rag`** (v0.1.10, last publish 2025-11-19) — Custom n8n nodes for Google Vertex AI RAG (Retrieval Augmented Generation) with separated credentials for embedding and vector search
+- **`n8n-nodes-vizard`** (v1.0.0, last publish 2026-07-20) — n8n community node for the Vizard AI API: edit short videos, create clips, retrieve outputs, generate social captions and publish videos.
+- **`n8n-nodes-voyageai`** (v0.1.3, last publish 2026-06-07) — n8n community node for VoyageAI embeddings and reranking
+- **`n8n-nodes-voyageai-embeddings-unofficial`** (v0.1.6, last publish 2025-06-01) — (Unofficial) Voyage AI Embeddings node for n8n
+- **`n8n-nodes-wcea-embeddings`** (v1.0.3-alpha-9, last publish 2025-08-29) — n8n node for WCEA Embeddings API with encoding format selection, specifically design for Supabase
+- **`n8n-nodes-webcrawlerapi`** (v0.3.7, last publish 2026-06-05) — n8n node for WebCrawler API integration - a website to markdown API for LLM and RAG
+- **`n8n-nodes-webhound`** (v0.1.2, last publish 2026-07-24) — Run budgeted Webhound reports and datasets, wait for honest completion, and retrieve the result with its evidence.
+- **`n8n-nodes-weknora`** (v0.4.3, last publish 2026-08-04) — n8n community node for WeKnora knowledge bases, document ingestion, search, and RAG chat
+- **`n8n-nodes-wellmarked`** (v0.2.0, last publish 2026-07-29) — n8n community node for the WellMarked API — convert any URL to clean Markdown.
+- **`n8n-nodes-yoov`** (v0.6.1, last publish 2023-08-29) — YOOV n8n nodes for Lancode
+- **`n8n-nodes-zilliz`** (v0.3.6, last publish 2025-07-08) — n8n community node for Zilliz vector database with full RAG support
+- **`venice-ai-ultraviolet`** (v0.1.1, last publish 2025-08-27) — n8n node for Venice AI API integration
+
+### Vector / graph / memory stores (Weaviate, Neo4j, SurrealDB, Cognee, Milvus, memory systems)
+
+_76 matches._
+
+- **`n8n-nodes-cognee`** **(owner-flagged)** (v0.5.1, last publish 2026-06-22) — n8n node to call Cognee Cloud API and its memory services
+- **`n8n-nodes-milvus-db`** **(owner-flagged)** (v0.3.2, last publish 2026-08-21) — Milvus Vector Store node for n8n with an explicit database selector (multi-database / multi-tenant Milvus)
+- **`n8n-nodes-ollama-reranker`** **(owner-flagged)** (v1.6.2, last publish 2026-04-25) — Reranker nodes for n8n - Custom rerank API (recommended), VL Classifier, Ollama Generate (experimental). Vector Store provider + workflow node.
+- **`n8n-nodes-openrouter-embed`** **(owner-flagged)** (v0.1.0, last publish 2026-06-08) — n8n community sub-node for OpenRouter Embeddings – access embedding models from multiple providers via OpenRouter's unified API
+- **`n8n-nodes-openrouter-embeddings`** **(owner-flagged)** (v0.2.0, last publish 2026-02-19) — n8n community sub-node for OpenRouter Embeddings – access embedding models from multiple providers via OpenRouter's unified API
+- **`@boazlai/n8n-nodes-lightrag`** (v0.2.2, last publish 2026-04-15) — n8n community node for LightRAG Knowledge Graph indexing and retrieval via CosmosDB vCore
+- **`@denklab/n8n-nodes-memgraph`** (v0.1.15, last publish 2024-01-04) — N8N community node to connect to MemgraphDB
+- **`@eccenca/n8n-nodes-corporate-memory`** (v0.4.2, last publish 2026-07-28) — n8n community node for eccenca Corporate Memory (CMEM): execute Data Integration workflows and (v2) run SPARQL queries and query-catalog reports.
+- **`@elefai/n8n-nodes-elefaibrain-memory-lab`** (v0.1.0-lab.52, last publish 2026-05-14) — Tembory Memory node for n8n AI Agents with profile, tools, timeline, graph and semantic memory
+- **`@falkordb/n8n-nodes-graphrag`** (v0.3.0, last publish 2026-08-02) — n8n community node — wraps the FalkorDB GraphRAG-Server REST API for knowledge-graph ingestion and retrieval.
+- **`@ionos-cloud/n8n-nodes-ionos-cloud`** (v2.0.1, last publish 2026-07-27) — Official n8n community nodes for IONOS Cloud services (Infrastructure, Certificate Manager, DNS, CDN, AI Model Hub)
+- **`@lrtherond/n8n-nodes-falkordb`** (v1.0.2, last publish 2025-07-17) — n8n community node for FalkorDB graph database with AI integration
+- **`@matheusprm-nodes/n8n-nodes-tool-vector-store-custom-prompt`** (v0.1.9, last publish 2025-12-20) — n8n community node for Vector Store QA Tool with customizable prompt
+- **`@matterandes/n8n-nodes-cypher`** (v1.0.12, last publish 2026-03-17) — n8n community node to interact with graph databases via the Bolt protocol using Cypher queries
+- **`@mem0/n8n-nodes-mem0`** (v0.1.4, last publish 2026-08-24) — n8n community node for Mem0 — the memory layer for AI agents. Add, search, get, update, and delete long-term memories.
+- **`@n8n-dev/n8n-nodes-azure-enterpriseknowledgegraph-enterpriseknowledgegraphswagger`** (v1.0.2, last publish 2026-07-27) — Azure Enterprise Knowledge Graph Service enables scalable knowledge graph creation.
+- **`@pinecone-database/n8n-nodes-pinecone-assistant`** (v0.1.11, last publish 2026-05-05) — A Pinecone Assistant node for n8n
+- **`@rxap/n8n-nodes-neo4j`** (v0.0.8, last publish 2025-05-16) — Provides a Neo4j node for n8n workflows, including basic authentication credentials. It allows to connect and interact with Neo4j databases within the n8n au...
+- **`@stackflo-labs/n8n-nodes-retainr`** (v0.4.1, last publish 2026-03-20) — n8n community node for retainr.dev — AI agent memory persistence API. Store, search, and retrieve semantic memories for AI agents across workflow runs.
+- **`@surreal7/n8n-nodes-mem0`** (v1.3.7, last publish 2025-11-16) — N8N community node for Mem0 - intelligent memory layer for AI applications
+- **`@surrealdb/n8n-nodes-surrealdb`** (v0.6.0, last publish 2026-04-24) — n8n node to connect to SurrealDB
+- **`@tpsdev-ai/n8n-nodes-flair`** (v0.49.0, last publish 2026-08-24) — n8n community node — use Flair as your AI Agent's memory backend. Includes FlairChatMemory (Memory port) and FlairSearch (Tool port).
+- **`@unwarkz/n8n-nodes-assistant-set`** (v1.1.6, last publish 2026-03-29) — N8N community node package — full assistant set: Mem0 memory, Gotenberg PDF, Telegram Bot, Outline Wiki, Qdrant vector store (regular + AI tools)
+- **`@unwarkz/n8n-nodes-mem0`** (v1.3.22, last publish 2026-03-29) — N8N community node for Mem0 - intelligent memory layer for AI applications
+- **`@unwarkz/n8n-nodes-qdrant`** (v1.0.6, last publish 2026-03-29) — N8N community node for Qdrant vector store — semantic search, embedding storage, and full collection management for AI Agent workflows
+- **`n8n-nodes-agent-kit`** (v0.1.26, last publish 2026-05-04) — n8n node cluster: AgentKit, SkillLoader, AgentMemory, McpGateway
+- **`n8n-nodes-backup-dbs-rsd`** (v0.3.6, last publish 2026-05-22) — n8n community node to backup RabbitMQ, MongoDB, PostgreSQL and Qdrant directly to Amazon S3
+- **`n8n-nodes-behive`** (v0.1.0, last publish 2026-07-28) — n8n community node for BeHive — deep research engine that builds knowledge graphs
+- **`n8n-nodes-berget-mk`** (v0.5.0, last publish 2026-04-25) — n8n community node for Berget AI. Multi-resource action node (chat, image analysis, rerank, speech-to-text) plus Chat Model, Embeddings Model, and Reranker s...
+- **`n8n-nodes-caedral`** (v1.2.0, last publish 2026-08-05) — n8n community node for Caedral AI — chat, images, embeddings, audio, rerank, AI agents, vector stores, and triggers
+- **`n8n-nodes-cbtest`** (v1.0.9, last publish 2026-02-25) — Community nodes for using Couchbase Key-Value, Query, Full-Text Search, Couchbase Search Vector Store, Couchbase Query Vector Store, and Couchbase as Chat Me...
+- **`n8n-nodes-couchbase`** (v1.3.2, last publish 2026-02-25) — Community nodes for using Couchbase Key-Value, Query, Full-Text Search, Couchbase Search Vector Store, Couchbase Query Vector Store, and Couchbase as Chat Me...
+- **`n8n-nodes-elasticsearch-vector-store`** (v0.4.0, last publish 2026-07-19) — n8n community node for using Elasticsearch as a LangChain vector store (RAG, similarity search, AI agent tool)
+- **`n8n-nodes-engram`** (v0.5.1, last publish 2026-07-18) — Knowledge graph memory for n8n AI agents. Persistent, per-user memory with entity extraction, temporal fact tracking, community detection, graph traversal, a...
+- **`n8n-nodes-eurouter`** (v1.2.1, last publish 2026-04-15) — n8n community node for EUrouter — the European AI gateway with 100+ EU-hosted, GDPR-friendly models
+- **`n8n-nodes-file-metadata`** (v1.0.10, last publish 2025-11-06) — n8n node for extracting metadata from files (PDF, images, ebooks, archives, office docs, audio, video, markdown) with namespace support
+- **`n8n-nodes-flowengine`** (v1.10.22, last publish 2025-12-14) — n8n nodes for FlowEngine AI + Zero-Setup Email Testing + AI Session Manager + Data Cleaner - AI automation made easy
+- **`n8n-nodes-gitlab-code-splitter`** (v0.2.3, last publish 2025-09-01) — n8n community nodes for GitLab Code Splitter API with Stem4 GCP integration
+- **`n8n-nodes-google-gemini-embeddings-extended`** (v0.2.3, last publish 2025-10-20) — n8n community sub-node for Google Gemini Embeddings with extended features like output dimensions support
+- **`n8n-nodes-google-vertex-embeddings-extended`** (v0.8.1, last publish 2025-10-20) — n8n community sub-node for Google Vertex AI Embeddings with output dimensions and configurable batch size support - resolves LangChain compatibility issues
+- **`n8n-nodes-graphiti`** (v1.0.18, last publish 2025-12-27) — Graphiti temporal knowledge graph memory for n8n AI agents
+- **`n8n-nodes-guidedmind`** (v0.2.5, last publish 2026-08-23) — n8n community node for GuidedMind — RAG knowledge base, document ingestion, and short/long agent memory.
+- **`n8n-nodes-hologres-vectorstore`** (v0.1.5, last publish 2026-03-23) — n8n community node for Hologres Vector Store with HGraph index support
+- **`n8n-nodes-hyperspacedb`** (v3.1.47, last publish 2026-06-17) — HyperspaceDB integration for n8n (Vector Store, Embeddings, API)
+- **`n8n-nodes-hyperspell`** (v0.8.0, last publish 2026-08-12) — n8n community node for Hyperspell — add documents, semantic search, and AI-grounded answers from any workflow.
+- **`n8n-nodes-infranodus`** (v0.1.8, last publish 2025-12-09) — n8n community node to work with the InfraNodus GraphRAG API
+- **`n8n-nodes-js-vector-store`** (v1.4.0, last publish 2026-07-05) — n8n community node to store, search and manage vectors on the host filesystem via js-vector-store
+- **`n8n-nodes-lightrag`** (v1.0.14, last publish 2026-02-05) — Custom node for querying LightRAG inside n8n workflows or AI Chatflows
+- **`n8n-nodes-logosdb`** (v1.0.2, last publish 2026-07-21) — n8n node for LogosDB semantic vector database — insert, search, delete, info
+- **`n8n-nodes-mem0-self`** (v0.2.13, last publish 2026-04-18) — n8n community node for Mem0 Self-Hosted with LangChain-compliant AI memory
+- **`n8n-nodes-milvus-enhanced`** (v1.1.12, last publish 2025-08-23) — n8n community node for Milvus vector database with enhanced metric type switching
+- **`n8n-nodes-minimemory`** (v0.4.0, last publish 2025-12-24) — n8n community node for embedded vector database - perform similarity search directly within n8n without external servers
+- **`n8n-nodes-neo4j`** (v0.2.2, last publish 2025-04-14) — n8n node for Neo4j with LangChain integration, supporting vector stores and graph operations
+- **`n8n-nodes-neo4j-extended`** (v1.1.0, last publish 2025-10-01) — n8n community node for Neo4j with vector search, auto-create indexes, dynamic dropdowns, and enhanced security
+- **`n8n-nodes-neo4jtool`** (v0.1.429, last publish 2025-05-07) — a Neo4j node for n8n workflows
+- **`n8n-nodes-opengauss-datavec`** (v0.4.2, last publish 2026-05-20) — n8n community node for openGauss DataVec vector database
+- **`n8n-nodes-opensearch`** (v0.2.5, last publish 2025-12-20) — Adds OpenSearch vector store and generic nodes to n8n
+- **`n8n-nodes-postgres-advanced-memory`** (v2.3.7, last publish 2026-04-17) — Postgres Memory+ node for n8n with schema support, thread management, and optimized semantic search
+- **`n8n-nodes-postgres-vector-store-tool`** (v0.7.1, last publish 2025-12-03) — AI agent Postgres vector store tool with vector search and custom SQL capabilities
+- **`n8n-nodes-qdrant`** (v0.2.1, last publish 2025-11-05) — Official n8n node to interface with Qdrant - https://qdrant.tech
+- **`n8n-nodes-qdrant-context-retriever`** (v1.0.3, last publish 2026-07-28) — n8n community node for Qdrant — retrieves semantically relevant context from a Qdrant vector database using text embeddings, for RAG and semantic search work...
+- **`n8n-nodes-qdrant-hybrid`** (v0.3.3, last publish 2026-07-30) — n8n community node for Qdrant named dense vectors, BM25 sparse vectors, and hybrid RRF search
+- **`n8n-nodes-qdrant-hybrid-search`** (v1.0.3, last publish 2026-05-28) — n8n node for Qdrant semantic & hybrid search (dense + sparse BM25). Supports server-side inference. Built by mecode.pro
+- **`n8n-nodes-query-retriever-rerank`** (v0.4.1, last publish 2025-06-17) — Advanced n8n community node for intelligent document retrieval with multi-step reasoning, reranking, and comprehensive debugging
+- **`n8n-nodes-qwen-embedding`** (v0.10.2, last publish 2026-06-29) — n8n nodes for Ollama embeddings - Dynamic model loading + Support for Qwen, EmbeddingGemma, Nomic and more. Generate text embeddings for vector stores and AI...
+- **`n8n-nodes-reranker-nvidia`** (v0.0.1, last publish 2025-10-16) — Use Nvidia Reranker to reorder documents after retrieval from a vector store by relevance to the given query.
+- **`n8n-nodes-reranker-ollama`** (v0.0.7, last publish 2025-10-20) — Use Ollama Reranker to reorder documents after retrieval from a vector store by relevance to the given query.
+- **`n8n-nodes-smart-qdrant`** (v1.1.4, last publish 2025-11-05) — Smart Qdrant Vector Store node for n8n with Ollama and OpenAI embeddings support
+- **`n8n-nodes-surrealdb`** (v0.5.4, last publish 2025-08-19) — n8n node to connect to SurrealDB
+- **`n8n-nodes-test-vector-store`** (v0.1.21, last publish 2025-06-11) — Couchbase Vector Store Community Node
+- **`n8n-nodes-vector-store-processor`** (v1.8.15, last publish 2025-11-06) — n8n node for intelligent document chunking and processing for vector store ingestion with Smart Qdrant Vector Store supporting Ollama and OpenAI embeddings
+- **`n8n-nodes-yandex-reverse-image-search-api`** (v0.1.1, last publish 2026-07-13) — Reverse image search on Yandex: find matching pages, similar images, other sizes, tags, shopping matches, and knowledge graph entries. Apify-backed n8n commu...
+- **`n8n-nodes-zep`** (v0.3.0, last publish 2025-08-26) — n8n community node for Zep Cloud v3 API integration
+- **`n8n-nodes-zep-memory-community`** (v1.1.6, last publish 2025-09-10) — n8n node for Zep memory integration
+- **`n8n-nodes-zep-memory-v3`** (v0.3.3, last publish 2025-12-10) — n8n community node for Zep Cloud v3 Memory - AI Agent persistent memory with Context Block
+- **`n8n-nodes-zilliz`** (v0.3.6, last publish 2025-07-08) — n8n community node for Zilliz vector database with full RAG support
+
+### Document processing (PDF, DOCX, OCR/tesseract, converters, EXIF/media metadata, ZIP/archives)
+
+_308 matches._
+
+- **`@custom-js/n8n-nodes-pdf-toolkit`** **(owner-flagged)** (v1.58.0, last publish 2026-02-18) — This is official node for interacting with APIs from customjs.space
+- **`@custom-js/n8n-nodes-pdf-toolkit-v2`** **(owner-flagged)** (v0.12.0, last publish 2026-06-23) — This is official node for interacting with APIs from customjs.space
+- **`@mazix/n8n-nodes-converter-documents`** **(owner-flagged)** (v1.5.0, last publish 2026-08-13) — n8n community node that extracts text, HTML or Markdown from documents (DOCX, PDF, ODT, ODS, ODP, TXT, MD, PPTX, HTML), named sheets with row objects from sp...
+- **`@nerme/n8n-nodes-converter-documents-xlsx`** **(owner-flagged)** (v1.1.11, last publish 2026-07-08) — Enhanced n8n document converter with flexible sheet processing. Converts DOCX, XML, YML, XLS, XLSX, CSV, PDF, TXT, PPT, PPTX, HTML, JSON, ODT, ODP, ODS to JS...
+- **`@prokodo/n8n-nodes-pdf-toolkit`** **(owner-flagged)** (v0.1.2, last publish 2025-10-25) — PDF toolkit for n8n (merge, split, images, OCR)
+- **`@rxap/n8n-nodes-zip`** **(owner-flagged)** (v0.1.1, last publish 2026-01-23) — This n8n node package provides functionality to interact with zip files, specifically to extract them. It allows users to extract zip files from a binary pro...
+- **`n8n-nodes-document-embedding`** **(owner-flagged)** (v0.6.31, last publish 2026-08-03) — n8n community node to vectorize (embed) documents and data fields with optional text splitting.
+- **`n8n-nodes-exif-data`** **(owner-flagged)** (v0.1.2, last publish 2025-02-20) — A n8n Node to Read and Write EXIF-Data from and to Image Files utilizing a vendoered version of Exiftool
+- **`n8n-nodes-pdf-extractor`** **(owner-flagged)** (v0.1.1, last publish 2025-08-02) — PDF Extractor for n8n
+- **`n8n-nodes-tesseractjs`** **(owner-flagged)** (v1.5.1, last publish 2025-11-12) — A n8n module that exposes Tesseract.js, an OCR library that can detect text on images
+- **`n8n-nodes-tesseractjs7`** **(owner-flagged)** (v2.6.0, last publish 2026-08-07) — An n8n community node package for memory-efficient sequential PDF text extraction, OCR preflight, recognition, and lightweight page slicing
+- **`n8n-nodes-zip`** **(owner-flagged)** (v0.1.1, last publish 2025-03-24) — n8n community node to zip and unzip files (with AES support)
+- **`@acrewity/n8n-nodes-acrewity`** (v0.2.4, last publish 2026-07-03) — n8n community node for Acrewity API - A unified API platform with 22+ utility services including PDF processing, data conversion, QR codes, barcodes, and more
+- **`@adam-fisher/n8n-nodes-tag-media`** (v1.0.1, last publish 2026-03-02) — n8n nodes for embedding metadata into audio, media, and Office document files
+- **`@ainoflow/n8n-nodes-ainoflow`** (v1.0.7, last publish 2026-01-23) — n8n community nodes for Ainoflow API - Document conversion (OCR/transcription), file storage, and JSON storage
+- **`@amirmky912/n8n-nodes-html-to-pdf`** (v0.3.2, last publish 2026-07-28) — n8n community node for HTML → PDF / PNG / JPEG conversion via Cloudflare Browser Rendering. Supports RTL/Farsi, ECharts charts, batch processing, and custom ...
+- **`@autoinvoice/n8n`** (v1.0.1, last publish 2026-07-20) — AutoInvoice n8n community node — generate branded PDF invoices from any workflow trigger
+- **`@avanquest/n8n-nodes-pdf-tools`** (v1.0.0, last publish 2026-05-12) — n8n nodes for PDF conversion via Avanquest API
+- **`@base64ai/n8n-nodes-base64ai`** (v2.0.2, last publish 2026-04-14) — Official Base64.ai community node for n8n
+- **`@beltar/n8n-nodes-extract-archive`** (v1.3.0, last publish 2026-04-09) — n8n node to extract ZIP and RAR archive files. Supports binary data or file path input.
+- **`@benheidenreich/n8n-nodes-docuware`** (v0.2.0, last publish 2026-07-17) — n8n community node for DocuWare document management: upload, search, update index fields and delete documents in any file cabinet
+- **`@bergetai/n8n-nodes`** (v1.0.3, last publish 2025-10-11) — Complete collection of Berget AI n8n nodes - AI chat, agent, embeddings, OCR, speech, and rerank
+- **`@bergetai/n8n-nodes-all`** (v1.1.0, last publish 2025-12-28) — Complete collection of Berget AI n8n nodes - AI chat, agent, embeddings, OCR, speech, and rerank
+- **`@bilig/n8n-nodes-workpaper`** (v0.2.2, last publish 2026-06-01) — n8n community node for Bilig WorkPaper formula readback.
+- **`@bitovi/n8n-nodes-pdf-to-png`** (v0.1.3, last publish 2026-06-22) — n8n community node to convert PDF pages to PNG images
+- **`@brunodosanjos/n8n-nodes-vertex-ai-pdf`** (v1.1.0, last publish 2026-01-31) — n8n community node for Google Vertex AI (Gemini)
+- **`@cerejasistemas/n8n-nodes-pdf-to-img`** (v0.1.6, last publish 2025-09-04) — n8n community node: Convert PDF to images (via pdf-to-img / PDF.js)
+- **`@cloud-dark/n8n-nodes-aiti-ai`** (v1.0.3, last publish 2026-03-02) — n8n nodes for AITI AI Backend (Core, OCR, and Training)
+- **`@cntrlx/n8n-nodes-pdfgenie-pro`** (v0.1.24, last publish 2025-05-29) — Node for using PDFKit to transform images into PDF, merge PDFs, convert Excel to PDF, and convert DOCX to PDF with formatting preservation.
+- **`@couleetech/n8n-nodes-pandoc`** (v2.0.2, last publish 2024-12-19) — n8n node for document conversion using Pandoc
+- **`@cradl/n8n-nodes-cradlai`** (v1.0.7, last publish 2026-03-26) — Nodes for integrating with Cradl AI
+- **`@devantage/n8n-nodes-docx-utils`** (v1.4.0, last publish 2026-08-13) — n8n community nodes with a set of DOCX files utilities
+- **`@drcomgenius/n8n-nodes-anydoc`** (v0.1.1, last publish 2026-08-07) — n8n community node that converts Word, PowerPoint, Excel, PDF, RTF, EPUB, CSV, and OpenDocument files to clean Markdown using @firecrawl/anydoc.
+- **`@drcomgenius/n8n-nodes-pdf-inspector`** (v0.1.1, last publish 2026-08-08) — Fast PDF classification and region-based text extraction (native Rust via napi).
+- **`@eledo/n8n-nodes-eledo`** (v1.0.6, last publish 2026-04-11) — Generate PDFs with Eledo directly in n8n workflows.
+- **`@enconvert/n8n-nodes-enconvert`** (v1.1.0, last publish 2026-08-06) — Convert files, scrape web pages and crawl sites into AI-ready data with EnConvert
+- **`@hichamchar/n8n-nodes-pdflib`** (v0.4.1, last publish 2025-10-14) — n8n community node for filling and manipulating PDF documents using pdf-lib. Perfect for generating tax receipts, invoices, and forms.
+- **`@html-css-to-image/n8n-nodes-html-css-to-image`** (v0.1.1, last publish 2026-07-16) — Generate images, website screenshots, PDFs, and signed image URLs with the HTML/CSS to Image API in n8n.
+- **`@iamfj/n8n-nodes-paperless-ngx`** (v0.4.2, last publish 2026-08-12) — n8n community node to automate Paperless-ngx document management: consume documents, correspondents, tags, document types and storage paths from your Paperle...
+- **`@imagekit/n8n-nodes-imagekit`** (v1.0.6, last publish 2026-05-25) — n8n community node for the ImageKit Media APIs
+- **`@kash_maxing/n8n-nodes-html-to-pdf`** (v1.0.2, last publish 2025-09-08) — n8n node for converting HTML to PDF using wkhtmltopdf
+- **`@kukhta_stepan/n8n-nodes-pdf-to-images`** (v1.0.33, last publish 2026-05-19) — n8n community node: PDF binary → JPEG/PNG per page (Mozilla PDF.js + @napi-rs/canvas, no MuPDF/Poppler)
+- **`@luka-cat-mimi/n8n-nodes-browserless`** (v1.2.4, last publish 2026-08-11) — n8n 社区节点：集成 Browserless 平台，支持网页抓取、截图、PDF生成、自动化浏览器操作
+- **`@mattxcz/n8n-nodes-instagram-scraper`** (v0.6.12, last publish 2026-08-13) — n8n community node for extracting Instagram post/reel metadata (title, caption, thumbnail, likes, comments, author, date) via a logged-in session, including ...
+- **`@mixpeek/n8n-nodes-mixpeek`** (v1.0.462, last publish 2026-08-24) — n8n community node for Mixpeek - multimodal data processing and semantic search API
+- **`@nsoftware/n8n-nodes-nsoftware`** (v26.0.9578, last publish 2026-03-23) — /n software Nodes for n8n
+- **`@officina-musci/n8n-nodes-svg-processor`** (v0.2.0, last publish 2026-08-08) — n8n community node to process SVG files and templates and export to PDF/JPG/PNG
+- **`@okrapdf/n8n-nodes-okrapdf`** (v0.1.5, last publish 2026-01-14) — n8n nodes to extract tables and text from PDFs using OkraPDF
+- **`@onlyoffice/n8n-nodes-docs`** (v0.0.2, last publish 2026-07-10) — n8n nodes for ONLYOFFICE Document Server (Docs)
+- **`@onlyoffice/n8n-nodes-docspace`** (v1.0.1, last publish 2026-06-15) — n8n nodes for ONLYOFFICE DocSpace
+- **`@pdfbrew/n8n-nodes-pdfbrew`** (v0.1.2, last publish 2026-07-04) — n8n community node for pdfbrew — PDF generation API for invoices, receipts, and document automation
+- **`@pdfgeneratorapi/n8n-nodes-pdf-generator-api`** (v0.4.0, last publish 2025-10-06) — PDF Generator API Node for n8n
+- **`@pdfless/n8n-nodes-pdfless`** (v1.1.0, last publish 2026-06-04) — n8n community node for Pdfless PDF generation
+- **`@peedief/n8n-nodes-peedief`** (v1.0.2, last publish 2026-06-03) — n8n community node for generating PDFs with Peedief.
+- **`@pixldocs/n8n-nodes-pixldocs`** (v0.1.3, last publish 2026-08-06) — n8n community node for PixlDocs — render invoices, certificates, tickets and social images from templates + JSON, right inside your workflows.
+- **`@presentations-ai/n8n-nodes-presentations-ai`** (v0.2.0, last publish 2026-05-30) — n8n community node for Presentations.AI — generate, transform, and export AI-powered slide decks from a topic, raw text, or document.
+- **`@raevon/n8n-nodes-liteparse`** (v0.1.6, last publish 2026-06-20) — n8n node for LiteParse — fast, local PDF & document parsing with OCR, screenshots, and markdown output
+- **`@snae/n8n-nodes-puppeteer`** (v1.5.2, last publish 2026-07-29) — n8n node for browser automation using Puppeteer (forked from drudge/n8n-nodes-puppeteer with dependency fix for n8n community node installer)
+- **`@stabrise/n8n-nodes-pdf-redaction`** (v0.1.8, last publish 2026-08-20) — n8n community node for detecting and redacting PII in PDF documents via the PDF Redaction API (api.pdf-redaction.com)
+- **`@tiger16601/n8n-nodes-puppeteer-htmltoimage`** (v1.7.9, last publish 2026-06-25) — n8n node for browser automation using Puppeteer (fork with TypeScript improvements and modern dev tooling)
+- **`@turbodocx/n8n-nodes-turbodocx`** (v1.4.1, last publish 2026-08-20) — n8n node for TurboDocx API - document & presentation generation, TurboSign e-signatures, TurboQuote CPQ, TurboPartner management, and webhooks
+- **`@unwarkz/n8n-nodes-assistant-set`** (v1.1.6, last publish 2026-03-29) — N8N community node package — full assistant set: Mem0 memory, Gotenberg PDF, Telegram Bot, Outline Wiki, Qdrant vector store (regular + AI tools)
+- **`@unwarkz/n8n-nodes-gotenberg-pdf`** (v1.1.10, last publish 2026-03-29) — N8N community node for Gotenberg - Docker-based PDF conversion API (Chromium, LibreOffice, PDF Engines)
+- **`@urlbox/n8n-nodes-urlbox`** (v0.1.5, last publish 2026-01-30) — Urlbox's n8n community node for generating full page screenshots, converting to PDFs, and video recordings.
+- **`@useresume/n8n-nodes-useresume`** (v1.0.5, last publish 2026-05-23) — n8n community node for UseResume - AI-powered resume and cover letter generation
+- **`@wiro-ai/n8n-nodes-wiroai`** (v2.0.1, last publish 2026-03-21) — n8n community node for Wiro AI — 290+ AI models: video, image, audio, LLM, 3D, and more.
+- **`@wtyeung/n8n-nodes-puppeteer`** (v1.7.1, last publish 2026-04-27) — n8n node for browser automation using Puppeteer (fork with TypeScript improvements and modern dev tooling)
+- **`@xberg-io/n8n-nodes-xberg`** (v1.0.14, last publish 2026-08-05) — n8n community node for Xberg — extract text, tables, and metadata from 101 document formats with optional OCR.
+- **`@zurdai/n8n-nodes-unlimitedpdf`** (v0.11.2, last publish 2025-12-01) — n8n custom node: convert any input (HTML, text, table, JSON, lists) into a PDF. Free and unlimited!
+- **`n8n-nodes-7z`** (v2.1.1, last publish 2026-02-10) — N8N custom node for 7z file extraction and compression with in-memory processing
+- **`n8n-nodes-absysco`** (v0.1.0, last publish 2026-07-30) — n8n community nodes: document conversion, JSON Schema validation, async job polling, QR codes, OCR and templating
+- **`n8n-nodes-adeu`** (v3.0.0, last publish 2026-08-22) — n8n community node for Adeu — apply AI-driven tracked changes, generate diffs, and sanitize Microsoft Word (.docx) documents.
+- **`n8n-nodes-adp`** (v0.2.6, last publish 2026-04-15) — n8n community nodes for ADP (Agentic Document Processor) - AI-powered document extraction
+- **`n8n-nodes-agent-pro`** (v3.5.2, last publish 2026-08-03) — Advanced n8n AI Agent node for Claude, OpenAI & Gemini — native PDF/image vision, Claude Max (Claude Code OAuth) support, Anthropic prompt caching, structure...
+- **`n8n-nodes-agentgen`** (v0.1.9, last publish 2026-03-21) — n8n community node for AgentGen — HTML to PDF and Image generation
+- **`n8n-nodes-airparser`** (v1.0.2, last publish 2026-03-10) — Official n8n Airparser node. Use Airparser in n8n to extract structured data from emails, PDFs, images, web pages, and other documents, then route the extrac...
+- **`n8n-nodes-allpdfmagic`** (v0.2.0, last publish 2026-08-15) — n8n community node for AllPDFMagic — PDF compression/conversion, invoice data extraction, bank statement parsing, document reconciliation, fraud detection, a...
+- **`n8n-nodes-allsign`** (v0.1.5, last publish 2026-04-15) — n8n integration for AllSign — Electronic signature, document management, biometric signing. Supports FEA, NOM-151, eIDAS, and WhatsApp delivery.
+- **`n8n-nodes-alterlab`** (v0.12.0, last publish 2026-06-22) — n8n community node for AlterLab web scraping API — anti-bot bypass, JS rendering, structured extraction, OCR, and more.
+- **`n8n-nodes-am-pdftoimg`** (v0.2.6, last publish 2025-11-12) — n8n convert PDF to Image node
+- **`n8n-nodes-anydoc`** (v0.1.0, last publish 2026-08-05) — An n8n community node that converts office documents, EPUB, CSV, and PDF files to LLM-friendly Markdown
+- **`n8n-nodes-aparavi`** (v1.0.39, last publish 2025-12-11) — n8n community nodes for Aparavi DTC API. Run any workflow including PII/HIPAA anonymization, OCR, document parsing, audio transcription, and custom pipelines.
+- **`n8n-nodes-aparavi-dtc`** (v1.1.43, last publish 2025-11-22) — n8n community nodes for Aparavi DTC API. Run any workflow including PII/HIPAA anonymization, OCR, document parsing, audio transcription, and custom pipelines.
+- **`n8n-nodes-apifreaks`** (v1.0.1, last publish 2026-07-17) — n8n community node for the APIFreaks API hub — 113 endpoints across IP intelligence, geocoding, WHOIS, DNS, currency, commodity, weather, PDF, ZIP code, fina...
+- **`n8n-nodes-autype`** (v1.0.5, last publish 2026-02-28) — n8n community node for the Autype Developer API — document generation, PDF tools, bulk rendering, and more.
+- **`n8n-nodes-azure-document-intelligence`** (v1.0.0, last publish 2025-10-09) — n8n community node for Azure Document Intelligence (Form Recognizer)
+- **`n8n-nodes-berget-mk`** (v0.5.0, last publish 2026-04-25) — n8n community node for Berget AI. Multi-resource action node (chat, image analysis, rerank, speech-to-text) plus Chat Model, Embeddings Model, and Reranker s...
+- **`n8n-nodes-bgv-splitter`** (v1.0.0, last publish 2026-07-23) — n8n Community Node for Background Verification (BGV) candidate document splitting, OCR classification, and ID archiving
+- **`n8n-nodes-billflux-invoice-receipt-ocr`** (v0.1.7, last publish 2026-03-23) — n8n node for Billflux Invoice Receipt OCR - Extract data from invoices and receipts
+- **`n8n-nodes-blueauth`** (v0.1.6, last publish 2026-08-06) — n8n community node for the blue·auth Signature API — send, self-sign, manage CMD batches, query status, and receive webhook events.
+- **`n8n-nodes-brainiall-documents`** (v0.1.0, last publish 2026-08-13) — n8n community node for Brainiall document operations: PDF to Markdown, field extraction from images, and audio transcription.
+- **`n8n-nodes-brasil-hub`** (v1.4.1, last publish 2026-03-23) — n8n community node for Brazilian public data (CNPJ, CEP, CPF, Banks, DDD, Holidays, FIPE, IBGE, NCM, PIX, Câmbio, Taxas) + fake data generator — 25 providers...
+- **`n8n-nodes-browser`** (v0.2.4, last publish 2022-11-30) — N8n node to perform headless browser operations such as saving screenshots and PDF, using the browserless library
+- **`n8n-nodes-capivision`** (v0.1.26, last publish 2025-05-05) — OCR multiengine com visão apurada de capivara — Tesseract, OCR.space, AWS Textract e suporte a layout inteligente.
+- **`n8n-nodes-captchasonic`** (v1.2.4, last publish 2026-06-15) — Official n8n community node for AI-powered CAPTCHA solving — reCAPTCHA v2/v3, Cloudflare Turnstile, GeeTest, AWS WAF, DataDome, TikTok, image OCR & 20+ captc...
+- **`n8n-nodes-carbone`** (v2.0.0, last publish 2026-03-19) — n8n node for Carbone.io services - template management and document generation. Easily integrate the generation of PDF, DOCX, XLS, XLSX, ODT, PPTX, ODS, CSV ...
+- **`n8n-nodes-cellystial`** (v1.2.6, last publish 2026-06-30) — n8n community node for Cellystial — generate PDFs from templates via the Cellystial API
+- **`n8n-nodes-claix`** (v0.2.0, last publish 2026-08-08) — n8n community node for Claix — extract PDF, Word and Excel documents to structured JSON
+- **`n8n-nodes-cloakbrowser`** (v1.5.4, last publish 2026-07-23) — n8n node for CloakBrowser automation using Puppeteer
+- **`n8n-nodes-cloudinary`** (v0.2.3, last publish 2026-08-23) — The official Cloudinary n8n node - upload media, update asset tags and metadata, and more
+- **`n8n-nodes-cloudofficeprint`** (v0.1.2, last publish 2026-07-29) — CloudOfficePrint nodes for n8n
+- **`n8n-nodes-compdf`** (v1.0.5, last publish 2026-05-28) — n8n community node for ComPDF API - async document processing
+- **`n8n-nodes-condoc`** (v0.4.3, last publish 2026-07-07) — n8n community node for ConDoc — a multi-tenant document processing and OCR platform. Automate OCR extraction, simple OCR with field mapping, and document man...
+- **`n8n-nodes-convert-to-pdf`** (v0.1.1, last publish 2026-04-16) — n8n community node to convert HTML and CSV to PDF
+- **`n8n-nodes-craftmypdf`** (v0.2.1, last publish 2026-03-18) — Automating PDF Document Creation has never been easier with CraftMyPDF's PDF template editor and PDF generation API!
+- **`n8n-nodes-dante-pdf`** (v2.3.1, last publish 2025-09-16) — n8n custom node for PDF conversion with support for Markdown, Text, DOCX, HTML, Image to PDF and PDF merging
+- **`n8n-nodes-datamagik`** (v2.1.0, last publish 2025-12-12) — n8n nodes for DataMagik Manufacturing & Document Automation API
+- **`n8n-nodes-deep-ocr`** (v1.13.0, last publish 2026-07-12) — AI-powered OCR for invoices, receipts, contracts, IDs, bank statements and more — returns structured JSON ready to use
+- **`n8n-nodes-deeptagger`** (v0.1.7, last publish 2025-10-07) — Extract structured data from documents using DeepTagger's AI-powered document intelligence API
+- **`n8n-nodes-deini-docuseal`** (v1.4.1, last publish 2025-08-26) — Manage DocuSeal documents, templates, and submissions within n8n workflows.
+- **`n8n-nodes-diro`** (v0.1.10, last publish 2026-02-05) — n8n community node for Diro - Document automation API
+- **`n8n-nodes-disruptech-ocr`** (v0.1.23, last publish 2026-06-04) — Native n8n node for OCR using Tesseract.js — by Disrup-tech.com
+- **`n8n-nodes-doc-fill`** (v0.2.1, last publish 2024-02-16) — Node made to fill a PDF form.
+- **`n8n-nodes-doc-fill-different-fonts`** (v0.6.5, last publish 2025-12-13) — Community nodes to fill PDF form fields, place images, and choose fonts.
+- **`n8n-nodes-doc-to-text`** (v1.0.17, last publish 2025-04-04) — Custom n8n node to convert .doc files to text using mammoth
+- **`n8n-nodes-doc4ai`** (v1.0.7, last publish 2026-06-21) — n8n community node for Doc4AI: Extract text from PDF, DOC, DOCX, XLS, XLSX, CSV, and convert text back to documents.
+- **`n8n-nodes-docforge`** (v0.1.1, last publish 2026-08-20) — DocForge — document data extraction for n8n. Turn any PDF, image, or Office file into structured JSON with confidence scores.
+- **`n8n-nodes-docling-serve`** (v0.0.5, last publish 2026-03-18) — n8n community node for docling-serve document conversion API
+- **`n8n-nodes-docling-timeouts-fix`** (v0.0.5, last publish 2026-08-13) — n8n community node for docling-serve document conversion API
+- **`n8n-nodes-doclinth`** (v0.1.0, last publish 2026-07-18) — n8n community node for Doclinth — generate pixel-perfect PDFs (invoices, receipts, reports, certificates) from templates + JSON. Deterministic rendering, no ...
+- **`n8n-nodes-docmiral`** (v0.1.14, last publish 2026-03-30) — n8n community node for DocMiral — document generation, AI filling, PDF export, and e-signatures
+- **`n8n-nodes-docsai`** (v0.1.5, last publish 2025-05-19) — n8n node to integrate with DocsAI API for document processing
+- **`n8n-nodes-doctr`** (v0.1.7, last publish 2025-11-16) — Extract text from images using docTR OCR in n8n workflows
+- **`n8n-nodes-document-generator`** (v1.0.10, last publish 2025-03-06) — This node creates dynamic content for documents or emails with Handlebars templates
+- **`n8n-nodes-documentero`** (v1.0.4, last publish 2025-10-06) — n8n community node for Documentero document generation API.
+- **`n8n-nodes-docuparse`** (v0.2.5, last publish 2026-06-20) — Full-featured document parsing node for n8n — PDF, DOCX, XLSX, PPTX, images, OCR, markdown output. No native dependencies.
+- **`n8n-nodes-docupipe`** (v0.1.3, last publish 2026-04-28) — n8n community node for DocuPipe - automate document processing, extraction, and classification
+- **`n8n-nodes-docupletionforms`** (v0.2.0, last publish 2026-08-06) — n8n community node for DocupletionForms — conditional logic forms with automated PDF document generation
+- **`n8n-nodes-docupotion`** (v0.1.4, last publish 2026-05-12) — n8n community node to generate PDF documents with DocuPotion
+- **`n8n-nodes-docuprox`** (v1.1.0, last publish 2026-04-07) — An n8n community node for AI-powered document processing via the DocuProx API. Extract structured data from documents using manual or AI-generated prompts — ...
+- **`n8n-nodes-docuseal`** (v1.1.1, last publish 2025-07-11) — Manage DocuSeal documents, templates, and submissions within n8n workflows.
+- **`n8n-nodes-docutray`** (v0.5.2, last publish 2025-10-21) — n8n community nodes for Docutray OCR, document identification, and knowledge base search services
+- **`n8n-nodes-docx`** (v0.2.0, last publish 2026-06-26) — Convert documents (Word, Excel, Markdown, PDF) to/from each other. Includes an n8n community node and a reusable conversion library powered by LibreOffice he...
+- **`n8n-nodes-docx-converter`** (v0.1.3, last publish 2024-10-12) — A node to convert Docx to Text
+- **`n8n-nodes-docx-converter-enhanced`** (v1.0.0, last publish 2025-08-31) — Enhanced n8n community node for DOCX to text conversion with RAG capabilities, page-aware chunking, and metadata extraction. Fork of n8n-nodes-docx-converter...
+- **`n8n-nodes-docx-diff`** (v0.4.3, last publish 2025-10-11) — n8n community node pack: DOCX tracked changes tools (native + redlines)
+- **`n8n-nodes-docx-extractor`** (v0.1.0, last publish 2025-07-31) — Docx Converter Node for n8n
+- **`n8n-nodes-docx-filler`** (v40.0.3, last publish 2026-01-08) — Nodes n8n pour créer et remplir des templates DOCX/PDF avec des tags {{TAG}}. TemplateMapper (Transfer Learning DOCX) + PdfTemplateMapper (Transfer Learning ...
+- **`n8n-nodes-docx-to-markdown`** (v0.1.7, last publish 2025-09-27) — n8n nodes to convert docx files to markdown
+- **`n8n-nodes-docx-to-md`** (v0.2.2, last publish 2026-05-20) — n8n node to convert Docx files to Markdown
+- **`n8n-nodes-docx-track-changes`** (v0.2.1, last publish 2026-01-01) — n8n community node for extracting revisions (track changes) and comments from Microsoft Word (.docx) documents
+- **`n8n-nodes-docxtemplater`** (v1.0.1, last publish 2025-11-05) — n8n node to create Word/Excel/Powerpoint documents from template documents, using docxtemplater
+- **`n8n-nodes-docxtemplater-pdf-converter`** (v0.1.7, last publish 2025-03-13) — n8n node to convert DOCX templates to populated DOCX and PDF files
+- **`n8n-nodes-docxtotext`** (v0.2.1, last publish 2025-06-13) — n8n node to convert DOCX files to text using mammoth
+- **`n8n-nodes-drofus`** (v0.1.0, last publish 2026-05-25) — n8n nodes for dRofus API integration (rooms, items, occurrences, room groups, room templates, systems, and RDL PDF report generation)
+- **`n8n-nodes-eboo-ocr`** (v1.0.2, last publish 2026-08-09) — Custom n8n node for Eboo OCR and Audio Transcription API
+- **`n8n-nodes-edocument`** (v1.1.11, last publish 2025-09-16) — n8n community node for eDocument OCR API - Extract text from images with Vietnamese language support and smart credential management with expiry handling
+- **`n8n-nodes-einvoice`** (v0.1.2, last publish 2025-01-06) — n8n.io node to handle E-Invoices with PDF or XML Files (ZUGFeRD / XRechnung / Factur-X / EN-16931)
+- **`n8n-nodes-everypage`** (v1.0.9, last publish 2026-08-19) — n8n community node for EveryPage — turn any PDF in your workflow into a tracked share link, and trigger on reads, downloads, and lead-gate captures. GDPR-fri...
+- **`n8n-nodes-excel-ai`** (v1.0.16, last publish 2026-03-03) — Excel CRUD operations for n8n with AI Agent support - Perform read, write, update, delete operations on Excel files
+- **`n8n-nodes-excel-binary-writer`** (v0.2.5, last publish 2026-07-30) — n8n community node that fills an Excel (.xlsx) template with data and saves it as a new file. Adaptation of n8n-nodes-excel-form-writer by snytex.
+- **`n8n-nodes-excel-generator`** (v0.1.1, last publish 2026-02-23) — n8n community node for generating styled Excel (XLSX) files with conditional row coloring, custom columns, RTL support, and cell styling
+- **`n8n-nodes-excel-templater`** (v1.0.5, last publish 2026-03-03) — Fill Excel templates with data using n8n - supports UI forms and JSON arrays
+- **`n8n-nodes-excel-to-pdf`** (v0.1.12, last publish 2026-04-08) — n8n community node to convert Excel workbooks to PDF
+- **`n8n-nodes-exifr`** (v0.1.12, last publish 2025-02-27) — This package leverages exifr to collect exif data from binary images
+- **`n8n-nodes-extract-monster`** (v1.0.3, last publish 2025-11-16) — AI-powered data extraction from PDFs, images, documents, audio, and video. Extract invoices, receipts, forms, tables, and custom data with flexible JSON sche...
+- **`n8n-nodes-feishu2md`** (v0.2.5, last publish 2025-11-13) — n8n node to export Feishu/Lark docx to Markdown via feishu2md CLI
+- **`n8n-nodes-file-metadata`** (v1.0.10, last publish 2025-11-06) — n8n node for extracting metadata from files (PDF, images, ebooks, archives, office docs, audio, video, markdown) with namespace support
+- **`n8n-nodes-filetopdf`** (v0.1.2, last publish 2026-06-02) — n8n community node for FileToPDF — convert files, HTML and Markdown into polished PDFs.
+- **`n8n-nodes-fill-docx`** (v0.2.2, last publish 2025-05-28) — Fill in DocX Template with Data from JSON object
+- **`n8n-nodes-font-installer`** (v0.1.6, last publish 2026-08-04) — n8n community node to install, list, and remove system fonts on the n8n server. Supports Google Fonts by name, direct URL download, and Base64 binary input. ...
+- **`n8n-nodes-for-ai-hub`** (v1.0.13, last publish 2025-09-14) — n8n custom nodes for AI services including OCR, face detection, and more AI-powered features
+- **`n8n-nodes-framefetch`** (v0.2.0, last publish 2026-08-01) — n8n community node for the FrameFetch video data API — turn any social-video URL (YouTube, YouTube Shorts, TikTok, Instagram Reels, Pinterest, Reddit) into a...
+- **`n8n-nodes-free-pdf-to-text`** (v1.0.1, last publish 2026-08-05) — Free local PDF-to-text extraction for n8n — no API key, subscription, or document upload
+- **`n8n-nodes-french-public-procurement`** (v1.5.0, last publish 2025-12-31) — n8n node for filling French public procurement forms (DC1, DC2, AE) with AI hybrid mode for transfer learning
+- **`n8n-nodes-future-pdf-lib`** (v1.0.15, last publish 2026-01-08) — PDF Library for n8n
+- **`n8n-nodes-generate-report`** (v0.1.0, last publish 2023-04-14) — Fill in DocX Template with Data from JSON object
+- **`n8n-nodes-generate-report-2`** (v0.2.0, last publish 2026-07-23) — Generate DOCX and PDF reports from DOCX templates in n8n
+- **`n8n-nodes-geotechlitellm`** (v0.1.2, last publish 2026-02-12) — n8n nodes for LiteLLM (OCR, Perplexity Search)
+- **`n8n-nodes-google-document-ai`** (v1.4.0, last publish 2025-11-23) — n8n community node for Google Document AI
+- **`n8n-nodes-gotenberg`** (v1.0.7, last publish 2025-04-05) — A custom n8n node to integrate with the Gotenberg API, enabling seamless conversion of URLs, HTML, Markdown, and Office documents into PDF. Supports custom A...
+- **`n8n-nodes-gotenberg-pdf`** (v1.2.1, last publish 2025-07-02) — n8n community node for Gotenberg PDF conversion API
+- **`n8n-nodes-gotenberg-simple`** (v0.7.0, last publish 2025-08-31) — A simple and efficient n8n community node for Gotenberg PDF conversion. Convert URLs and HTML to PDF with customizable page sizes, margins, and print options.
+- **`n8n-nodes-graphorlm`** (v0.1.28, last publish 2026-05-22) — n8n community nodes for Graphor - Intelligent document processing, RAG pipelines, and document chat API
+- **`n8n-nodes-graphx-pdf`** (v0.1.0, last publish 2026-08-10) — n8n community node for a managed GraphX Gotenberg PDF service
+- **`n8n-nodes-gw-converter`** (v0.5.3, last publish 2026-01-22) — Convert Google Sheets to JSON and Google Docs (doc, docx) to text.
+- **`n8n-nodes-html-pdf`** (v1.0.2, last publish 2025-11-03) — Custom HTML to PDF node for n8n
+- **`n8n-nodes-html-to-docx-via-pandoc`** (v0.2.2, last publish 2025-10-02) — n8n community node to convert HTML to DOCX using a local pandoc executable
+- **`n8n-nodes-html-to-pdf-free`** (v0.5.3, last publish 2025-10-21) — Free n8n node for converting HTML to PDF with automatic browser setup
+- **`n8n-nodes-html2pdf`** (v0.1.2, last publish 2025-11-02) — Convert HTML content or URLs to PDF with exact visual rendering
+- **`n8n-nodes-htmlcsstopdf`** (v3.2.9, last publish 2026-08-17) — n8n community node to convert HTML and CSS to PDF using PdfMunk API - perfect for invoices, reports, certificates, and document generation
+- **`n8n-nodes-htmlpdf-converter`** (v0.1.3, last publish 2025-06-13) — N8N node to convert HTML to PDF without external API
+- **`n8n-nodes-json-html-to-pdf`** (v0.1.1, last publish 2025-08-07) — Professional n8n node to convert JSON data or HTML content to PDF documents with Handlebars template support
+- **`n8n-nodes-json-to-pdf`** (v1.1.1, last publish 2025-07-09) — Convert Markdown/JSON into PDF (single document or e-book) for n8n
+- **`n8n-nodes-justfill`** (v0.1.5, last publish 2026-08-21) — Fill existing PDF forms — including scanned and flattened ones — from n8n data, using a layout you set up once at justfill.app
+- **`n8n-nodes-klaaro`** (v0.1.5, last publish 2026-07-21) — n8n community node for the Klaaro document extraction API.
+- **`n8n-nodes-kme-pdfkit`** (v0.1.9, last publish 2025-07-17) — An n8n custom node using PDFKit to convert images into PDFs. Forked from bramkn/n8n-nodes-pdfkit.
+- **`n8n-nodes-kordoc`** (v0.1.22, last publish 2026-08-25) — n8n community node for converting HWP, HWPX, PDF, and Office documents to Markdown with KorDoc
+- **`n8n-nodes-kynth`** (v0.2.4, last publish 2026-08-17) — Kynth Core for n8n — 39 finished-job AI endpoints: documents to JSON, extraction, triage, research, moderation, and more. Task-named pricing, one credit wallet.
+- **`n8n-nodes-ldxhub`** (v0.10.0, last publish 2026-07-03) — n8n community node for LDX hub — AI-powered document processing platform with vision document analysis (AnalyzeDoc), text-based PDF conversion (CastDoc), doc...
+- **`n8n-nodes-liteparse-local`** (v0.3.2, last publish 2026-06-20) — Full-featured document parsing node for n8n — PDF, DOCX, XLSX, PPTX, images, OCR, markdown output. No native dependencies.
+- **`n8n-nodes-livetennisapi`** (v0.2.0, last publish 2026-08-18) — n8n community node for the Live Tennis API — real-time tennis scores, matches, players, fixtures, rankings, head-to-head and the 1968–2022 results archive
+- **`n8n-nodes-local-ai-stack`** (v1.1.7, last publish 2025-10-11) — n8n custom nodes for AI services including image captionning, OCR, face detection, and more AI-powered features
+- **`n8n-nodes-lock-pdf`** (v1.0.1, last publish 2026-04-19) — Password-protect and encrypt PDF files with AES-256 using PDF API Hub
+- **`n8n-nodes-make-pdf`** (v1.2.4, last publish 2026-01-10) — n8n node to generate PDFs via Gotenberg - Convert HTML to PDF with ease
+- **`n8n-nodes-markdown-pdf`** (v0.1.3, last publish 2025-09-05) — Template for building custom n8n nodes with LLM-friendly documentation
+- **`n8n-nodes-md2docx`** (v1.0.2, last publish 2025-10-01) — n8n community node to convert Markdown to DOCX using @mohtasham/md-to-docx
+- **`n8n-nodes-media-toolkit`** (v1.2.0, last publish 2026-07-26) — n8n community node for media workflows: render MP4 video with ffmpeg, compute video render specs, and format platform-aware social captions
+- **`n8n-nodes-mediavox`** (v1.8.1, last publish 2026-07-25) — n8n community node for Mediavox: mediaAPI (48+ endpoints — sanctions, threats, data quality, OCR, KYC), Turing AI (chat with RAG + function calling), Documen...
+- **`n8n-nodes-mistral-ocr`** (v1.0.0, last publish 2025-06-17) — n8n node for Mistral OCR API integration with structured annotations
+- **`n8n-nodes-mopdf`** (v0.3.1, last publish 2026-04-08) — n8n community node for PDF processing - convert PDF to images, extract text and run OCR
+- **`n8n-nodes-morphopdf`** (v1.2.17, last publish 2026-02-27) — n8n community node for MorphoPDF - Professional PDF processing and conversion
+- **`n8n-nodes-nextcloud-advanced`** (v1.5.0, last publish 2026-08-14) — n8n community node for Excel multi-sheet editing
+- **`n8n-nodes-nextcloud-ext`** (v1.0.43, last publish 2026-05-18) — n8n community nodes for Nextcloud — file management (list, upload, download, share), spreadsheet operations equivalent to Microsoft 365 Excel (including name...
+- **`n8n-nodes-ocr-ai`** (v1.0.3-104, last publish 2025-12-22) — n8n community node for OCR and document extraction using multiple AI providers (Gemini, OpenAI, Claude, Grok, Vertex)
+- **`n8n-nodes-ocr-cat`** (v1.0.14, last publish 2025-11-19) — n8n node for OCR using Tesseract.js (cat/spa/eng...)
+- **`n8n-nodes-ocrbro`** (v0.1.5, last publish 2026-04-03) — Native n8n node for OCR using Tesseract.js
+- **`n8n-nodes-octopus-scraping`** (v0.1.6, last publish 2026-05-29) — n8n node for Octopus Scraping - web scraping, screenshots, PDFs, and browser automation
+- **`n8n-nodes-onlyoffice`** (v1.0.4, last publish 2025-09-24) — n8n community node for OnlyOffice DocSpace integration - manage files, folders, and documents in your OnlyOffice workspace
+- **`n8n-nodes-openai-gpt5`** (v0.9.0, last publish 2025-09-12) — n8n node for OpenAI GPT-5 with PDF processing, web search, and timeout configuration via Responses API
+- **`n8n-nodes-pandoc`** (v1.4.0, last publish 2025-08-07) — n8n custom node for converting DOCX files to Markdown using Pandoc
+- **`n8n-nodes-paperpony`** (v0.2.0, last publish 2026-08-10) — Create PDFs in n8n with PaperPony: render a saved template or your own HTML, and get the file back as an attachment.
+- **`n8n-nodes-parse-conversiontools`** (v1.0.0, last publish 2026-08-07) — n8n community node for Parse by Conversion Tools - extract structured data from invoices, receipts, bank statements and other documents
+- **`n8n-nodes-parseur`** (v0.1.1, last publish 2026-08-21) — 🧩 Official n8n Parseur Node to send and receive document processing events from [Parseur](https://parseur.com) and automate your data extraction workflows.
+- **`n8n-nodes-parsio`** (v0.2.1, last publish 2026-04-02) — Official n8n Parsio node. Use Parsio in n8n to extract structured data from emails, PDFs, images, and other documents, then route the extracted data anywhere...
+- **`n8n-nodes-pdf`** (v0.2.7, last publish 2026-07-07) — n8n community node for local, in-process PDF operations (merge, split, rotate/reorder/delete pages, generate from template/Markdown/images, fill and read for...
+- **`n8n-nodes-pdf-accessibility`** (v3.0.0, last publish 2025-06-12) — AI-powered PDF accessibility automation for N8N - comprehensive WCAG compliance analysis, intelligent remediation, and professional audit reporting with 5 in...
+- **`n8n-nodes-pdf-api-hub`** (v4.0.29, last publish 2026-08-20) — The most powerful PDF toolkit for n8n — HTML to PDF, sign PDF, OCR, extract tables, merge/split, compress, convert to Excel/Word/PPTX, and 30+ more operations
+- **`n8n-nodes-pdf-fill`** (v1.0.9, last publish 2025-10-01) — n8n-Node zum Auslesen und Ausfüllen von PDF-Formularen über die PDF Fill API
+- **`n8n-nodes-pdf-generation`** (v0.1.0, last publish 2024-12-08) — n8n node to generate PDF from text or table data.
+- **`n8n-nodes-pdf-generator`** (v0.1.7, last publish 2025-09-01) — n8n node for converting text and markdown to PDF documents using PDFKit
+- **`n8n-nodes-pdf-lib`** (v0.1.6, last publish 2025-07-29) — PDF Library for n8n
+- **`n8n-nodes-pdf-lib-improved`** (v0.4.10, last publish 2025-09-23) — Enhanced PDF Library for n8n with advanced splitting capabilities including page ranges and custom document creation
+- **`n8n-nodes-pdf-lib-tool`** (v0.1.13, last publish 2026-03-25) — Edit PDF files in n8n workflows using pdf-lib (merge, extract pages, rotate pages).
+- **`n8n-nodes-pdf-merger`** (v1.0.10, last publish 2025-01-29) — Node for merging PDF files (content & style).
+- **`n8n-nodes-pdf-page-extract`** (v0.1.4, last publish 2025-04-13) — n8n node to extract PDF pages as an array of text
+- **`n8n-nodes-pdf-page-split`** (v0.2.0, last publish 2025-08-15) — n8n nodes to split PDF documents into individual pages and convert DOCX to PDF with page splitting
+- **`n8n-nodes-pdf-parse`** (v1.6.3, last publish 2026-01-14) — N8N community node for parsing PDF files to text with advanced configuration options
+- **`n8n-nodes-pdf-split-merge`** (v2.0.3, last publish 2026-01-24) — n8n community node to merge and split PDFs using the PDF API Hub
+- **`n8n-nodes-pdf-tesseract-ocr`** (v0.2.0, last publish 2026-08-04) — Renders scanned PDF pages to real bitmaps via pdf.js and OCRs them with tesseract.js - works regardless of the PDF's internal image compression (CCITT, JBIG2...
+- **`n8n-nodes-pdf-to-image`** (v1.0.1, last publish 2026-04-19) — Render PDF pages as PNG, JPG, or WebP images using PDF API Hub
+- **`n8n-nodes-pdf-to-images`** (v0.2.1, last publish 2024-06-28) — Converts PDF pages to images
+- **`n8n-nodes-pdf-tools`** (v1.6.4, last publish 2025-05-20) — n8n node pour manipuler des fichiers PDF
+- **`n8n-nodes-pdf-utils`** (v1.2.4, last publish 2026-04-04) — Custom n8n node for PDF inspection, splitting, and decryption
+- **`n8n-nodes-pdf2image`** (v1.0.7, last publish 2025-07-15) — n8n node to convert PDF files to images
+- **`n8n-nodes-pdf2md`** (v0.1.2, last publish 2026-06-28) — n8n community node: convert a PDF (binary) to semantic Markdown in-process via @opendocsg/pdf2md. No external API.
+- **`n8n-nodes-pdfbolt`** (v0.1.5, last publish 2026-04-01) — n8n community node to generate PDFs from HTML, URLs, and templates with PDFBolt API
+- **`n8n-nodes-pdfbro`** (v0.1.43, last publish 2026-08-13) — Offline PDF utility node for n8n
+- **`n8n-nodes-pdfco`** (v1.0.13, last publish 2026-07-24) — Pdf.co nodes for n8n
+- **`n8n-nodes-pdfconvert`** (v0.1.1, last publish 2026-06-12) — n8n node for converting PDF files to images
+- **`n8n-nodes-pdfkit`** (v0.1.2, last publish 2023-05-14) — Node for using PDFKit to tranform images into PDF, more functionality may be added later.
+- **`n8n-nodes-pdfmill`** (v0.2.1, last publish 2026-08-18) — n8n community node to generate branded PDF and PNG documents from a template or raw HTML via pdfmill — workflow data in, finished document out. No Chrome to ...
+- **`n8n-nodes-pdfmint`** (v0.3.0, last publish 2026-08-24) — Turn HTML, Markdown or a URL into a PDF and get the file back on the same node. No template editor, no template IDs, no self-hosted container.
+- **`n8n-nodes-pdfnoodle`** (v2.3.1, last publish 2025-12-03) — pdf noodle (previously pdforge) automates PDF Generation in minutes using AI.Create custom PDF templates in seconds using our AI Agents, fine tune the design...
+- **`n8n-nodes-pdfops`** (v0.2.0, last publish 2026-08-11) — n8n community node for the PDFops API — deterministic PDF operations: inspect and fill AcroForm fields, merge PDFs, and generate invoice PDFs. Keyless free t...
+- **`n8n-nodes-pdforge`** (v2.3.3, last publish 2025-12-03) — pdf noodle (previously pdforge) automates PDF Generation in minutes using AI.Create custom PDF templates in seconds using our AI Agents, fine tune the design...
+- **`n8n-nodes-pdfpipe`** (v1.2.0, last publish 2026-08-20) — n8n community node for PDFPipe: render HTML or URLs to pixel-perfect PDFs, batch render, and manage stored documents.
+- **`n8n-nodes-pdfvector`** (v2.1.6, last publish 2026-06-11) — n8n community node for PDF Vector — parse PDF, Word, Excel, and image documents, extract structured data with JSON Schema, ask AI questions, and search acade...
+- **`n8n-nodes-pingen2`** (v0.2.4, last publish 2026-07-10) — Send physical mail with Pingen directly from n8n. One-click postal dispatch for invoices, reminders, contracts, and any PDF.
+- **`n8n-nodes-pixelseo`** (v0.9.4, last publish 2026-07-11) — n8n community node for PixelSEO — SEO image metadata at scale: filenames, alt text, and ImageObject schema, in page context
+- **`n8n-nodes-pixtex`** (v0.2.3, last publish 2026-08-24) — Render any n8n workflow as a share-ready image from inside n8n — PNG, SVG, JPEG, WebP or PDF, with no API key needed. An optional key adds permanent hosted U...
+- **`n8n-nodes-placid`** (v0.1.6, last publish 2025-12-19) — n8n node to interact with Placid API for creative generation
+- **`n8n-nodes-playwright-automation`** (v0.5.1, last publish 2026-01-31) — Community Playwright integration for n8n. Run reliable headless browser automations (scraping, form filling, login flows, PDF/screenshots, E2E checks) powere...
+- **`n8n-nodes-playwright-chromium-cdp`** (v1.0.4, last publish 2025-12-22) — n8n node for browser automation using Playwright with remote browser via CDP
+- **`n8n-nodes-plemeo-ocr`** (v0.1.19, last publish 2025-04-09) — n8n custom node for Plemeo OCR processing
+- **`n8n-nodes-plex`** (v0.1.5, last publish 2026-07-21) — n8n community node for Plex Media Server (libraries, sessions, search, metadata)
+- **`n8n-nodes-polydoc`** (v0.1.6, last publish 2026-06-19) — n8n community node for PolyDoc - HTML/URL to PDF, screenshots, and EU e-invoices (Factur-X / ZUGFeRD).
+- **`n8n-nodes-power-document-extractor`** (v0.13.7, last publish 2025-12-07) — Power Document Extractor – universal local document parser for n8n
+- **`n8n-nodes-pptr-adv`** (v0.7.10, last publish 2024-11-19) — N8n node for requesting webpages using Puppeteer
+- **`n8n-nodes-pptx-maker`** (v0.2.18, last publish 2026-02-04) — This is an n8n community node. It lets you use _app/service name_ in your n8n workflows.
+- **`n8n-nodes-pritset`** (v0.1.4, last publish 2026-07-21) — Generate PDFs from Pritset templates in n8n using direct download or webhook delivery
+- **`n8n-nodes-puppeteer`** (v1.5.0, last publish 2026-01-23) — n8n node for browser automation using Puppeteer
+- **`n8n-nodes-puppeteer-cartier`** (v1.4.45, last publish 2025-11-16) — n8n node for browser automation using Puppeteer. With extra modifications for cartier.
+- **`n8n-nodes-puppeteer-dokploy`** (v1.2.5, last publish 2025-03-31) — n8n node for browser automation using Puppeteer (Dokploy)
+- **`n8n-nodes-puppeteer-extended`** (v0.1.0, last publish 2022-10-25) — n8n node for requesting webpages using Puppeteer
+- **`n8n-nodes-puppeteer-fix`** (v1.5.1, last publish 2026-07-19) — n8n node for browser automation using Puppeteer
+- **`n8n-nodes-puppeteer-next`** (v1.1.0, last publish 2025-03-14) — n8n node for browser automation using Puppeteer
+- **`n8n-nodes-puppeteer-no-timeout2`** (v1.3.13, last publish 2025-02-28) — n8n node for browser automation using Puppeteer
+- **`n8n-nodes-puppeteer-wait-to-screenshot`** (v0.6.4, last publish 2023-02-26) — n8n node for requesting webpages using Puppeteer - based on n8n-nodes-puppeteer
+- **`n8n-nodes-puter-ai`** (v2.0.4, last publish 2025-08-11) — Advanced n8n node for Puter.js AI with RAG agentic capabilities, document processing, audio transcription, Supabase integration, and cost-optimized model pri...
+- **`n8n-nodes-qiniu-ai`** (v1.0.0, last publish 2026-01-19) — n8n nodes for Qiniu AI SDK - Chat, Image, Video, Audio, OCR, Agent and more
+- **`n8n-nodes-rendex`** (v1.8.4, last publish 2026-07-29) — n8n community node for Rendex — capture screenshots, generate PDFs, render HTML/Markdown, extract clean content, and monitor pages for changes (Rendex Watch)...
+- **`n8n-nodes-reportflow`** (v0.1.9, last publish 2026-08-23) — n8n node for Re:port Flow — the document automation platform that connects your data to PDFs. Design templates once in the visual editor, then automate gener...
+- **`n8n-nodes-rooyai-image`** (v0.1.1, last publish 2026-08-17) — Rooyai Image / Vision Model node for n8n - Multimodal AI image analysis, OCR, visual reasoning, and question answering
+- **`n8n-nodes-rue`** (v0.1.0, last publish 2026-08-08) — n8n community node for rue render: url/html to pdf/png/jpeg, paid with x402 usdc on base
+- **`n8n-nodes-sealdoc`** (v0.5.0, last publish 2026-05-08) — n8n community node for SealDoc — convert documents to PDF/A-3, render Markdown/HTML directly to sealed PDFs, generate Factur-X 1.0 invoices from JSON, valida...
+- **`n8n-nodes-slidefactory`** (v0.1.13, last publish 2026-03-17) — N8N community nodes for S5 Slidefactory - AI-driven presentation generation API
+- **`n8n-nodes-snaprender`** (v0.2.2, last publish 2026-04-18) — n8n node for SnapRender API: screenshots, content extraction, batch processing, signed URLs, webhooks. PNG, JPEG, WebP, PDF with device emulation, dark mode,...
+- **`n8n-nodes-solar`** (v0.3.54, last publish 2025-11-07) — Solar LLM and Embeddings nodes for n8n
+- **`n8n-nodes-sotoros-gotenberg`** (v1.0.14, last publish 2026-01-19) — n8n custom node for Gotenberg integration with binary data support
+- **`n8n-nodes-stirling-pdf`** (v0.1.1, last publish 2026-08-11) — n8n community node for the Stirling PDF processing API
+- **`n8n-nodes-synology-filestation`** (v1.3.1, last publish 2026-08-21) — n8n community nodes for Synology DSM File Station — manage NAS files (upload, download, copy, move, rename, delete, share links, search, archives, checksums,...
+- **`n8n-nodes-tamperlens`** (v0.1.2, last publish 2026-08-11) — n8n community node for Tamperlens — structural fraud signals for PDFs, images and Office documents. Evidence, not verdicts.
+- **`n8n-nodes-templatefox`** (v1.2.1, last publish 2026-04-28) — n8n community node for TemplateFox - Generate PDFs from templates and manipulate PDFs via API
+- **`n8n-nodes-tese`** (v1.0.1, last publish 2026-08-04) — n8n community nodes for TESE — ESG external API, Tesera AI, OCR, voice entry, anomaly detection, climate risk, platform triggers, webhook triggers, and workf...
+- **`n8n-nodes-thepdfmaker`** (v0.0.2, last publish 2025-04-24) — n8n node for businesses looking to streamline document generation. Create professional invoices, reports, and more from your data sources.
+- **`n8n-nodes-tika`** (v0.1.2, last publish 2026-04-11) — n8n community node for Apache Tika — extract text, metadata, detect MIME types and languages from documents (PDF, DOCX, PPTX, XLSX, images, and 1000+ formats)
+- **`n8n-nodes-toolingtools-bigboss`** (v1.1.11, last publish 2026-01-28) — Professional PDF and Conversion Tools for n8n via ToolingTools.com
+- **`n8n-nodes-unicraft`** (v2.1.8, last publish 2025-09-27) — UniCraft N8N custom nodes - Unified AI Model Router with Multi-Modal Support by CloudCraft Labs for OpenAI, Anthropic, Google Gemini, and more
+- **`n8n-nodes-universal-archive`** (v0.1.2, last publish 2026-08-13) — Self-contained archive extraction node for n8n using bundled 7-Zip WebAssembly
+- **`n8n-nodes-unlockpdf`** (v1.0.4, last publish 2025-09-23) — n8n node for unlocking password-protected PDF files using pdfmunk API
+- **`n8n-nodes-unsiloed`** (v1.0.3, last publish 2026-08-20) — Unsiloed AI — parse and OCR documents (PDF, scans, images) into clean Markdown inside n8n
+- **`n8n-nodes-unstract`** (v0.5.7, last publish 2025-12-24) — n8n nodes for Unstract services including LLMWhisperer and Unstract API
+- **`n8n-nodes-uploadtourl`** (v2.0.8, last publish 2026-05-04) — n8n node to upload any file and get a public URL instantly using Upload to URL
+- **`n8n-nodes-upstage`** (v0.4.1, last publish 2026-03-24) — Upstage LLM and Embeddings nodes for n8n
+- **`n8n-nodes-upstage-with-reasoning`** (v1.0.1, last publish 2025-11-16) — Upstage LLM and Embeddings nodes for n8n
+- **`n8n-nodes-usepdfmaker`** (v1.0.14, last publish 2026-06-20) — n8n community node for UsePDFMaker — PDF conversion API
+- **`n8n-nodes-vector-store-processor`** (v1.8.15, last publish 2025-11-06) — n8n node for intelligent document chunking and processing for vector store ingestion with Smart Qdrant Vector Store supporting Ollama and OpenAI embeddings
+- **`n8n-nodes-veryfi`** (v0.1.2, last publish 2026-04-29) — n8n community node for Veryfi document AI: extract structured data from invoices, receipts, checks, bank statements, W-9/W-2, IDs, and any document via bluep...
+- **`n8n-nodes-wkhtmltopdf`** (v1.1.2, last publish 2026-07-08) — n8n node for converting HTML to PDF using wkhtmltopdf
+- **`n8n-nodes-word-extractor`** (v1.0.3, last publish 2026-03-23) — n8n community node to extract text from .doc and .docx Word files
+- **`n8n-nodes-word2text`** (v1.0.11, last publish 2025-06-13) — Custom n8n node to convert Microsoft Word documents to text
+- **`n8n-nodes-workflow-reporter`** (v2.5.5, last publish 2025-11-12) — n8n community nodes: Workflow Reporter with execution details, Smart Document Parser, Approvals with MinIO/S3, and HTML->PDF renderer
+- **`n8n-nodes-xlsx`** (v0.1.1, last publish 2026-07-01) — n8n community node to read, write and style XLSX files entirely in memory (binary in / binary out), inspired by the Google Sheets node.
+- **`n8n-nodes-xlsx-to-json`** (v0.4.28, last publish 2025-03-09) — n8n node to convert Excel files to JSON via REST API
+- **`n8n-nodes-yandex-ocr-integration`** (v0.1.10, last publish 2026-07-30) — Yandex ocr node
+- **`n8n-nodes-zihin`** (v0.7.0, last publish 2026-06-28) — n8n nodes for Zihin AI - Chat Model with Tool Calling, Image Analysis, Audio Transcription, Document Parsing
+- **`n8n-nodes-zugferd-finisma`** (v0.1.0, last publish 2026-08-03) — n8n-Node für ZUGFeRD-/E-Rechnungen: PDF plus EN-16931-Daten zur fertigen ZUGFeRD-Rechnung erzeugen und vorhandene E-Rechnungen prüfen (finisma.de)
+
+### Messaging / chat-export / transcripts (SMS, iMessage, WhatsApp, transcript tools)
+
+_457 matches._
+
+- **`n8n-nodes-nvidia-nim-whisper-v2`** **(owner-flagged)** (v0.1.3, last publish 2026-03-22) — n8n community node for NVIDIA NIM Whisper Large V3 – speech recognition and translation via Riva gRPC API
+- **`n8n-nodes-openrouter-advanced`** **(owner-flagged)** (v0.1.1, last publish 2026-08-15) — n8n community node for the full OpenRouter API — chat, responses, images, video, audio, embeddings and reranking, with provider routing, plugins, reasoning c...
+- **`@2chat/n8n-nodes-twochat`** (v0.4.6, last publish 2026-07-22) — n8n node for 2Chat WhatsApp API
+- **`@aayshian/n8n-nodes-llw-ay19`** (v0.0.4, last publish 2025-11-06) — n8n custom node for AiSensy WhatsApp API integration - fetch campaigns and send messages
+- **`@aelyst/n8n-nodes-aelyst`** (v0.1.0, last publish 2026-07-17) — n8n community node for Aelyst — AI-powered omnichannel CRM. Triggers (new messages, contact updates, conversation events) and actions (send messages, manage ...
+- **`@affidev/n8n-nodes-affibot`** (v1.1.1, last publish 2026-05-19) — n8n nodes for Affibot WhatsApp API
+- **`@ainoflow/n8n-nodes-ainoflow`** (v1.0.7, last publish 2026-01-23) — n8n community nodes for Ainoflow API - Document conversion (OCR/transcription), file storage, and JSON storage
+- **`@aisensy/n8n-nodes-aisensy`** (v0.1.5, last publish 2026-01-08) — n8n custom node for Aisensy API campaign operations
+- **`@aldinokemal2104/n8n-nodes-gowa`** (v3.2.0, last publish 2026-04-02) — n8n community node for Go WhatsApp Web MultiDevice API v8
+- **`@amiidotcom/n8n-nodes-whatsapp-crm`** (v2.4.1, last publish 2025-11-25) — n8n community node for WhatsApp CRM - send messages, manage sessions, and use AI features
+- **`@aorizondo/n8n-nodes-evolution`** (v1.9.57, last publish 2026-03-08) — N8n Hub for WhatsApp Evolution API v2
+- **`@arisegroup/n8n-nodes-quo`** (v0.1.13, last publish 2026-02-08) — n8n community node for Quo (formerly OpenPhone) - business phone system API integration
+- **`@authyo/n8n-nodes-authyo`** (v0.1.3, last publish 2026-07-24) — n8n community node for Authyo - send and verify one-time passcodes (OTP) over SMS, WhatsApp, Voice and Email
+- **`@avilesodar/n8n-nodes-waha`** (v0.1.1, last publish 2026-05-30) — Nodo custom de n8n para conectar con WAHA (WhatsApp HTTP API)
+- **`@bablast/n8n-nodes-bablast`** (v1.0.0, last publish 2026-08-06) — Official n8n community node for Bablast WhatsApp messaging API and WABA automation.
+- **`@bradsjm/n8n-nodes-signalwire`** (v0.1.0, last publish 2026-07-24) — SignalWire nodes for n8n: live call control, media, transcription, Voice AI, messaging, call-flow triggers, communication events, and SWAIG tool gateway.
+- **`@chatarchitect/n8n-nodes-chatarchitectcom-for-whatsapp`** (v0.0.34, last publish 2026-04-14) — The application integrates the official WhatsApp Business API into your N8N. Incoming and outgoing messages, media, buttons, also you can initiate a conversa...
+- **`@crm-kraft/n8n-nodes-close`** (v2.3.55, last publish 2026-06-27) — The most complete Close CRM node for n8n. 80+ operations across 19 resources: leads (with merge), contacts, opportunities, tasks, notes, calls, emails, sms, ...
+- **`@cryptodevops/n8n-nodes-youtube-transcript`** (v1.7.4, last publish 2025-08-04) — Custom n8n node for YouTube video transcript extraction
+- **`@customermates/n8n-nodes-crm`** (v1.4.0, last publish 2026-07-12) — n8n community node package for Customermates CRM - Modern CRM for small businesses with contacts, organizations, deals, services, and messaging (email, Linke...
+- **`@devlikeapro/n8n-nodes-waha`** (v2025.2.9, last publish 2025-02-24) — n8n to connect with WAHA (Whatsapp HTTP API)
+- **`@dropcowboy/n8n-nodes-dropcowboy`** (v1.0.2, last publish 2025-12-08) — n8n workflow automation nodes for Drop Cowboy - Ringless voicemail and SMS automation platform
+- **`@emotion-machine/n8n-nodes-claw-messenger`** (v0.1.0, last publish 2026-07-15) — Send one controlled Claw Messenger message from n8n and prove the matching reply in your consumer
+- **`@endcycles/n8n-nodes-youtube-transcription`** (v1.0.17, last publish 2025-01-07) — A custom n8n node for fetching YouTube video transcripts using yt-dlp. Requires Python 3 to be installed.
+- **`@evolution_infosystem/n8n-nodes-chatterfox`** (v0.1.39, last publish 2026-07-07) — n8n node to send WhatsApp messages via Chatterfox
+- **`@fedcairo/n8n-nodes-chatwoot`** (v1.0.3, last publish 2025-10-20) — N8N community node for Chatwoot - Manage conversations, messages, typing indicators, and more
+- **`@ffmpeg-micro/n8n-nodes-ffmpeg-micro`** (v0.2.3, last publish 2026-08-19) — n8n community node for the FFmpeg Micro API. Transcode video and audio, generate subtitles with Whisper transcription, upload files, and watch for completed ...
+- **`@firefliesai/n8n-nodes-fireflies`** (v2.2.2, last publish 2026-07-16) — An n8n integration for the Fireflies.ai API that enables workflow automation with meeting transcripts, analytics, summaries, and other conversation data from...
+- **`@flaviokosta/n8n-nodes-new-evo-go`** (v1.0.0, last publish 2026-06-04) — n8n community node for the Evolution Go (EvoGo) WhatsApp API. Community fork of n8n-nodes-evo-go adding Send Carousel, Leave Group, Set Group Description and...
+- **`@flowbie/n8n-nodes-transcribe-video`** (v1.0.2, last publish 2026-02-12) — n8n node for Flowbie video transcription API
+- **`@gabreillason/n8n-nodes-wamessenger`** (v0.2.3, last publish 2026-05-28) — n8n community nodes for 360Messenger WhatsApp messaging, polling, and webhooks
+- **`@gallabox/n8n-nodes-gallabox`** (v0.1.3, last publish 2026-07-16) — n8n nodes for Gallabox WhatsApp Business platform
+- **`@gladiaio/n8n-nodes-gladia`** (v0.1.7, last publish 2026-07-23) — Gladia Speech to Text Node
+- **`@green-api/n8n-nodes-whatsapp-greenapi`** (v0.4.13, last publish 2026-06-07) — n8n node for Green-API for WhatsApp
+- **`@growsalesai/n8n-nodes-sendflow`** (v2.5.5, last publish 2026-05-18) — n8n community node for SendFlow API - WhatsApp campaign management
+- **`@growsalesai/n8n-nodes-ycloud`** (v2.7.4, last publish 2026-05-17) — n8n community nodes for YCloud API — WhatsApp, SMS, Email, Voice, Verification and more
+- **`@heisenbot/n8n-nodes-evolution-api`** (v2.0.6, last publish 2025-10-26) — A Evolution API é um hub de canais com foco no WhatsApp
+- **`@hyperflow-global/n8n-nodes-hyperflow-whatsapp`** (v1.0.11, last publish 2026-04-13) — n8n community node for Hyperflow WhatsApp API integration
+- **`@infobip/n8n-nodes-infobip-api`** (v0.2.1, last publish 2025-10-20) — n8n nodes for Infobip API integration - send SMS & view delivery reports.
+- **`@inutil-labs/n8n-nodes-whin`** (v1.0.7, last publish 2025-09-11) — n8n node to send WhatsApp messages to yourself using a simple token (no Business Manager)
+- **`@iproute/n8n-nodes-wppapi`** (v0.1.0, last publish 2026-07-23) — n8n community node para a WPPAPI — envie WhatsApp (texto, imagem, arquivo) e valide números em fluxos n8n. API gerenciada, trial grátis em wpp-api.com
+- **`@jaimeflneto/n8n-nodes-z-api`** (v1.2.2, last publish 2025-11-04) — n8n node for Z-API integration
+- **`@joaopauloqueiroz/n8n-nodes-whatsapp-api`** (v1.1.0, last publish 2025-12-02) — n8n nodes to integrate with WhatsApp API Manager
+- **`@joshuanode/n8n-nodes-ringcentral`** (v1.2.0, last publish 2026-03-05) — n8n node for RingCentral API integration with comprehensive support for SMS, Voice, Fax, Meetings, Team Messaging, and more
+- **`@kapso/n8n-nodes-kapso`** (v0.2.0, last publish 2026-08-11) — Kapso nodes for WhatsApp inbound triggers and outbound messaging in n8n.
+- **`@kdctek/n8n-nodes-wacr`** (v0.3.6, last publish 2026-08-19) — n8n community node for WA.cr — send WhatsApp and email messages, manage contacts, templates, broadcasts, media and internal conversation notes.
+- **`@kichat/n8n-nodes-kirimchat`** (v1.3.7, last publish 2026-03-10) — n8n community node for KirimChat - Send WhatsApp, Instagram & Messenger messages with interactive buttons, flexible customer lookup, and typing indicators
+- **`@kirimdev/n8n-nodes-kirim`** (v0.3.0, last publish 2026-08-16) — n8n community node for Kirimdev — send WhatsApp messages, manage contacts and conversations, react to events.
+- **`@kubex3/n8n-nodes-waha`** (v1.0.5, last publish 2026-01-21) — n8n to connect with WAHA (Whatsapp HTTP API)
+- **`@leonardomleitao/n8n-nodes-ytranscript`** (v0.1.1, last publish 2025-05-31) — n8n nodes for YTranscript
+- **`@liguelead/n8n-nodes-liguelead`** (v0.0.23, last publish 2026-07-28) — Community node for n8n to send SMS and voice calls using the LigueLead API
+- **`@martianatwork/n8n-nodes-aisensy`** (v0.1.13, last publish 2025-10-28) — n8n custom node for AiSensy WhatsApp API integration - fetch campaigns and send messages
+- **`@meliousai/n8n-nodes-melious`** (v0.1.2, last publish 2026-07-31) — n8n community node for Melious.ai — sovereign European AI inference (chat, embeddings, rerank, images, transcription, models).
+- **`@migastonesrl/n8n-nodes-migasender`** (v0.4.2, last publish 2026-03-25) — Production-ready n8n community node package for MIGASENDER messaging and log retrieval.
+- **`@mmkhak/n8n-nodes-whatsapp`** (v0.1.5, last publish 2025-11-14) — n8n node for WhatsApp integration using Baileys - Send and receive WhatsApp messages in your n8n workflows
+- **`@muhammadbinsaeed/n8n-nodes-whatsapp-qr`** (v1.3.0, last publish 2025-09-18) — n8n community node for WhatsApp using QR code authentication
+- **`@musallam/n8n-nodes-firefly-services`** (v1.3.0, last publish 2025-10-16) — n8n community node for Adobe Firefly Services, Photoshop API, and Substance 3D - Generate images, videos, 3D content, and edit photos using Adobe's generativ...
+- **`@n8n-dev/n8n-nodes-md-to-whatsapp`** (v1.0.7, last publish 2026-07-02) — n8n community node that converts Markdown text into WhatsApp-compatible formatting (*bold*, _italic_, ~strike~, ```monospace```)
+- **`@netgsm/n8n-nodes-netgsm`** (v0.1.41, last publish 2026-01-02) — Official Netgsm node for n8n
+- **`@nooviai/n8n-nodes-noovichat`** (v0.19.0, last publish 2026-07-04) — n8n community node for NooviChat — customer engagement, pipeline CRM, lead scoring and WhatsApp integration
+- **`@orisma/n8n-nodes-taximail`** (v1.0.12, last publish 2025-07-24) — AI Agent Tool for sending Email and SMS via Taximail
+- **`@orynlabs/n8n-nodes-smsgo`** (v0.1.1, last publish 2026-08-10) — SMSGo community node for n8n
+- **`@pmartino/n8n-nodes-360dialog`** (v0.3.0, last publish 2026-07-09) — 360dialog WhatsApp Messaging API community node for n8n: send text, media and template messages, and trigger workflows on inbound WhatsApp messages
+- **`@poli-digital/n8n-nodes-poli`** (v0.1.27, last publish 2026-01-27) — Nó para interagir com a API da Poli
+- **`@pyalm/n8n-nodes-tenreply`** (v0.2.0, last publish 2026-07-23) — n8n community node for Tenreply — messaging, CRM, LinkedIn and Instagram publishing automation
+- **`@raevon/n8n-nodes-whatsapp`** (v3.0.25, last publish 2026-06-17) — n8n community nodes for WhatsApp via Baileys REST API
+- **`@rjsebening/n8n-nodes-evolution-api`** (v1.1.0, last publish 2026-08-11) — n8n Community Node for the Evolution API (WhatsApp automation)
+- **`@rmyndharis/n8n-nodes-openwa`** (v0.9.3, last publish 2026-08-16) — n8n community nodes for OpenWA WhatsApp API Gateway
+- **`@romariormr/n8n-nodes-evogo`** (v0.4.0, last publish 2026-08-19) — n8n community node for Evolution GO WhatsApp API (messages, media, buttons, lists, carousel, groups, channels/newsletters, instances with dynamic dropdown)
+- **`@rsraven/n8n-nodes-ytdlp-transcript`** (v0.1.1, last publish 2025-08-18) — n8n node for extracting video transcripts using yt-dlp with browser cookie support
+- **`@salmaneelidrissi/n8n-nodes-whatsapp-web`** (v1.0.25, last publish 2025-07-13) — n8n nodes for WhatsApp Web integration using whatsapp-web.js
+- **`@saraivadev/n8n-nodes-uazapi`** (v0.1.1, last publish 2026-05-21) — n8n community nodes for uazapiGO V2 (WhatsApp) — actions + trigger (webhook & SSE).
+- **`@sentdm/n8n-nodes-sent`** (v0.1.1, last publish 2026-08-07) — Send SMS, WhatsApp and RCS messages with Sent, look up numbers, read delivery status, and start workflows from verified Sent webhooks.
+- **`@setup-automatizado/n8n-nodes-zedaapi`** (v0.3.1, last publish 2026-03-08) — n8n community node for Zé da API — Complete WhatsApp integration powered by whatsmeow. 163 operations across 19 resources.
+- **`@shiwangtiwari/n8n-nodes-simple`** (v0.2.0, last publish 2026-07-21) — n8n custom node for sending WhatsApp template messages
+- **`@sinch-engage/n8n-nodes-sinch-engage`** (v1.1.1, last publish 2026-06-24) — n8n community node to send SMS via Sinch Engage
+- **`@sinch/n8n-nodes-sinch`** (v1.1.0, last publish 2026-06-18) — n8n community node for Sinch Conversations API - send and manage omnichannel messages
+- **`@sociocs/n8n-nodes-sociocs`** (v0.2.0-6, last publish 2026-08-01) — n8n community node to send and manage SMS and WhatsApp messages with the Sociocs API
+- **`@soniox/n8n-nodes-soniox`** (v0.1.5, last publish 2026-01-29) — n8n community node for Soniox speech-to-text transcription
+- **`@super-e-/n8n-nodes-waha`** (v0.1.6, last publish 2026-03-18) — n8n custom node for Waha (WhatsApp HTTP API)
+- **`@thaleslaray/n8n-nodes-elevenlabs`** (v0.3.9, last publish 2025-04-18) — Nó n8n para integração com a API da ElevenLabs incluindo Speech-to-Text, Text-to-Speech e Conversational AI
+- **`@thinkliveid/n8n-nodes-waswuz`** (v1.1.9, last publish 2026-04-05) — n8n community node for Waswuz - Send WhatsApp, Instagram & Messenger messages with interactive buttons, flexible customer lookup, and typing indicators
+- **`@txtmsglk/n8n-nodes-txtmsg`** (v0.2.2, last publish 2026-07-21) — n8n community node for TXTMSG.lk SMS Gateway — Send SMS messages via Sri Lanka's developer-friendly SMS API
+- **`@umairabubakkar/n8n-nodes-whatsapp`** (v2025.2.17, last publish 2025-07-31) — n8n to connect with WhatsApp (Whatsapp HTTP API)
+- **`@umairabubakkar/n8n-nodes-zender`** (v3.2.4, last publish 2025-09-03) — n8n node for Zender WhatsApp API
+- **`@velmanta/n8n-nodes-smsapi`** (v1.2.4, last publish 2026-08-20) — n8n community node for sending SMS messages through SMSAPI
+- **`@videosailor/n8n-nodes-videosailor`** (v1.1.6, last publish 2026-06-29) — n8n community node to download, transcribe, trim, cut, resize, and subtitle videos via VideoSailor
+- **`@vocantai/n8n-nodes-translation-vocantai`** (v1.0.3, last publish 2025-08-02) — Audio file transcription services. Your speech. Private.
+- **`@voxiness/n8n-nodes-voxisms`** (v0.1.0, last publish 2026-07-24) — n8n community nodes for VoxiSMS: send SMS and trigger on inbound SMS
+- **`@wappfy/n8n-nodes-wappfy`** (v0.1.2, last publish 2025-09-10) — n8n nodes for Wappfy WhatsApp API integration
+- **`@wasapi/n8n-nodes-wasapi`** (v4.0.1, last publish 2026-06-19) — Nodo n8n para integración con Wasapi API
+- **`@wazapin/n8n-nodes-wazapin`** (v0.1.1, last publish 2026-08-12) — n8n community nodes for Wazapin — send WhatsApp messages and receive developer webhooks
+- **`@wesell/n8n-nodes-confirmx`** (v0.3.0, last publish 2026-07-13) — n8n community nodes for the ConfirmX WhatsApp Business Platform Public REST API. Ships a Message node (start conversation with a template, send text/media), ...
+- **`@woztell-sanuker/n8n-nodes-woztell-sanuker`** (v0.1.15, last publish 2026-03-13) — n8n-nodes-woztell-sanuker
+- **`@wsapichat/n8n-nodes-wsapi`** (v2.0.6, last publish 2026-03-11) — A comprehensive n8n community node for WSAPI - the powerful WhatsApp API Gateway. Easily integrate WhatsApp messaging, contact management, group operations, ...
+- **`@xnkee/n8n-nodes-uazapi`** (v0.2.3, last publish 2026-02-12) — Node da comunidade n8n para integração completa com a API uazapiGO (WhatsApp v2.0). 69+ operações em 19 recursos.
+- **`@ycloud-ai/n8n-nodes-ycloud`** (v0.1.12, last publish 2026-04-30) — n8n community node for YCloud API integration
+- **`@z-api/n8n-nodes-zapi`** (v0.1.8, last publish 2026-05-08) — n8n community node to integrate with Z-API (WhatsApp messaging).
+- **`@zapsterapi/n8n-nodes-zapsterapi`** (v0.2.0, last publish 2025-08-16) — Zapster API Node for n8n
+- **`n8n-nodes-1clickai-wadmin`** (v1.0.8, last publish 2025-05-12) — Sending messages to the WAdmin system
+- **`n8n-nodes-1clickai-wp`** (v1.0.22, last publish 2025-04-09) — Envio de mensagens para o WhatsApp através da API da 1ClickAI
+- **`n8n-nodes-agam-crm`** (v0.3.6, last publish 2026-03-18) — n8n community node for Agam CRM integration — WhatsApp groups, contacts, donations, enrichment, RSVP, volunteers
+- **`n8n-nodes-agendavet`** (v0.2.0, last publish 2026-07-18) — Nodes e tools do Agenda Vet para o n8n: agenda veterinária (doutores, horários livres, agendamentos) e envio de mensagens no WhatsApp da clínica, prontos par...
+- **`n8n-nodes-aimedia`** (v0.1.0, last publish 2026-08-13) — aimedia.az node for n8n — send Instagram/Messenger/WhatsApp/Telegram messages, record what the bot collects, pause the bot for a human, and read the catalogue.
+- **`n8n-nodes-airyschat`** (v0.7.7, last publish 2026-04-13) — n8n community node for AirysChat
+- **`n8n-nodes-alfaconnect`** (v0.2.3, last publish 2025-10-30) — n8n node to communicate with the AlfaConnect Plateform for workflow automation
+- **`n8n-nodes-alicloud`** (v0.2.24, last publish 2025-09-07) — n8n custom node for Alicloud Services
+- **`n8n-nodes-alive5`** (v1.0.27, last publish 2026-02-13) — Send and receive SMS messages via alive5
+- **`n8n-nodes-alive5weather`** (v0.2.0, last publish 2025-05-09) — n8n nodes for Alive5 SMS and Weather services
+- **`n8n-nodes-allsign`** (v0.1.5, last publish 2026-04-15) — n8n integration for AllSign — Electronic signature, document management, biometric signing. Supports FEA, NOM-151, eIDAS, and WhatsApp delivery.
+- **`n8n-nodes-aloware`** (v0.1.4, last publish 2026-08-12) — n8n community node for Aloware — send SMS/MMS, manage contacts, enroll into sequences and manage power dialer lists via the Aloware API.
+- **`n8n-nodes-android-texter`** (v0.1.4, last publish 2026-05-20) — n8n community node for Android Texter — send and receive SMS through your linked Android device, plus contacts, spam flagging, and message history.
+- **`n8n-nodes-aparavi`** (v1.0.39, last publish 2025-12-11) — n8n community nodes for Aparavi DTC API. Run any workflow including PII/HIPAA anonymization, OCR, document parsing, audio transcription, and custom pipelines.
+- **`n8n-nodes-aparavi-dtc`** (v1.1.43, last publish 2025-11-22) — n8n community nodes for Aparavi DTC API. Run any workflow including PII/HIPAA anonymization, OCR, document parsing, audio transcription, and custom pipelines.
+- **`n8n-nodes-apivault-whatsapp-validator`** (v0.1.1, last publish 2026-07-17) — n8n community node for WhatsApp Number Validator — live-checks whether each number is registered on WhatsApp (true/false) + profile picture, backed by the Ap...
+- **`n8n-nodes-apiwhstp`** (v0.1.13, last publish 2026-06-26) — n8n community node for APIWHSTP (API WhatsApp REST)
+- **`n8n-nodes-assemblyai`** (v0.4.0, last publish 2026-06-23) — n8n node for AssemblyAI speech-to-text transcription models.
+- **`n8n-nodes-atlaseye`** (v2.1.1, last publish 2026-03-14) — n8n community node for Atlas Eye CRM — manage leads, pipelines, tags, users, messages, and notifications.
+- **`n8n-nodes-ausses`** (v0.1.24, last publish 2026-04-15) — Custom n8n nodes for Ausses - Instagram and WhatsApp Messenger
+- **`n8n-nodes-authentica`** (v0.1.3, last publish 2025-09-24) — Authentica (Balance + OTP Send/Verify) node for n8n
+- **`n8n-nodes-avisaapi`** (v0.2.18, last publish 2025-02-05) — Integração com o Avisa API para envio de mensagens via WhatsApp
+- **`n8n-nodes-avisaapp`** (v0.1.25, last publish 2025-01-03) — Integração com o Avisa App para envio de mensagens via WhatsApp
+- **`n8n-nodes-bahalap`** (v1.0.0, last publish 2025-10-20) — n8n nodes for Bahalap WhatsApp Gateway
+- **`n8n-nodes-baileys`** (v1.0.2, last publish 2025-11-24) — N8n node for Baileys API Manager
+- **`n8n-nodes-baileys-instance`** (v0.1.9, last publish 2026-06-30) — n8n community node for the wa-instance API built on top of Baileys 7.
+- **`n8n-nodes-bandi-youtube-transcript`** (v0.4.8, last publish 2025-12-06) — 유튜브 자막 + 기타 유튜브 정보를 가져오는 n8n 커뮤니티 노드 패키지
+- **`n8n-nodes-basma`** (v1.0.0, last publish 2026-06-30) — BASMA WhatsApp automation nodes for n8n — trigger, message, quality, and contact handling
+- **`n8n-nodes-befroosh`** (v0.2.0, last publish 2026-06-16) — Befroosh custom n8n nodes (SMS providers, etc.)
+- **`n8n-nodes-bizwachat`** (v3.0.3, last publish 2026-06-12) — Hand-authored Bizwachat n8n nodes for tenant API messaging, templates, bots, and webhook triggers.
+- **`n8n-nodes-blooio`** (v0.2.1, last publish 2026-06-15) — A node for the Blooio API. Send and receive iMessages, RCS, SMS, and more via the Blooio API.
+- **`n8n-nodes-bolten`** (v0.2.8, last publish 2026-06-24) — n8n community node for the Bolten platform (CRM, WhatsApp and AI)
+- **`n8n-nodes-botbee`** (v0.1.12, last publish 2026-08-06) — n8n community node for the BotBee WhatsApp API
+- **`n8n-nodes-botky`** (v1.0.1, last publish 2026-07-27) — Nodo de n8n para Botky (plataforma multi-tenant de WhatsApp Cloud API).
+- **`n8n-nodes-brainiall-documents`** (v0.1.0, last publish 2026-08-13) — n8n community node for Brainiall document operations: PDF to Markdown, field extraction from images, and audio transcription.
+- **`n8n-nodes-captapi`** (v0.4.0, last publish 2026-08-20) — n8n community node for Captapi — structured social media data from 32 platforms (YouTube, TikTok, Instagram, Facebook, X, Reddit, Threads, Bluesky, Pinterest...
+- **`n8n-nodes-ccia`** (v0.1.0, last publish 2025-12-27) — n8n nodes for CCIA Contact Center
+- **`n8n-nodes-chatflow`** (v1.3.0, last publish 2026-07-27) — n8n community nodes for Chatflow — send WhatsApp, Telegram & Instagram messages and receive triggers
+- **`n8n-nodes-chatfunnel`** (v2.1.0, last publish 2026-06-19) — n8n community node para a API pública do ChatFunnel v1 (contatos, tags, kanbans, templates WhatsApp, fluxos, canais e campos personalizados)
+- **`n8n-nodes-chatlevel`** (v1.0.11, last publish 2026-01-15) — n8n node for Chatlevel WhatsApp API integration
+- **`n8n-nodes-chatwoot-aivence`** (v2.0.22, last publish 2025-12-30) — N8N community node for Chatwoot with Meta Platform APIs support - Manage conversations, messages, typing indicators, read receipts, and send media across Wha...
+- **`n8n-nodes-clicksendsms`** (v1.2.8, last publish 2026-04-30) — Integrate ClickSend with your tech stack using n8n. Configure multi-channel communications. Send SMS, MMS, Voice, Fax and Letters.  You can connect ClickSend...
+- **`n8n-nodes-clientesonline`** (v0.8.0, last publish 2025-10-21) — Nodes personalizados para n8n que integram com a plataforma ClientesOnline: CRM via WhatsApp, automação de relacionamento, envio de mensagens em massa, eleiç...
+- **`n8n-nodes-comtele-gateway`** (v1.0.22, last publish 2026-08-24) — Send SMS and RCS messages via Comtele Gateway
+- **`n8n-nodes-conexozenvo-gateway`** (v0.4.1, last publish 2026-06-30) — n8n community node para o WhatsApp Gateway (Conexo Envo) — enviar mensagens/mídia, gerenciar sessões e contatos, e um trigger que reage a mensagens recebidas...
+- **`n8n-nodes-context-sms`** (v1.1.10, last publish 2026-05-11) — n8n community node for sending SMS messages through the Sabrhub Context SMS API
+- **`n8n-nodes-crmax`** (v1.7.0, last publish 2026-08-05) — CRMax CRM - Integração completa com gestão de leads via WhatsApp
+- **`n8n-nodes-d-api`** (v1.0.24, last publish 2025-10-15) — N8N community node for D-API WhatsApp integration
+- **`n8n-nodes-d7-messaging`** (v0.2.2, last publish 2025-01-22) — Custom n8n nodes for D7 API to send SMS and WhatsApp messages
+- **`n8n-nodes-datastone`** (v0.1.16, last publish 2026-02-23) — n8n community node for Data Stone API — Brazilian B2B data enrichment, prospecting, CPF/CNPJ lookup, and WhatsApp validation
+- **`n8n-nodes-deapi`** (v0.4.0, last publish 2026-04-29) — n8n community node for deAPI - AI image generation, video generation, transcription and prompt optimization
+- **`n8n-nodes-devconnectai-api`** (v1.1.8, last publish 2025-10-11) — Nó n8n para integração com CRM DevConnectAi - Suporte a mensagens internas e controle de chatbot
+- **`n8n-nodes-diariz`** (v0.249.0, last publish 2026-08-24) — n8n community node for Diariz meeting transcription: react to transcriptions and drive the full REST API.
+- **`n8n-nodes-digichat`** (v1.0.20, last publish 2026-04-28) — Send WhatsApp messages via digiChat API in n8n workflows
+- **`n8n-nodes-digisac`** (v1.0.3, last publish 2026-07-09) — n8n community node for the Digisac API: contacts, tickets, messages, campaigns, services, departments, users, tags, schedules, webhooks, reports and every do...
+- **`n8n-nodes-dinastiapi`** (v1.1.9, last publish 2025-07-10) — n8n community nodes for DinastiAPI - WhatsApp Multi-Device REST API
+- **`n8n-nodes-direct7`** (v1.0.7, last publish 2026-08-11) — n8n nodes for Direct7 messaging integration.
+- **`n8n-nodes-dmly`** (v1.0.0, last publish 2026-07-23) — n8n community node for DMLY — WhatsApp-first messaging, CRM, appointments, invoicing, payments, broadcasts, automations, and signed-webhook triggers.
+- **`n8n-nodes-dumplingai`** (v0.1.1, last publish 2025-05-25) — n8n community node for Dumpling AI integration
+- **`n8n-nodes-easyhook`** (v0.2.37, last publish 2026-08-17) — n8n nodes for the Easyhook messaging and reviews API.
+- **`n8n-nodes-eboo-ocr`** (v1.0.2, last publish 2026-08-09) — Custom n8n node for Eboo OCR and Audio Transcription API
+- **`n8n-nodes-echostack`** (v0.2.1, last publish 2026-06-12) — EchoStack Evaluation API community node for n8n — evaluate forms, webhooks, and transcripts; branch on qualification status.
+- **`n8n-nodes-elevanc`** (v0.1.1, last publish 2026-08-17) — Nodes do Elevanc Chat para n8n: contatos, conversas e envio de mensagens em WhatsApp, Instagram e Messenger.
+- **`n8n-nodes-erfolgschat`** (v1.4.1, last publish 2026-06-21) — n8n community node for Erfolgschat — Leads, Kontakte, Chats, Labels & Event-Trigger
+- **`n8n-nodes-evo-antiban`** (v1.0.0, last publish 2026-07-23) — Fila persistente, rotação de sessões e configuração do Evo Antiban para n8n
+- **`n8n-nodes-evo-anub`** (v0.0.8, last publish 2026-07-12) — n8n community node for Evolution WhatsApp API v1 — manage instances, send messages, update profiles, and configure webhooks.
+- **`n8n-nodes-evo-bulk`** (v1.0.505, last publish 2024-10-05) — Envia mensagens em massa para o whatsapp atraves de uma integracao com o postgres e evolution
+- **`n8n-nodes-evo-go`** (v1.0.4, last publish 2026-04-14) — Evolution Go API is a REST API developed in Go to integrate WhatsApp with applications, offering support for multiple instances and advanced messaging features.
+- **`n8n-nodes-evocrm`** (v0.1.8, last publish 2026-07-01) — n8n community node for Evolution API and EvoCRM.
+- **`n8n-nodes-evolution`** (v1.9.52, last publish 2025-12-09) — n8n Community Node for Evolution API V2 - WhatsApp Integration Hub (130+ operations)
+- **`n8n-nodes-evolution-api`** (v1.0.4, last publish 2025-03-20) — A Evolution API é um hub de canais com foco no WhatsApp
+- **`n8n-nodes-evolution-api-direct`** (v1.2.0, last publish 2025-07-11) — A Evolution API é um hub de canais com foco no WhatsApp - versão com campos diretos (sem credenciais)
+- **`n8n-nodes-evolution-api-en`** (v1.0.2, last publish 2025-01-25) — Unofficial WhatsApp API Node for n8n (English Translation) translated from n8n-nodes-evolution-api
+- **`n8n-nodes-evolution-api-english`** (v1.1.2, last publish 2025-12-06) — The Evolution API is a channel hub focused on WhatsApp
+- **`n8n-nodes-evolution-api-plus`** (v1.0.10, last publish 2026-05-20) — A Evolution API é um hub de canais com foco no WhatsApp
+- **`n8n-nodes-evolution-api-v2`** (v1.1.11, last publish 2025-08-06) — N8N Community Node for Evolution API v2
+- **`n8n-nodes-evolution-cigchat`** (v1.0.1, last publish 2026-08-12) — n8n community node for Evolution API (WhatsApp) — 70 operations for operating a connected number, generated from the same module table that drives the Make.c...
+- **`n8n-nodes-evolution-go`** (v1.0.4, last publish 2026-04-14) — Evolution Go API is a REST API developed in Go to integrate WhatsApp with applications, offering support for multiple instances and advanced messaging features.
+- **`n8n-nodes-evolution-nk`** (v1.0.9, last publish 2025-12-13) — N8N nodes para Evolution API - Fork Evolution-NK com suporte a Carousel, Location, Sticker e mais
+- **`n8n-nodes-evolution-tools`** (v0.1.10, last publish 2025-04-26) — n8n node para integrar com Evolution API WhatsApp como ferramenta para agentes com IA
+- **`n8n-nodes-evolution-v2`** (v1.0.14, last publish 2026-05-10) — WhatsApp node for n8n using Evolution API v2
+- **`n8n-nodes-evolution-v2-english`** (v1.0.0, last publish 2026-05-10) — WhatsApp node for n8n using Evolution API v2
+- **`n8n-nodes-evozappgo`** (v0.1.21, last publish 2026-04-21) — Node n8n para integração com EvozappGO
+- **`n8n-nodes-falaai`** (v1.1.0, last publish 2026-07-17) — Nodes da Fala.ai para n8n - WhatsApp Cloud API
+- **`n8n-nodes-falefacilchat`** (v1.1.1, last publish 2026-05-08) — n8n community node for the Fale Fácil Chat WhatsApp API — send messages, media, templates and receive webhooks via Bitrix24 integration.
+- **`n8n-nodes-farazsms`** (v0.1.5, last publish 2025-09-29) — Faraz SMS integration nodes for n8n using the Faraz SMS REST API.
+- **`n8n-nodes-fast2sms`** (v0.1.1, last publish 2026-07-27) — n8n community node for the Fast2SMS SMS platform: DLT, DLT Manual and Quick routes, OTP, DLT Manager, delivery reports, logs, wallet and webhooks.
+- **`n8n-nodes-fathom`** (v1.4.0, last publish 2025-11-09) — n8n node for Fathom.ai API integration - meetings, recordings, transcripts, and summaries. Use Fathom Trigger node for webhooks.
+- **`n8n-nodes-financiagil`** (v2.3.0, last publish 2026-07-13) — Node Financiagil — Messaging + Cadastro + Chatwoot (ensure/handoff/apply-state) + Simulação (Resource+Operation)
+- **`n8n-nodes-fiwano`** (v1.2.1, last publish 2026-08-19) — Verified n8n community nodes for the Fiwano messaging platform API (WhatsApp, Instagram, Facebook Messenger)
+- **`n8n-nodes-flowera`** (v0.1.2, last publish 2026-08-15) — n8n community node for Flowera — run your Flowera AI agent flows directly from n8n workflows
+- **`n8n-nodes-flowsensy`** (v0.22.0, last publish 2026-08-18) — n8n custom node for sending WhatsApp template messages
+- **`n8n-nodes-fluidx`** (v0.4.1, last publish 2026-05-30) — n8n community node for the fluidX revXR THE EYE API (sessions, inbound calls, SMS, email, media).
+- **`n8n-nodes-fourjawaly`** (v1.20.2, last publish 2025-11-13) — n8n nodes for 4Jawaly - SMS, WhatsApp, and Audio Transcription (Speech to Text)
+- **`n8n-nodes-framefetch`** (v0.2.0, last publish 2026-08-01) — n8n community node for the FrameFetch video data API — turn any social-video URL (YouTube, YouTube Shorts, TikTok, Instagram Reels, Pinterest, Reddit) into a...
+- **`n8n-nodes-fzap`** (v0.2.0, last publish 2026-08-02) — n8n nodes for FZAP WhatsApp API
+- **`n8n-nodes-gallabox`** (v0.1.5, last publish 2026-06-24) — n8n nodes for Gallabox WhatsApp Business platform
+- **`n8n-nodes-genisys-whatsapp`** (v0.1.7, last publish 2026-01-16) — Custom n8n node for WhatsApp API
+- **`n8n-nodes-get-transcribe`** (v0.2.3, last publish 2026-07-23) — n8n node for GetTranscribe API integration - async transcription jobs and transcripts from Instagram, TikTok, YouTube and more
+- **`n8n-nodes-github-copilot`** (v4.5.3, last publish 2026-04-13) — n8n community node for GitHub Copilot with CLI integration, Chat API access, and AI Chat Model for workflows with full tools and function calling support - a...
+- **`n8n-nodes-go-api`** (v1.0.11, last publish 2026-01-17) — GO-API é uma API completa para WhatsApp com suporte a múltiplas instâncias
+- **`n8n-nodes-gofaxsms`** (v0.1.5, last publish 2026-06-11) — n8n community node for GoFax API - send SMS messages and manage your account
+- **`n8n-nodes-goflow-whatsapp`** (v1.1.0, last publish 2026-06-18) — n8n community node for GoFlow WhatsApp — receive incoming messages and send text, media, mentions, typing and read receipts via the GoFlow API.
+- **`n8n-nodes-gozap`** (v2.0.6, last publish 2026-07-13) — n8n community node for GoZap – WhatsApp automation API
+- **`n8n-nodes-grahakly`** (v0.2.7, last publish 2026-08-22) — n8n community node for Grahakly — send WhatsApp messages and templates and create contacts through the Grahakly API.
+- **`n8n-nodes-grape`** (v1.0.9, last publish 2026-06-14) — CRM Grape - Community Node para N8N. Envie mensagens, gerencie contatos, tickets, tags e muito mais. Compatível com Agentes IA (usableAsTool).
+- **`n8n-nodes-greenapi`** (v0.1.8, last publish 2025-10-19) — n8n node for Green-API for WhatsApp
+- **`n8n-nodes-greenbubble`** (v0.2.1, last publish 2026-08-15) — n8n community node for GreenBubble.io WhatsApp automation platform
+- **`n8n-nodes-groq`** (v0.2.0, last publish 2025-07-25) — N8N community node for Groq API - Speech-to-Text transcription using Whisper AI. Convert audio to text with high accuracy. Perfect for WhatsApp voice message...
+- **`n8n-nodes-groq-speech`** (v1.1.2, last publish 2025-07-30) — N8N Community Node for Groq Text-to-Speech API integration
+- **`n8n-nodes-groq-speech-to-text`** (v1.0.0, last publish 2025-10-14) — n8n node for Groq Speech-to-Text API - works with any audio provider
+- **`n8n-nodes-growhats`** (v1.0.0, last publish 2026-01-14) — n8n nodes for Growhats WhatsApp API - Send messages, media, templates and more
+- **`n8n-nodes-guni`** (v2.2.1, last publish 2026-06-02) — n8n community node for sending SMS and MMS using Guni API
+- **`n8n-nodes-guni-sms-mms`** (v0.2.4, last publish 2025-09-30) — n8n node for sending SMS and MMS using Guni API
+- **`n8n-nodes-hedy`** (v1.3.5, last publish 2026-08-18) — n8n nodes for Hedy - AI-powered meeting intelligence integration
+- **`n8n-nodes-honowa`** (v0.1.21, last publish 2026-05-15) — n8n community node for HonoWA — Unofficial WhatsApp API with multi-session management, messaging, broadcast, and media support.
+- **`n8n-nodes-hotshot-yt-transcriber`** (v1.0.13, last publish 2025-01-29) — Professional YouTube transcript extraction node using youtubei.js
+- **`n8n-nodes-huboot-api`** (v1.0.23, last publish 2025-10-08) — A Huboot API é um hub de canais com foco no WhatsApp
+- **`n8n-nodes-ictbroadcast`** (v0.1.6, last publish 2026-08-13) — n8n community node for ICTBroadcast. Run voice, SMS, fax and email campaigns, manage contacts and users from a workflow.
+- **`n8n-nodes-idb2b`** (v3.3.1, last publish 2026-04-22) — n8n community node for IDB2B - WhatsApp AI Agents
+- **`n8n-nodes-iiu-agent-api`** (v1.0.2, last publish 2026-07-28) — n8n community nodes for IIU Agent WhatsApp API Gateway
+- **`n8n-nodes-iletimerkezi`** (v1.0.10, last publish 2025-10-17) — n8n custom node for Iletimerkezi SMS API
+- **`n8n-nodes-imessage`** (v0.3.6, last publish 2026-05-28) — n8n community node for Photon iMessage — send, receive, and automate iMessage conversations via the Photon server
+- **`n8n-nodes-instantkom`** (v3.192.0, last publish 2026-08-18) — n8n community node for instantKOM messaging platform
+- **`n8n-nodes-ippanel`** (v0.4.0, last publish 2025-06-12) — n8n node for IPPanel SMS service
+- **`n8n-nodes-ivrapi`** (v0.1.53, last publish 2025-09-08) — n8n community node for ivrapi API integration
+- **`n8n-nodes-ivrapi-beta`** (v0.1.52, last publish 2025-09-08) — n8n community node for ivrapi API integration
+- **`n8n-nodes-izaap`** (v0.6.9, last publish 2025-01-09) — N8N Automation for Izapp - Relacionamento Conversacional via WhatsApp para Empresas.
+- **`n8n-nodes-japi`** (v1.0.12, last publish 2025-07-02) — Node comunitário para integrar a J-API (WhatsApp) ao n8n
+- **`n8n-nodes-jetapi`** (v1.3.1, last publish 2026-02-18) — Send messages via Telegram and WhatsApp using JetAPI - messaging automation for n8n. Get 10 days free trial!
+- **`n8n-nodes-kalagh`** (v0.13.0, last publish 2026-08-09) — n8n community nodes for Kalagh — send and receive WhatsApp, Telegram, Viber, Instagram, Facebook Messenger, email and website-chat messages through a Kalagh ...
+- **`n8n-nodes-kapso-api`** (v0.11.5, last publish 2026-06-03) — n8n community node for documented Kapso Platform and Meta-compatible WhatsApp APIs
+- **`n8n-nodes-kichatdemo`** (v1.2.6, last publish 2026-02-08) — n8n community node for ChatPlatform - Send WhatsApp, Instagram & Messenger messages with interactive buttons, flexible customer lookup, and typing indicators
+- **`n8n-nodes-kipps`** (v1.1.0, last publish 2026-06-29) — Custom Kipps.ai integration node for n8n — Chatbot, Voice Agent & WhatsApp in one node
+- **`n8n-nodes-kipps-whatsapp-agent`** (v1.0.12, last publish 2026-03-26) — n8n node for sending WhatsApp template messages via Kipps.AI
+- **`n8n-nodes-kirimi`** (v1.2.0, last publish 2026-04-14) — n8n community node for Kirimi WhatsApp Unofficial API
+- **`n8n-nodes-klaviyo-api`** (v0.1.2, last publish 2026-08-20) — n8n node for Klaviyo: profiles, lists, segments, events, metrics and campaigns, plus a trigger for Klaviyo webhooks
+- **`n8n-nodes-kontroapi`** (v0.8.0, last publish 2026-04-24) — KontroAPI nodes for n8n workflow automation - Send/receive WhatsApp messages
+- **`n8n-nodes-kouventa-ai`** (v0.3.4, last publish 2026-02-13) — n8n community nodes for kouventa.ai messaging API - Send WhatsApp messages and receive webhooks
+- **`n8n-nodes-kwikchat`** (v0.3.0, last publish 2026-08-18) — n8n community node for kwikCHAT — send WhatsApp templates, manage contacts, and interject into conversations from n8n workflows.
+- **`n8n-nodes-kwtsms`** (v0.2.0, last publish 2026-04-18) — n8n community node for kwtSMS SMS gateway. Send SMS, check balance, validate numbers, manage sender IDs.
+- **`n8n-nodes-labsmobile`** (v2.0.2, last publish 2026-08-07) — Envio de sms desde Api LabsMobile
+- **`n8n-nodes-leodelivery-attendance`** (v0.1.58, last publish 2026-07-19) — n8n nodes for Léo Delivery WhatsApp attendance context APIs.
+- **`n8n-nodes-lirax`** (v2.5.0, last publish 2026-01-31) — LiraX telephony and CRM integration for n8n with full API coverage - Voice calls, SMS, IVR, contacts and call management. Supports Ukraine and Belarus regions.
+- **`n8n-nodes-liveconnect`** (v2.0.4, last publish 2026-07-30) — n8n community node for the LiveConnect API (omnichannel messaging + CRM): contacts, conversations, WhatsApp QR & Business API, CRM deals, catalog, AI assista...
+- **`n8n-nodes-liveconnect-es`** (v2.0.4, last publish 2026-07-30) — Nodo comunitario de n8n para el API de LiveConnect (mensajería omnicanal + CRM), con la interfaz en español. Generado desde n8n-nodes-liveconnect.
+- **`n8n-nodes-llmlayer`** (v1.0.3, last publish 2025-10-22) — n8n node for LLMLayer Web Search & Answer API
+- **`n8n-nodes-mco`** (v0.1.5, last publish 2026-07-05) — Community node n8n para a API externa da Miró Connect One (multiatendimento WhatsApp e outros canais)
+- **`n8n-nodes-media-decrypt`** (v0.1.5, last publish 2025-06-05) — n8n community node for decrypting WhatsApp media files
+- **`n8n-nodes-megaapi`** (v1.3.1, last publish 2025-10-27) — N8N Community Node for MegaAPI WhatsApp automation - Complete WhatsApp integration with messaging, groups, media, and more
+- **`n8n-nodes-megaapi-chatwoot`** (v0.1.11, last publish 2025-09-23) — n8n community node package for integrating MegaAPI (WhatsApp service) with Chatwoot for customer support automation
+- **`n8n-nodes-melipayamak`** (v0.1.5, last publish 2025-07-17) — n8n node for MeliPayamak SMS service
+- **`n8n-nodes-meower`** (v1.5.0, last publish 2026-07-31) — n8n community node para automatizar WhatsApp via Meower
+- **`n8n-nodes-message-debounce`** (v0.1.31, last publish 2026-03-06) — n8n community node that groups messages from the same session within a time window, waiting for silence before passing them along as a single consolidated ou...
+- **`n8n-nodes-message-sync-ai`** (v0.1.3, last publish 2025-11-29) — n8n nodes for MessageSync.ai - WhatsApp automation platform
+- **`n8n-nodes-mindlytics`** (v0.1.17, last publish 2026-05-13) — N8N community node for Mindlytics – WhatsApp Business Platform
+- **`n8n-nodes-mirlo`** (v0.2.0, last publish 2026-02-05) — n8n community node for Mirlo - Send WhatsApp messages, manage broadcasts, contacts and conversations
+- **`n8n-nodes-moonwa`** (v1.2.2, last publish 2026-08-03) — Integrasi WhatsApp Gateway Moonwa untuk n8n
+- **`n8n-nodes-mpwah`** (v1.7.8, last publish 2026-02-12) — Powerful n8n community node for MPWAH WhatsApp Gateway. Send text, media, stickers, buttons, lists, and more.
+- **`n8n-nodes-multiwa`** (v1.2.0, last publish 2026-07-21) — n8n nodes for MultiWA WhatsApp Business API Gateway
+- **`n8n-nodes-nashir`** (v0.16.1, last publish 2026-08-18) — n8n community nodes for nashir.ai — publish to Facebook, Instagram, Threads, TikTok, LinkedIn, YouTube, WhatsApp and Telegram, plus AI conversation management
+- **`n8n-nodes-naver-sms`** (v0.1.11, last publish 2025-06-26) — Naver Cloud SENS SMS node for n8n
+- **`n8n-nodes-netgsm-unofficial`** (v0.3.3, last publish 2025-06-27) — N8N community node for Netgsm to send SMS and voice messages API integration
+- **`n8n-nodes-netsendo`** (v1.3.1, last publish 2026-01-11) — n8n community node for NetSendo Email & SMS Marketing Platform
+- **`n8n-nodes-new-evogo`** (v1.0.3, last publish 2026-06-05) — n8n community node for the Evolution Go (EvoGo) WhatsApp API. Community fork of n8n-nodes-evo-go adding Send Carousel, Leave Group, Set Group Description and...
+- **`n8n-nodes-new-evolution-api`** (v3.2.5, last publish 2026-01-09) — n8n Community Node for New Evolution API - WhatsApp Integration Hub (140+ operations)
+- **`n8n-nodes-nexara`** (v0.3.0, last publish 2026-08-01) — n8n community node for the Nexara speech-to-text API: transcription, diarization, speaker roles, emotion recognition, and structured LLM output
+- **`n8n-nodes-nicochat`** (v0.4.2, last publish 2025-11-06) — n8n node para integração com a API do NicoChat
+- **`n8n-nodes-nimbasms`** (v1.0.36, last publish 2025-10-15) — Nimba SMS node for n8n - Send SMS, manage contacts, campaigns and more
+- **`n8n-nodes-notifique`** (v0.2.9, last publish 2026-03-27) — n8n community node for Notifique - WhatsApp, SMS, Email and Push notifications
+- **`n8n-nodes-nowely-y-test`** (v0.3.7, last publish 2026-08-19) — n8n node for Green-API for WhatsApp
+- **`n8n-nodes-nqdev`** (v0.1.21, last publish 2025-05-14) — Tích hợp dịch vụ eSMS.vn vào n8n, cho phép bạn dễ dàng gửi tin nhắn SMS, Zalo hoặc Viber trực tiếp từ quy trình tự động hóa. Với node này, bạn có thể nhanh c...
+- **`n8n-nodes-nqdev-aio-beta`** (v0.0.31, last publish 2025-09-29) — Custom n8n node package for seamless integration of Vietnamese SaaS services: eSMSvn, Haravan, and Zalo
+- **`n8n-nodes-octagon`** (v1.1.4, last publish 2026-06-02) — Professional n8n node for Octagon AI Agents - Access 6 public-market specialists plus prediction markets, SEC filings, earnings transcripts, and stock data
+- **`n8n-nodes-omnichannel`** (v1.0.4, last publish 2025-12-11) — n8n node for Omnichannel Agent API - automate WhatsApp conversations, assign operators, send messages
+- **`n8n-nodes-omnifox`** (v0.8.0, last publish 2026-08-14) — n8n community nodes to interact with the Omnifox omnichannel platform REST API.
+- **`n8n-nodes-openphone`** (v0.3.3, last publish 2025-09-22) — n8n community node for OpenPhone API integration - send SMS, manage contacts, and receive webhooks
+- **`n8n-nodes-openwa`** (v1.0.1, last publish 2025-12-10) — n8n community nodes for the Openwa WhatsApp API - send messages, manage chats, groups, contacts, statuses and webhooks.
+- **`n8n-nodes-orbitx`** (v0.1.36, last publish 2025-04-20) — N8N node for OrbitX API integration
+- **`n8n-nodes-oryonapi`** (v0.2.0, last publish 2026-08-07) — n8n community nodes for OryonAPI — send WhatsApp messages and manage connections via zap.oryondigital.com
+- **`n8n-nodes-ovhsms`** (v0.0.1, last publish 2025-09-17) — N8n nodes for OVH SMS API integration
+- **`n8n-nodes-palantiriapi`** (v0.2.1, last publish 2026-05-20) — n8n community node for palantiriAPI (WhatsApp API)
+- **`n8n-nodes-palatine-speech`** (v1.1.1, last publish 2026-05-28) — n8n node for integrating Palatine Speech API into workflow
+- **`n8n-nodes-papi`** (v1.2.0, last publish 2025-12-23) — n8n community node for PAPI WhatsApp API - Send messages, manage groups, SMS, Call Instances, handle webhooks and more
+- **`n8n-nodes-pautapy`** (v1.2.1, last publish 2025-09-16) — n8n plugin for SparkBot
+- **`n8n-nodes-petals`** (v0.3.0, last publish 2026-08-12) — n8n node to ingest documents, files, transcripts, and metrics into your Petals assistant memory, and to chat with your assistant
+- **`n8n-nodes-pingram`** (v0.2.6, last publish 2026-05-05) — n8n community node for Pingram - Send SMS and Email notifications
+- **`n8n-nodes-pingwa`** (v0.1.6, last publish 2026-07-28) — n8n community node for the pingwa API — notify yourself on WhatsApp and get human-in-the-loop approvals for AI agents (hosted number, no Meta setup).
+- **`n8n-nodes-plantillawhatsapp`** (v0.2.6, last publish 2026-01-16) — n8n node to send a WhatsApp template
+- **`n8n-nodes-plaud-unofficial`** (v0.2.0, last publish 2026-03-26) — n8n community node for the unofficial Plaud API
+- **`n8n-nodes-popbill`** (v0.0.1, last publish 2026-08-02) — Unofficial n8n community node for the Popbill API (Korean e-tax invoice, cash receipt, SMS, fax). Not affiliated with Popbill. Work in progress.
+- **`n8n-nodes-pulse-agenda`** (v2.0.3, last publish 2026-02-05) — N8N node completo para Pulse Agenda - agendamento, reagendamento, cancelamento, horários disponíveis e mais
+- **`n8n-nodes-pulze-msg`** (v0.3.0, last publish 2026-08-14) — Send and receive WhatsApp messages from n8n via the Pulze API — text, media, interactive buttons, instance management and a signature-verified webhook trigger.
+- **`n8n-nodes-puter-ai`** (v2.0.4, last publish 2025-08-11) — Advanced n8n node for Puter.js AI with RAG agentic capabilities, document processing, audio transcription, Supabase integration, and cost-optimized model pri...
+- **`n8n-nodes-qrcodes-atendup`** (v1.0.2, last publish 2025-07-25) — Node N8N profissional para geração de QR Codes personalizáveis com funcionalidades brasileiras (PIX) - Desenvolvido por AtendUP
+- **`n8n-nodes-quepasa`** (v0.1.85, last publish 2026-03-31) — This is an n8n community node. It lets you use Quepasa in your n8n workflows. (use with Quepasa >= v4)
+- **`n8n-nodes-quepasa-api-yurisilva_pro`** (v2.5.0, last publish 2026-01-22) — Complete n8n integration for QuePasa WhatsApp API - 48 operations, multi-account support, 100% API v4 coverage
+- **`n8n-nodes-qyvo`** (v0.2.0, last publish 2026-05-05) — n8n community nodes for Qyvo — WhatsApp marketing platform for e-commerce. Send templates, manage contacts, trigger sequences and flows.
+- **`n8n-nodes-rapiwa`** (v0.1.11, last publish 2026-04-02) — Rapiwa is a Low-Cost WhatsApp API for Developer and Users. This node package allows you to use Rapiwa in n8n.
+- **`n8n-nodes-ravi-youtube-transcript`** (v0.2.1, last publish 2026-07-27) — n8n node to extract YouTube video transcripts with language detection and clean text output
+- **`n8n-nodes-rcszilla`** (v1.1.7, last publish 2026-06-10) — Send SMS, WhatsApp messages, and OTP codes — and read incoming messages and emails — via RCSZilla. Supports single and bulk recipients.
+- **`n8n-nodes-reelscribe`** (v0.3.1, last publish 2026-04-13) — n8n community node for reelscribe.app — transcribe Instagram Reels, TikTok videos, and YouTube content
+- **`n8n-nodes-relayion`** (v0.1.8, last publish 2026-07-01) — n8n community node for Relayion SMS Gateway
+- **`n8n-nodes-romulus`** (v1.4.6, last publish 2026-05-18) — n8n nodes for Romulus communication automation platform - manage AI agents, robocalls, and WhatsApp messaging
+- **`n8n-nodes-ryze-api`** (v1.0.0, last publish 2026-07-01) — n8n community node for RyzeAPI - send WhatsApp messages and receive events via webhook
+- **`n8n-nodes-sabrhub`** (v1.0.7, last publish 2025-10-17) — n8n node for Sabrhub SMS integration
+- **`n8n-nodes-salespoint`** (v1.0.1, last publish 2026-07-27) — Official n8n community node for Laravel Sales Point (Lebozone) POS & E-commerce
+- **`n8n-nodes-sambungan`** (v1.3.0, last publish 2026-06-01) — n8n community node for Sambungan - Send WhatsApp, Instagram & Messenger messages with interactive buttons, flexible customer lookup, and typing indicators
+- **`n8n-nodes-sendseven`** (v1.4.1, last publish 2026-08-19) — Official SendSeven n8n integration for WhatsApp Business API, SMS, Telegram, Messenger, Instagram, and email automation — send and receive messages, manage c...
+- **`n8n-nodes-sendwave-api`** (v0.0.20, last publish 2026-01-27) — SendWave API community node for n8n (WhatsApp-focused channel hub)
+- **`n8n-nodes-sendy`** (v0.2.0, last publish 2026-08-24) — n8n community node for Sendy — send SMS, read inbound replies to your virtual number, and manage contacts, segments, senders and credits via the Sendy public...
+- **`n8n-nodes-sendzen`** (v1.0.8, last publish 2026-01-02) — Send and receive WhatsApp Cloud API messages in n8n using SendZen (actions + webhook trigger).
+- **`n8n-nodes-serper-search`** (v1.1.2, last publish 2025-09-07) — n8n nodes for Serper Search API and subscription management
+- **`n8n-nodes-simgate`** (v0.1.1, last publish 2026-08-22) — Send and receive SMS through your own phone with SimGate
+- **`n8n-nodes-simplewa`** (v0.2.0, last publish 2026-07-19) — n8n community node for SimpleWA — WhatsApp API automation for the SimpleWA multi-tenant platform
+- **`n8n-nodes-smartprofiling`** (v0.1.9, last publish 2026-01-23) — n8n community node for Smart Profiling - Extract transcripts, generate AI summaries, and chat with YouTube videos
+- **`n8n-nodes-sms-advert`** (v1.0.23, last publish 2025-11-19) — Official n8n community node for SMSAdvert API to send SMS messages and manage your SMSAdvert account.
+- **`n8n-nodes-smsenmasse`** (v1.0.10, last publish 2026-07-06) — n8n community node for SMS en Masse — send SMS campaigns and manage your account.
+- **`n8n-nodes-smskub`** (v1.0.19, last publish 2026-04-15) — Official SMSKUB Node for n8n (SMS & OTP API)
+- **`n8n-nodes-smsmasivos`** (v0.1.15, last publish 2026-02-19) — n8n node for sending SMS via SMS Masivos
+- **`n8n-nodes-smstools`** (v0.1.2, last publish 2026-02-04) — n8n community node for Smstools (SMS gateway)
+- **`n8n-nodes-socialmasla-pulse`** (v0.1.9, last publish 2026-03-25) — Pulse by Social Masla: Automate your WhatsApp marketing and notifications. Send messages, templates, and manage contact tags.
+- **`n8n-nodes-socialmate`** (v2.7.1, last publish 2026-07-14) — n8n community node for SocialMate — automate WhatsApp messaging through your self-hosted SocialMate desktop server (send, schedule and queue personalized mes...
+- **`n8n-nodes-sociocs`** (v0.2.0-6, last publish 2026-07-25) — n8n community node to send and manage SMS and WhatsApp messages with the Sociocs API
+- **`n8n-nodes-soniox-api`** (v0.8.2, last publish 2026-08-17) — n8n node for Soniox Speech-to-Text API
+- **`n8n-nodes-speakai`** (v0.1.3, last publish 2026-07-02) — n8n community node for Speak AI: upload media and text for transcription and analysis, run AI Chat, look up media, and trigger workflows on new transcripts, ...
+- **`n8n-nodes-spectrum`** (v1.0.5, last publish 2026-05-26) — n8n community node for Photon Spectrum - inbound text webhooks and iMessage send/reply/react/typing/group
+- **`n8n-nodes-speech-to-text-cloud`** (v1.0.19, last publish 2026-07-29) — n8n community node to integrate with Online Speech to Text Cloud API for audio transcription and text transformations.
+- **`n8n-nodes-speechall`** (v0.3.0, last publish 2026-08-15) — Transcribe audio in n8n using Speechall
+- **`n8n-nodes-speko`** (v0.1.0, last publish 2026-08-15) — Place voice-agent phone calls, read transcripts, synthesize speech, and transcribe audio with Speko
+- **`n8n-nodes-stevomanager`** (v2.2.5, last publish 2026-02-22) — A StevoManager API é um hub de canais com foco no WhatsApp
+- **`n8n-nodes-supadata`** (v0.5.1, last publish 2026-02-24) — Tool for extracting content from YouTube videos and web pages
+- **`n8n-nodes-surveysparrow`** (v1.3.13, last publish 2026-06-05) — n8n community node for SurveySparrow — create survey forms, share via Email, SMS, and WhatsApp, plus form submission triggers
+- **`n8n-nodes-syncmate`** (v1.1.4, last publish 2026-05-04) — Send WhatsApp messages or media using SyncMate Assistro API.
+- **`n8n-nodes-syncro-crm`** (v2.2.0, last publish 2026-08-10) — n8n community node for Syncro CRM — leads, tasks, pipelines, automations, chatbots, WhatsApp, custom fields, webhook triggers (real-time events)
+- **`n8n-nodes-tadfoq`** (v1.0.1, last publish 2026-07-21) — n8n community node to send WhatsApp messages through Tadfoq
+- **`n8n-nodes-teamsix-zap-solution`** (v1.0.10, last publish 2025-12-15) — n8n nodes para integração com TeamSix Zap Solution
+- **`n8n-nodes-temp-wz-pkg`** (v1.0.7, last publish 2025-11-29) — n8n nodes for WapiZap WhatsApp API - Fast, secure, and Evolution API compatible
+- **`n8n-nodes-termii`** (v0.1.3, last publish 2026-07-08) — n8n community node for Termii SMS, OTP, balance, and sender ID operations
+- **`n8n-nodes-threadlywdp`** (v0.1.0, last publish 2026-08-17) — n8n community node for Threadly (AI omnichannel contact center): contacts, tickets, messages, leads, core events and sequences over the public v1 API, plus a...
+- **`n8n-nodes-tneenwh`** (v0.1.7, last publish 2026-05-07) — n8n community node for TNEENWH WhatsApp API
+- **`n8n-nodes-transcribe-audio`** (v0.2.1, last publish 2026-08-23) — Perform local speech-to-text on audio files in n8n using Whisper and a portable WebAssembly runtime.
+- **`n8n-nodes-transcribe-com`** (v1.0.8, last publish 2026-02-05) — Transcribe.com is an online service and processing API which allows to transcribe audio and video files and more!
+- **`n8n-nodes-transcript-lol`** (v0.3.3, last publish 2026-03-06) — n8n community node for Transcript.lol - AI-powered audio and video transcription service
+- **`n8n-nodes-transcriptapi`** (v0.1.2, last publish 2026-08-10) — n8n community node for TranscriptAPI: fetch YouTube transcripts (Markdown or JSON) and discover videos, channels, and playlists for AI and automation workflows.
+- **`n8n-nodes-transcriptfetch`** (v0.2.1, last publish 2026-07-26) — n8n community node for TranscriptFetch - video transcripts from YouTube, TikTok, Instagram, X & Facebook, plus any web page as clean Markdown.
+- **`n8n-nodes-transkriptor`** (v0.1.1, last publish 2026-08-24) — n8n community node for Transkriptor - AI-powered transcription service supporting 100+ languages with speaker recognition, timestamps, and automated summaries.
+- **`n8n-nodes-trilox`** (v0.1.3, last publish 2026-02-13) — n8n community nodes for Trilox - The first n8n chatbot inbox with human takeover. Monitor conversations, take control from bots, and reply as a human.
+- **`n8n-nodes-uazapi`** (v1.0.4, last publish 2025-09-30) — n8n community node for UazAPI - Complete WhatsApp automation with 90+ endpoints
+- **`n8n-nodes-uazapi-api`** (v1.0.23, last publish 2025-09-24) — N8N Community Node para integração com UAZAPI API
+- **`n8n-nodes-uazapi-lite`** (v1.0.7, last publish 2025-10-12) — Fork of n8n community node for UazAPI - Complete WhatsApp automation with 90+ endpoints
+- **`n8n-nodes-uchat`** (v0.4.7-6, last publish 2025-11-07) — n8n node para integração com a API do uChat
+- **`n8n-nodes-uniteds-whatsapp`** (v1.3.1, last publish 2025-11-08) — n8n node to interact with Uniteds WhatsApp API
+- **`n8n-nodes-unlimited-messaging`** (v0.1.9, last publish 2026-08-21) — n8n community node for Unlimited Messaging — send and receive WhatsApp messages in your workflows on unlimitedmessaging.app
+- **`n8n-nodes-unocrm`** (v1.0.13, last publish 2026-05-04) — n8n community node — UnoCRM integration. Manage leads, people, conversations, messages and activities.
+- **`n8n-nodes-up-api`** (v2.0.5, last publish 2026-02-13) — n8n nodes for Up API - WhatsApp API with AI Agents, Typing & Recording indicators
+- **`n8n-nodes-uzapi-business-autotic`** (v0.1.0, last publish 2025-09-07) — Interage com a API da Uzapi Business (WhatsApp)
+- **`n8n-nodes-vaicrm`** (v1.0.0, last publish 2026-08-04) — Nó da comunidade N8N para integração com a API do VAI CRM (https://api.vaicrm.com.br/docs)
+- **`n8n-nodes-valeia`** (v1.0.7, last publish 2025-05-06) — n8n nodes for Valeia WhatsApp Business API
+- **`n8n-nodes-valora`** (v1.0.0, last publish 2025-12-05) — n8n nodes for Valora AI Memory Platform - Cross-platform AI chat export and memory management
+- **`n8n-nodes-verdesk`** (v0.1.10, last publish 2026-08-07) — n8n community node for the Verdesk CRM (Prontuário Verde) API
+- **`n8n-nodes-vidflow`** (v0.1.14, last publish 2026-06-03) — n8n community node for audio extraction, BCut transcription, and Douyin media downloads.
+- **`n8n-nodes-virtualsms`** (v0.1.5, last publish 2026-05-25) — n8n community node for VirtualSMS — real-SIM SMS verification across 145+ countries and 2,500+ services. Buy numbers, receive OTP codes via webhook or pollin...
+- **`n8n-nodes-vistoazul`** (v0.3.0, last publish 2026-08-14) — n8n community node para a API de WhatsApp da Visto Azul: texto, midia (imagem/video/documento/audio/nota de voz), PIX, enquete, convite de calendario (.ics +...
+- **`n8n-nodes-voico`** (v0.1.18, last publish 2026-05-13) — Voico AI Voice Agent — Make outbound AI calls, get call details and transcripts directly in N8N
+- **`n8n-nodes-wa-akg`** (v1.1.3, last publish 2026-04-22) — n8n node for WA-AKG WhatsApp Gateway
+- **`n8n-nodes-waappa`** (v0.1.24, last publish 2026-07-29) — n8n Node for Waappa WhatsApp API
+- **`n8n-nodes-waba`** (v0.1.7, last publish 2026-04-14) — n8n node for WABA messaging service
+- **`n8n-nodes-wacap`** (v1.0.8, last publish 2025-12-17) — n8n community node for Wacap WhatsApp HTTP API
+- **`n8n-nodes-wachat`** (v0.2.0, last publish 2026-07-28) — Nodo de n8n para WaChat: envía mensajes de WhatsApp y gestiona conversaciones (asignar agente, fila, estado, etapa de pipeline) desde tus automatizaciones.
+- **`n8n-nodes-wachatty`** (v0.4.34, last publish 2023-07-17) — Rest api for communication with WhatsApp
+- **`n8n-nodes-waflow`** (v0.1.16, last publish 2026-01-13) — n8n node to integrate with WaFloW.ai WhatsApp services
+- **`n8n-nodes-waflow-trigger`** (v0.2.7, last publish 2026-04-01) — n8n community nodes for receiving WaFloW WhatsApp webhooks and sending messages through a specific slot
+- **`n8n-nodes-wafly`** (v1.5.2, last publish 2026-08-06) — n8n community node for the Wafly WhatsApp Bridge API — send messages, manage groups and configure webhooks
+- **`n8n-nodes-waha`** (v2024.11.5, last publish 2024-12-04) — n8n to connect with WAHA (Whatsapp HTTP API)
+- **`n8n-nodes-waha-split`** (v2025.1226.12, last publish 2025-12-26) — n8n to connect with WAHA (Whatsapp HTTP API)
+- **`n8n-nodes-wakit`** (v0.2.1, last publish 2026-05-08) — n8n community node for wakit — open-source WhatsApp Business API platform
+- **`n8n-nodes-walichat`** (v1.2.3, last publish 2026-08-05) — n8n plugin for WaliChat
+- **`n8n-nodes-walytic`** (v0.2.0, last publish 2026-06-15) — n8n community node for Walytic WhatsApp automation platform
+- **`n8n-nodes-wanotifier`** (v1.0.3, last publish 2026-05-05) — n8n community node for WANotifier — WhatsApp marketing automation built on the official WhatsApp API. Create or update contacts, send free-form messages duri...
+- **`n8n-nodes-waops`** (v3.1.1, last publish 2026-06-19) — WaOps WhatsApp API nodes for n8n. 140+ operations: send messages, manage groups, communities, newsletters, bulk messaging, business catalogs, sessions, label...
+- **`n8n-nodes-waotomatis`** (v0.3.0, last publish 2026-06-16) — n8n community node for WAOtomatis — headless WhatsApp (send messages, manage chats/contacts/media/storage, trigger on inbound events).
+- **`n8n-nodes-wapi`** (v1.1.1, last publish 2026-05-31) — n8n community nodes for W-api WhatsApp API - Send messages, manage instances and webhooks
+- **`n8n-nodes-wapiar`** (v1.1.0, last publish 2026-08-11) — Official n8n community node for Wapiar WhatsApp Automation API
+- **`n8n-nodes-wapify-test`** (v0.1.40, last publish 2025-07-04) — n8n custom nodes for Wapify WhatsApp API integration with standardized webhook payloads (TEST VERSION)
+- **`n8n-nodes-wapiway`** (v1.0.14, last publish 2026-04-04) — n8n community node for WapiWay WhatsApp Business API
+- **`n8n-nodes-wasenderapi`** (v0.1.1, last publish 2026-03-31) — n8n community node for WasenderAPI
+- **`n8n-nodes-wassenger`** (v1.2.3, last publish 2026-08-05) — n8n plugin for Wassenger
+- **`n8n-nodes-wati`** (v0.3.7, last publish 2026-05-28) — n8n community node for Wati — WhatsApp Business API automation. Send & receive WhatsApp messages, manage templates, contacts, and webhooks.
+- **`n8n-nodes-watzap`** (v3.1.13, last publish 2026-02-03) — WatZap nodes for n8n (send messages via WatZap API)
+- **`n8n-nodes-wavonyx`** (v0.1.0, last publish 2026-08-09) — n8n community node for Wavonyx, a self-hosted WhatsApp gateway: send and receive WhatsApp messages, media, edits and deletes
+- **`n8n-nodes-wavy`** (v1.2.26, last publish 2026-03-29) — n8n node for Wavy Gateway - V1.2.26 Modern Loader & Stability
+- **`n8n-nodes-wawcd`** (v1.3.0, last publish 2026-06-08) — Official WAWCD nodes for n8n — send WhatsApp messages and receive WAWCD webhook events
+- **`n8n-nodes-wazend`** (v1.0.9, last publish 2025-03-02) — API no oficial de WhatsApp
+- **`n8n-nodes-wazend2`** (v2025.2.24, last publish 2026-08-24) — n8n nodes for Wazend (WhatsApp HTTP API)
+- **`n8n-nodes-wbiztool`** (v0.1.2, last publish 2025-09-14) — n8n nodes for WbizTool WhatsApp Business Automation Platform integration
+- **`n8n-nodes-wcrm`** (v1.0.28, last publish 2026-03-27) — n8n community node for wCRM WhatsApp Cloud API
+- **`n8n-nodes-whaapy`** (v0.4.1, last publish 2026-06-12) — n8n community node for Whaapy - WhatsApp Business API with AI
+- **`n8n-nodes-whatghl`** (v0.1.107, last publish 2026-04-18) — Community nodes for WhatGHL integration in n8n.
+- **`n8n-nodes-whatmaster`** (v1.0.34, last publish 2025-09-20) — n8n node for WhatMaster API integration
+- **`n8n-nodes-whats-auto`** (v2.0.0, last publish 2025-07-14) — N8N nodes for WhatsApp automation server
+- **`n8n-nodes-whats2api`** (v0.2.13, last publish 2026-04-15) — n8n nodes for Whats2Api integration
+- **`n8n-nodes-whatsable`** (v2.5.0, last publish 2026-07-02) — WhatsAble is a platform for automating WhatsApp messages, making it easy to start using the WhatsApp API. This node package allows you to use WhatsAble in n8n.
+- **`n8n-nodes-whatsapp`** (v0.0.5, last publish 2023-01-11) — Nodes to trigger workflows from whatsapp events or send messages (using whatsapp web).
+- **`n8n-nodes-whatsapp-advanced`** (v1.0.5, last publish 2026-07-27) — Advanced WhatsApp Business node for n8n: template-aware variable fields, Cloud API and Marketing Messages API endpoint routing, and full Meta error-code hand...
+- **`n8n-nodes-whatsapp-ai-gateway`** (v0.2.0, last publish 2026-07-17) — n8n community node for sending WhatsApp messages through a self-hosted WhatsApp AI Gateway
+- **`n8n-nodes-whatsapp-br`** (v3.5.0, last publish 2026-01-15) — Nós N8N para integração com API Genisys WhatsApp - Envio, Recepção, Sessão e Contatos
+- **`n8n-nodes-whatsapp-bridge-xyz`** (v1.0.11, last publish 2026-03-08) — n8n community nodes for WhatsApp Bridge service
+- **`n8n-nodes-whatsapp-business-api-by-automations-builder`** (v0.2.1, last publish 2026-05-28) — n8n community nodes for the WhatsApp Business API (send session messages, send template messages, receive webhooks).
+- **`n8n-nodes-whatsapp-buttons`** (v1.0.2, last publish 2025-07-22) — Encapsulate WhatsApp Business API for sending messages with actions
+- **`n8n-nodes-whatsapp-crm-marketing`** (v1.4.8, last publish 2026-06-09) — n8n integration node for WhatsApp CRM, Marketing, API Gateway, and Cart Recovery by OnlineLiveSupport.com
+- **`n8n-nodes-whatsapp-gateway`** (v1.11.0, last publish 2026-06-08) — n8n node to interact with WhatsApp Gateway API
+- **`n8n-nodes-whatsapp-green-api`** (v0.1.102, last publish 2025-12-22) — n8n node to send WhatsApp messages via Green API
+- **`n8n-nodes-whatsapp-green-api-enhanced`** (v1.3.1, last publish 2025-08-11) — Enhanced WhatsApp integration for n8n with Green API - complete media handling and trigger system
+- **`n8n-nodes-whatsapp-link-generator`** (v1.5.3, last publish 2026-07-02) — n8n community node for generating WhatsApp links with custom messages
+- **`n8n-nodes-whatsapp-media-decrypt`** (v1.2.0, last publish 2025-07-10) — Custom n8n node for decrypting WhatsApp encrypted media files (.enc)
+- **`n8n-nodes-whatsapp-media-processor`** (v1.0.26, last publish 2025-04-15) — Node n8n para processamento de mídia do WhatsApp com OpenAI
+- **`n8n-nodes-whatsapp-message`** (v0.1.9, last publish 2026-02-26) — WhatsApp Message node for n8n
+- **`n8n-nodes-whatsapp-multi-session`** (v1.5.3, last publish 2026-04-26) — n8n node for WhatsApp Multi-Session API integration
+- **`n8n-nodes-whatsapp-personal`** (v0.2.0, last publish 2026-07-18) — n8n community node to send/receive WhatsApp messages from a personal number via a self-hosted Baileys bridge — no Meta Business API required. Built by Diginno.
+- **`n8n-nodes-whatsapp-pro`** (v2.1.0, last publish 2026-01-29) — Advanced WhatsApp Business API node for n8n with interactive messages, buttons, lists, catalogs and flows
+- **`n8n-nodes-whatsapp-srsergio`** (v1.0.0, last publish 2025-08-28) — N8N nodes for WhatsApp
+- **`n8n-nodes-whatsapp-zapi`** (v1.17.6, last publish 2025-07-02) — Custom n8n node for Z-API.
+- **`n8n-nodes-whatsappoutreach`** (v0.1.7, last publish 2026-02-04) — WhatsApp Outreach by Boost.space
+- **`n8n-nodes-whazing-api`** (v1.0.11, last publish 2026-06-20) — Whazing community node for n8n
+- **`n8n-nodes-wizebot`** (v0.1.11, last publish 2025-05-31) — Node Community n8n para integração com a API WhatsApp da Wizebot
+- **`n8n-nodes-wuzapi`** (v1.6.0, last publish 2025-06-07) — n8n community nodes for Wuzapi - WhatsApp Multi-Device REST API
+- **`n8n-nodes-wuzapiv2`** (v2.0.2, last publish 2026-07-08) — n8n community nodes for Wuzapi — WhatsApp Multi-Device REST API (Message + Trigger) - v2 maintained fork
+- **`n8n-nodes-wwebjs-api`** (v1.2.3, last publish 2026-02-24) — WhatsApp Web API node for n8n — send messages, manage chats, groups & contacts via WWebJS REST API (whatsapp-web.js)
+- **`n8n-nodes-ycloud-whatsapp`** (v1.1.3, last publish 2025-11-10) — Conecta n8n con la API de YCloud WhatsApp
+- **`n8n-nodes-ycloud-whatsapp-api`** (v1.4.3, last publish 2025-11-10) — Conecta n8n con la API de YCloud WhatsApp
+- **`n8n-nodes-youtube-dl`** (v3.1.0, last publish 2026-03-13) — n8n node to download videos, audio, transcripts & subtitles via yt-dlp — plug-and-play, 1000+ sites, works in Docker
+- **`n8n-nodes-youtube-transcript-api`** (v2.4.3, last publish 2025-03-06) — YouTube Transcript API Nodes for n8n
+- **`n8n-nodes-youtube-transcript2`** (v0.1.10, last publish 2025-11-27) — n8n Node um YouTube Transcripts über youtube-transcript-plus zu laden
+- **`n8n-nodes-youtube-transcription-kasha`** (v1.0.1, last publish 2025-01-10) — A custom n8n node for fetching YouTube video transcripts using the youtube-transcript library.
+- **`n8n-nodes-youtube-transcripts`** (v1.0.7, last publish 2025-07-14) — An n8n node for extracting YouTube video transcripts and subtitles using yt-dlp
+- **`n8n-nodes-ytranscript`** (v0.1.0, last publish 2025-05-31) — n8n nodes for YTranscript
+- **`n8n-nodes-ytube-transcript-wlang-v2`** (v1.0.6, last publish 2025-06-25) — n8n node for fetching YouTube transcripts with language support and authentication using yt-dlp
+- **`n8n-nodes-zap-api`** (v0.1.2, last publish 2026-07-28) — n8n community node para a ZAP-API (WhatsApp): enviar mensagens e reagir a eventos.
+- **`n8n-nodes-zap-gateway`** (v3.2.0, last publish 2026-08-20) — n8n Community Node para ZAP Gateway — WhatsApp abstraction layer (Z-API / UAZAPI)
+- **`n8n-nodes-zapben`** (v1.3.0, last publish 2026-08-19) — n8n community node para ZapBen — gerenciamento de instâncias WhatsApp multi-tenant
+- **`n8n-nodes-zapclass`** (v0.2.3, last publish 2025-11-19) — n8n community node for ZapClass - Send WhatsApp messages via ZapClass API
+- **`n8n-nodes-zapgate`** (v1.3.6, last publish 2026-08-05) — Community node n8n para a API ZapGate — WhatsApp gateway self-hosted
+- **`n8n-nodes-zapi`** (v0.1.0, last publish 2024-07-09) — Custom n8n node for Z-API.
+- **`n8n-nodes-zapi-icarodev`** (v1.0.1, last publish 2025-12-31) — Node de comunidade n8n para integração com Z-API WhatsApp - Desenvolvido por @icarodev
+- **`n8n-nodes-zaple`** (v0.1.7, last publish 2026-07-29) — n8n community node for the Zaple.ai WhatsApp Business API
+- **`n8n-nodes-zappify`** (v3.0.1, last publish 2025-11-26) — n8n nodes for Zappify WhatsApp API
+- **`n8n-nodes-zappro-api`** (v1.0.20, last publish 2025-06-10) — N8N node for WhatsApp API integration
+- **`n8n-nodes-zarkchat`** (v0.5.0, last publish 2026-08-21) — Nodes do ZarkChat para o n8n: CRM, contatos, conversas, envio de mensagem no WhatsApp, base de conhecimento e gatilho por webhook assinado.
+- **`n8n-nodes-zavu`** (v0.1.0, last publish 2026-08-11) — n8n community node for Zavu — one API for SMS, WhatsApp, Telegram, Email, Instagram, Messenger and Voice.
+- **`n8n-nodes-zdg`** (v1.0.16, last publish 2026-03-09) — n8n community node para integração com a API do ZDG (Comunidade ZDG)
+- **`n8n-nodes-zena`** (v0.8.6, last publish 2026-07-12) — Zena AI - Automate WhatsApp. Official n8n nodes for Zena WhatsApp AI CRM.
+- **`n8n-nodes-zigpoll`** (v0.1.9, last publish 2025-07-18) — Post-purchase, on-site, email and SMS surveys for attribution, exit intent, CRO, NPS, & more
+- **`n8n-nodes-zihin`** (v0.7.0, last publish 2026-06-28) — n8n nodes for Zihin AI - Chat Model with Tool Calling, Image Analysis, Audio Transcription, Document Parsing
+- **`n8n-nodes-zius`** (v0.1.8, last publish 2026-03-19) — Use zius.uk with n8n to automate WhatsApp and SMS messaging.
+- **`n8n-nodes-zpro`** (v0.1.3, last publish 2026-06-18) — Community node n8n para a API externa da Z-PRO (multiatendimento WhatsApp e outros canais)
+- **`n8n-nodes-zuckzapgo`** (v1.1.9, last publish 2025-07-10) — n8n community nodes for ZuckZapGo - WhatsApp Multi-Device REST API
+- **`n8n-whats-auto`** (v1.0.0, last publish 2025-07-13) — N8N nodes for WhatsApp automation server
+
+### Geo / location (GPS, geocoding, maps)
+
+_30 matches._
+
+- **`@ceki/n8n-nodes-ceki`** (v0.2.35, last publish 2026-07-26) — Rent real human browsers in n8n — anti-bot scraping, captcha solving, geo-targeting, and browser automation. Powered by Ceki.
+- **`@cryptodevops/n8n-nodes-google-places`** (v1.2.1, last publish 2025-08-03) — Custom n8n node for Google Places API
+- **`@local-falcon/n8n-nodes-localfalcon`** (v1.1.7, last publish 2026-07-27) — n8n community node for Local Falcon API - Local SEO rank tracking and analysis
+- **`@mendable/n8n-nodes-firecrawl`** (v2.1.4, last publish 2026-08-13) — Official Firecrawl nodes for n8n - scrape, crawl, map, search, and extract data from websites. Supports AI Agent tool usage.
+- **`n8n-nodes-apifreaks`** (v1.0.1, last publish 2026-07-17) — n8n community node for the APIFreaks API hub — 113 endpoints across IP intelligence, geocoding, WHOIS, DNS, currency, commodity, weather, PDF, ZIP code, fina...
+- **`n8n-nodes-applymap`** (v0.1.0, last publish 2022-11-20) — A node to map values.
+- **`n8n-nodes-city-timezone-lookup`** (v1.0.0, last publish 2026-08-02) — Lookup timezone ID, local time, UTC offset, and DST status by city + country (or coordinates) in n8n workflows, with optional nearest-match fallback.
+- **`n8n-nodes-clickuplookup`** (v1.2.0, last publish 2026-05-24) — Lookup ClickUp field options, statuses, priorities, and task types — map values to IDs without hard-coding metadata.
+- **`n8n-nodes-crustapi`** (v0.2.0, last publish 2026-07-15) — n8n community node for CrustAPI. Google Search, Maps, News, Shopping, Reviews plus public LinkedIn profiles, companies, posts, jobs and people search as clea...
+- **`n8n-nodes-dageno-ai`** (v1.2.12, last publish 2026-06-08) — n8n node for Dageno API
+- **`n8n-nodes-firecrawl-v2`** (v2.0.0, last publish 2026-08-24) — n8n community node for Firecrawl v2 API (Cloud + self-hosted) - scrape, crawl, map, search, extract, and batch operations
+- **`n8n-nodes-geomelon`** (v1.1.3, last publish 2026-07-18) — n8n community node for the Geomelon geographic API — cities, countries, regions, and languages with multilingual support
+- **`n8n-nodes-gmaps-paginator-v2`** (v1.1.9, last publish 2026-05-22) — n8n community node to paginate Google Maps search results via configurable HTTP proxy
+- **`n8n-nodes-google-map-scraper`** (v0.1.6, last publish 2026-05-16) — n8n nodes for Google Maps Scraper
+- **`n8n-nodes-google-maps-agentic`** (v0.5.12, last publish 2026-03-09) — Production-grade Google Maps & Places API scraper for n8n. Specifically designed for AI Agents, B2B lead generation, and mass email scraping with built-in ra...
+- **`n8n-nodes-google-maps-fetch`** (v0.1.8, last publish 2026-05-25) — n8n community node that fetches Google Maps search HTML with browser-like fingerprint and full cookie capture (NID, CONSENT, SOCS, AEC)
+- **`n8n-nodes-googlemaps-scraper`** (v1.4.2, last publish 2025-09-18) — n8n community node for Google Maps Scraper API - Create, manage and download Google Maps scraping jobs
+- **`n8n-nodes-gplaces`** (v1.0.94, last publish 2026-03-10) — Google Places API node for n8n - Text Search, Nearby Search, Place Details
+- **`n8n-nodes-immobiliare-listings`** (v0.1.0, last publish 2026-07-25) — Scrape Immobiliare.it Italian real estate listings. Returns price, address, city, rooms, surface, floor, GPS coordinates and photos. No proxy needed. Pay per...
+- **`n8n-nodes-latitude`** (v0.7.5, last publish 2026-02-15) — n8n community node for Latitude.so - Execute AI prompts with dynamic parameters
+- **`n8n-nodes-llmlayer`** (v1.0.3, last publish 2025-10-22) — n8n node for LLMLayer Web Search & Answer API
+- **`n8n-nodes-llmpulse`** (v0.1.2, last publish 2026-07-05) — n8n community node for LLM Pulse, the AI visibility analytics platform. Track brand mentions, citations and share of voice across ChatGPT, Perplexity, Gemini...
+- **`n8n-nodes-markmap`** (v0.1.6, last publish 2026-02-21) — n8n community node that converts Markdown text into an interactive Markmap mind-map HTML page.
+- **`n8n-nodes-nexgendata`** (v0.1.2, last publish 2026-06-07) — n8n community nodes for the NexGenData Apify actor fleet — email discovery, validation, company enrichment, and more.
+- **`n8n-nodes-outscraper`** (v0.2.9, last publish 2026-04-30) — n8n node to integrate with Outscraper API
+- **`n8n-nodes-proxyhat`** (v0.1.2, last publish 2026-07-14) — Route n8n HTTP Request nodes through ProxyHat residential proxies — rotating IPs, geo-targeting, and sticky sessions, no code.
+- **`n8n-nodes-ride`** (v0.2.5, last publish 2025-07-31) — n8n node for Ride service integration
+- **`n8n-nodes-serperdev`** (v1.2.1, last publish 2026-02-22) — n8n node for Serper.dev - Google Search, Maps, News, and Scraping API
+- **`n8n-nodes-teckel-navigation`** (v1.0.7, last publish 2026-05-12) — Aviation weather, flight routing, geocoding and navigation tools via the teckel platform.
+- **`n8n-nodes-vialos`** (v0.1.8, last publish 2026-04-07) — Self-healing HTTP/API node for n8n — auto-repairs failed requests using VialOS PCEC engine and Gene Map pattern learning
+
+### Files / storage / transfer (S3/R2, SMB, SFTP, rclone-adjacent)
+
+_57 matches._
+
+- **`n8n-nodes-smb2`** **(owner-flagged)** (v0.3.1, last publish 2025-10-21) — Transfer files via Samba (SMB2) with n8n
+- **`@azerax/n8n-nodes-pgp-encode-only`** (v1.0.5, last publish 2026-05-01) — Encrypt-only n8n PGP community node. Public-key encryption for text and binary files, with no private key, passphrase, signing, decrypting, verifying, or key...
+- **`@cdmx/n8n-nodes-aws-s3-custom`** (v0.1.7, last publish 2024-12-11) — S3 custom module.
+- **`@chris_pd/n8n-nodes-smb-connect`** (v2.1.3, last publish 2025-10-22) — n8n SMB2 Connect
+- **`@dgalichet/n8n-nodes-aws-sdk-v3`** (v0.5.5, last publish 2026-05-22) — n8n community node for executing custom JavaScript code with AWS SDK v3 clients (S3, Bedrock, KMS, SSM, Secrets Manager)
+- **`@getalecs/n8n-nodes-cloudflare`** (v0.1.7, last publish 2025-08-23) — n8n nodes for Cloudflare services including R2, D1, Workers AI, KV and Queues
+- **`@imagekit/n8n-nodes-imagekit`** (v1.0.6, last publish 2026-05-25) — n8n community node for the ImageKit Media APIs
+- **`@leeoooooou/n8n-nodes-minio-fix`** (v1.3.2, last publish 2025-11-16) — fork by @winth03/n8n-nodes-minio and fix http connect
+- **`@lsyer/n8n-nodes-minio`** (v1.3.2, last publish 2026-08-05) — n8n node wrapper for the official MinIO JavaScript SDK
+- **`@musallam/n8n-nodes-firefly-services`** (v1.3.0, last publish 2025-10-16) — n8n community node for Adobe Firefly Services, Photoshop API, and Substance 3D - Generate images, videos, 3D content, and edit photos using Adobe's generativ...
+- **`@nskha/n8n-nodes-mega`** (v1.0.3, last publish 2025-12-17) — n8n community node for Mega.nz S4 object storage (S3-compatible)
+- **`@nsoftware/n8n-nodes-nsoftware`** (v26.0.9578, last publish 2026-03-23) — /n software Nodes for n8n
+- **`@pokash/n8n-nodes-minio`** (v1.2.0, last publish 2026-05-03) — n8n community node to upload binary data to MinIO (S3-compatible) with arbitrary multi-level object paths
+- **`@rxap/n8n-nodes-cache`** (v1.0.4, last publish 2026-01-23) — This package provides a cache node for n8n workflows, allowing users to cache items using a MinIO client. It supports both reading from and writing to the ca...
+- **`@skriptfabrik/n8n-nodes-google-enhanced`** (v0.1.42, last publish 2025-04-30) — Enhanced Google community nodes for n8n
+- **`@victorhalla/n8n-nodes-clinicanasnuvens`** (v1.0.9, last publish 2026-03-09) — n8n community node for Clínica nas Nuvens API
+- **`@winth03/n8n-nodes-minio`** (v1.3.0, last publish 2025-08-11) — n8n node wrapper for the official MinIO JavaScript SDK
+- **`n8n-nodes-backup-dbs-rsd`** (v0.3.6, last publish 2026-05-22) — n8n community node to backup RabbitMQ, MongoDB, PostgreSQL and Qdrant directly to Amazon S3
+- **`n8n-nodes-bedrive`** (v1.5.1, last publish 2025-12-08) — n8n nodes for Bedrive integration
+- **`n8n-nodes-cloudflare`** (v0.1.12, last publish 2026-06-10) — n8n community nodes for Cloudflare - DNS, Workers, R2, KV, D1, Pages, AI, Zero Trust and more
+- **`n8n-nodes-cloudflare-r2-storage`** (v0.3.0, last publish 2025-09-27) — n8n community node for Cloudflare R2 object storage integration, featuring bucket management, object operations (upload/download/delete), multipart uploads, ...
+- **`n8n-nodes-cloudinary`** (v0.2.3, last publish 2026-08-23) — The official Cloudinary n8n node - upload media, update asset tags and metadata, and more
+- **`n8n-nodes-cos-uploadfile`** (v1.1.3, last publish 2025-07-17) — A custom n8n node to upload files to Tencent Cloud Object Storage (COS).
+- **`n8n-nodes-ftp-tls`** (v1.3.0, last publish 2025-07-11) — Extended FTP node for n8n with TLS/FTPS support
+- **`n8n-nodes-ftp-trigger`** (v1.0.1, last publish 2023-07-15) — n8n node for starting workflows when FTP or SFTP events occur.
+- **`n8n-nodes-ftp-trigger-nfs`** (v1.0.4, last publish 2026-08-18) — n8n node for starting workflows when FTP or SFTP events occur.
+- **`n8n-nodes-ftp-trigger-with-sftp-key-fix`** (v1.0.1, last publish 2026-04-29) — Fork of n8n-nodes-ftp-trigger with a fix for SFTP credentials when using a private key.
+- **`n8n-nodes-ifcpipeline`** (v0.7.1, last publish 2026-08-10) — n8n nodes for the object-storage (S3/MinIO) variant of IFC Pipeline. Requires USE_OBJECT_STORAGE=true on the target deployment; legacy filesystem deployments...
+- **`n8n-nodes-ionos`** (v1.21.0, last publish 2026-01-15) — n8n nodes for IONOS DNS, Domain, SSL/Certificate management, Cloud AI, Cloud Infrastructure, Container Registry, Database as a Service, CDN, VPN Gateway, Act...
+- **`n8n-nodes-legacy-sftp`** (v0.1.3, last publish 2026-07-24) — An n8n community SFTP node with opt-in legacy ssh-rsa host-key and user-authentication support.
+- **`n8n-nodes-minio`** (v0.1.4, last publish 2024-12-20) — n8n custom nodes for Minio
+- **`n8n-nodes-minio-dv`** (v0.1.9, last publish 2025-05-09) — N8N node for MinIO operations
+- **`n8n-nodes-netapp-ontap`** (v1.0.4, last publish 2026-02-26) — n8n community nodes for NetApp ONTAP REST API operations
+- **`n8n-nodes-onedrive-bastech`** (v1.2.7, last publish 2025-09-25) — n8n node for OneDrive integration with search capabilities
+- **`n8n-nodes-oxsr-technical-utils`** (v4.2.33, last publish 2026-05-21) — OXSR Technical Utils: complete WordPress monitoring and management via OXSR Monitor plugin
+- **`n8n-nodes-parquet`** (v1.0.7, last publish 2026-02-16) — n8n community node for reading and writing Apache Parquet files with multi-cloud storage support
+- **`n8n-nodes-pcloud`** (v1.6.3, last publish 2025-10-03) — n8n node for pCloud cloud storage integration
+- **`n8n-nodes-s3cache`** (v0.2.9, last publish 2025-10-28) — S3 Caching Node for n8n
+- **`n8n-nodes-sahabaa`** (v2.1.0, last publish 2025-12-21) — n8n node for Sahabaa file storage platform - Upload, download, manage files, and trigger workflows on file events
+- **`n8n-nodes-sftp-custom`** (v0.1.5, last publish 2026-01-26) — n8n node for SFTP with custom algorithms
+- **`n8n-nodes-sharp`** (v0.1.4, last publish 2025-08-20) — n8n community node for image stitching with MinIO and sharp
+- **`n8n-nodes-smartcache-redis`** (v1.2.1, last publish 2026-08-22) — n8n community node for intelligent caching with automatic hash generation and TTL support, backed by Redis. Fork of n8n-nodes-smartcache with the S3 storage ...
+- **`n8n-nodes-smb-pro`** (v1.2.0, last publish 2026-08-19) — n8n community node for SMB2/SMB3 shares with NTLMv2 support. Usable as an AI Agent tool. Proper n8n credentials, list (recursive, parallel, permission-tolera...
+- **`n8n-nodes-smbclient`** (v1.1.6, last publish 2026-08-18) — Transfer files via Samba (SMB2) and smbclient package with n8n, some of the base work are based on https://github.com/drudge/n8n-nodes-smb work.
+- **`n8n-nodes-sshv2`** (v1.2.0, last publish 2025-08-23) — 2 N8N ( Node & AI Agent Tool) for SSH operations Dynamically Configurable parameters NO credentials, including command execution, file uploads, and downloads...
+- **`n8n-nodes-supabase-storage`** (v0.1.1, last publish 2026-08-02) — List, download, upload and delete files in Supabase Storage from n8n, using the built-in Supabase credential.
+- **`n8n-nodes-superlogica`** (v0.1.20, last publish 2025-04-22) — N8N node para integração com a API do Superlogica Condomínios
+- **`n8n-nodes-synology`** (v0.2.1, last publish 2026-08-08) — n8n community nodes for Synology NAS applications
+- **`n8n-nodes-synology-filestation`** (v1.3.1, last publish 2026-08-21) — n8n community nodes for Synology DSM File Station — manage NAS files (upload, download, copy, move, rename, delete, share links, search, archives, checksums,...
+- **`n8n-nodes-synology-nas-api`** (v0.4.0, last publish 2026-08-24) — N8N nodes for Synology NAS API
+- **`n8n-nodes-tencent-cos`** (v0.1.7, last publish 2025-12-22) — n8n community node for Tencent Cloud Object Storage (COS)
+- **`n8n-nodes-terabox`** (v0.1.4, last publish 2026-04-29) — Professional n8n community node for advanced TeraBox cloud storage automation. Features secure QR login, session auto-refresh, batch file operations (upload/...
+- **`n8n-nodes-uploadtourl`** (v2.0.8, last publish 2026-05-04) — n8n node to upload any file and get a public URL instantly using Upload to URL
+- **`n8n-nodes-virustotal`** (v0.1.1, last publish 2026-08-01) — Nodo de n8n para la API publica (v3) de VirusTotal: reportes de archivos, URLs, dominios e IPs, escaneos, comentarios y votos.
+- **`n8n-nodes-volcengine-tos`** (v0.1.4, last publish 2025-09-20) — n8n community nodes for VolcEngine TOS (Object Storage) - Upload, download, manage files and buckets with pre-signed URLs support
+- **`n8n-nodes-workdrive`** (v1.0.4, last publish 2026-05-19) — n8n community node for Zoho WorkDrive — upload, download, manage files and folders, share links
+- **`n8n-nodes-workflow-reporter`** (v2.5.5, last publish 2025-11-12) — n8n community nodes: Workflow Reporter with execution details, Smart Document Parser, Approvals with MinIO/S3, and HTML->PDF renderer
+
+### Postgres / DB utilities
+
+_38 matches._
+
+- **`@rudsys/n8n-nodes-sqlite3`** **(owner-flagged)** (v0.1.18, last publish 2026-01-19) — n8n node for Remote SQLite operations via SSH
+- **`n8n-nodes-sqlite3-wasm`** **(owner-flagged)** (v1.1.0, last publish 2026-06-30) — n8n community node to run SQL against a local SQLite database via node-sqlite3-wasm
+- **`@coginiti/n8n-nodes-coginiti`** (v1.2.0, last publish 2026-03-12) — n8n community node to work with the Coginiti API
+- **`@fachkraftfreund/n8n-nodes-supabase`** (v1.4.5, last publish 2026-04-20) — Comprehensive n8n community node for Supabase with database and storage operations
+- **`@mbakgun/n8n-nodes-postgresql-event-channel`** (v0.0.17, last publish 2025-10-15) — n8n nodes for PostgreSQL-backed event channel communication between workflows
+- **`@muench-dev/n8n-nodes-postgres`** (v0.2.14, last publish 2026-04-03) — n8n community node for extended Postgres operations
+- **`@swrtechph/n8n-nodes-duckdb`** (v1.0.35, last publish 2025-02-11) — DuckDB integration for n8n
+- **`n8n-nodes-backup-dbs-rsd`** (v0.3.6, last publish 2026-05-22) — n8n community node to backup RabbitMQ, MongoDB, PostgreSQL and Qdrant directly to Amazon S3
+- **`n8n-nodes-cloudflare-d1`** (v0.5.8, last publish 2025-09-27) — n8n community node for Cloudflare D1 serverless database integration, featuring table management, visual query builders, database admin tools, structured ope...
+- **`n8n-nodes-code23-duckdb`** (v0.1.15, last publish 2025-12-04) — n8n node for executing SQL queries on DuckDB
+- **`n8n-nodes-cred-sync`** (v0.6.6, last publish 2026-02-27) — n8n community node to share credentials between users via SSH + Docker + PostgreSQL/SQLite
+- **`n8n-nodes-custom-logger-snoop`** (v0.1.11, last publish 2025-05-30) — Paquete de nodos personalizados para n8n: Custom Logger Node para PostgreSQL.
+- **`n8n-nodes-datastore-pg`** (v0.1.34, last publish 2025-07-30) — Datastore for n8n with PostgreSQL support - store data in memory or PostgreSQL database. This package is in testing and not for production use.
+- **`n8n-nodes-db-anub`** (v0.2.4, last publish 2026-07-25) — n8n node for Cloudflare D1 Manager Worker API - Manage D1 databases with select, insert, update, delete, and more
+- **`n8n-nodes-duckdb`** (v0.0.12, last publish 2022-08-11) — [DuckDB](https://duckdb.org/) for n8n
+- **`n8n-nodes-duckdb-quack`** (v0.1.24, last publish 2026-07-23) — n8n community node for local DuckDB files and high-performance remote Quack servers — in-process OLAP with HTTP/2 streaming vectors
+- **`n8n-nodes-evo-bulk`** (v1.0.505, last publish 2024-10-05) — Envia mensagens em massa para o whatsapp atraves de uma integracao com o postgres e evolution
+- **`n8n-nodes-fox-schema-sql-builder`** (v0.1.0, last publish 2026-08-01) — Multi-dialect SQL Builder for n8n powered by @foxschema/core (Postgres, MySQL/MariaDB, SQL Server, Oracle). Db2 is not supported.
+- **`n8n-nodes-intersystems-iris`** (v0.1.0, last publish 2026-07-26) — n8n community node to store AI agent chat memory in InterSystems IRIS over its Postgres wire protocol (iris-pgwire)
+- **`n8n-nodes-ionos`** (v1.21.0, last publish 2026-01-15) — n8n nodes for IONOS DNS, Domain, SSL/Certificate management, Cloud AI, Cloud Infrastructure, Container Registry, Database as a Service, CDN, VPN Gateway, Act...
+- **`n8n-nodes-mysql-variables`** (v0.5.1, last publish 2026-06-30) — n8n community node to store variables (cookies, API keys, client id/secret) in MySQL or embedded SQLite — flat key→value store with per-credential isolation ...
+- **`n8n-nodes-neon`** (v0.1.0, last publish 2025-11-28) — n8n node to connect to Neon Postgres database.
+- **`n8n-nodes-odbc-gateway`** (v0.3.1, last publish 2026-07-01) — n8n community node to run SQL on multiple RDBMS (PostgreSQL, MySQL, SQL Server, Oracle, IBM i) through the API Gateway ODBC/JDBC. Requires the companion gate...
+- **`n8n-nodes-pgvector-advanced`** (v1.7.3, last publish 2025-12-20) — Advanced PGVector + Postgres nodes for n8n with full CRUD control
+- **`n8n-nodes-physalis`** (v0.3.3, last publish 2026-08-02) — n8n community node for Physalis — fetch secrets/services/accounts, run SQL queries on PostgreSQL/MySQL/MariaDB, and send emails via Mailgun, all using creden...
+- **`n8n-nodes-postgres-advanced-memory`** (v2.3.7, last publish 2026-04-17) — Postgres Memory+ node for n8n with schema support, thread management, and optimized semantic search
+- **`n8n-nodes-postgres-context`** (v1.0.13, last publish 2025-06-18) — n8n nodes for AI context management with PostgreSQL
+- **`n8n-nodes-postgres-enc`** (v0.1.16, last publish 2023-11-13) — n8n.io node for Postgres configuration with TLS
+- **`n8n-nodes-postgres-vector-store-tool`** (v0.7.1, last publish 2025-12-03) — AI agent Postgres vector store tool with vector search and custom SQL capabilities
+- **`n8n-nodes-postgresql-copy`** (v1.0.18, last publish 2026-03-12) — n8n community node for PostgreSQL COPY command - efficient bulk import/export
+- **`n8n-nodes-quack-on-demand`** (v0.1.1, last publish 2026-08-07) — n8n community node to run SQL and browse the catalog on a Quack on Demand FlightSQL edge
+- **`n8n-nodes-rckflr-sqlite`** (v0.1.4, last publish 2025-01-24) — Custom n8n nodes for interacting with SQLite3 databases through SQL queries
+- **`n8n-nodes-readonly-memory`** (v0.1.22, last publish 2025-07-28) — Read-only memory node for n8n that only reads from PostgreSQL without storing conversations
+- **`n8n-nodes-relatasql`** (v0.1.7, last publish 2026-07-07) — n8n community node for RelataSQL — run SQL, inspect schemas, and govern writes across your database connections using a RelataSQL API key.
+- **`n8n-nodes-sqlite`** (v0.1.14, last publish 2022-10-24) — Custom n8n node module for sqlite database
+- **`n8n-nodes-supabase`** (v1.1.2, last publish 2025-12-10) — Comprehensive n8n community node for Supabase with database and storage operations
+- **`n8n-nodes-teable-io`** (v0.4.2, last publish 2026-06-25) — n8n community node for Teable — full CRUD, dynamic dropdowns, bulk operations, and upsert for your Teable tables and CRM.
+- **`n8n-nodes-turso`** (v0.5.0, last publish 2025-05-16) — n8n node for Turso database API
+
+### Workflow plumbing (error handling, rate limiting, batching, dedup, idempotency)
+
+_95 matches._
+
+- **`@scalogicai/n8n-nodes-mcp-enhanced`** **(owner-flagged)** (v1.0.5, last publish 2025-06-21) — Enhanced MCP client with multi-tenant support and smart prompt handling. Fixed queue mode compatibility and node loading issues. Built on excellent foundatio...
+- **`n8n-nodes-mcp-batch`** **(owner-flagged)** (v0.1.33, last publish 2026-01-31) — MCP nodes for n8n with batching support
+- **`@advenimuss/n8n-nodes-msgraph`** (v0.2.6, last publish 2026-02-03) — n8n node for Microsoft Graph API with retry handling
+- **`@amirmky912/n8n-nodes-html-to-pdf`** (v0.3.2, last publish 2026-07-28) — n8n community node for HTML → PDF / PNG / JPEG conversion via Cloudflare Browser Rendering. Supports RTL/Farsi, ECharts charts, batch processing, and custom ...
+- **`@andresfrei/n8n-nodes-redis-debounce`** (v2.0.2, last publish 2025-10-09) — Redis-based debounce and batching for n8n - intelligently accumulate items with automatic timer reset
+- **`@bauer-group/n8n-nodes-http-throttled-request`** (v0.3.6, last publish 2026-06-21) — n8n community node with built-in HTTP request throttling (rate limiting)
+- **`@divyanshu007/n8n-nodes-ratelimiter`** (v0.1.5, last publish 2026-06-18) — Throttle item flow in n8n workflows to prevent API 429 rate limit errors
+- **`@getalecs/n8n-nodes-cloudflare`** (v0.1.7, last publish 2025-08-23) — n8n nodes for Cloudflare services including R2, D1, Workers AI, KV and Queues
+- **`@heliont/n8n-nodes-heliont-messaging-hub`** (v1.3.2, last publish 2025-10-07) — Heliont Messaging Hub node for n8n
+- **`@henkey/n8n-nodes-amazon-paapi`** (v0.3.5, last publish 2025-03-20) — n8n node for Amazon Affiliate API (PA API 5.0) with enhanced features including OffersV2 support, advanced filtering, and better error handling
+- **`@ibracob.dev/n8n-nodes-fal`** (v1.4.0, last publish 2026-01-23) — n8n node for Fal.ai - LLM text generation, image/video generation, image editing, and vision AI models
+- **`@ibracob.dev/n8n-nodes-falai`** (v1.2.0, last publish 2025-12-04) — n8n node for Fal.ai - LLM text generation, image/video generation, image editing, and vision AI models
+- **`@jaimeflneto/n8n-nodes-google-ads-conversion`** (v0.9.0, last publish 2026-04-09) — n8n node for tracking conversions in Google Ads with support for batch processing, enhanced conversions, and comprehensive privacy compliance
+- **`@joaoveiga/n8n-nodes-claudecode`** (v0.11.0, last publish 2026-08-19) — Fork of @johnlindquist/n8n-nodes-claudecode: two n8n nodes for Claude Code v2 via the Claude Agent SDK — the agent, with effort, thinking, Ultracode, tool re...
+- **`@mefodiytr/n8n-nodes-max`** (v0.3.0, last publish 2026-05-04) — n8n community node for Max messenger integration. Fork of pfrankov/n8n-nodes-max with additional message and chat operations (pin/unpin/forward/edit_chat/sen...
+- **`@mkayy/n8n-nodes-aws-sqs-trigger`** (v1.1.2, last publish 2025-03-15) — Consume queue messages from AWS SQS in n8n
+- **`@n8n-dev/n8n-nodes-cow-protocol`** (v1.0.16, last publish 2026-08-06) — CoW Protocol batch auction DEX aggregator with MEV protection for gasless, secure cross-chain token swaps.
+- **`@noufax/n8n-nodes-google-ads-conversion-api-att`** (v1.0.10, last publish 2025-12-10) — n8n node for tracking conversions in Google Ads with support for batch processing, enhanced conversions, and comprehensive privacy compliance
+- **`@pentatonic-dev/n8n-nodes-aws-sqs`** (v2.0.11, last publish 2026-06-08) — n8n nodes for AWS SQS integration
+- **`@rxap/n8n-nodes-litellm`** (v0.0.4, last publish 2025-05-16) — This package provides n8n nodes for interacting with LiteLLM, enabling users to leverage various AI models for chat, embeddings, and more within their n8n wo...
+- **`@simplyprint/n8n-nodes-simplyprint`** (v0.4.1, last publish 2026-05-16) — n8n community node for SimplyPrint - monitor 3D printer fleets, manage queues, automate print jobs.
+- **`@trigidigital/n8n-nodes-chatbot-enchanced`** (v1.0.4, last publish 2026-02-24) — Advanced chatbot functionality with smart rate limiting, message buffering, session management, and Redis integration for scalable conversation automation
+- **`n8n-nodes-8kit`** (v1.0.18, last publish 2026-02-23) — n8n nodes for 8kit Automation Tools
+- **`n8n-nodes-aimedia-ai`** (v0.20.0, last publish 2026-07-13) — Multi-provider AI Chat Model for n8n with sequential failover + retry. Any OpenAI-compatible provider (OpenAI, DeepSeek, NVIDIA, OpenRouter, Groq, ...), one ...
+- **`n8n-nodes-azure-service-bus`** (v0.1.8, last publish 2025-11-04) — An n8n node for triggering workflows from Azure Service Bus queues
+- **`n8n-nodes-baia-erp`** (v0.2.6, last publish 2025-10-21) — n8n community nodes for BackOffice ERP API with Google-style smart search and AI auto-fill capabilities
+- **`n8n-nodes-baserow-advanced`** (v0.1.0, last publish 2023-08-17) — Copy of the baserow node with added batch functionality using the batch options of the API
+- **`n8n-nodes-baserow-plus`** (v3.1.2, last publish 2026-03-13) — Production-grade n8n community node for Baserow — field-type-aware serialization, true batch API, upsert, lookup, retry with backoff, and parallel multi-tabl...
+- **`n8n-nodes-bozonx-redis-sugar`** (v1.33.0, last publish 2025-12-28) — n8n community nodes for Redis: Cache, Streams, and Queue
+- **`n8n-nodes-chuck-norris-test`** (v0.1.0, last publish 2026-08-07) — Test node for exercising the review queue. Fetches a random joke from the public Chuck Norris API.
+- **`n8n-nodes-cleanuparr`** (v0.1.4, last publish 2026-07-20) — n8n community node for Cleanuparr (clean arr download queues) via its API
+- **`n8n-nodes-cloudflare`** (v0.1.12, last publish 2026-06-10) — n8n community nodes for Cloudflare - DNS, Workers, R2, KV, D1, Pages, AI, Zero Trust and more
+- **`n8n-nodes-cloudflare-d1`** (v0.5.8, last publish 2025-09-27) — n8n community node for Cloudflare D1 serverless database integration, featuring table management, visual query builders, database admin tools, structured ope...
+- **`n8n-nodes-cloudflare-r2-storage`** (v0.3.0, last publish 2025-09-27) — n8n community node for Cloudflare R2 object storage integration, featuring bucket management, object operations (upload/download/delete), multipart uploads, ...
+- **`n8n-nodes-coreclaw`** (v0.5.1, last publish 2026-08-08) — n8n community nodes for CoreClaw API v2 workers, run queues, worker runs, saved tasks, results, exports, logs, account data, and run callbacks
+- **`n8n-nodes-csv-batch-streamer`** (v0.1.1, last publish 2026-02-24) — Process CSV files by batches of rows
+- **`n8n-nodes-database-importer`** (v1.0.9, last publish 2025-11-19) — An n8n node to import data from Kingsoft WPS output to MySQL database with field mapping and deduplication
+- **`n8n-nodes-dialnexa`** (v0.1.3, last publish 2026-08-10) — n8n community nodes for DialNexa calls, agents, batch calls, and signed call outcome webhooks.
+- **`n8n-nodes-docuprox`** (v1.1.0, last publish 2026-04-07) — An n8n community node for AI-powered document processing via the DocuProx API. Extract structured data from documents using manual or AI-generated prompts — ...
+- **`n8n-nodes-eventdock`** (v0.1.3, last publish 2026-07-28) — EventDock community node for n8n — trigger workflows on reliable, retried, de-duplicated webhook deliveries. EventDock buffers your provider webhooks (Stripe...
+- **`n8n-nodes-everyrow`** (v0.2.1, last publish 2026-02-05) — n8n community node for Everyrow - AI-powered data operations including ranking, deduplication, merging, screening, and agent workflows
+- **`n8n-nodes-evo-antiban`** (v1.0.0, last publish 2026-07-23) — Fila persistente, rotação de sessões e configuração do Evo Antiban para n8n
+- **`n8n-nodes-falai-pro`** (v1.3.3, last publish 2025-12-19) — n8n node for Fal.ai - LLM text generation, image/video generation, image editing, and vision AI models
+- **`n8n-nodes-feishu-plus`** (v0.1.2, last publish 2026-02-26) — Feishu/Lark Bitable operations with production-grade retry, circuit breaker and test coverage
+- **`n8n-nodes-firecrawl-v2`** (v2.0.0, last publish 2026-08-24) — n8n community node for Firecrawl v2 API (Cloud + self-hosted) - scrape, crawl, map, search, extract, and batch operations
+- **`n8n-nodes-flowengine`** (v1.10.22, last publish 2025-12-14) — n8n nodes for FlowEngine AI + Zero-Setup Email Testing + AI Session Manager + Data Cleaner - AI automation made easy
+- **`n8n-nodes-forgiving-cli`** (v1.11.2, last publish 2026-05-29) — Enhanced Execute Command node with forgiving error handling for AI agents
+- **`n8n-nodes-gomtin`** (v1.1.2, last publish 2025-07-29) — Giải pháp tối ưu cho việc tập hợp và xử lý tin nhắn phân mảnh trong n8n với Redis
+- **`n8n-nodes-google-docs-batch-update`** (v1.5.1, last publish 2026-03-22) — This n8n node package allows you to perform batch updates on Google Docs documents using the Google Docs API.
+- **`n8n-nodes-google-maps-agentic`** (v0.5.12, last publish 2026-03-09) — Production-grade Google Maps & Places API scraper for n8n. Specifically designed for AI Agents, B2B lead generation, and mass email scraping with built-in ra...
+- **`n8n-nodes-google-vertex-embeddings-extended`** (v0.8.1, last publish 2025-10-20) — n8n community sub-node for Google Vertex AI Embeddings with output dimensions and configurable batch size support - resolves LangChain compatibility issues
+- **`n8n-nodes-guniweb-sap`** (v0.1.2, last publish 2026-08-17) — n8n community node for SAP S/4HANA and ECC via the GuniWeb SAP MCP Server — OData V2/V4 query, read, create, update, delete, function imports, batch, IDoc ov...
+- **`n8n-nodes-hubspot-advanced`** (v0.7.1, last publish 2026-08-21) — Advanced HubSpot nodes for n8n with rate limiting, batch operations, and association hydration
+- **`n8n-nodes-hubspot-ratelimit`** (v0.2.20, last publish 2026-02-10) — n8n HTTP Request node with intelligent HubSpot rate limiting - automatically monitors X-HubSpot-RateLimit headers and delays requests to prevent hitting API ...
+- **`n8n-nodes-ip-api`** (v0.1.0, last publish 2026-07-29) — n8n community node for ip-api.com: geolocate and enrich IP addresses (country, ISP, ASN, proxy/hosting/mobile flags), with bulk lookups of up to 100 IPs, cac...
+- **`n8n-nodes-kafka-aws-enhanced`** (v1.2.50, last publish 2026-07-20) — Enhanced Kafka nodes for n8n with manual offset management and timeout handling
+- **`n8n-nodes-kafka-enhanced`** (v1.2.39, last publish 2025-09-23) — Enhanced Kafka nodes for n8n with manual offset management and timeout handling
+- **`n8n-nodes-keeperhub`** (v0.4.0, last publish 2026-08-19) — Execute onchain transactions from n8n via KeeperHub, simulate-first, idempotent, with retries, gas handling and a full audit trail. Usable as an AI Agent tool.
+- **`n8n-nodes-late`** (v0.7.1, last publish 2026-05-14) — n8n community node for Zernio API - Schedule and manage social media posts across 13 platforms: Twitter/X, Instagram, Facebook, LinkedIn, TikTok, YouTube, Th...
+- **`n8n-nodes-mailsafepro`** (v1.1.2, last publish 2026-02-16) — n8n community node for MailSafePro Email Validation API - Enterprise email validation with risk scoring, SMTP verification, batch processing, and deliverabil...
+- **`n8n-nodes-md2notion`** (v1.6.2, last publish 2026-02-14) — Convert markdown to Notion pages with advanced chunking and error handling - supports large documents, complex content, and provides detailed error messages
+- **`n8n-nodes-memory-redis-isolated`** (v0.4.2, last publish 2026-07-23) — Redis-based chat memory node for n8n AI agents with user isolation for queue mode
+- **`n8n-nodes-mysql-trigger-advanced`** (v1.0.3, last publish 2026-08-09) — Real-time MySQL Trigger community node for n8n using ZongJi Change Data Capture, with leak-safe reconnect, keepalive, batching, and safe manual testing.
+- **`n8n-nodes-mysql-trigger-pro`** (v1.0.2, last publish 2026-08-09) — Real-time MySQL Trigger community node for n8n using ZongJi Change Data Capture, with leak-safe reconnect, keepalive, batching, and safe manual testing.
+- **`n8n-nodes-onedrive-business`** (v1.3.0, last publish 2026-01-23) — n8n custom node for OneDrive Business with robust deduplication and webhook triggers
+- **`n8n-nodes-openai-batch`** (v1.1.7, last publish 2026-04-13) — n8n node for OpenAI Batch API requests
+- **`n8n-nodes-panda-free-llm`** (v0.4.1, last publish 2026-06-27) — An n8n node that sends a prompt to multiple FREE LLM providers (Groq, Cerebras, Google Gemini, OpenRouter, Mistral) with automatic failover when one hits its...
+- **`n8n-nodes-pdfpipe`** (v1.2.0, last publish 2026-08-20) — n8n community node for PDFPipe: render HTML or URLs to pixel-perfect PDFs, batch render, and manage stored documents.
+- **`n8n-nodes-pulsarproducer`** (v1.0.8, last publish 2025-11-15) — Publish messages to Apache Pulsar
+- **`n8n-nodes-rate-limit`** (v1.7.3, last publish 2025-11-27) — n8n community node for rate limit using Redis
+- **`n8n-nodes-remotion-render`** (v0.5.9, last publish 2026-07-09) — n8n community node for rendering videos using your self-hosted Remotion server. Supports Manual timeline and Batch Render (each scene rendered individually, ...
+- **`n8n-nodes-resilience`** (v0.1.4, last publish 2026-06-30) — n8n community nodes for retry decisions, concurrency control, and dead-letter handling
+- **`n8n-nodes-retry-policy-doctor`** (v0.1.3, last publish 2026-07-19) — Retry Policy Doctor n8n community node generated by NEXUS Plugin Factory.
+- **`n8n-nodes-rettiwt`** (v0.3.4, last publish 2024-10-14) — Optimized n8n node to interact with the Rettiwt API, enabling tweet posting, liking, retweeting, user following, API key management, and more with improved e...
+- **`n8n-nodes-runfra`** (v0.2.2, last publish 2026-05-04) — n8n community node for Runfra — async batch image generation API. Generate single prompts, multi-prompt batches, or product scenes from a public image URL (i...
+- **`n8n-nodes-ryze-pixel-sender`** (v0.1.16, last publish 2026-04-30) — Custom n8n node for handling deduplication and sending affiliate events to TrafficPoint pixel service
+- **`n8n-nodes-safeagent`** (v0.2.1, last publish 2026-07-07) — n8n community node - SafeAgent execution guard (claim-before-execute idempotency pattern)
+- **`n8n-nodes-sasi-alert-dedup`** (v1.2.0, last publish 2023-09-21) — 
+- **`n8n-nodes-scrap-insta-tiwtiw`** (v2.5.3, last publish 2025-11-03) — Node n8n professionnel pour scraper Instagram avec Rate Limiting Intégré - Protection anti-blocage automatique - Récupération de profils, user posts et hasht...
+- **`n8n-nodes-sentinelmq`** (v1.0.7, last publish 2025-12-29) — SentinelMQ - Anti-Flood Control Node and Message Queue for N8N
+- **`n8n-nodes-servicem8-jobcreation`** (v1.3.2, last publish 2026-04-14) — n8n node for creating ServiceM8 jobs with intelligent client/contact deduplication
+- **`n8n-nodes-sip-pbx`** (v0.1.2, last publish 2026-05-18) — SIP PBX community nodes for n8n with daemon-backed call control, playback, recording, bridging, and queue orchestration
+- **`n8n-nodes-smb-pro`** (v1.2.0, last publish 2026-08-19) — n8n community node for SMB2/SMB3 shares with NTLMv2 support. Usable as an AI Agent tool. Proper n8n credentials, list (recursive, parallel, permission-tolera...
+- **`n8n-nodes-snaprender`** (v0.2.2, last publish 2026-04-18) — n8n node for SnapRender API: screenshots, content extraction, batch processing, signed URLs, webhooks. PNG, JPEG, WebP, PDF with device emulation, dark mode,...
+- **`n8n-nodes-socialmate`** (v2.7.1, last publish 2026-07-14) — n8n community node for SocialMate — automate WhatsApp messaging through your self-hosted SocialMate desktop server (send, schedule and queue personalized mes...
+- **`n8n-nodes-solace`** (v1.0.1, last publish 2025-07-15) — n8n community node for Solace PubSub+ integration with guaranteed message delivery, supporting JSON, Protocol Buffers, and binary formats
+- **`n8n-nodes-spintax`** (v0.2.8, last publish 2026-08-19) — n8n community node for spintax templates — render, validate, lint what came out, measure pool uniqueness, generate N variants, protect foreign placeholders, ...
+- **`n8n-nodes-sqs-pro`** (v0.1.1, last publish 2025-07-12) — 🚀 Professional AWS SQS nodes for n8n - Send, Delete & Trigger messages from SQS queues with ease. Complete package with 3 nodes.
+- **`n8n-nodes-starreview`** (v0.1.1, last publish 2026-07-24) — n8n community node for StarReview: list unanswered reviews, draft replies, and submit them to the owner's approval queue. The node never publishes a reply it...
+- **`n8n-nodes-supabase-queue-trigger`** (v1.1.7, last publish 2025-07-24) — N8N community node for Supabase Queue trigger with polling support
+- **`n8n-nodes-terabox`** (v0.1.4, last publish 2026-04-29) — Professional n8n community node for advanced TeraBox cloud storage automation. Features secure QR login, session auto-refresh, batch file operations (upload/...
+- **`n8n-nodes-vialos`** (v0.1.8, last publish 2026-04-07) — Self-healing HTTP/API node for n8n — auto-repairs failed requests using VialOS PCEC engine and Gene Map pattern learning
+- **`n8n-nodes-workflow-manager`** (v1.4.7, last publish 2026-01-04) — Powerful tool for n8n to batch manage workflows, sync across instances, and deep-clean data to avoid 400 errors.
+- **`n8n-nodes-yandex-tracker`** (v0.1.0, last publish 2026-07-16) — n8n community node for Yandex Tracker API - issues, comments, attachments, queues, boards, worklogs and more
+- **`n8n-nodes-zernio`** (v0.7.1, last publish 2026-05-14) — n8n community node for Zernio API - Schedule and manage social media posts across 13 platforms: Twitter/X, Instagram, Facebook, LinkedIn, TikTok, YouTube, Th...
+
+### Observability (Langfuse etc.)
+
+_96 matches._
+
+- **`@bitovi/n8n-nodes-langfuse`** **(owner-flagged)** (v0.1.0, last publish 2025-07-25) — n8n node to process Langfuse configuration files
+- **`@langfuse/n8n-nodes-langfuse`** **(owner-flagged)** (v0.2.3, last publish 2025-07-25) — Langfuse nodes for n8n
+- **`@wdaan/n8n-nodes-openrouter-datadog`** **(owner-flagged)** (v0.3.0, last publish 2025-11-17) — n8n community node: Datadog LLM Observability + OpenRouter LLM provider
+- **`n8n-nodes-langfuse-prompt`** **(owner-flagged)** (v1.3.4, last publish 2025-09-25) — Enhanced Langfuse nodes for n8n with advanced Prompt Management features and MCP integration
+- **`n8n-nodes-langfuse-studio`** **(owner-flagged)** (v1.10.0, last publish 2026-07-30) — n8n community node for Langfuse ingestion and Public API access.
+- **`n8n-nodes-openai-langfuse`** **(owner-flagged)** (v0.1.11, last publish 2025-09-22) — n8n community node: Langfuse + OpenAI-compatible LLM provider
+- **`@alephantai/n8n-nodes-alephant-ai`** (v0.1.7, last publish 2026-05-21) — n8n node for Alephant AI Gateway cost control and observable model requests
+- **`@brendangubt/n8n-nodes-agent-langfuse`** (v0.3.0, last publish 2026-06-04) — n8n AI Agent node with native Langfuse integration: tracing + prompt management. Fork of n8n-nodes-agent-langfuse with prompt variable support.
+- **`@call-e/n8n-nodes-calle`** (v0.1.6, last publish 2026-07-30) — n8n community node for creating and monitoring CALL-E AI-agent phone-call tasks.
+- **`@checkilo/n8n-nodes-checkilo`** (v0.2.2, last publish 2026-07-14) — n8n community node for sending Checkilo event and workflow pings.
+- **`@deepidealab/n8n-nodes-tracira`** (v0.18.0, last publish 2026-08-24) — Official n8n community node for Tracira AI output monitoring and approval workflows.
+- **`@ev1lc0rp/n8n-nodes-ninjaone`** (v0.6.1, last publish 2026-06-23) — Professional NinjaOne RMM integration for n8n with complete ticketing and device management
+- **`@fiqch/n8n-nodes-fiq-opcua`** (v0.1.15, last publish 2025-06-23) — n8n custom node for reading and writing OPC UA data (FactoryIQ)
+- **`@future-agi/n8n-nodes-futureagi`** (v0.6.9, last publish 2025-11-27) — n8n community node for Future AGI prompt management with async logging, evaluation, and content protection capabilities
+- **`@hanna84/n8n-nodes-bambulab`** (v1.4.2, last publish 2026-03-31) — n8n community node for controlling and monitoring Bambu Lab 3D printers over the local network via MQTT
+- **`@hypeline-io/n8n-nodes-hypeline`** (v0.3.2, last publish 2026-07-28) — Give your agents and workflows eyes on the web. Watch any feed, streaming source, or page and act on genuinely new content in n8n.
+- **`@joshuanode/n8n-nodes-symao`** (v0.5.0, last publish 2026-08-14) — Official n8n community node for sending metadata-only workflow telemetry to Symao Portal.
+- **`@jsoma/n8n-nodes-opik`** (v0.1.17, last publish 2025-11-16) — n8n community node for Comet Opik tracing, prompts, guardrails, and feedback.
+- **`@lbono/n8n-nodes-npaw`** (v2.0.9, last publish 2026-03-13) — NPAW / Youbora analytics nodes for n8n
+- **`@notilens/n8n-nodes-notilens`** (v0.1.6, last publish 2026-04-27) — n8n community node for NotiLens — send alerts from any n8n workflow
+- **`@open-condo/n8n-nodes-llm-openai-langfuse`** (v1.8.0, last publish 2026-07-31) — n8n OpenAI Language Model with built-in Langfuse observability and tracing
+- **`@pagecrawl/n8n-nodes-pagecrawl`** (v0.4.0, last publish 2026-08-19) — n8n node for PageCrawl.io - Website monitoring and change detection
+- **`@socradar/n8n-nodes-socradar`** (v1.8.7, last publish 2025-04-23) — Production-ready n8n integration for SOCRadar Extended Threat Intelligence platform
+- **`@tehw0lf/n8n-nodes-unix-socket-bridge`** (v1.4.5, last publish 2026-07-09) — Generic Unix domain socket communication with configurable server support for n8n
+- **`@torrix-ai/n8n-nodes-torrix`** (v0.1.11, last publish 2026-04-24) — n8n community node for Torrix — self-hosted LLM observability. Route LLM calls through Torrix to log tokens, cost, latency, and prompt traces.
+- **`@watchflow/n8n-nodes-watchflow`** (v0.14.0, last publish 2026-07-02) — Watchflow (n8n Monitoring Suite) - n8n node for Watchflow.io
+- **`@zurdai/n8n-nodes-server-check`** (v1.0.1, last publish 2025-11-27) — n8n nodes for server monitoring - check connectivity via HTTP, TCP Port and DNS
+- **`n8n-nodes-agent-langfuse`** (v0.6.2, last publish 2026-08-17) — n8n AI Agent node with native Langfuse integration: tracing + prompt management
+- **`n8n-nodes-ai-agent-langfuse`** (v0.1.29, last publish 2026-08-06) — n8n community node: AI Agent + Langfuse
+- **`n8n-nodes-ai-agent-langfuse-local`** (v0.1.1, last publish 2026-08-03) — AI Agent node (baseado no n8n-nodes-langchain.agent v2.21.0) com tracing para Langfuse
+- **`n8n-nodes-ai-langfuse`** (v0.2.7, last publish 2026-02-23) — n8n community nodes: Langfuse integration for AI LLM providers (OpenAI, Google Gemini)
+- **`n8n-nodes-akips`** (v1.3.2, last publish 2025-10-10) — n8n community node for AKIPS network monitoring and performance management system integration
+- **`n8n-nodes-apivault-skip-trace`** (v0.1.4, last publish 2026-06-08) — n8n community node for Skip Trace people & contact finder — look up US people by name, address, or phone and get full names, age, addresses, phone numbers, e...
+- **`n8n-nodes-apivault-woocommerce`** (v0.1.2, last publish 2026-06-08) — n8n community node for WooCommerce Product Scraper — scrape any WooCommerce catalog via the public Store API. Full variant prices, reviews text, related prod...
+- **`n8n-nodes-arubacentral`** (v1.0.17, last publish 2026-03-30) — n8n community node for Aruba Central API integration with comprehensive monitoring, configuration, and management capabilities
+- **`n8n-nodes-arubacentralnextgen`** (v1.15.3, last publish 2026-03-30) — n8n community node for Aruba Central NextGen API integration with modern monitoring and management capabilities
+- **`n8n-nodes-beszel`** (v0.1.2, last publish 2026-07-20) — n8n community node for Beszel (server monitoring hub: systems & alerts)
+- **`n8n-nodes-bing-copilot-api`** (v0.1.1, last publish 2026-07-11) — n8n community node for the Bing Copilot AI Answers API on Apify: Microsoft AI answers, cited sources, and brand-mention tracking for AEO.
+- **`n8n-nodes-cardiacsense`** (v0.1.6, last publish 2025-08-06) — n8n community nodes for Cardiacsense FHIR API - cardiac and health monitoring data integration
+- **`n8n-nodes-checkmk`** (v1.1.1, last publish 2026-01-14) — Complete n8n node for Checkmk monitoring system with 100% API coverage - 38 resources, 100+ operations
+- **`n8n-nodes-demeterics`** (v0.1.46, last publish 2026-02-06) — n8n community node for Demeterics LLM Gateway - Access multiple AI providers (Groq, OpenAI, Anthropic, Google Gemini) through a unified API with built-in obs...
+- **`n8n-nodes-demeterics-lite`** (v0.1.46, last publish 2026-02-06) — n8n community node for Demeterics LLM Gateway - Access multiple AI providers through a unified API with built-in observability and cost tracking. (Lite versi...
+- **`n8n-nodes-depiper`** (v0.2.0, last publish 2026-03-09) — n8n node for Depiper logging and observability platform
+- **`n8n-nodes-dns`** (v1.0.3, last publish 2026-04-07) — n8n community node for raw DNS queries using the DNS wire protocol (RFC 1035)
+- **`n8n-nodes-duckduckgo-search`** (v32.9.2, last publish 2026-06-25) — AI Agent-ready n8n community node for DuckDuckGo search. Search the web, images, news, and videos with no API key required and no outbound telemetry. Optiona...
+- **`n8n-nodes-email-monitor`** (v0.2.0, last publish 2025-09-02) — n8n node for monitoring email inbox with IMAP trigger
+- **`n8n-nodes-excel-watcher`** (v1.0.6, last publish 2026-03-03) — n8n node for monitoring Excel file changes with stability checking
+- **`n8n-nodes-feed-contract-monitor`** (v0.1.2, last publish 2026-08-06) — Monitor RSS, Atom, JSON Feed, and website feeds in n8n with persistent state, health evidence, and only-new delivery.
+- **`n8n-nodes-ferentin`** (v1.2.2, last publish 2025-10-26) — n8n Language Model for Ferentin AI with OAuth2 authentication and LangChain integration
+- **`n8n-nodes-gatus-trigger`** (v1.0.4, last publish 2025-12-16) — n8n community node for receiving webhook alerts from Gatus
+- **`n8n-nodes-genesys-cloud-mcp-plus`** (v1.0.9, last publish 2025-07-22) — n8n community node for Genesys Cloud MCP Plus - 15 comprehensive tools for contact center analytics, real-time monitoring, and wrap-up code analysis
+- **`n8n-nodes-glances`** (v0.1.2, last publish 2026-07-20) — n8n community node for Glances (system metrics: CPU, memory, disks, network, containers)
+- **`n8n-nodes-handit`** (v0.2.3, last publish 2025-09-28) — n8n community nodes for Handit tracing and prompt management
+- **`n8n-nodes-helicone`** (v1.0.4, last publish 2025-10-30) — n8n node for Helicone AI gateway and observability
+- **`n8n-nodes-humanhours`** (v0.3.1, last publish 2026-06-02) — n8n community node for HumanHours. Track AI agent tasks and enrich company domains into a labour-cost business case.
+- **`n8n-nodes-iaes`** (v0.2.0, last publish 2026-08-14) — IAES Industrial Asset Event Standard nodes for n8n — emit, validate, and track lifecycle of industrial asset events
+- **`n8n-nodes-infini-analytics`** (v0.2.0, last publish 2026-07-01) — Connector for monitoring and debugging the runs of your automations and agents in analytics.infini.es
+- **`n8n-nodes-influx`** (v1.0.4, last publish 2026-04-06) — n8n community node for InfluxDB (v1, v2, and v3)
+- **`n8n-nodes-ionos`** (v1.21.0, last publish 2026-01-15) — n8n nodes for IONOS DNS, Domain, SSL/Certificate management, Cloud AI, Cloud Infrastructure, Container Registry, Database as a Service, CDN, VPN Gateway, Act...
+- **`n8n-nodes-jaasai`** (v0.3.2, last publish 2025-10-24) — JaaS AI: Evaluate Chat Bots
+- **`n8n-nodes-johnrippy-seo`** (v0.3.4, last publish 2025-12-29) — n8n community nodes for SEO automation powered by Apify actors. Local SEO, citation checking, review scraping, competitor monitoring, and more.
+- **`n8n-nodes-leafengines`** (v1.0.9, last publish 2026-07-02) — Agricultural Intelligence for n8n: Soil analysis, water quality monitoring, crop recommendations, carbon credit calculations, weather fusion, and environment...
+- **`n8n-nodes-librenms`** (v1.1.1, last publish 2025-07-16) — n8n community node for LibreNMS network monitoring system integration with comprehensive device management and monitoring capabilities
+- **`n8n-nodes-litesoc`** (v1.4.1, last publish 2026-04-14) — n8n community node for LiteSOC - Security Observability for Startups. Track security events and manage alerts.
+- **`n8n-nodes-llm-observability`** (v0.10.40, last publish 2025-12-02) — n8n community nodes: Standalone AI Agent with multi-provider LLM support and integrated Langfuse/Phoenix/Helicone observability
+- **`n8n-nodes-llmpulse`** (v0.1.2, last publish 2026-07-05) — n8n community node for LLM Pulse, the AI visibility analytics platform. Track brand mentions, citations and share of voice across ChatGPT, Perplexity, Gemini...
+- **`n8n-nodes-logicmonitor`** (v0.1.6, last publish 2026-03-13) — n8n community node for LogicMonitor API integration
+- **`n8n-nodes-markmesh`** (v0.3.0, last publish 2026-08-04) — Trademark search, monitoring and conflict research across 30+ registers, with provenance on every record.
+- **`n8n-nodes-mentionfox`** (v0.2.1, last publish 2026-08-03) — n8n community nodes for MentionFox + FoxAPIs - Source Check a person against public registers, Founder Vetting Reports, Investor Snapshots, dossiers, contact...
+- **`n8n-nodes-netxms`** (v0.1.5, last publish 2026-05-28) — n8n community node for NetXMS network monitoring and management
+- **`n8n-nodes-newrelic`** (v0.4.1, last publish 2026-06-19) — n8n node for New Relic integration, including NerdGraph NRQL execution
+- **`n8n-nodes-nocrash`** (v0.1.4, last publish 2026-06-29) — Audit your entire n8n in 30 seconds, free. NoCrash watches your n8n automations and tells you in plain language when something breaks, before your customers do.
+- **`n8n-nodes-observability`** (v0.2.0, last publish 2026-07-14) — Export OpenTelemetry traces from n8n AI Agent workflows to Opik, Langfuse, or any OTLP/HTTP JSON collector. Captures model calls, tool calls, tokens, latency...
+- **`n8n-nodes-orbital`** (v3.4.0, last publish 2026-08-12) — Orbital Process para n8n — ejecutar agentes IA, compact LLM, discovery, polling jobs async. Auto-emit de step enriquecido con ai.tools[] inline al webhook de...
+- **`n8n-nodes-orbital-actions`** (v3.5.0, last publish 2026-08-12) — Orbital Actions para n8n — 7 operaciones simplificadas: pipeline, progreso+pasos, finalizar, saltar fase, notificar, documentos, aprobación HITL con reanudac...
+- **`n8n-nodes-org21`** (v0.3.7, last publish 2026-05-27) — n8n community node that sniffs workflow metadata, logs, timing, and errors, then triggers a sub-flow via webhook or n8n API.
+- **`n8n-nodes-oxsr-technical-utils`** (v4.2.33, last publish 2026-05-21) — OXSR Technical Utils: complete WordPress monitoring and management via OXSR Monitor plugin
+- **`n8n-nodes-payzcore`** (v1.1.12, last publish 2026-03-03) — n8n community node for PayzCore blockchain transaction monitoring API
+- **`n8n-nodes-pilex`** (v1.6.0, last publish 2026-03-31) — n8n community node voor Pilex Hub — AI governance, traces en kosten monitoring
+- **`n8n-nodes-pisama`** (v0.5.2, last publish 2026-07-24) — n8n community node that forwards workflow executions to Pisama for failure detection and self-healing
+- **`n8n-nodes-ragmetrics`** (v0.1.11, last publish 2026-03-25) — RagMetrics: Evaluate AI Agents
+- **`n8n-nodes-relayshield`** (v0.1.17, last publish 2026-08-02) — n8n community node for RelayShield — breach detection, SIM swap monitoring, infostealer exposure, domain lookalike scanning, supply chain risk, secret scanni...
+- **`n8n-nodes-rendex`** (v1.8.4, last publish 2026-07-29) — n8n community node for Rendex — capture screenshots, generate PDFs, render HTML/Markdown, extract clean content, and monitor pages for changes (Rendex Watch)...
+- **`n8n-nodes-scrutiny`** (v0.1.3, last publish 2026-07-20) — n8n community node for Scrutiny (disk SMART health monitoring)
+- **`n8n-nodes-smartgent`** (v0.2.4, last publish 2025-12-09) — SmartGent custom nodes for n8n - AI-powered automation and intelligent workflow integrations including LiteLLM chat completions, SharePoint file monitoring, ...
+- **`n8n-nodes-synology-suite`** (v0.33.0, last publish 2026-03-13) — n8n community nodes for Synology DSM (API, Drive, Sheets, Office, MailPlus, Calendar, Note, Photos, Contacts, FileStation, Chat, Security, DownloadStation2, ...
+- **`n8n-nodes-tautulli`** (v0.1.4, last publish 2026-07-21) — n8n community node for Tautulli (Plex monitoring) via its v2 API
+- **`n8n-nodes-telegram-grampro`** (v6.0.4, last publish 2026-05-28) — Telegram GramPro is Advanced n8n node for Telegram MTProto automation using Teleproto (GramJS fork), featuring user account triggers and 2FA support.
+- **`n8n-nodes-upptime`** (v0.2.2, last publish 2026-05-20) — n8n community node to fetch Upptime status monitoring data
+- **`n8n-nodes-vanta`** (v1.0.0, last publish 2026-04-25) — A comprehensive n8n community node for Vanta compliance automation platform providing 12 resources and 50+ operations for security compliance monitoring, tes...
+- **`n8n-nodes-verica`** (v0.2.3, last publish 2026-08-15) — LLM observability for your AI Agent and LLM steps: send each execution to Verica as a trace with tool calls, tokens and cost.
+- **`n8n-nodes-volcengine`** (v1.1.9, last publish 2025-07-03) — n8n community nodes for VolcEngine services - ECS image management, task monitoring and more cloud automation
+- **`n8n-nodes-wanguard`** (v0.1.5, last publish 2025-10-27) — n8n community node for Wanguard DDoS Detection and Mitigation Software API integration
+- **`n8n-nodes-workflow-reporter`** (v2.5.5, last publish 2025-11-12) — n8n community nodes: Workflow Reporter with execution details, Smart Document Parser, Approvals with MinIO/S3, and HTML->PDF renderer
+- **`n8n-nodes-workflowlogs`** (v0.6.1, last publish 2026-03-19) — n8n community node for sending workflow logs (success/error) to WorkflowLogs monitoring platform
+- **`n8n-nodes-zabbix`** (v0.1.0, last publish 2026-07-08) — n8n community nodes for the Zabbix JSON-RPC API — 60 resources, 223 operations, plus a new-problem/event trigger
+
+### Legal / evidence / forensic
+
+_21 matches._
+
+- **`@g-digital/n8n-nodes-ead-enterprise-suite`** (v1.6.1, last publish 2026-07-22) — Manage signatures, evidence, notifications, and dossiers in EAD Enterprise Suite via AI agents.
+- **`@g-digital/n8n-nodes-ead-factory`** (v1.3.1, last publish 2026-07-22) — Connect to EAD Factory to create certified evidence, run signature workflows, and send certified notifications.
+- **`@g-digital/n8n-nodes-gocertius`** (v1.5.1, last publish 2026-07-22) — Manage GoCertius certified evidence, dossiers, notifications, and chats from your n8n workflows.
+- **`@gustavojosemelo/n8n-nodes-cnpj-biz-api`** (v0.0.3, last publish 2026-03-03) — n8n community node for CNPJ.biz API v2 — Search Brazilian companies by CNPJ, filter by activities, location, legal nature, and more.
+- **`n8n-nodes-advbox`** (v1.0.51, last publish 2026-06-16) — n8n community node for ADVBOX API - manage customers, lawsuits, tasks, movements, transactions and settings
+- **`n8n-nodes-aiact`** (v0.1.1, last publish 2026-08-15) — Check AI workflows against the EU AI Act and record auditable evidence
+- **`n8n-nodes-allsign`** (v0.1.5, last publish 2026-04-15) — n8n integration for AllSign — Electronic signature, document management, biometric signing. Supports FEA, NOM-151, eIDAS, and WhatsApp delivery.
+- **`n8n-nodes-binalyze-air`** (v1.4.5, last publish 2026-05-26) — Binalyze AIR nodes for automating DFIR with n8n workflows
+- **`n8n-nodes-cyberpulse-compliance-dev`** (v0.0.51, last publish 2025-12-16) — Evaluate control statements against frameworks with realistic evidence-based scoring
+- **`n8n-nodes-feed-contract-monitor`** (v0.1.2, last publish 2026-08-06) — Monitor RSS, Atom, JSON Feed, and website feeds in n8n with persistent state, health evidence, and only-new delivery.
+- **`n8n-nodes-fynk`** (v0.1.5, last publish 2026-05-04) — n8n community node for fynk — automate contract creation, e-signing (SES, AES, QES), and document workflows for proposals, NDAs, sales contracts, and more
+- **`n8n-nodes-globiguard`** (v2.0.3, last publish 2026-08-19) — Fail-closed action governance, sensitive-data detection, and audit evidence for n8n.
+- **`n8n-nodes-israel-companies-registrar`** (v0.1.0, last publish 2026-07-21) — Look up Israeli companies via the official data.gov.il companies registrar (Rasham HaChavarot). Returns company name, legal type, current status (active/diss...
+- **`n8n-nodes-markmesh`** (v0.3.0, last publish 2026-08-04) — Trademark search, monitoring and conflict research across 30+ registers, with provenance on every record.
+- **`n8n-nodes-sirenic`** (v0.10.3, last publish 2026-08-20) — Verify a supplier before you pay them, in n8n: the French e-invoicing mandate of 1 September 2026 (Belgium since 1 January 2026), legal identity, VAT checked...
+- **`n8n-nodes-subspace`** (v0.1.1, last publish 2026-04-21) — n8n community node for Subspace — operational company intelligence from DNS, HTTP, and ATS forensics. 88+ fields per domain with zero LinkedIn dependency.
+- **`n8n-nodes-tamperlens`** (v0.1.2, last publish 2026-08-11) — n8n community node for Tamperlens — structural fraud signals for PDFs, images and Office documents. Evidence, not verdicts.
+- **`n8n-nodes-truveil`** (v0.1.2, last publish 2026-08-05) — Truveil audit node for n8n: register, log action, log decision, request approval. Auto-derives evidence from the execution context, fail-soft by construction.
+- **`n8n-nodes-vectorgov`** (v0.1.6, last publish 2026-01-20) — n8n node para busca semântica em documentos jurídicos brasileiros via VectorGov
+- **`n8n-nodes-velociraptor`** (v0.2.0, last publish 2026-05-15) — ⚠️ AI-GENERATED — has known bugs, NOT production-ready. n8n community node for Velociraptor DFIR platform via gRPC API
+- **`n8n-nodes-webhound`** (v0.1.2, last publish 2026-07-24) — Run budgeted Webhound reports and datasets, wait for honest completion, and retrieve the result with its evidence.
+
+### MCP / agent-protocol plumbing
+
+_122 matches._
+
+- **`@ajuhos/n8n-nodes-mcp`** **(owner-flagged)** (v0.1.31, last publish 2025-11-10) — MCP nodes for n8n
+- **`@amrzaher027/n8n-nodes-mcp-enhanced`** **(owner-flagged)** (v0.2.3, last publish 2025-06-25) — Enhanced MCP nodes for n8n with AI tool calling support, auto-fix paths, and advanced parameter validation
+- **`@buywhere/n8n-nodes-mcp`** **(owner-flagged)** (v0.1.1, last publish 2026-05-04) — n8n community node for BuyWhere MCP server — search 1.5M+ products across 20+ e-commerce platforms
+- **`@coleam/n8n-nodes-mcp`** **(owner-flagged)** (v0.1.13, last publish 2025-03-16) — MCP nodes for n8n
+- **`@couleetech/n8n-nodes-mcp-client`** **(owner-flagged)** (v0.5.22, last publish 2024-12-13) — n8n node to provide MCP tools to AI nodes
+- **`@cybercage/n8n-nodes-mcp-tool`** **(owner-flagged)** (v1.0.2, last publish 2025-12-09) — n8n community node for CyberCage MCP security integration
+- **`@mannymannymanny/n8n-nodes-mcp-oauth`** **(owner-flagged)** (v1.1.0, last publish 2025-12-20) — Custom MCP trigger node with OAuth2 support for n8n
+- **`@mimirtech/n8n-nodes-mcp`** **(owner-flagged)** (v0.2.6, last publish 2025-11-22) — Model Context Protocol (MCP) client nodes for n8n - Connect to MCP servers via STDIO, SSE, or HTTP with AI agent integration
+- **`@mmn-systems/n8n-nodes-mcp-trigger-context`** **(owner-flagged)** (v0.3.1, last publish 2026-04-17) — Community MCP Trigger node with request context passthrough
+- **`@scalogicai/n8n-nodes-mcp-enhanced`** **(owner-flagged)** (v1.0.5, last publish 2025-06-21) — Enhanced MCP client with multi-tenant support and smart prompt handling. Fixed queue mode compatibility and node loading issues. Built on excellent foundatio...
+- **`@yamachu/n8n-nodes-mcp-client-for-slack`** **(owner-flagged)** (v0.1.2, last publish 2026-03-08) — n8n nodes for MCP Client for Slack MCP Server
+- **`n8n-nodes-a2a`** **(owner-flagged)** (v0.4.0, last publish 2025-06-03) — n8n community node for A2A (Account to Account) transfers, account management, and Google Agent2Agent protocol communication with advanced features including...
+- **`n8n-nodes-a2a-protocol`** **(owner-flagged)** (v1.1.1, last publish 2025-06-29) — Agent2Agent (A2A) Protocol nodes for n8n - Enable agent interoperability, communication, and MCP integration
+- **`n8n-nodes-langfuse-prompt`** **(owner-flagged)** (v1.3.4, last publish 2025-09-25) — Enhanced Langfuse nodes for n8n with advanced Prompt Management features and MCP integration
+- **`n8n-nodes-mcp`** **(owner-flagged)** (v0.1.37, last publish 2026-01-02) — MCP nodes for n8n
+- **`n8n-nodes-mcp-auth-guard`** **(owner-flagged)** (v0.1.2, last publish 2026-07-19) — MCP Auth Guard n8n community node generated by NEXUS Plugin Factory.
+- **`n8n-nodes-mcp-auth-trigger`** **(owner-flagged)** (v2.0.25, last publish 2026-08-13) — n8n community node: Real MCP Server Trigger (Streamable HTTP) with Auth0 Bearer token validation
+- **`n8n-nodes-mcp-batch`** **(owner-flagged)** (v0.1.33, last publish 2026-01-31) — MCP nodes for n8n with batching support
+- **`n8n-nodes-mcp-chatbots`** **(owner-flagged)** (v0.1.8, last publish 2025-07-02) — n8n community nodes for Model Context Protocol (MCP) integration
+- **`n8n-nodes-mcp-client`** **(owner-flagged)** (v0.2.12, last publish 2025-05-17) — 4Runr's custom MCP Client node for n8n — connects to a self-hosted MCP server via SSE and streams tool definitions to n8n AI Agents.
+- **`n8n-nodes-mcp-client-custom`** **(owner-flagged)** (v0.1.6, last publish 2026-03-29) — MCP Client nodes for n8n with custom headers support
+- **`n8n-nodes-mcp-client-mtls`** **(owner-flagged)** (v0.1.6, last publish 2026-08-21) — n8n community node: MCP Client with mTLS (mutual TLS) client certificate support
+- **`n8n-nodes-mcp-dragorium`** **(owner-flagged)** (v0.1.29, last publish 2025-05-03) — MCP nodes for n8n
+- **`n8n-nodes-mcp-enhanced`** **(owner-flagged)** (v1.0.11, last publish 2025-09-21) — Enhanced MCP nodes for n8n with AI Agent support
+- **`n8n-nodes-mcp-eu`** **(owner-flagged)** (v0.1.50, last publish 2025-06-03) — Servicio MCP para consultar las noticias del periodico El Universal Cartagena
+- **`n8n-nodes-mcp-firebird`** **(owner-flagged)** (v0.1.2, last publish 2025-08-20) — MCP Firebird node for n8n - Execute SQL queries through Model Context Protocol
+- **`n8n-nodes-mcp-flex`** **(owner-flagged)** (v0.1.4, last publish 2025-07-30) — Enhanced MCP nodes for n8n with flexible parameter handling and improved AI Agent integration
+- **`n8n-nodes-mcp-local`** **(owner-flagged)** (v0.1.1, last publish 2026-01-23) — Transform any MCP server into native AI Agent tools. STDIO support with direct tool access.
+- **`n8n-nodes-mcp-readonly-trigger`** **(owner-flagged)** (v0.1.6, last publish 2026-06-08) — n8n community MCP Server Trigger with configurable MCP tool annotations
+- **`n8n-nodes-mcp-reneworks`** **(owner-flagged)** (v0.1.7, last publish 2026-02-17) — n8n node to connect to an MCP-enabled Chat API
+- **`n8n-nodes-mcp-server-el-universal`** **(owner-flagged)** (v0.0.46, last publish 2025-06-13) — Nodo de n8n para consultar directamente las noticias del periódico El Universal Cartagena desde una API.
+- **`n8n-nodes-mcp-session`** **(owner-flagged)** (v0.1.30, last publish 2025-06-18) — MCP nodes for n8n with session management support
+- **`n8n-nodes-mcp-stockly-api`** **(owner-flagged)** (v1.0.3, last publish 2025-10-21) — n8n node for Django REST API integration with MCP support for inventory management
+- **`n8n-nodes-mcp-trigger-extended-header-context`** **(owner-flagged)** (v0.1.7, last publish 2026-07-19) — n8n MCP Server Trigger variant that injects X-MCP-* request headers into tool-call arguments.
+- **`n8n-nodes-mcp-vertex-safe`** **(owner-flagged)** (v0.3.1, last publish 2026-08-11) — n8n nodes for Google Vertex AI: an MCP Client Tool that sanitizes tool schemas for Gemini's restricted JSON Schema subset, and a Chat Model node that calls C...
+- **`n8n-nodes-mcp-woo`** **(owner-flagged)** (v0.1.35, last publish 2025-11-20) — MCP nodes for n8n
+- **`@agentrux/n8n-nodes-agentrux`** (v0.4.2, last publish 2026-06-23) — n8n community node for AgenTrux — authenticated pub/sub for AI agents (Activation Code connect, Topic publish/read, SSE-hint + Pull trigger)
+- **`@bessantoy/n8n-nodes-glpi`** (v0.3.0, last publish 2026-07-30) — n8n community nodes for the GLPI REST API: a generic node covering every endpoint, plus AI Agent / MCP tools to search and call endpoints dynamically.
+- **`@binartscom/n8n-nodes-havn`** (v0.1.12, last publish 2026-07-13) — Use HAVN real-estate workspace tools in n8n workflows.
+- **`@civic/n8n-nodes-tool`** (v0.2.1, last publish 2026-05-10) — n8n community node that exposes Civic's MCP gateway as a tool to the AI Agent — bring 80+ Civic-managed tools (Google Workspace, Microsoft 365, CRMs, finance...
+- **`@ctera/n8n-nodes-ctera-ai`** (v0.7.0, last publish 2026-07-16) — n8n community nodes for CTERA Portal - includes AI/RAG integration and filesystem operations via MCP
+- **`@danielcastillo94/n8n-nodes-claudecode`** (v0.0.19, last publish 2026-05-28) — n8n node for Claude Code SDK integration with MCP support
+- **`@datagrout/n8n-nodes-datagrout`** (v0.3.1, last publish 2026-08-17) — List and call your DataGrout MCP server tools from n8n workflows and AI Agents
+- **`@datagrout/n8n-nodes-datagrout-mcp`** (v0.1.0, last publish 2026-07-27) — DataGrout MCP tool sub-node for n8n AI Agents — exposes every server tool as a separate agent tool (self-hosted)
+- **`@doomscrollr/n8n-nodes-doomscrollr`** (v0.1.6, last publish 2026-04-30) — n8n community node for DOOMSCROLLR owned-audience workflows: posts, subscribers, products, pages, Pinterest, RSS, and analytics.
+- **`@feedmob/n8n-nodes-femini`** (v0.1.5, last publish 2025-11-27) — n8n nodes for Femini Reporting (wraps MCP tools) - Now with smart defaults for instant use
+- **`@feedmob/n8n-nodes-sensor-tower`** (v0.1.0, last publish 2025-10-25) — n8n nodes for Sensor Tower Reporting (wraps MCP tools)
+- **`@flaviohenriquecbc/n8n-nodes-claudecode`** (v3.1.20, last publish 2026-07-14) — n8n node for Claude Code SDK integration with MCP support
+- **`@holtweb/n8n-nodes-claudecode`** (v0.2.0, last publish 2025-07-21) — n8n node for Claude Code SDK integration with MCP support
+- **`@ivanmartin/n8n-nodes-dolibarr-mcp`** (v0.2.4, last publish 2025-09-28) — n8n nodes for Dolibarr MCP Server integration
+- **`@joaoveiga/n8n-nodes-claudecode`** (v0.11.0, last publish 2026-08-19) — Fork of @johnlindquist/n8n-nodes-claudecode: two n8n nodes for Claude Code v2 via the Claude Agent SDK — the agent, with effort, thinking, Ultracode, tool re...
+- **`@johnlindquist/n8n-nodes-claudecode`** (v0.5.2, last publish 2025-08-01) — n8n node for Claude Code SDK integration with MCP support
+- **`@keboola/n8n-nodes-keboola`** (v0.1.1, last publish 2025-12-05) — n8n node to interact with Keboola Storage APIs & MCP Server
+- **`@loomcycle/n8n-nodes-loomcycle`** (v3.16.1, last publish 2026-08-19) — Community n8n nodes for the loomcycle agentic runtime. Design and operate loomcycle agents from n8n's visual builder: 32 nodes — 27 action nodes (Run, Memory...
+- **`@loomcycle/n8n-nodes-loomcycle-full`** (v2.17.1, last publish 2026-08-19) — FULL self-hosted edition of the loomcycle n8n nodes — superset of @loomcycle/n8n-nodes-loomcycle. Adds the langchain-based AI-Agent Tool sub-nodes (Memory / ...
+- **`@rine-network/n8n-nodes-rine`** (v0.1.1, last publish 2026-04-21) — n8n nodes for rine.network — secure agent-to-agent messaging with E2EE (HPKE)
+- **`@rjsebening/n8n-nodes-onepage-mcp`** (v0.2.0, last publish 2026-08-12) — OnePage.io MCP server as an n8n AI Agent tool
+- **`@sirmrmarty/n8n-nodes-claudecode`** (v0.3.8, last publish 2025-08-08) — n8n node for Claude Code SDK integration with MCP support
+- **`@snae/n8n-nodes-feishu`** (v2.3.1, last publish 2026-07-17) — n8n custom nodes for n8n to interact with Feishu/Lark, including Lark Bot, Lark MCP, and Lark Trigger.
+- **`@sourcebug/n8n-nodes-utcp-codemode`** (v3.0.1, last publish 2026-08-10) — Cut AI Agent token costs by 96%. Chains multiple tool calls into a single JavaScript execution in a secure sandbox.
+- **`@sureliving/n8n-nodes-claudecode`** (v0.1.36, last publish 2026-01-28) — n8n node for Claude Code SDK integration with MCP support
+- **`@themesic/n8n-nodes-perfex-crm`** (v0.1.8, last publish 2026-08-05) — Perfex CRM node for n8n. Automate customers, leads, invoices, estimates, proposals, projects, tasks, tickets and knowledge base on your own self-hosted CRM, ...
+- **`@xpaysh/n8n-nodes-xpay`** (v0.3.0, last publish 2026-02-12) — AI agent marketplace and pay-per-run workflows with xpay✦. Discover services, set spending policies, and execute with automatic payments.
+- **`@zvid/n8n-nodes-zvid`** (v0.1.8, last publish 2026-08-06) — n8n community nodes for Zvid — generate videos and images from JSON or templates, with bulk rendering, stock media, render-completed triggers, and an AI-agen...
+- **`mcp-flowspeech-server`** (v0.1.0, last publish 2026-07-16) — MCP server for FlowSpeech — context-aware text-to-speech with emotion control, pause control, and 30+ voices
+- **`n8n-mcp`** (v2.73.0, last publish 2026-08-19) — Integration between n8n workflow automation and Model Context Protocol (MCP)
+- **`n8n-mcp-applied-systems-bridge`** (v0.1.9, last publish 2025-03-31) — Serveur MCP pour interagir avec Applied Systems API, utilisable avec n8n-nodes-mcp.
+- **`n8n-nodes-8thwall`** (v1.0.1, last publish 2025-09-27) — n8n nodes for 8th Wall MCP HTTP bridge
+- **`n8n-nodes-agenium`** (v1.0.0, last publish 2026-02-14) — n8n nodes for the Agenium agent:// protocol — bridge AI agents to 400+ automation nodes
+- **`n8n-nodes-agent2agent-marketplace`** (v3.0.17, last publish 2025-11-11) — n8n nodes for Agent-to-Agent Marketplace API integration
+- **`n8n-nodes-ait-community`** (v0.5.0, last publish 2026-02-27) — n8n community node for the AIT Community — connects AI Agents to 40+ community tools via MCP
+- **`n8n-nodes-backstage`** (v0.1.0, last publish 2026-06-26) — n8n community node to query Backstage software catalog and TechDocs via MCP (Model Context Protocol)
+- **`n8n-nodes-bfa`** (v1.1.7, last publish 2026-07-27) — n8n nodes integration for Backend for Agents (BFA) & IRC-A Protocol (Enterprise Edition)
+- **`n8n-nodes-browser-mcp`** (v0.1.19, last publish 2026-03-28) — n8n nodes for Smart Browser Automation via MCP
+- **`n8n-nodes-claude-sdk-agent`** (v1.9.4, last publish 2026-07-07) — n8n community nodes — Claude Agent SDK with Model Selector, Provider credentials, streaming, MCP and skills.
+- **`n8n-nodes-claudecode-enhanced`** (v1.0.9, last publish 2025-07-22) — Enhanced n8n node for Claude Code with native authentication, advanced MCP support, and enterprise features
+- **`n8n-nodes-command-based-mcp`** (v0.5.12, last publish 2025-11-18) — n8n community nodes for interacting with a command-based MCP server that proxies MSSQL queries.
+- **`n8n-nodes-contextstream`** (v0.1.2, last publish 2026-08-16) — Official n8n community node for ContextStream hosted MCP — persistent memory, search, and session tools for n8n AI Agent workflows.
+- **`n8n-nodes-cursor-agent`** (v2.5.17, last publish 2026-06-05) — n8n community node — run Cursor Agent via the Cursor SDK (local runtime) with MCP servers and skills.
+- **`n8n-nodes-discovery`** (v0.1.10, last publish 2025-04-14) — Custom n8n node for MCP Node Discovery
+- **`n8n-nodes-doku-mcp-client`** (v1.2.1, last publish 2026-04-16) — DOKU MCP Client Official n8n node
+- **`n8n-nodes-explorium`** (v1.0.7, last publish 2025-06-04) — Explorium MCP node for n8n
+- **`n8n-nodes-faktoapp-fakturownia`** (v0.1.6, last publish 2026-06-10) — n8n community node for Fakturownia Polish invoicing software via MCP server
+- **`n8n-nodes-feishu-api`** (v1.1.12, last publish 2026-08-20) — n8n custom nodes for n8n to interact with Feishu/Lark, including Lark Bot, Lark MCP, and Lark Trigger.
+- **`n8n-nodes-feishu-fork`** (v0.6.3, last publish 2025-08-18) — n8n custom nodes for n8n to interact with Feishu/Lark, including Lark Bot, Lark MCP, and Lark Trigger.
+- **`n8n-nodes-feishu-lark`** (v0.11.2, last publish 2026-07-24) — n8n custom nodes for n8n to interact with Feishu/Lark, including Lark Bot, Lark MCP, and Lark Trigger.
+- **`n8n-nodes-figmation`** (v1.2.7, last publish 2025-08-09) — n8n custom nodes package for Figma workflow automation. Connects to Figma plugin via WebSocket server to execute 36 Figma API commands. Supports both local a...
+- **`n8n-nodes-genesys-cloud-mcp-plus`** (v1.0.9, last publish 2025-07-22) — n8n community node for Genesys Cloud MCP Plus - 15 comprehensive tools for contact center analytics, real-time monitoring, and wrap-up code analysis
+- **`n8n-nodes-googlemaps-scraper`** (v1.4.2, last publish 2025-09-18) — n8n community node for Google Maps Scraper API - Create, manage and download Google Maps scraping jobs
+- **`n8n-nodes-guniweb-sap`** (v0.1.2, last publish 2026-08-17) — n8n community node for SAP S/4HANA and ECC via the GuniWeb SAP MCP Server — OData V2/V4 query, read, create, update, delete, function imports, batch, IDoc ov...
+- **`n8n-nodes-hacknotice-api`** (v3.0.4, last publish 2026-06-05) — Fetch HackNotice alerts and saved searches from n8n workflows (REST API). MCP tools are published separately as n8n-nodes-hacknotice-mcp.
+- **`n8n-nodes-hacknotice-mcp`** (v1.0.6, last publish 2026-07-07) — HackNotice MCP client for n8n: exposes all hacknotice-mcp-server tools to an AI Agent via live MCP discovery (Model Context Protocol, Streamable HTTP).
+- **`n8n-nodes-invinoveritas`** (v0.7.4, last publish 2026-07-30) — n8n node for invinoveritas — the verification layer for autonomous agents: capital-scale-aware /review before an irreversible action, signed /prove after, an...
+- **`n8n-nodes-kayzen`** (v0.1.6, last publish 2025-10-23) — n8n nodes for Kayzen Reporting (wraps MCP tools)
+- **`n8n-nodes-lark-hvccorp-v1`** (v1.0.8, last publish 2026-07-13) — n8n custom nodes for n8n to interact with Feishu/Lark, including Lark Bot, Lark MCP, and Lark Trigger.
+- **`n8n-nodes-linkmcp`** (v0.1.3, last publish 2026-04-08) — n8n community node for LinkMCP – LinkedIn superpowers for your workflows
+- **`n8n-nodes-lmstudio-reneworks`** (v0.2.4, last publish 2026-03-25) — Connect n8n to LM Studio with MCP server support, designed for AI Agents.
+- **`n8n-nodes-mercadopago-mcp`** (v1.2.6, last publish 2025-09-01) — N8N node para integração com MCP Server do Mercado Pago
+- **`n8n-nodes-meta-mcp`** (v1.0.88, last publish 2026-06-04) — A node for MCP integration in n8n
+- **`n8n-nodes-n8nmcpclient`** (v0.1.10, last publish 2025-04-11) — An n8n node for connecting and interacting with MCP servers, especially designed for AI Agents with automatic capability discovery.
+- **`n8n-nodes-notebooklm-mcp`** (v0.1.1, last publish 2026-03-06) — n8n node for Google NotebookLM (via MCP server)
+- **`n8n-nodes-octavehq`** (v1.6.2, last publish 2026-04-27) — Octave is the AI-powered messaging brain for B2B go-to-market teams, helping articulate product value, synthesize customer interaction data, and deploy consi...
+- **`n8n-nodes-onepage-mcp`** (v0.2.0, last publish 2026-08-12) — OnePage.io MCP server as an n8n AI Agent tool
+- **`n8n-nodes-openapi-mcp-server`** (v1.1.36, last publish 2025-11-20) — 
+- **`n8n-nodes-ordify`** (v0.1.18, last publish 2026-04-22) — n8n community node for Ordify A2A and Jobs APIs
+- **`n8n-nodes-pgvector-advanced`** (v1.7.3, last publish 2025-12-20) — Advanced PGVector + Postgres nodes for n8n with full CRUD control
+- **`n8n-nodes-reddit-comment-scraper`** (v0.1.8, last publish 2026-05-21) — Automation templates and an optional n8n community node for the Reddit Comment Scraper Apify Actor.
+- **`n8n-nodes-reflect-memory`** (v1.1.0, last publish 2026-07-21) — n8n community node for Reflect Memory -- read, write, search, update, share, and delete AI memories.
+- **`n8n-nodes-relayshield`** (v0.1.17, last publish 2026-08-02) — n8n community node for RelayShield — breach detection, SIM swap monitoring, infostealer exposure, domain lookalike scanning, supply chain risk, secret scanni...
+- **`n8n-nodes-spamassassin-mcp`** (v1.1.11, last publish 2025-08-23) — n8n community node for SpamAssassin MCP server integration
+- **`n8n-nodes-stacktree`** (v0.2.0, last publish 2026-08-17) — Publish agent-made HTML to a private, unguessable URL. Gate it with a password or email domain, expire or burn it, and read the feedback viewers leave.
+- **`n8n-nodes-tokportal`** (v0.1.1, last publish 2026-08-22) — n8n community node for TokPortal — the managed social infrastructure API (TikTok, Instagram, YouTube accounts created, warmed and operated by human account m...
+- **`n8n-nodes-transcriptapi`** (v0.1.2, last publish 2026-08-10) — n8n community node for TranscriptAPI: fetch YouTube transcripts (Markdown or JSON) and discover videos, channels, and playlists for AI and automation workflows.
+- **`n8n-nodes-unabyss`** (v0.1.0, last publish 2026-06-06) — n8n community node for Unabyss personal memory - query, store, deep research, integrations, and exports via MCP (OAuth2 or API token)
+- **`n8n-nodes-utcp-codemode`** (v2.1.2, last publish 2026-04-08) — Cut AI Agent token costs by 96%. Chains multiple tool calls into a single TypeScript code execution in a secure sandbox.
+- **`n8n-nodes-vidiq`** (v0.2.2, last publish 2026-06-22) — n8n community node for vidIQ — YouTube & Instagram intelligence (keyword research, outliers, channel/video analytics, competitors) and AI content tools (titl...
+- **`n8n-nodes-webhound`** (v0.1.2, last publish 2026-07-24) — Run budgeted Webhound reports and datasets, wait for honest completion, and retrieve the result with its evidence.
+- **`n8n-nodes-webo-mcp`** (v0.2.8, last publish 2026-04-16) — n8n ↔ Webo MCP: WordPress as AI MCP backend (JSON-RPC). Plugin: github.com/mrphuong-webo/webo-mcp — webomcp.com
+- **`n8n-nodes-webo-perfex-crm-mcp`** (v1.0.12, last publish 2026-04-28) — n8n community node for Perfex CRM REST API (Themesic module, custom request to any endpoint)
+- **`n8n-nodes-wire`** (v0.1.9, last publish 2026-07-25) — n8n community node for Wire. Push entries into a Wire container from any workflow.
+- **`n8n-nodes-zillapi`** (v0.1.2, last publish 2026-08-11) — n8n community node for Zillapi: look up US property records, Zestimates, photos, schools and price history, and search for sale, for rent and sold Zillow lis...
+- **`n8n-validator-mcp`** (v1.0.2, last publish 2025-07-22) — MCP server for validating n8n nodes against official specifications
+
+---
+
+> _Byline: npm-catalog agent · Sonnet · 2026-08-24_
