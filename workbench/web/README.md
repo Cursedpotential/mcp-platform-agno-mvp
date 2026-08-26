@@ -7,6 +7,75 @@
 > operator product. It consumes neutral platform/Workbench APIs so the browser does not
 > depend on whether Agno or a future adapter coordinates a run.
 
+## Host-shell / application composition — OPEN, not decided (2026-08-26)
+
+> _Byline: Claude Code · Sonnet 5 · 2026-08-26 (removal of the dead `@module-federation/nextjs-mf`
+> integration — see below — created the risk that this direction reads as abandoned or resolved;
+> this section exists so it doesn't)._
+
+**Removing the module-federation adapter below is a dead-code cleanup, not a decision against
+future host-shell/application composition.** Whether the Workbench should ever be composed into
+a larger shell (single sign-on chrome, shared navigation, embedding as a remote module inside
+another app, etc.) remains genuinely open and must be **reevaluated as its own scoped decision**,
+not silently re-attempted with the next library that looks plausible, and not silently declared
+unnecessary by omission. A future session picking this up must treat it as unresolved until an
+ADR says otherwise.
+
+**What was removed and why:** `@module-federation/nextjs-mf@^8.8.73` was wired into
+`next.config.ts` (`withModuleFederation`, exposing `./Workbench` as a `agno` remote,
+`remoteEntry.js`) by commit `9ef8311` (2026-08-23) as speculative host-shell scaffolding. It had
+**zero consumers anywhere in this repository** — nothing imports the remote, nothing references
+`remoteEntry.js`, no host shell exists. It also does not support this app's architecture: this
+Workbench is Next 16 App Router with `output: "export"` (static export served by the FastAPI
+sidecar — see "Static export" below), and `@module-federation/nextjs-mf`'s peer range
+(`next@"^12 || ^13 || ^14 || ^15"`) neither supports Next 16 nor App Router's static-export mode.
+It broke the `knowledge-workbench` Coolify build (`npm error ERESOLVE`) the first time a deploy
+pulled in the commit that bumped `next` past what it supports, taking down the deploy pipeline for
+an unrelated, unrated D-082 evidence-fence fix (see `WP-C01-IMPLEMENTATION-STATUS.md`,
+GAP-032/D-082). It has been removed from `package.json`/`package-lock.json`/`next.config.ts`.
+
+**What the reevaluation must cover, when someone picks this up:**
+
+- **Whether a microfrontend/host-shell is needed at all** — reconfirm the actual product
+  requirement (shared chrome across multiple apps? SSO handoff? embedding this Workbench inside
+  something else?) before picking any integration mechanism. Don't default to module federation
+  because it's the familiar name.
+- **App Router / Next-16-compatible integration choices**, evaluated against what this app
+  actually is (static export, no server component) — options include Module Federation successor
+  tooling that supports Next 16 App Router (verify support explicitly, don't assume), iframe
+  composition, a build-time/edge-side include of the static export, or a server-rendered host that
+  fetches/mounts the exported HTML — each has different constraints against `output: "export"`.
+- **Shell ownership and navigation/auth boundaries** — who owns top-level chrome/nav if a shell
+  exists; how `WORKBENCH_API_KEY` Basic/Bearer auth (see `deploy/workbench.yaml`) composes with a
+  shell's own auth instead of conflicting with it.
+- **Artifact/static-export serving** — how the exported `out/` directory (currently served
+  same-origin by `workbench/api`'s FastAPI, per "Static export" below) would be served/mounted
+  inside a shell without breaking the same-origin assumption `src/lib/api-client.ts` depends on.
+- **Branch/watch-path/Coolify topology** — whether composition changes the current
+  one-Coolify-app-per-concern boundary (`deploy/workbench.yaml`, `workbench/sprint` branch,
+  `workbench/** + deploy/workbench.yaml` watch paths) or requires a new topology.
+- **Deterministic dependency/build policy** — any future integration package must be added with a
+  committed lockfile change and built via `npm ci` (see `workbench/Dockerfile`, fixed 2026-08-26 to
+  copy `package-lock.json` and use `npm ci` instead of an unconstrained `npm install`), and its
+  peer-dependency range must be verified against this app's actual Next/React major version
+  *before* it's added, not discovered via a broken production deploy.
+- **Upgrade/security ownership** — who tracks security advisories and Next-version compatibility
+  for whatever composition mechanism is chosen, so a future Next major bump doesn't silently
+  re-break the build the way this one did.
+- **Acceptance and rollback gates** — what proves a host-shell integration actually works
+  (a real consumer, not speculative scaffolding) before it merges, and how to roll it back cleanly
+  if it doesn't.
+- **Retirement of legacy `agentos-api`/Agno naming** — separately from the composition question,
+  the platform is moving away from Agno as its product vocabulary; `agentos-api`/"Agno" identifiers
+  (service names, DNS, environment variables like `AGENTOS_API_URL`/`AGENTOS_API_TOKEN`, API
+  clients, Coolify app/resource names, documentation, and any residual Agno framework
+  dependencies) are legacy and must be renamed only through a **separate, coordinated
+  service/DNS/env/client/Coolify/framework migration and inventory** — not invented or executed
+  as part of this or any other bounded fix. Do not rename live infrastructure opportunistically;
+  do not invent a replacement product name. Use the existing `agentos-api`/Agno identifiers only
+  when an exact current deployment/API target must be named (as this document and
+  `deploy/workbench.yaml` still do, deliberately, until that migration exists).
+
 ## Current product surfaces — held, not deployed
 
 The original C1 description below is historical foundation, not the complete current route

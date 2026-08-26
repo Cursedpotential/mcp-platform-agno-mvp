@@ -6,7 +6,6 @@
  * app.
  */
 import type { NextConfig } from "next";
-const { withModuleFederation } = require("@module-federation/nextjs-mf");
 
 const nextConfig: NextConfig = {
   output: "export",
@@ -20,14 +19,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-module.exports = withModuleFederation(nextConfig, {
-  name: "agno",
-  filename: "static/chunks/remoteEntry.js",
-  exposes: {
-    "./Workbench": "./src/app/page.tsx", // Main page component (redirects to /runs)
-  },
-  shared: {
-    react: { singleton: true, requiredVersion: false },
-    "react-dom": { singleton: true, requiredVersion: false },
-  },
-});
+export default nextConfig;

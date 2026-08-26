@@ -7,10 +7,11 @@
 # ---- Stage 1: web build -----------------------------------------------------
 FROM node:20-alpine AS webbuild
 WORKDIR /web
-# package.json only first for layer caching (standalone package, no lockfile —
-# donor kit was a pnpm workspace; this package was extracted self-contained)
-COPY web/package.json ./
-RUN npm install --no-audit --no-fund
+# package.json + package-lock.json first for layer caching; npm ci installs
+# exactly what's locked (deterministic) instead of npm install's unconstrained
+# resolution against whatever's newest on the registry at build time.
+COPY web/package.json web/package-lock.json ./
+RUN npm ci --no-audit --no-fund
 COPY web/ ./
 # output: 'export' → static site in /web/out
 RUN npm run build
