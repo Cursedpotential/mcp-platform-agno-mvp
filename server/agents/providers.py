@@ -24,8 +24,10 @@ transaction-bound. Agno is a replaceable runtime adapter and holds no
 independent authority-bearing writer (GAP-004,
 ``docs/reviews/2026-08-25-schema-audit/GAP-004-IMPLEMENTATION-STATUS.md``).
 
-MCP servers (Graphiti, future tools) are wired here and appended to the
-``source_tools`` list on ``PlatformContext``.
+MCP servers (future tools) are wired here and appended to the
+``source_tools`` list on ``PlatformContext``. ~~Graphiti was wired here~~ —
+**RETIRED (D-070, GAP-008, 2026-08-26): no MCP server is attached today.**
+See the note at the former attachment point below for the zero-caller proof.
 
 Public entry points:
 - ``build_context(model, db, knowledge, learning, db_url) -> PlatformContext``
@@ -34,10 +36,11 @@ Public entry points:
 # Byline: Claude Code · Fable 5 · 2026-07-31 (Weaviate docstring fix (ADR-0040))
 # Byline: Claude Code · Sonnet 5 · 2026-08-26 (GAP-004: db_provider write=False —
 # deny the Agno-native `update_database` writer for ordinary agents)
+# Byline: Claude Code · Sonnet 5 · 2026-08-26 (GAP-008/P-09: Graphiti MCP
+# attachment removed — D-070 retirement, zero-caller path)
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -223,25 +226,14 @@ def build_context(
     # source_tools to every agent). Deferred — the @approval backstop holds.
     source_tools = [*code_tools, *db_tools, *GATEWAY_TOOLS, *SBV_TOOLS, *REALIZATION_TOOLS]
 
-    # Graphiti temporal graph memory (ADR-0014) — attached only when the
-    # graph profile is up (GRAPHITI_MCP_URL set). AgentOS manages the MCP
-    # lifecycle; never run uvicorn reload with this attached.
-    graphiti_url = os.getenv("GRAPHITI_MCP_URL", "")
-    if graphiti_url:
-        from agno.tools.mcp import MCPTools
-
-        source_tools.append(
-            MCPTools(
-                url=graphiti_url,
-                transport="streamable-http",
-                tool_name_prefix="graphiti",
-                refresh_connection=True,
-                # Graphiti's MCP SDK enforces Host-header DNS-rebinding
-                # protection (only localhost allowed) — override the Host
-                # so in-network calls pass (verified 2026-06-10).
-                header_provider=lambda: {"Host": "localhost:8000"},
-            )
-        )
+    # ~~Graphiti temporal graph memory (ADR-0014) was attached here~~ —
+    # RETIRED (D-070 owner ruling 2026-08-25; GAP-008/P-09, 2026-08-26).
+    # ADR-0014/0031/0037/0038/0039 are suspended, not deleted. This function
+    # no longer reads `GRAPHITI_MCP_URL` and appends no Graphiti MCPTools to
+    # `source_tools` under any environment — zero callers is unconditional,
+    # independent of whether a deploy manifest still sets that variable.
+    # No replacement graph store is wired here; memory/graph lane is open
+    # (SurrealDB + n8n + Temporal, Cognee-or-Memgraph TBD per D-070).
 
     return PlatformContext(
         model=model,

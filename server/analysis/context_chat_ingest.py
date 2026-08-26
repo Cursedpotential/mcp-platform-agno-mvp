@@ -6,6 +6,9 @@ rows are horizon-neutral and can never enter the evidence lane.
 
 Byline: Codex · GPT-5 · 2026-08-13
 Byline: Codex · GPT-5 · 2026-08-16 (D-046 Chonkie semantic runtime activation)
+Byline: Claude Code · Sonnet 5 · 2026-08-26 (GAP-008/P-09: Graphiti sink/outbox
+producer and consumer retired per D-070 — zero-caller path, no new pending
+projection rows, `_project_graphiti` permanently inert)
 """
 
 from __future__ import annotations
@@ -341,7 +344,12 @@ def _store_classifications(
                 },
             )
             if _is_projection_eligible(assignment):
-                for sink in ("weaviate", "graphiti"):
+                # GAP-008/D-070 (2026-08-26): "graphiti" removed from this producer loop —
+                # Graphiti is retired, so no new pending projection rows are created for
+                # it. Any pre-existing sink='graphiti' rows are legacy and permanently
+                # inert (see `_project_graphiti` below); this is the outbox-producer half
+                # of the zero-caller path. ~~for sink in ("weaviate", "graphiti"):~~
+                for sink in ("weaviate",):
                     connection.execute(
                         text(
                             "INSERT INTO working.chat_chunk_projection (chunk_id, lane, sink, embedder_id) "
@@ -530,17 +538,17 @@ async def _project_weaviate(items: list[PendingProjection]) -> tuple[int, int]:
 
 
 def _project_graphiti(items: list[PendingProjection]) -> tuple[int, int]:
-    from server.analysis.graphiti_case_client import GraphitiCaseClient
+    """Graphiti is retired (D-070, GAP-008/P-09, 2026-08-26) — permanently inert.
 
-    client = GraphitiCaseClient()
-    for item in items:
-        client.add_memory(
-            name=f"context-chat/{item.lane}/{item.conversation_external_id}/{item.chunk_index}",
-            episode_body=item.content,
-            source_description=f"AI chat {item.lane}; unverified lead",
-        )
-        _mark_projected(item, item.chunk_id)
-    return len(items), len({item.chunk_id for item in items})
+    No ``GraphitiCaseClient`` is imported or called. Any pre-existing
+    ``sink='graphiti'`` rows in ``working.chat_chunk_projection`` (from before
+    this change) are left untouched — never marked projected, never synced —
+    rather than sent to a retired store. Callers that still request this sink
+    (e.g. the unowned ``server/tools/ingest/context_drain.py`` "both" default)
+    get a zero-count no-op instead of a live Graphiti call.
+    """
+    del items
+    return 0, 0
 
 
 async def sync_pending_context(
@@ -649,10 +657,14 @@ async def ingest_chat_file(
                 classifier_id_value=classifier_id(classify_mode, classify_model) if classify else "deferred",
             )
 
-    weaviate_objects = weaviate_chunks = graphiti_objects = graphiti_chunks = 0
+    weaviate_objects = weaviate_chunks = 0
+    # GAP-008/D-070 (2026-08-26): no `sync_pending_context("graphiti")` call here —
+    # Graphiti is retired; `graphiti_chunks`/`graphiti_records_synced` on the
+    # report below stay at their fixed 0 default (field kept for the report's
+    # existing shape, never populated).
+    graphiti_objects = graphiti_chunks = 0
     if project and not dry_run:
         weaviate_objects, weaviate_chunks = await sync_pending_context("weaviate")
-        graphiti_objects, graphiti_chunks = await sync_pending_context("graphiti")
 
     return IngestReport(
         parser_id=parser_id,

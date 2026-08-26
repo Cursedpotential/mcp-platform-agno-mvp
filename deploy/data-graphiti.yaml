@@ -107,8 +107,17 @@ services:
   graphiti-hostfix:
     image: nginx:alpine
     restart: unless-stopped
-    ports:
-      - "${BIND_IP:-127.0.0.1}:8071:8071"   # MCP — tailnet/internal ONLY; external access only via ContextForge, never direct
+    # GAP-008/D-070 (Claude Code · Sonnet 5 · 2026-08-26): direct tailnet host-port
+    # publish REMOVED — Graphiti is retired; the register (GAP-008) flagged this
+    # port as directly tailnet-exposed with no proof of zero exposure. Denying the
+    # port here is the deploy-manifest half of the zero-caller path (the code half
+    # is server/agents/providers.py + server/analysis/context_chat_ingest.py — see
+    # docs/reviews/2026-08-25-schema-audit/GAP-008-IMPLEMENTATION-STATUS.md).
+    # ~~ports: - "${BIND_IP:-127.0.0.1}:8071:8071"~~ — service remains defined
+    # (not deleted, not stopped) but publishes nothing; a redeploy is required for
+    # this to take live effect (out of scope for this packet — see the status doc's
+    # live handoff). The container still runs on the internal `graphiti`/`agno`
+    # docker networks only.
     volumes:
       - /data/agno/config/graphiti/hostfix.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
