@@ -1,0 +1,1138 @@
+{
+  "apps_checked": 27,
+  "apps_with_drift": 27,
+  "checker": "check_deploy_drift",
+  "gap": "GAP-019",
+  "results": [
+    {
+      "app": "clone-of-nocodb-lfo59wo4y9xam7540iub4tul",
+      "branch": "infra/nocodb",
+      "checks": {
+        "commit_sha_immutability": {
+          "detail": "git_commit_sha='HEAD' is not a pinned commit; deploys track a moving ref",
+          "ok": false,
+          "severity": "actionable"
+        },
+        "compose_location_exists": {
+          "detail": "manifest path exists at tip of its branch",
+          "ok": true,
+          "severity": "info"
+        },
+        "deployment_commit_drift": {
+          "detail": "deployed commit matches current branch tip",
+          "ok": true,
+          "severity": "info"
+        },
+        "retired_watch_paths": {
+          "detail": "no bare root compose.* watch-path entries",
+          "ok": true,
+          "severity": "info"
+        },
+        "watch_coverage": {
+          "detail": "no watch paths configured at all",
+          "ok": false,
+          "severity": "actionable"
+        }
+      },
+      "compose_path": "/compose.nocodb.yaml",
+      "config_hash": "df2bb7fb4034564d1391a89b3db3d7e42ec0ed9686286fbf04500490b2602875",
+      "drift": true,
+      "repository": "Cursedpotential/mcp-platform-agno-mvp",
+      "status": "exited:unhealthy",
+      "uuid": "lfo59wo4y9xam7540iub4tul"
+    },
+    {
+      "app": "coolify-mcp",
+      "branch": "main",
+      "checks": {
+        "commit_sha_immutability": {
+          "detail": "git_commit_sha='HEAD' is not a pinned commit; deploys track a moving ref",
+          "ok": false,
+          "severity": "actionable"
+        },
+        "compose_location_exists": {
+          "detail": "manifest path exists at tip of its branch",
+          "ok": true,
+          "severity": "info"
+        },
+        "deployment_commit_drift": {
+          "deployed_commit": "3dc91724e563413e80b8f362cddb151eab2d9666",
+          "detail": "last finished deployment (3dc91724e563413e80b8f362cddb151eab2d9666) does not match tip of 'main' (afc3ab78ce505c582082420e9ba7ff74e7bf20fe)",
+          "ok": false,
+          "remote_commit": "afc3ab78ce505c582082420e9ba7ff74e7bf20fe",
+          "severity": "actionable"
+        },
+        "retired_watch_paths": {
+          "detail": "watch path references retired root file(s) not present on main: ['compose.coolify-mcp.yaml']",
+          "missing": [
+            "compose.coolify-mcp.yaml"
+          ],
+          "ok": false,
+          "severity": "actionable",
+          "unresolved": []
+        },
+        "watch_coverage": {
+          "detail": "configured manifest '/deploy/coolify-mcp.yaml' is not covered by any watch path",
+          "ok": false,
+          "severity": "actionable",
+          "watch_paths": [
+            "compose.coolify-mcp.yaml",
+            "docker/coolify-mcp/**"
+          ]
+        }
+      },
+      "compose_path": "/deploy/coolify-mcp.yaml",
+      "config_hash": "8f225388b3db64ab237bca0bea4a1323d84da95b64009f9ffc8b3fa2576e5567",
+      "drift": true,
+      "repository": "Cursedpotential/mcp-platform-agno-mvp",
+      "status": "running:healthy",
+      "uuid": "oyzznioap03u34xz125l90oq"
+    },
+    {
+      "app": "data-graphiti-case",
+      "branch": "main",
+      "checks": {
+        "commit_sha_immutability": {
+          "detail": "git_commit_sha='HEAD' is not a pinned commit; deploys track a moving ref",
+          "ok": false,
+          "severity": "actionable"
+        },
+        "compose_location_exists": {
+          "detail": "manifest path exists at tip of its branch",
+          "ok": true,
+          "severity": "info"
+        },
+        "deployment_commit_drift": {
+          "deployed_commit": "106aacba4fddf1f71a8c3077ac175dd1c8061d5b",
+          "detail": "last finished deployment (106aacba4fddf1f71a8c3077ac175dd1c8061d5b) does not match tip of 'main' (afc3ab78ce505c582082420e9ba7ff74e7bf20fe)",
+          "ok": false,
+          "remote_commit": "afc3ab78ce505c582082420e9ba7ff74e7bf20fe",
+          "severity": "actionable"
+        },
+        "retired_watch_paths": {
+          "detail": "watch path references retired root file(s) not present on main: ['compose.data-graphiti-case.yaml']",
+          "missing": [
+            "compose.data-graphiti-case.yaml"
+          ],
+          "ok": false,
+          "severity": "actionable",
+          "unresolved": []
+        },
+        "watch_coverage": {
+          "detail": "configured manifest '/deploy/data-graphiti-case.yaml' is not covered by any watch path",
+          "ok": false,
+          "severity": "actionable",
+          "watch_paths": [
+            "compose.data-graphiti-case.yaml",
+            "docker/graphiti-mcp/**"
+          ]
+        }
+      },
+      "compose_path": "/deploy/data-graphiti-case.yaml",
+      "config_hash": "ad70ae6186de0fc0d32c3b44a79089fd091e831b04e6df14f8ffb4fac6795d68",
+      "drift": true,
+      "repository": "Cursedpotential/mcp-platform-agno-mvp",
+      "status": "running:unknown",
+      "uuid": "wi3vzgd4hekbddvqj8nkn33j"
+    },
+    {
+      "app": "data-graphiti-files",
+      "branch": "main",
+      "checks": {
+        "commit_sha_immutability": {
+          "detail": "git_commit_sha='HEAD' is not a pinned commit; deploys track a moving ref",
+          "ok": false,
+          "severity": "actionable"
+        },
+        "compose_location_exists": {
+          "detail": "manifest path exists at tip of its branch",
+          "ok": true,
+          "severity": "info"
+        },
+        "deployment_commit_drift": {
+          "deployed_commit": "c0fac882f3f0667edab750c73682e0efbb421c61",
+          "detail": "last finished deployment (c0fac882f3f0667edab750c73682e0efbb421c61) does not match tip of 'main' (afc3ab78ce505c582082420e9ba7ff74e7bf20fe)",
+          "ok": false,
+          "remote_commit": "afc3ab78ce505c582082420e9ba7ff74e7bf20fe",
+          "severity": "actionable"
+        },
+        "retired_watch_paths": {
+          "detail": "watch path references retired root file(s) not present on main: ['compose.data-graphiti.yaml']",
+          "missing": [
+            "compose.data-graphiti.yaml"
+          ],
+          "ok": false,
+          "severity": "actionable",
+          "unresolved": []
+        },
+        "watch_coverage": {
+          "detail": "configured manifest '/deploy/data-graphiti.yaml' is not covered by any watch path",
+          "ok": false,
+          "severity": "actionable",
+          "watch_paths": [
+            "compose.data-graphiti.yaml",
+            "docker/gateway/portkey/**"
+          ]
+        }
+      },
+      "compose_path": "/deploy/data-graphiti.yaml",
+      "config_hash": "1918c6b1edc8dd04d0b3068dcd52b1e4330ce12d677f3be7dd1ed713e7206f97",
+      "drift": true,
+      "repository": "Cursedpotential/mcp-platform-agno-mvp",
+      "status": "running:unknown",
+      "uuid": "wvkwd9kq47a70del6nrnbgcb"
+    },
+    {
+      "app": "data-neo4j",
+      "branch": "main",
+      "checks": {
+        "commit_sha_immutability": {
+          "detail": "git_commit_sha='HEAD' is not a pinned commit; deploys track a moving ref",
+          "ok": false,
+          "severity": "actionable"
+        },
+        "compose_location_exists": {
+          "detail": "manifest path exists at tip of its branch",
+          "ok": true,
+          "severity": "info"
+        },
+        "deployment_commit_drift": {
+          "deployed_commit": "106aacba4fddf1f71a8c3077ac175dd1c8061d5b",
+          "detail": "last finished deployment (106aacba4fddf1f71a8c3077ac175dd1c8061d5b) does not match tip of 'main' (afc3ab78ce505c582082420e9ba7ff74e7bf20fe)",
+          "ok": false,
+          "remote_commit": "afc3ab78ce505c582082420e9ba7ff74e7bf20fe",
+          "severity": "actionable"
+        },
+        "retired_watch_paths": {
+          "detail": "watch path references retired root file(s) not present on main: ['compose.data-neo4j.yaml']",
+          "missing": [
+            "compose.data-neo4j.yaml"
+          ],
+          "ok": false,
+          "severity": "actionable",
+          "unresolved": []
+        },
+        "watch_coverage": {
+          "detail": "configured manifest '/deploy/data-neo4j.yaml' is not covered by any watch path",
+          "ok": false,
+          "severity": "actionable",
+          "watch_paths": [
+            "compose.data-neo4j.yaml"
+          ]
+        }
+      },
+      "compose_path": "/deploy/data-neo4j.yaml",
+      "config_hash": "cfa79b0737cfc342f65e6f7cccfd4f56e57d07e84a84d05f17555c44593c5815",
+      "drift": true,
+      "repository": "Cursedpotential/mcp-platform-agno-mvp",
+      "status": "running:healthy",
+      "uuid": "ksbq02zynhdt63b8b9ba5cpv"
+    },
+    {
+      "app": "data-pg-files",
+      "branch": "main",
+      "checks": {
+        "commit_sha_immutability": {
+          "detail": "git_commit_sha='HEAD' is not a pinned commit; deploys track a moving ref",
+          "ok": false,
+          "severity": "actionable"
+        },
+        "compose_location_exists": {
+          "detail": "manifest path exists at tip of its branch",
+          "ok": true,
+          "severity": "info"
+        },
+        "deployment_commit_drift": {
+          "deployed_commit": "4beb588ab365e6d0eabbf60cd48d413daf066ded",
+          "detail": "last finished deployment (4beb588ab365e6d0eabbf60cd48d413daf066ded) does not match tip of 'main' (afc3ab78ce505c582082420e9ba7ff74e7bf20fe)",
+          "ok": false,
+          "remote_commit": "afc3ab78ce505c582082420e9ba7ff74e7bf20fe",
+          "severity": "actionable"
+        },
+        "retired_watch_paths": {
+          "detail": "watch path references retired root file(s) not present on main: ['compose.data-pg.yaml']",
+          "missing": [
+            "compose.data-pg.yaml"
+          ],
+          "ok": false,
+          "severity": "actionable",
+          "unresolved": []
+        },
+        "watch_coverage": {
+          "detail": "configured manifest '/deploy/data-pg.yaml' is not covered by any watch path",
+          "ok": false,
+          "severity": "actionable",
+          "watch_paths": [
+            "compose.data-pg.yaml",
+            "docker/postgres/**"
+          ]
+        }
+      },
+      "compose_path": "/deploy/data-pg.yaml",
+      "config_hash": "81e759d1cd1d83c265370f1f3cb8fcbed5b361319d46d16989e9bb9b63a1a633",
+      "drift": true,
+      "repository": "Cursedpotential/mcp-platform-agno-mvp",
+      "status": "running:healthy",
+      "uuid": "w10gg3an43jvry4y79n6sxi1"
+    },
+    {
+      "app": "data-surreal-phase1-t0-r1",
+      "branch": "main",
+      "checks": {
+        "commit_sha_immutability": {
+          "detail": "git_commit_sha='HEAD' is not a pinned commit; deploys track a moving ref",
+          "ok": false,
+          "severity": "actionable"
+        },
+        "compose_location_exists": {
+          "detail": "manifest path exists at tip of its branch",
+          "ok": true,
+          "severity": "info"
+        },
+        "deployment_commit_drift": {
+          "detail": "deployed commit matches current branch tip",
+          "ok": true,
+          "severity": "info"
+        },
+        "retired_watch_paths": {
+          "detail": "no bare root compose.* watch-path entries",
+          "ok": true,
+          "severity": "info"
+        },
+        "watch_coverage": {
+          "detail": "no watch paths configured at all",
+          "ok": false,
+          "severity": "actionable"
+        }
+      },
+      "compose_path": "/deploy/compose.surreal-phase1.yaml",
+      "config_hash": "e898654570f20b8a945ced68d37a2ac7ee98c48ee977665c27b0d8209f43326c",
+      "drift": true,
+      "repository": "Cursedpotential/mcp-platform-agno-mvp",
+      "status": "running:healthy",
+      "uuid": "hastprr4a99tvpdi4c2k8i36"
+    },
+    {
+      "app": "data-vector",
+      "branch": "main",
+      "checks": {
+        "commit_sha_immutability": {
+          "detail": "git_commit_sha='HEAD' is not a pinned commit; deploys track a moving ref",
+          "ok": false,
+          "severity": "actionable"
+        },
+        "compose_location_exists": {
+          "detail": "manifest path exists at tip of its branch",
+          "ok": true,
+          "severity": "info"
+        },
+        "deployment_commit_drift": {
+          "deployed_commit": "760e5d9706b45c8cc3dc42496a041e91e21264ed",
+          "detail": "last finished deployment (760e5d9706b45c8cc3dc42496a041e91e21264ed) does not match tip of 'main' (afc3ab78ce505c582082420e9ba7ff74e7bf20fe)",
+          "ok": false,
+          "remote_commit": "afc3ab78ce505c582082420e9ba7ff74e7bf20fe",
+          "severity": "actionable"
+        },
+        "retired_watch_paths": {
+          "detail": "no bare root compose.* watch-path entries",
+          "ok": true,
+          "severity": "info"
+        },
+        "watch_coverage": {
+          "detail": "manifest path is covered by a watch path",
+          "ok": true,
+          "severity": "info"
+        }
+      },
+      "compose_path": "/deploy/data-vector.yaml",
+      "config_hash": "12889e0c51c0471b415696fe418ba5161095ad9fc9f6c53f3e1e27879ec09482",
+      "drift": true,
+      "repository": "Cursedpotential/mcp-platform-agno-mvp",
+      "status": "running:unknown",
+      "uuid": "d725i1io2o1dwlfjdz09lo87"
+    },
+    {
+      "app": "data-weaviate-files",
+      "branch": "infra/data-weaviate-memgql",
+      "checks": {
+        "commit_sha_immutability": {
+          "detail": "git_commit_sha='HEAD' is not a pinned commit; deploys track a moving ref",
+          "ok": false,
+          "severity": "actionable"
+        },
+        "compose_location_exists": {
+          "detail": "manifest path exists at tip of its branch",
+          "ok": true,
+          "severity": "info"
+        },
+        "deployment_commit_drift": {
+          "detail": "deployed commit matches current branch tip",
+          "ok": true,
+          "severity": "info"
+        },
+        "retired_watch_paths": {
+          "detail": "no bare root compose.* watch-path entries",
+          "ok": true,
+          "severity": "info"
+        },
+        "watch_coverage": {
+          "detail": "manifest path is covered by a watch path",
+          "ok": true,
+          "severity": "info"
+        }
+      },
+      "compose_path": "/deploy/data-weaviate.yaml",
+      "config_hash": "881e788ee74110bd3c91ee3eb98300799067632c573a4407ef4d4a036148636c",
+      "drift": true,
+      "repository": "Cursedpotential/mcp-platform-agno-mvp",
+      "status": "running:healthy",
+      "uuid": "o97r85b7nagwjuncs4oo07hs"
+    },
+    {
+      "app": "data-weaviate-native-v1",
+      "branch": "main",
+      "checks": {
+        "commit_sha_immutability": {
+          "detail": "git_commit_sha='HEAD' is not a pinned commit; deploys track a moving ref",
+          "ok": false,
+          "severity": "actionable"
+        },
+        "compose_location_exists": {
+          "detail": "manifest path exists at tip of its branch",
+          "ok": true,
+          "severity": "info"
+        },
+        "deployment_commit_drift": {
+          "deployed_commit": "c0b806780ddf6c8dbc62a0c6f047221ec51f7574",
+          "detail": "last finished deployment (c0b806780ddf6c8dbc62a0c6f047221ec51f7574) does not match tip of 'main' (afc3ab78ce505c582082420e9ba7ff74e7bf20fe)",
+          "ok": false,
+          "remote_commit": "afc3ab78ce505c582082420e9ba7ff74e7bf20fe",
+          "severity": "actionable"
+        },
+        "retired_watch_paths": {
+          "detail": "no bare root compose.* watch-path entries",
+          "ok": true,
+          "severity": "info"
+        },
+        "watch_coverage": {
+          "detail": "manifest path is covered by a watch path",
+          "ok": true,
+          "severity": "info"
+        }
+      },
+      "compose_path": "/deploy/data-weaviate-native-v1.yaml",
+      "config_hash": "cbdea4828cb300a13c08a01fe67cf0c118f566cf8dff9059cc563feb811b782d",
+      "drift": true,
+      "repository": "Cursedpotential/mcp-platform-agno-mvp",
+      "status": "running:healthy",
+      "uuid": "v43tfq25o7i561n4lnc124p2"
+    },
+    {
+      "app": "exec-contextforge",
+      "branch": "main",
+      "checks": {
+        "commit_sha_immutability": {
+          "detail": "git_commit_sha='HEAD' is not a pinned commit; deploys track a moving ref",
+          "ok": false,
+          "severity": "actionable"
+        },
+        "compose_location_exists": {
+          "detail": "manifest path exists at tip of its branch",
+          "ok": true,
+          "severity": "info"
+        },
+        "deployment_commit_drift": {
+          "deployed_commit": "0223d948fbbfbe681d9f2e9d6ebbd67dcaa8e9b2",
+          "detail": "last finished deployment (0223d948fbbfbe681d9f2e9d6ebbd67dcaa8e9b2) does not match tip of 'main' (afc3ab78ce505c582082420e9ba7ff74e7bf20fe)",
+          "ok": false,
+          "remote_commit": "afc3ab78ce505c582082420e9ba7ff74e7bf20fe",
+          "severity": "actionable"
+        },
+        "retired_watch_paths": {
+          "detail": "watch path references retired root file(s) not present on main: ['compose.contextforge.yaml']",
+          "missing": [
+            "compose.contextforge.yaml"
+          ],
+          "ok": false,
+          "severity": "actionable",
+          "unresolved": []
+        },
+        "watch_coverage": {
+          "detail": "configured manifest '/deploy/contextforge.yaml' is not covered by any watch path",
+          "ok": false,
+          "severity": "actionable",
+          "watch_paths": [
+            "compose.contextforge.yaml"
+          ]
+        }
+      },
+      "compose_path": "/deploy/contextforge.yaml",
+      "config_hash": "06401d8c131433998ae8d2ede3c4405fffe523821f318d177577951f8499dd4e",
+      "drift": true,
+      "repository": "Cursedpotential/mcp-platform-agno-mvp",
+      "status": "running:healthy",
+      "uuid": "k272znxpa4gh6drmolut723w"
+    },
+    {
+      "app": "exec-desktop",
+      "branch": "main",
+      "checks": {
+        "commit_sha_immutability": {
+          "detail": "git_commit_sha='HEAD' is not a pinned commit; deploys track a moving ref",
+          "ok": false,
+          "severity": "actionable"
+        },
+        "compose_location_exists": {
+          "detail": "manifest path exists at tip of its branch",
+          "ok": true,
+          "severity": "info"
+        },
+        "deployment_commit_drift": {
+          "deployed_commit": "95e760c1b499e351f43d75ca0119e12f2e25fef2",
+          "detail": "last finished deployment (95e760c1b499e351f43d75ca0119e12f2e25fef2) does not match tip of 'main' (afc3ab78ce505c582082420e9ba7ff74e7bf20fe)",
+          "ok": false,
+          "remote_commit": "afc3ab78ce505c582082420e9ba7ff74e7bf20fe",
+          "severity": "actionable"
+        },
+        "retired_watch_paths": {
+          "detail": "watch path references retired root file(s) not present on main: ['compose.desktop.yaml']",
+          "missing": [
+            "compose.desktop.yaml"
+          ],
+          "ok": false,
+          "severity": "actionable",
+          "unresolved": []
+        },
+        "watch_coverage": {
+          "detail": "configured manifest '/deploy/desktop.yaml' is not covered by any watch path",
+          "ok": false,
+          "severity": "actionable",
+          "watch_paths": [
+            "compose.desktop.yaml"
+          ]
+        }
+      },
+      "compose_path": "/deploy/desktop.yaml",
+      "config_hash": "a2c872ab3be68addb3adc5b60fb621a190ae16948abfef7dffc784d578cdfbb2",
+      "drift": true,
+      "repository": "Cursedpotential/mcp-platform-agno-mvp",
+      "status": "running:unknown",
+      "uuid": "t130q2xn4r1tux3huee9gal1"
+    },
+    {
+      "app": "exec-gateway",
+      "branch": "main",
+      "checks": {
+        "commit_sha_immutability": {
+          "detail": "git_commit_sha='HEAD' is not a pinned commit; deploys track a moving ref",
+          "ok": false,
+          "severity": "actionable"
+        },
+        "compose_location_exists": {
+          "detail": "manifest path exists at tip of its branch",
+          "ok": true,
+          "severity": "info"
+        },
+        "deployment_commit_drift": {
+          "deployed_commit": "8530b99f0b681c4d15235a8f74b6e24fd49ef19a",
+          "detail": "last finished deployment (8530b99f0b681c4d15235a8f74b6e24fd49ef19a) does not match tip of 'main' (afc3ab78ce505c582082420e9ba7ff74e7bf20fe)",
+          "ok": false,
+          "remote_commit": "afc3ab78ce505c582082420e9ba7ff74e7bf20fe",
+          "severity": "actionable"
+        },
+        "retired_watch_paths": {
+          "detail": "watch path references retired root file(s) not present on main: ['compose.gateway.yaml']",
+          "missing": [
+            "compose.gateway.yaml"
+          ],
+          "ok": false,
+          "severity": "actionable",
+          "unresolved": []
+        },
+        "watch_coverage": {
+          "detail": "configured manifest '/deploy/gateway.yaml' is not covered by any watch path",
+          "ok": false,
+          "severity": "actionable",
+          "watch_paths": [
+            "compose.gateway.yaml",
+            "docker/gateway/**"
+          ]
+        }
+      },
+      "compose_path": "/deploy/gateway.yaml",
+      "config_hash": "3400fd550c9e6042d9e0e4bd4ce0eaf36650dc36ca545361535206d458c893d7",
+      "drift": true,
+      "repository": "Cursedpotential/mcp-platform-agno-mvp",
+      "status": "running:unknown",
+      "uuid": "f29166r47gro6fjiq4d8ya92"
+    },
+    {
+      "app": "exec-platform-tools",
+      "branch": "main",
+      "checks": {
+        "commit_sha_immutability": {
+          "detail": "git_commit_sha='HEAD' is not a pinned commit; deploys track a moving ref",
+          "ok": false,
+          "severity": "actionable"
+        },
+        "compose_location_exists": {
+          "detail": "manifest path exists at tip of its branch",
+          "ok": true,
+          "severity": "info"
+        },
+        "deployment_commit_drift": {
+          "deployed_commit": "477dd6cb60ce8348716c244c36a71df528e95f35",
+          "detail": "last finished deployment (477dd6cb60ce8348716c244c36a71df528e95f35) does not match tip of 'main' (afc3ab78ce505c582082420e9ba7ff74e7bf20fe)",
+          "ok": false,
+          "remote_commit": "afc3ab78ce505c582082420e9ba7ff74e7bf20fe",
+          "severity": "actionable"
+        },
+        "retired_watch_paths": {
+          "detail": "watch path references retired root file(s) not present on main: ['compose.platform-tools.yaml']",
+          "missing": [
+            "compose.platform-tools.yaml"
+          ],
+          "ok": false,
+          "severity": "actionable",
+          "unresolved": []
+        },
+        "watch_coverage": {
+          "detail": "configured manifest '/deploy/platform-tools.yaml' is not covered by any watch path",
+          "ok": false,
+          "severity": "actionable",
+          "watch_paths": [
+            "compose.platform-tools.yaml",
+            "docker/tools/**",
+            "vendored/sbv/**"
+          ]
+        }
+      },
+      "compose_path": "/deploy/platform-tools.yaml",
+      "config_hash": "b8d08bda3538ce83c74ece90b3e6964e7207c51ee6758447ec331952b572d7e5",
+      "drift": true,
+      "repository": "Cursedpotential/mcp-platform-agno-mvp",
+      "status": "running:unknown",
+      "uuid": "e1mshujml6bv8ldtoe8n7je0"
+    },
+    {
+      "app": "exec-sandbox",
+      "branch": "main",
+      "checks": {
+        "commit_sha_immutability": {
+          "detail": "git_commit_sha='HEAD' is not a pinned commit; deploys track a moving ref",
+          "ok": false,
+          "severity": "actionable"
+        },
+        "compose_location_exists": {
+          "detail": "manifest path exists at tip of its branch",
+          "ok": true,
+          "severity": "info"
+        },
+        "deployment_commit_drift": {
+          "deployed_commit": "0a5b9171104137b99ef5fa8768106cfb71508561",
+          "detail": "last finished deployment (0a5b9171104137b99ef5fa8768106cfb71508561) does not match tip of 'main' (afc3ab78ce505c582082420e9ba7ff74e7bf20fe)",
+          "ok": false,
+          "remote_commit": "afc3ab78ce505c582082420e9ba7ff74e7bf20fe",
+          "severity": "actionable"
+        },
+        "retired_watch_paths": {
+          "detail": "watch path references retired root file(s) not present on main: ['compose.sandbox.yaml']",
+          "missing": [
+            "compose.sandbox.yaml"
+          ],
+          "ok": false,
+          "severity": "actionable",
+          "unresolved": []
+        },
+        "watch_coverage": {
+          "detail": "configured manifest '/deploy/sandbox.yaml' is not covered by any watch path",
+          "ok": false,
+          "severity": "actionable",
+          "watch_paths": [
+            "compose.sandbox.yaml",
+            "docker/sandbox/**"
+          ]
+        }
+      },
+      "compose_path": "/deploy/sandbox.yaml",
+      "config_hash": "524885d01dd5d6ffebecf71ef6641e55b882f5a12b151b470a8b15cb6df22ffe",
+      "drift": true,
+      "repository": "Cursedpotential/mcp-platform-agno-mvp",
+      "status": "running:unknown",
+      "uuid": "mn2autapl223gmgcpjqy7def"
+    },
+    {
+      "app": "exec-tier",
+      "branch": "main",
+      "checks": {
+        "commit_sha_immutability": {
+          "detail": "git_commit_sha='HEAD' is not a pinned commit; deploys track a moving ref",
+          "ok": false,
+          "severity": "actionable"
+        },
+        "compose_location_exists": {
+          "detail": "manifest path exists at tip of its branch",
+          "ok": true,
+          "severity": "info"
+        },
+        "deployment_commit_drift": {
+          "detail": "deployed commit matches current branch tip",
+          "ok": true,
+          "severity": "info"
+        },
+        "retired_watch_paths": {
+          "detail": "watch path references retired root file(s) not present on main: ['compose.exec.yaml']",
+          "missing": [
+            "compose.exec.yaml"
+          ],
+          "ok": false,
+          "severity": "actionable",
+          "unresolved": []
+        },
+        "watch_coverage": {
+          "detail": "configured manifest '/deploy/exec.yaml' is not covered by any watch path",
+          "ok": false,
+          "severity": "actionable",
+          "watch_paths": [
+            "compose.exec.yaml",
+            "Dockerfile",
+            "server/**"
+          ]
+        }
+      },
+      "compose_path": "/deploy/exec.yaml",
+      "config_hash": "108663b9f9abccf841f29d998f39a650f27206840d2c8d5799dc67263d4f7aba",
+      "drift": true,
+      "repository": "Cursedpotential/mcp-platform-agno-mvp",
+      "status": "running:unknown",
+      "uuid": "rz41wqhpjfh1rj796ixvjhfs"
+    },
+    {
+      "app": "knowledge-workbench",
+      "branch": "workbench/sprint",
+      "checks": {
+        "commit_sha_immutability": {
+          "detail": "git_commit_sha='HEAD' is not a pinned commit; deploys track a moving ref",
+          "ok": false,
+          "severity": "actionable"
+        },
+        "compose_location_exists": {
+          "detail": "manifest path exists at tip of its branch",
+          "ok": true,
+          "severity": "info"
+        },
+        "deployment_commit_drift": {
+          "detail": "deployed commit matches current branch tip",
+          "ok": true,
+          "severity": "info"
+        },
+        "retired_watch_paths": {
+          "detail": "no bare root compose.* watch-path entries",
+          "ok": true,
+          "severity": "info"
+        },
+        "watch_coverage": {
+          "detail": "manifest path is covered by a watch path",
+          "ok": true,
+          "severity": "info"
+        }
+      },
+      "compose_path": "/deploy/workbench.yaml",
+      "config_hash": "f1807e18b85c96f32e390fd1d25021d4aba3c9200b39acd2ef74ec0cc221f850",
+      "drift": true,
+      "repository": "Cursedpotential/mcp-platform-agno-mvp",
+      "status": "running:healthy",
+      "uuid": "zg9goqoukh2cat776swnx7lo"
+    },
+    {
+      "app": "legal-workspace",
+      "branch": "master",
+      "checks": {
+        "commit_sha_immutability": {
+          "detail": "git_commit_sha='HEAD' is not a pinned commit; deploys track a moving ref",
+          "ok": false,
+          "severity": "actionable"
+        },
+        "compose_location_exists": {
+          "detail": "repo 'Cursedpotential/Legal-Workspace' not resolvable from this checkout (expected 'Cursedpotential/mcp-platform-agno-mvp')",
+          "ok": true,
+          "severity": "skipped"
+        },
+        "deployment_commit_drift": {
+          "detail": "repo 'Cursedpotential/Legal-Workspace' not resolvable from this checkout (expected 'Cursedpotential/mcp-platform-agno-mvp')",
+          "last_deployed_commit": "108e74a989521368b69ab2c2f8b37686f031fbb4",
+          "ok": true,
+          "severity": "skipped"
+        },
+        "retired_watch_paths": {
+          "detail": "no bare root compose.* watch-path entries",
+          "ok": true,
+          "severity": "info"
+        },
+        "watch_coverage": {
+          "detail": "no watch paths configured at all",
+          "ok": false,
+          "severity": "actionable"
+        }
+      },
+      "compose_path": "/compose.yaml",
+      "config_hash": "bd75d231b69fc073ac3b0c15a30481f7369531d6ae1483e9d59a46604128434d",
+      "drift": true,
+      "repository": "Cursedpotential/Legal-Workspace",
+      "status": "running:unknown",
+      "uuid": "gvghzivfmctev8dloetfssnj"
+    },
+    {
+      "app": "librechat",
+      "branch": "infra/librechat",
+      "checks": {
+        "commit_sha_immutability": {
+          "detail": "git_commit_sha='HEAD' is not a pinned commit; deploys track a moving ref",
+          "ok": false,
+          "severity": "actionable"
+        },
+        "compose_location_exists": {
+          "detail": "manifest path exists at tip of its branch",
+          "ok": true,
+          "severity": "info"
+        },
+        "deployment_commit_drift": {
+          "detail": "deployed commit matches current branch tip",
+          "ok": true,
+          "severity": "info"
+        },
+        "retired_watch_paths": {
+          "detail": "all root compose watch entries exist on branch",
+          "ok": true,
+          "severity": "info"
+        },
+        "watch_coverage": {
+          "detail": "manifest path is covered by a watch path",
+          "ok": true,
+          "severity": "info"
+        }
+      },
+      "compose_path": "/compose.librechat.yaml",
+      "config_hash": "95bcae175c6c2ce2ac9918ab12390450c95f6234024cbe4700bbb3a7847b6c9c",
+      "drift": true,
+      "repository": "Cursedpotential/mcp-platform-agno-mvp",
+      "status": "exited:unhealthy",
+      "uuid": "mznqgf3ji66g3o0sa0pailal"
+    },
+    {
+      "app": "librechat-app",
+      "branch": "infra/librechat",
+      "checks": {
+        "commit_sha_immutability": {
+          "detail": "git_commit_sha='HEAD' is not a pinned commit; deploys track a moving ref",
+          "ok": false,
+          "severity": "actionable"
+        },
+        "compose_location_exists": {
+          "detail": "manifest path exists at tip of its branch",
+          "ok": true,
+          "severity": "info"
+        },
+        "deployment_commit_drift": {
+          "detail": "deployed commit matches current branch tip",
+          "ok": true,
+          "severity": "info"
+        },
+        "retired_watch_paths": {
+          "detail": "all root compose watch entries exist on branch",
+          "ok": true,
+          "severity": "info"
+        },
+        "watch_coverage": {
+          "detail": "manifest path is covered by a watch path",
+          "ok": true,
+          "severity": "info"
+        }
+      },
+      "compose_path": "/compose.librechat.yaml",
+      "config_hash": "b82d0d0311b37ac4a8361b25c542f901ccdf48f8deba9931bd94809640edae6e",
+      "drift": true,
+      "repository": "Cursedpotential/mcp-platform-agno-mvp",
+      "status": "running:unknown",
+      "uuid": "e8wiuptqtu8rlftkko90nf8c"
+    },
+    {
+      "app": "librechat-mongo",
+      "branch": "infra/librechat",
+      "checks": {
+        "commit_sha_immutability": {
+          "detail": "git_commit_sha='HEAD' is not a pinned commit; deploys track a moving ref",
+          "ok": false,
+          "severity": "actionable"
+        },
+        "compose_location_exists": {
+          "detail": "manifest path exists at tip of its branch",
+          "ok": true,
+          "severity": "info"
+        },
+        "deployment_commit_drift": {
+          "detail": "deployed commit matches current branch tip",
+          "ok": true,
+          "severity": "info"
+        },
+        "retired_watch_paths": {
+          "detail": "all root compose watch entries exist on branch",
+          "ok": true,
+          "severity": "info"
+        },
+        "watch_coverage": {
+          "detail": "manifest path is covered by a watch path",
+          "ok": true,
+          "severity": "info"
+        }
+      },
+      "compose_path": "/compose.librechat-mongo.yaml",
+      "config_hash": "62719342eb8d6c16495c080fc51854e38679b7ed7e19420da7bf585d7eb1c7f1",
+      "drift": true,
+      "repository": "Cursedpotential/mcp-platform-agno-mvp",
+      "status": "exited:unhealthy",
+      "uuid": "e4y9virp2dbdignngrk8t42d"
+    },
+    {
+      "app": "librechat-mongo-app",
+      "branch": "infra/librechat",
+      "checks": {
+        "commit_sha_immutability": {
+          "detail": "git_commit_sha='HEAD' is not a pinned commit; deploys track a moving ref",
+          "ok": false,
+          "severity": "actionable"
+        },
+        "compose_location_exists": {
+          "detail": "manifest path exists at tip of its branch",
+          "ok": true,
+          "severity": "info"
+        },
+        "deployment_commit_drift": {
+          "detail": "deployed commit matches current branch tip",
+          "ok": true,
+          "severity": "info"
+        },
+        "retired_watch_paths": {
+          "detail": "all root compose watch entries exist on branch",
+          "ok": true,
+          "severity": "info"
+        },
+        "watch_coverage": {
+          "detail": "manifest path is covered by a watch path",
+          "ok": true,
+          "severity": "info"
+        }
+      },
+      "compose_path": "/compose.librechat-mongo.yaml",
+      "config_hash": "867e57e1ed1729e301646a2ed2587becc2a95e5cee603998143ff51d1a02bd07",
+      "drift": true,
+      "repository": "Cursedpotential/mcp-platform-agno-mvp",
+      "status": "running:healthy",
+      "uuid": "irtjaczk3eo440epefry7m2l"
+    },
+    {
+      "app": "nocodb",
+      "branch": "infra/nocodb",
+      "checks": {
+        "commit_sha_immutability": {
+          "detail": "git_commit_sha='HEAD' is not a pinned commit; deploys track a moving ref",
+          "ok": false,
+          "severity": "actionable"
+        },
+        "compose_location_exists": {
+          "detail": "manifest path exists at tip of its branch",
+          "ok": true,
+          "severity": "info"
+        },
+        "deployment_commit_drift": {
+          "detail": "deployed commit matches current branch tip",
+          "ok": true,
+          "severity": "info"
+        },
+        "retired_watch_paths": {
+          "detail": "no bare root compose.* watch-path entries",
+          "ok": true,
+          "severity": "info"
+        },
+        "watch_coverage": {
+          "detail": "no watch paths configured at all",
+          "ok": false,
+          "severity": "actionable"
+        }
+      },
+      "compose_path": "/compose.nocodb.yaml",
+      "config_hash": "0d3d32640baaddb1ab9853785259a8b94a277c2f9088cdbd59a28f2fcfb118f3",
+      "drift": true,
+      "repository": "Cursedpotential/mcp-platform-agno-mvp",
+      "status": "exited:unhealthy",
+      "uuid": "zkvpnr0refles1qqyst7qd4x"
+    },
+    {
+      "app": "nocodb-app",
+      "branch": "infra/nocodb",
+      "checks": {
+        "commit_sha_immutability": {
+          "detail": "git_commit_sha='HEAD' is not a pinned commit; deploys track a moving ref",
+          "ok": false,
+          "severity": "actionable"
+        },
+        "compose_location_exists": {
+          "detail": "manifest path exists at tip of its branch",
+          "ok": true,
+          "severity": "info"
+        },
+        "deployment_commit_drift": {
+          "detail": "deployed commit matches current branch tip",
+          "ok": true,
+          "severity": "info"
+        },
+        "retired_watch_paths": {
+          "detail": "all root compose watch entries exist on branch",
+          "ok": true,
+          "severity": "info"
+        },
+        "watch_coverage": {
+          "detail": "manifest path is covered by a watch path",
+          "ok": true,
+          "severity": "info"
+        }
+      },
+      "compose_path": "/compose.nocodb.yaml",
+      "config_hash": "163068f17d0ac7f5bf0344b002395bbf04ede7ae5dbe5e1b11dd5dfad50ee230",
+      "drift": true,
+      "repository": "Cursedpotential/mcp-platform-agno-mvp",
+      "status": "running:healthy",
+      "uuid": "e85xspjkbl75wjwjic1z1md7"
+    },
+    {
+      "app": "portkey",
+      "branch": "main",
+      "checks": {
+        "commit_sha_immutability": {
+          "detail": "git_commit_sha='HEAD' is not a pinned commit; deploys track a moving ref",
+          "ok": false,
+          "severity": "actionable"
+        },
+        "compose_location_exists": {
+          "detail": "manifest path exists at tip of its branch",
+          "ok": true,
+          "severity": "info"
+        },
+        "deployment_commit_drift": {
+          "deployed_commit": "c0fac882f3f0667edab750c73682e0efbb421c61",
+          "detail": "last finished deployment (c0fac882f3f0667edab750c73682e0efbb421c61) does not match tip of 'main' (afc3ab78ce505c582082420e9ba7ff74e7bf20fe)",
+          "ok": false,
+          "remote_commit": "afc3ab78ce505c582082420e9ba7ff74e7bf20fe",
+          "severity": "actionable"
+        },
+        "retired_watch_paths": {
+          "detail": "watch path references retired root file(s) not present on main: ['compose.portkey.yaml']",
+          "missing": [
+            "compose.portkey.yaml"
+          ],
+          "ok": false,
+          "severity": "actionable",
+          "unresolved": []
+        },
+        "watch_coverage": {
+          "detail": "configured manifest '/deploy/portkey.yaml' is not covered by any watch path",
+          "ok": false,
+          "severity": "actionable",
+          "watch_paths": [
+            "compose.portkey.yaml",
+            "docker/gateway/portkey/**"
+          ]
+        }
+      },
+      "compose_path": "/deploy/portkey.yaml",
+      "config_hash": "035f52a5081e48d51d3bf649fa91e459600423b45c0b280e6fb0d77529bbc9a4",
+      "drift": true,
+      "repository": "Cursedpotential/mcp-platform-agno-mvp",
+      "status": "running:healthy",
+      "uuid": "z5787t1l7gl2zbrya8cxzapf"
+    },
+    {
+      "app": "temporal-stack",
+      "branch": "main",
+      "checks": {
+        "commit_sha_immutability": {
+          "detail": "git_commit_sha='HEAD' is not a pinned commit; deploys track a moving ref",
+          "ok": false,
+          "severity": "actionable"
+        },
+        "compose_location_exists": {
+          "detail": "manifest path exists at tip of its branch",
+          "ok": true,
+          "severity": "info"
+        },
+        "deployment_commit_drift": {
+          "deployed_commit": "16022e93d191ef1d14b21a768d4e8d9d9a103862",
+          "detail": "last finished deployment (16022e93d191ef1d14b21a768d4e8d9d9a103862) does not match tip of 'main' (afc3ab78ce505c582082420e9ba7ff74e7bf20fe)",
+          "ok": false,
+          "remote_commit": "afc3ab78ce505c582082420e9ba7ff74e7bf20fe",
+          "severity": "actionable"
+        },
+        "retired_watch_paths": {
+          "detail": "no bare root compose.* watch-path entries",
+          "ok": true,
+          "severity": "info"
+        },
+        "watch_coverage": {
+          "detail": "manifest path is covered by a watch path",
+          "ok": true,
+          "severity": "info"
+        }
+      },
+      "compose_path": "/deploy/temporal/compose.temporal.yaml",
+      "config_hash": "0021294414091a5a81963f881267f4cabcf2d89a5fa0f490866df5465c6fe5d0",
+      "drift": true,
+      "repository": "Cursedpotential/mcp-platform-agno-mvp",
+      "status": "running:unknown",
+      "uuid": "llv5zt8phx1xf4devwqugk3y"
+    },
+    {
+      "app": "temporal-worker",
+      "branch": "main",
+      "checks": {
+        "commit_sha_immutability": {
+          "detail": "git_commit_sha='HEAD' is not a pinned commit; deploys track a moving ref",
+          "ok": false,
+          "severity": "actionable"
+        },
+        "compose_location_exists": {
+          "detail": "manifest '/docker-compose.yaml' does not exist at tip of 'main'",
+          "ok": false,
+          "severity": "actionable"
+        },
+        "deployment_commit_drift": {
+          "detail": "deployed commit matches current branch tip",
+          "ok": true,
+          "severity": "info"
+        },
+        "retired_watch_paths": {
+          "detail": "no bare root compose.* watch-path entries",
+          "ok": true,
+          "severity": "info"
+        },
+        "watch_coverage": {
+          "detail": "configured manifest '/docker-compose.yaml' is not covered by any watch path",
+          "ok": false,
+          "severity": "actionable",
+          "watch_paths": [
+            "docker/temporal-worker/**",
+            "server/**",
+            "scripts/**",
+            "sql/**",
+            "requirements.txt"
+          ]
+        }
+      },
+      "compose_path": "/docker-compose.yaml",
+      "config_hash": "3299a5281753768419ef8d230591565408dd16ec032bfcd8f019dca4615c7a02",
+      "drift": true,
+      "repository": "Cursedpotential/mcp-platform-agno-mvp",
+      "status": "running:unknown",
+      "uuid": "e4dkqfshveu77zhryllsb345"
+    }
+  ]
+}

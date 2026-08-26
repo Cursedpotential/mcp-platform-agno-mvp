@@ -1,0 +1,34 @@
+{
+  "applications": [
+    {
+      "name": "clean-app",
+      "uuid": "u-clean",
+      "git_repository": "Example/repo",
+      "git_branch": "main",
+      "docker_compose_location": "/deploy/clean.yaml",
+      "git_commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "watch_paths": "deploy/clean.yaml",
+      "config_hash": "hash-clean",
+      "status": "running:healthy"
+    },
+    {
+      "name": "drifted-app",
+      "uuid": "u-drifted",
+      "git_repository": "Example/repo",
+      "git_branch": "main",
+      "docker_compose_location": "/deploy/drift.yaml",
+      "git_commit_sha": "HEAD",
+      "watch_paths": "compose.drift.yaml\ndocker/drift/**",
+      "config_hash": "hash-drift",
+      "status": "running:unknown"
+    }
+  ],
+  "deployments": {
+    "u-clean": [
+      {"commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "status": "finished"}
+    ],
+    "u-drifted": [
+      {"commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "status": "failed"}
+    ]
+  }
+}
