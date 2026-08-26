@@ -162,6 +162,17 @@ def custody_activity(params: CustodyParams) -> CustodyResult:
     reports completed with ``docs_ingested=0``). That trap lives in the STORE
     step's dedupe branch, and ``store_activity`` below reuses the same
     ``_store_step_impl`` guard rather than re-deriving it.
+
+    D-082 permanent AI-chat evidence fence (GAP-032/WP-C01): this activity
+    hardcodes ``workflow="chat-transcript"`` into ``source_meta`` just above
+    the ``ingest_artifact`` call, same as ``workflows.py``'s custody_step —
+    ``ingest_artifact`` denies that marker unconditionally before any write,
+    so this activity raises ``AIChatEvidenceDenied`` (an activity failure,
+    handled by Temporal's normal retry/failure policy) on every real call.
+    Not caught here deliberately: Temporal activities are expected to raise
+    on failure, and this Activity is not yet wired to any live HTTP trigger
+    (repository census 2026-08-26 — see docs/reviews/2026-08-25-schema-audit/
+    reconciliation-domains/R02-context-ingest-parser-boundary.md).
     """
     from server.evidence.custody import ingest_artifact
 

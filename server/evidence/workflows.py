@@ -85,7 +85,7 @@ from typing import Any, Awaitable, cast
 from agno.workflow import Step, Workflow
 from agno.workflow.types import OnError, StepInput, StepOutput
 
-from server.evidence.custody import ArtifactRef, ingest_artifact, utcnow_iso
+from server.evidence.custody import AIChatEvidenceDenied, ArtifactRef, ingest_artifact, utcnow_iso
 from server.contracts.records import MessageCorpus, NormalizedRecord, finalize
 from server.tools.registry import load_builtin_tools, registry
 from server.evidence.store import (
@@ -619,9 +619,24 @@ def build_chat_transcript_workflow(
     }
 
     def custody_step(step_input: StepInput) -> StepOutput:
-        artifact = ingest_artifact(
-            ctx["path"], {**ctx["source_meta"], "workflow": "chat-transcript"}, tier=ctx["custody_tier"]
-        )
+        # D-082 permanent AI-chat evidence fence (GAP-032/WP-C01): this
+        # workflow's custody step always stamps workflow="chat-transcript" —
+        # ingest_artifact() denies that marker unconditionally, before any
+        # hash/blob/DB write. Caught here (not left to propagate) so the
+        # denial reports as a normal failed step, same idiom as parse_step's
+        # own expected-failure handling below, rather than an unhandled
+        # exception through agno's Step machinery.
+        try:
+            artifact = ingest_artifact(
+                ctx["path"], {**ctx["source_meta"], "workflow": "chat-transcript"}, tier=ctx["custody_tier"]
+            )
+        except AIChatEvidenceDenied as exc:
+            ctx["ai_chat_denied_reason"] = exc.reason
+            return StepOutput(
+                content=f"custody: DENIED (D-082/GAP-032) — {exc.reason}",
+                success=False,
+                stop=True,
+            )
         ctx["artifact"] = artifact
         note = "duplicate — already in custody" if artifact.duplicate else "new artifact"
         return StepOutput(
@@ -994,6 +1009,13 @@ async def run_chat_transcript(
             "records_stored": ctx.get("stored", 0),
             "step_log": [s.content for s in getattr(result, "step_results", []) if getattr(s, "content", None)],
         }
+        # D-082 permanent AI-chat evidence fence (GAP-032/WP-C01): custody_step
+        # always denies (see above), so this branch fires on every real call —
+        # surfaced as an explicit, attributable field rather than left implicit
+        # in status/step_log alone.
+        if ctx.get("ai_chat_denied_reason"):
+            summary["denied"] = True
+            summary["denial_reason"] = ctx["ai_chat_denied_reason"]
         return summary
     except Exception as exc:
         exc_message = str(exc)

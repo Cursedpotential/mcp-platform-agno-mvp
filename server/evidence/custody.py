@@ -12,15 +12,25 @@ guarantee). Agent DB connections ride the read-only engine (ADR-0005) and
 physically cannot write here; this code path is invoked by workflows/CLI,
 which sit behind the HITL gate at the agent boundary.
 
+Because this is the sole writer, it is also the single, non-bypassable
+enforcement point for D-082 (docs/DECISION_LOG.md): AI-chat conversations,
+messages, and exports are permanently context-only and can never be promoted
+to evidence custody, at every caller (REST, CLI, Temporal). See
+AIChatEvidenceDenied and GAP-032/WP-C01
+(docs/reviews/2026-08-25-schema-audit/AUDIT-GAP-REGISTER.md).
+
 Pattern proven in extracted-code/sbv/sbv-ingestion.ts (hash -> insert -> rollback).
 """
 
 # Byline amendment: Codex · GPT-5 · 2026-08-18 (append-only acquisition propagation)
 # Byline amendment: Codex · GPT-5 · 2026-08-18 (human authority category + asserter identity)
+# Byline amendment: Claude Code · Sonnet 5 · 2026-08-26 (D-082 permanent AI-chat evidence fence,
+# GAP-032/WP-C01 — AIChatEvidenceDenied + workflow-marker/content-sniff denial in ingest_artifact())
 
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import shutil
 from dataclasses import dataclass
@@ -89,6 +99,91 @@ def _source_fields(path: Path, size: int, meta: dict) -> dict:
         "lpath": str(path),
         "md5": bytes.fromhex(md5_hex) if isinstance(md5_hex, str) and md5_hex else None,
     }
+
+
+class AIChatEvidenceDenied(RuntimeError):
+    """Raised by ingest_artifact() when asked to take custody of AI-chat bytes.
+
+    D-082 permanently forbids promoting AI-chat conversations/messages/exports
+    to evidence custody. This is the single, non-bypassable enforcement point
+    (see module docstring) — every caller (server/api/evidence_routes.py,
+    server/evidence/workflows.py's chat-transcript vertical,
+    server/temporal/activities.py's custody_activity, server/ingest/service.py,
+    the CLI) funnels through ingest_artifact() before any hash/blob/DB write.
+    GAP-032/WP-C01.
+    """
+
+    def __init__(self, reason: str, *, detected_by: str):
+        self.reason = reason
+        self.detected_by = detected_by
+        super().__init__(reason)
+
+
+# D-082 permanent AI-chat evidence fence (GAP-032/WP-C01). Two independent
+# signals, checked before any hash/dedupe/blob write/DB insert:
+#
+# 1. Workflow marker — server/evidence/workflows.py's chat-transcript vertical
+#    and server/temporal/activities.py's custody_activity both stamp
+#    source_meta["workflow"] = "chat-transcript" themselves, immediately
+#    before calling ingest_artifact(). That key is set by trusted platform
+#    code, not passed through from an untrusted caller, so it can't be
+#    spoofed away — but it also only covers callers that go through the named
+#    chat-transcript vertical.
+# 2. Content sniff — closes the generic-route bypass (e.g. an AI-chat export
+#    submitted through server/ingest/service.py's /v1/ingest under a
+#    different lane, which never sets a "workflow" key at all). Mirrors the
+#    heuristic workbench/api/app/service/detect.py already uses to CLASSIFY a
+#    staged upload as a chat export — kept as an independent, dependency-light
+#    copy because this module must stay import-light (docker/tools facade
+#    container, per the evidence/AGENTS.md invariant) and cannot import the
+#    separately-deployed workbench app.
+_AI_CHAT_WORKFLOW_MARKERS = frozenset({"chat-transcript"})
+_AI_CHAT_SNIFF_SUFFIXES = (".json", ".jsonl")
+_AI_CHAT_SNIFF_MAX_BYTES = 2 * 1024 * 1024  # matches workbench's upload-time sniff cap
+
+
+def _looks_like_ai_chat_export(path: Path) -> str | None:
+    """Return a short detection reason if `path` looks like an AI-chat
+    export, else None. Only .json/.jsonl are sniffed (same gate as
+    workbench's detector) — every other evidence format (XML, PDF, media,
+    device dumps) costs nothing here."""
+    if path.suffix.lower() not in _AI_CHAT_SNIFF_SUFFIXES:
+        return None
+    try:
+        with path.open("rb") as fh:
+            sample = fh.read(_AI_CHAT_SNIFF_MAX_BYTES)
+    except OSError:
+        return None
+    text = sample.decode("utf-8", errors="replace")
+
+    if path.suffix.lower() == ".jsonl":
+        for line in text.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+            except (json.JSONDecodeError, ValueError):
+                return None
+            if isinstance(obj, dict) and "type" in obj and any(k in obj for k in ("sessionId", "message", "uuid")):
+                return "content-sniff: .jsonl first line has a Claude Code session shape"
+            return None
+        return None
+
+    try:
+        data = json.loads(text)
+    except (json.JSONDecodeError, ValueError):
+        return None
+    if isinstance(data, dict):
+        data = [data]
+    if not isinstance(data, list) or not data or not isinstance(data[0], dict):
+        return None
+    head = data[0]
+    if "mapping" in head:
+        return "content-sniff: .json head has a 'mapping' key (ChatGPT export shape)"
+    if "chat_messages" in head:
+        return "content-sniff: .json head has a 'chat_messages' key (claude.ai export shape)"
+    return None
 
 
 def _get_engine():
@@ -203,6 +298,23 @@ def ingest_artifact(
     path = Path(src)
     if not path.is_file():
         raise FileNotFoundError(f"custody: source file not found: {path}")
+
+    # D-082 permanent AI-chat evidence fence (GAP-032/WP-C01) — checked before
+    # any hash/dedupe/blob-write/DB-insert. See AIChatEvidenceDenied.
+    meta_workflow = str((source_meta or {}).get("workflow", ""))
+    if meta_workflow in _AI_CHAT_WORKFLOW_MARKERS:
+        raise AIChatEvidenceDenied(
+            "AI-chat exports are permanently context-only (D-082) and can never enter evidence "
+            f"custody; denied before any write (workflow={meta_workflow!r}).",
+            detected_by="workflow-marker",
+        )
+    sniff_reason = _looks_like_ai_chat_export(path)
+    if sniff_reason is not None:
+        raise AIChatEvidenceDenied(
+            f"AI-chat exports are permanently context-only (D-082) and can never enter evidence "
+            f"custody; denied before any write ({sniff_reason}).",
+            detected_by="content-sniff",
+        )
 
     sha_hex = _sha256_file(path)
     digest = bytes.fromhex(sha_hex)

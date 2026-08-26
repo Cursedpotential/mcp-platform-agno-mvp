@@ -13,9 +13,16 @@ NOTE (2026-07-20): ported verbatim from `main` (commit 0a5b917) onto
 had no REST evidence-import route at all until now. Content unchanged from
 main; only its presence on this branch is new. See the C0 run-ledger task
 report for the full explanation.
+
+D-082 (2026-08-26): the chat-transcript workflow IS the AI-chat vertical by
+definition, and it is currently the ONLY workflow this route accepts — so
+POST /v1/evidence/import now permanently denies every request (see
+_DENIED_WORKFLOWS below) rather than reaching custody. AI-chat exports are
+context-only forever; GAP-032/WP-C01.
 """
 # Byline: Claude Code · Fable 5 · 2026-07-19 (C3 KnowledgeHandle live-resolve 2026-07-22 — Claude Code · Sonnet (agent))
 # Byline: Codex · GPT-5 · 2026-08-13 (ADR-0053 five-lane alignment)
+# Byline: Claude Code · Sonnet 5 · 2026-08-26 (D-082 permanent AI-chat evidence fence, GAP-032/WP-C01)
 
 from __future__ import annotations
 
@@ -48,6 +55,24 @@ _ALLOWED_DOMAINS = {
 
 _ALLOWED_WORKFLOWS = {"chat-transcript"}
 
+# D-082 permanent AI-chat evidence fence (GAP-032/WP-C01, owner-ruled
+# 2026-08-26 — docs/DECISION_LOG.md). AI-chat exports are permanently
+# context-only and can never be promoted to evidence custody. "chat-transcript"
+# IS the AI-chat workflow by definition (server/evidence/workflows.py's
+# chat-transcript vertical); today it is also the ONLY workflow this route
+# accepts, so this route currently has no allowed outcome other than denial.
+# If a future non-AI-chat workflow is ever added to _ALLOWED_WORKFLOWS, it
+# must NOT be added here. server/evidence/custody.py::ingest_artifact()
+# independently denies the same marker (defense in depth) if this check is
+# ever bypassed or this route is ever reordered.
+_DENIED_WORKFLOWS = {
+    "chat-transcript": (
+        "AI-chat exports are permanently context-only under D-082 and can never be promoted to "
+        "evidence custody (GAP-032/WP-C01). Extraction of candidate events/claims/leads happens "
+        "through the context-ingest lane, not this endpoint."
+    ),
+}
+
 
 def register_evidence_routes(app: FastAPI, knowledge: Any) -> None:
     """Register evidence-workflow routes on the FastAPI app.
@@ -78,6 +103,13 @@ def register_evidence_routes(app: FastAPI, knowledge: Any) -> None:
         """
         if workflow not in _ALLOWED_WORKFLOWS:
             raise HTTPException(422, f"unknown workflow {workflow!r}; allowed: {sorted(_ALLOWED_WORKFLOWS)}")
+        if workflow in _DENIED_WORKFLOWS:
+            # Fail closed before touching the upload body, domain, source_meta,
+            # or run_chat_transcript/custody at all — zero I/O for a denied call.
+            raise HTTPException(
+                403,
+                {"denied": True, "workflow": workflow, "reason": _DENIED_WORKFLOWS[workflow]},
+            )
         if domain not in _ALLOWED_DOMAINS:
             raise HTTPException(422, f"unknown domain {domain!r}; allowed: {sorted(_ALLOWED_DOMAINS)}")
         try:

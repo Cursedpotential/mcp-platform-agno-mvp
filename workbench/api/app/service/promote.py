@@ -1,4 +1,5 @@
 # Byline: Claude Code · Sonnet (agent) · 2026-07-19
+# Byline: Claude Code · Sonnet 5 · 2026-08-26 (D-082 permanent AI-chat evidence fence, GAP-032/WP-C01)
 """Promote a staged file through the EXISTING platform ingestion API.
 
 New in the workbench (no donor equivalent — the donor kit chunked/embedded
@@ -7,18 +8,22 @@ off `detected_type`:
 
 - "doc" -> POST {AGENTOS_API_URL}/knowledge/content, then poll
   GET /knowledge/content/{content_id}/status until completed/failed.
-- "chat_export" -> POST {AGENTOS_API_URL}/v1/evidence/import
-  (workflow=chat-transcript).
+- "chat_export" -> DENIED, locally, before any network call. D-082
+  (docs/DECISION_LOG.md, owner-ruled 2026-08-26) permanently forbids
+  promoting AI-chat exports to evidence custody; GAP-032/WP-C01. This used to
+  POST {AGENTOS_API_URL}/v1/evidence/import (workflow=chat-transcript) — that
+  spine route now independently denies the same workflow too (defense in
+  depth, server/api/evidence_routes.py), but there is no legitimate outcome
+  left to wait on a round trip for.
 
-Both spine endpoints may not be deployed yet (P3 work) — a 404 from either is
-handled as a clear "not deployed yet" failure, not a crash. This module never
-touches Milvus/Postgres/LanceDB-chunks directly; it only calls the spine's own
-HTTP API and records the spine's response verbatim in `promote_result`.
+The "doc" spine endpoint may not be deployed yet (P3 work) — a 404 is handled
+as a clear "not deployed yet" failure, not a crash. This module never touches
+Milvus/Postgres/LanceDB-chunks directly; it only calls the spine's own HTTP
+API and records the spine's response verbatim in `promote_result`.
 """
 
 from __future__ import annotations
 
-import json
 import logging
 import time
 
@@ -119,27 +124,25 @@ def _promote_doc(record: dict, client: httpx.Client) -> dict:
     return {"status": "failed", "content_id": content_id, "error": "promote timed out waiting for spine"}
 
 
+# D-082 permanent AI-chat evidence fence (GAP-032/WP-C01, owner-ruled
+# 2026-08-26). "failed" (not a new status string) so no frontend/type change
+# is needed — workbench/web's StagedStatus union stays "staged" | "promoting"
+# | "promoted" | "failed" — but the message is unmistakably a permanent
+# policy denial, not a transient "spine unreachable" failure, so an operator
+# (or a test) can't confuse the two.
+_CHAT_EXPORT_DENIAL = (
+    "DENIED (permanent, D-082): AI-chat exports are context-only and can never be promoted to "
+    "evidence. No promotion attempted; no network call made. See docs/DECISION_LOG.md#D-082, "
+    "GAP-032/WP-C01."
+)
+
+
 def _promote_chat_export(record: dict, client: httpx.Client) -> dict:
-    file_bytes, filename = _load_file_bytes(record)
-    meta = record.get("meta") or {}
-    form = {
-        "workflow": "chat-transcript",
-        "domain": meta.get("domain", ""),
-        "source_meta": json.dumps({"source_platform": meta.get("source_platform", ""), "sha256": record["id"]}),
-    }
-    response = client.post(
-        f"{settings.agentos_api_url}/v1/evidence/import",
-        files={"file": (filename, file_bytes, record.get("mime") or "application/octet-stream")},
-        data=form,
-        headers=_auth_headers(),
-    )
-    if response.status_code == 404:
-        return {"status": "failed", "error": "spine endpoint not deployed yet"}
-    response.raise_for_status()
-    body = response.json()
-    records_stored = body.get("records_stored", 0)
-    ok = body.get("status") in ("ok", "success") or records_stored > 0
-    return {"status": "promoted" if ok else "failed", "response": body}
+    # Denied locally, before any spine call — see _CHAT_EXPORT_DENIAL and the
+    # module docstring. `record`/`client` args kept for call-site symmetry
+    # with _promote_doc; unused here by construction.
+    del record, client
+    return {"status": "failed", "error": _CHAT_EXPORT_DENIAL, "denied": True}
 
 
 def promote(file_id: str) -> dict:
