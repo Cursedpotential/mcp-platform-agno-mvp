@@ -1,0 +1,124 @@
+# WP-E01 Podman-compatibility variant of docker-compose.yml for the isolated
+# smoke-test stack. NOT an upstream file. docker-compose.yml (the canonical
+# upstream dev compose) is unmodified; this file exists solely because this
+# machine's WSL2 Arch + Podman rootless network stack (mirrored networking
+# mode) has ports 5000, 5001, 8080, 9090, and 15000 already unavailable to
+# podman's rootlessport for reasons external to this project -- verified free
+# at the Windows host and WSL kernel socket-table level (ss, netstat,
+# /proc/net/tcp, PowerShell TcpListener) yet podman rootlessport (pasta and
+# slirp4netns backends, rootless and rootful) consistently refuses to bind
+# exactly those ports host-wide, while an arbitrary port like 19091 binds
+# instantly. Root cause not fully isolated -- most likely a leaked port
+# reservation from another actor sharing this host's WSL2 mirrored network
+# namespace (Podman Desktop's separate "podman-horizon-swift-mvp" machine is
+# present on this host and is the leading suspect) -- but exhaustively
+# confirmed to be external to this stack, not a defect in the upstream
+# compose file. A podman-compose two-file `-f a -f b` merge was tried first;
+# podman-compose concatenates list-type `ports:` entries rather than
+# replacing them, so a merge overlay left the original (blocked) ports
+# in place alongside the new ones. A standalone file avoids that ambiguity.
+# See TIMESKETCH-FORK-WP-E01-HANDOFF.md for the full diagnostic trail.
+#
+# Only the two `ports:` blocks (timesketch, prometheus) differ from
+# docker-compose.yml. Everything else -- service names, images, environment,
+# healthchecks, depends_on, volumes, network -- is identical.
+services:
+  timesketch:
+    container_name: timesketch-dev
+    image: us-docker.pkg.dev/osdfir-registry/timesketch/dev:latest
+    command: timesketch
+    ports:
+      - 127.0.0.1:15005:5000
+      - 127.0.0.1:15006:5001
+      - 127.0.0.1:18080:8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+      opensearch:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - PYTHONUNBUFFERED=1
+      - POSTGRES_USER=timesketch
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_ADDRESS=postgres
+      - POSTGRES_PORT=5432
+      - OPENSEARCH_HOST=opensearch
+      - OPENSEARCH_PORT=9200
+      - REDIS_ADDRESS=redis
+      - REDIS_PORT=6379
+      - TIMESKETCH_USER=dev
+      - TIMESKETCH_PASSWORD=dev
+      - CHOKIDAR_USEPOLLING=true
+      - PROMETHEUS_MULTIPROC_DIR=/tmp/
+      - TIMESKETCH_OTEL_MODE=${TIMESKETCH_OTEL_MODE:-}
+      - TIMESKETCH_OTLP_GRPC_ENDPOINT=${TIMESKETCH_OTLP_GRPC_ENDPOINT:-otel-collector:4317}
+      - TIMESKETCH_OTLP_HTTP_ENDPOINT=${TIMESKETCH_OTLP_HTTP_ENDPOINT:-http://otel-collector:4318/v1/traces}
+      - TIMESKETCH_OTLP_INSECURE=${TIMESKETCH_OTLP_INSECURE:-true}
+    restart: always
+    volumes:
+      - ../../:/usr/local/src/timesketch/
+
+  opensearch:
+    container_name: opensearch
+    image: opensearchproject/opensearch:2.19.5
+    restart: always
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - network.host=0.0.0.0
+      - "OPENSEARCH_JAVA_OPTS=-Xms2g -Xmx2g"
+      - "DISABLE_INSTALL_DEMO_CONFIG=true"
+      - "DISABLE_SECURITY_PLUGIN=true"
+      - "cluster.routing.allocation.disk.threshold_enabled=false"
+      - "logger.level=WARN"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=50s"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  postgres:
+    container_name: postgres
+    image: postgres:13.1-alpine
+    environment:
+      - POSTGRES_USER=timesketch
+      - POSTGRES_PASSWORD=password
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U timesketch -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    container_name: redis
+    image: redis:7.2.11-alpine
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  prometheus:
+    container_name: prometheus
+    image: prom/prometheus:v2.24.1
+    user: root
+    volumes:
+      - ./prometheus:/etc/prometheus
+    ports:
+      - 127.0.0.1:19090:9090
+    command: --config.file=/etc/prometheus/prometheus.yml --log.level=warn
+
+networks:
+  default:
+    name: timesketch-network
