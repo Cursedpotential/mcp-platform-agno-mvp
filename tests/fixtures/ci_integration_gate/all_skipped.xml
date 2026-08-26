@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites>
+  <testsuite name="pytest" tests="2" failures="0" errors="0" skipped="2" time="0.02">
+    <testcase classname="tests.integration.test_ingest_scratch_live" name="test_markdown_and_sbv_export_land_in_scratch_postgres" time="0.001">
+      <skipped message="scratch integration is opt-in" type="pytest.skip" />
+    </testcase>
+    <testcase classname="tests.test_schema_docs_current" name="test_live_relations_match_committed_catalog" time="0.001">
+      <skipped message="DB_PASS not resolvable from ~/.secrets/Agno-MCP-Platform.env" type="pytest.skip" />
+    </testcase>
+  </testsuite>
+</testsuites>

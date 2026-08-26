@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites>
+  <testsuite name="pytest" tests="4" failures="0" errors="0" skipped="0" time="3.4">
+    <testcase classname="tests.test_schema_docs_current" name="test_catalog_json_exists" time="0.01" />
+    <testcase classname="tests.test_schema_docs_current" name="test_live_relations_match_committed_catalog" time="1.1" />
+    <testcase classname="tests.integration.test_ingest_scratch_live" name="test_markdown_and_sbv_export_land_in_scratch_postgres" time="1.9" />
+    <testcase classname="tests.test_timeline_projection" name="test_live_build_generation_idempotent_and_supersedes_prior" time="0.4" />
+  </testsuite>
+</testsuites>
