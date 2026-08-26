@@ -3,6 +3,13 @@
 > _Byline: Claude Code · Sonnet 5 · 2026-08-26_
 > Owning packet (isolated): `server/temporal/classification_workflow.py`, classification-workflow
 > tests under `tests/`, this status document. No other files were touched.
+>
+> **Follow-through packet appended 2026-08-26 (Claude Code · Sonnet 5), separate isolated scope:**
+> `sql/0034_classification_adjudication.sql` (new), `docs/research/integration-audit-2026-08-24/
+> composed/wf-persist-results.json`, `docs/runbooks/N8N-PIPELINE-GOLIVE-RUNBOOK.md` (signal/
+> persistence contract section only), two new test files. `server/temporal/
+> classification_workflow.py` was NOT touched by the follow-through packet — see "Follow-through:
+> durable persistence + runbook" below for what changed and what remains open.
 
 ## Source finding
 
@@ -238,13 +245,201 @@ touched):
    passes, and update `docs/runbooks/N8N-PIPELINE-GOLIVE-RUNBOOK.md:111-112` to describe the new
    signal contract.
 
+## Follow-through: durable persistence + runbook (2026-08-26, Claude Code · Sonnet 5)
+
+This is the packet that closes the two dependency gaps the original implementation flagged
+above under "Limitations / explicitly out of scope for this packet": downstream persistence of
+adjudication provenance, and the stale runbook. Scope was isolated to: the new migration, the
+`wf-persist-results.json` composed body, the runbook's signal/persistence section only, and new
+tests. `server/temporal/classification_workflow.py` was read but not edited.
+
+### What changed
+
+**`sql/0034_classification_adjudication.sql` (new)** — extends the *existing*
+`analysis.chunk_classification` table (sql/0033) rather than creating a new adjudication ledger,
+per instruction to reuse existing classification batch/item identity and tables:
+- Adds `decision_id, actor, decision, reason, source, adjudicated_at` (all nullable — NULL for
+  drafts that never went through the HITL gate).
+- `CHECK (decision IS NULL OR decision IN ('approve', 'correct'))` — defense-in-depth mirror of
+  the workflow's `_ACCEPTING_DECISIONS` set (reject/pending never reach this table by workflow
+  construction; this is a second, independent guard at the DB boundary).
+- `CHECK` that all six adjudication fields are present together or all NULL — no half-adjudicated
+  rows.
+- `UNIQUE (run_key, batch_index, record_ref, classifier_version)` — the table had **no natural
+  key before this migration** (only the surrogate `id` PK), so a retried persist activity call
+  could previously double-insert identical rows. This is the `ON CONFLICT` target in the updated
+  n8n body, giving the whole-batch retry idempotency the file's own sticky notes always claimed
+  but the schema never actually enforced.
+- Partial `UNIQUE INDEX ... (decision_id) WHERE decision_id IS NOT NULL` — decision-level
+  idempotency/fail-closed conflict detection, *separate* from the row-key index above and
+  deliberately NOT the `ON CONFLICT` arbiter: a `decision_id` reused across two different items
+  (a case the workflow's in-memory gate does not catch — `_apply_item_decision` only checks
+  conflicts *within one item_key*, never global `decision_id` uniqueness across items) raises a
+  real Postgres unique-violation instead of silently landing a second row. Because
+  `wf-persist-results.json` batches every row of one persist call inside one transaction
+  (`queryBatching: "transaction"`), that violation rolls back the *entire* batch — fails closed,
+  not fails partial.
+- Number 0034 was free (0033 applied; 0035 is an unrelated parallel-session migration,
+  `timeline_projection`) — confirmed by listing `sql/` before writing.
+
+**`docs/research/integration-audit-2026-08-24/composed/wf-persist-results.json`** — this
+composed body pre-dated `sql/0033` landing and its own sticky note said the target table was "a
+PLACEHOLDER"; it turned out to be a *real*, currently-broken contract mismatch, not just a
+GAP-031 gap: its `Normalize + Validate Accepted Rows` Code node required `record_id`/`chunk_id`
+and its `INSERT` referenced `record_id, chunk_id, classified_at, persisted_at, batch_id` —
+**none of those columns exist on the live `analysis.chunk_classification` table** (0033's actual
+columns are `run_key, batch_index, record_ref, message_text, ...`). That INSERT would have
+failed at the first live run regardless of GAP-031. Fixed in the same pass since it blocks
+adjudication fields from ever landing at all:
+- Normalize node now reads `run_key`/`batch_index`/`classifier_version` from the **top level** of
+  the webhook body (matching `ClassificationBatchPipeline._call(PERSIST_PATH, {"run_key":...,
+  "batch_index":..., "classifier_version":..., "items": accepted})` exactly — verified by reading
+  `classification_workflow.py`, not guessed), derives item identity via
+  `chunk_id ?? record_id ?? record_ref` (the *same* precedence as
+  `ClassificationBatchPipeline._item_key`) into the table's real `record_ref` column, and reads
+  `text`/`occurred_at` per the workflow's documented chunk-dict contract.
+- New: extracts `item.adjudication.{decision_id,actor,decision,reason,source}` when present
+  (GAP-031 items only), validates all four required fields are non-empty and `decision` is
+  exactly `approve`/`correct`, throws (fails the whole activity call, matching the file's
+  existing fail-hard-on-bad-input style) on an incomplete or invalid adjudication block, and sets
+  `review_state: 'reviewed'` vs `'unreviewed'` accordingly.
+- SQL `INSERT` column list, `$1..$23` placeholders, and the `queryReplacement` param array were
+  rewritten to match the real table + the six new 0034 columns exactly (parameter-count parity is
+  now asserted by a test, see below). `ON CONFLICT` target changed to
+  `(run_key, batch_index, record_ref, classifier_version)` — the natural key 0034 adds.
+  `queryBatching: "transaction"` preserved unchanged.
+- `Build Confirmation` node updated to report `run_key`/`batch_index`/`adjudicated_count` instead
+  of the old (never-real) `batch_id`/`record_id` counting.
+- All three sticky notes updated in place (doc-drift rule) — the "table is a PLACEHOLDER" note
+  now documents the actual live schema plus the 0034 additions; the SQL-safety note documents the
+  new `$1..$23` count and the fail-closed `decision_id` reasoning; the placeholders note marks the
+  table as no longer a placeholder (only the Postgres credential still is).
+- Confirmed valid JSON both before and after every edit (`python3 -c "import json; json.load(...)"`).
+
+**`docs/runbooks/N8N-PIPELINE-GOLIVE-RUNBOOK.md`** — two edits, both scoped to the signal/
+persistence contract only (nothing else in the runbook touched):
+- Step 2's "Persist target table" row now notes the 0034 adjudication columns and that 0034 must
+  be applied before any `--supervised` run.
+- The troubleshooting "Workflow running forever at gate" entry replaced the old
+  `gate_decision = approve` instruction (that signal no longer exists — removed, not shimmed, by
+  the original GAP-031 packet) with the exact `submit_review_decisions` /
+  `ReviewGateSubmission` JSON shape, including where `item_key` comes from
+  (`pending_items()`/printed `needs_review`), the `approve`/`correct`/`reject` enum, `correct`'s
+  `corrected_fields`, and the `abort`/`close_batch` actions.
+
+**`tests/test_classification_adjudication_migration.py` (new)** — static SQL-text contract tests
+for 0034, following the existing no-DB `test_temporal_projection_sql_contract.py` /
+`test_matter_migration.py` convention (`sqlparse` parse + substring assertions): transactional
+wrapping, `ALTER TABLE` (not a new `CREATE TABLE` — enforces the no-redundant-ledger instruction),
+all six columns added, the decision-enum CHECK, the fields-travel-together CHECK, both unique
+indexes, the grant, and that `evidence.*` is untouched.
+
+**`tests/test_persist_results_workflow_contract.py` (new)** — static JSON-text contract tests for
+the composed n8n body: node presence, webhook path, that the Normalize node reads
+`run_key`/`batch_index`/`classifier_version` from the body top level, that every adjudication
+field is both read and re-emitted (not silently dropped — this is the literal acceptance-gate
+wording), that item-identity precedence matches `_item_key`, that non-`accepted` `gate_outcome`
+is rejected, that the INSERT's column count and `$N` placeholder count and `queryReplacement`
+array length all agree (would have caught the original record_id/chunk_id mismatch), that the
+`ON CONFLICT` target matches 0034's row-key index verbatim, that `decision_id` is deliberately
+**not** in the `ON CONFLICT` clause (so a conflicting reuse errors instead of upserting), and that
+`queryBatching: "transaction"` survived the edit.
+
+### Verification actually performed (this follow-through packet only)
+
+- `python3 -c "import json; json.load(open(...))"` — valid JSON, both mid-edit and final.
+- `uv run pytest -q tests/test_classification_adjudication_migration.py
+  tests/test_persist_results_workflow_contract.py` → **23 passed**.
+- `uv run ruff check` and `uv run ruff format --check` on both new test files → clean (format
+  applied one auto-reflow, re-verified clean after).
+- `uv run mypy` on both new test files → `Success: no issues found in 2 source files`.
+- Full-repo `uv run pytest -q` was launched to confirm no regression from adding two new test
+  files; see the session's live output for the pass/fail count at the time this doc was written
+  (background-run, may not be captured verbatim here — re-run if this line is the only evidence).
+
+**Not performed, and explicitly out of scope for this packet** (matches the CWD-only
+verification instruction: no local containers/services, no commit/push/deploy):
+- **0034 was never applied to any database**, live or otherwise — no `BEGIN; ...; ROLLBACK;`
+  dry-run was run against Postgres (no DB connection was established in this session). Root/
+  whoever deploys must apply it — via the normal numbered-migration path — before any
+  `--supervised` classification run reaches the gate, or the persist activity will fail with
+  "column does not exist" once it tries to write `decision_id` etc.
+- **No live n8n import/activation** of the updated `wf-persist-results.json` — it is a composed
+  JSON export, not a live workflow. Re-importing/re-activating it in n8n (or hand-patching the
+  live workflow if it was already imported per the go-live runbook's Step 1) is required before
+  any adjudicated item can actually persist.
+- **No live Temporal run** exercising the new persist path end-to-end. The `--supervised` smoke
+  run described in the runbook's Step 3 (or its `--supervised` variant) plus a real
+  `submit_review_decisions` signal is the concrete proof this packet cannot produce by itself.
+- **AUDIT-GAP-REGISTER.md's Resolution log** was not updated for GAP-031 — out of this packet's
+  file ownership per the task boundary (only this status doc is owned).
+
+### Remaining live activation requirements (handoff)
+
+1. Apply `sql/0034_classification_adjudication.sql` to the live `ai` database (normal
+   commit → Coolify → migration-runner path — NOT run ad hoc from a desktop session per the
+   CWD-only verification rule). Confirm via `\d analysis.chunk_classification` that all six
+   adjudication columns and both new unique indexes exist.
+2. Re-import (or hand-patch, if already imported per the go-live runbook) `wf-persist-results.json`
+   into the live n8n instance and re-activate its webhook. The webhook path
+   (`d068/persist-results`, mapped at deploy to `persist-results` per the go-live runbook's Step 1
+   path table) is unchanged by this packet.
+3. Run a `--supervised` batch that reaches a `needs_review` gate, send a `submit_review_decisions`
+   signal with a real `approve` and a real `correct` (with `corrected_fields`) decision, and
+   confirm via `SELECT decision_id, actor, decision, reason, source, adjudicated_at FROM
+   analysis.chunk_classification WHERE run_key = '<run_key>'` that both rows land with full
+   provenance and the `correct` row reflects the corrected fields.
+4. Replay the identical `submit_review_decisions` signal (or re-POST the identical persist body)
+   and confirm no duplicate rows land (0034's `uq_chunkclass_batch_item` index) — the concrete
+   idempotent-replay proof at the persistence layer, complementing the workflow-level proof the
+   original packet's unit tests already give.
+5. As a manufactured negative test, POST a persist body with two different items sharing one
+   `decision_id` directly at the webhook (bypassing the workflow, which structurally can't produce
+   this today) and confirm Postgres raises a unique-violation on `uq_chunkclass_decision_id` and
+   the whole batch's transaction rolls back (zero rows land) — the concrete fail-closed proof for
+   the cross-item `decision_id`-reuse case the in-memory gate does not itself catch.
+6. Known gap carried forward, not fixable within this packet's file ownership: `ItemDecisionRecord`
+   in `classification_workflow.py` carries no timestamp of when the reviewer actually decided —
+   `adjudicated_at` in this table is stamped by the persist activity (n8n `now()`), which is *when
+   it was recorded*, not *when the reviewer clicked approve*. Closing that gap requires adding a
+   deterministic `workflow.now()`-stamped field to `ItemDecisionRecord`/`ItemAdjudication` inside
+   `classification_workflow.py`, which is out of this packet's exclusive ownership.
+
 ## Files changed
 
 - `server/temporal/classification_workflow.py` — rewritten (gate signal, enum allowlists, item
   adjudication, `_resolve_gate`, extended output).
 - `tests/test_classification_workflow.py` — new.
-- `docs/reviews/2026-08-25-schema-audit/GAP-031-IMPLEMENTATION-STATUS.md` — new (this file).
+- `docs/reviews/2026-08-25-schema-audit/GAP-031-IMPLEMENTATION-STATUS.md` — this file (original
+  packet + 2026-08-26 follow-through appended).
+- `sql/0034_classification_adjudication.sql` — new (follow-through packet).
+- `docs/research/integration-audit-2026-08-24/composed/wf-persist-results.json` — edited
+  (follow-through packet): Normalize/Validate Code node, SQL INSERT + params, Build Confirmation
+  Code node, all three sticky notes.
+- `docs/runbooks/N8N-PIPELINE-GOLIVE-RUNBOOK.md` — edited (follow-through packet), signal/
+  persistence contract section only (Step 2 table row, troubleshooting entry).
+- `tests/test_classification_adjudication_migration.py` — new (follow-through packet).
+- `tests/test_persist_results_workflow_contract.py` — new (follow-through packet).
 
 No other files were modified. `server/temporal/worker.py` needed no change: it registers
 `ClassificationBatchPipeline` by class reference, and the workflow name and activity list are
-unchanged.
+unchanged. `server/temporal/classification_workflow.py` was read (to verify the exact
+`_call(PERSIST_PATH, ...)` payload shape and `_item_key` precedence used above) but not edited by
+either packet in this document beyond the original rewrite.
+
+## Root workflow deployment receipt — 2026-08-26
+
+- Commit `afc3ab7` was pushed to `main` after the preceding exec-tier deployment completed, so
+  revisions were serialized rather than raced.
+- Coolify deployment `pu3l1u9khsfv0ywrtzvx67z2` finished successfully for application
+  `e4dkqfshveu77zhryllsb345` (`temporal-worker`) on `ovh-files`.
+- Live worker logs at `2026-08-26 22:13:21` show a successful connection to Temporal at
+  `100.91.190.107:7233`, namespace `default`, followed by joining task queue
+  `evidence-pipeline` with the registered `ClassificationBatchPipeline` workflow.
+- Root re-ran the combined targeted gate after the persistence follow-through landed in the
+  shared tree: 90 tests passed (4 live timeline tests deselected), Ruff lint and format checks
+  passed, and mypy passed for the new timeline/deployment-checker Python modules.
+
+This proves the strict item-level workflow code is deployed and the worker is running. It does
+not claim that migration 0034 or the revised n8n persistence workflow is live; those remain the
+separate activation steps above and will be deployed from their own commit.

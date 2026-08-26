@@ -64,7 +64,7 @@ substitution and fix if the composed value differs.)
 | `{{THRESHOLD}}` | `0.7` |
 | `{{PLATFORM_API}}` + bearer | NOT needed for these three workflows (only intake uses it) — skip |
 | Postgres credential (persist) | create n8n credential type `postgres`: host `100.91.190.107`, port `5432`, db `ai`, user `agno_app`, password from the Coolify exec-tier env `DB_PASS` (ask the owner to paste it into the n8n credential UI if you cannot read Coolify; NEVER write it into a file) |
-| Persist target table | `analysis.chunk_classification` (exists; columns in sql/0033) |
+| Persist target table | `analysis.chunk_classification` (exists; base columns in sql/0033, GAP-031 item-level adjudication columns `decision_id`/`actor`/`decision`/`reason`/`source`/`adjudicated_at` added by sql/0034 — apply 0034 before running any `--supervised` batch, or adjudicated items will fail to persist) |
 | errorWorkflow setting | after importing wf-error-handler, set its workflow id as the Error Workflow of the other three (PATCH each workflow's `settings.errorWorkflow`) |
 
 ## Step 3 — first smoke run (ONE batch of 10, unsupervised)
@@ -108,7 +108,40 @@ purge, repeat. NOTHING here graduates to real corpus runs until the owner says s
   'docker logs --tail 5 $(docker ps --format "{{.Names}}" | grep e4dkqfshveu | head -1)'`
 - Webhook 404 from the activity: workflow not ACTIVE or path mismatch (step 1 paths).
 - n8n API 401: wrong token (use `N8N_API_KEY`, not the MCP token); or the key expired (2026-09-22).
-- Workflow "running" forever at gate: you started with `--supervised` — send the Signal from
-  Temporal UI (`gate_decision` = `approve`) or rerun unsupervised.
+- Workflow "running" forever at gate: you started with `--supervised`. **The old free-text
+  `gate_decision` signal was REMOVED 2026-08-26 (GAP-031) — it is not registered on the workflow
+  anymore and sending it does nothing.** Send the `submit_review_decisions` signal instead, with a
+  `ReviewGateSubmission`-shaped JSON body. From the Temporal UI's Send Signal panel on the running
+  workflow:
+  - Signal name: `submit_review_decisions`
+  - Input, to approve/correct specific items (get `item_key` values from the `pending_items()`
+    query or the run's printed `needs_review` items — each `item_key` is the item's `chunk_id`,
+    falling back to `record_id`, then `record_ref`):
+    ```json
+    {
+      "action": "submit_decisions",
+      "decisions": [
+        {
+          "decision_id": "<a fresh uuid you mint per decision — re-sending the SAME decision_id for the same item is a safe no-op retry>",
+          "item_key": "<from pending_items()>",
+          "actor": "<your identity>",
+          "decision": "approve",
+          "reason": "<why>",
+          "source": "temporal-ui"
+        }
+      ]
+    }
+    ```
+    `decision` must be exactly `approve`, `correct`, or `reject` — `correct` may also carry a
+    `corrected_fields` object merged onto the item before it persists. Anything outside
+    `{approve, correct, reject}`, or a decision missing `decision_id`/`actor`/`reason`/`source`, is
+    logged and dropped — the gate does NOT release and nothing is added to the persist payload.
+  - `{"action": "abort"}` ends the run at the gate (same as the old `gate_decision`/`abort`).
+  - `{"action": "close_batch"}` ends the wait without deciding every item — undecided items are
+    excluded from persistence and reported in `still_pending`, for a later review pass.
+  - Only items with a recorded `approve`/`correct` decision are ever sent to `persist-results`;
+    untouched and `reject`ed items never appear there. See
+    `docs/reviews/2026-08-25-schema-audit/GAP-031-IMPLEMENTATION-STATUS.md` for the full contract
+    and `server/temporal/classification_workflow.py` for the source of truth.
 - Postgres errors in persist: check the credential user is `agno_app` and the table exists
   (`SELECT count(*) FROM analysis.chunk_classification`).
