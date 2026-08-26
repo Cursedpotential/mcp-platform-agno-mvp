@@ -235,14 +235,23 @@ def run_canaries(engine: Any, client: Any, *, state: ActivationState, output_pat
             Filter.by_property("authority_state").equal("active"),
             Filter.by_property("source_availability_complete").equal(True),
         ]
-        visible = _count(collection, [*common, Filter.by_property("case_id").equal(row["case_id"]),
-                                      Filter.by_property("disclosure_tier").equal(row["disclosure_tier"]),
-                                      Filter.by_property("source_available_from").less_or_equal(available)])
+        visible = _count(
+            collection,
+            [
+                *common,
+                Filter.by_property("case_id").equal(row["case_id"]),
+                Filter.by_property("disclosure_tier").equal(row["disclosure_tier"]),
+                Filter.by_property("source_available_from").less_or_equal(available),
+            ],
+        )
         hidden_before = _count(
             collection,
-            [*common, Filter.by_property("case_id").equal(row["case_id"]),
-             Filter.by_property("disclosure_tier").equal(row["disclosure_tier"]),
-             Filter.by_property("source_available_from").less_or_equal(available - timedelta(microseconds=1))],
+            [
+                *common,
+                Filter.by_property("case_id").equal(row["case_id"]),
+                Filter.by_property("disclosure_tier").equal(row["disclosure_tier"]),
+                Filter.by_property("source_available_from").less_or_equal(available - timedelta(microseconds=1)),
+            ],
         )
         wrong_case = _count(collection, [*common, Filter.by_property("case_id").equal("__canary_wrong_case__")])
         wrong_tier = _count(
@@ -250,12 +259,24 @@ def run_canaries(engine: Any, client: Any, *, state: ActivationState, output_pat
             [*common, Filter.by_property("disclosure_tier").equal(_different_tier(row["disclosure_tier"]))],
         )
         passed = visible == 1 and hidden_before == 0 and wrong_case == 0 and wrong_tier == 0
-        results.append({"source_kind": row["source_kind"], "chunk_id": row["chunk_id"],
-                        "visible_at_boundary": visible, "hidden_before_boundary": hidden_before,
-                        "wrong_case": wrong_case, "wrong_tier": wrong_tier, "passed": passed})
-    receipt = {"byline": _byline(), "activation_id": state.activation_id,
-               "collection": EVIDENCE_VECTOR_COLLECTION, "results": results,
-               "passed": all(item["passed"] for item in results)}
+        results.append(
+            {
+                "source_kind": row["source_kind"],
+                "chunk_id": row["chunk_id"],
+                "visible_at_boundary": visible,
+                "hidden_before_boundary": hidden_before,
+                "wrong_case": wrong_case,
+                "wrong_tier": wrong_tier,
+                "passed": passed,
+            }
+        )
+    receipt = {
+        "byline": _byline(),
+        "activation_id": state.activation_id,
+        "collection": EVIDENCE_VECTOR_COLLECTION,
+        "results": results,
+        "passed": all(item["passed"] for item in results),
+    }
     _write_json(output_path, receipt)
     if not receipt["passed"]:
         raise RuntimeError(f"native evidence canaries failed: {receipt}")
@@ -284,8 +305,10 @@ def create_and_verify_alias(client: Any, *, reconciliation_path: Path, canary_pa
 def _queue_statuses(engine: Any, reason: str) -> dict[str, int]:
     with engine.connect() as connection:
         rows = connection.execute(
-            text("SELECT status,count(*)::int AS count FROM working.evidence_vector_projection_job "
-                 "WHERE reason=:reason GROUP BY status ORDER BY status"),
+            text(
+                "SELECT status,count(*)::int AS count FROM working.evidence_vector_projection_job "
+                "WHERE reason=:reason GROUP BY status ORDER BY status"
+            ),
             {"reason": reason},
         ).mappings()
         return {str(row["status"]): int(row["count"]) for row in rows}
@@ -313,8 +336,12 @@ def _postgres_manifest(engine: Any, state: ActivationState) -> list[dict[str, An
                 "AND job.authority_state='active' AND working.source_available_from(nr.id) IS NOT NULL "
                 "ORDER BY chunk.id"
             ),
-            {"reason": state.reason, "watermark": _parse_timestamp(state.watermark),
-             "dimension": EVIDENCE_EMBED_DIM, "embedder_version": "nvidia/nv-embed-v1@openai-compatible-v1"},
+            {
+                "reason": state.reason,
+                "watermark": _parse_timestamp(state.watermark),
+                "dimension": EVIDENCE_EMBED_DIM,
+                "embedder_version": "nvidia/nv-embed-v1@openai-compatible-v1",
+            },
         ).mappings()
         return [_canonical_manifest_row(row, vector_dimension=EVIDENCE_EMBED_DIM) for row in rows]
 
@@ -354,9 +381,11 @@ def _count(collection: Any, predicates: list[Any]) -> int:
 
 
 def _canonical_manifest_row(row: Mapping[str, Any], *, vector_dimension: int) -> dict[str, Any]:
-    result = {field: _json_value(row.get(field)) for field in MANIFEST_FIELDS if field not in {
-        "observed_content_sha256", "vector_dimension"
-    }}
+    result = {
+        field: _json_value(row.get(field))
+        for field in MANIFEST_FIELDS
+        if field not in {"observed_content_sha256", "vector_dimension"}
+    }
     content = str(row.get("content") or "")
     result["observed_content_sha256"] = hashlib.sha256(content.encode("utf-8")).hexdigest()
     result["vector_dimension"] = vector_dimension

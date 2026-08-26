@@ -67,8 +67,7 @@ def test_factor_description_matches_statute(letter: str, name_token: str, desc_t
     factor = _factors_by_letter()[letter]
 
     assert desc_token in factor["description"].lower(), (
-        f"factor ({letter}) description does not contain {desc_token!r}; "
-        f"got: {factor['description'][:120]!r}"
+        f"factor ({letter}) description does not contain {desc_token!r}; got: {factor['description'][:120]!r}"
     )
 
 
@@ -102,10 +101,8 @@ def test_domestic_violence_and_facilitation_are_not_transposed():
     k_name = factors["k"]["name"].lower()
 
     assert "domestic violence" not in j_name, (
-        "factor (j) is the facilitate-relationship factor, not domestic violence — "
-        f"got name {factors['j']['name']!r}"
+        f"factor (j) is the facilitate-relationship factor, not domestic violence — got name {factors['j']['name']!r}"
     )
     assert "domestic violence" in k_name, (
-        "factor (k) IS domestic violence under MCL 722.23(k) — "
-        f"got name {factors['k']['name']!r}"
+        f"factor (k) IS domestic violence under MCL 722.23(k) — got name {factors['k']['name']!r}"
     )

@@ -87,13 +87,15 @@ def test_h2_canonical_v2_reproduces_registry_vector():
 
 def test_h3_chain_v1_reproduces_both_registry_vectors():
     # vector 1: the (lost) h2-filebound-v1 pilot hash folded onto the H1 genesis
-    assert h3_entry_v1(
-        PILOT_H1, "bcd2b404aa3838e9eb1024a6708e56e6cd8185b271e1e8b29acba42472b167cb"
-    ) == "bc6538b346c192af04f5cdf2f0f42b766f2a95070307fc2aa0f495462ad34016"
+    assert (
+        h3_entry_v1(PILOT_H1, "bcd2b404aa3838e9eb1024a6708e56e6cd8185b271e1e8b29acba42472b167cb")
+        == "bc6538b346c192af04f5cdf2f0f42b766f2a95070307fc2aa0f495462ad34016"
+    )
     # vector 2: the h2-canonical-v2 vector folded onto the same genesis
-    assert h3_entry_v1(
-        PILOT_H1, "b6b3b4a557d4d02c60168a00d8edc233b68f3a1c14b514b545faddef2904ff46"
-    ) == "676bd4e40eb3556d052ac03782854e5018819aecca855a9664e60eceb9351ca9"
+    assert (
+        h3_entry_v1(PILOT_H1, "b6b3b4a557d4d02c60168a00d8edc233b68f3a1c14b514b545faddef2904ff46")
+        == "676bd4e40eb3556d052ac03782854e5018819aecca855a9664e60eceb9351ca9"
+    )
 
 
 def test_h3_chain_composes_end_to_end_from_h2():
@@ -105,10 +107,7 @@ def test_h3_chain_composes_end_to_end_from_h2():
 
 def test_h1_is_plain_sha256():
     assert h1_rawbytes_v1(b"") == hashlib.sha256(b"").hexdigest()
-    assert (
-        h1_rawbytes_v1(b"hello")
-        == "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
-    )
+    assert h1_rawbytes_v1(b"hello") == "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
 
 
 def test_lost_h2_filebound_v1_vectors_are_preserved_not_reproducible():
@@ -119,13 +118,9 @@ def test_lost_h2_filebound_v1_vectors_are_preserved_not_reproducible():
     from 'reconstructing' it wrongly)."""
     lost_vector = "bcd2b404aa3838e9eb1024a6708e56e6cd8185b271e1e8b29acba42472b167cb"
     # still chains:
-    assert h3_entry_v1(PILOT_H1, lost_vector) == (
-        "bc6538b346c192af04f5cdf2f0f42b766f2a95070307fc2aa0f495462ad34016"
-    )
+    assert h3_entry_v1(PILOT_H1, lost_vector) == ("bc6538b346c192af04f5cdf2f0f42b766f2a95070307fc2aa0f495462ad34016")
     # and is NOT what h2-canonical-v2 yields for the same record:
-    naive = h2_canonical_v2(
-        PILOT_H1, 0, "them", "2019-02-21 22:03:00+00:00", "Oh haaaay."
-    )
+    naive = h2_canonical_v2(PILOT_H1, 0, "them", "2019-02-21 22:03:00+00:00", "Oh haaaay.")
     assert naive != lost_vector, (
         "If this ever PASSES as equal, the lost recipe has been found — "
         "celebrate, then update the canon registry and doc immediately."

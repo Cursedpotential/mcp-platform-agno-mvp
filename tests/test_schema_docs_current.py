@@ -10,6 +10,7 @@ pg_catalog from the live PG18 on ovh-files and diffs relation names + column
 Live-only by policy (no fixtures, no mocks). Skips only when the env file that
 holds DB_PASS is absent (e.g. CI without tailnet), and says so loudly.
 """
+
 from __future__ import annotations
 
 import json
@@ -72,7 +73,9 @@ def test_live_relations_match_committed_catalog() -> None:
     live, doc = _live(), _committed()
     only_live = sorted(set(live) - set(doc))
     only_doc = sorted(set(doc) - set(live))
-    assert not only_live, f"relations in LIVE ai but not in docs/schema/catalog.json (regenerate, or an out-of-band CREATE happened): {only_live}"
+    assert not only_live, (
+        f"relations in LIVE ai but not in docs/schema/catalog.json (regenerate, or an out-of-band CREATE happened): {only_live}"
+    )
     assert not only_doc, f"relations in docs/schema/catalog.json but gone from LIVE (regenerate): {only_doc}"
 
 
