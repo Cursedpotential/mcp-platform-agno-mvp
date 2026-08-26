@@ -6,14 +6,23 @@ Builds the ``PlatformContext`` runtime bundle consumed by
 Context-provider architecture::
 
     WorkspaceContextProvider  → codebase navigation tools (read-only).
-    DatabaseContextProvider   → DB tools (split: write engine for ``analysis``,
-                                readonly engine for ``evidence``).
+    DatabaseContextProvider   → ``query_database`` (read, evidence-scoped engine)
+                                only — ``write=False`` (GAP-004); no Agno-native
+                                ``update_database`` tool reaches ordinary agents.
     LearningMachine           → operational memory (session context, user memory,
                                 entity memory, learned knowledge).
 
 The evidence read-only guarantee is INFRASTRUCTURE-LEVEL: the readonly engine
 sets ``default_transaction_read_only=on`` at the connection level, so sub-agents
 physically cannot write to the ``evidence`` schema (ADR-0005).
+
+Authority-bearing writes do NOT go through a Context Provider. The only
+platform-owned governed write contract is ``apply_db_modification``
+(``agents/factory.py``): schema-allowlisted, ``evidence``-hard-denied,
+``@approval``-gated (blocking HITL, persisted pending-approval row), and
+transaction-bound. Agno is a replaceable runtime adapter and holds no
+independent authority-bearing writer (GAP-004,
+``docs/reviews/2026-08-25-schema-audit/GAP-004-IMPLEMENTATION-STATUS.md``).
 
 MCP servers (Graphiti, future tools) are wired here and appended to the
 ``source_tools`` list on ``PlatformContext``.
@@ -23,6 +32,8 @@ Public entry points:
 - ``build_learning(db, model, knowledge) -> LearningMachine``
 """
 # Byline: Claude Code · Fable 5 · 2026-07-31 (Weaviate docstring fix (ADR-0040))
+# Byline: Claude Code · Sonnet 5 · 2026-08-26 (GAP-004: db_provider write=False —
+# deny the Agno-native `update_database` writer for ordinary agents)
 
 from __future__ import annotations
 
@@ -149,11 +160,32 @@ def build_context(
     analysis_engine = _make_engine(db_url)
     evidence_engine = _make_engine(db_url, readonly=True)
 
+    # GAP-004 (docs/reviews/2026-08-25-schema-audit/AUDIT-GAP-REGISTER.md):
+    # agno's DatabaseContextProvider defaults to write=True, which builds an
+    # `update_<id>` tool (`update_database`) — a raw natural-language-to-SQL
+    # write sub-agent bound directly to `analysis_engine` with NO approval
+    # gate, NO evidence-schema fence, and NO allowlist (verified against
+    # installed agno 2.8.6/2.8.7,
+    # .venv/Lib/site-packages/agno/context/database/provider.py:36-53,
+    # 109-115,130-140,173-182). That tool would have landed in `source_tools`
+    # below and been handed to every "ordinary" agent (ingestion/analysis
+    # orchestrators, transcript miner) — an independent, ungoverned,
+    # authority-bearing writer sitting next to `apply_db_modification`
+    # (factory.py), the ONE platform-owned governed write contract:
+    # schema-allowlisted, evidence-schema hard-denied, `@approval`-gated
+    # (blocking HITL, a pending-approval row persisted before the body
+    # runs), and transaction-bound (`.begin()`). `write=False` here denies
+    # the Agno-native writer at the adapter boundary — Agno is a replaceable
+    # runtime, not an independent authority — while leaving `query_database`
+    # (read) intact. `analysis_engine` stays as the required constructor
+    # arg for a future explicit write=True reactivation; it is inert while
+    # write=False (the write sub-agent is built lazily and never invoked).
     db_provider = DatabaseContextProvider(
         id="database",
-        sql_engine=analysis_engine,  # write sub-agent -> analysis schema
+        sql_engine=analysis_engine,  # inert while write=False; kept for future explicit opt-in
         readonly_engine=evidence_engine,  # read sub-agent  -> cannot write
         model=model,
+        write=False,  # GAP-004: no independent Agno writer for ordinary agents
     )
     db_tools = db_provider.get_tools()
 

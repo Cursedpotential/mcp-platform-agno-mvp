@@ -56,6 +56,14 @@ from server.agents.instructions import get_instructions
 # On approve-and-continue the body runs the real write. The ``evidence`` schema
 # is protected twice: a statement guard here, plus the infrastructure-level
 # read-only engine on every read path (ADR-0005).
+#
+# GAP-004 (docs/reviews/2026-08-25-schema-audit/AUDIT-GAP-REGISTER.md /
+# GAP-004-IMPLEMENTATION-STATUS.md): this is THE platform-owned governed
+# write contract every authority-bearing write must cross. Agno itself is a
+# replaceable runtime adapter and holds no independent authority-bearing
+# writer — ``agents/providers.py`` denies the Agno-native
+# ``DatabaseContextProvider`` write tool (``write=False``) so no ordinary
+# agent ever receives an ungoverned ``update_database`` alongside this tool.
 
 _write_engine: Any = None  # lazy: created on first approved write, not at import
 
