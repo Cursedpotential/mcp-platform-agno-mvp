@@ -1,10 +1,27 @@
 "use client";
 
 import { useCompletion } from "@ai-sdk/react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { LLM_PROBE_URL } from "@/lib/config";
 import { api, type Provider, type ProbesCatalog } from "@/lib/api";
+
+/** Several providers are routers/aggregators (NIM re-exports nvidia/meta/
+ * z-ai/..., OpenRouter re-exports dozens of orgs, Groq carries openai/meta
+ * families) — group by the org prefix before the first "/" so the dropdown
+ * reads as "nvidia > nemotron-3-super" instead of one flat 100+ item list.
+ * Ids with no "/" (Ollama Cloud, most single-org providers) fall into one
+ * group named after the provider itself. */
+function groupModelsByFamily(models: string[], providerName: string): [string, string[]][] {
+  const groups = new Map<string, string[]>();
+  for (const id of models) {
+    const slash = id.indexOf("/");
+    const family = slash > 0 ? id.slice(0, slash) : providerName;
+    if (!groups.has(family)) groups.set(family, []);
+    groups.get(family)!.push(id);
+  }
+  return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([f, ids]) => [f, ids.sort()]);
+}
 
 export default function PlaygroundPage() {
   const { data: providers = [] } = useQuery<Provider[]>({ queryKey: ["providers"], queryFn: api.providers });
@@ -13,6 +30,7 @@ export default function PlaygroundPage() {
   const [provider, setProvider] = useState("");
   const [model, setModel] = useState("");
   const [models, setModels] = useState<string[]>([]);
+  const [modelFilter, setModelFilter] = useState("");
   const [modelsLoading, setModelsLoading] = useState(false);
   const [maxTokens, setMaxTokens] = useState(500);
   const [temperature, setTemperature] = useState(0);
@@ -24,6 +42,12 @@ export default function PlaygroundPage() {
 
   const providerMeta = providers.find((p) => p.name === provider);
   const supportsPenalty = providerMeta?.supports_penalty_params === true;
+
+  const filteredModels = useMemo(
+    () => (modelFilter ? models.filter((m) => m.toLowerCase().includes(modelFilter.toLowerCase())) : models),
+    [models, modelFilter]
+  );
+  const groupedModels = useMemo(() => groupModelsByFamily(filteredModels, provider), [filteredModels, provider]);
 
   const { completion, complete, input, setInput, isLoading, error, stop } = useCompletion({
     api: `${LLM_PROBE_URL}/playground/stream`,
@@ -40,6 +64,8 @@ export default function PlaygroundPage() {
   useEffect(() => {
     if (!provider) return;
     setModelsLoading(true);
+    setModel("");
+    setModelFilter("");
     api.models(provider)
       .then((m) => setModels(m.map((x) => x.id)))
       .catch(() => setModels([]))
@@ -82,18 +108,33 @@ export default function PlaygroundPage() {
           </select>
 
           <input
-            list="model-options"
+            value={modelFilter}
+            onChange={(e) => setModelFilter(e.target.value)}
+            placeholder={modelsLoading ? "loading catalog…" : `filter ${models.length} models…`}
+            className="field px-3 py-2 text-sm font-mono w-40"
+          />
+
+          <select
             value={model}
             onChange={(e) => setModel(e.target.value)}
-            placeholder={modelsLoading ? "loading catalog…" : "model id"}
-            className="field px-3 py-2 text-sm font-mono flex-1 min-w-[240px]"
-          />
-          <datalist id="model-options">
-            {models.map((m) => (
-              <option key={m} value={m} />
+            disabled={modelsLoading || groupedModels.length === 0}
+            className="field px-3 py-2 text-sm font-mono flex-1 min-w-[240px] disabled:opacity-50"
+          >
+            <option value="" disabled>
+              {modelsLoading ? "loading catalog…" : groupedModels.length === 0 ? "no matches" : "select a model…"}
+            </option>
+            {groupedModels.map(([family, ids]) => (
+              <optgroup key={family} label={family}>
+                {ids.map((id) => (
+                  <option key={id} value={id}>
+                    {family !== provider ? id.slice(family.length + 1) : id}
+                  </option>
+                ))}
+              </optgroup>
             ))}
-          </datalist>
+          </select>
         </div>
+        {model && <div className="text-[11px] text-text-faint font-mono -mt-2">selected: {model}</div>}
 
         {catalog && (
           <div className="flex flex-wrap gap-2">
