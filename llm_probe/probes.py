@@ -24,7 +24,7 @@ from typing import Any, Optional
 
 import httpx
 
-from .providers import get_provider
+from .providers import resolve_provider
 
 
 async def call_model(
@@ -42,7 +42,7 @@ async def call_model(
     tool_choice: Optional[str] = None,
     timeout: float = 60,
 ) -> dict[str, Any]:
-    p = get_provider(provider)
+    p = await resolve_provider(provider)
     if not p.api_key:
         return {"http_ok": False, "status": None, "latency_s": 0.0, "error": f"no API key configured for {provider}",
                 "content": None, "tool_calls": None, "usage": None, "raw": None}
@@ -300,7 +300,7 @@ async def stream_custom_prompt(
     (and several providers omit it in streaming mode entirely), so overhead
     visibility stays a non-streaming (`run_custom_prompt`) feature.
     """
-    p = get_provider(provider)
+    p = await resolve_provider(provider)
     if not p.api_key:
         yield f"[no API key configured for {provider}]"
         return

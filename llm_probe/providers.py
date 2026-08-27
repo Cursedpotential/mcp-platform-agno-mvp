@@ -24,7 +24,7 @@ import httpx
 class Provider:
     name: str
     base_url: str
-    api_key_env: str
+    api_key_env: Optional[str] = None  # unset for DB-registered custom providers (see _key_override)
     models_url: Optional[str] = None  # override if catalog listing isn't base_url + "/models"
     models_auth: str = "bearer"  # "bearer" | "query_key" (Google's native listing wants ?key=)
     # Live-verified 2026-08-27 (real 200-vs-400 probe, not vendor docs): whether
@@ -32,10 +32,17 @@ class Provider:
     # None = unconfirmed (account was dead/untestable at verification time) —
     # treated as unsupported (hidden) until re-verified, never assumed supported.
     supports_penalty_params: Optional[bool] = None
+    is_custom: bool = False
+    # Custom providers carry their pgcrypto-decrypted key in-memory for the
+    # single request that resolved them — never an env var, never logged,
+    # never returned from an API response. None for the 8 hardcoded providers.
+    _key_override: Optional[str] = None
 
     @property
     def api_key(self) -> Optional[str]:
-        return os.environ.get(self.api_key_env)
+        if self._key_override is not None:
+            return self._key_override
+        return os.environ.get(self.api_key_env) if self.api_key_env else None
 
     @property
     def configured(self) -> bool:
@@ -66,9 +73,30 @@ PROVIDERS: dict[str, Provider] = {
 
 
 def get_provider(name: str) -> Provider:
+    """Hardcoded providers only, synchronous — for call sites that can't
+    await (rare). Prefer resolve_provider() everywhere a custom provider
+    should also be reachable."""
     if name not in PROVIDERS:
         raise KeyError(f"unknown provider {name!r}; known: {sorted(PROVIDERS)}")
     return PROVIDERS[name]
+
+
+async def resolve_provider(name: str) -> Provider:
+    """Hardcoded providers first, then DB-registered custom providers
+    (decrypting the key for this call only). This is the path every actual
+    outbound call and catalog fetch should go through."""
+    if name in PROVIDERS:
+        return PROVIDERS[name]
+    from . import db  # local import: avoids a circular import at module load
+
+    row = await db.get_custom_provider(name)
+    if row is None:
+        raise KeyError(f"unknown provider {name!r}; known: {sorted(PROVIDERS)} + custom providers")
+    return Provider(
+        name=row["name"], base_url=row["base_url"], models_url=row["models_url"],
+        models_auth=row["models_auth"], supports_penalty_params=row["supports_penalty_params"],
+        is_custom=True, _key_override=row["api_key"],
+    )
 
 
 def configured_providers() -> list[str]:
@@ -78,7 +106,7 @@ def configured_providers() -> list[str]:
 async def fetch_models(provider_name: str) -> list[dict]:
     """Live-fetch the model catalog for one provider. Raises on HTTP failure —
     callers decide whether to surface it or fall back to a cached list."""
-    p = get_provider(provider_name)
+    p = await resolve_provider(provider_name)
     if not p.api_key:
         raise RuntimeError(f"{provider_name}: no API key configured ({p.api_key_env} unset)")
 
