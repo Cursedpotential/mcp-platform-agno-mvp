@@ -1,0 +1,58 @@
+# =============================================================================
+# LLM PROBE SERVICE — deploy as its OWN Coolify app, tailnet-only. One
+# concern per app (see workbench.yaml for the pattern precedent).
+#
+# Coolify Watch Paths for this app: llm_probe/** + deploy/llm-probe.yaml
+#
+# WHAT THIS IS: a standalone FastAPI service that live-tests LLM providers
+# (NIM, Ollama Cloud, OpenRouter, Google, OpenAI, Mistral, Groq, Cerebras) —
+# liveness/tool-use/summarization/instruction-following, plus a free-form
+# playground endpoint (any prompt, model, max_tokens/temperature/
+# reasoning_effort). Persists every result to casebible.llm_eval. Replaces
+# the one-off scratch scripts from the original manual probing session.
+#
+# HOST-PREP: none — no volumes, stateless service (all state lives in Postgres).
+#
+# Provider keys are set as env vars on THIS app only, never on the caller
+# side — the frontend talks to this service over the tailnet and never sees
+# a provider key directly.
+# =============================================================================
+# Byline: Claude Code · Sonnet 5 · 2026-08-27
+
+services:
+  llm-probe:
+    build:
+      context: ./llm_probe
+      dockerfile: Dockerfile
+    image: agno-llm-probe:latest
+    container_name: llm-probe
+    restart: unless-stopped
+    ports:
+      - "${BIND_IP:-127.0.0.1}:8030:8000"   # tailnet-only; NEVER 0.0.0.0
+    environment:
+      # --- casebible.llm_eval persistence ---
+      DATABASE_URL: ${LLM_PROBE_DATABASE_URL:?set to postgresql://user:pass@100.91.190.107:5432/casebible}
+      # --- frontend origin(s) allowed to call this API (tailnet address(es)) ---
+      CORS_ORIGINS: ${LLM_PROBE_CORS_ORIGINS:-}
+      # --- provider keys (server-side only, never sent to the browser) ---
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
+      NVIDIA_BASE_URL: ${NVIDIA_BASE_URL:-https://integrate.api.nvidia.com/v1}
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      CEREBRAS_API_KEY: ${CEREBRAS_API_KEY:-}
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5).status==200 else 1)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - agno
+
+networks:
+  agno:
+    external: true   # shared cross-app net
