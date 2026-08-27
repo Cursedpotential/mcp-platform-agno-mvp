@@ -35,6 +35,9 @@ async def call_model(
     max_tokens: int = 500,
     temperature: float = 0,
     reasoning_effort: Optional[str] = None,
+    top_p: Optional[float] = None,
+    presence_penalty: Optional[float] = None,
+    frequency_penalty: Optional[float] = None,
     tools: Optional[list[dict]] = None,
     tool_choice: Optional[str] = None,
     timeout: float = 60,
@@ -49,6 +52,12 @@ async def call_model(
     body: dict[str, Any] = {"model": model, "messages": messages, "max_tokens": max_tokens, "temperature": temperature}
     if reasoning_effort is not None:
         body["reasoning_effort"] = reasoning_effort
+    if top_p is not None:
+        body["top_p"] = top_p
+    if presence_penalty is not None:
+        body["presence_penalty"] = presence_penalty
+    if frequency_penalty is not None:
+        body["frequency_penalty"] = frequency_penalty
     if tools is not None:
         body["tools"] = tools
         body["tool_choice"] = tool_choice or "auto"
@@ -136,6 +145,41 @@ PROBE_CATALOG = {
     "instruction_following": {"prompt": INSTRUCTION_PROMPT, "description": "Exact word count / casing / punctuation constraint."},
 }
 
+# Retry-time prompt variants. Rewording only — the underlying rubric each
+# probe is scored against (SUMMARY_KEY_FACTS, the tool schema, the 5-word
+# format check) stays fixed, so a variant is still a fair like-for-like
+# retry, just phrased differently in case the original wording is what a
+# particular model is tripping on (verbose preamble, ignoring "exactly",
+# reasoning models over-explaining, etc).
+PROMPT_VARIANTS: dict[str, list[dict[str, str]]] = {
+    "liveness": [
+        {"key": "default", "label": "Default", "prompt": LIVENESS_PROMPT},
+        {"key": "terse", "label": "Terser", "prompt": "Respond with exactly one word: YES."},
+        {"key": "direct", "label": "Direct question", "prompt": "Can you process this message? Answer YES or NO only."},
+    ],
+    "tool_use": [
+        {"key": "default", "label": "Default", "prompt": TOOL_PROMPT},
+        {"key": "imperative", "label": "Imperative", "prompt": "Call the get_case_status tool for docket 24-CV-1187 now."},
+        {"key": "no_hint", "label": "No tool hint", "prompt": "What is the current status of case 24-CV-1187?"},
+    ],
+    "summarization": [
+        {"key": "default", "label": "Default", "prompt": SUMMARY_PROMPT},
+        {"key": "no_preamble", "label": "No preamble", "prompt": f"Respond with ONLY one sentence summarizing this, nothing else before or after:\n\n{SUMMARY_SOURCE}"},
+        {"key": "compress", "label": "Compress hard", "prompt": f"In as few words as possible (one sentence, under 40 words), capture every key fact of:\n\n{SUMMARY_SOURCE}"},
+    ],
+    "instruction_following": [
+        {"key": "default", "label": "Default", "prompt": INSTRUCTION_PROMPT},
+        {"key": "numbered", "label": "Numbered reminder", "prompt": "Output exactly 5 words (count them) describing a courtroom. Lowercase, space-separated, no punctuation, no other text."},
+    ],
+}
+
+RETRY_PRESETS = [
+    {"key": "same", "label": "Same as before"},
+    {"key": "no_reasoning", "label": "reasoning_effort=none"},
+    {"key": "bigger_budget", "label": "3x max_tokens"},
+    {"key": "no_reasoning_bigger_budget", "label": "reasoning_effort=none + 3x budget"},
+]
+
 
 def score_liveness(content: Optional[str]) -> tuple[bool, dict]:
     ok = bool(content and content.strip())
@@ -184,18 +228,21 @@ def score_instruction(content: Optional[str]) -> tuple[bool, dict]:
 async def run_named_probe(
     provider: str, model: str, probe: str, *,
     max_tokens: int = 500, temperature: float = 0, reasoning_effort: Optional[str] = None,
+    top_p: Optional[float] = None, presence_penalty: Optional[float] = None,
+    frequency_penalty: Optional[float] = None, prompt_override: Optional[str] = None,
 ) -> dict[str, Any]:
     if probe not in PROBE_CATALOG:
         raise ValueError(f"unknown probe {probe!r}; known: {list(PROBE_CATALOG)}")
 
-    prompt = PROBE_CATALOG[probe]["prompt"]
+    prompt = prompt_override or PROBE_CATALOG[probe]["prompt"]
     extra = {}
     if probe == "tool_use":
         extra = {"tools": [TOOL_SCHEMA], "tool_choice": "auto"}
 
     result = await call_model(
         provider, model, [{"role": "user", "content": prompt}],
-        max_tokens=max_tokens, temperature=temperature, reasoning_effort=reasoning_effort, **extra,
+        max_tokens=max_tokens, temperature=temperature, reasoning_effort=reasoning_effort,
+        top_p=top_p, presence_penalty=presence_penalty, frequency_penalty=frequency_penalty, **extra,
     )
     if not result["http_ok"]:
         return {"probe": probe, "ok": False, "latency_s": result["latency_s"], "reason": "http_error",
@@ -213,6 +260,7 @@ async def run_named_probe(
     return {
         "probe": probe, "ok": ok, "latency_s": result["latency_s"], "usage": result["usage"],
         "reasoning_overhead_tokens": reasoning_overhead_tokens(result["usage"]),
+        "prompt_used": prompt, "max_tokens_used": max_tokens, "reasoning_effort_used": reasoning_effort,
         **detail,
     }
 
@@ -220,12 +268,15 @@ async def run_named_probe(
 async def run_custom_prompt(
     provider: str, model: str, prompt: str, *,
     max_tokens: int = 500, temperature: float = 0, reasoning_effort: Optional[str] = None,
+    top_p: Optional[float] = None, presence_penalty: Optional[float] = None,
+    frequency_penalty: Optional[float] = None,
 ) -> dict[str, Any]:
     """Playground mode: no scoring, just the raw call plus reasoning-overhead
     visibility so a user can see what a param change actually did."""
     result = await call_model(
         provider, model, [{"role": "user", "content": prompt}],
         max_tokens=max_tokens, temperature=temperature, reasoning_effort=reasoning_effort,
+        top_p=top_p, presence_penalty=presence_penalty, frequency_penalty=frequency_penalty,
     )
     result["reasoning_overhead_tokens"] = reasoning_overhead_tokens(result.get("usage"))
     return result
@@ -234,6 +285,8 @@ async def run_custom_prompt(
 async def stream_custom_prompt(
     provider: str, model: str, prompt: str, *,
     max_tokens: int = 500, temperature: float = 0, reasoning_effort: Optional[str] = None,
+    top_p: Optional[float] = None, presence_penalty: Optional[float] = None,
+    frequency_penalty: Optional[float] = None,
 ):
     """Playground streaming mode — yields plain text deltas as they arrive
     from the provider's own SSE stream, for the frontend's Vercel AI SDK
@@ -260,6 +313,12 @@ async def stream_custom_prompt(
     }
     if reasoning_effort is not None:
         body["reasoning_effort"] = reasoning_effort
+    if top_p is not None:
+        body["top_p"] = top_p
+    if presence_penalty is not None:
+        body["presence_penalty"] = presence_penalty
+    if frequency_penalty is not None:
+        body["frequency_penalty"] = frequency_penalty
 
     try:
         async with httpx.AsyncClient() as client:

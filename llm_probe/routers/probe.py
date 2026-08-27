@@ -4,7 +4,7 @@ from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 
 from .. import db, probes
-from ..probes import PROBE_CATALOG
+from ..probes import PROBE_CATALOG, PROMPT_VARIANTS, RETRY_PRESETS
 from ..schemas import RunPlaygroundRequest, RunProbeRequest
 
 router = APIRouter(tags=["probe"])
@@ -12,9 +12,13 @@ router = APIRouter(tags=["probe"])
 
 @router.get("/probes")
 async def list_probe_defs():
-    """The canned, scored probes (liveness/tool_use/summarization/instruction_following)
-    and the exact prompt each one sends — reference for the playground UI."""
-    return PROBE_CATALOG
+    """The canned, scored probes (liveness/tool_use/summarization/instruction_following),
+    the exact default prompt each one sends, its reworded retry variants, and
+    the retry param presets — everything the board's retry panel needs."""
+    return {
+        "probes": {name: {**d, "variants": PROMPT_VARIANTS.get(name, [])} for name, d in PROBE_CATALOG.items()},
+        "retry_presets": RETRY_PRESETS,
+    }
 
 
 @router.post("/probe/run")
@@ -22,6 +26,8 @@ async def run_probe(req: RunProbeRequest):
     result = await probes.run_named_probe(
         req.provider, req.model, req.probe,
         max_tokens=req.max_tokens, temperature=req.temperature, reasoning_effort=req.reasoning_effort,
+        top_p=req.top_p, presence_penalty=req.presence_penalty, frequency_penalty=req.frequency_penalty,
+        prompt_override=req.prompt_override,
     )
     if req.persist:
         run_id = await db.insert_probe_run(
@@ -50,6 +56,7 @@ async def stream_playground(req: RunPlaygroundRequest):
         async for piece in probes.stream_custom_prompt(
             req.provider, req.model, req.prompt,
             max_tokens=req.max_tokens, temperature=req.temperature, reasoning_effort=req.reasoning_effort,
+            top_p=req.top_p, presence_penalty=req.presence_penalty, frequency_penalty=req.frequency_penalty,
         ):
             chunks.append(piece)
             yield piece
@@ -72,6 +79,7 @@ async def run_playground(req: RunPlaygroundRequest):
     result = await probes.run_custom_prompt(
         req.provider, req.model, req.prompt,
         max_tokens=req.max_tokens, temperature=req.temperature, reasoning_effort=req.reasoning_effort,
+        top_p=req.top_p, presence_penalty=req.presence_penalty, frequency_penalty=req.frequency_penalty,
     )
     if req.persist:
         await db.insert_playground_run(

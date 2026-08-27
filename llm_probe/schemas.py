@@ -12,6 +12,10 @@ class RunProbeRequest(BaseModel):
     max_tokens: int = 500
     temperature: float = 0
     reasoning_effort: Optional[Literal["none", "low", "medium", "high"]] = None
+    top_p: Optional[float] = None
+    presence_penalty: Optional[float] = None
+    frequency_penalty: Optional[float] = None
+    prompt_override: Optional[str] = None  # retry with a reworded prompt, still scored against the probe's fixed rubric
     persist: bool = True
     run_note: Optional[str] = None
 
@@ -23,6 +27,9 @@ class RunPlaygroundRequest(BaseModel):
     max_tokens: int = 500
     temperature: float = 0
     reasoning_effort: Optional[Literal["none", "low", "medium", "high"]] = None
+    top_p: Optional[float] = None
+    presence_penalty: Optional[float] = None
+    frequency_penalty: Optional[float] = None
     label: Optional[str] = None
     persist: bool = True
 

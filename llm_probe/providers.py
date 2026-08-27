@@ -27,6 +27,11 @@ class Provider:
     api_key_env: str
     models_url: Optional[str] = None  # override if catalog listing isn't base_url + "/models"
     models_auth: str = "bearer"  # "bearer" | "query_key" (Google's native listing wants ?key=)
+    # Live-verified 2026-08-27 (real 200-vs-400 probe, not vendor docs): whether
+    # this provider's /chat/completions accepts presence_penalty/frequency_penalty.
+    # None = unconfirmed (account was dead/untestable at verification time) —
+    # treated as unsupported (hidden) until re-verified, never assumed supported.
+    supports_penalty_params: Optional[bool] = None
 
     @property
     def api_key(self) -> Optional[str]:
@@ -38,20 +43,25 @@ class Provider:
 
 
 PROVIDERS: dict[str, Provider] = {
-    "nim": Provider("nim", os.environ.get("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1"), "NVIDIA_API_KEY"),
-    "ollama_cloud": Provider("ollama_cloud", "https://ollama.com/v1", "OLLAMA_API_KEY", models_url="https://ollama.com/api/tags"),
-    "openrouter": Provider("openrouter", "https://openrouter.ai/api/v1", "OPENROUTER_API_KEY"),
+    "nim": Provider("nim", os.environ.get("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1"), "NVIDIA_API_KEY",
+                     supports_penalty_params=True),
+    "ollama_cloud": Provider("ollama_cloud", "https://ollama.com/v1", "OLLAMA_API_KEY", models_url="https://ollama.com/api/tags",
+                              supports_penalty_params=True),
+    "openrouter": Provider("openrouter", "https://openrouter.ai/api/v1", "OPENROUTER_API_KEY",
+                            supports_penalty_params=True),
     "google": Provider(
         "google",
         "https://generativelanguage.googleapis.com/v1beta/openai",
         "GOOGLE_API_KEY",
         models_url="https://generativelanguage.googleapis.com/v1beta/models",
         models_auth="query_key",
+        supports_penalty_params=False,  # verified live: 400 "Unknown name frequency_penalty"
     ),
-    "openai": Provider("openai", "https://api.openai.com/v1", "OPENAI_API_KEY"),
-    "mistral": Provider("mistral", "https://api.mistral.ai/v1", "MISTRAL_API_KEY"),
-    "groq": Provider("groq", "https://api.groq.com/openai/v1", "GROQ_API_KEY"),
-    "cerebras": Provider("cerebras", "https://api.cerebras.ai/v1", "CEREBRAS_API_KEY"),
+    "openai": Provider("openai", "https://api.openai.com/v1", "OPENAI_API_KEY", supports_penalty_params=True),
+    "mistral": Provider("mistral", "https://api.mistral.ai/v1", "MISTRAL_API_KEY", supports_penalty_params=True),
+    "groq": Provider("groq", "https://api.groq.com/openai/v1", "GROQ_API_KEY", supports_penalty_params=True),
+    "cerebras": Provider("cerebras", "https://api.cerebras.ai/v1", "CEREBRAS_API_KEY",
+                          supports_penalty_params=None),  # account dead (402) — never confirmed
 }
 
 

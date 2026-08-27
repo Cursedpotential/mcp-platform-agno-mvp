@@ -10,7 +10,8 @@ router = APIRouter(prefix="/providers", tags=["catalog"])
 @router.get("")
 async def list_providers():
     return [
-        {"name": name, "configured": p.configured, "base_url": p.base_url}
+        {"name": name, "configured": p.configured, "base_url": p.base_url,
+         "supports_penalty_params": p.supports_penalty_params}
         for name, p in providers_mod.PROVIDERS.items()
     ]
 
