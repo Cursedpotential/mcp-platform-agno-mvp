@@ -16,6 +16,8 @@ it, when, and how compliance is actually checked**. If you're about to add a new
 > lane went unused for an entire session; memsearch's embed→Milvus indexing had been dead; and this
 > doc itself was stale and wrong. The lesson is in **Rule 2**.
 
+> _Progressive repository-memory extension: Codex · GPT-5 · 2026-08-27._
+
 ## Rule 0 — canonical working directory (and its real limits)
 
 **Always open Claude Code at the workspace ROOT** (`E:/AI_Workspace/Projects/the-platform-workspace`).
@@ -56,6 +58,18 @@ you when it lapses* — treat those as the risk list, not as "fine".
 | 7 | **memsearch** — semantic search over past sessions | `.memsearch/` per git root | memsearch CLI + plugin hooks | Automatic | `honour-system` on health | 🔴 **BROKEN** — see Known-broken |
 | 8 | **Spec Memory** — recent-context blocks injected into `CLAUDE.md` files | the `CLAUDE.md` files themselves | external tooling | Automatic | none | ℹ️ low-value; episodic noise |
 | 9 | **Archive** — stale/duplicates | `_stale/` (ROOT) | Rule 1 moves | On supersession | `cc_guard` blocks deletes | ✅ |
+
+### Repository-local progressive memory is part of SSOT docs, not lane 10
+
+`AGENT_MEMORY.md` and `.agent-memory/<exact-filename>.md` are a progressively disclosed
+index into lane 3. They hold sourced local learnings, preferences, failure modes, and links to
+authority. They do not replace or duplicate canon, ADRs, the decision log, current handoffs,
+runtime memory, or session recall.
+
+Load them root-to-leaf after the matching `AGENTS.md` files. Exact-file memory loads only when
+that file is in scope. Current canon and verification receipts always outrank repository-local
+memory. The format, required status metadata, and promotion rules live in
+`docs/agent-memory/README.md`.
 
 Also present, not a lane: `.claude/recall-context.md` — populated by the recall plugin and
 `@`-included by the root `CLAUDE.md`.

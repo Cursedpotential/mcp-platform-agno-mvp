@@ -10,12 +10,22 @@
 > §1 ADR-0045 "drafted/pending signature" → signed D-042 + §B derived-materialization
 > sanction + FORBIDS parallel authored stores (doc-drift rule);
 > 2026-08-18 Codex · GPT-5: ADR-0059 source clocks, third-party projections, and
-> resumable-vs-terminal walk lifecycle)_
+> resumable-vs-terminal walk lifecycle;
+> drift-fix 2026-08-27 Codex · GPT-5: corrected the stale whole-product
+> "SurrealDB RETIRED" statement against D-073/D-080. Only the legacy Agno
+> operational adapter/instance is retired and parked; SurrealDB is the governed
+> final temporal-graph, walk, and analysis engine.)_
 
 > **This is the first file any agent (Claude Code, Codex, Gemini CLI, opencode) reads.**
 > Keep it short: universal context + navigation index. **Closest file wins** — nested
 > `AGENTS.md` files below override this one for their subtree; read the nested map
 > before editing inside that directory.
+
+Repository-local memory follows the same path hierarchy: after reading applicable
+`AGENTS.md` files, read `AGENT_MEMORY.md` root-to-leaf and then an exact target's
+`.agent-memory/<filename>.md` when present. `AGENT_MEMORY.md` is a sourced context router,
+never authority over current canon, ADRs, decisions, or verified handoffs. Format and
+precedence: `docs/agent-memory/README.md`.
 
 ## Project
 
@@ -98,16 +108,18 @@ Consequences that are easy to get wrong:
 
 ## Stack
 
-Agno 2.8.7 · PostgreSQL 18 (pg_duckdb + pgvector + PostGIS) — **also the Agno
-operational store** since the 2026-08-04 flatten (ADR-0043 decision 3) ·
-Neo4j + Graphiti · Portkey gateway (Ollama Cloud primary; LiteLLM retired,
-ADR-0042) · Weaviate vectors (locked ADR-0040, ~~cutover pending~~ cutover
-VERIFIED 2026-08-09 per D-042 — Milvus not merely sidelined: the `data-vector`
-app is DOWN deliberately since 2026-08-10, 6th embedded-etcd corruption) · ~~SurrealDB operational store~~ **SurrealDB RETIRED, zero callers,
-parked read-only** (owner ruling 2026-08-06; ADR-0043; container still up on
-ovh-data, export at `_stale/surreal-export-20260804` — **WORKSPACE-ROOT-relative**,
-the `_stale/` archive is a sibling of this repo under the workspace root, not a
-path inside it — only the owner deletes) · FastAPI base_app pattern.
+Agno 2.8.7 (adapter under replacement) · PostgreSQL 18 (pg_duckdb + pgvector +
+PostGIS) as canonical source/control plane and Agno operational store · Weaviate
+search projection · Neo4j Semantica-originated semantic graph · **SurrealDB as
+the governed final reconciled temporal-graph, walk, and analysis engine**
+(D-073/D-080) · Temporal durable spine + n8n visual business/agent flow ·
+Portkey gateway (Ollama Cloud primary; LiteLLM retired, ADR-0042). Graphiti is
+retired for now (D-070). The **legacy Agno operational Surreal adapter and old
+`data-surreal` instance only** remain retired/zero-caller and parked read-only;
+they are not the current Surreal analytical role or target. Its export remains
+at `_stale/surreal-export-20260804` — **WORKSPACE-ROOT-relative**; the `_stale/`
+archive is a sibling of this repo and only the owner deletes. Weaviate cutover
+was verified 2026-08-09 (D-042); Milvus `data-vector` stays deliberately down.
 
 ## Repository Layout
 
@@ -131,6 +143,17 @@ path inside it — only the owner deletes) · FastAPI base_app pattern.
 | `docs/` | Canon, ADRs, decision log, plans, wiki | `docs/PROJECT_CANON.md` |
 | `tests/` | The pytest suite | — |
 | `scripts/` | format/validate/ingest/entrypoint | — |
+
+## Development and verification topology
+
+> _Owner clarification · 2026-08-26._
+
+The source is edited in this checkout, then committed and pushed; Coolify builds and deploys the
+containers on the VPS. Do not create a duplicate local application or infrastructure stack and do
+not run local Docker/Podman/Compose services. CWD validation remains required: formatting, lint,
+mypy/typecheck, unit tests, integration tests that exercise the real deployed services, application
+build tests such as `next build`, and lockfile/dependency verification. Those checks do not replace
+Coolify deployment and live VPS proof.
 
 ## Commands
 
@@ -225,6 +248,17 @@ AI commits carry: `Co-Authored-By: <agent name and model> <noreply@anthropic.com
 Current truth is indexed by `docs/INDEX.md`; completed or superseded documents move under
 `docs/archive/` in the same change. ADRs and append-only `docs/DECISION_LOG.md` remain in
 place. Mockup/design history is never production truth.
+
+## Owner result-persistence rule
+
+> _Owner directive · 2026-08-26._
+
+Always persist material investigation, audit, verification, decision, and implementation results
+in project documentation. Chat-only reporting is not a durable handoff. If the final canonical
+location is not yet known, record the result in a temporary TODO, `docs/pending-review/`, a session
+handoff, or another clearly labeled durable project artifact, then reconcile or promote it later.
+Never allow useful findings to disappear merely because a session ends or the permanent document
+has not been selected yet.
 
 ## Owner delivery rule — production means production
 
