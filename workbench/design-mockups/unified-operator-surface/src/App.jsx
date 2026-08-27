@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { sha256 as sha256Digest } from "@noble/hashes/sha2.js";
+import { bytesToHex } from "@noble/hashes/utils.js";
 import {
   ArrowCounterClockwise,
   ArrowRight,
@@ -56,10 +58,8 @@ const formatTime = (value) => {
   return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(date);
 };
 
-async function sha256(text) {
-  const bytes = new TextEncoder().encode(text);
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+function sha256(text) {
+  return bytesToHex(sha256Digest(new TextEncoder().encode(text)));
 }
 
 function normalizeMessage(message, index) {
