@@ -1,0 +1,28 @@
+# Universal Import Starter — separate Coolify application on ovh-files.
+# Watch paths: engine/**, docker/universal-import-starter/**,
+# deploy/universal-import-starter.yaml
+
+services:
+  universal-import-starter:
+    build:
+      context: .
+      dockerfile: docker/universal-import-starter/Dockerfile
+    image: ${UNIVERSAL_IMPORT_STARTER_IMAGE:-platform-universal-import-starter:latest}
+    restart: unless-stopped
+    ports:
+      - "${BIND_IP:-127.0.0.1}:8091:8091"
+    environment:
+      TEMPORAL_HOST_PORT: ${TEMPORAL_HOST_PORT:?set}
+      TEMPORAL_NAMESPACE: ${TEMPORAL_NAMESPACE:-default}
+      TEMPORAL_TASK_QUEUE: ${TEMPORAL_TASK_QUEUE:-universal-import-v1}
+      REFERENCE_STARTER_ADDR: :8091
+      REFERENCE_STARTER_TOKEN: ${REFERENCE_STARTER_TOKEN:?set}
+      N8N_UNIVERSAL_IMPORT_BASE_URL: ${N8N_UNIVERSAL_IMPORT_BASE_URL:?set}
+      N8N_UNIVERSAL_IMPORT_AUTH_HEADER: ${N8N_UNIVERSAL_IMPORT_AUTH_HEADER:?set}
+      N8N_UNIVERSAL_IMPORT_AUTH_VALUE: ${N8N_UNIVERSAL_IMPORT_AUTH_VALUE:?set}
+    networks:
+      - coolify
+
+networks:
+  coolify:
+    external: true

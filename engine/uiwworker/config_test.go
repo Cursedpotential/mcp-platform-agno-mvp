@@ -1,0 +1,93 @@
+package uiwworker
+
+import (
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func setWorkerEnvironment(t *testing.T) {
+	t.Helper()
+	root := t.TempDir()
+	values := map[string]string{
+		"TEMPORAL_HOST_PORT":               "temporal:7233",
+		"TEMPORAL_NAMESPACE":               "default",
+		"TEMPORAL_TASK_QUEUE":              "universal-import-v1",
+		"PLATFORM_DATABASE_URL":            "postgresql://runtime:secret@postgres/platform",
+		"DATABASE_URL":                     "",
+		"SOURCE_OBJECT_DIR":                filepath.Join(root, "source"),
+		"PARSER_BUNDLE_DIR":                filepath.Join(root, "parser"),
+		"NORMALIZED_BUNDLE_DIR":            filepath.Join(root, "normalized"),
+		"INVENTORY_MANIFEST_DIR":           filepath.Join(root, "inventory"),
+		"N8N_UNIVERSAL_IMPORT_BASE_URL":    "https://n8n.example.test/webhook/",
+		"N8N_UNIVERSAL_IMPORT_AUTH_HEADER": "Authorization",
+		"N8N_UNIVERSAL_IMPORT_AUTH_VALUE":  "Bearer secret-value",
+		"SELECT_PARSER_HTTP_TIMEOUT":       "",
+		"EXECUTE_PARSER_HTTP_TIMEOUT":      "",
+	}
+	for name, value := range values {
+		t.Setenv(name, value)
+	}
+}
+
+func TestLoadConfigBuildsDedicatedWorkerContract(t *testing.T) {
+	setWorkerEnvironment(t)
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v", err)
+	}
+	if cfg.TemporalTaskQueue != "universal-import-v1" {
+		t.Fatalf("task queue = %q", cfg.TemporalTaskQueue)
+	}
+	if strings.HasSuffix(cfg.N8NBaseURL, "/") {
+		t.Fatalf("n8n base URL retained trailing slash: %q", cfg.N8NBaseURL)
+	}
+	if err := validateSharedPaths(cfg); err != nil {
+		t.Fatalf("validateSharedPaths() error = %v", err)
+	}
+}
+
+func TestLoadConfigRejectsLegacyEvidenceQueue(t *testing.T) {
+	setWorkerEnvironment(t)
+	t.Setenv("TEMPORAL_TASK_QUEUE", legacyEvidenceTaskQueue)
+	_, err := LoadConfig()
+	if err == nil || !strings.Contains(err.Error(), legacyEvidenceTaskQueue) {
+		t.Fatalf("LoadConfig() error = %v, want legacy queue rejection", err)
+	}
+}
+
+func TestLoadConfigNeverEchoesSecrets(t *testing.T) {
+	setWorkerEnvironment(t)
+	t.Setenv("TEMPORAL_HOST_PORT", "")
+	_, err := LoadConfig()
+	if err == nil {
+		t.Fatal("LoadConfig() error = nil")
+	}
+	for _, secret := range []string{"secret-value", "postgresql://runtime:secret@postgres/platform"} {
+		if strings.Contains(err.Error(), secret) {
+			t.Fatalf("configuration error exposed a secret: %q", err)
+		}
+	}
+}
+
+func TestValidateSharedPathsRejectsRelativeAndNestedRoots(t *testing.T) {
+	setWorkerEnvironment(t)
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.ParserBundleDir = "relative/parser"
+	if err := validateSharedPaths(cfg); err == nil {
+		t.Fatal("relative path accepted")
+	}
+
+	setWorkerEnvironment(t)
+	cfg, err = LoadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.ParserBundleDir = filepath.Join(cfg.SourceObjectDir, "parser")
+	if err := validateSharedPaths(cfg); err == nil {
+		t.Fatal("nested shared path accepted")
+	}
+}

@@ -1,0 +1,57 @@
+# Universal Import Workflow worker — dedicated Coolify application.
+#
+# This service does not replace the existing Python temporal-worker. It polls
+# only ${TEMPORAL_TASK_QUEUE}, which must be a dedicated UIW queue and is
+# rejected at startup if set to evidence-pipeline.
+#
+# Coolify watch paths:
+#   engine/**
+#   vendored/sbv/**
+#   docker/universal-import-worker/**
+#   deploy/universal-import-worker.yaml
+#
+# Host preparation (once):
+#   install -d -o 10001 -g 10001 -m 0750 \
+#     /data/agno/volumes/universal-import/source-objects \
+#     /data/agno/volumes/universal-import/parser-bundles \
+#     /data/agno/volumes/universal-import/normalized-bundles \
+#     /data/agno/volumes/universal-import/inventory-manifests
+#
+# The parser-activity-runtime Coolify app must mount the same host
+# /data/agno/volumes/universal-import/parser-bundles directory at
+# /data/uiw/parser-bundles.
+# Stored file:// paths are container-visible authority locators, so changing
+# only one side's mount path will fail closed.
+
+services:
+  universal-import-worker:
+    build:
+      context: .
+      dockerfile: docker/universal-import-worker/Dockerfile
+    image: ${UNIVERSAL_IMPORT_WORKER_IMAGE:-platform-universal-import-worker:latest}
+    restart: unless-stopped
+    environment:
+      PLATFORM_DATABASE_URL: ${PLATFORM_DATABASE_URL:?set}
+      TEMPORAL_HOST_PORT: ${TEMPORAL_HOST_PORT:?set}
+      TEMPORAL_NAMESPACE: ${TEMPORAL_NAMESPACE:-default}
+      TEMPORAL_TASK_QUEUE: ${TEMPORAL_TASK_QUEUE:-universal-import-v1}
+      N8N_UNIVERSAL_IMPORT_BASE_URL: ${N8N_UNIVERSAL_IMPORT_BASE_URL:?set}
+      N8N_UNIVERSAL_IMPORT_AUTH_HEADER: ${N8N_UNIVERSAL_IMPORT_AUTH_HEADER:?set}
+      N8N_UNIVERSAL_IMPORT_AUTH_VALUE: ${N8N_UNIVERSAL_IMPORT_AUTH_VALUE:?set}
+      SELECT_PARSER_HTTP_TIMEOUT: ${SELECT_PARSER_HTTP_TIMEOUT:-35s}
+      EXECUTE_PARSER_HTTP_TIMEOUT: ${EXECUTE_PARSER_HTTP_TIMEOUT:-31m}
+      SOURCE_OBJECT_DIR: /data/uiw/source-objects
+      PARSER_BUNDLE_DIR: /data/uiw/parser-bundles
+      NORMALIZED_BUNDLE_DIR: /data/uiw/normalized-bundles
+      INVENTORY_MANIFEST_DIR: /data/uiw/inventory-manifests
+    volumes:
+      - /data/agno/volumes/universal-import/source-objects:/data/uiw/source-objects
+      - /data/agno/volumes/universal-import/parser-bundles:/data/uiw/parser-bundles
+      - /data/agno/volumes/universal-import/normalized-bundles:/data/uiw/normalized-bundles
+      - /data/agno/volumes/universal-import/inventory-manifests:/data/uiw/inventory-manifests
+    networks:
+      - coolify
+
+networks:
+  coolify:
+    external: true

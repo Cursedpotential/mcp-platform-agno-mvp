@@ -1,0 +1,218 @@
+package temporal
+
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
+	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+)
+
+func testConfig(baseURL string) Config {
+	return Config{
+		N8NBaseURL:         baseURL,
+		N8NAuthHeader:      "Authorization",
+		N8NAuthValue:       "Bearer test-token",
+		SelectHTTPTimeout:  2 * time.Second,
+		ExecuteHTTPTimeout: 2 * time.Second,
+	}
+}
+
+func selectRequest() uiw.StageRequest {
+	return uiw.StageRequest{
+		RequestID:        "req-1",
+		SourceVersionRef: "srcv-1",
+		DeclaredFormat:   "whatsapp_export_json",
+		Refs: map[string]uiw.Ref{
+			"filesystem_metadata": "fs-ref",
+			"container_manifest":  "container-ref",
+			"metadata_manifest":   "metadata-ref",
+		},
+	}
+}
+
+func executeRequest() uiw.StageRequest {
+	return uiw.StageRequest{
+		RequestID:        "req-1",
+		SourceVersionRef: "srcv-1",
+		DeclaredFormat:   "whatsapp_export_json",
+		Refs: map[string]uiw.Ref{
+			"parser_selection": "selection-ref",
+			"original":         "original-ref",
+			"parser_options":   "parser-options-ref",
+		},
+	}
+}
+
+func TestCallStageSelectParserSuccess(t *testing.T) {
+	var gotPath, gotAuth, gotRequestID, gotIdempotency string
+	var gotBody map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotAuth = r.Header.Get("Authorization")
+		gotRequestID = r.Header.Get("X-Request-ID")
+		gotIdempotency = r.Header.Get("Idempotency-Key")
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"stage": "select_parser_activity", "status": "success",
+			"ref": "selection-ref", "receipt_ref": "selection-receipt",
+		})
+	}))
+	defer server.Close()
+
+	client, err := NewN8NClient(testConfig(server.URL))
+	if err != nil {
+		t.Fatalf("NewN8NClient() error = %v", err)
+	}
+
+	result, err := client.CallStage(t.Context(), stagegraph.SelectParser, selectRequest())
+	if err != nil {
+		t.Fatalf("CallStage() error = %v, want nil", err)
+	}
+	if result.Stage != stagegraph.SelectParser || result.Status != uiw.StatusSuccess ||
+		result.Ref != "selection-ref" || result.ReceiptRef != "selection-receipt" {
+		t.Errorf("CallStage() result = %+v, unexpected", result)
+	}
+	if gotPath != "/universal-import/select-parser-activity" {
+		t.Errorf("request path = %q, want select webhook path", gotPath)
+	}
+	if gotAuth != "Bearer test-token" {
+		t.Errorf("Authorization header = %q, want configured auth value", gotAuth)
+	}
+	if gotRequestID != "req-1" || gotIdempotency != "req-1" {
+		t.Errorf("X-Request-ID/Idempotency-Key = %q/%q, want req-1/req-1", gotRequestID, gotIdempotency)
+	}
+	if gotBody["request_id"] != "req-1" || gotBody["source_version_ref"] != "srcv-1" || gotBody["declared_format"] != "whatsapp_export_json" {
+		t.Errorf("request body = %+v, missing expected top-level fields", gotBody)
+	}
+	refs, ok := gotBody["refs"].(map[string]any)
+	if !ok || len(refs) != 3 {
+		t.Errorf("request body refs = %+v, want exactly 3 named refs", gotBody["refs"])
+	}
+}
+
+func TestCallStageExecuteParserSuccess(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/universal-import/execute-parser-activity" {
+			t.Errorf("request path = %q, want execute webhook path", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"stage": "execute_parser_activity", "status": "success",
+			"ref": "execute-ref", "receipt_ref": "execute-receipt",
+		})
+	}))
+	defer server.Close()
+
+	client, err := NewN8NClient(testConfig(server.URL))
+	if err != nil {
+		t.Fatalf("NewN8NClient() error = %v", err)
+	}
+	result, err := client.CallStage(t.Context(), stagegraph.ExecuteParser, executeRequest())
+	if err != nil {
+		t.Fatalf("CallStage() error = %v, want nil", err)
+	}
+	if result.Ref != "execute-ref" || result.ReceiptRef != "execute-receipt" {
+		t.Errorf("CallStage() result = %+v, unexpected", result)
+	}
+}
+
+func TestCallStageRejectsMissingRequiredRefs(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("n8n webhook should never be called when client-side validation fails")
+	}))
+	defer server.Close()
+
+	client, err := NewN8NClient(testConfig(server.URL))
+	if err != nil {
+		t.Fatalf("NewN8NClient() error = %v", err)
+	}
+	req := selectRequest()
+	delete(req.Refs, "container_manifest")
+
+	if _, err := client.CallStage(t.Context(), stagegraph.SelectParser, req); err == nil {
+		t.Fatal("CallStage() error = nil, want error for missing required ref")
+	}
+}
+
+func TestCallStageFailsClosedOnNon2xx(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "select parser for format \"bogus\": no capability"})
+	}))
+	defer server.Close()
+
+	client, err := NewN8NClient(testConfig(server.URL))
+	if err != nil {
+		t.Fatalf("NewN8NClient() error = %v", err)
+	}
+	_, err = client.CallStage(t.Context(), stagegraph.SelectParser, selectRequest())
+	if err == nil {
+		t.Fatal("CallStage() error = nil, want error on non-2xx response")
+	}
+	if !strings.Contains(err.Error(), "no capability") {
+		t.Errorf("CallStage() error = %q, want it to surface the n8n error body", err.Error())
+	}
+}
+
+func TestCallStageFailsClosedOnMismatchedStage(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"stage": "execute_parser_activity", "status": "success",
+			"ref": "x", "receipt_ref": "r",
+		})
+	}))
+	defer server.Close()
+
+	client, err := NewN8NClient(testConfig(server.URL))
+	if err != nil {
+		t.Fatalf("NewN8NClient() error = %v", err)
+	}
+	if _, err := client.CallStage(t.Context(), stagegraph.SelectParser, selectRequest()); err == nil {
+		t.Fatal("CallStage() error = nil, want error when returned stage doesn't match invoked stage")
+	}
+}
+
+func TestCallStageFailsClosedOnEmptyRefs(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"stage": "select_parser_activity", "status": "success",
+			"ref": "", "receipt_ref": "",
+		})
+	}))
+	defer server.Close()
+
+	client, err := NewN8NClient(testConfig(server.URL))
+	if err != nil {
+		t.Fatalf("NewN8NClient() error = %v", err)
+	}
+	if _, err := client.CallStage(t.Context(), stagegraph.SelectParser, selectRequest()); err == nil {
+		t.Fatal("CallStage() error = nil, want error on empty ref/receipt_ref")
+	}
+}
+
+func TestCallStageFailsClosedOnUnroutableStage(t *testing.T) {
+	client, err := NewN8NClient(testConfig("https://n8n.example.invalid"))
+	if err != nil {
+		t.Fatalf("NewN8NClient() error = %v", err)
+	}
+	if _, err := client.CallStage(t.Context(), stagegraph.HashSource, selectRequest()); err == nil {
+		t.Fatal("CallStage() error = nil, want error for a stage this client has no route for")
+	}
+}
+
+func TestNewN8NClientRequiresBaseURLAndAuth(t *testing.T) {
+	if _, err := NewN8NClient(Config{N8NAuthHeader: "Authorization", N8NAuthValue: "Bearer x"}); err == nil {
+		t.Error("NewN8NClient() error = nil, want error for missing base URL")
+	}
+	if _, err := NewN8NClient(Config{N8NBaseURL: "https://n8n.example.com"}); err == nil {
+		t.Error("NewN8NClient() error = nil, want error for missing auth header/value")
+	}
+}

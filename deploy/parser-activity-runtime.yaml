@@ -1,0 +1,26 @@
+# Parser Activity Runtime — separate Coolify application on ovh-files.
+# Watch paths: engine/**, vendored/sbv/**,
+# docker/parser-activity-runtime/**, deploy/parser-activity-runtime.yaml
+
+services:
+  parser-activity-runtime:
+    build:
+      context: .
+      dockerfile: docker/parser-activity-runtime/Dockerfile
+    image: ${PARSER_ACTIVITY_RUNTIME_IMAGE:-platform-parser-activity-runtime:latest}
+    restart: unless-stopped
+    ports:
+      - "${BIND_IP:-127.0.0.1}:8090:8090"
+    environment:
+      PLATFORM_DATABASE_URL: ${PLATFORM_DATABASE_URL:?set}
+      PARSER_ACTIVITY_TOKEN: ${PARSER_ACTIVITY_TOKEN:?set}
+      PARSER_ACTIVITY_ADDR: :8090
+      PARSER_BUNDLE_DIR: /data/uiw/parser-bundles
+    volumes:
+      - /data/agno/volumes/universal-import/parser-bundles:/data/uiw/parser-bundles
+    networks:
+      - coolify
+
+networks:
+  coolify:
+    external: true
