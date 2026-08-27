@@ -1,0 +1,38 @@
+# =============================================================================
+# LLM PROBE FRONTEND — Next.js + Vercel AI SDK playground/board UI for the
+# llm-probe service (see deploy/llm-probe.yaml for the backend). Own Coolify
+# app, tailnet-only. One concern per app.
+#
+# Coolify Watch Paths for this app: llm_probe_ui/** + deploy/llm-probe-ui.yaml
+#
+# The backend URL is baked in as a build-time default (lib/config.ts,
+# NEXT_PUBLIC_LLM_PROBE_URL) since it's a stable tailnet address, not a
+# secret — the browser calls the FastAPI backend directly over the tailnet;
+# provider API keys never leave that backend.
+# =============================================================================
+# Byline: Claude Code · Sonnet 5 · 2026-08-27
+
+services:
+  llm-probe-ui:
+    build:
+      context: ./llm_probe_ui
+      dockerfile: Dockerfile
+    image: agno-llm-probe-ui:latest
+    container_name: llm-probe-ui
+    restart: unless-stopped
+    ports:
+      - "${BIND_IP:-127.0.0.1}:8031:3000"   # tailnet-only; NEVER 0.0.0.0
+    environment:
+      NEXT_PUBLIC_LLM_PROBE_URL: ${NEXT_PUBLIC_LLM_PROBE_URL:-http://100.91.190.107:8030}
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://127.0.0.1:3000/playground', r => process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - agno
+
+networks:
+  agno:
+    external: true
