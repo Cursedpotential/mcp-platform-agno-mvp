@@ -3,6 +3,12 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
+# NEXT_PUBLIC_* vars are inlined into the client bundle at build time, not
+# read at container runtime — must be an ARG here (Coolify passes it via
+# --build-arg since it's also declared under this app's `environment:`),
+# not just a runtime environment var on the container.
+ARG NEXT_PUBLIC_LLM_PROBE_URL
+ENV NEXT_PUBLIC_LLM_PROBE_URL=$NEXT_PUBLIC_LLM_PROBE_URL
 RUN npm run build
 
 FROM node:22-slim AS runner
