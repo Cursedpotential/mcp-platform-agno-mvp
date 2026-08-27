@@ -229,3 +229,58 @@ async def run_custom_prompt(
     )
     result["reasoning_overhead_tokens"] = reasoning_overhead_tokens(result.get("usage"))
     return result
+
+
+async def stream_custom_prompt(
+    provider: str, model: str, prompt: str, *,
+    max_tokens: int = 500, temperature: float = 0, reasoning_effort: Optional[str] = None,
+):
+    """Playground streaming mode — yields plain text deltas as they arrive
+    from the provider's own SSE stream, for the frontend's Vercel AI SDK
+    `useCompletion({streamProtocol: 'text'})` consumer. All providers here
+    speak OpenAI-compatible SSE: `data: {...}\\n\\n` chunks with
+    `choices[0].delta.content`, terminated by `data: [DONE]`.
+
+    Yields the FIRST chunk's usage-derived reasoning-overhead marker as a
+    special `\\x00REASONING:<n>\\x00` sentinel is deliberately NOT done here —
+    streaming responses don't reliably include usage until the final chunk
+    (and several providers omit it in streaming mode entirely), so overhead
+    visibility stays a non-streaming (`run_custom_prompt`) feature.
+    """
+    p = get_provider(provider)
+    if not p.api_key:
+        yield f"[no API key configured for {provider}]"
+        return
+
+    url = f"{p.base_url}/chat/completions"
+    headers = {"Authorization": f"Bearer {p.api_key}", "Content-Type": "application/json"}
+    body: dict[str, Any] = {
+        "model": model, "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": max_tokens, "temperature": temperature, "stream": True,
+    }
+    if reasoning_effort is not None:
+        body["reasoning_effort"] = reasoning_effort
+
+    try:
+        async with httpx.AsyncClient() as client:
+            async with client.stream("POST", url, headers=headers, json=body, timeout=120) as r:
+                if r.status_code != 200:
+                    err = await r.aread()
+                    yield f"[http {r.status_code}: {err.decode(errors='replace')[:500]}]"
+                    return
+                async for line in r.aiter_lines():
+                    if not line or not line.startswith("data:"):
+                        continue
+                    payload = line[len("data:"):].strip()
+                    if payload == "[DONE]":
+                        break
+                    try:
+                        chunk = json.loads(payload)
+                    except json.JSONDecodeError:
+                        continue
+                    delta = chunk.get("choices", [{}])[0].get("delta", {})
+                    text = delta.get("content")
+                    if text:
+                        yield text
+    except Exception as e:
+        yield f"[stream error: {e!r}]"
