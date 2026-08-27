@@ -297,12 +297,15 @@ def assert_owner_acl_contract(cursor: psycopg.Cursor[object]) -> None:
              AND pg_get_userbyid(d.defaclrole) = 'context_owner'"""
     )
     defaults = {(str(row[0]), row[1], str(row[2])) for row in cursor.fetchall()}
-    if not {
-        ("r", "context_import_writer", "SELECT"),
-        ("r", "context_import_writer", "INSERT"),
-        ("r", "context_reader", "SELECT"),
-        ("f", "context_import_writer", "EXECUTE"),
-    } <= defaults:
+    if (
+        not {
+            ("r", "context_import_writer", "SELECT"),
+            ("r", "context_import_writer", "INSERT"),
+            ("r", "context_reader", "SELECT"),
+            ("f", "context_import_writer", "EXECUTE"),
+        }
+        <= defaults
+    ):
         raise RuntimeError("context_owner default privileges are incomplete")
     if any(grantee is None for _kind, grantee, _privilege in defaults):
         raise RuntimeError("PUBLIC retains a context_owner default privilege")

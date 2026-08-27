@@ -147,9 +147,7 @@ def verify_shape(cursor: psycopg.Cursor[object]) -> None:
 
 def verify_owner_and_acl_contract(cursor: psycopg.Cursor[object]) -> None:
     """Verify owners, effective grants, and future-object default privileges."""
-    cursor.execute(
-        "SELECT pg_get_userbyid(nspowner) FROM pg_namespace WHERE nspname = 'context'"
-    )
+    cursor.execute("SELECT pg_get_userbyid(nspowner) FROM pg_namespace WHERE nspname = 'context'")
     if _single_value(cursor) != "context_owner":
         raise RuntimeError("context schema is not owned by context_owner")
     cursor.execute(
