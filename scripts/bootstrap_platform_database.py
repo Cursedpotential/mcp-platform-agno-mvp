@@ -35,7 +35,7 @@ Safety model:
     loosening it (`runtime_role_violates_safety`).
   - `platform_runtime`'s LOGIN password is set ONLY under `--apply`, ONLY from the
     `PLATFORM_DATABASE_PASSWORD` environment variable (or `.env`, same trust boundary as the
-    admin DB_* credentials below), via a parameterized `ALTER ROLE ... PASSWORD %s` — never
+    admin DB_* credentials below), via a safely quoted psycopg SQL literal — never
     interpolated into a printed string, never written to any file, never logged. A missing value
     refuses before any connection is attempted.
   - Before ANY mutation, `classify_state()` must find the foundation ledger row either absent or
@@ -677,11 +677,15 @@ def apply_bootstrap(settings: ConnectionSettings, expected_digest: bytes, runtim
 
     with pg_connect(settings, TARGET_DATABASE) as conn, conn.cursor() as cur:
         cur.execute(FOUNDATION_SQL.read_text(encoding="utf-8"))
+        # PostgreSQL utility statements such as ALTER ROLE do not accept
+        # extended-protocol bind parameters. Quote the password with
+        # psycopg's Literal adapter; never interpolate it ourselves or log
+        # the resulting statement.
         cur.execute(
-            psycopg_sql.SQL("ALTER ROLE {} WITH LOGIN PASSWORD %s").format(
-                psycopg_sql.Identifier(PLATFORM_RUNTIME_ROLE)
-            ),
-            (runtime_password,),
+            psycopg_sql.SQL("ALTER ROLE {} WITH LOGIN PASSWORD {}").format(
+                psycopg_sql.Identifier(PLATFORM_RUNTIME_ROLE),
+                psycopg_sql.Literal(runtime_password),
+            )
         )
         cur.execute(
             "INSERT INTO public.schema_version "

@@ -114,7 +114,11 @@ def test_load_connection_settings_host_flag_wins_over_env():
     assert settings.host == "override-host"
 
 
-def test_load_connection_settings_defaults_when_nothing_set():
+def test_load_connection_settings_defaults_when_nothing_set(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "scripts.bootstrap_platform_database.DOTENV",
+        tmp_path / "absent.env",
+    )
     settings = load_connection_settings(env={})
     assert settings.host == "localhost"
     assert settings.port == "5432"
@@ -554,7 +558,7 @@ def test_platform_foundation_sql_makes_runtime_login_with_no_embedded_password()
     )
     assert "LOGIN" in runtime_create_line
     # No password literal anywhere in this git-tracked file's DDL — only set at runtime via
-    # scripts/bootstrap_platform_database.py's parameterized ALTER ROLE ... PASSWORD %s. Comment
+    # scripts/bootstrap_platform_database.py's psycopg-quoted ALTER ROLE password. Comment
     # lines are prose explaining that fact and legitimately contain the word "PASSWORD".
     ddl_only = "\n".join(line for line in text.splitlines() if not line.strip().startswith("--"))
     assert "PASSWORD" not in ddl_only.upper()
