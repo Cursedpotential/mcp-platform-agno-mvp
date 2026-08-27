@@ -97,6 +97,40 @@ async def board():
     return out
 
 
+@router.get("/history")
+async def history(provider: str, model: str, probe: Optional[str] = None, limit: int = 100):
+    """Every run for one model, newest first — not collapsed to latest, so
+    you can compare e.g. a default run vs a reasoning_effort=none retry vs a
+    reworded-prompt retry side by side. `detail` carries prompt_used/
+    max_tokens_used/reasoning_effort_used for named probes (set on every
+    run since the retry-params change), or the raw playground params."""
+    rows = await db.fetch_results(limit=20000)
+    out = []
+    for r in rows:
+        if r["provider"] != provider or r["model"] != model:
+            continue
+        if probe and r["probe"] != probe:
+            continue
+        det = _parse_detail(r["detail"])
+        out.append({
+            "run_id": r["run_id"], "tier": r["tier"], "probe": r["probe"],
+            "ok": bool(r["ok"]), "http_status": r["http_status"],
+            "latency_s": float(r["latency_s"]) if r["latency_s"] is not None else None,
+            "created_at": r["created_at"],
+            "prompt_used": det.get("prompt_used"),
+            "max_tokens_used": det.get("max_tokens_used"),
+            "reasoning_effort_used": det.get("reasoning_effort_used"),
+            "content": det.get("content"),
+            "error": _clean_err(det.get("error")),
+            "key_facts_hit": det.get("key_facts_hit"),
+            "hits": det.get("hits"), "missed": det.get("missed"),
+            "word_count": det.get("word_count"),
+        })
+        if len(out) >= limit:
+            break
+    return out
+
+
 @router.get("/summary")
 async def summary():
     board_rows = await board()
