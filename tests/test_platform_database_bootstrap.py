@@ -16,6 +16,7 @@ import pytest
 
 from scripts.bootstrap_platform_database import (
     CONTEXT_IMPORT_SQL,
+    CONTEXT_OWNER_ROLE,
     DEFAULT_EXTENSIONS,
     FOUNDATION_SQL,
     PLATFORM_ADMIN_ROLE,
@@ -33,6 +34,7 @@ from scripts.bootstrap_platform_database import (
     load_connection_settings,
     main,
     missing_extensions,
+    runtime_role_violates_safety,
     validate_identifier,
 )
 
@@ -45,6 +47,9 @@ def _state(**overrides) -> LiveState:
         target_database_exists=False,
         admin_role_exists=False,
         runtime_role_exists=False,
+        context_owner_role_exists=False,
+        admin_is_context_owner_member=False,
+        runtime_role_has_dangerous_attributes=None,
         schema_version_row=None,
     )
     base.update(overrides)
@@ -126,12 +131,25 @@ def test_foundation_checksum_changes_when_file_content_changes(tmp_path):
 # ---------------------------------------------------------------------------- extension discovery
 
 
-def test_discover_required_extensions_defaults_when_0036_absent():
-    assert not CONTEXT_IMPORT_SQL.exists(), (
-        "sql/0036_context_import_foundation.sql exists now — re-run this test against the real "
-        "file's CREATE EXTENSION list instead of assuming it is still missing"
-    )
+def test_discover_required_extensions_falls_back_when_0036_path_is_missing(tmp_path):
+    # Synthetic nonexistent path — sql/0036_context_import_foundation.sql itself now exists (see
+    # test_discover_required_extensions_against_the_real_0036_file below), so this exercises the
+    # absent-file fallback without depending on that no longer being true.
+    assert discover_required_extensions(tmp_path / "does_not_exist.sql") == DEFAULT_EXTENSIONS
+
+
+@pytest.mark.skipif(
+    not CONTEXT_IMPORT_SQL.exists(),
+    reason="sql/0036_context_import_foundation.sql is owned by a different lane and not committed "
+    "to every checkout yet — skip rather than hard-fail where it hasn't landed",
+)
+def test_discover_required_extensions_against_the_real_0036_file():
+    # Confirmed by reading the file: it declares zero CREATE EXTENSION statements (uuidv7() is
+    # native, digest() comes from pgcrypto, already shipped by sql/bootstrap/platform_foundation.sql)
+    # — so the live cross-check falls back to this bootstrap's own default, not an empty tuple.
+    assert discover_required_extensions(CONTEXT_IMPORT_SQL) == DEFAULT_EXTENSIONS
     assert discover_required_extensions() == DEFAULT_EXTENSIONS
+    assert missing_extensions(discover_required_extensions()) == ()
 
 
 def test_discover_required_extensions_parses_a_real_file(tmp_path):
@@ -176,15 +194,39 @@ def test_classify_state_drifted_when_checksum_differs():
     assert classify_state(row, expected_checksum="def456") is BootstrapState.DRIFTED
 
 
+# --------------------------------------------------------------------------- runtime role safety
+
+
+def test_runtime_role_violates_safety_false_when_role_absent():
+    assert runtime_role_violates_safety(_state(runtime_role_has_dangerous_attributes=None)) is False
+
+
+def test_runtime_role_violates_safety_false_when_role_clean():
+    assert runtime_role_violates_safety(_state(runtime_role_has_dangerous_attributes=False)) is False
+
+
+def test_runtime_role_violates_safety_true_when_dangerous():
+    assert runtime_role_violates_safety(_state(runtime_role_has_dangerous_attributes=True)) is True
+
+
 # ------------------------------------------------------------------------------------- plan build
 
 
 def test_build_plan_marks_everything_pending_on_a_fresh_cluster():
     plan = build_plan("platform", _state(), extension_gap=())
-    assert all(not step.already_satisfied for step in plan if "ai" not in step.name)
+    # The "ai present" and "runtime has no dangerous attributes" steps are trivially satisfied
+    # on a fresh cluster (nothing to violate yet) — every role/database/grant/ledger step is not.
+    trivially_satisfied_markers = ("verify `ai`", "has no SUPERUSER")
+    assert all(
+        not step.already_satisfied
+        for step in plan
+        if not any(marker in step.name for marker in trivially_satisfied_markers)
+    )
     names = " ".join(step.name for step in plan)
     assert PLATFORM_ADMIN_ROLE in names
     assert PLATFORM_RUNTIME_ROLE in names
+    assert CONTEXT_OWNER_ROLE in names
+    assert f"grant {CONTEXT_OWNER_ROLE!r}" in names
     assert "platform_foundation.sql" in names
 
 
@@ -193,10 +235,26 @@ def test_build_plan_marks_satisfied_steps_when_already_bootstrapped():
         target_database_exists=True,
         admin_role_exists=True,
         runtime_role_exists=True,
+        context_owner_role_exists=True,
+        admin_is_context_owner_member=True,
+        runtime_role_has_dangerous_attributes=False,
         schema_version_row=SchemaVersionRow(version="0000_platform_foundation", checksum="x"),
     )
     plan = build_plan("platform", state, extension_gap=())
     assert all(step.already_satisfied for step in plan)
+
+
+def test_build_plan_flags_runtime_safety_violation():
+    plan = build_plan("platform", _state(runtime_role_has_dangerous_attributes=True), extension_gap=())
+    violation_step = next(step for step in plan if "has no SUPERUSER" in step.name)
+    assert not violation_step.already_satisfied
+    assert "VIOLATION" in violation_step.detail
+
+
+def test_build_plan_grant_step_not_satisfied_until_membership_confirmed():
+    plan = build_plan("platform", _state(admin_role_exists=True, context_owner_role_exists=True), extension_gap=())
+    grant_step = next(step for step in plan if step.name.startswith(f"grant {CONTEXT_OWNER_ROLE!r}"))
+    assert not grant_step.already_satisfied
 
 
 def test_build_plan_flags_ai_missing_as_not_satisfied():
@@ -283,6 +341,27 @@ def test_main_refuses_when_drifted_even_with_apply(monkeypatch):
     assert main(["--target-db", "platform", "--apply"]) == 1
 
 
+def test_main_refuses_when_runtime_role_already_has_dangerous_attributes(monkeypatch):
+    monkeypatch.setattr(
+        "scripts.bootstrap_platform_database.load_connection_settings",
+        lambda target_host=None: _FAKE_SETTINGS,
+    )
+    monkeypatch.setattr("scripts.bootstrap_platform_database.resolve_pgbin", lambda explicit: None)
+    monkeypatch.setattr(
+        "scripts.bootstrap_platform_database.gather_live_state",
+        lambda settings, target_database, pgbin: _state(
+            runtime_role_exists=True, runtime_role_has_dangerous_attributes=True
+        ),
+    )
+
+    def _boom(*_args, **_kwargs):
+        raise AssertionError("must not apply when platform_runtime already violates the safety contract")
+
+    monkeypatch.setattr("scripts.bootstrap_platform_database.apply_bootstrap", _boom)
+
+    assert main(["--target-db", "platform", "--apply"]) == 1
+
+
 def test_main_refuses_when_ai_missing_on_target_host(monkeypatch):
     monkeypatch.setattr(
         "scripts.bootstrap_platform_database.load_connection_settings",
@@ -315,5 +394,23 @@ def test_platform_foundation_sql_creates_expected_roles_and_ledger():
     text = FOUNDATION_SQL.read_text(encoding="utf-8")
     assert PLATFORM_ADMIN_ROLE in text
     assert PLATFORM_RUNTIME_ROLE in text
+    assert CONTEXT_OWNER_ROLE in text
+    assert f"GRANT {CONTEXT_OWNER_ROLE} TO {PLATFORM_ADMIN_ROLE}" in text
     assert "public.schema_version" in text
     assert "CREATE EXTENSION IF NOT EXISTS pgcrypto" in text
+
+
+def test_platform_foundation_sql_never_grants_dangerous_attributes_to_runtime():
+    # DDL only — comment lines are prose ("...with SUPERUSER/.../BYPASSRLS explicitly OFF") and
+    # would false-positive a naive substring scan for the unnegated word.
+    ddl_lines = [
+        line
+        for line in FOUNDATION_SQL.read_text(encoding="utf-8").upper().splitlines()
+        if not line.strip().startswith("--")
+    ]
+    runtime_lines = [line for line in ddl_lines if PLATFORM_RUNTIME_ROLE.upper() in line]
+    assert runtime_lines, "expected at least one DDL line referencing platform_runtime"
+    for dangerous in ("SUPERUSER", "CREATEDB", "CREATEROLE", "BYPASSRLS"):
+        for line in runtime_lines:
+            if dangerous in line:
+                assert f"NO{dangerous}" in line, f"{dangerous} must appear negated (NO{dangerous}) on this DDL line"

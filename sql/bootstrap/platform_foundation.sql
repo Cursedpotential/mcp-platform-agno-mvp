@@ -11,23 +11,23 @@
 -- not historical migration steps.
 --
 -- Scope: the smallest extension + ledger foundation that sql/0036_context_import_foundation.sql
--- is expected to build on (per this file's authoring instructions). sql/0036 is owned by a
--- different work lane and had not landed in this checkout as of authoring (2026-08-27) — rather
--- than guess its full extension list, this file ships only what a bootstrap ledger itself needs
--- (pgcrypto, for the checksum/digest machinery scripts/bootstrap_platform_database.py uses).
--- scripts/bootstrap_platform_database.py:discover_required_extensions() reads
--- sql/0036_context_import_foundation.sql's own `CREATE EXTENSION` statements once that file
--- exists and REPORTS (never silently applies) any extension it needs beyond what is bootstrapped
--- here — see that function's docstring. Extend the list below only once 0036 is real and its
--- requirements are read, not guessed.
+-- builds on. sql/0036 now exists (Codex · GPT-5 · 2026-08-26, additive `context` schema for the
+-- UniversalImportWorkflow) and, confirmed by reading it, declares ZERO `CREATE EXTENSION`
+-- statements of its own — it relies on `uuidv7()` (native on PG18) and `digest()` (pgcrypto,
+-- already shipped below). This file's minimal extension set already covers it; no extension list
+-- change was needed. scripts/bootstrap_platform_database.py:discover_required_extensions() still
+-- cross-checks 0036 live rather than trusting this note, so a future 0036 revision that adds an
+-- extension is still caught and reported, not silently missed.
 --
--- Roles: platform_admin / platform_runtime are created here as NOLOGIN placeholders. This
--- bootstrap only reserves the names and establishes platform_admin as the owner of the
--- foundation objects, so later ACL activation (context_owner / context_import_writer /
--- context_reader grants, once sql/0036 defines their shape) has a stable ownership boundary to
--- GRANT/REVOKE against instead of needing an ownership-transfer step first. Turning
--- platform_runtime into a connectable application role (LOGIN + password + those grants) is a
--- deliberate later step — not done here, and no password is embedded in this git-tracked file.
+-- Roles: platform_admin / platform_runtime / context_owner. platform_admin owns the foundation
+-- objects and is a member of context_owner (`GRANT context_owner TO platform_admin` below), so it
+-- can administer the `context` schema sql/0036 creates without a separate ownership-transfer step.
+-- platform_runtime is created LOGIN-less and with SUPERUSER/CREATEDB/CREATEROLE/BYPASSRLS
+-- explicitly and permanently OFF (owner directive) — it is the eventual application runtime role
+-- and must never hold cluster-wide or row-security-bypassing power, only whatever
+-- context_import_writer/context_reader grants a later ACL-activation step adds once sql/0036's
+-- write/read surface is stable. That later step (LOGIN + password + those two roles + grants) is
+-- deliberately NOT done here, and no password is embedded in this git-tracked file.
 --
 -- Byline: Claude Code · Sonnet 5 · 2026-08-27
 
@@ -44,12 +44,24 @@ BEGIN
     END IF;
 END $$;
 
+-- Explicit, not merely default: SUPERUSER/CREATEDB/CREATEROLE/BYPASSRLS are stated OFF so intent
+-- is grep-able in the DDL itself, not just implied by CREATE ROLE's unstated defaults.
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'platform_runtime') THEN
-        CREATE ROLE platform_runtime NOLOGIN;
+        CREATE ROLE platform_runtime NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
     END IF;
 END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'context_owner') THEN
+        CREATE ROLE context_owner NOLOGIN;
+    END IF;
+END $$;
+
+-- Idempotent: re-granting an already-held role membership is a silent no-op in Postgres.
+GRANT context_owner TO platform_admin;
 
 -- Bootstrap/migration ledger for the `platform` database. One row per applied foundation unit;
 -- the checksum column lets scripts/bootstrap_platform_database.py detect drift (a bootstrap file
