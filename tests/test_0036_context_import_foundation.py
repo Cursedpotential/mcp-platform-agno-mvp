@@ -103,9 +103,9 @@ def test_apply_and_validator_require_platform_and_the_rich_ledger() -> None:
     for path in (APPLY_SCRIPT, VALIDATE_SCRIPT):
         source = path.read_text(encoding="utf-8")
         assert 'database != "platform"' in source
-        assert 'dbname={database}' in source
-        assert 'current_database()' in source
-        assert 'datname = \'ai\'' in source
+        assert "dbname={database}" in source
+        assert "current_database()" in source
+        assert "datname = 'ai'" in source
         for column in (
             "id",
             "version_label",
