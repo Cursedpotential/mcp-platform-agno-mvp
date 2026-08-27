@@ -1,0 +1,8 @@
+node_modules
+dist
+.git
+.qa
+qa
+npm-debug.log*
+Dockerfile*
+*.md

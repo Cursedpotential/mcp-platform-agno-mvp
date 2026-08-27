@@ -1,0 +1,18 @@
+# Approved unified-operator-surface Vite prototype.  Deploy as its own
+# Coolify Docker Compose application; the only host exposure is tailnet-bound.
+
+services:
+  unified-operator-surface:
+    build:
+      context: ./workbench/design-mockups/unified-operator-surface
+      dockerfile: Dockerfile
+    image: platform-unified-operator-surface:latest
+    restart: unless-stopped
+    ports:
+      - "${BIND_IP:-127.0.0.1}:8020:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
