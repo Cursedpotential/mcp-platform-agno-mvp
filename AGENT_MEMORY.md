@@ -1,7 +1,7 @@
 ---
 scope: .
 status: current
-verified_at: 2026-08-27
+verified_at: 2026-08-29
 superseded_by: null
 authority:
   - AGENTS.md
@@ -19,7 +19,7 @@ contains_secrets: false
 
 # Repository Agent Memory
 
-> _Byline: Codex · GPT-5 · 2026-08-27._
+> _Byline: Codex · GPT-5 · 2026-08-27; navigation verification refreshed 2026-08-29._
 
 This file is a router, not an encyclopedia. Read only the branches relevant to the current task.
 
@@ -59,7 +59,6 @@ This file is a router, not an encyclopedia. Read only the branches relevant to t
 | `timesketch-fork/**` | `timesketch-fork/AGENT_MEMORY.md` |
 | `tests/**` | `tests/AGENT_MEMORY.md` |
 | `knowledge/**` | `knowledge/AGENT_MEMORY.md` |
-| `analytics/**` | `analytics/AGENT_MEMORY.md` |
 | `vendored/**`, `server/vendored/**` | `vendored/AGENT_MEMORY.md` |
 | `llm_probe/**`, `llm_probe_ui/**` | `llm_probe/AGENT_MEMORY.md` or `llm_probe_ui/AGENT_MEMORY.md` |
 
@@ -67,7 +66,7 @@ Format and precedence: `docs/agent-memory/README.md`.
 
 <!-- freshness
 watches_hash: 692a4b7
-last_verified: 2026-08-27
+last_verified: 2026-08-29
 watches:
   - AGENTS.md
   - docs/INDEX.md
