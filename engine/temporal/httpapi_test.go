@@ -58,6 +58,8 @@ func newTestHandler(t *testing.T, starter *fakeStarter) http.Handler {
 func validStartBody() []byte {
 	body, _ := json.Marshal(startRequest{
 		RequestID:        "req-1",
+		MatterID:         "11111111-1111-1111-1111-111111111111",
+		CourtCaseID:      "22222222-2222-2222-2222-222222222222",
 		SourceRef:        "acquisition-ref",
 		DeclaredFormat:   "whatsapp_export_json",
 		ParserOptionsRef: "parser-options-ref",
@@ -112,7 +114,7 @@ func TestStartHandlerRejectsMissingFields(t *testing.T) {
 	server := httptest.NewServer(newTestHandler(t, starter))
 	defer server.Close()
 
-	body, _ := json.Marshal(startRequest{RequestID: "req-1", SourceRef: "acquisition-ref"})
+	body, _ := json.Marshal(startRequest{RequestID: "req-1", SourceRef: "acquisition-ref", MatterID: "11111111-1111-1111-1111-111111111111", CourtCaseID: "22222222-2222-2222-2222-222222222222"})
 	req, _ := http.NewRequest(http.MethodPost, server.URL+"/reference-import/start", bytes.NewReader(body))
 	req.Header.Set("Authorization", "Bearer starter-token")
 	resp, err := http.DefaultClient.Do(req)

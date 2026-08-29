@@ -76,6 +76,7 @@ func registerRealActivities(t *testing.T, env *testsuite.TestWorkflowEnvironment
 func integrationInput() uiw.WorkflowInput {
 	return uiw.WorkflowInput{
 		RequestID: "req-1", SourceRef: "acquisition-ref",
+		MatterID: "11111111-1111-1111-1111-111111111111", CourtCaseID: "22222222-2222-2222-2222-222222222222",
 		DeclaredFormat: "whatsapp_export_json", ParserOptionsRef: "parser-options-ref",
 	}
 }

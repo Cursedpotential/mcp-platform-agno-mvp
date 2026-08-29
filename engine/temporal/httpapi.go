@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
 )
 
@@ -70,6 +72,8 @@ func (h *StarterHTTPHandler) withAuth(next http.HandlerFunc) http.HandlerFunc {
 // mid-pipeline state.
 type startRequest struct {
 	RequestID        string `json:"request_id"`
+	MatterID         string `json:"matter_id"`
+	CourtCaseID      string `json:"court_case_id"`
 	SourceRef        string `json:"source_ref"`
 	DeclaredFormat   string `json:"declared_format"`
 	ParserOptionsRef string `json:"parser_options_ref"`
@@ -93,6 +97,8 @@ func (h *StarterHTTPHandler) handleStart(w http.ResponseWriter, r *http.Request)
 
 	in := uiw.WorkflowInput{
 		RequestID:        req.RequestID,
+		MatterID:         req.MatterID,
+		CourtCaseID:      req.CourtCaseID,
 		SourceRef:        uiw.Ref(req.SourceRef),
 		DeclaredFormat:   req.DeclaredFormat,
 		ParserOptionsRef: uiw.Ref(req.ParserOptionsRef),
@@ -117,6 +123,12 @@ func validateStartRequest(req startRequest) error {
 	}
 	if strings.TrimSpace(req.ParserOptionsRef) == "" {
 		return errors.New("start request requires parser_options_ref")
+	}
+	if _, err := uuid.Parse(strings.TrimSpace(req.MatterID)); err != nil {
+		return errors.New("start request requires a valid matter_id UUID")
+	}
+	if _, err := uuid.Parse(strings.TrimSpace(req.CourtCaseID)); err != nil {
+		return errors.New("start request requires a valid court_case_id UUID")
 	}
 	return nil
 }

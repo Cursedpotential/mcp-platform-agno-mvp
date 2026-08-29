@@ -96,12 +96,12 @@ func (r *SourceLifecycleRepository) RegisterSource(ctx context.Context, spec act
 	err = tx.QueryRow(ctx, `
 		INSERT INTO context.source_version
 			(source_id, version_ordinal, workflow_id, submission_idempotency_key,
-			 declared_format, acquired_at)
-		SELECT $1, COALESCE(MAX(version_ordinal), 0) + 1, $2, $2, $3, $4
+			 declared_format, acquired_at, matter_id, court_case_id)
+		SELECT $1, COALESCE(MAX(version_ordinal), 0) + 1, $2, $2, $3, $4, $5::uuid, $6::uuid
 		FROM context.source_version
 		WHERE source_id = $1
 		ON CONFLICT DO NOTHING
-		RETURNING id`, sourceID, spec.RequestID, spec.DeclaredFormat, r.now()).Scan(&sourceVersionID)
+		RETURNING id`, sourceID, spec.RequestID, spec.DeclaredFormat, r.now(), spec.MatterID, spec.CourtCaseID).Scan(&sourceVersionID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		err = tx.QueryRow(ctx, `
 			SELECT version.id
@@ -113,15 +113,16 @@ func (r *SourceLifecycleRepository) RegisterSource(ctx context.Context, spec act
 	if err != nil {
 		return "", "", fmt.Errorf("create or recover source version: %w", err)
 	}
-	var actualSourceKey, actualFormat, actualWorkflow string
+	var actualSourceKey, actualFormat, actualWorkflow, actualMatterID, actualCourtCaseID string
 	if err := tx.QueryRow(ctx, `
-		SELECT source.source_key, version.declared_format, version.workflow_id
+		SELECT source.source_key, version.declared_format, version.workflow_id,
+		       version.matter_id::text, version.court_case_id::text
 		FROM context.source_version version
 		JOIN context.source source ON source.id = version.source_id
-		WHERE version.id = $1::uuid`, sourceVersionID).Scan(&actualSourceKey, &actualFormat, &actualWorkflow); err != nil {
+		WHERE version.id = $1::uuid`, sourceVersionID).Scan(&actualSourceKey, &actualFormat, &actualWorkflow, &actualMatterID, &actualCourtCaseID); err != nil {
 		return "", "", fmt.Errorf("verify source version ownership: %w", err)
 	}
-	if actualWorkflow != spec.RequestID || actualSourceKey != string(spec.AcquisitionRef) || actualFormat != spec.DeclaredFormat {
+	if actualWorkflow != spec.RequestID || actualSourceKey != string(spec.AcquisitionRef) || actualFormat != spec.DeclaredFormat || actualMatterID != spec.MatterID || actualCourtCaseID != spec.CourtCaseID {
 		return "", "", errors.New("registration idempotency key is already owned by a different source or format")
 	}
 
@@ -388,6 +389,12 @@ func validateRegistrationSpec(spec activities.SourceRegistrationSpec) error {
 	}
 	if spec.Attempt < 1 {
 		return errors.New("source registration attempt must be positive")
+	}
+	if _, err := uuid.Parse(strings.TrimSpace(spec.MatterID)); err != nil {
+		return errors.New("source registration requires a valid matter_id UUID")
+	}
+	if _, err := uuid.Parse(strings.TrimSpace(spec.CourtCaseID)); err != nil {
+		return errors.New("source registration requires a valid court_case_id UUID")
 	}
 	return nil
 }

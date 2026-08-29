@@ -63,10 +63,18 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	uploadIngress, err := newUploadIngress()
+	if err != nil {
+		return err
+	}
+	routes, err := starterRoutes(handler.Routes(), uploadIngress)
+	if err != nil {
+		return err
+	}
 
 	server := &http.Server{
 		Addr:              cfg.StarterAddr,
-		Handler:           handler.Routes(),
+		Handler:           routes,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       defaultReadTimeout,
 		WriteTimeout:      defaultWriteTimeout,

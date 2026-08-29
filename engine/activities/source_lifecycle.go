@@ -23,6 +23,8 @@ import (
 // persistence boundary.
 type SourceRegistrationSpec struct {
 	RequestID      string
+	MatterID       string
+	CourtCaseID    string
 	AcquisitionRef uiw.Ref
 	DeclaredFormat string
 	Attempt        int32
@@ -106,6 +108,8 @@ func (a SourceLifecycleActivities) RegisterSource(ctx context.Context, req uiw.S
 	}
 	resultRef, receiptRef, err := a.Store.RegisterSource(ctx, SourceRegistrationSpec{
 		RequestID:      req.RequestID,
+		MatterID:       req.MatterID,
+		CourtCaseID:    req.CourtCaseID,
 		AcquisitionRef: acquisitionRef,
 		DeclaredFormat: req.DeclaredFormat,
 		Attempt:        a.attempt(ctx),

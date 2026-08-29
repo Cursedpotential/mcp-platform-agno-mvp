@@ -1,6 +1,8 @@
 # Universal Import Starter — separate Coolify application on ovh-files.
 # Watch paths: engine/**, docker/universal-import-starter/**,
 # deploy/universal-import-starter.yaml
+# The upload ingress and worker share this host-backed source-object root.
+# Prepare it with ownership 10001:10001 and mode 0750 before deployment.
 
 services:
   universal-import-starter:
@@ -17,9 +19,14 @@ services:
       TEMPORAL_TASK_QUEUE: ${TEMPORAL_TASK_QUEUE:-universal-import-v1}
       REFERENCE_STARTER_ADDR: :8091
       REFERENCE_STARTER_TOKEN: ${REFERENCE_STARTER_TOKEN:?set}
+      SOURCE_OBJECT_DIR: /data/uiw/source-objects
+      UNIVERSAL_IMPORT_UPLOAD_TOKEN: ${UNIVERSAL_IMPORT_UPLOAD_TOKEN:?set}
+      UNIVERSAL_IMPORT_UPLOAD_MAX_BYTES: ${UNIVERSAL_IMPORT_UPLOAD_MAX_BYTES:?set}
       N8N_UNIVERSAL_IMPORT_BASE_URL: ${N8N_UNIVERSAL_IMPORT_BASE_URL:?set}
       N8N_UNIVERSAL_IMPORT_AUTH_HEADER: ${N8N_UNIVERSAL_IMPORT_AUTH_HEADER:?set}
       N8N_UNIVERSAL_IMPORT_AUTH_VALUE: ${N8N_UNIVERSAL_IMPORT_AUTH_VALUE:?set}
+    volumes:
+      - /data/agno/volumes/universal-import/source-objects:/data/uiw/source-objects
     networks:
       - coolify
 

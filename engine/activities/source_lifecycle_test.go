@@ -36,6 +36,8 @@ func TestRegisterSourceIsIdentityOnlyAndReturnsDurableRefs(t *testing.T) {
 	activities := SourceLifecycleActivities{Store: store, Attempt: func(context.Context) int32 { return 4 }}
 	result, err := activities.RegisterSource(context.Background(), uiw.StageRequest{
 		RequestID:      "workflow:1",
+		MatterID:       "11111111-1111-1111-1111-111111111111",
+		CourtCaseID:    "22222222-2222-2222-2222-222222222222",
 		DeclaredFormat: "zip_archive",
 		Refs:           map[string]uiw.Ref{"acquisition": "upload:1"},
 	})
@@ -45,7 +47,7 @@ func TestRegisterSourceIsIdentityOnlyAndReturnsDurableRefs(t *testing.T) {
 	if result != (uiw.StageResult{Stage: stagegraph.RegisterSource, Status: uiw.StatusSuccess, Ref: "source-version:1", ReceiptRef: "receipt:register"}) {
 		t.Fatalf("result = %+v", result)
 	}
-	want := SourceRegistrationSpec{RequestID: "workflow:1", AcquisitionRef: "upload:1", DeclaredFormat: "zip_archive", Attempt: 4}
+	want := SourceRegistrationSpec{RequestID: "workflow:1", MatterID: "11111111-1111-1111-1111-111111111111", CourtCaseID: "22222222-2222-2222-2222-222222222222", AcquisitionRef: "upload:1", DeclaredFormat: "zip_archive", Attempt: 4}
 	if store.registerSpec != want {
 		t.Fatalf("registration spec = %+v, want %+v", store.registerSpec, want)
 	}

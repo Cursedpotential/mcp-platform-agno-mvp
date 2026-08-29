@@ -22,7 +22,7 @@ import (
 // canon name (ActivityName, identical to stagegraph.StageID) so a worker in
 // a later lane can register real Activities without this file changing.
 func UniversalImportWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, error) {
-	r := &run{requestID: in.RequestID}
+	r := &run{requestID: in.RequestID, matterID: in.MatterID, courtCaseID: in.CourtCaseID}
 
 	// Stage 1: register_source_activity — the root. It creates the
 	// identity/idempotency coordinate every later stage keys off.
@@ -278,6 +278,8 @@ func UniversalImportWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowRe
 // source/version reference across one workflow execution.
 type run struct {
 	requestID        string
+	matterID         string
+	courtCaseID      string
 	sourceVersionRef Ref
 	results          []StageResult
 }
@@ -303,6 +305,8 @@ func (r *run) exec(ctx workflow.Context, id stagegraph.StageID, declaredFormat s
 func (r *run) start(ctx workflow.Context, id stagegraph.StageID, declaredFormat string, refs map[string]Ref) pending {
 	req := StageRequest{
 		RequestID:        r.requestID,
+		MatterID:         r.matterID,
+		CourtCaseID:      r.courtCaseID,
 		SourceVersionRef: r.sourceVersionRef,
 		DeclaredFormat:   declaredFormat,
 		Refs:             refs,

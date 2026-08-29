@@ -50,7 +50,9 @@ type WorkflowInput struct {
 	// on every StageRequest (see StageRequest.RequestID) so an Activity can
 	// key its own idempotency/dedup checks off the same coordinate the
 	// workflow itself uses.
-	RequestID string
+	RequestID   string
+	MatterID    string
+	CourtCaseID string
 	// SourceRef points at the not-yet-retained acquisition object (upload,
 	// watcher-discovered file, or other external pointer). It is never the
 	// bytes themselves.
@@ -76,6 +78,8 @@ type StageRequest struct {
 	// key its own idempotency/dedup checks off the same client-supplied
 	// coordinate the workflow uses as its Temporal workflow ID.
 	RequestID        string
+	MatterID         string
+	CourtCaseID      string
 	SourceVersionRef Ref
 	DeclaredFormat   string
 	// Refs is a small, named set of upstream references this stage

@@ -51,7 +51,7 @@ func TestImmutableAcquisitionValidationRequiresSuppliedDigestAndExactInlineBytes
 }
 
 func TestLifecycleKeysAreDeterministicAndDistinct(t *testing.T) {
-	registration := activities.SourceRegistrationSpec{RequestID: "request-1", AcquisitionRef: "upload:1", DeclaredFormat: "zip"}
+	registration := activities.SourceRegistrationSpec{RequestID: "request-1", MatterID: "11111111-1111-1111-1111-111111111111", CourtCaseID: "22222222-2222-2222-2222-222222222222", AcquisitionRef: "upload:1", DeclaredFormat: "zip"}
 	if registrationKey(registration) != registrationKey(registration) {
 		t.Fatal("registration key is not deterministic")
 	}
@@ -65,7 +65,7 @@ func TestLifecycleKeysAreDeterministicAndDistinct(t *testing.T) {
 }
 
 func TestLifecycleSpecValidation(t *testing.T) {
-	if err := validateRegistrationSpec(activities.SourceRegistrationSpec{RequestID: "r", AcquisitionRef: "a", DeclaredFormat: "zip", Attempt: 1}); err != nil {
+	if err := validateRegistrationSpec(activities.SourceRegistrationSpec{RequestID: "r", MatterID: "11111111-1111-1111-1111-111111111111", CourtCaseID: "22222222-2222-2222-2222-222222222222", AcquisitionRef: "a", DeclaredFormat: "zip", Attempt: 1}); err != nil {
 		t.Fatal(err)
 	}
 	if err := validateRetentionSpec(activities.OriginalRetentionSpec{RequestID: "r", SourceVersionRef: "v", AcquisitionRef: "a", Attempt: 1}); err != nil {
@@ -79,6 +79,22 @@ func TestLifecycleSpecValidation(t *testing.T) {
 	} {
 		if err := validateRegistrationSpec(invalid); err == nil {
 			t.Fatal("invalid registration accepted")
+		}
+	}
+}
+
+func TestLifecycleSpecRejectsMissingOrMalformedMatterScope(t *testing.T) {
+	base := activities.SourceRegistrationSpec{RequestID: "r", MatterID: "11111111-1111-1111-1111-111111111111", CourtCaseID: "22222222-2222-2222-2222-222222222222", AcquisitionRef: "a", DeclaredFormat: "zip", Attempt: 1}
+	for _, candidate := range []activities.SourceRegistrationSpec{
+		base,
+		{RequestID: base.RequestID, CourtCaseID: base.CourtCaseID, AcquisitionRef: base.AcquisitionRef, DeclaredFormat: base.DeclaredFormat, Attempt: base.Attempt},
+		{RequestID: base.RequestID, MatterID: base.MatterID, CourtCaseID: "not-a-uuid", AcquisitionRef: base.AcquisitionRef, DeclaredFormat: base.DeclaredFormat, Attempt: base.Attempt},
+	} {
+		if candidate == base {
+			continue
+		}
+		if err := validateRegistrationSpec(candidate); err == nil {
+			t.Fatalf("matter scope unexpectedly accepted: %+v", candidate)
 		}
 	}
 }
