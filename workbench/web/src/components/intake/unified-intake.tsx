@@ -6,6 +6,7 @@
 // Byline: Codex · GPT-5 · 2026-08-29 (shared fixed-case shell context)
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
@@ -18,13 +19,11 @@ import {
   Scale,
   ShieldCheck,
   Upload,
-  X,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
   ApiError,
-  decideUIW,
   getUIWPreview,
   listUIWSources,
   startUIW,
@@ -39,7 +38,7 @@ import type {
 } from "@/lib/shared/types";
 import { useFixedCase } from "@/lib/fixed-case-context";
 
-type IntakePhase = "choose" | "ready" | "starting" | "review" | "deciding" | "complete" | "error";
+type IntakePhase = "choose" | "ready" | "starting" | "review" | "complete" | "error";
 type PreviewTab = "source" | "metadata" | "parser";
 
 function errorText(error: unknown) {
@@ -68,12 +67,12 @@ function bytes(value: number) {
 
 const terminalPreviewPhases = new Set(["awaiting_decision", "approved", "rejected", "timed_out"]);
 
-async function waitForPreview(workflowId: string, attempts = 80) {
+async function waitForPreview(previewHandle: string, attempts = 80) {
   let lastState: UIWPreviewResponse | null = null;
   let lastError: unknown = null;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
-      lastState = await getUIWPreview(workflowId);
+      lastState = await getUIWPreview(previewHandle);
       lastError = null;
       if (terminalPreviewPhases.has(lastState.phase)) return lastState;
     } catch (requestError) {
@@ -109,7 +108,6 @@ export function UnifiedIntake() {
   const [upload, setUpload] = useState<UIWUploadResponse | null>(null);
   const [run, setRun] = useState<UIWStartResponse | null>(null);
   const [preview, setPreview] = useState<UIWPreviewResponse | null>(null);
-  const [rejectionReason, setRejectionReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [previewTab, setPreviewTab] = useState<PreviewTab>("source");
 
@@ -224,35 +222,12 @@ export function UnifiedIntake() {
       });
       setRun(started);
 
-      const state = await waitForPreview(started.workflow_id);
+      const state = await waitForPreview(started.preview_handle);
       setPreview(state);
       setPhase(state.phase === "awaiting_decision" ? "review" : "complete");
     } catch (requestError) {
       setError(errorText(requestError));
       setPhase("error");
-    }
-  }
-
-  async function decide(approved: boolean) {
-    if (!run) return;
-    if (!approved && !rejectionReason.trim()) {
-      setError("Enter a reason before rejecting this preview.");
-      return;
-    }
-    setPhase("deciding");
-    setError(null);
-    try {
-      await decideUIW(run.workflow_id, {
-        approved,
-        reason: approved ? "Owner approved the selected parser preview" : rejectionReason.trim(),
-        decider: "owner",
-      });
-      const state = await waitForPreview(run.workflow_id, 20);
-      setPreview(state);
-      setPhase("complete");
-    } catch (requestError) {
-      setError(errorText(requestError));
-      setPhase("review");
     }
   }
 
@@ -264,13 +239,12 @@ export function UnifiedIntake() {
     setUpload(null);
     setRun(null);
     setPreview(null);
-    setRejectionReason("");
     setError(null);
     setPreviewTab("source");
     setPhase("choose");
   }
 
-  const activeStep = phase === "choose" || phase === "ready" ? 1 : phase === "starting" ? 2 : phase === "review" || phase === "deciding" ? 3 : 4;
+  const activeStep = phase === "choose" || phase === "ready" ? 1 : phase === "starting" ? 2 : phase === "review" ? 3 : 4;
   const selectedSource = file ?? remote;
   const selectedSize = file?.size ?? remote?.byte_length ?? 0;
   const selectedSourceRef = upload?.acquisition_ref ?? (remote ? `r2://casebible-sorted/${remote.key}` : null);
@@ -405,7 +379,8 @@ export function UnifiedIntake() {
                       <div className="border bg-accent/30 p-5">
                         <div className="flex flex-wrap items-center justify-between gap-3"><strong className="capitalize">{preview.phase.replaceAll("_", " ")}</strong><span className="border bg-card px-2 py-1 text-[10px] uppercase text-muted-foreground">Temporal read-back</span></div>
                         <dl className="mt-5 grid gap-4 text-xs">
-                          <div><dt className="text-muted-foreground">Selection reference</dt><dd className="mt-1 break-all font-mono text-[11px]">{preview.select_ref || "Selection has not been recorded yet"}</dd></div>
+                          <div><dt className="text-muted-foreground">Parser</dt><dd className="mt-1 break-all font-mono text-[11px]">{preview.parser ? `${preview.parser.parser_id} · ${preview.parser.parser_version}` : "Selection has not been recorded yet"}</dd></div>
+                          {preview.parser && <div><dt className="text-muted-foreground">Parser config digest</dt><dd className="mt-1 break-all font-mono text-[11px]">{preview.parser.config_digest}</dd></div>}
                           {preview.reason && <div><dt className="text-muted-foreground">Runtime reason</dt><dd className="mt-1">{preview.reason}</dd></div>}
                         </dl>
                       </div>
@@ -417,11 +392,10 @@ export function UnifiedIntake() {
               </div>
 
               <div className="flex flex-col gap-3 border-t bg-card px-5 py-4 sm:flex-row sm:items-center">
-                {phase === "review" || phase === "deciding" ? (
+                {phase === "review" && run ? (
                   <>
-                    <input className="h-10 min-w-0 flex-1 border bg-background px-3 text-sm" value={rejectionReason} onChange={(event) => setRejectionReason(event.target.value)} placeholder="Reason required for rejection" aria-label="Rejection reason" />
-                    <Button variant="outline" disabled={phase === "deciding"} onClick={() => void decide(false)} className="border-[#b5433b] text-[#a9342d]"><X className="h-4 w-4" /> Reject preview</Button>
-                    <Button disabled={phase === "deciding"} onClick={() => void decide(true)}>{phase === "deciding" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Approve and continue</Button>
+                    <div className="flex-1 text-xs leading-5 text-muted-foreground">Review the normalized messages, provenance locators, and required receipts before deciding. Decisions are available only in the correlated pipeline preview.</div>
+                    <Button asChild><Link href={`/evidence/preview?preview_handle=${encodeURIComponent(run.preview_handle)}`}>Review messages and decide <ChevronRight className="h-4 w-4" /></Link></Button>
                   </>
                 ) : phase === "complete" ? (
                   <><div className="flex-1 text-sm"><strong className="capitalize">{preview?.phase ?? "Decision signaled"}</strong><p className="text-xs text-muted-foreground">The result below was read back from the durable workflow.</p></div><Button variant="outline" onClick={reset}>Start another intake</Button></>
@@ -433,15 +407,17 @@ export function UnifiedIntake() {
               {phase === "complete" && run && (
                 <section className="border-l-4 border-l-[#2f9d67] bg-card p-5" aria-label="Intake execution receipt">
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div><p className="platform-kicker mb-1">Execution receipt</p><h2 className="text-lg font-semibold capitalize">{preview?.phase.replaceAll("_", " ") ?? "Decision recorded"}</h2><p className="mt-1 text-xs text-muted-foreground">Server-returned workflow identity and latest Temporal phase.</p></div>
+                    <div><p className="platform-kicker mb-1">Execution receipt</p><h2 className="text-lg font-semibold capitalize">{preview?.phase.replaceAll("_", " ") ?? "Decision recorded"}</h2><p className="mt-1 text-xs text-muted-foreground">Server-returned preview identity and latest durable workflow phase.</p></div>
                     <span className="border border-[#2f9d67] bg-[#e2f3e9] px-2 py-1 text-[10px] font-semibold uppercase text-[#17794b] dark:bg-[#203d31] dark:text-[#72d9a1]">Live workflow read-back</span>
                   </div>
                   <dl className="mt-5 grid gap-px border bg-border sm:grid-cols-2">
-                    <div className="bg-card p-4"><dt className="text-[10px] uppercase text-muted-foreground">Workflow ID</dt><dd className="mt-1 break-all font-mono text-[11px]">{run.workflow_id}</dd></div>
-                    <div className="bg-card p-4"><dt className="text-[10px] uppercase text-muted-foreground">Run ID</dt><dd className="mt-1 break-all font-mono text-[11px]">{run.run_id}</dd></div>
+                    <div className="bg-card p-4 sm:col-span-2"><dt className="text-[10px] uppercase text-muted-foreground">Preview handle</dt><dd className="mt-1 break-all font-mono text-[11px]">{run.preview_handle}</dd></div>
                     <div className="bg-card p-4"><dt className="text-[10px] uppercase text-muted-foreground">Source</dt><dd className="mt-1 break-words text-xs">{selectedSource?.name}</dd></div>
                     <div className="bg-card p-4"><dt className="text-[10px] uppercase text-muted-foreground">Authority boundary</dt><dd className="mt-1 text-xs">Context only; not evidence</dd></div>
                   </dl>
+                  <Button asChild variant="outline" className="mt-4">
+                    <Link href={`/evidence/preview?preview_handle=${encodeURIComponent(run.preview_handle)}`}>Open pipeline preview</Link>
+                  </Button>
                 </section>
               )}
             </div>
@@ -471,7 +447,7 @@ export function UnifiedIntake() {
 
           <section className="border-b py-5">
             <p className="platform-rule-title mb-3">Workflow receipt</p>
-            {run ? <dl className="space-y-3 text-xs"><div><dt className="text-muted-foreground">Workflow ID</dt><dd className="break-all font-mono text-[10px]">{run.workflow_id}</dd></div><div><dt className="text-muted-foreground">Run ID</dt><dd className="break-all font-mono text-[10px]">{run.run_id}</dd></div><div><dt className="text-muted-foreground">Phase</dt><dd className="capitalize">{preview?.phase.replaceAll("_", " ") ?? phase}</dd></div></dl> : <p className="text-xs leading-5 text-muted-foreground">A receipt appears only after the server seals the source and Temporal accepts the workflow.</p>}
+            {run ? <dl className="space-y-3 text-xs"><div><dt className="text-muted-foreground">Preview handle</dt><dd className="break-all font-mono text-[10px]">{run.preview_handle}</dd></div><div><dt className="text-muted-foreground">Phase</dt><dd className="capitalize">{preview?.phase.replaceAll("_", " ") ?? phase}</dd></div></dl> : <p className="text-xs leading-5 text-muted-foreground">A receipt appears only after the server seals the source and the durable workflow accepts the request.</p>}
           </section>
 
           <section className="pt-5">

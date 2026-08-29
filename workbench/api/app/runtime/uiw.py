@@ -5,11 +5,32 @@ Byline: Codex · GPT-5 · 2026-08-28.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request
+from typing import Annotated
+
+from fastapi import APIRouter, Header, HTTPException, Path, Query, Request
 from fastapi.responses import StreamingResponse
 
-from app.service.uiw import UIWError, browse_sources, decide, open_upload_stream, preview, start
-from app.types.uiw import UIWDecisionRequest, UIWSourceBrowserResponse, UIWStartRequest
+from app.service.uiw import (
+    UIWError,
+    browse_sources,
+    decide,
+    open_preview_event_stream,
+    open_upload_stream,
+    preview,
+    preview_messages,
+    start,
+    validated_preview_events,
+)
+from app.types.uiw import (
+    UIWDecisionActor,
+    UIWDecisionRequest,
+    UIWDecisionResponse,
+    UIWPreviewMessagesResponse,
+    UIWPreviewResponse,
+    UIWSourceBrowserResponse,
+    UIWStartRequest,
+    UIWStartResponse,
+)
 
 router = APIRouter(prefix="/api/uiw", tags=["uiw"])
 
@@ -35,7 +56,7 @@ def sources_endpoint(
         raise _translate(error) from None
 
 
-@router.post("/start", response_model=None, status_code=201)
+@router.post("/start", response_model=UIWStartResponse, status_code=201)
 async def start_endpoint(body: UIWStartRequest):
     try:
         return await start(body)
@@ -66,19 +87,79 @@ async def upload_endpoint(request: Request):
     return StreamingResponse(body(), status_code=response.status_code, headers=headers)
 
 
-@router.post("/{workflow_id}/decision", response_model=None)
-async def decision_endpoint(workflow_id: str, body: UIWDecisionRequest):
+PreviewHandle = Annotated[str, Path(pattern=r"^[A-Za-z0-9_-]{32,128}$")]
+
+
+@router.post("/previews/{preview_handle}/decision", response_model=UIWDecisionResponse)
+async def decision_endpoint(preview_handle: PreviewHandle, body: UIWDecisionRequest, request: Request):
     if not body.approved and not body.reason.strip():
         raise HTTPException(status_code=422, detail="a rejection decision requires a non-empty reason")
+    subject_uid = str(getattr(request.state, "subject_uid", "")).strip()
+    username = str(getattr(request.state, "principal", "")).strip()
+    if not subject_uid or not username:
+        raise HTTPException(status_code=401, detail="authenticated subject identity is unavailable")
     try:
-        return await decide(workflow_id, body)
+        return await decide(
+            preview_handle,
+            body,
+            UIWDecisionActor(subject_uid=subject_uid, username=username),
+        )
     except UIWError as error:
         raise _translate(error) from None
 
 
-@router.get("/{workflow_id}/preview", response_model=None)
-async def preview_endpoint(workflow_id: str):
+@router.get("/previews/{preview_handle}", response_model=UIWPreviewResponse)
+async def preview_endpoint(preview_handle: PreviewHandle):
     try:
-        return await preview(workflow_id)
+        return await preview(preview_handle)
     except UIWError as error:
         raise _translate(error) from None
+
+
+@router.get("/previews/{preview_handle}/messages", response_model=UIWPreviewMessagesResponse)
+async def preview_messages_endpoint(
+    preview_handle: PreviewHandle,
+    cursor: Annotated[str | None, Query(max_length=512)] = None,
+    limit: Annotated[int, Query(ge=1, le=250)] = 100,
+):
+    try:
+        return await preview_messages(preview_handle, cursor=cursor, limit=limit)
+    except UIWError as error:
+        raise _translate(error) from None
+
+
+@router.get("/previews/{preview_handle}/events")
+async def preview_events_endpoint(
+    preview_handle: PreviewHandle,
+    last_event_id_header: Annotated[str | None, Header(alias="Last-Event-ID")] = None,
+):
+    last_event_id: int | None = None
+    if last_event_id_header is not None:
+        try:
+            last_event_id = int(last_event_id_header)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Last-Event-ID must be a non-negative integer") from None
+        if last_event_id < 0:
+            raise HTTPException(status_code=422, detail="Last-Event-ID must be a non-negative integer")
+    try:
+        client, response = await open_preview_event_stream(
+            preview_handle, last_event_id=last_event_id
+        )
+    except UIWError as error:
+        raise _translate(error) from None
+
+    async def body():
+        try:
+            async for event in validated_preview_events(
+                response, preview_handle=preview_handle, last_event_id=last_event_id
+            ):
+                yield event
+        finally:
+            await response.aclose()
+            await client.aclose()
+
+    return StreamingResponse(
+        body(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

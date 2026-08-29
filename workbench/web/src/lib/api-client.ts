@@ -78,6 +78,7 @@ import type {
   Workflow,
   UIWDecisionResponse,
   UIWPreviewResponse,
+  UIWPreviewMessagesResponse,
   UIWStartRequest,
   UIWStartResponse,
   UIWUploadResponse,
@@ -649,19 +650,40 @@ export function startUIW(payload: UIWStartRequest) {
   });
 }
 
-export function getUIWPreview(workflowId: string) {
-  return apiFetch<UIWPreviewResponse>(`/api/uiw/${encodeURIComponent(workflowId)}/preview`);
+export function getUIWPreview(previewHandle: string, signal?: AbortSignal) {
+  return apiFetch<UIWPreviewResponse>(`/api/uiw/previews/${encodeURIComponent(previewHandle)}`, { signal });
 }
 
 export function decideUIW(
-  workflowId: string,
-  payload: { approved: boolean; reason: string; decider: string },
+  previewHandle: string,
+  payload: { approved: boolean; reason: string },
 ) {
-  return apiFetch<UIWDecisionResponse>(`/api/uiw/${encodeURIComponent(workflowId)}/decision`, {
+  return apiFetch<UIWDecisionResponse>(`/api/uiw/previews/${encodeURIComponent(previewHandle)}/decision`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
+}
+
+export function getUIWPreviewMessages(
+  previewHandle: string,
+  cursor?: string,
+  limit = 100,
+  signal?: AbortSignal,
+) {
+  const query = new URLSearchParams({ limit: String(limit) });
+  if (cursor) query.set("cursor", cursor);
+  return apiFetch<UIWPreviewMessagesResponse>(
+    `/api/uiw/previews/${encodeURIComponent(previewHandle)}/messages?${query.toString()}`,
+    { signal },
+  );
+}
+
+export function createUIWPreviewEventSource(previewHandle: string) {
+  return new EventSource(
+    `${API_BASE}/api/uiw/previews/${encodeURIComponent(previewHandle)}/events`,
+    { withCredentials: true },
+  );
 }
 
 export async function createCourtCase(

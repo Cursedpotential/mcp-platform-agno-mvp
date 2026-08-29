@@ -934,17 +934,82 @@ export interface UIWStartRequest {
 }
 
 export interface UIWStartResponse {
-  workflow_id: string;
-  run_id: string;
+  preview_handle: string;
+}
+
+export interface UIWPreviewReceipt {
+  receipt_type: "custody" | "parser_selection" | "parser_execution" | "normalization" | "storage" | "completeness";
+  receipt_ref: string;
+  status: "pending" | "running" | "completed" | "failed" | "skipped";
+  digest?: string | null;
+  recorded_at: string;
 }
 
 export interface UIWPreviewResponse {
+  preview_handle: string;
   phase: "awaiting_decision" | "approved" | "rejected" | "timed_out" | string;
-  select_ref: string;
+  correlation: {
+    request_id: string;
+    source_version_id: string;
+    raw_generation_id: string;
+    normalized_generation_id: string;
+  };
+  parser?: {
+    parser_id: string;
+    parser_version: string;
+    config_digest: string;
+  } | null;
+  preview_digest: string;
+  receipts: UIWPreviewReceipt[];
   reason?: string;
 }
 
+export interface UIWPreviewParticipant {
+  participant_id: string;
+  display_name: string;
+  canonical_address?: string | null;
+}
+
+export interface UIWPreviewAttachment {
+  attachment_id: string;
+  filename?: string | null;
+  media_type?: string | null;
+  byte_length?: number | null;
+  sha256?: string | null;
+  source_locator_ref: string;
+}
+
+export interface UIWPreviewMessage {
+  message_id: string;
+  ordinal: number;
+  sent_at?: string | null;
+  sender_participant_id?: string | null;
+  body: string;
+  participant_ids: string[];
+  attachments: UIWPreviewAttachment[];
+  source_locator_ref: string;
+}
+
+export interface UIWPreviewMessagesResponse {
+  preview_handle: string;
+  participants: UIWPreviewParticipant[];
+  messages: UIWPreviewMessage[];
+  next_cursor?: string | null;
+}
+
+export interface UIWPreviewEvent {
+  event_id: number;
+  event_type: "phase_changed" | "receipt_recorded" | "messages_available" | "decision_requested" | "decision_recorded" | "completed" | "failed";
+  occurred_at: string;
+  preview_handle: string;
+  phase: string;
+  receipt_ref?: string | null;
+  message_count?: number | null;
+  detail?: string;
+}
+
 export interface UIWDecisionResponse {
+  preview_handle: string;
   status: string;
 }
 
