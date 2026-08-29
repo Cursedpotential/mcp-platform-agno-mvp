@@ -24,15 +24,17 @@ def test_three_separate_services_keep_atomic_runtime_boundaries() -> None:
     assert set(_compose(STARTER_DEPLOY)["services"]) == {"universal-import-starter"}
 
 
-def test_only_http_services_publish_tailnet_bound_ports() -> None:
+def test_http_services_preserve_tailnet_peer_and_bind_only_intended_addresses() -> None:
     parser = _compose(PARSER_DEPLOY)["services"]["parser-activity-runtime"]
     worker = _compose(WORKER_DEPLOY)["services"]["universal-import-worker"]
     starter = _compose(STARTER_DEPLOY)["services"]["universal-import-starter"]
 
     assert parser["ports"] == ["${BIND_IP:-127.0.0.1}:8090:8090"]
     assert "ports" not in worker
-    assert starter["ports"] == ["100.91.190.107:8091:8091"]
-    assert all("0.0.0.0" not in port for service in (parser, starter) for port in service["ports"])
+    assert starter["network_mode"] == "host"
+    assert "ports" not in starter
+    assert starter["environment"]["REFERENCE_STARTER_ADDR"] == "100.91.190.107:8091"
+    assert all("0.0.0.0" not in port for port in parser["ports"])
 
 
 def test_parser_and_worker_share_exact_content_addressed_bundle_mount() -> None:
@@ -52,12 +54,18 @@ def test_parser_and_worker_share_exact_content_addressed_bundle_mount() -> None:
     )
 
 
-def test_all_services_join_only_verified_external_coolify_network() -> None:
-    for path in (PARSER_DEPLOY, WORKER_DEPLOY, STARTER_DEPLOY):
+def test_parser_and_worker_join_only_verified_external_coolify_network() -> None:
+    for path in (PARSER_DEPLOY, WORKER_DEPLOY):
         compose = _compose(path)
         service = next(iter(compose["services"].values()))
         assert service["networks"] == ["coolify"]
         assert compose["networks"] == {"coolify": {"external": True}}
+
+    starter_compose = _compose(STARTER_DEPLOY)
+    starter = starter_compose["services"]["universal-import-starter"]
+    assert starter["network_mode"] == "host"
+    assert "networks" not in starter
+    assert "networks" not in starter_compose
 
 
 def test_worker_and_starter_share_dedicated_nonlegacy_queue_default() -> None:
@@ -85,7 +93,7 @@ def test_dockerfiles_build_the_intended_commands_and_health_surfaces() -> None:
     assert "./cmd/universal-import-worker" in worker
     assert "./temporal/cmd/starter" in starter
     assert "127.0.0.1:8090/healthz" in parser
-    assert "127.0.0.1:8091/healthz" in starter
+    assert "REFERENCE_STARTER_HEALTH_URL" in starter
     assert "EXPOSE" not in worker
 
 

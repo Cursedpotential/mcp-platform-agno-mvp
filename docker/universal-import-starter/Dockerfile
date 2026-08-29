@@ -28,8 +28,9 @@ COPY --from=builder /out/universal-import-starter /usr/local/bin/universal-impor
 USER 10001:10001
 EXPOSE 8091
 ENV REFERENCE_STARTER_ADDR=:8091
+ENV REFERENCE_STARTER_HEALTH_URL=http://127.0.0.1:8091/healthz
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=4 \
-    CMD curl --fail --silent --show-error http://127.0.0.1:8091/healthz || exit 1
+    CMD curl --fail --silent --show-error "$REFERENCE_STARTER_HEALTH_URL" || exit 1
 
 ENTRYPOINT ["/usr/local/bin/universal-import-starter"]

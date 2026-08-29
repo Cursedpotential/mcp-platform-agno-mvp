@@ -11,13 +11,16 @@ services:
       dockerfile: docker/universal-import-starter/Dockerfile
     image: ${UNIVERSAL_IMPORT_STARTER_IMAGE:-platform-universal-import-starter:latest}
     restart: unless-stopped
-    ports:
-      - "100.91.190.107:8091:8091"
+    # Host networking preserves the actual Tailscale socket peer. Docker's
+    # published-port DNAT rewrites it to a bridge address and defeats the
+    # direct-peer authorization check.
+    network_mode: host
     environment:
       TEMPORAL_HOST_PORT: ${TEMPORAL_HOST_PORT:?set}
       TEMPORAL_NAMESPACE: ${TEMPORAL_NAMESPACE:-default}
       TEMPORAL_TASK_QUEUE: ${TEMPORAL_TASK_QUEUE:-universal-import-v1}
-      REFERENCE_STARTER_ADDR: :8091
+      REFERENCE_STARTER_ADDR: 100.91.190.107:8091
+      REFERENCE_STARTER_HEALTH_URL: http://100.91.190.107:8091/healthz
       SOURCE_OBJECT_DIR: /data/uiw/source-objects
       UNIVERSAL_IMPORT_UPLOAD_MAX_BYTES: ${UNIVERSAL_IMPORT_UPLOAD_MAX_BYTES:?set}
       N8N_UNIVERSAL_IMPORT_BASE_URL: ${N8N_UNIVERSAL_IMPORT_BASE_URL:?set}
@@ -25,9 +28,3 @@ services:
       N8N_UNIVERSAL_IMPORT_AUTH_VALUE: ${N8N_UNIVERSAL_IMPORT_AUTH_VALUE:?set}
     volumes:
       - /data/agno/volumes/universal-import/source-objects:/data/uiw/source-objects
-    networks:
-      - coolify
-
-networks:
-  coolify:
-    external: true
