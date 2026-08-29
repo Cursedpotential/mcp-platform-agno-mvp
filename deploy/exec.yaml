@@ -108,7 +108,7 @@ services:
       DB_PORT: 5432
       DB_USER: ${DB_USER:-ai}
       DB_PASS: ${DB_PASS:-ai}
-      DB_DATABASE: ${DB_DATABASE:-ai}
+      DB_DATABASE: ${DB_DATABASE:-platform}
       # Milvus (ADR-0026/0027) — vector store on OVH-3; defaults to the data box's
       # gRPC port over the tailnet. Override MILVUS_ADDRESS/TOKEN in env if needed.
       # NB 2026-08-12: ADR-0026/0027 SUPERSEDED by ADR-0040 (Weaviate locked
@@ -146,6 +146,12 @@ services:
       WEAVIATE_GRPC_PORT: ${WEAVIATE_GRPC_PORT:-50052}
       WALK_PASS_SIGNING_KEY: ${WALK_PASS_SIGNING_KEY:?set WALK_PASS_SIGNING_KEY in Coolify app env}
       EVIDENCE_OPERATOR_SECURITY_KEY: ${EVIDENCE_OPERATOR_SECURITY_KEY:?set EVIDENCE_OPERATOR_SECURITY_KEY in Coolify app env}
+      # Temporary owner-testing bootstrap. Disabled by default. When enabled,
+      # the API accepts X-Real-IP only from the exact Traefik socket peer and
+      # only for configured subnets inside Tailscale CGNAT (100.64.0.0/10).
+      AGENTOS_TAILNET_AUTH_BYPASS_ENABLED: ${AGENTOS_TAILNET_AUTH_BYPASS_ENABLED:-false}
+      AGENTOS_TAILNET_AUTH_TRUSTED_PROXY_CIDRS: ${TRAEFIK_PROXY_CIDR:-}
+      AGENTOS_TAILNET_AUTH_ALLOWED_CIDRS: ${AGENTOS_TAILNET_AUTH_ALLOWED_CIDRS:-100.64.0.0/10}
       # R2 blob landing zone (ADR-0007) — S3-compatible reads via boto3/agno.
       R2_BUCKET_NAME: ${R2_BUCKET_NAME:-}
       R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
