@@ -79,13 +79,19 @@ No item is classified DONE+LIVE VERIFIED from the evidence inspected here.
   change detection is ordered — Semantica is downstream of context creation and triggered by
   change detection. Running the lane early breaks D-069 context-first ordering and invalidates
   the `no-fusion` `semantica` vs `sat_temporal` comparison.
-- **Multiple parsing approaches are required** (owner 2026-08-29), selected by detection + named
-  flag — NOT by exception-chained fallback. Zero-install candidates that can be bake-offed now:
-  Semantica `StructuralChunker`, Chonkie `RecursiveChunker` with hand-specified heading
-  delimiters, Semantica `parse/` modules. `Chonkie.from_recipe("markdown")` is **verified
-  broken** here (attempts a network download). Model-backed chunking must call out to remote
-  inference (no local models) and Chonkie's remote executor is still a stub.
-- Full analysis, verified-live state, owner decisions, and work packages WP-1..WP-11:
+- **Multiple chunk-stage approaches required** (owner 2026-08-29), selected by the **Go
+  coordinator's** declared `Quality` (`engine/parser`), not a Python flag pick.
+  `Chonkie.from_recipe("markdown")` fails because `HF_HUB_OFFLINE=1`/`TRANSFORMERS_OFFLINE=1` are
+  set (no-local-models guard, not a Chonkie defect) — preferred fix is inline `RecursiveLevel`
+  delimiters. `format_router.py`'s Python selection mesh is **flagged for removal**, sequenced on
+  Go adapter coverage per format; the Go↔Python bridge already exists (`platform-tools`, `:8090`).
+- **n8n orchestrates, Temporal executes, a quality gate substitutes the method:** extraction runs
+  as a Temporal activity invoked by n8n; a deterministic completeness check (byte-range
+  reassembly) plus a model-backed quality score (via Portkey) — not a caught exception — select a
+  different named Go adapter on failure/low confidence. Document-class markdown needs no parser
+  at all (see "Ingest taxonomy" in the handoff) — only chunk + ingest.
+- Full analysis, verified-live state, owner decisions, and work packages WP-0, WP-1..WP-11
+  (incl. WP-5b..WP-5f, WP-6a):
   [`HANDOFF-2026-08-29-derived-document-ingest-wiring.md`](HANDOFF-2026-08-29-derived-document-ingest-wiring.md).
 - Queued behind the current unified Workbench/UIW release slice; recording it does not authorize
   work during that critical path.
