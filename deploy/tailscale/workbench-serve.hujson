@@ -1,0 +1,21 @@
+// Byline: Codex · GPT-5 · 2026-08-29.
+//
+// Host-local configuration for the movable private Workbench identity.
+// Apply on the current tagged Tailscale service host, then advertise:
+//   tailscale serve set-config --service=svc:workbench workbench-serve.hujson
+//   tailscale serve advertise svc:workbench
+//
+// The HTTPS listener and TailVIP belong to svc:workbench, not to the VPS.
+// Tailscale forwards the original Host header to loopback Traefik. The
+// workbench-tailnet router in deploy/workbench.yaml is the only matching
+// backend route. Never use `tailscale funnel` for this service.
+{
+  "version": "0.0.1",
+  "services": {
+    "svc:workbench": {
+      "endpoints": {
+        "tcp:443": "http://127.0.0.1:80"
+      }
+    }
+  }
+}

@@ -1,6 +1,7 @@
 # Byline: Codex · GPT-5 · 2026-08-18 (owner-only native evidence search credential)
 # Byline: Codex · GPT-5 · 2026-08-28 (unified UIW production surface)
 # Byline: Codex · GPT-5 · 2026-08-29 (Authentik-only Traefik ingress boundary)
+# Byline: Codex · GPT-5 · 2026-08-29 (private movable Tailscale Service ingress)
 # =============================================================================
 # KNOWLEDGE WORKBENCH — deploy as its OWN Coolify app on OVH-1 ("ovh-app",
 # tailnet 100.72.169.40). Single-service app per the one-concern-per-app rule
@@ -145,6 +146,13 @@ services:
       - traefik.http.routers.workbench.tls.certresolver=letsencrypt
       - traefik.http.routers.workbench.service=workbench
       - traefik.http.routers.workbench.middlewares=workbench-authentik
+      # Tailscale terminates HTTPS for svc:workbench, strips spoofed Tailscale
+      # identity headers, and forwards the stable service Host header to this
+      # private HTTP router on loopback. This router deliberately has no
+      # Authentik middleware and is never a Funnel route.
+      - traefik.http.routers.workbench-tailnet.rule=Host(`workbench.tilapia-skilift.ts.net`)
+      - traefik.http.routers.workbench-tailnet.entrypoints=http
+      - traefik.http.routers.workbench-tailnet.service=workbench
       - traefik.http.services.workbench.loadbalancer.server.port=8020
       - traefik.http.middlewares.workbench-authentik.forwardauth.address=http://authentik-server:9000/outpost.goauthentik.io/auth/traefik
       - traefik.http.middlewares.workbench-authentik.forwardauth.trustForwardHeader=true
