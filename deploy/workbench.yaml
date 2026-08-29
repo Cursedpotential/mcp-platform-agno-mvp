@@ -127,6 +127,16 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=agno
+      # Owner preview route: the hostname resolves to the VPS tailnet address,
+      # so it is unreachable outside the tailnet. Traefik remains the sole
+      # socket peer trusted by Workbench and supplies the bounded preview
+      # identity; no Basic auth or redeploy-coupled password is introduced.
+      - traefik.http.routers.workbench-tailnet-preview.rule=Host(`xjbuo6drbwjfby75lalk8bk7.100.72.169.40.sslip.io`)
+      - traefik.http.routers.workbench-tailnet-preview.entrypoints=http
+      - traefik.http.routers.workbench-tailnet-preview.service=workbench
+      - traefik.http.routers.workbench-tailnet-preview.middlewares=workbench-tailnet-preview-identity
+      - traefik.http.middlewares.workbench-tailnet-preview-identity.headers.customrequestheaders.X-authentik-uid=tailnet-owner-preview
+      - traefik.http.middlewares.workbench-tailnet-preview-identity.headers.customrequestheaders.X-authentik-username=owner
       - traefik.http.routers.workbench.rule=Host(`workbench.int.mitechconsult.com`)
       - traefik.http.routers.workbench.entrypoints=https
       - traefik.http.routers.workbench.tls=true
