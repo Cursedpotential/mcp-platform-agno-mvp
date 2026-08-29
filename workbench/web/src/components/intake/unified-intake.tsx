@@ -1,5 +1,6 @@
 // Byline: Codex · GPT-5 · 2026-08-28 (production unified intake vertical slice)
 // Byline: Codex · GPT-5 · 2026-08-29 (truthful Matter baseline failure state)
+// Byline: Codex · GPT-5 · 2026-08-29 (single-case automatic scope binding)
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -28,7 +29,6 @@ import {
   uploadUIWSource,
 } from "@/lib/api-client";
 import type {
-  Matter,
   MatterDetail,
   UIWPreviewResponse,
   UIWStartResponse,
@@ -90,8 +90,9 @@ async function fileDigest(file: File) {
 }
 
 export function UnifiedIntake() {
-  const [matters, setMatters] = useState<Matter[]>([]);
   const [matter, setMatter] = useState<MatterDetail | null>(null);
+  const [scopeLoading, setScopeLoading] = useState(true);
+  const [scopeError, setScopeError] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [digest, setDigest] = useState("");
   const [textPreview, setTextPreview] = useState("");
@@ -103,30 +104,37 @@ export function UnifiedIntake() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+
     listMatters()
-      .then((response) => setMatters(response.data))
-      .catch(() =>
-        setError(
-          "Matter list unavailable. The fresh Platform case schema is not ready yet. You can inspect a file, but intake cannot start until Matter scope is restored.",
-        ),
-      );
+      .then((response) => {
+        if (response.total === 0) {
+          throw new Error("Intake is blocked because the Platform has no case. Restore the single canonical case before ingesting evidence.");
+        }
+        if (response.total !== 1 || response.data.length !== 1) {
+          throw new Error(
+            `Intake is blocked because the Platform returned ${response.total} Matters. This indicates split or duplicated case data and must be repaired before ingestion continues.`,
+          );
+        }
+        return getMatter(response.data[0].id);
+      })
+      .then((fixedMatter) => {
+        if (!cancelled) setMatter(fixedMatter);
+      })
+      .catch((requestError) => {
+        if (!cancelled) setScopeError(errorText(requestError));
+      })
+      .finally(() => {
+        if (!cancelled) setScopeLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const primaryCourtCase = matter?.court_cases.find((item) => item.is_primary);
   const lines = useMemo(() => textPreview.split(/\r?\n/).filter(Boolean).slice(0, 12), [textPreview]);
-
-  async function selectMatter(matterId: string) {
-    if (!matterId) {
-      setMatter(null);
-      return;
-    }
-    setError(null);
-    try {
-      setMatter(await getMatter(matterId));
-    } catch (requestError) {
-      setError(errorText(requestError));
-    }
-  }
 
   async function selectFile(selected: File | null) {
     setFile(selected);
@@ -222,7 +230,7 @@ export function UnifiedIntake() {
           <div>
             <p className="platform-kicker mb-1">Evidence operations desk</p>
             <h1 className="text-xl font-semibold tracking-tight">Intake new evidence</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Choose a matter and source, inspect it, then make the durable workflow decision.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Choose a source, inspect it, then make the durable workflow decision for the fixed case.</p>
           </div>
           <div className="flex items-center gap-2 border bg-background px-3 py-2 text-xs text-muted-foreground">
             <ShieldCheck className="h-4 w-4" /> PostgreSQL authority preserved
@@ -246,9 +254,9 @@ export function UnifiedIntake() {
         })}
       </ol>
 
-      {error && (
+      {(scopeError || error) && (
         <div className="flex items-center gap-2 border-b border-[#b5433b] bg-[#fbe9e7] px-6 py-3 text-sm text-[#8f302a]" role="alert">
-          <AlertTriangle className="h-4 w-4" /> {error}
+          <AlertTriangle className="h-4 w-4" /> {scopeError || error}
         </div>
       )}
 
@@ -317,12 +325,14 @@ export function UnifiedIntake() {
 
         <aside className="border-l bg-card p-5">
           <section className="border-b pb-5">
-            <p className="platform-rule-title mb-3">Matter and proceeding</p>
-            <select className="h-10 w-full border bg-background px-3 text-sm" value={matter?.id ?? ""} onChange={(event) => void selectMatter(event.target.value)} aria-label="Select matter">
-              <option value="">Select a Matter</option>
-              {matters.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
-            </select>
-            {matter && <div className="mt-3 space-y-1 text-xs"><strong className="block text-sm">{matter.title}</strong><span className="block text-muted-foreground">{matter.partition_keys.join(", ") || "No partition configured"}</span>{primaryCourtCase && <span className="flex items-center gap-1 text-muted-foreground"><Scale className="h-3.5 w-3.5" /> {primaryCourtCase.caption}</span>}</div>}
+            <p className="platform-rule-title mb-3">Fixed case</p>
+            {scopeLoading ? (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading case identity</div>
+            ) : matter ? (
+              <div className="space-y-1 text-xs"><strong className="block text-sm">{matter.title}</strong><span className="block text-muted-foreground">{matter.partition_keys.join(", ") || "No partition configured"}</span>{primaryCourtCase && <span className="flex items-center gap-1 text-muted-foreground"><Scale className="h-3.5 w-3.5" /> {primaryCourtCase.caption}</span>}</div>
+            ) : (
+              <div className="flex items-start gap-2 text-xs text-[#8f302a]"><AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> Case identity unavailable. Intake remains blocked.</div>
+            )}
           </section>
 
           <section className="border-b py-5">

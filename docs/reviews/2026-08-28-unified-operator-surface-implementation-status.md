@@ -21,6 +21,11 @@ acceptance and the SBV bounded preview remain open.
   ingress and reference-only Temporal start contract.
 - The visible shell is graphite/warm-paper and exposes only the intake vertical
   slice. Legacy flat navigation is not the product entry surface.
+- The intake surface now enforces the single-case product boundary: it
+  automatically binds the only canonical Matter, presents that identity as fixed
+  context, and exposes no Matter selector. Zero Matters blocks intake as an
+  uninitialized baseline; more than one blocks intake as a split/duplicated-data
+  integrity incident rather than offering the operator a choice.
 
 ## Validation evidence
 
@@ -30,6 +35,8 @@ acceptance and the SBV bounded preview remain open.
   Starlette deprecation warning.
 - `npm run lint -- --max-warnings=0` — passed.
 - `npm run build` — passed; `/intake` emitted as a static Next route.
+- The 2026-08-29 single-case correction passed ESLint with zero warnings and a
+  production Next.js build with all 16 static pages generated.
 - Scoped `git diff --check` — passed before both commits.
 - `uv run pytest -q tests/test_universal_import_deploy_contract.py` — 8 passed
   after the host-network correction.
@@ -68,8 +75,8 @@ acceptance and the SBV bounded preview remain open.
   a 64-character SHA-256 and no Basic challenge, proving the live
   Workbench-to-starter upload path.
 - `GET http://100.72.169.40:8020/api/matters` still returns 500. The intake shell
-  is previewable, but matter selection and an end-to-end UIW decision remain
-  blocked by the incomplete fresh-`platform` database baseline.
+  is previewable, but automatic fixed-case binding and an end-to-end UIW decision
+  remain blocked by the incomplete fresh-`platform` database baseline.
 - Workbench deployment `xozcknkg3biu0kvdx0w0n7w7` finished at `05bba3a`. A
   browser reload proved the rendered surface no longer advertises retired
   LanceDB or inactive Milvus and now explains the Matter-schema blocker instead
@@ -81,9 +88,11 @@ acceptance and the SBV bounded preview remain open.
 - On 2026-08-29, a Workbench test was invoked from the repository root instead of
   `workbench/api`. Pydantic loaded the root `.env`, rejected unrelated keys, and
   emitted secret-bearing values into the agent tool transcript. No values are
-  reproduced here. Treat every credential present in that diagnostic output as
-  exposed and rotate it through its owning system. This incident does not change
-  the settled no-password Workbench/UIW boundary.
+  reproduced here. The root `.env` is ignored and untracked; it has no Git history
+  and is absent from the `origin/main` tree. There is no evidence that the values
+  reached GitHub. Per the owner ruling, transcript-only appearance does not require
+  rotation; rotate only if GitHub exposure is proven. This incident does not
+  change the settled no-password Workbench/UIW boundary.
 - A bounded `nemotron-3-ultra:cloud` review confirmed the direct-peer and
   forwarded-header regression targets. It also identified the remaining
   infrastructure assumption: the application check recognizes any tailnet node,
@@ -125,4 +134,3 @@ states are recorded in `2026-08-29-nocodb-quarantine-receipt.md`.
 4. Implement the U0/U1 launch-context foundation, then expose SBV as the bounded
    `/evidence/preview` client without bypassing UIW.
 5. Start the Timesketch round-trip slice only after the first slice has live proof.
-6. Rotate the credentials exposed by the 2026-08-29 root-directory test diagnostic.

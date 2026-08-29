@@ -2,6 +2,7 @@
 // Byline: Codex · GPT-5 · 2026-08-16 (Knowledge + Surreal projection page titles)
 // Byline: Codex · GPT-5 · 2026-08-28 (unified product header)
 // Byline: Codex · GPT-5 · 2026-08-29 (remove legacy dependency strip)
+// Byline: Codex · GPT-5 · 2026-08-29 (fixed single-case scope)
 "use client";
 
 import { usePathname } from "next/navigation";
@@ -31,7 +32,7 @@ export function Header() {
       </div>
       <div className="flex min-w-0 flex-1 flex-col justify-center px-5">
         <strong className="truncate text-sm">{pageTitle}</strong>
-        <span className="truncate text-[11px] text-[#b9c0c5]">Matter scope is set inside intake before a workflow starts</span>
+        <span className="truncate text-[11px] text-[#b9c0c5]">Case scope is fixed by the Platform and cannot be changed during intake</span>
       </div>
       <div className="ml-auto flex items-center gap-3">
         <Button
