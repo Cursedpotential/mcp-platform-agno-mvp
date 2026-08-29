@@ -1,0 +1,56 @@
+{
+  "$comment": "Variant module: STATUTE_EXTRACT. Byline: Claude Code · Opus 5 · 2026-08-29 13:00 EDT. Parent registry: ../document-markdown-v1.json. Emits no artifact — chunk pass only.",
+
+  "variant_id": "statute_extract",
+  "schema_id": "document-markdown",
+  "schema_version": "1.0.0",
+  "status": "draft-unapplied",
+
+  "detect": {
+    "all_of": [
+      { "id": "no_headings", "pattern": "^#{1,6}\\s+\\S", "max_count": 0 },
+      { "id": "backtick_wrapped_lines", "pattern": "^`.*`$", "min_count": 5 }
+    ],
+    "reference_instance": {
+      "sha256": "21983090ed8f35e2851eb577fb90dee6d83639d8efe7845dc4b98af80bc6b31d",
+      "bytes": 4969,
+      "measured": { "headings": 0, "backtick_wrapped_lines": 12, "notebooklm_span_markers": 10, "legal_citations": 9, "date_mentions": 2, "role_markers": 0 }
+    }
+  },
+
+  "pass_chunk": {
+    "capability": "chunk.*",
+    "strategy": "single whole-file chunk if under chunk_size, else split on blank-line groups",
+    "carry_heading": false,
+    "carry_heading_note": "VERIFIED: this document has ZERO headings. Heading-based chunking is inapplicable — measured, not assumed. Any policy presuming headings silently produces one useless chunk here, which is exactly the failure mode this variant exists to prevent.",
+    "rationale": "Statutory text with no document hierarchy to exploit. Blank-line grouping is the least-destructive split available."
+  },
+
+  "pass_artifact": null,
+  "artifact_rationale": "Statutory authority, not case events. Cited, not chronicled.",
+
+  "normalize": {
+    "$comment": "OPEN — requires an owner ruling before any stripping. Recorded, NOT applied.",
+    "notebooklm_span_markers": {
+      "pattern": "\\[span_\\d+\\]\\((?:start|end)_span\\)",
+      "count_in_reference": 10,
+      "recommended_action": "PRESERVE — record positions, do not strip",
+      "reason": "These are grounding citation anchors emitted by the source tool. Stripping them ALTERS CONTENT, which breaks the verbatim requirement, breaks hash verification against the source, and makes the chunk uncitable. It would be the same failure that disqualified Semantica StructuralChunker (24 of 35 chunks not verbatim), except self-inflicted.",
+      "if_stripping_is_ever_approved": "It must run as a separate, recorded normalize.* pass producing a NEW derived artifact — never in place, and never inside the chunker."
+    },
+    "backtick_wrapping": {
+      "observation": "12 lines are wrapped in backticks — source formatting from the export, not markdown code fences.",
+      "recommended_action": "PRESERVE — same reasoning. Do not unwrap."
+    }
+  },
+
+  "known_content_hazards": {
+    "no_structure": "Zero headings means no structural signal. This is the variant most likely to be mis-detected if resolution order is not respected — it must be tried before strategy_memo.",
+    "citation_density": "9 legal citations in 4,969 bytes — very high density. Splitting mid-citation is likely at small chunk sizes and breaks downstream citation validation."
+  },
+
+  "open_questions": [
+    "Owner ruling required on span-marker preservation (recommendation: preserve).",
+    "Whether chunk_size should be raised for this variant so the document stays whole — 4,969 chars against a 1500-char policy fragments a short statutory passage into roughly four pieces for no retrieval benefit."
+  ]
+}

@@ -1,0 +1,115 @@
+{
+  "$comment": "REGISTRY + class signature for document-class markdown. Byline: Claude Code · Opus 5 · 2026-08-29 12:59 EDT. Modular by design (owner 2026-08-29): this file holds ONLY the class signature and the variant index — each variant is its own self-contained schema module under variants/. Design authority: docs/HANDOFF-2026-08-29-derived-document-ingest-wiring.md.",
+
+  "schema_id": "document-markdown",
+  "schema_version": "1.0.0",
+  "status": "draft-unapplied",
+  "authored_at": "2026-08-29T12:59:00-04:00",
+  "authored_by": "claude-code/opus-5",
+  "immutability": "Rows derived from a version are pinned by (schema_id, schema_version). A correction is a NEW version, never an edit — mirrors timeline.event_candidate's append-only contract.",
+  "pg_note": "Owner decision 2026-08-29: the schema manifest lives in a PG table. These files are the AUTHORED SOURCE that seeds it, not the runtime store. Fingerprint-similarity matching (R03, >85%) happens against the table, not against these files.",
+
+  "class_signature": {
+    "$comment": "Identifies document-class markdown. Deliberately NEGATIVE on chat markers + POSITIVE on document structure. All four reference instances score 0 on every chat marker — measured, not assumed.",
+    "applies_to_suffixes": [".md", ".txt"],
+    "required_absent": [
+      { "id": "gemini_role_markers", "pattern": "^\\*\\*(You|Gemini|Model|Assistant|User)(:\\*\\*|\\*\\*:)\\s*$", "note": "gemini_md._ROLE_RE — presence means AI-chat export; route to the PARSE stage instead" },
+      { "id": "chatgpt_custom_gpt_markers", "pattern": "^(You asked|ChatGPT Replied):$", "note": "chatgpt_custom_gpt_md._ROLE_RE" },
+      { "id": "json_container", "pattern": "^\\s*[\\{\\[]", "note": "JSON exports are already handled by format_router.SIGNATURES" }
+    ],
+    "positive_any_of": [
+      { "id": "markdown_headings", "pattern": "^#{1,6}\\s+\\S", "min_count": 1 },
+      { "id": "backtick_wrapped_lines", "pattern": "^`.*`$", "min_count": 5, "note": "covers the heading-less statute-extract variant" }
+    ]
+  },
+
+  "stage_routing": {
+    "$comment": "The whole point of this class: it needs no parser. Recorded as an explicit routing decision, not an absence.",
+    "parse": "SKIP — already text, no export format to decode",
+    "extract_text": "SKIP — not an opaque container (that stage is for PDF/DOCX/images)",
+    "chunk": "REQUIRED — variant-specific, see variants/",
+    "artifact_extraction": "VARIANT-DEPENDENT — runs SEPARATELY from and IN PARALLEL WITH chunking; see pipeline_contract",
+    "forbidden_parsers": ["transcripts.markdown", "transcripts.generic-md", "documents.text-v1"],
+    "on_forbidden_reached": "Detection failed. Fail loudly naming the file. Do NOT degrade to a whole-file record."
+  },
+
+  "pipeline_contract": {
+    "$comment": "Owner ruling 2026-08-29: 'extraction should happen separate from the chunking, so it all gets included in the chunks, but then it also creates the artifact.'",
+    "shape": "two INDEPENDENT passes over the same source; neither consumes the other's output",
+    "pass_chunk": {
+      "capability": "chunk.*",
+      "coverage": "FULL — every character of the source lands in some chunk",
+      "note": "Nothing is carved out for artifact extraction. This is what keeps the completeness gate satisfiable."
+    },
+    "pass_artifact": {
+      "capability": "extract.* (e.g. extract.timeline)",
+      "coverage": "SELECTIVE — emits only the structures it recognises",
+      "note": "Additive output. Re-derivable at any time without re-chunking, because it reads the source, not the chunks."
+    },
+    "why_separate": [
+      "Reassembly stays provable — the completeness gate compares chunks to source; a carve-out would break it.",
+      "Artifact extraction can be re-run, improved, or versioned independently of the chunk set.",
+      "Atomicity: a chunker chunks, an extractor extracts. Neither does both (owner invariant 2026-08-29)."
+    ],
+    "shared_primitive": "Both passes emit char_start/char_end into the SAME source, so an artifact row and the chunk containing it are joinable by range overlap."
+  },
+
+  "chunk_contract": {
+    "$comment": "Applies to EVERY variant. Enforces the owner's reassembly requirement.",
+    "must_emit": ["chunk_index", "char_start", "char_end", "content_hash", "chunker_id", "chunker_version", "schema_id", "schema_version"],
+    "char_offsets_required": true,
+    "char_offsets_note": "working.chat_chunk.char_start/char_end are currently NULLABLE. For document-class chunks they MUST be populated — that is what makes completeness provable.",
+    "completeness_gate": {
+      "type": "deterministic, no model, hard gate, runs every time",
+      "check": "ordered char ranges cover [0, len(source)) with no gaps and no overlaps",
+      "and": "sha256(reassembled) == sha256(source)",
+      "on_failure": "reject the chunk set — do not store"
+    },
+    "verbatim_requirement": {
+      "rule": "chunk text MUST appear verbatim in the source",
+      "rationale": "A chunk that does not match its source cannot be cited, cannot be hash-verified, and breaks chunk -> source_locator -> original.",
+      "measured_counterexample": "Semantica StructuralChunker FAILS this (2026-08-29): 24 of 35 chunks not found verbatim in source, 176 chars missing, NOT explained by whitespace normalization. Disqualified in default configuration."
+    }
+  },
+
+  "lane": {
+    "intake": "context",
+    "rule": "All derived AI work products ingest to the context lane. Placement into legal or personal_history is a later REVIEWED classification, never an intake-time guess.",
+    "authority": "Owner 2026-08-29 ('everything lands as context before evidence'); reconciles with ADR-0053 by treating that ADR as a classification target rather than an intake decision.",
+    "evidence_lane": "unreachable by ingest under any circumstances — owner promotion from context is the only path"
+  },
+
+  "variants": {
+    "$comment": "Ordered most-specific-first. Each is a self-contained module; this registry only points at them.",
+    "resolution_order": ["chronology", "research_report", "statute_extract", "strategy_memo"],
+    "index": [
+      { "id": "chronology",      "module": "variants/chronology-v1.json",      "emits_artifact": "timeline", "reference_instance": "8d766277b73baf69b7afbdccfc9056f630ce056af6280a21b7abb67b2fe586c6" },
+      { "id": "research_report", "module": "variants/research-report-v1.json", "emits_artifact": null,       "reference_instance": "18618992f24e492c19b7bf3be27188385df19efc6f133107495b6d8a78406914" },
+      { "id": "statute_extract", "module": "variants/statute-extract-v1.json", "emits_artifact": null,       "reference_instance": "21983090ed8f35e2851eb577fb90dee6d83639d8efe7845dc4b98af80bc6b31d" },
+      { "id": "strategy_memo",   "module": "variants/strategy-memo-v1.json",   "emits_artifact": null,       "reference_instance": "pending — recompute at ingest" }
+    ],
+    "no_match": "If the class signature matches but no variant does, fail loudly and record the document for schema discovery (R03/R04). Do NOT silently fall back to a default chunker."
+  },
+
+  "in_flight_dependency": {
+    "$comment": "Observed 2026-08-29 ~13:00 EDT while authoring this schema. Recorded because it changes what is blocked.",
+    "file": "sql/0047_content_chunk_and_context_thread_foundation.sql",
+    "status": "UNTRACKED / IN-FLIGHT — not committed. Shape is volatile; re-verify before implementing against it.",
+    "resolves": [
+      "working.content_chunk — the generalized chunk table. The 'document chunks have no home' BLOCKER recorded earlier in this session appears RESOLVED by it.",
+      "context.source_range_locator + working.content_chunk_source_span — the char-range locator primitive.",
+      "working.content_chunk_reassembly_receipt — the completeness/reassembly gate, as its own receipt table.",
+      "working.legacy_chat_chunk_content_chunk_map — the migration path for existing AI-chat chunks.",
+      "working.first_party_context_thread* and working.third_party_context_thread* — the two-population thread model, as SEPARATE tables.",
+      "context.relative_time_anchor — the imprecise-placement subsystem."
+    ],
+    "note": "This schema is authored against what was observed, not against a committed contract. Verify every table and column referenced here before writing code."
+  },
+
+  "open_questions": [
+    "No verbatim-preserving structure-aware chunker has been identified. Candidate A is verbatim-safe but structure-blind; B changes nothing; C alters content (24 of 35 chunks not verbatim). Unresolved — this is now the primary blocker.",
+    "GAP: no link table between timeline.event_candidate and context.relative_time_anchor (verified: zero matches in 0047). A chronology entry with an unbounded/relative date has nowhere to record its anchor. See variants/chronology-v1.json relative_date_handoff.",
+    "Variant thresholds are derived from ONE instance each — a starting point, not a calibrated classifier. Widen as more documents arrive.",
+    "strategy_memo reference instance sha256 is pending — recompute at ingest."
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "$comment": "Variant module: STRATEGY_MEMO. Byline: Claude Code · Opus 5 · 2026-08-29 13:00 EDT. Parent registry: ../document-markdown-v1.json. Emits no artifact — chunk pass only.",
+
+  "variant_id": "strategy_memo",
+  "schema_id": "document-markdown",
+  "schema_version": "1.0.0",
+  "status": "draft-unapplied",
+
+  "detect": {
+    "all_of": [
+      { "id": "has_headings", "pattern": "^#{1,6}\\s+\\S", "min_count": 1 },
+      { "id": "low_date_density", "pattern": "\\b(?:19|20)\\d{2}\\b", "max_count": 5 },
+      { "id": "low_citation_density", "pattern": "\\bMCL\\s+\\d|\\bMRE\\s+\\d|\\bv\\.\\s+[A-Z]", "max_count": 5 },
+      { "id": "small", "size_bytes_max": 12000 }
+    ],
+    "reference_instance": {
+      "sha256": "pending — recompute at ingest",
+      "bytes": 3767,
+      "measured": { "headings": 4, "heading_levels": [3], "blockquote_lines": 5, "date_mentions": 0, "legal_citations": 0, "role_markers": 0, "bold_runs": 11 }
+    },
+    "resolution_note": "Deliberately LAST in the registry resolution_order — its detect rules are the loosest, so more specific variants must be tried first."
+  },
+
+  "pass_chunk": {
+    "capability": "chunk.*",
+    "strategy": "one chunk per heading section; single whole-file chunk if the document is under chunk_size",
+    "carry_heading": true,
+    "rationale": "Short and self-contained. Over-chunking destroys the argument structure — each section is one framing move and only makes sense whole.",
+    "structure_note": "The reference instance places blockquoted proposed courtroom phrasing under each numbered heading. A blockquote and its heading belong in the same chunk."
+  },
+
+  "pass_artifact": null,
+  "artifact_rationale": "Owner work product — strategy and framing, not fact. Nothing here is an event that belongs on a timeline, and treating argumentation as fact would be a category error with evidentiary consequences.",
+
+  "known_content_hazards": {
+    "escaped_ordinals": "Headings contain escaped ordinals (e.g. an escaped '1.'). Treat the backslash as source text, not markup.",
+    "proposed_speech": "Blockquoted content is PROPOSED phrasing — language the owner might use — not something said, filed, or on the record. It must never be extracted as an assertion of fact or as a quotation from the record. This is the single most important hazard in this variant."
+  },
+
+  "open_questions": [
+    "Whether strategy memos should carry a distinguishing marker so retrieval can separate owner argumentation from source material. Relates to EvidenceCitation.epistemic_class on the Legal-Workspace side, which already distinguishes legal_theory from established_fact."
+  ]
+}

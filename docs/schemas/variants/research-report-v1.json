@@ -1,0 +1,45 @@
+{
+  "$comment": "Variant module: RESEARCH_REPORT. Byline: Claude Code · Opus 5 · 2026-08-29 12:59 EDT. Parent registry: ../document-markdown-v1.json. Emits no artifact — chunk pass only.",
+
+  "variant_id": "research_report",
+  "schema_id": "document-markdown",
+  "schema_version": "1.0.0",
+  "status": "draft-unapplied",
+
+  "detect": {
+    "all_of": [
+      { "id": "deep_heading_hierarchy", "pattern": "^#{1,6}\\s+\\S", "min_distinct_levels": 3 },
+      { "id": "legal_citation_density", "pattern": "\\bMCL\\s+\\d|\\bMRE\\s+\\d|\\bv\\.\\s+[A-Z]|\\b\\d+\\s+Mich\\b", "min_count": 20 }
+    ],
+    "reference_instance": {
+      "sha256": "18618992f24e492c19b7bf3be27188385df19efc6f133107495b6d8a78406914",
+      "bytes": 56371,
+      "measured": { "headings": 26, "heading_levels": [1, 2, 3, 4], "table_rows": 14, "blockquote_lines": 19, "date_mentions": 22, "legal_citations": 50, "role_markers": 0 }
+    }
+  },
+
+  "pass_chunk": {
+    "capability": "chunk.*",
+    "strategy": "one chunk per lowest-level heading section",
+    "never_split": "a markdown table — every row of a table stays in one chunk",
+    "carry_heading": true,
+    "heading_path": true,
+    "heading_path_note": "Carry the full ancestor path (e.g. Part I > Threshold Hurdles > 1.1.2 Authentication) so a retrieved section is locatable without the surrounding document.",
+    "rationale": "Register R33 — a material finding must open to its exact source location with enough surrounding context to judge meaning. A heading section is that unit.",
+    "measured_baseline": "Current production chunking (RecursiveChunker character/1500) produces 46 chunks with 1 of 26 starting at a heading — section structure is destroyed. This variant exists to fix that."
+  },
+
+  "pass_artifact": null,
+  "artifact_rationale": "Reference and authority material about the law, not case events. It is cited, not chronicled. No timeline rows.",
+
+  "known_content_hazards": {
+    "tables": "14 table rows measured. A character-window chunker splits tables mid-body, making them unreadable and uncitable. Table integrity is a hard requirement here, not a nicety.",
+    "citation_spans": "50 legal citations. Splitting mid-citation breaks both retrieval and any downstream citation validation.",
+    "long_sections": "Some sections exceed a typical chunk_size. Sub-splitting within a section is permitted, but every sub-chunk must retain the heading path."
+  },
+
+  "open_questions": [
+    "Chonkie TableChunker (candidate D) is a plausible complement for the tabular passages but was not measured — include it when the bake-off is completed.",
+    "Whether a section exceeding chunk_size sub-splits on paragraphs or on sentences."
+  ]
+}

@@ -1,0 +1,148 @@
+{
+  "$comment": "Variant module: CHRONOLOGY. Byline: Claude Code · Opus 5 · 2026-08-29 12:59 EDT. Self-contained per the modularity rule. Parent registry: ../document-markdown-v1.json. This is the only variant that emits a timeline artifact.",
+
+  "variant_id": "chronology",
+  "schema_id": "document-markdown",
+  "schema_version": "1.0.0",
+  "status": "draft-unapplied",
+
+  "detect": {
+    "$comment": "Thresholds derived from ONE measured instance. Starting point, not a calibrated classifier.",
+    "all_of": [
+      { "id": "has_headings", "pattern": "^#{1,6}\\s+\\S", "min_count": 1 },
+      { "id": "blockquote_density", "pattern": "^>", "min_count": 40 },
+      { "id": "date_density", "pattern": "\\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\\.?\\s+\\d{1,2},?\\s+\\d{4}|\\b\\d{4}[-/]\\d{2}[-/]\\d{2}\\b|\\b(?:19|20)\\d{2}\\b", "min_count": 30 }
+    ],
+    "reference_instance": {
+      "sha256": "8d766277b73baf69b7afbdccfc9056f630ce056af6280a21b7abb67b2fe586c6",
+      "bytes": 17601,
+      "measured": { "headings": 8, "heading_levels": [3], "blockquote_lines": 97, "date_mentions": 69, "legal_citations": 2, "role_markers": 0 }
+    }
+  },
+
+  "pass_chunk": {
+    "$comment": "FULL coverage. Runs independently of artifact extraction — nothing is carved out.",
+    "capability": "chunk.*",
+    "strategy": "one chunk per dated entry",
+    "entry_boundary": "^>\\s*\\*\\s*\\*\\*",
+    "never_split": "a single dated entry — its date and narrative must stay in one chunk",
+    "carry_heading": true,
+    "heading_note": "The document's level-3 headings are era/section labels (e.g. 'PART I — MASTER CHRONOLOGY'). Carry the enclosing heading as chunk context so an entry is interpretable standalone.",
+    "rationale": "Register R58 — the pattern IS the evidence. Splitting a dated entry destroys the unit a chronology exhibit cites.",
+    "coverage_requirement": "Non-entry text (headings, preamble, interstitial prose) must still land in chunks. The completeness gate in the parent registry applies unchanged."
+  },
+
+  "pass_artifact": {
+    "$comment": "SEPARATE pass. Owner ruling 2026-08-29: extraction happens separately from chunking — everything still goes into chunks, AND this artifact is also produced. Re-derivable without re-chunking.",
+    "capability": "extract.timeline",
+    "runs": "in parallel with pass_chunk, over the same source",
+    "consumes": "the source document — NOT the chunks",
+    "emits": "rows shaped for timeline.event_candidate (sql/0035_timeline_projection.sql)",
+
+    "target_table": "timeline.event_candidate",
+    "target_contract": {
+      "$comment": "Column mapping onto the live table. Authority: sql/0035_timeline_projection.sql:62-95. UNIQUE (source_system, source_record_id, source_record_version) — that triple is the idempotency key.",
+      "source_system": { "value": "ai_chat", "note": "The table's own comment lists 'ai_chat' as an expected source_system, and D-082 records that an AI-chat-derived row is a LEAD, never evidence." },
+      "source_record_id": { "derive": "stable id for the entry — recommend sha256(source_sha256 + ':' + char_start)", "note": "must be stable across re-runs or idempotency breaks" },
+      "source_record_version": { "derive": "schema_version of this module", "note": "lets a re-extraction under a new schema coexist rather than collide" },
+      "source_locator": {
+        "shape": { "schema": "context", "table": "<document chunk table, pending>", "pk": "<chunk id>", "char_start": 0, "char_end": 0 },
+        "note": "Bounded pointer for source-opening (R33). char offsets come from the SAME primitive the chunker emits, so an artifact row joins to its chunk by range overlap."
+      },
+      "extraction_run_id": { "derive": "free text run id", "note": "table takes free text — no FK required (WP-B01 typed run table not yet built)" },
+      "temporal_precision": { "enum": ["point", "interval", "uncertain"], "note": "NOT NULL. See date_form_mapping — the table comment is explicit: never coerce imprecision into a false-precision point." },
+      "occurred_at": { "note": "set only for temporal_precision = point" },
+      "valid_from": { "note": "interval start" },
+      "valid_to": { "note": "interval end" },
+      "temporal_confidence": { "range": [0, 1], "note": "real, nullable" },
+      "display_summary": { "derive": "the entry's narrative text, verbatim where possible", "note": "NOT NULL" },
+      "event_type": { "note": "NOT NULL, controlled vocabulary versioned at the projection layer, not enforced by the table" },
+      "entity_refs": { "type": "text[]", "default": "{}", "note": "person/place references found in the entry" }
+    },
+
+    "date_form_mapping": {
+      "$comment": "Measured against the real entries in the reference instance, not hypothesised. Owner ruling 2026-08-29: 'if all you have is a rough reference or rough date or a span, input that as a separate field without an exact timestamp.' Imprecise placement is NOT this extractor's job to resolve — a separate relative-date engine owns that and is a work in progress.",
+      "tiers": [
+        {
+          "tier": "precise point",
+          "example": "January 31, 2020",
+          "temporal_precision": "point",
+          "sets": ["occurred_at"],
+          "temporal_confidence": 1.0
+        },
+        {
+          "tier": "precise interval",
+          "example": "May 6, 2023 – June 5, 2023",
+          "temporal_precision": "interval",
+          "sets": ["valid_from", "valid_to"],
+          "leaves_null": ["occurred_at"],
+          "temporal_confidence": 1.0,
+          "note": "A span with no single timestamp is directly expressible today — occurred_at stays NULL."
+        },
+        {
+          "tier": "bounded but approximate",
+          "examples": ["1990–2003 (Approximate)", "2021–2022 (Approximate)", "Summer 2023"],
+          "temporal_precision": "uncertain",
+          "sets": ["valid_from", "valid_to"],
+          "leaves_null": ["occurred_at"],
+          "temporal_confidence": "< 1.0, lower as the span widens",
+          "hard_rule": "Bound it only to the granularity the source actually states. 'Summer 2023' bounds to that season — it does NOT become a day."
+        },
+        {
+          "tier": "unbounded / relative only",
+          "examples": ["later that year", "shortly after the hearing", "sometime before she moved"],
+          "temporal_precision": "uncertain",
+          "sets": [],
+          "leaves_null": ["occurred_at", "valid_from", "valid_to"],
+          "action": "DEFER to the relative-date subsystem. Emit no timestamps at all.",
+          "note": "This is the case the separate engine exists for. Do not guess bounds to make the row look complete."
+        }
+      ],
+      "hard_rule": "NEVER fabricate a timestamp to satisfy a column. An absent date is a fact about the source; an invented one is a defect that becomes evidence.",
+      "preserve_raw": {
+        "rule": "In every tier, carry the source's date phrase VERBATIM alongside the parsed values.",
+        "why": "The phrase is the primary record; the parse is a derived interpretation. A reviewer must be able to see 'Summer 2023' and judge the bounding for themselves. This is also what lets the relative-date engine re-derive placement later without re-reading the document."
+      }
+    },
+
+    "relative_date_handoff": {
+      "$comment": "VERIFIED 2026-08-29 13:0x against sql/0047_content_chunk_and_context_thread_foundation.sql. Owner: a separate engine for placing events without exact dates is a work in progress and will evolve; a table already exists.",
+      "target_table": "context.relative_time_anchor",
+      "status_of_target": "UNTRACKED / IN-FLIGHT — sql/0047 is not committed as of this writing. Treat its shape as volatile and re-verify before implementing.",
+      "shape_observed": {
+        "placement_kind": ["before", "after", "between", "sequence_only", "metadata_approximation"],
+        "bounds": ["lower_bound_at", "upper_bound_at"],
+        "relative_links": ["last_known_before_anchor_id", "first_known_after_anchor_id"],
+        "ordering_without_dates": ["contextual_sequence_key", "contextual_sequence_ordinal"],
+        "justification": "metadata_basis (NOT NULL) + raw_metadata + confidence + ambiguity",
+        "review": "review_state IN (proposed, approved, rejected, superseded); approved requires reviewed_by + reviewed_at",
+        "versioning": "anchor_key + version_ordinal, supersedes_id — corrections are new versions, not edits",
+        "at_least_one_required": "CHECK enforces at least one of lower_bound / upper_bound / before-anchor / after-anchor / sequence_key"
+      },
+      "design_intent_quoted": "Its own header comment: 'Primary tables retain their authoritative occurred_at/acquisition clocks. These versioned assertions express only an unresolved or approximate placement when a primary clock is unavailable.' That is exactly the split this variant follows — precise placement on the primary row, imprecise placement as a separate anchor.",
+      "GAP": {
+        "finding": "There is NO link table between timeline.event_candidate and context.relative_time_anchor. Verified: zero matches in sql/0047. The relative-time subsystem currently links to THREAD entities only — first/third_party_thread_version, _source, and _message anchors.",
+        "consequence": "A chronology entry whose date is unbounded/relative has nowhere to record its anchor today. It can only be emitted as temporal_precision='uncertain' with all timestamps NULL and the raw phrase preserved.",
+        "recommended": "An event_candidate ↔ relative_time_anchor link table, following the same typed-link pattern 0047 already uses (its comment: 'Typed link tables prevent weak entity_type/entity_id pointers or nullable-FK soup'). Do NOT add a nullable anchor_id column to event_candidate — that is the pattern 0047 explicitly rejects.",
+        "owner_note": "Flagged, not built. The engine is WIP and will evolve; this schema should follow it rather than pre-empt it."
+      }
+    },
+
+    "authority_note": "Rows are CANDIDATE authority only (D-082 — an AI-chat-derived row is a lead, never evidence). The table is append-only via timeline.forbid_mutation(); a correction is a NEW row with a new extraction_run_id, never an edit.",
+
+    "downstream": "timeline.timeline_member with member_authority='candidate_context' → timeline projection/generation (server/timeline/, currently CLI-only with zero production callers)."
+  },
+
+  "known_content_hazards": {
+    "$comment": "Measured in the reference instance — flag so an extractor does not silently mangle them.",
+    "escaped_markdown": "Headings contain escaped ordinals (e.g. '**PART I — MASTER CHRONOLOGY**'); entries use '> * **' prefixes. Treat the '\\.' escapes as source text, not markup.",
+    "name_variants": "The source itself records name reconciliations (a legal name vs a phonetic spelling; an actor known by a short form). Entity extraction MUST NOT silently normalise these — R17 identity resolution is a reviewed step, and the document is evidence of the variance itself.",
+    "em_dash_ranges": "Date ranges use en/em dashes, not hyphens. A hyphen-only range regex will miss them."
+  },
+
+  "open_questions": [
+    "source_record_id derivation is a recommendation, not a decision — it must be stable across re-runs, and the choice affects the UNIQUE idempotency triple.",
+    "event_type controlled vocabulary is undefined for this variant. The table does not enforce it; the projection layer versions it.",
+    "Whether extraction is deterministic (rule-based on date forms) or model-assisted. If model-assisted, the determinism guard applies: the model proposes a schema/mapping once, a deterministic pass applies it, and the result is pinned by schema_version."
+  ]
+}
