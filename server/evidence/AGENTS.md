@@ -1,5 +1,7 @@
 # server/evidence/ — the evidence spine
 
+> _Byline: Claude Code · 2026-07-27; navigation refresh by Codex · GPT-5.6-Sol · 2026-08-29._
+
 > Nested map. Parent: `../AGENTS.md`. Root: `../../AGENTS.md`.
 
 ## What's here

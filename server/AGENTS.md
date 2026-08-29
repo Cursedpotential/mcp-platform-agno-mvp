@@ -1,5 +1,7 @@
 # server/ — the backend boundary
 
+> _Byline: Claude Code · 2026-07-27; navigation refresh by Codex · GPT-5.6-Sol · 2026-08-29._
+
 > Nested map. Root map: `../AGENTS.md`. Closest file wins — if you're editing inside
 > `contracts/`, `evidence/`, `timeline/`, `tools/`, or `agents/`, read THAT directory's `AGENTS.md` too.
 

@@ -1,6 +1,6 @@
 # Prototype Instructions
 
-> _Prototype decision note: Codex · GPT-5.6 · 2026-08-27._
+> _Byline: Codex · GPT-5.6 · 2026-08-27 (prototype decision note)._
 
 Owner-approved visual direction: graphite application shell, warm light workspace, compact
 operations density, plain-language labels, and a light/dark theme control. The first prototype is

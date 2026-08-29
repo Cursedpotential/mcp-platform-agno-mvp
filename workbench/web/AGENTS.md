@@ -8,6 +8,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 <!-- END:nextjs-agent-rules -->
 
+> _Byline: Next.js generated compatibility notice; tracked by Codex · GPT-5.6-Sol · 2026-08-29._
+
 ---
 
 > _Sprint-mode policy REMOVED 2026-08-25 on owner order ("you're grounded — remove it entirely"). Confirm-and-discuss-before-changing is back in force._
