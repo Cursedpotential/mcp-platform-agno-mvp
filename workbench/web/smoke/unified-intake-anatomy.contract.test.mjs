@@ -26,6 +26,17 @@ test("source inspection exposes the Source preview, Metadata, and Parser tabs", 
   assert.match(intake, /aria-label="Parser selection"/);
 });
 
+test("local intake selects the five supported document extensions and declares them truthfully", () => {
+  assert.match(intake, /const LOCAL_FILE_ACCEPT = "\.md,\.json,\.docx,\.html,\.htm";/);
+  assert.match(intake, /<input accept=\{LOCAL_FILE_ACCEPT\} className="sr-only" type="file"/);
+  assert.match(intake, /md: "markdown"/);
+  assert.match(intake, /json: "message_export_json"/);
+  assert.match(intake, /docx: "docx"/);
+  assert.match(intake, /html: "html"/);
+  assert.match(intake, /htm: "html"/);
+  assert.match(intake, /\/\\\.\(md\|json\|html\?\|txt\|csv\|xml\)\$\/i/);
+});
+
 test("remote sources make no content or SHA-256 claim before acquisition seals them", () => {
   assert.match(
     intake,

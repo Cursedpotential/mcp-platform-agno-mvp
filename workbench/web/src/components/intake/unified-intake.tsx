@@ -41,6 +41,8 @@ import { useFixedCase } from "@/lib/fixed-case-context";
 type IntakePhase = "choose" | "ready" | "starting" | "review" | "complete" | "error";
 type PreviewTab = "source" | "metadata" | "parser";
 
+const LOCAL_FILE_ACCEPT = ".md,.json,.docx,.html,.htm";
+
 function errorText(error: unknown) {
   return error instanceof ApiError ? error.message : error instanceof Error ? error.message : "The intake request failed";
 }
@@ -50,10 +52,13 @@ function declaredFormat(source: { name: string }) {
   const formats: Record<string, string> = {
     xml: "sms_export_xml",
     json: "message_export_json",
+    md: "markdown",
     txt: "delimited_text",
     csv: "delimited_text",
     pdf: "pdf",
     docx: "docx",
+    html: "html",
+    htm: "html",
     zip: "archive",
   };
   return formats[extension ?? ""] ?? "unknown_binary";
@@ -163,7 +168,7 @@ export function UnifiedIntake() {
     setPhase("ready");
     const [nextDigest, nextText] = await Promise.all([
       fileDigest(selected),
-      selected.type.startsWith("text/") || /\.(txt|csv|json|xml)$/i.test(selected.name)
+      selected.type.startsWith("text/") || /\.(md|json|html?|txt|csv|xml)$/i.test(selected.name)
         ? selected.text()
         : Promise.resolve(""),
     ]);
@@ -311,7 +316,8 @@ export function UnifiedIntake() {
               </div>
               <div className="border-t bg-accent/30 px-5 py-4 text-sm">
                 <span className="text-muted-foreground">Or add a source from this device: </span>
-                <label className="cursor-pointer font-semibold text-primary hover:underline"><Upload className="mr-1 inline h-4 w-4" />Choose local file<input className="sr-only" type="file" onChange={(event) => void selectFile(event.target.files?.[0] ?? null)} /></label>
+                <label className="cursor-pointer font-semibold text-primary hover:underline"><Upload className="mr-1 inline h-4 w-4" />Choose local file<input accept={LOCAL_FILE_ACCEPT} className="sr-only" type="file" onChange={(event) => void selectFile(event.target.files?.[0] ?? null)} /></label>
+                <span className="ml-2 text-xs text-muted-foreground">Markdown, JSON, Word, or HTML</span>
               </div>
             </div>
           ) : (
