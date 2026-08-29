@@ -1,6 +1,15 @@
 # Documentation Index — Current Entry Points
 
 > _Byline: Codex · GPT-5 · 2026-08-15 · updated 2026-08-18 (Codex · GPT-5)._
+> _2026-08-27 amendment: Codex · GPT-5 — added the static API-to-Workbench coverage census._
+> _2026-08-29 amendment: Codex · GPT-5 — recorded accepted ADR-0061 Workbench/SBV composition._
+> _2026-08-27 amendment: Codex · GPT-5 — corrected the live `platform` baseline and indexed
+> D-093 Slice 1 plus the durable run-event implementation status._
+> _2026-08-27 amendment: Codex · GPT-5 — added the open-source live observability shortlist._
+> _2026-08-27 amendment: Codex · GPT-5 — added the D-091 fresh `platform` database hold,
+> D-092 court-export-only redaction boundary, and the held migration-0036 runbook._
+> _2026-08-26 amendment: Claude Code · Opus 5 — added the two current naming-migration artifacts
+> (owner HTML + census/handoff) to Start Here and the D-086 naming paragraph to Current truth._
 > _2026-08-23 amendment: Claude Code · Opus 5 — corrected the "Held activation" migration
 > claim (0026-0030 are applied, CH-15/CH-16) and added the Temporal plan, ingestion-readiness
 > note, and cross-repo review directory to Start Here._
@@ -66,8 +75,9 @@ claimed. Use the R9 handoff and activation preflight pre-mortem for current
 verification and release gates.
 
 Three divergent self-contained Workbench mockups and their evaluation reports
-are available through the comparison page above. They are prototypes, not the
-deployed Workbench.
+are available through the comparison page above. They are design donors/prototypes, not production
+applications. Accepted ADR-0061 defines the production composition: Workbench is the unified shell and
+the storage-free SBV client is its bounded `/evidence/preview` pipeline surface.
 
 ## Archived lane packets and historical plans
 

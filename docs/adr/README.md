@@ -74,6 +74,8 @@ guarantee gets an ADR. One short record. Supersede (don't edit) when a decision 
 | 0057 | Claim-centered evidence assembly + immutable established facts with exact multi-source provenance | **Accepted** — owner approval 2026-08-15; D-062 |
 | 0058 | Investigation Search + scoped hindsight/as-lived behavioral-analysis modes and internal lens vocabulary | **Accepted** — owner approval 2026-08-15; D-063 |
 | 0059 | First-party and acquired-third-party derived message projections; three clocks; resumable checkpoints vs terminal rewalks | **Accepted** — owner ruling 2026-08-18; supersedes ADR-0045 A/A.4 and ADR-0056 decision 10 in part; D-065 |
+| 0060 | Maintained Timesketch fork for singleton personal-case timeline; any-context event candidates; PG-authoritative immutable projection generations; individual/bulk round-trip context curation | **Accepted** — owner rulings 2026-08-26; D-084/D-085 |
+| 0061 | Unified Workbench shell with SBV as its storage-free pipeline-preview client and bounded Timesketch/Legal surfaces | **Accepted** — owner acceptance and SBV boundary clarification 2026-08-29 |
 
 > The full vision, current stack, roadmap, access, and gotchas live in
 > [`docs/PROJECT_CANON.md`](../PROJECT_CANON.md) (the durable source of truth).

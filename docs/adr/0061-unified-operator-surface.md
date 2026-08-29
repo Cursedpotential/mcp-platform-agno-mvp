@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-08-27
 decision-maker: [Owner]
 consulted: [Codex GPT-5, Planck]
@@ -14,7 +14,7 @@ perspectives: [operator experience, evidence authority, legal work product, secu
 
 **Design Spec**: [Implementation Spec](/docs/design/0061-unified-operator-surface/spec.md)
 
-- Status: **Proposed**
+- Status: **Accepted** — owner acceptance and SBV boundary clarification, 2026-08-29
 - Date: 2026-08-27
 - Extends: ADR-0048, ADR-0049, ADR-0052, ADR-0053, ADR-0054, ADR-0055, ADR-0057, ADR-0060
 
@@ -29,8 +29,10 @@ credential with fleet-wide power.
 
 The desired state is one front door and one visible operating context. It is not one codebase, one
 database, or one runtime. SBV, the Timesketch fork, and Legal-Workspace have distinct deploy and domain
-boundaries. Temporal Web and the n8n editor are engineering consoles, not product surfaces. Semantica is
-a candidate-producing capability rather than an authority or required standalone application.
+boundaries. SBV's SQLite store, local auth, and bespoke ingestion path are not domain boundaries and are
+retired: SBV becomes the bounded pipeline-preview client inside Workbench. Temporal Web and the n8n
+editor are engineering consoles, not product surfaces. Semantica is a candidate-producing capability
+rather than an authority or required standalone application.
 
 ```mermaid
 flowchart LR
@@ -55,13 +57,13 @@ flowchart LR
 
 ## Decision
 
-Adopt Workbench as the unified product shell and backend-for-frontend. Keep SBV, the Timesketch fork,
-and Legal-Workspace independently deployable behind versioned contracts. Present Temporal and n8n run
-status natively in Workbench and deep-link to their engineering consoles. Present Semantica outputs as
-governed candidate queues in Workbench; do not make its runtime or any visualization a source of truth.
-
-This proposal becomes implementation authority only after owner acceptance. Until then, it is the
-blocking preflight record for new unified-surface code.
+Adopt Workbench as the unified product shell and backend-for-frontend. Compose the storage-free SBV
+client inside that shell as the native preview for messages and Go/Temporal/n8n pipeline progress.
+Keep the Timesketch fork and Legal-Workspace independently deployable behind versioned contracts.
+Present Temporal and n8n run status through the SBV preview composition and deep-link to their
+engineering consoles. Present Semantica outputs as governed candidate queues; do not make its runtime
+or any visualization a source of truth. The Vite unified-operator-surface is a design donor/prototype,
+not a third production application.
 
 ### Authority invariants
 
@@ -69,8 +71,10 @@ blocking preflight record for new unified-surface code.
    promotion, parser truth, timeline truth, or legal work-product truth.
 2. PostgreSQL remains canonical for custody, governed context, evidence, review decisions, projection
    generations, receipts, and legal-package issuance.
-3. SBV parses and previews. A confirmed preview starts the same headless Temporal import workflow; no
-   direct surface path may bypass that gate.
+3. SBV previews; it does not parse, hash, authenticate independently, ingest, or store canonical data.
+   SMS decoding is selected through the same Go parser contract as every other format. Custody hashing
+   remains a separate upstream activity. A confirmed preview starts the same headless Temporal import
+   workflow; no direct surface path may bypass that gate.
 4. Timesketch/OpenSearch is a rebuildable projection and curation client. Accepted changes exist only
    after PostgreSQL validates the command and emits a successor projection generation.
 5. Legal-Workspace owns research, legal theories, drafts, reviews, releases, and filing readiness. It
@@ -123,6 +127,13 @@ hints only and never sufficient authorization.
 Use a same-origin reverse proxy and bounded iframe/full-page launch for the first composition of SBV,
 Timesketch, and Legal-Workspace. Do not use module federation. Native Workbench routes own shared status,
 approval queues, and source opening; domain-heavy editors remain owned by their applications.
+
+For SBV specifically, the composition is tighter than a bookmark or optional deep link: Workbench owns
+the chrome and verified operator context, while the SBV client owns the preview presentation. Its API
+contract reads platform messages, custody receipts, and workflow events. Its former SQLite databases
+are lossy derivatives, not migration authorities; retained source XML must be re-ingested through the
+corrected common parser, and old databases may be quarantined only after source-completeness and live
+read-path proof.
 
 ## Graph-thinking findings
 
@@ -188,6 +199,11 @@ foundation work rather than later hardening.
   direction and would couple independently built applications at runtime.
 - **Keep every application separate with only bookmarks:** rejected. It does not solve shared scope,
   source opening, approval continuity, or correlated status.
+- **Keep SBV as a self-contained SQLite-backed SMS application:** rejected. It duplicates canonical
+  storage, auth, ingestion, and search, and its MMS rows omit all but the first attachment.
+- **Reduce SBV to a message-viewer deep link while Workbench rebuilds preview UI:** rejected. It wastes
+  the retained viewer and creates two preview implementations; SBV is the bounded preview client inside
+  the Workbench shell.
 - **Embed Temporal Web and n8n as product applications:** rejected. They expose engineering concepts and
   mutation capabilities that are broader than the owner-facing task.
 - **Make Timesketch, Semantica, or Legal-Workspace canonical:** rejected. Each would split custody,
@@ -209,3 +225,5 @@ foundation work rather than later hardening.
 7. Direct bounded-app operator routes remain available when Workbench is unavailable.
 8. Live Coolify tests prove CSP/cookie/deep-link behavior, negative authorization, replay/idempotency,
    reconciliation, rollback, and current revision for every implemented package.
+9. Re-ingest from retained SMS/MMS source XML proves every attachment is represented before any SBV
+   SQLite path is moved to `to_be_deleted`; SQLite row-count parity alone is not an acceptance test.

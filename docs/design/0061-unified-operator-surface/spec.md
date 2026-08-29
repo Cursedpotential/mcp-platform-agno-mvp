@@ -18,7 +18,10 @@ their databases, source trees, or authority.
 ## Current verified boundary
 
 - Workbench exists but its deployed manual ingest path is older than the new Universal Import Workflow.
-- SBV provides parsing/runtime and visual-preview foundations, but is not yet the unified entry point.
+- SBV currently combines parsing/runtime, SQLite storage/auth, and visual-preview foundations. The
+  accepted target separates those concerns: SMS decoding joins the common Go-selected parser contract,
+  custody remains its own upstream activity, and the storage-free SBV client becomes the embedded
+  pipeline preview inside the Workbench shell.
 - Timesketch has an accepted maintained-fork direction and PostgreSQL-authoritative projection contract;
   integrated live smoke remains unverified.
 - Temporal Web and n8n exist as operational consoles. Product status must be summarized in Workbench;
@@ -37,7 +40,7 @@ their databases, source trees, or authority.
 |---|---|---|---|
 | Product control | Owner, Workbench shell/BFF, OperatorContext, launch exchange | high | navigation, scoped authorization, status |
 | Evidence authority | Platform API, PostgreSQL, review gates, ledgers | highest integrity | canonical custody/context/evidence/governance |
-| Ingest runtime | acquisition adapter, SBV parser/preview, Temporal, n8n, parser activities | high | headless deterministic execution and receipts |
+| Ingest runtime | acquisition adapter, common Go parser coordinator, custody activity, Temporal, n8n | high | headless deterministic execution and receipts |
 | Candidate analysis | Semantica, candidate queues, investigation register | medium | proposals only, never facts/evidence |
 | Timeline | projection generation, Timesketch/OpenSearch, curation batch | high | rebuildable display and governed reverse commands |
 | Legal | LegalSourcePackage, Legal-Workspace, review/release, evidence request | high | legal work product, never evidence authority |
@@ -51,7 +54,7 @@ their databases, source trees, or authority.
 | Workbench | bounded apps | audience-bound one-time launch context | 5 |
 | Workbench | Temporal/n8n | summarized status and admin deep links | 3 |
 | acquisition adapter | UIW | immutable source reference and provenance | 5 |
-| SBV preview | UIW | confirmed source/parser/config/preview hash | 5 |
+| SBV preview client | UIW/platform APIs | confirmed source/parser/config/preview hash plus read-only custody/run/message projections | 5 |
 | Temporal | n8n | bounded activity-body invocation | 3 |
 | Temporal | Semantica | immutable normalized batch | 3 |
 | Semantica | PostgreSQL | provenance-rich candidates only | 5 |
@@ -114,7 +117,7 @@ mount or treat the desktop filesystem as production storage.
 |---|---|---|
 | `/matter` | Workbench | native cross-domain status and selected context |
 | `/intake`, `/runs/:id` | Workbench + platform runtime API | native acquisition, preview decision, receipts, source opening |
-| `/evidence/preview` | SBV | same-origin proxied bounded app or native adapter view |
+| `/evidence/preview` | SBV client inside the Workbench shell | same-origin bounded pipeline preview; no SQLite, local auth, ingest, or canonical writes |
 | `/timeline` | Timesketch fork | proxied bounded app with Workbench context/return controls |
 | `/candidates` | Workbench | native Semantica/extractor candidate queues and review |
 | `/legal` | Legal-Workspace | proxied bounded app; optional full-page route for dense work |
@@ -132,6 +135,8 @@ gateway routing, and local sessions.
    and review are separate atomic activities under the common contract.
 5. The surface may be offline or unfinished; the same runtime remains callable through its authenticated
    API.
+6. The preview client reads message projections, custody receipts, and run events from platform APIs.
+   It never computes custody, selects parsers, or owns workflow state.
 
 ## Second-order analysis
 
@@ -191,12 +196,17 @@ mitigations: Negative scope/replay tests, CSP/cookie tests, no admin-console emb
 | U1 gateway/session | Workbench BFF auth/proxy only | U0 | wrong audience/scope/replay denied live; direct fallback remains |
 | U2 shell/navigation | Workbench web shell/routes/status | U0 | context persists across every product route |
 | U3 acquisition/manual intake | Workbench intake + runtime acquisition adapter | U0, live UIW | R2 and B2 objects seal into same workflow; Windows upload proven |
-| U4 SBV preview | SBV launch adapter and preview gate | U0, U1, UIW | reject writes no import; approve binds exact preview and runs |
+| U4 SBV preview | storage-free SBV client, platform read APIs, launch adapter, preview gate | U0, U1, UIW | messages/custody/run events render from platform state; reject writes no import; approve binds exact preview and runs |
 | U5 Timesketch bridge | projector/curation APIs and fork adapter | U0, ADR-0060 | bulk round trip, stale conflict, amendment-only evidence edit proven |
 | U6 Legal contracts | package issuer/import verifier and stale events | U0 | issuer/hash/scope negatives and revocation loop proven |
 | U7 Legal launch/shell | Legal local session + Workbench `/legal` | U1, U6 | no browser shared secret; draft/review/release flow proven |
 | U8 candidate/run summaries | Workbench native Semantica and Temporal/n8n views | U0 | candidate cannot promote itself; admin credentials never exposed |
 | U9 production acceptance | Coolify routing, CSP, observability, rollback receipts | U1-U8 | live current-revision receipt for each shipped package |
+
+U4 also owns the SBV retirement gate. Retained source XML is the migration authority for SMS/MMS,
+because legacy SQLite `media_data` contains only the first MMS attachment. Re-ingest must prove complete
+attachment coverage and the live preview must read the platform projection before any SQLite path is
+moved to `to_be_deleted`; SQLite row parity is insufficient.
 
 Reserve shared contract names, gateway routes, and cross-repo manifest versions to one integrator. SBV,
 Timesketch, Legal-Workspace, and Workbench implementation packages otherwise have separate file ownership

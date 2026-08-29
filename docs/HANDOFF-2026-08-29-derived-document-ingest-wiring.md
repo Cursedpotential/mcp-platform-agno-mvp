@@ -2,8 +2,39 @@
 
 > _Byline: Claude Code · Opus 5 · 2026-08-29_
 > _Byline amendment: Claude Code · Opus 5 · 2026-08-29_
-STATUS: COMPLETE (audit + handoff only — no code changes were in scope)
-BUILD_STATUS: UNKNOWN (no tests run this session; `PHASE-0-FREEZE` itself records BUILD_STATUS UNKNOWN)
+> _Byline implementation-state amendment: Codex · GPT-5 · 2026-08-29_
+STATUS: PARTIAL — audit decisions are reconciled; schema, auth, Workbench shell, and SBV-preview
+implementation lanes are local/in review; nothing in this document is yet production-complete.
+BUILD_STATUS: PARTIAL PASS — focused migration/contract/auth tests and Workbench lint/build pass locally;
+PostgreSQL 18 execution, the complete suite, clean integration branch, Coolify deployment, and live
+operator proof remain mandatory.
+
+## HANDOFF v2 — current continuation state (supersedes stale status statements below)
+
+- **Accepted architecture:** ADR-0061 is accepted. Workbench is the single shell/context/auth boundary;
+  SBV is the storage-free pipeline-preview client composed inside it. The Vite mockup is a design donor,
+  not a third production application.
+- **SBV retirement contract:** no target-state SBV SQLite/cache, local auth, bespoke ingest, parser
+  selection, or custody authority. SMS joins the common Go-selected parser contract; hashing remains a
+  separate upstream custody activity. Retained XML is the MMS migration authority because SQLite kept
+  only the first attachment. Quarantine only after complete re-ingest and live platform read proof.
+- **Schema foundation:** migration `0047` and its import-light contracts are implemented locally after
+  independent review remediation. Focused static tests report 21 pass; the PostgreSQL 18 rollback-only
+  behavior harness is ready but skipped until a disposable `PLATFORM_0047_TEST_SERVICE` is bound. It is
+  not applied live.
+- **Fingerprint/UIW repair:** migration `0048`, contract vectors, and Go activity/replay changes are
+  implemented locally and undergoing an independent read-only review. Do not commit or deploy until that
+  review closes.
+- **Workbench shell:** fixed-case provider plus approved graphite shell/intake integration builds and
+  lints locally. The bounded SBV client/API implementation is still in progress. Local build proof is
+  not a preview URL or production proof.
+- **Authentication:** Authentik 2026.8/Traefik source contracts are implemented locally with no Basic
+  Auth/password env and no direct `:8020` bypass. Focused tests report 18 provider/consumer + 43
+  Workbench auth pass. Exact Traefik address, secret files, Authentik objects, DNS/TLS, deployment, and
+  live login/denial/identity proof remain open.
+- **Integration rule:** the current local `main` contains divergent history and a shared dirty tree.
+  Stage only explicit owned paths. Produce scoped commits, rebuild from current `origin/main`, cherry-pick
+  only verified net changes, run mandatory unit/integration/build checks, then push non-force and deploy.
 
 ## Scope
 
@@ -386,6 +417,252 @@ in WP-5d below if that scorer turns out to be model-backed.
 a tool search for it returned no Colab tools — and it would additionally need to be exposed
 through ContextForge. If a genuine local-model-only application is ever identified, confirm both
 before relying on it; do not assume it is callable.
+
+## Tool colocation — a Go tool does NOT need to live with the Go engine
+
+> _Owner question, 2026-08-29: everything together as far as tools go — does the Go tool have to
+> reside with the Go engine, or can it move to platform-tools?_
+
+**Answer: it can move, and the precedent is already in production.** `platform-tools` is ALREADY a
+polyglot container. From `docker/tools/Dockerfile`:
+
+- `:34` — `FROM ghcr.io/cursedpotential/sbv-forensic@sha256:18a2a21c… AS sbv` (a **Go** binary,
+  pinned by digest)
+- `:37` — its own comment: *"Final image: python facade + the SBV binary/assets lifted from the
+  sbv stage."*
+- `:43` — `FROM python:3.12-slim`
+- `:48-50` — `COPY --from=sbv /app /opt/sbv`, plus the musl loader and libs
+- `:66` — `COPY server/ /opt/tools/server/` (the Python tool registry)
+- `:71` — `CMD ["supervisord", …]` running both
+
+So Go and Python tools already share one container, one image, one supervisor. **A Go chunker
+joins the same way SBV did:** a Go build stage, a `COPY --from`, a third supervisord program, and
+an entry in the registry manifest. No new pattern, no new infrastructure.
+
+### The SBV GUI is unaffected — verified
+
+`docker/tools/supervisord.conf` defines two **fully independent** programs:
+
+    [program:sbv]           command=/opt/sbv/sbv                       # port 8085, autorestart
+    [program:tools-facade]  command=python -m uvicorn facade:app … 8090
+
+Separate processes, separate ports, independent `autorestart`. Adding a third program touches
+neither. **The SBV GUI on `:8085` is preserved as-is.**
+
+### OPEN QUESTION — what is the SBV GUI FOR? (owner intent vs. current deployment)
+
+> _Owner, 2026-08-29: "The SBV GUI is supposed to be the front end — the preview window, the
+> client — that sits above and can call on the Go agent and the different workflows, and view
+> things as they go through the pipeline."_
+
+**That intent does not match where it currently sits, and it overlaps a surface already in
+flight.** Flagging rather than encoding, because it is an owner call with deployment consequences.
+
+**Current reality (verified):**
+- SBV GUI runs as a supervisord program **inside** `platform-tools` on `:8085` — i.e. colocated
+  with the tools, not above them.
+- It is essentially the **upstream** viewer. Per the 2026-08-23 audit of `sbv-forensic`, its React
+  frontend has **zero references** to hash, custody, or automation — the forensic layer added by
+  the fork is wired end-to-end at the HTTP/DB level and **never surfaced in the UI**.
+
+**Surfaces that already exist or are in flight:**
+
+| Surface | Deployment | What it is |
+|---|---|---|
+| **Workbench / UIW** | own Coolify app, ovh-app `100.72.169.40` | `deploy/workbench.yaml` byline (2026-08-28): *"unified UIW production surface"*. **Codex's #1 active priority** — "finish and live-prove the Workbench/UIW release" |
+| **unified-operator-surface** | own app, `:8020` | `deploy/unified-operator-surface.yaml`: *"Approved unified-operator-surface **Vite prototype**"*, built from `workbench/design-mockups/` |
+| **SBV GUI** | inside `platform-tools`, `:8085` | upstream SMS viewer; no custody/automation UI |
+
+**The fork:**
+- **(a) SBV GUI becomes the pipeline preview.** Then it must move OUT of `platform-tools` — a
+  client that calls the coordinator should not live inside the tool container it calls. That
+  contradicts the colocation described above, changes the deployment, and means building the
+  custody/automation/workflow views that its frontend does not currently have.
+- **(b) Workbench/UIW is the pipeline preview**, and SBV GUI stays a specialised **message
+  viewer**. The preview deep-links *into* it ("open this conversation at this message") rather
+  than reimplementing message rendering.
+
+**RECOMMENDATION: (b).** Workbench/UIW is being built for exactly this role, is the active
+critical path, and forking a second operator surface duplicates in-flight work. SBV GUI's real
+near-term value is as the thing that renders a conversation well — which the pipeline preview
+should link to, not rebuild.
+
+> **SUPERSEDED by the owner, 2026-08-29.** The binary choice and recommendation above were
+> framed incorrectly. Workbench and SBV are not competing preview products, and SBV is not merely
+> a deep-link target. Workbench owns the unified shell, fixed case context, navigation, and access
+> boundary. The refactored SBV client is the bounded preview application composed inside that shell:
+> it renders messages and the live Go/Temporal/n8n pipeline state. The Vite
+> `unified-operator-surface` remains a design donor/prototype, not a third production application.
+
+### RESOLVED by owner, 2026-08-29 — SBV becomes a pure VIEWING CLIENT
+
+> _Owner: "The SQLite-backed stuff is all supposed to be separated out and refactored so that SBV
+> is just a viewing client. All of the processes in the ingestion — including SMS — follow the
+> same contract."_
+
+This **supersedes the fork above rather than selecting either branch**: SBV stops being a
+self-contained application and becomes the **pipeline-preview client inside the Workbench shell**,
+reading the platform's canonical store and workflow receipts through bounded APIs.
+
+**Three separations follow:**
+
+| SBV layer today | Destination |
+|---|---|
+| **Storage** — per-user `sbv_<uuid>.db`, shared auth `sbv.db`, `messages`, `messages_fts`, `imports` | **Retired.** Platform tables own this — `working.message` / `working.third_party_message` and the content-chunk spine |
+| **Parsing** — `internal/parser.go` | **The Go engine adapter.** `engine/adapters/sbv/` already exists as the coordinator-side seat for it |
+| **Custody hashing** — `internal/custody.go` (H1/H2/H3) | **The custody activity — NOT the parser.** See the correction below |
+| **Frontend** — the React viewer | **Stays as the embedded pipeline-preview client inside Workbench**; it reads platform data and run events, renders messages, and owns no canonical state |
+
+### CORRECTION — hashing is its own activity, and always was
+
+> _Owner, 2026-08-29: hashing is always a separate activity in n8n/Temporal — already discussed
+> and resolved. (Caching may follow the same pattern.)_
+
+_An earlier revision of the table above listed "Parsing **+ custody hashing**" as a single
+destination. **That was wrong and is corrected.** They are deliberately separate activities._
+
+**Verified in code:** `custody_activity` is its own Temporal activity
+(`server/temporal/activities.py:149`), and it runs **first** in the chain —
+`workflows.py:174` documents the order as **`custody -> parse -> store -> knowledge`**, with the
+stages set at `:223` (custody), `:242` (parse), `:256` (store). Hashing has never been inside
+parsing; the separation is already the shipped contract.
+
+**So for the SBV port:** its parser goes to the Go adapter under the *parse* activity, while
+H1/H2/H3 belong to the *custody* activity that already precedes it. Porting them as one unit
+would collapse an existing, deliberate boundary — and would put hashing downstream of parsing,
+which inverts the order the platform relies on (hash the bytes as received, then parse).
+
+**Inherit this trap while you are in there.** `custody_activity`'s own docstring records a real
+production false-success:
+
+> *"`duplicate=True` is also what produced the real prod false-success documented at
+> `workflows.py:36-44` (knowledge fails → operator retries → custody dedupes → store sees 0 new
+> rows → the run reports completed with `docs_ingested=0`)."*
+
+Document ingest travels the same path, so it inherits the same failure: a retry after a downstream
+failure can report **completed with zero documents ingested**. `store_activity` reuses
+`_store_step_impl`'s guard rather than re-deriving it — keep any new document-ingest path on that
+same guard rather than writing a parallel dedupe branch.
+
+**SMS stops being special-cased.** Today SMS enters through a bespoke arrangement — `sbv_sms.py`
+registers `parse.sms-xml` at `priority=100` and its `accept` predicate additionally requires
+`_sbv_enabled()`, so ingest depends on a *separate running service*. Under the same-contract rule
+SMS becomes an ordinary parser emitting the same normalized records as every other format, and the
+"SBV is down, so the non-hashing fallback silently takes over" hazard recorded earlier disappears
+with it.
+
+### What this does to previously-reported SBV defects — re-triage
+
+Several defects I recorded on 2026-08-23 live in the layer being retired, and several do not. The
+distinction matters, because the second group **carries over into the adapter** unless fixed
+deliberately.
+
+**Evaporate with SBV's storage layer (no action needed):**
+- Re-ingest dedup keyed on `(record_type, address, date, type, body, …)` **excluding**
+  `content_hash` — dedup on normalized equality rather than raw-byte identity. A property of
+  SBV's own `messages` table.
+- `messages_fts` indexing `body` only, leaving call logs unsearchable. Platform search replaces it.
+- `InsertCallLogBatch` omitting `content_hash` — dead code in a retired store.
+
+**CARRY OVER into the engine adapter — these are PARSING behaviour, not storage:**
+- **Multi-attachment MMS keeps only the first part.** `convertMMSEntry` guards with
+  `if msg.MediaType == "" { // Only store first media item }`. That is a decode-time decision, so
+  porting the parser ports the data loss. **Fix during the port, not after.**
+- **`extractGroupNameFromTrID` is a live no-op** returning `""` — RCS group-chat names silently
+  dropped at parse time.
+- **H3 chains do not span import batches** — `ChainH3(recordHashes, "")` at the only production
+  call site. This is a custody-stage defect. **Do not move that hashing call into the parser
+  adapter**; reconcile it inside the separately versioned custody activity/canon.
+
+**Remains a frontend gap:** SBV's React frontend has *zero* references to
+hash/custody/automation. Because SBV is the preview client composed inside Workbench, it must
+surface the platform's custody receipts and workflow state without computing or owning either.
+
+### DO NOT MIGRATE SBV's SQLite MEDIA — RE-INGEST FROM THE RETAINED SOURCES
+
+Two verified facts collide here, and the collision is the whole point:
+
+1. SBV's per-user SQLite stores MMS attachments as `media_data` BLOBs — but
+   `convertMMSEntry` only ever decoded **the first non-SMIL part** per MMS
+   (`if msg.MediaType == "" { // Only store first media item }`). Later attachments in a
+   multi-media MMS were never stored.
+2. SBV **never deletes its source files.** Auto-import moves the source to
+   `data/<uuid>/complete/` and retains it; the headless extract path opens the source read-only
+   and explicitly keeps it as evidence.
+
+**Therefore: migrating the SQLite BLOBs would faithfully preserve the data loss. Re-ingesting from
+the retained source XML recovers attachments that were never stored in the first place.**
+
+This inverts the usual migration instinct — the old store is *lossier than its own inputs*, so the
+inputs are the better migration source. Any "caller and data migration proof" for the retired
+storage paths must therefore compare against the **source files**, not against the SQLite it is
+replacing; a SQLite-to-Postgres row-count match would prove the migration faithful and the corpus
+still incomplete.
+
+Practical consequence for the quarantine gate: retain `data/<uuid>/complete/` until re-ingest is
+proven, and treat it — not the SQLite — as the authority for what *should* be present.
+
+### CARRY-OVER DEFECTS — "move SMS decoding behind the contract" ports these unless fixed
+
+Three of the defects re-triaged above are **parse-time**, so porting the decoder ports them. They
+are easy to miss because they read as storage bugs and are not:
+
+- **Multi-attachment MMS keeps only the first part** (`convertMMSEntry`) — decode-time.
+- **`extractGroupNameFromTrID` is a live no-op** returning `""` — RCS group names dropped at parse.
+- **H3 chains do not span import batches** — `ChainH3(recordHashes, "")` at the sole production
+  call site; fix this within the separately versioned custody activity/canon, not the parser
+  adapter.
+
+Fix them **during** the port. Porting first and fixing later means a second pass over every record
+already ingested under the ported decoder.
+
+**Sequencing:** this refactor is **not** derived-document work and must not be started inside this
+lane. It belongs with the Workbench/UIW and Go-adapter lanes, and it has a hard prerequisite —
+`engine/adapters/` currently holds exactly one adapter, so the SBV port is also the proof case for
+adapter coverage generally.
+
+### INHERIT THIS GOTCHA when adding the Go chunker
+
+The SBV program block carries a hard-won note in-line:
+
+> *"Multi-stage COPY does not inherit the source image's `DB_PATH_PREFIX`. Pin it to the deployed
+> bind mount so auth, per-user databases, and import artifacts survive container replacement."*
+
+That is the trap for any Go binary brought in by `COPY --from`: **the source image's `ENV`
+defaults do not come with the binary.** SBV needed both `LD_LIBRARY_PATH="/opt/sbv-libs"` (because
+its musl libs were copied to a non-default path) and `DB_PATH_PREFIX` re-pinned explicitly, or
+state would not survive a container replacement.
+
+So when the Go chunker lands: enumerate every `ENV` its own image sets, and re-declare each one in
+its supervisord `environment=` line. A chunker is more stateless than SBV so the blast radius is
+smaller — but the failure mode is silent (it runs, then loses or misplaces state on replacement),
+which is exactly the kind that reaches production.
+
+### But draw one line: TOOLS colocate, the COORDINATOR does not
+
+- **Go chunker (a TOOL)** → belongs in `platform-tools` beside the Python tools. It is selected
+  and invoked like any other tool.
+- **Go coordinator (`engine/parser/registry.go`, the SELECTOR)** → must stay ABOVE the tool hosts.
+  It decides *which* tool runs, and it needs to select across more than one host — `platform-tools`
+  (Python tools + Go tools) and `parser-activity-runtime` (Go SBV) are different Coolify apps on
+  different machines. Putting the selector inside one of the things it selects from creates a
+  circular shape and caps it at whatever that container happens to hold.
+
+Short form: **everything callable in one space; the thing that chooses among them sits one level
+up.** That is the same split already recorded as "platform-tools provides EXECUTION, `engine/parser`
+provides SELECTION."
+
+### Consolidation opportunity worth deciding
+
+There are currently **two Go-hosting tool services on two hosts** — `platform-tools` (OVH-1, the
+facade on `:8090` plus SBV on `:8085`) and `parser-activity-runtime` (ovh-files, a Go binary on
+`:8090`). Both exist to run parser tools. Folding `parser-activity-runtime`'s binary into
+`platform-tools` the way SBV was folded in would genuinely deliver "everything together," remove a
+duplicate deployment, and end the `:8090`-on-two-hosts ambiguity flagged earlier.
+
+Not recommended unilaterally — `parser-activity-runtime` has its own bind mount
+(`/data/agno/volumes/universal-import/parser-bundles`) and watch paths, so consolidation is a
+deployment decision with a data-locality question attached, not a refactor. Flagged for the owner.
 
 ## Where this gets installed
 

@@ -109,14 +109,21 @@ acceptance and the SBV bounded preview remain open.
 
 - SBV is currently bundled inside `exec-platform-tools`; there is no standalone
   SBV Coolify application or same-origin Workbench `/evidence/preview` route.
-- The SBV React client is a donor for the custody ledger, reconciliation summary,
-  accepted/rejected record views, attachment manifest, and bounded error excerpts.
-  Its Axios/Bootstrap client and synchronous `/api/imports` upload must not be
-  copied into Workbench because that would create a second intake authority.
+- The SBV React client is the accepted bounded preview client inside the Workbench
+  shell, not merely a donor or deep-link target. Its useful message, custody-ledger,
+  reconciliation, attachment, and error views survive; its SQLite storage, local
+  auth, and synchronous `/api/imports` ownership do not.
+- SMS decoding moves behind the common Go-selected parser contract. Custody hashing
+  remains a separate upstream activity. The client reads both results and workflow
+  progress through platform APIs and owns no canonical state.
 - ADR-0061 requires the bounded SBV preview surface behind Workbench with a
   short-lived, audience/scope-bound, single-use launch exchange. The ticket
   issuer, nonce store, SBV exchange endpoint, scoped session, and same-origin proxy
   are not implemented yet. The current local text preview is not a substitute.
+- Legacy SQLite is not a complete migration source: `media_data` retained only the
+  first MMS attachment. The retained XML sources contain the full attachment set and
+  must be re-ingested and completeness-proven before SQLite paths are moved to
+  `to_be_deleted`; row-count parity with SQLite is not proof.
 
 ## Deferred infrastructure census
 
@@ -137,6 +144,6 @@ states are recorded in `2026-08-29-nocodb-quarantine-receipt.md`.
    fresh database baseline permits a bound Matter/CourtCase start.
 3. Live-prove Matter listing, source upload, preview decision, and receipt from
    the VPS-hosted Workbench after the fresh `platform` baseline is reconciled.
-4. Implement the U0/U1 launch-context foundation, then expose SBV as the bounded
-   `/evidence/preview` client without bypassing UIW.
+4. Implement the U0/U1 launch-context foundation, platform preview read APIs, and
+   the storage-free SBV `/evidence/preview` client without bypassing UIW.
 5. Start the Timesketch round-trip slice only after the first slice has live proof.

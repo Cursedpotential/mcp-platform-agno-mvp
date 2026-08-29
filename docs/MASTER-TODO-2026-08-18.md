@@ -59,6 +59,30 @@ No item is classified DONE+LIVE VERIFIED from the evidence inspected here.
 - Keep this queued behind the current unified Workbench/UIW release slice; recording it does
   not authorize a competing infrastructure deployment during that critical path.
 
+## SBV storage-free pipeline-preview cutover — active critical path
+
+> _Added by Codex · GPT-5 · 2026-08-29 from the accepted ADR-0061 owner clarification._
+
+- Compose the SBV React client inside the Workbench shell as `/evidence/preview`. Workbench owns
+  fixed case context, navigation, and the authenticated boundary; SBV owns preview presentation
+  for messages plus Go/Temporal/n8n pipeline progress and owns no canonical state.
+- Remove SBV-specific SQLite storage/cache, local auth, synchronous ingest, search authority, and
+  parser selection from the target architecture. Do not hard-delete them. Prove callers and data
+  coverage, then move retired paths to repo-root `to_be_deleted` for owner review.
+- Move SMS/MMS decoding behind the same Go-selected parser contract as every other format. Fix
+  `convertMMSEntry` multi-attachment loss and the RCS group-name no-op during the port. Keep H1/H2/H3
+  custody hashing in its separately versioned upstream activity; never fold it into parsing.
+- Re-ingest retained source XML rather than migrating SQLite `media_data`: SQLite stored only the
+  first MMS attachment, while retained XML contains the complete attachment set. Require source-level
+  attachment completeness, platform read-path proof, and live preview proof; SQLite row-count parity
+  is explicitly insufficient.
+- Treat `workbench/design-mockups/unified-operator-surface` and its deployment as design history/donor,
+  not a third production product. Quarantine the obsolete deployment definition only after the
+  production Workbench+SBV cutover and rollback window are proven.
+- Production exit: focused client/API/contract tests, exact current-revision Coolify deployments,
+  Authentik/Traefik login and denial proof, no direct `:8020` bypass, live source preview/reject/approve,
+  custody/run-event rendering, complete multi-attachment MMS re-ingest, and recorded rollback receipts.
+
 ## Derived-document ingest wiring — queued
 
 > _Added by Claude Code · Opus 5 · 2026-08-29 from an owner directive._

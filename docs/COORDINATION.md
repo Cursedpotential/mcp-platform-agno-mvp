@@ -152,8 +152,11 @@ listed here so Lane A can carry it through the repack:
   `worktree-agent-abe280ccbefefe136` (`813f3b2`), custody ordering preserved (H1 → parse/H2/H3 →
   record). Not yet pushed through the locked subtree → fork → CI → tag-bump sequence, so it isn't
   live — see `docs/planning/sbv-fork-plan.md` §5a before shipping.
-- [ ] **SBV Phase 5b — `/x/sbv/` UI embed** (DEFERRED to the G2/VPS window): Vite `base` env, CORS
-  allow-list env-configurable, reverse-proxy prefix-strip. Reverse-proxy tech (Caddy vs Traefik) = open. §5b.
+- [ ] **SBV Phase 5b — storage-free `/evidence/preview` client inside Workbench** (supersedes the
+  older `/x/sbv/` embed framing; owner ruling + accepted ADR-0061, 2026-08-29): Workbench owns shell,
+  fixed case context, and Authentik/Traefik boundary. SBV retains message and pipeline-preview UX but
+  loses SQLite/auth/ingest/canonical ownership. Use same-origin routing; the proxy choice is no longer
+  open. Retained source XML, not lossy SQLite MMS blobs, is the migration authority.
 - [x] ~~**SBV — run the ContextForge registration**~~ — DONE 2026-07-10: all 14 facade tools
   (`docker/tools/tools/facade.py`) registered directly as ContextForge REST tools in a 5th virtual
   server `platform_tools`, alongside the existing `agno`/`coolify`/`graphiti`/`exa` servers. (This
@@ -190,6 +193,12 @@ listed here so Lane A can carry it through the repack:
   correcting this line item's original "subtree" wording.
 
 ## SBV build path (LOCKED 2026-07-09) — do NOT rebuild SBV from source in the exec tier
+
+> **Target-boundary amendment, 2026-08-29:** this locked build path describes the current legacy
+> self-contained SBV artifact. It does not authorize preserving SQLite, local auth, or bespoke ingest.
+> The cutover separates the storage-free client from the common Go parser/custody pipeline; obsolete
+> artifacts are quarantined only after complete XML re-ingest and live Workbench preview proof.
+
 The SBV app is built by **GitHub Actions in the fork** `Cursedpotential/sbv-forensic` (workflow
 `docker-build.yml`, publishes `ghcr.io/cursedpotential/sbv-forensic:<tag>`), because the 4CPU/8GB exec
 box can't/shouldn't compile Go+CGO+node. `docker/tools/Dockerfile` LIFTS the binary via
