@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api", tags=["promote"])
 @router.post("/promote/{file_id}")
 async def promote_endpoint(file_id: str):
     try:
-        return promote(file_id)
+        return await promote(file_id)
     except PromoteError as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail) from None
 
@@ -26,4 +26,4 @@ async def promote_endpoint(file_id: str):
 async def promote_all_endpoint():
     # Bare array, not {"results": [...]} — matches the workbench/web frontend's
     # `apiFetch<PromoteResult[]>("/api/promote-all")` contract.
-    return promote_all()
+    return await promote_all()

@@ -82,7 +82,7 @@ async def _start_from_multipart(request: Request) -> dict:
         raise HTTPException(status_code=400, detail="acquisition must be a JSON object")
 
     file_bytes = await upload.read()
-    return start_run(
+    return await start_run(
         workflow=str(form.get("workflow", "")),
         domain=form.get("domain") or None,
         mode=str(form.get("mode", "auto")),
@@ -105,7 +105,7 @@ async def _start_from_json(request: Request) -> dict:
     except (ValidationError, ValueError) as e:
         raise HTTPException(status_code=422, detail=str(e)) from None
 
-    return start_run(
+    return await start_run(
         staged_id=payload.staged_id,
         workflow=payload.workflow,
         domain=payload.domain,
@@ -136,7 +136,7 @@ async def create_run_endpoint(request: Request):
 @router.get("/runs")
 async def list_runs_endpoint(status: str | None = None, limit: int | None = None):
     try:
-        return list_runs(status=status, limit=limit)
+        return await list_runs(status=status, limit=limit)
     except RunsError as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail) from None
 
@@ -144,7 +144,7 @@ async def list_runs_endpoint(status: str | None = None, limit: int | None = None
 @router.get("/runs/{run_id}")
 async def get_run_endpoint(run_id: str):
     try:
-        return get_run(run_id)
+        return await get_run(run_id)
     except RunsError as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail) from None
 
@@ -152,7 +152,7 @@ async def get_run_endpoint(run_id: str):
 @router.get("/runs/{run_id}/report")
 async def get_run_report_endpoint(run_id: str):
     try:
-        return get_run_report(run_id)
+        return await get_run_report(run_id)
     except RunsError as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail) from None
 
@@ -160,7 +160,7 @@ async def get_run_report_endpoint(run_id: str):
 @router.post("/runs/{run_id}/review-actions", status_code=201)
 async def create_review_action_endpoint(run_id: str, body: RunReviewActionRequest):
     try:
-        return create_review_action(run_id, body.model_dump())
+        return await create_review_action(run_id, body.model_dump())
     except RunsError as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail) from None
 
@@ -169,7 +169,7 @@ async def create_review_action_endpoint(run_id: str, body: RunReviewActionReques
 async def continue_run_endpoint(run_id: str):
     """Release a gated run past its current stage boundary. 409 if not paused."""
     try:
-        return continue_run(run_id)
+        return await continue_run(run_id)
     except RunsError as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail) from None
 
@@ -178,7 +178,7 @@ async def continue_run_endpoint(run_id: str):
 async def abort_run_endpoint(run_id: str):
     """Abort a running or gated run. 409 if the run is already terminal."""
     try:
-        return abort_run(run_id)
+        return await abort_run(run_id)
     except RunsError as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail) from None
 
@@ -203,7 +203,7 @@ async def retry_run_endpoint(run_id: str, request: Request):
                 raise HTTPException(status_code=422, detail="retry body must be a JSON object")
             from_stage = payload.get("from_stage")
     try:
-        return retry_run(run_id, from_stage=from_stage)
+        return await retry_run(run_id, from_stage=from_stage)
     except RunsError as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail) from None
 
@@ -222,7 +222,7 @@ async def parse_dryrun_endpoint(request: Request):
             if upload is None or not hasattr(upload, "read"):
                 raise HTTPException(status_code=400, detail="file is required for a multipart dry-run request")
             file_bytes = await upload.read()
-            return parse_dryrun(file_bytes=file_bytes, filename=upload.filename)
+            return await parse_dryrun(file_bytes=file_bytes, filename=upload.filename)
 
         body_bytes = await request.body()
         try:
@@ -232,6 +232,6 @@ async def parse_dryrun_endpoint(request: Request):
         sha256 = body.get("sha256") if isinstance(body, dict) else None
         if not sha256:
             raise HTTPException(status_code=400, detail="sha256 is required in the JSON body")
-        return parse_dryrun(sha256=sha256)
+        return await parse_dryrun(sha256=sha256)
     except RunsError as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail) from None

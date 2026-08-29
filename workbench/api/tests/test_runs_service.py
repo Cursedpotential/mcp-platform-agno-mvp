@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from app.service import runs
 
 
@@ -16,15 +18,16 @@ class _Response:
         return {"run_id": "receipt-1", "workflow": "framework-neutral-ingest", "mode": "auto"}
 
 
-def test_sms_submission_uses_neutral_ingest_and_sbv_coverage(monkeypatch) -> None:
+@pytest.mark.asyncio
+async def test_sms_submission_uses_neutral_ingest_and_sbv_coverage(monkeypatch) -> None:
     seen = {}
 
-    def fake_request(method, path, **kwargs):
+    async def fake_request(method, path, **kwargs):
         seen.update(method=method, path=path, kwargs=kwargs)
         return _Response()
 
     monkeypatch.setattr(runs, "_spine_request", fake_request)
-    result = runs.start_run(
+    result = await runs.start_run(
         workflow="sms-xml",
         domain="evidence",
         file_bytes=b"<smses/>",
@@ -51,15 +54,16 @@ def test_sms_submission_uses_neutral_ingest_and_sbv_coverage(monkeypatch) -> Non
     }
 
 
-def test_chat_submission_maps_legacy_domain_to_neutral_lane(monkeypatch) -> None:
+@pytest.mark.asyncio
+async def test_chat_submission_maps_legacy_domain_to_neutral_lane(monkeypatch) -> None:
     seen = {}
 
-    def fake_request(method, path, **kwargs):
+    async def fake_request(method, path, **kwargs):
         seen.update(path=path, kwargs=kwargs)
         return _Response()
 
     monkeypatch.setattr(runs, "_spine_request", fake_request)
-    runs.start_run(
+    await runs.start_run(
         workflow="chat-transcript",
         domain="platform_design",
         file_bytes=b"hello",
@@ -73,10 +77,11 @@ def test_chat_submission_maps_legacy_domain_to_neutral_lane(monkeypatch) -> None
     assert seen["kwargs"]["data"]["custody_tier"] == "light"
 
 
-def test_acquired_third_party_forwards_authenticated_acquisition(monkeypatch) -> None:
+@pytest.mark.asyncio
+async def test_acquired_third_party_forwards_authenticated_acquisition(monkeypatch) -> None:
     seen = {}
 
-    def fake_request(method, path, **kwargs):
+    async def fake_request(method, path, **kwargs):
         seen.update(path=path, kwargs=kwargs)
         return _Response()
 
@@ -88,7 +93,7 @@ def test_acquired_third_party_forwards_authenticated_acquisition(monkeypatch) ->
         "asserted_by_category": "human",
         "asserted_by": "owner",
     }
-    runs.start_run(
+    await runs.start_run(
         workflow="chat-transcript",
         domain="evidence",
         file_bytes=b"third party",
@@ -105,9 +110,10 @@ def test_acquired_third_party_forwards_authenticated_acquisition(monkeypatch) ->
     assert json.loads(form["acquisition"])["asserted_by"] == "owner"
 
 
-def test_first_party_rejects_missing_ownership_confirmation() -> None:
+@pytest.mark.asyncio
+async def test_first_party_rejects_missing_ownership_confirmation() -> None:
     try:
-        runs.start_run(
+        await runs.start_run(
             workflow="chat-transcript",
             domain="evidence",
             file_bytes=b"text",

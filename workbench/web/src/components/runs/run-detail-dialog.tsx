@@ -1,5 +1,6 @@
 // Byline: Claude Code · Sonnet (agent) · 2026-07-21 (C2: supervised-gate controls — continue/abort/retry; C2.6: louder failure banner + retry from_stage=knowledge)
 // Byline: Codex · GPT-5 · 2026-08-13 (durable interactive report)
+// Byline: Codex · GPT-5 · 2026-08-27 (bounded live run-event panel)
 "use client";
 
 /**
@@ -52,6 +53,7 @@ import { StageRail } from "./stage-rail";
 import { StageDrawer } from "./stage-drawer";
 import { CopyButton } from "./stage-output-view";
 import { RunReportPanel } from "./run-report-panel";
+import { RunEventsPanel } from "./run-events-panel";
 import { ApiError, abortRun, continueRun, getRun, getRunReport, retryRun } from "@/lib/api-client";
 import { useRefresh } from "@/lib/refresh-context";
 import { formatDate } from "@/lib/utils";
@@ -320,6 +322,8 @@ export function RunDetailDialog({ runId, open, onOpenChange, onNavigateToRun }: 
                 onSelect={handleSelectStage}
                 gatedSeq={gatedStage?.seq}
               />
+
+              <RunEventsPanel runId={run.run_id} />
 
               {run.status === "running" && (
                 <div className="flex justify-end">

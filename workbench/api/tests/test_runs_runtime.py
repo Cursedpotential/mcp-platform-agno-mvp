@@ -24,7 +24,12 @@ class _Request:
 
 def test_json_intake_derives_acquisition_asserter(monkeypatch) -> None:
     captured = {}
-    monkeypatch.setattr(runtime, "start_run", lambda **kwargs: captured.update(kwargs) or {"run_id": "r1"})
+
+    async def fake_start(**kwargs):
+        captured.update(kwargs)
+        return {"run_id": "r1"}
+
+    monkeypatch.setattr(runtime, "start_run", fake_start)
     request = _Request(
         {
             "staged_id": "sha",
@@ -50,7 +55,7 @@ def test_json_intake_derives_acquisition_asserter(monkeypatch) -> None:
 def test_json_intake_does_not_accept_caller_asserted_by(monkeypatch) -> None:
     called = False
 
-    def fake_start(**kwargs):
+    async def fake_start(**kwargs):
         nonlocal called
         called = True
 

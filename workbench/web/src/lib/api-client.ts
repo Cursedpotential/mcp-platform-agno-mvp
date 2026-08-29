@@ -3,6 +3,7 @@
 // Byline: Codex · GPT-5 · 2026-08-18 (conversation intake and governed entities)
 // Byline amendment: Codex · GPT-5 · 2026-08-18 (third-party review client)
 // Byline: Codex · GPT-5 · 2026-08-18 (native evidence horizon search parameter)
+// Byline: Codex · GPT-5 · 2026-08-28 (Universal Import Workflow client)
 /**
  * API client for the Knowledge Workbench.
  *
@@ -75,6 +76,11 @@ import type {
   VerifyResponse,
   WeaviateDetail,
   Workflow,
+  UIWDecisionResponse,
+  UIWPreviewResponse,
+  UIWStartRequest,
+  UIWStartResponse,
+  UIWUploadResponse,
 } from "./shared/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
@@ -590,6 +596,56 @@ export async function createMatter(payload: {
 
 export async function getMatter(matterId: string) {
   return apiFetch<MatterDetail>(`/api/matters/${encodeURIComponent(matterId)}`);
+}
+
+// ---------------------------------------------------------------------------
+// Universal Import Workflow — production acquisition and decision boundary
+// ---------------------------------------------------------------------------
+
+export async function uploadUIWSource(file: File) {
+  const response = await fetch(`${API_BASE}/api/uiw/upload`, {
+    method: "POST",
+    headers: {
+      "Content-Type": file.type || "application/octet-stream",
+      "X-Source-Filename": file.name,
+    },
+    body: file,
+    credentials: "same-origin",
+  });
+  if (!response.ok) {
+    let detail = `Upload failed (${response.status})`;
+    try {
+      const body = await response.json();
+      if (typeof body?.detail === "string") detail = body.detail;
+    } catch {
+      // Preserve the status-based message when the upstream body is not JSON.
+    }
+    throw new ApiError(detail, response.status);
+  }
+  return (await response.json()) as UIWUploadResponse;
+}
+
+export function startUIW(payload: UIWStartRequest) {
+  return apiFetch<UIWStartResponse>("/api/uiw/start", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getUIWPreview(workflowId: string) {
+  return apiFetch<UIWPreviewResponse>(`/api/uiw/${encodeURIComponent(workflowId)}/preview`);
+}
+
+export function decideUIW(
+  workflowId: string,
+  payload: { approved: boolean; reason: string; decider: string },
+) {
+  return apiFetch<UIWDecisionResponse>(`/api/uiw/${encodeURIComponent(workflowId)}/decision`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function createCourtCase(

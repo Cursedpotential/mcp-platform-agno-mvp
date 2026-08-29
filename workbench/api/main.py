@@ -1,5 +1,6 @@
 # Byline: Claude Code · Sonnet (agent) · 2026-07-23 (C4: knowledge router — Knowledge browser + Graphiti pane)
 # Byline: Codex · GPT-5 · 2026-08-16 (neutral Portkey streaming chat)
+# Byline: Codex · GPT-5 · 2026-08-27 (durable run-event SSE proxy)
 """Knowledge Workbench API entrypoint — the C1-C4 Operator Console backend.
 
 Stages uploaded files locally (LanceDB whole-file store + object-store copy),
@@ -32,10 +33,12 @@ from app.runtime import (
     metrics,
     promote,
     repairs,
+    run_events,
     runs,
     sentiment,
     tools,
     upload,
+    uiw,
 )
 from app.runtime.auth import authentication_middleware
 from fastapi import FastAPI
@@ -101,10 +104,12 @@ app.add_middleware(BaseHTTPMiddleware, dispatch=authentication_middleware)
 
 app.include_router(health.router)
 app.include_router(upload.router)
+app.include_router(uiw.router)
 app.include_router(files.router)
 app.include_router(promote.router)
 app.include_router(documents.router)
 app.include_router(runs.router)
+app.include_router(run_events.router)
 app.include_router(inspect.router)
 app.include_router(knowledge.router)
 app.include_router(case_management.router)

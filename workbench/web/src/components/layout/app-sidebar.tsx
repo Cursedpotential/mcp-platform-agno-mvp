@@ -1,10 +1,11 @@
 // Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: Records/Evidence Queue/Schemas nav entries + open-flags badge; C4: Knowledge nav entry added 2026-07-23)
 // Byline: Codex · GPT-5 · 2026-08-16 (Data Explorer + Surreal projection nav)
+// Byline: Codex · GPT-5 · 2026-08-28 (focused unified-surface navigation)
 "use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { PlayCircle, Wrench, Inbox, Brain, FileSearch, ListChecks, Database, BookOpen, ShieldCheck, FlaskConical, BriefcaseBusiness, Orbit } from "lucide-react";
+import { Inbox, ShieldCheck } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -13,80 +14,47 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
-  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import { useFailedRunsCount } from "@/lib/failed-runs-context";
-import { useOpenFlagsCount } from "@/lib/open-flags-context";
-
-// C1/C3/C4 Operator Console nav: Runs (default landing) -> Records -> Tools
-// -> Intake -> Evidence Queue -> Knowledge -> Schemas. "Files"/"Upload"
-// retired — see _stale/upload-page-pre-c1/ for the old route.
 const navItems = [
-  { title: "Runs", href: "/runs", icon: PlayCircle },
-  { title: "Records", href: "/records", icon: FileSearch },
-  { title: "Tools", href: "/tools", icon: Wrench },
-  { title: "Repair Lab", href: "/repairs", icon: ShieldCheck },
   { title: "Intake", href: "/intake", icon: Inbox },
-  { title: "Evidence Queue", href: "/evidence-queue", icon: ListChecks },
-  { title: "Knowledge", href: "/knowledge", icon: BookOpen },
-  { title: "Matters", href: "/matter", icon: BriefcaseBusiness },
-  { title: "Data Explorer", href: "/schemas", icon: Database },
-  { title: "Surreal Projection", href: "/surreal", icon: Orbit },
-  { title: "Classification Lab", href: "/classification-test", icon: FlaskConical },
 ];
 
 export function AppSidebar() {
   const pathname = usePathname();
-  // C2.6 requirement 3: red count badge of failed runs on the "Runs" nav
-  // item, driven by the list poll in lib/failed-runs-context.tsx.
-  const failedRunsCount = useFailedRunsCount();
-  // C3: same pattern for open corroboration flags on "Evidence Queue".
-  const openFlagsCount = useOpenFlagsCount();
-
   return (
-    <Sidebar>
-      <SidebarHeader className="border-b px-4 py-3">
-        <Link href="/runs" className="flex items-center gap-2 font-semibold">
-          <Brain className="h-5 w-5" />
-          <span>Operator Console</span>
-        </Link>
+    <Sidebar className="border-r border-sidebar-border">
+      <SidebarHeader className="border-b border-sidebar-border px-4 py-5">
+        <span className="platform-kicker text-[#9ca7ad]">Daily work</span>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+          <SidebarGroupLabel className="sr-only">Available workspaces</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.map((item) => (
                 <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton asChild isActive={pathname === item.href}>
+                  <SidebarMenuButton asChild isActive={pathname === item.href || pathname.startsWith(`${item.href}/`)} className="h-12 rounded-none border-l-2 border-transparent px-4 text-sm data-[active=true]:border-[#8290ed] data-[active=true]:bg-[#314050] data-[active=true]:text-white">
                     <Link href={item.href}>
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
                     </Link>
                   </SidebarMenuButton>
-                  {item.href === "/runs" && failedRunsCount > 0 && (
-                    <SidebarMenuBadge className="bg-destructive text-destructive-foreground">
-                      {failedRunsCount > 99 ? "99+" : failedRunsCount}
-                    </SidebarMenuBadge>
-                  )}
-                  {item.href === "/evidence-queue" && openFlagsCount > 0 && (
-                    <SidebarMenuBadge className="bg-amber-500 text-white">
-                      {openFlagsCount > 99 ? "99+" : openFlagsCount}
-                    </SidebarMenuBadge>
-                  )}
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="border-t px-4 py-3">
-        <span className="text-xs text-muted-foreground">
-          Operator Console — drive the pipeline
-        </span>
+      <SidebarFooter className="border-t border-sidebar-border px-4 py-5">
+        <div className="space-y-2 text-[11px] leading-5 text-[#aeb7bc]">
+          <div className="flex items-center gap-2 font-semibold uppercase tracking-wide text-[#dce1e3]">
+            <ShieldCheck className="h-4 w-4" /> Focused release
+          </div>
+          <p>Only the complete intake path is exposed. Timeline and legal work appear after live proof.</p>
+        </div>
       </SidebarFooter>
     </Sidebar>
   );

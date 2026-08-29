@@ -38,6 +38,7 @@ parallel branch this module codes against but does not implement:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 
@@ -86,7 +87,7 @@ def _extract_detail(response: httpx.Response) -> str:
     return response.text[:500]
 
 
-def _spine_request(method: str, path: str, **kwargs) -> httpx.Response:
+async def _spine_request(method: str, path: str, **kwargs) -> httpx.Response:
     """One request against the spine, with uniform error handling.
 
     A connection failure or non-2xx status becomes a RunsError; the caller
@@ -95,8 +96,8 @@ def _spine_request(method: str, path: str, **kwargs) -> httpx.Response:
     url = f"{settings.agentos_api_url}{path}"
     headers = {**_auth_headers(), **kwargs.pop("headers", {})}
     try:
-        with httpx.Client(timeout=_HTTP_TIMEOUT_S) as client:
-            response = client.request(method, url, headers=headers, **kwargs)
+        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT_S) as client:
+            response = await client.request(method, url, headers=headers, **kwargs)
     except httpx.HTTPError as e:
         raise RunsError(f"spine unreachable: {e}", 502) from e
 
@@ -105,7 +106,7 @@ def _spine_request(method: str, path: str, **kwargs) -> httpx.Response:
     return response
 
 
-def start_run(
+async def start_run(
     *,
     workflow: str,
     domain: str | None,
@@ -143,7 +144,7 @@ def start_run(
         if record is None:
             raise RunsError(f"Staged file '{staged_id}' not found", 404)
         try:
-            file_bytes = get_object(record["r2_key"])
+            file_bytes = await asyncio.to_thread(get_object, record["r2_key"])
         except Exception as e:
             raise RunsError(f"Failed to fetch staged file bytes: {e}", 502) from e
         filename = record["name"]
@@ -179,7 +180,7 @@ def start_run(
     if acquisition is not None:
         form["acquisition"] = json.dumps(acquisition)
 
-    response = _spine_request(
+    response = await _spine_request(
         "POST",
         "/v1/ingest",
         files={"file": (filename, file_bytes, "application/octet-stream")},
@@ -188,56 +189,56 @@ def start_run(
     return response.json()
 
 
-def list_runs(status: str | None = None, limit: int | None = None) -> list[dict]:
+async def list_runs(status: str | None = None, limit: int | None = None) -> list[dict]:
     """GET /v1/runs passthrough."""
     params: dict[str, str | int] = {}
     if status:
         params["status"] = status
     if limit:
         params["limit"] = limit
-    response = _spine_request("GET", "/v1/runs", params=params)
+    response = await _spine_request("GET", "/v1/runs", params=params)
     return response.json()
 
 
-def get_run(run_id: str) -> dict:
+async def get_run(run_id: str) -> dict:
     """GET /v1/runs/{id} passthrough."""
-    response = _spine_request("GET", f"/v1/runs/{run_id}")
+    response = await _spine_request("GET", f"/v1/runs/{run_id}")
     return response.json()
 
 
-def get_run_report(run_id: str) -> dict:
+async def get_run_report(run_id: str) -> dict:
     """GET the versioned, authoritative report projection for one run."""
-    response = _spine_request("GET", f"/v1/runs/{run_id}/report")
+    response = await _spine_request("GET", f"/v1/runs/{run_id}/report")
     return response.json()
 
 
-def create_review_action(run_id: str, payload: dict) -> dict:
+async def create_review_action(run_id: str, payload: dict) -> dict:
     """Append an owner review decision to the run report."""
-    response = _spine_request("POST", f"/v1/runs/{run_id}/review-actions", json=payload)
+    response = await _spine_request("POST", f"/v1/runs/{run_id}/review-actions", json=payload)
     return response.json()
 
 
-def continue_run(run_id: str) -> dict:
+async def continue_run(run_id: str) -> dict:
     """POST /v1/runs/{id}/continue passthrough — releases a gated run.
 
     Returns {run_id, status}. Raises RunsError(409, ...) if the run wasn't
     paused (the spine's own detail, surfaced verbatim by _extract_detail).
     """
-    response = _spine_request("POST", f"/v1/runs/{run_id}/continue")
+    response = await _spine_request("POST", f"/v1/runs/{run_id}/continue")
     return response.json()
 
 
-def abort_run(run_id: str) -> dict:
+async def abort_run(run_id: str) -> dict:
     """POST /v1/runs/{id}/abort passthrough — stops a running or gated run.
 
     Returns {run_id, status:'failed'}. Raises RunsError(409, ...) if the run
     is already terminal.
     """
-    response = _spine_request("POST", f"/v1/runs/{run_id}/abort")
+    response = await _spine_request("POST", f"/v1/runs/{run_id}/abort")
     return response.json()
 
 
-def retry_run(run_id: str, from_stage: str | None = None) -> dict:
+async def retry_run(run_id: str, from_stage: str | None = None) -> dict:
     """POST /v1/runs/{id}/retry passthrough — starts a fresh run from a failed one.
 
     `from_stage` (C2.6, optional): pass ``"knowledge"`` to skip straight to
@@ -253,11 +254,11 @@ def retry_run(run_id: str, from_stage: str | None = None) -> dict:
     kwargs: dict = {}
     if from_stage is not None:
         kwargs["json"] = {"from_stage": from_stage}
-    response = _spine_request("POST", f"/v1/runs/{run_id}/retry", **kwargs)
+    response = await _spine_request("POST", f"/v1/runs/{run_id}/retry", **kwargs)
     return response.json()
 
 
-def parse_dryrun(
+async def parse_dryrun(
     *,
     sha256: str | None = None,
     file_bytes: bytes | None = None,
@@ -288,9 +289,9 @@ def parse_dryrun(
         raise RunsError("a sha256 or a file is required for a dry-run parse", 400)
 
     if sha256:
-        response = _spine_request("POST", "/v1/runs/new/parse-dryrun", json={"sha256": sha256})
+        response = await _spine_request("POST", "/v1/runs/new/parse-dryrun", json={"sha256": sha256})
     else:
-        response = _spine_request(
+        response = await _spine_request(
             "POST",
             "/v1/runs/new/parse-dryrun",
             files={"file": (filename, file_bytes, "application/octet-stream")},

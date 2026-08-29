@@ -1,4 +1,5 @@
 # Byline: Codex · GPT-5 · 2026-08-18 (owner-only native evidence search credential)
+# Byline: Codex · GPT-5 · 2026-08-28 (unified UIW production surface)
 # =============================================================================
 # KNOWLEDGE WORKBENCH — deploy as its OWN Coolify app on OVH-1 ("ovh-app",
 # tailnet 100.72.169.40). Single-service app per the one-concern-per-app rule
@@ -8,7 +9,7 @@
 # Branch: workbench/sprint (sprint), main after milestone merges.
 #
 # HOST-PREP (once, before first deploy):
-#   sudo mkdir -p /data/agno/volumes/workbench/{lancedb,inbox,copilot}
+#   sudo mkdir -p /data/agno/volumes/workbench/{inbox,copilot}
 #   sudo chown -R 1000:1000 /data/agno/volumes/workbench
 #   docker network inspect agno >/dev/null 2>&1 || docker network create agno
 #
@@ -20,11 +21,10 @@
 # THEN this app — OPENCODE_PASSWORD here should match OPENCODE_SERVER_PASSWORD
 # there once the owner sets it (never committed in either place).
 #
-# The workbench stages uploads locally (LanceDB whole-file store) and promotes
-# them through the EXISTING ingestion spine (agentos-api). It never writes
-# Milvus/Postgres directly. agentos-api is reached via the tailnet-published
-# port (cross-app docker DNS does NOT resolve — agentos-api is on an
-# app-scoped network, not the shared `agno` net).
+# The released intake path streams source bytes to the Universal Import
+# starter's authenticated acquisition ingress and sends only its opaque
+# reference through Temporal. The retired LanceDB intake store is not mounted
+# or used by this deployment. PostgreSQL remains canonical.
 #
 # Object storage is S3-agnostic: point OBJECT_STORE_* at R2 today; a B2 (or
 # any S3) target is a pure env swap + redeploy. Nothing provider-specific.
@@ -52,12 +52,16 @@ services:
       # everywhere except the exact /health orchestration probe. Browsers use
       # Basic owner:<secret>; API clients may send Bearer <secret>.
       WORKBENCH_API_KEY: ${WORKBENCH_API_KEY:-}
-      LANCEDB_PATH: /data/lancedb
       AGENTOS_API_URL: ${AGENTOS_API_URL:-http://100.72.169.40:8000}
       # Bearer for both /knowledge/* (legacy promote) and /v1/runs (C1
       # console) — base_app's OS_SECURITY_KEY gate applies to every route
       # regardless of authorization=False (see AGENTS.md Claude-Reflect note).
       AGENTOS_API_TOKEN: ${AGENTOS_API_TOKEN:-}
+      # Dedicated Universal Import Workflow boundary on ovh-files. These
+      # credentials are server-side only and fail closed when unset.
+      UIW_STARTER_URL: ${UIW_STARTER_URL:-http://100.91.190.107:8091}
+      UIW_STARTER_TOKEN: ${UIW_STARTER_TOKEN:-}
+      UIW_UPLOAD_TOKEN: ${UIW_UPLOAD_TOKEN:-}
       # Distinct owner-only capability for bounded exploratory evidence search.
       # It must not be issued to agents; their route is walk/checkpoint-bound.
       EVIDENCE_OPERATOR_SECURITY_KEY: ${EVIDENCE_OPERATOR_SECURITY_KEY:-}
@@ -127,7 +131,6 @@ services:
       MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-200}
     volumes:
       # Bind mounts only — owner backs up host dirs (no named volumes).
-      - /data/agno/volumes/workbench/lancedb:/data/lancedb
       - /data/agno/volumes/workbench/inbox:/data/inbox
       # C2.5 Ops Copilot preset-prompt override (optional — see
       # app/service/copilot_presets.py; absent file = in-code defaults only).

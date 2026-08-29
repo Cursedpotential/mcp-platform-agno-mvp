@@ -5,6 +5,7 @@
 // Byline amendment: Codex · GPT-5 · 2026-08-18 (third-party human review contracts)
 // Byline amendment: Codex · GPT-5 · 2026-08-18 (Evidence Operations Desk source/context contracts)
 // Byline: Codex · GPT-5 · 2026-08-18 (native evidence search compatibility envelope)
+// Byline: Codex · GPT-5 · 2026-08-28 (Universal Import Workflow contracts)
 /**
  * Types for the Knowledge Workbench staged-file record.
  *
@@ -887,6 +888,36 @@ export interface CourtCase {
 
 export interface MatterDetail extends Matter {
   court_cases: CourtCase[];
+}
+
+export interface UIWUploadResponse {
+  acquisition_ref: string;
+  sha256: string;
+  byte_length: number;
+}
+
+export interface UIWStartRequest {
+  request_id: string;
+  source_ref: string;
+  declared_format: string;
+  parser_options_ref: string;
+  matter_id: string;
+  court_case_id: string;
+}
+
+export interface UIWStartResponse {
+  workflow_id: string;
+  run_id: string;
+}
+
+export interface UIWPreviewResponse {
+  phase: "awaiting_decision" | "approved" | "rejected" | "timed_out" | string;
+  select_ref: string;
+  reason?: string;
+}
+
+export interface UIWDecisionResponse {
+  status: string;
 }
 
 export interface KnowledgeSourceRef {

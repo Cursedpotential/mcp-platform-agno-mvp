@@ -1,4 +1,5 @@
 // Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: OpenFlagsCountProvider wired in)
+// Byline: Codex · GPT-5 · 2026-08-28 (unified operator shell and focused-release boundary)
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { Geist_Mono } from "next/font/google";
@@ -11,10 +12,6 @@ import { AppSidebar } from "@/components/layout/app-sidebar";
 import { Header } from "@/components/layout/header";
 import { Toaster } from "@/components/ui/sonner";
 import { RefreshProvider } from "@/lib/refresh-context";
-import { NewRunDialogProvider } from "@/lib/new-run-dialog-context";
-import { FailedRunsCountProvider } from "@/lib/failed-runs-context";
-import { OpenFlagsCountProvider } from "@/lib/open-flags-context";
-import { NewRunDialog } from "@/components/runs/new-run-dialog";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -29,8 +26,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Operator Console",
-  description: "Drive the evidence spine: custody, parse, store, knowledge — and the tools behind it",
+  title: "The Platform — Evidence & Legal Operations",
+  description: "Matter-scoped evidence intake, review, timeline, and legal operations",
 };
 
 export default function RootLayout({
@@ -45,23 +42,20 @@ export default function RootLayout({
       >
         <ThemeProvider>
           <RefreshProvider>
-            <NewRunDialogProvider>
-              <FailedRunsCountProvider>
-                <OpenFlagsCountProvider>
-                  <SidebarProvider>
-                    <TooltipProvider>
-                      <AppSidebar />
-                      <div className="flex flex-1 flex-col h-svh min-h-0">
-                        <Header />
-                        <main className="relative flex-1 overflow-auto p-6">{children}</main>
-                      </div>
-                      <Toaster />
-                      <NewRunDialog />
-                    </TooltipProvider>
-                  </SidebarProvider>
-                </OpenFlagsCountProvider>
-              </FailedRunsCountProvider>
-            </NewRunDialogProvider>
+            <SidebarProvider>
+              <TooltipProvider>
+                <AppSidebar />
+                <div className="flex h-svh min-h-0 flex-1 flex-col bg-background">
+                  <Header />
+                  <main className="platform-workspace relative flex-1 overflow-auto">{children}</main>
+                  <footer className="hidden h-9 shrink-0 items-center justify-between border-t border-[#3c4952] bg-[#172129] px-5 text-[10px] text-[#aeb7bc] md:flex">
+                    <span>PostgreSQL remains canonical authority</span>
+                    <span>Surface actions require governed receipts</span>
+                  </footer>
+                </div>
+                <Toaster />
+              </TooltipProvider>
+            </SidebarProvider>
           </RefreshProvider>
         </ThemeProvider>
       </body>

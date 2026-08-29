@@ -24,6 +24,7 @@ API and records the spine's response verbatim in `promote_result`.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 
@@ -55,15 +56,17 @@ def _auth_headers() -> dict[str, str]:
     return {}
 
 
-def _load_file_bytes(record: dict) -> tuple[bytes, str]:
+async def _load_file_bytes(record: dict) -> tuple[bytes, str]:
     """Return (bytes, filename) for the original upload.
 
     Prefers the object-store copy (the true original bytes); falls back to
     the stored text extract if the object-store fetch fails for any reason.
+    boto3 has no native async client, so the blocking call is offloaded to a
+    worker thread instead of stalling the event loop.
     """
     name = record["name"]
     try:
-        return get_object(record["r2_key"]), name
+        return await asyncio.to_thread(get_object, record["r2_key"]), name
     except Exception:
         logger.warning(
             "Object store fetch failed for r2_key=%s, falling back to stored text",
@@ -73,8 +76,8 @@ def _load_file_bytes(record: dict) -> tuple[bytes, str]:
         return (record.get("text") or "").encode("utf-8"), name
 
 
-def _promote_doc(record: dict, client: httpx.Client) -> dict:
-    file_bytes, filename = _load_file_bytes(record)
+async def _promote_doc(record: dict, client: httpx.AsyncClient) -> dict:
+    file_bytes, filename = await _load_file_bytes(record)
     meta = record.get("meta") or {}
     form = {
         "domain": meta.get("domain", ""),
@@ -82,7 +85,7 @@ def _promote_doc(record: dict, client: httpx.Client) -> dict:
         "sha256": record["id"],
         "source": "workbench",
     }
-    response = client.post(
+    response = await client.post(
         f"{settings.agentos_api_url}/knowledge/content",
         files={"file": (filename, file_bytes, record.get("mime") or "application/octet-stream")},
         data=form,
@@ -98,7 +101,7 @@ def _promote_doc(record: dict, client: httpx.Client) -> dict:
 
     deadline = time.monotonic() + _POLL_TIMEOUT_S
     while time.monotonic() < deadline:
-        status_resp = client.get(
+        status_resp = await client.get(
             f"{settings.agentos_api_url}/knowledge/content/{content_id}/status",
             headers=_auth_headers(),
         )
@@ -119,7 +122,7 @@ def _promote_doc(record: dict, client: httpx.Client) -> dict:
                 "content_id": content_id,
                 "error": status_body.get("error", "processing failed"),
             }
-        time.sleep(_POLL_INTERVAL_S)
+        await asyncio.sleep(_POLL_INTERVAL_S)
 
     return {"status": "failed", "content_id": content_id, "error": "promote timed out waiting for spine"}
 
@@ -137,7 +140,7 @@ _CHAT_EXPORT_DENIAL = (
 )
 
 
-def _promote_chat_export(record: dict, client: httpx.Client) -> dict:
+async def _promote_chat_export(record: dict, client: httpx.AsyncClient) -> dict:
     # Denied locally, before any spine call — see _CHAT_EXPORT_DENIAL and the
     # module docstring. `record`/`client` args kept for call-site symmetry
     # with _promote_doc; unused here by construction.
@@ -145,7 +148,7 @@ def _promote_chat_export(record: dict, client: httpx.Client) -> dict:
     return {"status": "failed", "error": _CHAT_EXPORT_DENIAL, "denied": True}
 
 
-def promote(file_id: str) -> dict:
+async def promote(file_id: str) -> dict:
     """Promote a staged file. Returns the updated staged_files record."""
     record = staging.get(file_id)
     if record is None:
@@ -154,11 +157,11 @@ def promote(file_id: str) -> dict:
     staging.update_status(file_id, "promoting")
 
     try:
-        with httpx.Client(timeout=_HTTP_TIMEOUT_S) as client:
+        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT_S) as client:
             if record["detected_type"] == "chat_export":
-                result = _promote_chat_export(record, client)
+                result = await _promote_chat_export(record, client)
             else:
-                result = _promote_doc(record, client)
+                result = await _promote_doc(record, client)
     except httpx.HTTPError as e:
         result = {"status": "failed", "error": f"spine request failed: {e}"}
         logger.warning("Promote failed for %s: %s", file_id, e)
@@ -170,13 +173,13 @@ def promote(file_id: str) -> dict:
     return updated
 
 
-def promote_all() -> list[dict]:
+async def promote_all() -> list[dict]:
     """Promote every currently-staged (not yet promoted) file."""
     pending = staging.list(status="staged", limit=1000)
     results = []
     for rec in pending:
         try:
-            results.append(promote(rec["id"]))
+            results.append(await promote(rec["id"]))
         except PromoteError as e:
             results.append({"id": rec["id"], "status": "failed", "error": e.detail})
     return results
