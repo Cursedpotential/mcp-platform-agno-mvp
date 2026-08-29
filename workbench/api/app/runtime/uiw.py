@@ -8,14 +8,31 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
-from app.service.uiw import UIWError, decide, open_upload_stream, preview, start
-from app.types.uiw import UIWDecisionRequest, UIWStartRequest
+from app.service.uiw import UIWError, browse_sources, decide, open_upload_stream, preview, start
+from app.types.uiw import UIWDecisionRequest, UIWSourceBrowserResponse, UIWStartRequest
 
 router = APIRouter(prefix="/api/uiw", tags=["uiw"])
 
 
 def _translate(error: UIWError) -> HTTPException:
     return HTTPException(status_code=error.status_code, detail=error.detail)
+
+
+@router.get("/sources", response_model=UIWSourceBrowserResponse)
+def sources_endpoint(
+    prefix: str = "", continuation_token: str | None = None, filter: str = "", page_size: int = 100
+):
+    if page_size < 1 or page_size > 500:
+        raise HTTPException(status_code=422, detail="page_size must be between 1 and 500")
+    try:
+        return browse_sources(
+            prefix=prefix,
+            continuation_token=continuation_token,
+            filter_text=filter,
+            page_size=page_size,
+        )
+    except UIWError as error:
+        raise _translate(error) from None
 
 
 @router.post("/start", response_model=None, status_code=201)

@@ -7,17 +7,19 @@ its existing spine-promotion behavior unchanged."""
 from __future__ import annotations
 
 import httpx
+import pytest
 from app.service import promote
 
 
-def test_chat_export_is_denied_without_any_network_call(monkeypatch):
+@pytest.mark.asyncio
+async def test_chat_export_is_denied_without_any_network_call(monkeypatch):
     def _must_not_be_called(*args, **kwargs):
         raise AssertionError("no HTTP call should be made for a chat_export promote attempt")
 
-    monkeypatch.setattr(httpx.Client, "post", _must_not_be_called)
-    monkeypatch.setattr(httpx.Client, "get", _must_not_be_called)
+    monkeypatch.setattr(httpx.AsyncClient, "post", _must_not_be_called)
+    monkeypatch.setattr(httpx.AsyncClient, "get", _must_not_be_called)
 
-    result = promote._promote_chat_export({"id": "sha", "name": "x.json"}, client=object())
+    result = await promote._promote_chat_export({"id": "sha", "name": "x.json"}, client=object())
 
     assert result["status"] == "failed"
     assert result["denied"] is True
@@ -25,7 +27,8 @@ def test_chat_export_is_denied_without_any_network_call(monkeypatch):
     assert "permanent" in result["error"].lower()
 
 
-def test_promote_dispatches_chat_export_to_the_denial_path(monkeypatch):
+@pytest.mark.asyncio
+async def test_promote_dispatches_chat_export_to_the_denial_path(monkeypatch):
     monkeypatch.setattr(
         promote.staging,
         "get",
@@ -51,10 +54,10 @@ def test_promote_dispatches_chat_export_to_the_denial_path(monkeypatch):
     def _must_not_be_called(*args, **kwargs):
         raise AssertionError("no HTTP call should be made for a chat_export promote attempt")
 
-    monkeypatch.setattr(httpx.Client, "post", _must_not_be_called)
-    monkeypatch.setattr(httpx.Client, "get", _must_not_be_called)
+    monkeypatch.setattr(httpx.AsyncClient, "post", _must_not_be_called)
+    monkeypatch.setattr(httpx.AsyncClient, "get", _must_not_be_called)
 
-    result = promote.promote("sha")
+    result = await promote.promote("sha")
 
     assert result["status"] == "failed"
     assert result["error"] is not None
@@ -65,11 +68,12 @@ def test_promote_dispatches_chat_export_to_the_denial_path(monkeypatch):
     assert updates[-1][1]["denied"] is True
 
 
-def test_doc_promote_path_is_unaffected(monkeypatch):
+@pytest.mark.asyncio
+async def test_doc_promote_path_is_unaffected(monkeypatch, tmp_path):
     """Regression guard: the fence must not touch the doc promote path."""
     calls = []
 
-    def _fake_post(self, url, **kwargs):
+    async def _fake_post(self, url, **kwargs):
         calls.append(url)
 
         class _Resp:
@@ -83,7 +87,7 @@ def test_doc_promote_path_is_unaffected(monkeypatch):
 
         return _Resp()
 
-    def _fake_get(self, url, **kwargs):
+    async def _fake_get(self, url, **kwargs):
         class _Resp:
             status_code = 200
 
@@ -95,12 +99,18 @@ def test_doc_promote_path_is_unaffected(monkeypatch):
 
         return _Resp()
 
-    monkeypatch.setattr(httpx.Client, "post", _fake_post)
-    monkeypatch.setattr(httpx.Client, "get", _fake_get)
-    monkeypatch.setattr(promote, "_load_file_bytes", lambda record: (b"hello", record["name"]))
+    async def _fake_load_file_bytes(record):
+        return b"hello", record["name"]
 
-    with httpx.Client() as client:
-        result = promote._promote_doc({"id": "sha", "name": "doc.txt", "meta": {}}, client)
+    monkeypatch.setattr(httpx.AsyncClient, "post", _fake_post)
+    monkeypatch.setattr(httpx.AsyncClient, "get", _fake_get)
+    monkeypatch.setattr(promote, "_load_file_bytes", _fake_load_file_bytes)
+    secret = tmp_path / "os-security-key"
+    secret.write_bytes(b"server-only-token")
+    monkeypatch.setattr(promote.settings, "platform_api_bearer_secret_file", str(secret))
+
+    async with httpx.AsyncClient() as client:
+        result = await promote._promote_doc({"id": "sha", "name": "doc.txt", "meta": {}}, client)
 
     assert result["status"] == "promoted"
     assert calls  # the spine WAS called for a doc — unlike chat_export

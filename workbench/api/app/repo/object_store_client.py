@@ -10,8 +10,11 @@ generic OBJECT_STORE_* settings so switching providers is a pure env swap.
 from __future__ import annotations
 
 import io
+import json
 import logging
 import mimetypes
+from dataclasses import dataclass
+from pathlib import Path
 from typing import IO
 
 import boto3
@@ -22,6 +25,71 @@ from functools import lru_cache
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+CASEBIBLE_SORTED_BUCKET = "casebible-sorted"
+CASEBIBLE_SORTED_PREFIX = ""
+
+
+@dataclass(frozen=True)
+class CaseBibleR2Config:
+    endpoint_url: str
+    region: str
+    access_key_id: str
+    secret_access_key: str
+    session_token: str | None = None
+
+
+def get_casebible_r2_config_path() -> str:
+    """Return the runtime secret path; settings integration may replace this accessor."""
+    return str(getattr(settings, "casebible_r2_config_path", "")).strip()
+
+
+@lru_cache(maxsize=1)
+def get_casebible_sorted_client():
+    """Build the fixed Case Bible Sorted R2 client from a runtime JSON secret file."""
+    config_path = get_casebible_r2_config_path()
+    if not config_path:
+        raise RuntimeError("Case Bible Sorted object-store configuration is unavailable")
+    try:
+        payload = json.loads(Path(config_path).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        raise RuntimeError("Case Bible Sorted object-store configuration could not be loaded") from error
+    allowed = {"endpoint_url", "region", "access_key_id", "secret_access_key", "session_token"}
+    if not isinstance(payload, dict) or set(payload) - allowed:
+        raise RuntimeError("Case Bible Sorted object-store configuration is invalid")
+    required = ("endpoint_url", "region", "access_key_id", "secret_access_key")
+    if any(not isinstance(payload.get(key), str) or not payload[key].strip() for key in required):
+        raise RuntimeError("Case Bible Sorted object-store configuration is invalid")
+    if payload.get("session_token") is not None and not isinstance(payload["session_token"], str):
+        raise RuntimeError("Case Bible Sorted object-store configuration is invalid")
+    config = CaseBibleR2Config(**payload)
+    return boto3.client(
+        "s3",
+        endpoint_url=config.endpoint_url,
+        region_name=config.region,
+        aws_access_key_id=config.access_key_id,
+        aws_secret_access_key=config.secret_access_key,
+        aws_session_token=config.session_token,
+        config=Config(signature_version="s3v4", s3={"addressing_style": "path"}),
+    )
+
+
+def list_casebible_sorted_objects(
+    *, prefix: str = "", continuation_token: str | None = None, max_keys: int = 100
+) -> dict:
+    """List one delimiter-bounded page from the fixed Case Bible Sorted bucket."""
+    request: dict[str, object] = {
+        "Bucket": CASEBIBLE_SORTED_BUCKET,
+        "Prefix": prefix,
+        "Delimiter": "/",
+        "MaxKeys": max_keys,
+    }
+    if continuation_token:
+        request["ContinuationToken"] = continuation_token
+    try:
+        return get_casebible_sorted_client().list_objects_v2(**request)
+    except ClientError as error:
+        raise RuntimeError("Case Bible Sorted source listing failed") from error
 
 
 @lru_cache(maxsize=1)

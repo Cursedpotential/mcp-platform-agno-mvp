@@ -6,6 +6,7 @@ line at a time so upstream backpressure is preserved without accumulating a
 run in Workbench memory.
 
 Byline: Codex · GPT-5 · 2026-08-27
+Byline: Codex · GPT-5 · 2026-08-29 (runtime-read Platform API bearer file)
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from uuid import UUID
 import httpx
 
 from app.config import settings
+from app.repo.platform_api_auth import PlatformAPIAuthError, platform_api_bearer_headers
 
 
 class RunEventsError(Exception):
@@ -29,9 +31,7 @@ class RunEventsError(Exception):
 
 
 def _upstream_headers(last_event_id: int | None) -> dict[str, str]:
-    headers = {"Accept": "text/event-stream"}
-    if settings.agentos_api_token:
-        headers["Authorization"] = f"Bearer {settings.agentos_api_token}"
+    headers = {"Accept": "text/event-stream", **platform_api_bearer_headers()}
     if last_event_id is not None:
         headers["Last-Event-ID"] = str(last_event_id)
     return headers
@@ -66,11 +66,16 @@ async def open_run_event_stream(
     durable SSE ``id`` is passed through unchanged for automatic reconnects.
     """
 
+    try:
+        headers = _upstream_headers(last_event_id)
+    except PlatformAPIAuthError as error:
+        raise RunEventsError(str(error), 503) from None
+
     owned_client = client is None
     active_client = client or httpx.AsyncClient(
         timeout=httpx.Timeout(connect=15.0, read=None, write=15.0, pool=15.0)
     )
-    url = f"{settings.agentos_api_url.rstrip('/')}/v1/runs/{run_id}/events"
+    url = f"{settings.platform_api_url.rstrip('/')}/v1/runs/{run_id}/events"
     params = {
         "follow": str(follow).lower(),
         "limit": str(limit),
@@ -80,7 +85,7 @@ async def open_run_event_stream(
     request = active_client.build_request(
         "GET",
         url,
-        headers=_upstream_headers(last_event_id),
+        headers=headers,
         params=params,
     )
     try:

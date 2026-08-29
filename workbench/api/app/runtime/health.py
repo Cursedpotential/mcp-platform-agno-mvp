@@ -1,4 +1,5 @@
 # Byline: Claude Code · Sonnet (agent) · 2026-07-21 (C2.6: GET /api/health/deps added)
+# Byline: Codex · GPT-5 · 2026-08-29 (runtime-read Platform API bearer file)
 """GET /health — cheap connectivity checks only, no heavy calls.
 
 GET /api/health/deps (C2.6 requirement 4) — the console header's dependency
@@ -17,6 +18,7 @@ from fastapi import APIRouter
 
 from app.config import settings
 from app.repo import check_connectivity, check_lancedb_connectivity
+from app.repo.platform_api_auth import platform_api_bearer_headers
 
 router = APIRouter()
 logger = logging.getLogger("workbench")
@@ -45,10 +47,10 @@ def _spine_deps() -> dict[str, Any]:
     or non-2xx here reports BOTH as 'error' with the same message — the
     workbench can't tell which spine-side dep is actually down if the
     spine itself is unreachable."""
-    headers = {"Authorization": f"Bearer {settings.agentos_api_token}"} if settings.agentos_api_token else {}
     try:
+        headers = platform_api_bearer_headers()
         with httpx.Client(timeout=_SPINE_DEPS_TIMEOUT_S) as client:
-            resp = client.get(f"{settings.agentos_api_url}/v1/health/deps", headers=headers)
+            resp = client.get(f"{settings.platform_api_url}/v1/health/deps", headers=headers)
         resp.raise_for_status()
         body = resp.json()
         return {

@@ -2,6 +2,7 @@
 # Byline: Codex · GPT-5 · 2026-08-13 (durable report proxy)
 # Byline: Codex · GPT-5 · 2026-08-16 (neutral ingest submission)
 # Byline: Codex · GPT-5 · 2026-08-18 (conversation source-boundary forwarding)
+# Byline: Codex · GPT-5 · 2026-08-29 (runtime-read Platform API bearer file)
 """Submit intake to the neutral ingest port; inspect its PostgreSQL run receipt.
 
 New in the workbench — the C1 Operator Console's replacement for the
@@ -47,6 +48,7 @@ import httpx
 from app.config import settings
 from app.repo import get_object
 from app.repo import staging
+from app.repo.platform_api_auth import PlatformAPIAuthError, platform_api_bearer_headers
 
 logger = logging.getLogger(__name__)
 
@@ -60,12 +62,6 @@ class RunsError(Exception):
         self.detail = detail
         self.status_code = status_code
         super().__init__(detail)
-
-
-def _auth_headers() -> dict[str, str]:
-    if settings.agentos_api_token:
-        return {"Authorization": f"Bearer {settings.agentos_api_token}"}
-    return {}
 
 
 def _extract_detail(response: httpx.Response) -> str:
@@ -93,8 +89,11 @@ async def _spine_request(method: str, path: str, **kwargs) -> httpx.Response:
     A connection failure or non-2xx status becomes a RunsError; the caller
     is spared from three different try/except shapes per call site.
     """
-    url = f"{settings.agentos_api_url}{path}"
-    headers = {**_auth_headers(), **kwargs.pop("headers", {})}
+    url = f"{settings.platform_api_url}{path}"
+    try:
+        headers = {**kwargs.pop("headers", {}), **platform_api_bearer_headers()}
+    except PlatformAPIAuthError as error:
+        raise RunsError(str(error), 503) from None
     try:
         async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT_S) as client:
             response = await client.request(method, url, headers=headers, **kwargs)

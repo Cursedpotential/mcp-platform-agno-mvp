@@ -81,6 +81,7 @@ import type {
   UIWStartRequest,
   UIWStartResponse,
   UIWUploadResponse,
+  UIWSourceBrowserResponse,
 } from "./shared/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
@@ -623,6 +624,21 @@ export async function uploadUIWSource(file: File) {
     throw new ApiError(detail, response.status);
   }
   return (await response.json()) as UIWUploadResponse;
+}
+
+export function listUIWSources(params: {
+  prefix?: string;
+  continuationToken?: string;
+  filter?: string;
+  pageSize?: number;
+} = {}) {
+  const query = new URLSearchParams();
+  if (params.prefix) query.set("prefix", params.prefix);
+  if (params.continuationToken) query.set("continuation_token", params.continuationToken);
+  if (params.filter) query.set("filter", params.filter);
+  if (params.pageSize) query.set("page_size", String(params.pageSize));
+  const suffix = query.size ? `?${query.toString()}` : "";
+  return apiFetch<UIWSourceBrowserResponse>(`/api/uiw/sources${suffix}`);
 }
 
 export function startUIW(payload: UIWStartRequest) {

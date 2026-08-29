@@ -5,7 +5,7 @@
 
 Stages uploaded files locally (LanceDB whole-file store + object-store copy),
 starts/lists/inspects spine runs (custody -> parse -> store -> knowledge, via
-AGENTOS_API_URL's /v1/runs), proxies MCP tool servers for the Tool Explorer,
+the Platform API's /v1/runs), proxies MCP tool servers for the Tool Explorer,
 (C3) proxies the spine's record browser, PG/Milvus schema views, active hash
 verification, and corroboration flags, and (C4) proxies the spine's own
 Milvus-backed knowledge search/browse routes plus read-only Graphiti
@@ -66,8 +66,11 @@ This API includes a comprehensive test system for running conversation chunks an
 - **Portkey Integration**: Unified gateway with tracing, fallbacks, cost tracking
 
 ### Authentication
-Direct tailnet socket identity only. Forwarded identity headers, passwords,
-and HTTP Basic credentials are not accepted. Only `/health` is public.
+Traefik + Authentik ingress only. Socket peer must be inside explicitly
+configured trusted proxy CIDRs (fail-closed). Authentik identity headers
+`X-authentik-uid` and `X-authentik-username` required on all protected routes.
+Forwarded headers, passwords, HTTP Basic, cookies, and bearer tokens parsed by
+Workbench are not accepted. Only `/health` is public.
 
 ### Documentation
 - Swagger UI: `/docs`

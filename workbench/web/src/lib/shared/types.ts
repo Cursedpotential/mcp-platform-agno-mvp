@@ -896,6 +896,34 @@ export interface UIWUploadResponse {
   byte_length: number;
 }
 
+export interface UIWSourceObject {
+  kind: "object";
+  key: string;
+  name: string;
+  byte_length: number;
+  last_modified?: string | null;
+  etag?: string | null;
+}
+
+export interface UIWSourcePrefix {
+  kind: "prefix";
+  prefix: string;
+  name: string;
+}
+
+export interface UIWSourceBrowserResponse {
+  source: "casebible-sorted";
+  prefix: string;
+  delimiter: "/";
+  filter: string;
+  filter_applied: boolean;
+  page_size: number;
+  is_truncated: boolean;
+  continuation_token?: string | null;
+  prefixes: UIWSourcePrefix[];
+  objects: UIWSourceObject[];
+}
+
 export interface UIWStartRequest {
   request_id: string;
   source_ref: string;

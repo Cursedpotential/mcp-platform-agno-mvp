@@ -12,12 +12,19 @@ from typing import Any
 import httpx
 
 from app.config import settings
+from app.repo.object_store_client import (
+    CASEBIBLE_SORTED_PREFIX,
+    list_casebible_sorted_objects,
+)
 from app.types.uiw import (
     UIWDecisionRequest,
     UIWDecisionResponse,
     UIWPreviewResponse,
     UIWStartRequest,
     UIWStartResponse,
+    UIWSourceBrowserResponse,
+    UIWSourceObject,
+    UIWSourcePrefix,
 )
 
 
@@ -61,6 +68,56 @@ async def _request(method: str, path: str, **kwargs: Any) -> httpx.Response:
 async def start(request: UIWStartRequest) -> UIWStartResponse:
     response = await _request("POST", "/reference-import/start", json=request.model_dump(mode="json"))
     return UIWStartResponse.model_validate(response.json())
+
+
+def browse_sources(
+    *, prefix: str = "", continuation_token: str | None = None, filter_text: str = "", page_size: int = 100
+) -> UIWSourceBrowserResponse:
+    """Browse the fixed Case Bible Sorted bucket without exposing provider choices."""
+    normalized_prefix = prefix.strip()
+    if normalized_prefix.startswith("/") or "\\" in normalized_prefix or ".." in normalized_prefix.split("/"):
+        raise UIWError("source prefix is outside the Case Bible Sorted root", 422)
+    normalized_filter = filter_text.strip().casefold()
+    try:
+        page = list_casebible_sorted_objects(
+            prefix=CASEBIBLE_SORTED_PREFIX + normalized_prefix,
+            continuation_token=continuation_token,
+            max_keys=page_size,
+        )
+    except RuntimeError as error:
+        raise UIWError(str(error), 503) from error
+
+    prefixes = []
+    for row in page.get("CommonPrefixes", []):
+        child_prefix = str(row.get("Prefix", ""))
+        name = child_prefix.rstrip("/").rsplit("/", 1)[-1]
+        if child_prefix and (not normalized_filter or normalized_filter in name.casefold()):
+            prefixes.append(UIWSourcePrefix(prefix=child_prefix, name=name))
+    objects = []
+    for row in page.get("Contents", []):
+        key = str(row.get("Key", ""))
+        name = key.rsplit("/", 1)[-1]
+        if not key or key.endswith("/") or (normalized_filter and normalized_filter not in key.casefold()):
+            continue
+        objects.append(
+            UIWSourceObject(
+                key=key,
+                name=name,
+                byte_length=int(row.get("Size", 0)),
+                last_modified=row.get("LastModified"),
+                etag=str(row["ETag"]).strip('"') if row.get("ETag") else None,
+            )
+        )
+    return UIWSourceBrowserResponse(
+        prefix=normalized_prefix,
+        filter=filter_text.strip(),
+        filter_applied=bool(normalized_filter),
+        page_size=page_size,
+        is_truncated=bool(page.get("IsTruncated", False)),
+        continuation_token=page.get("NextContinuationToken"),
+        prefixes=prefixes,
+        objects=objects,
+    )
 
 
 async def decide(workflow_id: str, request: UIWDecisionRequest) -> UIWDecisionResponse:

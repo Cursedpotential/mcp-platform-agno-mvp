@@ -1,8 +1,8 @@
 # Byline: Claude Code · Sonnet (agent) · 2026-07-19 (agno 2.8 MCP door migration + Graphiti pane wiring 2026-07-23)
 # Byline: Codex · GPT-5 · 2026-08-16 (Portkey-routed neutral chat settings)
 # Byline: Codex · GPT-5 · 2026-08-18 (owner-only evidence-search capability)
-# Byline: Codex · GPT-5 · 2026-08-29 (strict Authentik trusted-proxy boundary)
-"""Workbench settings — S3-agnostic object store (R2 now, B2/any-S3 = env swap later).
+# Byline: Codex · GPT-5 · 2026-08-29 (runtime-read Platform API bearer file)
+"""Workbench settings for the fixed Case Bible source and governed Platform services.
 
 Env var names are the pydantic-settings default (uppercase of the field name)
 and must match compose.workbench.yaml exactly — see that file for the deployed
@@ -31,8 +31,14 @@ class Settings(BaseSettings):
     lancedb_path: str = "/data/lancedb"
 
     # --- Existing platform ingestion API (the promote target + the run spine) ---
-    agentos_api_url: str = "http://100.72.169.40:8000"
-    agentos_api_token: str | None = None
+    platform_api_url: str = "http://100.72.169.40:8000"
+    # Non-secret location only. The OS_SECURITY_KEY bearer itself is read
+    # from this mounted file for every outbound Platform API request so rotation
+    # does not require a Workbench restart or redeployment.
+    platform_api_bearer_secret_file: str = "/run/secrets/platform-api-bearer"
+    # Non-secret path to the runtime-read Cloudflare R2 credentials document.
+    # The bucket itself is fixed in the intake adapter as ``casebible-sorted``.
+    casebible_r2_config_path: str = "/run/secrets/casebible-r2.json"
     # Direct-tailnet UIW starter boundary; blank values fail closed in the adapter.
     uiw_starter_url: str = ""
     # Separate from the shared AgentOS service bearer. Only the operator
@@ -111,8 +117,9 @@ class Settings(BaseSettings):
         return frozenset(group.strip() for group in self.graphiti_allowed_groups.split(",") if group.strip())
 
     # --- Authentication: Traefik+Authentik trusted-proxy ingress ---
-    # Empty or malformed configuration fails closed. Production binds this to
-    # the exact Traefik socket peer as a /32 or /128, never a broad network.
+    # Comma-separated CIDRs of trusted proxies (e.g., Traefik). Empty/fail-closed.
+    # Only socket peers inside these CIDRs are accepted for protected routes.
+    # Invalid/empty config denies all protected traffic — no silent trust.
     trusted_auth_proxy_cidrs: str = ""
 
     # --- App ---
@@ -123,7 +130,7 @@ class Settings(BaseSettings):
     # The Workbench boundary does not consult or deploy it.
     workbench_api_key: str = ""
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="allow")
 
     @property
     def max_upload_bytes(self) -> int:
@@ -174,12 +181,17 @@ class Settings(BaseSettings):
 
     @property
     def trusted_auth_proxy_cidrs_parsed(self) -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
-        """Parse trusted proxy CIDRs, returning no trust on any malformed value."""
+        """Parse TRUSTED_AUTH_PROXY_CIDRS into a list of IP networks.
+
+        Fail-closed: empty string, missing, or any malformed CIDR returns
+        an empty list, which causes the auth middleware to deny all protected
+        traffic. No silent trust of Docker-wide or tailnet-wide ranges.
+        """
         if not self.trusted_auth_proxy_cidrs:
             return []
-        cidrs: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = []
-        for raw_part in self.trusted_auth_proxy_cidrs.split(","):
-            part = raw_part.strip()
+        cidrs = []
+        for part in self.trusted_auth_proxy_cidrs.split(","):
+            part = part.strip()
             if not part:
                 return []
             try:

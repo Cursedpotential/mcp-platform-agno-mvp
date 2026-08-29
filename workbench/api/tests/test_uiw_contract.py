@@ -20,7 +20,7 @@ def test_models_reject_unknown_fields() -> None:
             request_id="r1",
             matter_id="00000000-0000-0000-0000-000000000001",
             court_case_id="00000000-0000-0000-0000-000000000002",
-            source_ref="source-1",
+            source_ref=f"upload://{'a' * 64}",
             declared_format="pdf",
             parser_options_ref="opts-1",
             content="forbidden",
@@ -67,7 +67,7 @@ def test_service_preserves_exact_upstream_contract(monkeypatch) -> None:
                 request_id="r1",
                 matter_id="00000000-0000-0000-0000-000000000001",
                 court_case_id="00000000-0000-0000-0000-000000000002",
-                source_ref="source-1",
+                source_ref="r2://casebible-sorted/intake/source.pdf",
                 declared_format="pdf",
                 parser_options_ref="opts-1",
             )
@@ -78,7 +78,7 @@ def test_service_preserves_exact_upstream_contract(monkeypatch) -> None:
     assert result.run_id == "run-1"
     assert captured["method"] == "POST"
     assert captured["path"] == "/reference-import/start"
-    assert captured["kwargs"]["json"]["source_ref"] == "source-1"
+    assert captured["kwargs"]["json"]["source_ref"] == "r2://casebible-sorted/intake/source.pdf"
     assert captured["kwargs"]["json"]["matter_id"] == "00000000-0000-0000-0000-000000000001"
     assert captured["kwargs"]["json"]["court_case_id"] == "00000000-0000-0000-0000-000000000002"
 
@@ -121,7 +121,7 @@ def test_service_fails_closed_without_dedicated_starter_configuration(monkeypatc
     async def exercise():
         await uiw.start(
             UIWStartRequest(
-                request_id="r1", source_ref="source-1", declared_format="pdf", parser_options_ref="opts-1"
+                request_id="r1", source_ref=f"upload://{'a' * 64}", declared_format="pdf", parser_options_ref="opts-1"
                 , matter_id="00000000-0000-0000-0000-000000000001", court_case_id="00000000-0000-0000-0000-000000000002"
             )
         )
@@ -140,7 +140,7 @@ def test_start_rejects_malformed_matter_uuid() -> None:
             request_id="r1",
             matter_id="not-a-uuid",
             court_case_id="00000000-0000-0000-0000-000000000002",
-            source_ref="source-1",
+            source_ref=f"upload://{'a' * 64}",
             declared_format="pdf",
             parser_options_ref="opts-1",
         )
@@ -148,3 +148,31 @@ def test_start_rejects_malformed_matter_uuid() -> None:
         assert "valid UUID" in str(error)
     else:
         raise AssertionError("malformed matter_id must be rejected")
+
+
+def test_start_accepts_only_upload_or_fixed_casebible_sorted_scope() -> None:
+    common = {
+        "request_id": "r1",
+        "matter_id": "00000000-0000-0000-0000-000000000001",
+        "court_case_id": "00000000-0000-0000-0000-000000000002",
+        "declared_format": "pdf",
+        "parser_options_ref": "opts-1",
+    }
+    upload_ref = f"upload://{'a' * 64}"
+    assert UIWStartRequest(source_ref=upload_ref, **common).source_ref == upload_ref
+    assert (
+        UIWStartRequest(source_ref="r2://casebible-sorted/folder/source.pdf", **common).source_ref
+        == "r2://casebible-sorted/folder/source.pdf"
+    )
+    for forbidden in (
+        "file:///etc/passwd",
+        "b2://casebible-sorted/source.pdf",
+        "r2://another-bucket/source.pdf",
+        "r2://casebible-sorted/../source.pdf",
+    ):
+        try:
+            UIWStartRequest(source_ref=forbidden, **common)
+        except Exception as error:
+            assert "Case Bible Sorted" in str(error)
+        else:
+            raise AssertionError(f"forbidden source scope accepted: {forbidden}")

@@ -67,9 +67,11 @@ async def _collect(stream) -> bytes:
     return b"".join(chunks)
 
 
-def test_stream_injects_platform_auth_forwards_cursor_and_normalizes_dispatch(monkeypatch) -> None:
-    monkeypatch.setattr(run_events.settings, "agentos_api_url", "https://platform.internal/")
-    monkeypatch.setattr(run_events.settings, "agentos_api_token", "server-only-token")
+def test_stream_injects_platform_auth_forwards_cursor_and_normalizes_dispatch(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(run_events.settings, "platform_api_url", "https://platform.internal/")
+    secret = tmp_path / "os-security-key"
+    secret.write_bytes(b"server-only-token")
+    monkeypatch.setattr(run_events.settings, "platform_api_bearer_secret_file", str(secret))
     response = _FakeResponse(
         lines=[
             "id: 42",
@@ -111,8 +113,11 @@ def test_stream_injects_platform_auth_forwards_cursor_and_normalizes_dispatch(mo
     assert response.closed is True
 
 
-def test_stream_preserves_upstream_status_and_detail(monkeypatch) -> None:
-    monkeypatch.setattr(run_events.settings, "agentos_api_url", "https://platform.internal")
+def test_stream_preserves_upstream_status_and_detail(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(run_events.settings, "platform_api_url", "https://platform.internal")
+    secret = tmp_path / "os-security-key"
+    secret.write_bytes(b"server-only-token")
+    monkeypatch.setattr(run_events.settings, "platform_api_bearer_secret_file", str(secret))
     response = _FakeResponse(status_code=404, body=b'{"detail":"run not found"}')
 
     async def exercise() -> None:
@@ -128,8 +133,11 @@ def test_stream_preserves_upstream_status_and_detail(monkeypatch) -> None:
     assert response.closed is True
 
 
-def test_stream_rejects_non_sse_success(monkeypatch) -> None:
-    monkeypatch.setattr(run_events.settings, "agentos_api_url", "https://platform.internal")
+def test_stream_rejects_non_sse_success(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(run_events.settings, "platform_api_url", "https://platform.internal")
+    secret = tmp_path / "os-security-key"
+    secret.write_bytes(b"server-only-token")
+    monkeypatch.setattr(run_events.settings, "platform_api_bearer_secret_file", str(secret))
     response = _FakeResponse(content_type="application/json")
 
     async def exercise() -> None:

@@ -1,11 +1,12 @@
 # Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: inspectors — records/schemas/verify/flags)
-"""Shared bearer-authed HTTP client for spine (AGENTOS_API_URL) proxy calls.
+# Byline: Codex · GPT-5 · 2026-08-29 (runtime-read Platform API bearer file)
+"""Shared bearer-authenticated client for Platform API proxy calls.
 
 Factored out of app/service/runs.py's private `_spine_request`/`_extract_detail`
 (C1/C2) so the C3 inspectors (records/schemas/verify — app/service/inspect.py,
 corroboration flags — app/service/flags.py) don't each reinvent the same
-httpx boilerplate. app/service/runs.py is left exactly as it was — it
-predates this module and already works — new C3 proxies route through here.
+httpx boilerplate. The older runs service retains its response translation,
+while both clients now share the same runtime bearer-file reader.
 
 Never imports app.service/app.runtime — repo is the lowest SDK-touching
 layer (see tests/test_structure.py).
@@ -19,6 +20,7 @@ import logging
 import httpx
 
 from app.config import settings
+from app.repo.platform_api_auth import PlatformAPIAuthError, platform_api_bearer_headers
 
 logger = logging.getLogger(__name__)
 
@@ -32,12 +34,6 @@ class SpineError(Exception):
         self.detail = detail
         self.status_code = status_code
         super().__init__(detail)
-
-
-def _auth_headers() -> dict[str, str]:
-    if settings.agentos_api_token:
-        return {"Authorization": f"Bearer {settings.agentos_api_token}"}
-    return {}
 
 
 def _extract_detail(response: httpx.Response) -> str:
@@ -64,8 +60,11 @@ def spine_request(method: str, path: str, **kwargs) -> httpx.Response:
     A connection failure or non-2xx status becomes a SpineError; callers are
     spared from repeating the same try/except shape at every call site.
     """
-    url = f"{settings.agentos_api_url}{path}"
-    headers = {**_auth_headers(), **kwargs.pop("headers", {})}
+    url = f"{settings.platform_api_url}{path}"
+    try:
+        headers = {**kwargs.pop("headers", {}), **platform_api_bearer_headers()}
+    except PlatformAPIAuthError as error:
+        raise SpineError(str(error), 503) from None
     try:
         with httpx.Client(timeout=_HTTP_TIMEOUT_S) as client:
             response = client.request(method, url, headers=headers, **kwargs)

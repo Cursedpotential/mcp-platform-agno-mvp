@@ -87,7 +87,7 @@ export default function RepairsPage() {
 
   const askAgent = async () => {
     if (!path.trim()) return toast.error("Enter a server-visible evidence path");
-    if (!selectedParticipant) return toast.error("Select a live AgentOS participant");
+    if (!selectedParticipant) return toast.error("Select a live Platform participant");
     setBusy(true);
     try {
       setResult(await runRepairAgentReview({
@@ -125,7 +125,7 @@ export default function RepairsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Bot className="h-5 w-5" />Agent-assisted processing</CardTitle>
-          <CardDescription>Live AgentOS agents and teams can inspect, compare, and propose actions. Writes remain operator-approved.</CardDescription>
+          <CardDescription>Live Platform agents and teams can inspect, compare, and propose actions. Writes remain operator-approved.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-[minmax(220px,0.7fr)_minmax(0,1.3fr)_auto]">
           <select value={participantId} onChange={(event) => setParticipantId(event.target.value)} className="h-9 rounded-md border bg-background px-3 text-sm">
@@ -133,7 +133,7 @@ export default function RepairsPage() {
           </select>
           <Input value={agentTask} onChange={(event) => setAgentTask(event.target.value)} aria-label="Agent review task" />
           <Button onClick={askAgent} disabled={busy || !selectedParticipant}><Bot />Ask agent</Button>
-          {selectedParticipant && <p className="text-xs text-muted-foreground md:col-span-3">{selectedParticipant.role || "No role description returned by AgentOS."}</p>}
+          {selectedParticipant && <p className="text-xs text-muted-foreground md:col-span-3">{selectedParticipant.role || "No role description returned by the Platform."}</p>}
         </CardContent>
       </Card>
 
@@ -141,7 +141,7 @@ export default function RepairsPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">Registered tools<Button variant="ghost" size="icon-sm" onClick={load}><RefreshCw /></Button></CardTitle>
-            <CardDescription>Every repair operation registered in AgentOS.</CardDescription>
+            <CardDescription>Every repair operation registered in the Platform.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             {tools.map((tool) => (

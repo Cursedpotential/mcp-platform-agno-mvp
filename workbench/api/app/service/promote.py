@@ -1,17 +1,18 @@
 # Byline: Claude Code · Sonnet (agent) · 2026-07-19
 # Byline: Claude Code · Sonnet 5 · 2026-08-26 (D-082 permanent AI-chat evidence fence, GAP-032/WP-C01)
+# Byline: Codex · GPT-5 · 2026-08-29 (runtime-read Platform API bearer file)
 """Promote a staged file through the EXISTING platform ingestion API.
 
 New in the workbench (no donor equivalent — the donor kit chunked/embedded
 in-process instead of promoting through a separate spine). Two paths, keyed
 off `detected_type`:
 
-- "doc" -> POST {AGENTOS_API_URL}/knowledge/content, then poll
+- "doc" -> POST {PLATFORM_API_URL}/knowledge/content, then poll
   GET /knowledge/content/{content_id}/status until completed/failed.
 - "chat_export" -> DENIED, locally, before any network call. D-082
   (docs/DECISION_LOG.md, owner-ruled 2026-08-26) permanently forbids
   promoting AI-chat exports to evidence custody; GAP-032/WP-C01. This used to
-  POST {AGENTOS_API_URL}/v1/evidence/import (workflow=chat-transcript) — that
+  POST {PLATFORM_API_URL}/v1/evidence/import (workflow=chat-transcript) — that
   spine route now independently denies the same workflow too (defense in
   depth, server/api/evidence_routes.py), but there is no legitimate outcome
   left to wait on a round trip for.
@@ -33,6 +34,7 @@ import httpx
 from app.config import settings
 from app.repo import get_object
 from app.repo import staging
+from app.repo.platform_api_auth import PlatformAPIAuthError, platform_api_bearer_headers
 
 logger = logging.getLogger(__name__)
 
@@ -51,9 +53,10 @@ class PromoteError(Exception):
 
 
 def _auth_headers() -> dict[str, str]:
-    if settings.agentos_api_token:
-        return {"Authorization": f"Bearer {settings.agentos_api_token}"}
-    return {}
+    try:
+        return platform_api_bearer_headers()
+    except PlatformAPIAuthError as error:
+        raise PromoteError(str(error), 503) from None
 
 
 async def _load_file_bytes(record: dict) -> tuple[bytes, str]:
@@ -86,7 +89,7 @@ async def _promote_doc(record: dict, client: httpx.AsyncClient) -> dict:
         "source": "workbench",
     }
     response = await client.post(
-        f"{settings.agentos_api_url}/knowledge/content",
+        f"{settings.platform_api_url}/knowledge/content",
         files={"file": (filename, file_bytes, record.get("mime") or "application/octet-stream")},
         data=form,
         headers=_auth_headers(),
@@ -102,7 +105,7 @@ async def _promote_doc(record: dict, client: httpx.AsyncClient) -> dict:
     deadline = time.monotonic() + _POLL_TIMEOUT_S
     while time.monotonic() < deadline:
         status_resp = await client.get(
-            f"{settings.agentos_api_url}/knowledge/content/{content_id}/status",
+            f"{settings.platform_api_url}/knowledge/content/{content_id}/status",
             headers=_auth_headers(),
         )
         if status_resp.status_code == 404:

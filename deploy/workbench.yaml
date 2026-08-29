@@ -26,8 +26,8 @@
 # reference through Temporal. The retired LanceDB intake store is not mounted
 # or used by this deployment. PostgreSQL remains canonical.
 #
-# Object storage is S3-agnostic: point OBJECT_STORE_* at R2 today; a B2 (or
-# any S3) target is a pure env swap + redeploy. Nothing provider-specific.
+# Case Bible Sorted is the fixed default ingestion source. Credentials are read
+# at runtime from a mounted JSON document; the bucket is not filesystem-mounted.
 #
 # Coolify gotcha: env values are rendered as literals into the materialized
 # compose at deploy — set ALL envs (bulk API, {"data":[...]} shape) BEFORE the
@@ -60,16 +60,9 @@ services:
       # It must not be issued to agents; their route is walk/checkpoint-bound.
       EVIDENCE_OPERATOR_SECURITY_KEY: ${EVIDENCE_OPERATOR_SECURITY_KEY:-}
       # --- MCP tool servers (Tool Explorer, C1 console) ---
-      # agno 2.8 door migration (2026-07-23): agentos-mcp :8001 is RETIRED —
-      # the "agentos" entry's url now points at agentos-api's own mounted
-      # /mcp door (streamable-HTTP, :8000) and carries "token_env":
-      # "AGENTOS_API_TOKEN" so the Tool Explorer sends
-      # Authorization: Bearer <OS_SECURITY_KEY> (that env var is already set
-      # below — nothing new to provision). ContextForge needs a real path
-      # (per-virtual-server, not the bare gateway root) + a minted JWT once
-      # one exists — see workbench/api/app/config/settings.py's
-      # mcp_servers_parsed docstring and
-      # docs/planning/architecture-directives/contextforge-integration.md.
+      # Normal MCP traffic uses the Portkey-published ContextForge doors and
+      # their own scoped credentials. The Platform API bearer is not an MCP
+      # environment credential; native calls read it only from the file mount.
       # Set as a LITERAL, not `${MCP_SERVERS:-<json>}`: Docker Compose's
       # interpolation has no brace-nesting awareness, so a JSON default
       # containing `}` would truncate at the JSON's own first `}`. This is
@@ -101,22 +94,16 @@ services:
       PORTKEY_CONFIG: ${PORTKEY_CONFIG:-}
       PORTKEY_ENVIRONMENT: ${PORTKEY_ENVIRONMENT:-production}
       # --- Graphiti knowledge-graph memory (C4 Graph memory pane) ---
-      # Tailnet "graphiti-hostfix" nginx sidecar (compose.data-graphiti.yaml)
-      # — read-only search/episodes only, no auth (tailnet-only).
-      GRAPHITI_MCP_URL: ${GRAPHITI_MCP_URL:-http://100.91.190.107:8071/mcp}
+      # Graphiti is retired for now (D-070). SurrealDB is the governed final
+      # temporal-graph, walk, and analysis engine (D-073/D-080).
+      # GRAPHITI_MCP_URL: ${GRAPHITI_MCP_URL:-}
       # --- Ops Copilot (C2.5) — headless OpenCode server, exec-gateway app ---
       OPENCODE_URL: ${OPENCODE_URL:-http://100.72.169.40:4096}
       OPENCODE_USERNAME: ${OPENCODE_USERNAME:-opencode}
       OPENCODE_MODEL: ${OPENCODE_MODEL:-groq/llama-3.3-70b-versatile}
       OPENCODE_WORKSPACE_DIR: ${OPENCODE_WORKSPACE_DIR:-/workspace/copilot}
       COPILOT_PRESETS_PATH: ${COPILOT_PRESETS_PATH:-/data/copilot/presets.json}
-      # --- S3-agnostic object store (R2 now; B2/any-S3 = swap these envs) ---
-      OBJECT_STORE_ENDPOINT_URL: ${R2_ENDPOINT_URL}
-      OBJECT_STORE_BUCKET: ${R2_BUCKET_NAME}
-      OBJECT_STORE_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
-      OBJECT_STORE_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
-      OBJECT_STORE_REGION: ${OBJECT_STORE_REGION:-auto}
-      OBJECT_STORE_PREFIX: ${OBJECT_STORE_PREFIX:-workbench/staging}
+      CASEBIBLE_R2_CONFIG_PATH: /run/secrets/casebible-r2.json
       MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-200}
     volumes:
       # Bind mounts only — owner backs up host dirs (no named volumes).
