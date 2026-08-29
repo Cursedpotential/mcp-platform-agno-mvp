@@ -1,0 +1,123 @@
+# =============================================================================
+# AUTHENTIK IDENTITY PROVIDER -- standalone Coolify Docker Compose application
+#
+# Source state only: this manifest has not been deployed or verified live.
+# Coolify watch path: deploy/authentik.yaml
+#
+# Host preparation (once, before first deployment):
+#   sudo install -d -m 0750 /data/agno/volumes/authentik/{postgres,data,templates}
+#   sudo install -d -m 0700 /data/agno/secrets/authentik
+#   sudo install -m 0400 /dev/null /data/agno/secrets/authentik/postgres-password
+#   sudo install -m 0400 /dev/null /data/agno/secrets/authentik/secret-key
+#   docker network inspect agno >/dev/null 2>&1 || docker network create agno
+#
+# Required non-secret Coolify variable:
+#   TRAEFIK_PROXY_CIDR=<the exact Coolify Traefik socket address>/32
+# Do not use a Docker-private supernet or the tailnet range. Both Authentik and
+# Workbench accept identity headers only from this exact proxy boundary.
+#
+# Authentik 2025.10 removed Redis completely. This 2026.8 deployment therefore
+# intentionally has no Redis service or AUTHENTIK_REDIS__* compatibility config.
+# Authentik does not require pgcrypto/uuid-ossp; PostgreSQL readiness is the
+# applicable database gate.
+#
+# No host application port is published. Tailnet and domain clients both enter
+# through Traefik and the Authentik policy boundary.
+#
+# Byline: Codex · GPT-5 · 2026-08-29
+# Byline amendment: Codex · GPT-5 · 2026-08-29 (official 2026.8 contract)
+# =============================================================================
+
+x-authentik-environment: &authentik-environment
+  AUTHENTIK_POSTGRESQL__HOST: authentik-postgres
+  AUTHENTIK_POSTGRESQL__PORT: "5432"
+  AUTHENTIK_POSTGRESQL__USER: authentik
+  AUTHENTIK_POSTGRESQL__NAME: authentik
+  AUTHENTIK_POSTGRESQL__PASSWORD: file:///run/secrets/authentik/postgres-password
+  AUTHENTIK_SECRET_KEY: file:///run/secrets/authentik/secret-key
+  AUTHENTIK_LISTEN__TRUSTED_PROXY_CIDRS: ${TRAEFIK_PROXY_CIDR:?exact Traefik proxy CIDR required}
+
+x-authentik-volumes: &authentik-volumes
+  - /data/agno/volumes/authentik/data:/data
+  - /data/agno/volumes/authentik/templates:/templates
+  - /data/agno/secrets/authentik/postgres-password:/run/secrets/authentik/postgres-password:ro
+  - /data/agno/secrets/authentik/secret-key:/run/secrets/authentik/secret-key:ro
+
+x-authentik-healthcheck: &authentik-healthcheck
+  test: ["CMD", "ak", "healthcheck"]
+  interval: 30s
+  timeout: 30s
+  retries: 3
+  start_period: 120s
+
+services:
+  authentik-postgres:
+    image: docker.io/library/postgres:18-alpine@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2
+    container_name: authentik-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: authentik
+      POSTGRES_DB: authentik
+      POSTGRES_PASSWORD_FILE: /run/secrets/authentik/postgres-password
+    volumes:
+      - /data/agno/volumes/authentik/postgres:/var/lib/postgresql/data
+      - /data/agno/secrets/authentik/postgres-password:/run/secrets/authentik/postgres-password:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - agno
+
+  authentik-server:
+    image: ghcr.io/goauthentik/server:2026.8.0@sha256:7421753cfea67e89a6d295a1f0173ccea3866b33768c88dad90453b151cdcfd5
+    container_name: authentik-server
+    command: server
+    restart: unless-stopped
+    shm_size: 512mb
+    environment: *authentik-environment
+    volumes: *authentik-volumes
+    depends_on:
+      authentik-postgres:
+        condition: service_healthy
+    healthcheck: *authentik-healthcheck
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=agno
+      - traefik.http.routers.authentik.rule=Host(`auth.int.mitechconsult.com`)
+      - traefik.http.routers.authentik.entrypoints=https
+      - traefik.http.routers.authentik.tls=true
+      - traefik.http.routers.authentik.tls.certresolver=letsencrypt
+      - traefik.http.routers.authentik.service=authentik
+      - traefik.http.services.authentik.loadbalancer.server.port=9000
+      # Single-application forward auth requires the outpost path on the
+      # protected application's host to resolve to the embedded outpost.
+      - traefik.http.routers.authentik-workbench-outpost.rule=Host(`workbench.int.mitechconsult.com`) && PathPrefix(`/outpost.goauthentik.io/`)
+      - traefik.http.routers.authentik-workbench-outpost.priority=15
+      - traefik.http.routers.authentik-workbench-outpost.entrypoints=https
+      - traefik.http.routers.authentik-workbench-outpost.tls=true
+      - traefik.http.routers.authentik-workbench-outpost.tls.certresolver=letsencrypt
+      - traefik.http.routers.authentik-workbench-outpost.service=authentik
+    networks:
+      - agno
+
+  authentik-worker:
+    image: ghcr.io/goauthentik/server:2026.8.0@sha256:7421753cfea67e89a6d295a1f0173ccea3866b33768c88dad90453b151cdcfd5
+    container_name: authentik-worker
+    command: worker
+    restart: unless-stopped
+    shm_size: 512mb
+    environment: *authentik-environment
+    volumes: *authentik-volumes
+    depends_on:
+      authentik-postgres:
+        condition: service_healthy
+    healthcheck: *authentik-healthcheck
+    networks:
+      - agno
+
+networks:
+  agno:
+    external: true

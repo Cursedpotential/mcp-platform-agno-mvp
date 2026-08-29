@@ -1,6 +1,7 @@
 # Byline: Claude Code · Sonnet (agent) · 2026-07-19 (agno 2.8 MCP door migration + Graphiti pane wiring 2026-07-23)
 # Byline: Codex · GPT-5 · 2026-08-16 (Portkey-routed neutral chat settings)
 # Byline: Codex · GPT-5 · 2026-08-18 (owner-only evidence-search capability)
+# Byline: Codex · GPT-5 · 2026-08-29 (strict Authentik trusted-proxy boundary)
 """Workbench settings — S3-agnostic object store (R2 now, B2/any-S3 = env swap later).
 
 Env var names are the pydantic-settings default (uppercase of the field name)
@@ -10,6 +11,7 @@ defaults and the Coolify env-literal-rendering gotcha.
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import os
 
@@ -108,6 +110,11 @@ class Settings(BaseSettings):
         """Configured read-only Graphiti namespaces, normalized fail-closed."""
         return frozenset(group.strip() for group in self.graphiti_allowed_groups.split(",") if group.strip())
 
+    # --- Authentication: Traefik+Authentik trusted-proxy ingress ---
+    # Empty or malformed configuration fails closed. Production binds this to
+    # the exact Traefik socket peer as a /32 or /128, never a broad network.
+    trusted_auth_proxy_cidrs: str = ""
+
     # --- App ---
     app_port: int = 8020
     static_dir: str = "/app/static"
@@ -164,6 +171,22 @@ class Settings(BaseSettings):
                 server["token"] = self.contextforge_token
             allowed_servers.append(server)
         return allowed_servers
+
+    @property
+    def trusted_auth_proxy_cidrs_parsed(self) -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
+        """Parse trusted proxy CIDRs, returning no trust on any malformed value."""
+        if not self.trusted_auth_proxy_cidrs:
+            return []
+        cidrs: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = []
+        for raw_part in self.trusted_auth_proxy_cidrs.split(","):
+            part = raw_part.strip()
+            if not part:
+                return []
+            try:
+                cidrs.append(ipaddress.ip_network(part, strict=True))
+            except ValueError:
+                return []
+        return cidrs
 
 
 settings = Settings()

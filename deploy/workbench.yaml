@@ -1,5 +1,6 @@
 # Byline: Codex · GPT-5 · 2026-08-18 (owner-only native evidence search credential)
 # Byline: Codex · GPT-5 · 2026-08-28 (unified UIW production surface)
+# Byline: Codex · GPT-5 · 2026-08-29 (Authentik-only Traefik ingress boundary)
 # =============================================================================
 # KNOWLEDGE WORKBENCH — deploy as its OWN Coolify app on OVH-1 ("ovh-app",
 # tailnet 100.72.169.40). Single-service app per the one-concern-per-app rule
@@ -11,15 +12,14 @@
 # HOST-PREP (once, before first deploy):
 #   sudo mkdir -p /data/agno/volumes/workbench/{inbox,copilot}
 #   sudo chown -R 1000:1000 /data/agno/volumes/workbench
+#   sudo install -d -m 0700 /data/agno/secrets/platform
+#   sudo install -m 0400 /dev/null /data/agno/secrets/platform/api-bearer
+#   # Write the Platform API bearer without a trailing newline; never place it in env.
 #   docker network inspect agno >/dev/null 2>&1 || docker network create agno
 #
-# C2.5 (Ops Copilot) note: OPENCODE_URL points at the exec-gateway app's
-# published :4096 (same box, same tailnet IP as AGENTOS_API_URL below — see
-# compose.gateway.yaml for the OpenCode server + its own C2.5 fixes: the
-# /workspace bind mount + OPENCODE_SERVER_USERNAME/PASSWORD Basic auth).
-# Deploy order: redeploy exec-gateway with those fixes FIRST (or together),
-# THEN this app — OPENCODE_PASSWORD here should match OPENCODE_SERVER_PASSWORD
-# there once the owner sets it (never committed in either place).
+# C2.5 (Ops Copilot) points at the exec-gateway service. Authentication for
+# user-facing Workbench traffic is owned by Authentik at Traefik; this manifest
+# does not carry a shared-password ingress contract.
 #
 # The released intake path streams source bytes to the Universal Import
 # starter's authenticated acquisition ingress and sends only its opaque
@@ -43,17 +43,17 @@ services:
     image: agno-knowledge-workbench:latest
     container_name: knowledge-workbench
     restart: unless-stopped
-    ports:
-      - "${BIND_IP:-127.0.0.1}:8020:8020"   # tailnet-only; NEVER 0.0.0.0
     environment:
       APP_PORT: "8020"
-      # Direct browser traffic is authorized only by the tailnet socket peer.
-      # Forwarded identity headers, passwords, and Basic auth are not accepted.
-      AGENTOS_API_URL: ${AGENTOS_API_URL:-http://100.72.169.40:8000}
-      # Bearer for both /knowledge/* (legacy promote) and /v1/runs (C1
-      # console) — base_app's OS_SECURITY_KEY gate applies to every route
-      # regardless of authorization=False (see AGENTS.md Claude-Reflect note).
-      AGENTOS_API_TOKEN: ${AGENTOS_API_TOKEN:-}
+      # Exact socket peer allowed to assert Authentik identity. Set this to the
+      # Coolify Traefik address as a /32 (or /128), never a broad Docker/tailnet
+      # range. Missing or malformed configuration fails closed.
+      TRUSTED_AUTH_PROXY_CIDRS: ${TRAEFIK_PROXY_CIDR:?exact Traefik proxy CIDR required}
+      PLATFORM_API_URL: ${PLATFORM_API_URL:-http://100.72.169.40:8000}
+      # The Platform API currently uses the backend runtime's native bearer contract. The secret is
+      # read fresh from the read-only mount below for every upstream request;
+      # only this non-secret path is configurable.
+      PLATFORM_API_BEARER_SECRET_FILE: /run/secrets/platform-api-bearer
       # Direct-tailnet Universal Import Workflow boundary on ovh-files.
       UIW_STARTER_URL: ${UIW_STARTER_URL:-http://100.91.190.107:8091}
       # Distinct owner-only capability for bounded exploratory evidence search.
@@ -107,11 +107,6 @@ services:
       # --- Ops Copilot (C2.5) — headless OpenCode server, exec-gateway app ---
       OPENCODE_URL: ${OPENCODE_URL:-http://100.72.169.40:4096}
       OPENCODE_USERNAME: ${OPENCODE_USERNAME:-opencode}
-      # Empty = no Authorization header sent (matches the OpenCode server's
-      # pre-redeploy unauthenticated state) — see compose.gateway.yaml's
-      # C2.5 fix #2 and app/repo/opencode_client.py. Set to the SAME value
-      # as exec-gateway's OPENCODE_SERVER_PASSWORD once the owner sets it.
-      OPENCODE_PASSWORD: ${OPENCODE_PASSWORD:-}
       OPENCODE_MODEL: ${OPENCODE_MODEL:-groq/llama-3.3-70b-versatile}
       OPENCODE_WORKSPACE_DIR: ${OPENCODE_WORKSPACE_DIR:-/workspace/copilot}
       COPILOT_PRESETS_PATH: ${COPILOT_PRESETS_PATH:-/data/copilot/presets.json}
@@ -129,6 +124,10 @@ services:
       # C2.5 Ops Copilot preset-prompt override (optional — see
       # app/service/copilot_presets.py; absent file = in-code defaults only).
       - /data/agno/volumes/workbench/copilot:/data/copilot
+      # Runtime-read bearer rotation takes effect on the next request without
+      # rebuilding, restarting, or redeploying Workbench.
+      - /data/agno/secrets/platform/api-bearer:/run/secrets/platform-api-bearer:ro
+      - /data/agno/secrets/casebible-r2.json:/run/secrets/casebible-r2.json:ro
     healthcheck:
       test: ["CMD-SHELL", "python3 -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8020/health', timeout=5).status==200 else 1)\""]
       interval: 30s
@@ -138,17 +137,22 @@ services:
     networks:
       - workbench
       - agno
-    # --- DOMAIN PHASE (scaffolded, COMMENTED — tailnet-only until DNS fixed) ---
-    # labels:
-    #   - traefik.enable=true
-    #   - traefik.http.routers.workbench.rule=Host(`workbench.int.mitechconsult.com`)
-    #   - traefik.http.routers.workbench.entrypoints=websecure
-    #   - traefik.http.routers.workbench.tls.certresolver=letsencrypt
-    #   - traefik.http.services.workbench.loadbalancer.server.port=8020
-    #   - traefik.http.routers.workbench.middlewares=workbench-auth
-    #   - traefik.http.middlewares.workbench-auth.basicauth.users=<apr1-hash-here>
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=agno
+      - traefik.http.routers.workbench.rule=Host(`workbench.int.mitechconsult.com`)
+      - traefik.http.routers.workbench.entrypoints=https
+      - traefik.http.routers.workbench.tls=true
+      - traefik.http.routers.workbench.tls.certresolver=letsencrypt
+      - traefik.http.routers.workbench.service=workbench
+      - traefik.http.routers.workbench.middlewares=workbench-authentik
+      - traefik.http.services.workbench.loadbalancer.server.port=8020
+      - traefik.http.middlewares.workbench-authentik.forwardauth.address=http://authentik-server:9000/outpost.goauthentik.io/auth/traefik
+      - traefik.http.middlewares.workbench-authentik.forwardauth.trustForwardHeader=true
+      - traefik.http.middlewares.workbench-authentik.forwardauth.authResponseHeaders=X-authentik-username,X-authentik-groups,X-authentik-entitlements,X-authentik-email,X-authentik-name,X-authentik-uid,X-authentik-jwt,X-authentik-meta-jwks,X-authentik-meta-outpost,X-authentik-meta-provider,X-authentik-meta-app,X-authentik-meta-version
+      - coolify.traefik.middlewares=workbench-authentik
 
 networks:
   workbench:
   agno:
-    external: true   # shared cross-app net; declared for future DNS, not depended on
+    external: true   # shared cross-app net for Traefik, Authentik, and Workbench
