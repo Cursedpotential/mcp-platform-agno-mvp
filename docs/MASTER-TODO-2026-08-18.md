@@ -43,6 +43,46 @@ No item is classified DONE+LIVE VERIFIED from the evidence inspected here.
 - Owner decisions needed: target production Workbench app/URL if ambiguous; approval for
   any held migration or Horizon/Surreal activation; acceptance of unresolved blockers.
 
+## Feature-management infrastructure — queued
+
+> _Added by Codex · GPT-5 · 2026-08-29 from an owner directive._
+
+- Install and productionize [Unleash](https://github.com/Unleash/unleash) as the Platform's
+  feature-management service, including persistent storage, backup, authentication, Traefik
+  routing/middleware, least-privilege service credentials, Coolify deployment, and live proof.
+- Adopt a standing implementation rule: side-by-side deployments, gated rollouts, optional
+  advanced capabilities, experiments, and swappable implementations must use named feature
+  flags rather than hard-coded branches or permanently exposed selectors.
+- Define flag ownership, default state, environment scope, audit trail, rollback behavior,
+  stale-flag retirement, and fail-closed behavior before connecting the service to production.
+- Keep this queued behind the current unified Workbench/UIW release slice; recording it does
+  not authorize a competing infrastructure deployment during that critical path.
+
+## Derived-document ingest wiring — queued
+
+> _Added by Claude Code · Opus 5 · 2026-08-29 from an owner directive._
+
+- Documents that are AI-assistant **work products** (case chronologies, strategy memos, research
+  guides — not chat transcripts, no role markers) currently have **no parser that preserves
+  structure**: `format_router.SIGNATURES` holds 3 JSON signatures and none for markdown, so every
+  `.md` skips routing and falls to the flat `transcripts.markdown` whole-file record. Once
+  ingested they are **not semantically searchable** — only `ILIKE` on `/v1/records`.
+- Downstream is built and unwired: `timeline.event_candidate` (`sql/0035:62`) is purpose-built
+  for this class (`source_system='ai_chat'`, D-082 lead-never-evidence, append-only) and has
+  **no producer**; `server/timeline/` is CLI-only with **zero production callers**.
+- Preferred tools are already vendored — Semantica `StructuralChunker` and its `parse/` modules
+  (owner: "if one of the bundled semantica tools will work, we can call on those"). Docling and
+  the OCR tier are declared but **installed in no deploy image**.
+- **HARD CONSTRAINT (owner 2026-08-29):** Semantica may be called **atomically as a tool** for
+  document parse/chunk. Content may **NOT** flow through the **Semantica extraction lane** until
+  change detection is ordered — Semantica is downstream of context creation and triggered by
+  change detection. Running the lane early breaks D-069 context-first ordering and invalidates
+  the `no-fusion` `semantica` vs `sat_temporal` comparison.
+- Full analysis, verified-live state, owner decisions, and work packages WP-1..WP-11:
+  [`HANDOFF-2026-08-29-derived-document-ingest-wiring.md`](HANDOFF-2026-08-29-derived-document-ingest-wiring.md).
+- Queued behind the current unified Workbench/UIW release slice; recording it does not authorize
+  work during that critical path.
+
 ## Resume
 
 **NOT COMPLETE. Start with the Evidence Desk handoff step 1.** Use the least-expensive

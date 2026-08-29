@@ -18,6 +18,7 @@ deployed.
 | Entire application TODO | [MASTER-TODO-2026-08-18.md](MASTER-TODO-2026-08-18.md) | Authoritative production resume ledger |
 | Independent verification of the above | [OWNER-REVIEW-2026-08-18-verified-todo-audit.md](OWNER-REVIEW-2026-08-18-verified-todo-audit.md) | Confirms/contradicts MASTER-TODO against live code+DB; lists gaps and owner-blocked items |
 | Evidence Desk handoff | [HANDOFF-2026-08-18-evidence-operations-desk-mvp.md](HANDOFF-2026-08-18-evidence-operations-desk-mvp.md) | Immediate production MVP |
+| Derived-document ingest wiring | [HANDOFF-2026-08-29-derived-document-ingest-wiring.md](HANDOFF-2026-08-29-derived-document-ingest-wiring.md) | AI work products (chronologies/strategy/guides) → context → timeline/vectors/graphs; WP-1..WP-11 |
 | Repository placement | [REPO_STRUCTURE.md](REPO_STRUCTURE.md) | Structural index |
 | Live multi-lane log | [COORDINATION.md](COORDINATION.md) | Append-only coordination history |
 | Pending historical review | [pending-review/README.md](pending-review/README.md) | Moved records; all claims UNVERIFIED |
