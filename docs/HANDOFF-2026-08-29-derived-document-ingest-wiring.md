@@ -93,7 +93,10 @@ taxonomy" below.
 |---|---|---|---|
 | AI chat session | `working.chat_conversation.id`, referenced as `chat_chunk.conversation_id` | **YES** | One ChatGPT/Claude/Gemini conversation export. **Read "conversation" here as "AI chat session"** — see the name-trap warning below |
 | Chunk | `working.chat_chunk.id` | **YES** | `UNIQUE(conversation_id, chunk_index)` + `UNIQUE(content_hash)` |
-| Message | `working.chat_message.id`, `chat_chunk_message.message_id` | **YES** | One message inside a chat |
+| AI chat message | `working.chat_message.id`, `chat_chunk_message.message_id` | **YES** | One message inside an **AI chat** — not human messaging |
+| **Human messaging — first party** | `working.message` | **YES** | `projection_kind` CHECK-constrained to `'first_party'` (`sql/0026:131,154`). This is where SMS/Messenger/iMessage first-party content lives — **NOT** in `chat_*` |
+| **Human messaging — acquired third party** | `working.third_party_conversation` / `third_party_message` / `third_party_message_participant` / `third_party_conversation_acquisition` | **YES** | `sql/0026:172-238`. `third_party_message.conversation_id` FKs `third_party_conversation`; CHECK `projection_kind='acquired_third_party'`. Carries its own **acquisition + approval** record |
+| Party discriminator | `projection_kind`, `message_corpus` | **YES** | Both `IN ('first_party','acquired_third_party')` (`sql/0026:80,114`). Acquisition kinds in `sql/0008:61`, `sql/0016:185`: `voluntary_third_party`, `legal_process`, `public_source`, `unknown` |
 | Source artifact / file | `source_id`, `source_version_id` | **YES** | One ingested file/version — the most common id in the schema |
 | **Cross-medium human thread** (SMS → Messenger → iMessage → email, spanning multiple files, "platform hopping") | — | **NO — DOES NOT EXIST** | See below |
 | Case | `matter_id`, `case_id` | YES | |
@@ -108,10 +111,18 @@ dual-granularity, a flat structured record PLUS a contextual embedding chunk car
 **parent-thread ID**; **R15** — the exported chronology matrix must include a
 **`context_thread_id`** column. This closes the loop: the requirement predates the gap.
 
-**Problem 2 — `conversation_id` is a name trap.** In the schema it means "AI chat session." In
-the owner's domain language it means "the human conversation, spanning mediums." These are
-different things, and the ambiguous name is already load-bearing in a live table
-(`chat_chunk.conversation_id NOT NULL REFERENCES working.chat_conversation(id)`). **Naming rule,
+**Problem 2 — `conversation_id` is a name trap, and the collision is THREE-WAY.**
+_(Corrected 2026-08-29 — an earlier revision of this section described a two-way ambiguity. It is
+three-way; the third-party messaging tables were not accounted for.)_ `conversation_id` is a live
+column in two different tables meaning two different things, with a third concept still to come:
+
+| `conversation_id` in… | actually means |
+|---|---|
+| `working.chat_chunk` → `working.chat_conversation` | an **AI chat session** |
+| `working.third_party_message` → `working.third_party_conversation` | a **human third-party conversation** |
+| *(does not exist yet)* | the **cross-platform human thread** — must NOT reuse this name |
+
+This is a demonstrated live ambiguity, not a hypothetical one. **Naming rule,
 going forward:** the cross-medium thread, when it lands, **MUST NOT be called `conversation_id`**
 — use **`context_thread_id`**, already the owner's own vocabulary (R09/R15), so this adopts
 existing terminology rather than inventing new. Renaming the existing column is **NOT proposed**
@@ -129,6 +140,26 @@ provenance and a review state, exactly like `chat_chunk_lane` already carries
 `classifier_id`/`confidence`/`review_status`. Reuse that established pattern rather than
 inventing one. Tracked as a distinct UNRESOLVED gap below — it is broader than, and not part of,
 the document-ingest work packages (WP-0..WP-11).
+
+**Problem 3 — threads cross an AUTHORIZATION boundary. Design this in now; it is expensive to
+retrofit.** A cross-platform human conversation can legitimately contain **both** first-party
+messages (`working.message`) and acquired third-party messages (`working.third_party_message`).
+Third-party content is not equivalent to first-party content: it carries an acquisition and
+approval gate — `working.third_party_conversation_acquisition` exists precisely to record how it
+was obtained, and `MASTER-TODO` tracks "Conversations / acquired third-party approval" as a
+distinct surface with its own verification gate (`docs/adr/0059-*`).
+
+Consequences for `context_thread`:
+
+- A thread spanning both parties has **mixed authorization state** across its members.
+- Thread assembly must not become a path that surfaces **unapproved** third-party content
+  alongside approved first-party content. A naive join over both tables does exactly that.
+- **Recommended:** thread membership records each member's `projection_kind`, and every thread
+  read filters by approval state — reusing the discipline `evidence_search` already applies
+  (deny-by-default, compound pre-filter applied *before* ranking) rather than inventing a new one.
+- Approving a **thread** must not implicitly approve the third-party **messages** inside it. The
+  thread's own review state (above) is about whether the *grouping* is correct; it is not a
+  substitute for per-member acquisition approval. Keep the two states separate.
 
 ## CRITICAL GAP — cross-medium conversation threads (`context_thread_id`)
 
@@ -213,17 +244,26 @@ things, live in the registry today.
 | Term | Means | Applies to |
 |---|---|---|
 | **AI chat** | a session with an AI assistant | `parsers/ai_chat/`, `working.chat_*` tables |
-| **Message / messaging** | human-to-human communication | `parsers/messaging/`, SMS/Facebook/iMessage |
+| **Message / messaging** | human-to-human communication | `parsers/messaging/`; storage is `working.message` (first party) and `working.third_party_*` (acquired) — **never** `chat_*` |
 | **Context thread** (`context_thread_id`) | one human conversation spanning platforms and files | messaging ONLY, never AI chats |
 | **Document / work product** | derived analytical material about the case | the four sample files |
 | **Chunk** (`chunk_id`) | a retrievable slice of text | all of the above |
 | **"Transcript"** | **AMBIGUOUS — avoid in new names** | currently used for both; see rules below |
 
 **Rules:** do not use bare "transcript" in any NEW capability, table, or column name — qualify it
-(`ai_chat` or `messages`) where a distinction is needed. New human-messaging storage uses
-`message_*`/`messaging_*`, matching the existing parser directory — not `chat_*`. `chat_*` is
-henceforth documented as **AI-chat-only** — that's what it already means; the fix is making it
-explicit, not renaming a live table.
+(`ai_chat` or `messages`) where a distinction is needed. `chat_*` is henceforth documented as
+**AI-chat-only** — that's what it already means; the fix is making it explicit, not renaming a
+live table.
+
+_(Corrected 2026-08-29 — an earlier revision of this section recommended `message_*`/`messaging_*`
+as a **new** convention for human-messaging storage. That was wrong: **the separation is already
+built.** `working.message` (first party) and `working.third_party_*` (acquired) already exist and
+already hold human messaging, discriminated by `projection_kind`. Extend what exists; do not
+introduce a parallel naming scheme.)_
+
+So the AI-chat vs human-messaging split the owner asked for is **already correct at the storage
+layer**. The naming debt is narrower than it first appeared, and confined to two things: the bare
+word `chat` being unqualified, and `transcript` being used on both sides of the divide.
 
 **Migration posture — same realism as "Ingest taxonomy" above:** `parse.transcript` is a live
 registry capability used by ~16 parsers; `working.chat_*` are live tables with FKs. Renaming
