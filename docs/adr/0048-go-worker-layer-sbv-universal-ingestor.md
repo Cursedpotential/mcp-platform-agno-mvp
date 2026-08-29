@@ -48,9 +48,19 @@ application-boundary claims below are no longer instructions for new work:
   `h3-chain-h1genesis-hexconcat-v1` is the platform promotion chain;
   `h3-chain-sbv-genesisempty-v1` is a distinct historical/import construction and cannot satisfy it.
 - The current `streamMMSRecord` walks every MMS part. Historical SQLite can still be lossy, but the active
-  adapter blocker is different: `pkg/parseonly` has no immutable platform attachment sink/locator and
+  adapter blocker is different: ~~`pkg/parseonly` has no immutable platform attachment sink/locator and
   `engine/adapters/sbv` therefore declares `SupportsAttachments: false` and fails closed when attachment
-  data is emitted.
+  data is emitted.~~
+- **Correction — Claude · Opus 5 · 2026-08-29 (owner-ordered reconciliation).** The blocker above is
+  **closed in source and this ADR was never updated.** `pkg/parseonly` now provides an immutable
+  attachment sink/locator (`FilesystemArtifactSink`), and `engine/adapters/sbv` is at adapter version
+  `1.3.0` declaring `SupportsAttachments: a != nil && a.artifacts != nil`
+  (`engine/adapters/sbv/sbv.go:113`) — **true for adapters constructed through `NewWithArtifactSink` /
+  `NewAllWithArtifactSink`, false only for the legacy `New` / `NewAll` constructors, which still fail
+  closed by design.** Receipt: `docs/reviews/2026-08-29-sbv-immutable-attachment-sink.md`. Any reader
+  citing this ADR for a hard `SupportsAttachments: false` is citing stale text. What remains is **not**
+  the sink: it is complete re-ingest from the retained source XML in `data/<uuid>/complete/`, live
+  platform read proof, and the live preview proof — SQLite row-count parity is explicitly insufficient.
 
 The original text below remains visible so the 2026-08-09 decision and implementation history are not
 rewritten. Where it says SBV owns storage/custody/the all-in-one application, or that Agno/Python remains

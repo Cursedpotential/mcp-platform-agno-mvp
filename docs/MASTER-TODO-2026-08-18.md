@@ -145,24 +145,53 @@ No item is classified DONE+LIVE VERIFIED from the evidence inspected here.
 - Queued behind the current unified Workbench/UIW release slice; recording it does not authorize
   work during that critical path.
 
-## CRITICAL GAP — cross-medium conversation threads (`context_thread_id`) — queued
+## CRITICAL GAP — cross-medium conversation threads (`context_thread_id`) — SCHEMA BUILT; APPLICATION + PRODUCER REMAIN
 
 > _Added by Claude Code · Opus 5 · 2026-08-29 from an owner directive. Owner: "one of the most
 > critical things for this entire platform" — higher priority than, and broader than, the
 > document-ingest wiring above; do not nest this under it._
+>
+> _**Status correction: Claude · Opus 5 · 2026-08-29 (owner-ordered reconciliation).** This section
+> was written while the gap was open and was never updated when it closed. The schema landed the
+> same day in `sql/0047_content_chunk_and_context_thread_foundation.sql` (commit `06702d9`), with
+> the PG18 lifecycle proof in `860e925`. **The design questions below are settled and implemented;
+> what remains is application and a producer, not design.** Do not read this section as an open
+> design problem._
 
-- No schema anywhere represents a human conversation that hops platforms (SMS → Messenger →
-  iMessage → email) as one thread — `context_thread_id` does not exist. In a custody matter whose
-  evidence is largely messaging, **the cross-platform pattern is the evidence** (register R58,
-  "nuance IS the abuse"); fragmenting by source file destroys it. Blocks R09 (parent-thread id on
-  extraction chunks) and R15 (chronology matrix `context_thread_id` column).
+- ~~No schema anywhere represents a human conversation that hops platforms (SMS → Messenger →
+  iMessage → email) as one thread — `context_thread_id` does not exist.~~ **SUPERSEDED 2026-08-29
+  by `sql/0047`,** which creates `working.first_party_context_thread` and
+  `working.third_party_context_thread`, their `_version` / `_message` / `_source` tables,
+  `working.content_chunk`, the source-range locators, and the reassembly receipts. Contracts live
+  in `server/contracts/context_thread.py`; coverage in
+  `tests/test_0047_content_chunk_and_context_thread_foundation.py` and
+  `tests/test_content_chunk_context_thread_contracts.py`. The rationale still stands and is why
+  this was built first: in a custody matter whose evidence is largely messaging, **the
+  cross-platform pattern is the evidence** (register R58, "nuance IS the abuse"); fragmenting by
+  source file destroys it. Still gates R09 (parent-thread id on extraction chunks) and R15
+  (chronology matrix `context_thread_id` column) **until the schema is applied and a producer
+  exists** — the tables alone populate nothing.
 - **Two populations, same shape, never mixed (owner 2026-08-29):** first-party threads
   (`working.message`, owner is a party) AND acquired third-party threads
   (`working.third_party_message`, owner is not) — **both platform-hop**. A thread is always one
-  population or the other, so no thread has mixed authorization state. **Recommended: separate
-  tables, shared logic**, mirroring the precedent already set one layer down, where first- and
+  population or the other, so no thread has mixed authorization state. ~~**Recommended: separate
+  tables, shared logic**~~ — **IMPLEMENTED AS SPECIFIED in `sql/0047`:** separate first-party and
+  third-party thread tables, mirroring the precedent already set one layer down, where first- and
   third-party messages are separate tables each with a CHECK pinning `projection_kind`
-  (`sql/0026:154,196`) rather than one table with a discriminator.
+  (`sql/0026:154,196`) rather than one table with a discriminator. Population separation is
+  additionally enforced by a composite foreign key on `(thread_version_id, context_thread_id)`, so
+  a thread version cannot adopt a message from the other population.
+
+### What actually remains on this lane
+
+1. **Apply `0047`** to `platform` — held with every other migration; not applied, not deployed.
+2. **Build the producer.** Nothing writes threads yet. This is the same shape of gap as
+   `timeline.event_candidate`, which has had a purpose-built table and zero producers since
+   `sql/0035`. A table with no producer is not a delivered capability.
+3. **Prerequisites are unchanged and still real:** party identity resolution across platforms
+   (R17) and timestamp normalization to one timezone at ingest (R05). The schema does not remove
+   this dependency — threading before those land produces confidently-wrong threads, which in an
+   evidence context is worse than no threads.
 - **Identity-resolution asymmetry — size the two separately:** a first-party thread is anchored by
   a known participant (the owner); a third-party thread has no anchor, so cross-platform matching
   is strictly harder and will need materially more human review.

@@ -47,3 +47,34 @@ Every stage of the evidence pipeline, per layer and per artifact:
 No number is computed by the script. Every figure comes from a view defined in
 `sql/0012_pipeline_visibility.sql` and `sql/0013_raw_all_and_funnel_across_formats.sql`,
 so the report and a hand-written query cannot disagree.
+
+## Semantic skill inventory
+
+`scripts/semantic_skill_catalog.py` inventories the current Codex plugin cache plus
+the shared `.agents/skills` and `.codex/skills` roots. It records complete bundle
+hashes, support-file counts, relative-reference failures, provenance, enabled state,
+duplicates, and one primary semantic family. Generated CSV/JSON/HTML stays ignored
+with the other machine-local reports.
+
+```powershell
+# Refresh reports only.
+uv run python scripts/semantic_skill_catalog.py `
+  --output-root docs/reports
+
+# Validate the current source census without writing reports.
+uv run python scripts/semantic_skill_catalog.py `
+  --output-root docs/reports `
+  --validate-only
+
+# First-time build of the local semantic-router marketplace.
+uv run python scripts/semantic_skill_catalog.py `
+  --output-root docs/reports `
+  --marketplace-root C:\Users\matts\.codex\plugins\sources\semantic-skills-local
+```
+
+The marketplace has one hot `semantic-skill-router` and 21 warm domain plugins.
+Only the router should be enabled by default. Domain plugins are deliberate load
+boundaries, not a reason to advertise the entire underlying library at startup.
+Source skills remain untouched until a separately verified cutover; any future
+retirement move must preserve whole bundles and go only to a dated `to_be_deleted`
+snapshot with a restore map.

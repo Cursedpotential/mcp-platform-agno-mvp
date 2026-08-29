@@ -20,16 +20,37 @@ operator proof remain mandatory.
   separately named **context fingerprints** before parsing; these are not evidence custody. Evidence
   H1/H2/H3 begins only at governed promotion and dispatches by the precise canon tuple. Retained XML
   remains the MMS migration authority because historical SQLite is lossy, but the current streaming
-  decoder iterates every part. The active blocker is the missing immutable platform attachment
-  sink/locator in `pkg/parseonly`, reflected by `SupportsAttachments: false` in the adapter. Quarantine
+  decoder iterates every part. ~~The active blocker is the missing immutable platform attachment
+  sink/locator in `pkg/parseonly`, reflected by `SupportsAttachments: false` in the adapter.~~
+  **CLOSED 2026-08-29 — see the reconciliation block below.** Quarantine
   only after complete re-ingest and live platform read proof.
 - **Schema foundation:** migration `0047` and its import-light contracts are implemented locally after
-  independent review remediation. Focused static tests report 21 pass; the PostgreSQL 18 rollback-only
-  behavior harness is ready but skipped until a disposable `PLATFORM_0047_TEST_SERVICE` is bound. It is
-  not applied live.
+  independent review remediation. Focused static tests report 21 pass; ~~the PostgreSQL 18 rollback-only
+  behavior harness is ready but skipped until a disposable `PLATFORM_0047_TEST_SERVICE` is bound.~~
+  **The PG18 lifecycle proof has since run — commit `860e925` "test(context): prove 0047 lifecycle on
+  PostgreSQL 18".** It is not applied live.
 - **Fingerprint/UIW repair:** migration `0048`, contract vectors, and Go activity/replay changes are
   implemented locally. The first independent read-only review returned **REQUEST CHANGES**; remediation,
-  executable PostgreSQL proof, and re-review remain required. Do not commit or deploy this lane yet.
+  executable PostgreSQL proof, and re-review remain required. ~~Do not commit or deploy this lane yet.~~
+  **Superseded by events 2026-08-29: `sql/0048` is committed and git-tracked (`0f30d33`). The
+  do-not-deploy half of this instruction stands — it is not applied and not deployed.**
+
+> ### RECONCILIATION BLOCK — Claude · Opus 5 · 2026-08-29, owner-ordered
+>
+> This header was accurate when written and drifted within hours. Verified against the repo, not the
+> docs:
+>
+> | Header claim | Verified state |
+> |---|---|
+> | HEAD `312d302` @ 11:34 | **`aeb8f4b` @ 16:10.** `origin/main` is `ddd258d` @ 13:46 — local `main` is **36 commits ahead and unpushed** |
+> | "Migrations on disk through `sql/0046`" | **`0001`–`0051`.** Git-tracked through `0048`; **`0049`, `0050`, `0051` exist on disk but are not committed** |
+> | SBV `SupportsAttachments: false` | `engine/adapters/sbv/sbv.go:113` → `SupportsAttachments: a != nil && a.artifacts != nil`, adapter `1.3.0`, sink `FilesystemArtifactSink`. False only for legacy `New` / `NewAll` |
+> | `context_thread_id` "does not exist anywhere in the schema" (body, later in this file) | **Built in `sql/0047`** — first-party and third-party thread tables, versions, messages, sources. Contradicts this file's own schema-foundation bullet above |
+>
+> **Standing rule for anyone reading this document:** it is a point-in-time audit of a repository that
+> was moving while it was written, and it says so. Re-verify HEAD, the highest migration number, and any
+> adapter capability flag against source before acting on them. Prefer the dated receipts in
+> `docs/reviews/` over this header where they disagree — they are narrower and newer.
 - **Workbench shell:** fixed-case provider plus approved graphite shell/intake integration builds and
   lints locally. The bounded SBV client/API implementation is still in progress. Local build proof is
   not a preview URL or production proof.
@@ -1358,10 +1379,11 @@ or must be confined to the one-time discovery step, never per-run chunking.
 
 ## UNRESOLVED (mandatory)
 
-- **`context_thread_id` (cross-medium human thread) does not exist anywhere in the schema.**
-  Owner-elevated to the highest-severity finding in this document — see "CRITICAL GAP" near the
-  top, not a normal document-ingest work package. Broader than WP-0..WP-11; tracked here only as
-  a pointer.
+- ~~**`context_thread_id` (cross-medium human thread) does not exist anywhere in the schema.**~~
+  **RESOLVED 2026-08-29 — schema built in `sql/0047` (commit `06702d9`), PG18 lifecycle proof in
+  `860e925`.** Owner-elevated to the highest-severity finding in this document — see "CRITICAL GAP"
+  near the top, not a normal document-ingest work package. Broader than WP-0..WP-11; tracked here
+  only as a pointer. **The open items are now application of `0047` and a producer, not design.**
 - **Do not remove `format_router.py` / the Python parser-selection mesh yet.** It is flagged for
   removal (owner 2026-08-29), sequenced on Go adapter coverage per format — see "MIGRATION
   CONSTRAINT" and WP-2/WP-3/WP-4 (shrunk/inverted/downgraded below). An unqualified removal now

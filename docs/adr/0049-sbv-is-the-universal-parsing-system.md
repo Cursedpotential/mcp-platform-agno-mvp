@@ -39,10 +39,19 @@ Current authority is:
    only on the exact algorithm, hash level, canonical byte recipe, ordered membership, construction tag,
    and writer/version tuple. The platform promotion H3 is
    `h3-chain-h1genesis-hexconcat-v1`; an SBV empty-genesis/newline import receipt is never interchangeable.
-4. SBV's current streaming MMS decoder iterates every part. The current platform gap is the parse-only
+4. SBV's current streaming MMS decoder iterates every part. ~~The current platform gap is the parse-only
    attachment boundary: there is no immutable platform attachment sink/locator, so the adapter advertises
-   `SupportsAttachments: false` and rejects attachment-bearing records. Historical SQLite remains a lossy
+   `SupportsAttachments: false` and rejects attachment-bearing records.~~ Historical SQLite remains a lossy
    migration source and is not canonical.
+   **Correction — Claude · Opus 5 · 2026-08-29 (owner-ordered reconciliation):** the parse-only attachment
+   boundary is **closed in source and this ADR was never updated.** `pkg/parseonly` provides an immutable
+   attachment sink/locator (`FilesystemArtifactSink`); `engine/adapters/sbv` is adapter version `1.3.0`
+   with `SupportsAttachments: a != nil && a.artifacts != nil` (`engine/adapters/sbv/sbv.go:113`) — true
+   for `NewWithArtifactSink` / `NewAllWithArtifactSink`, false only for the legacy `New` / `NewAll`
+   constructors, which continue to fail closed by design. Receipt:
+   `docs/reviews/2026-08-29-sbv-immutable-attachment-sink.md`. The lossy-SQLite statement above still
+   stands: the remaining work is complete re-ingest from retained source XML plus live platform read and
+   preview proof, **not** the sink.
 5. Preview reads and decisions require UIW-native, correlation-aware platform APIs keyed by the UIW
    workflow/source/run identities. UIW identifiers must never be passed to legacy `/v1/records` or legacy
    run-event SSE endpoints as though those namespaces were interchangeable.

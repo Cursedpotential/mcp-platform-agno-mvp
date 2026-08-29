@@ -13,7 +13,7 @@
 | R1 | [Go ingestion](pending-review/handoffs/HANDOFF-2026-08-15-R1-go-ingestion.md) | Partial | Coverage-based parsing and ordered custody |
 | R2 | [Horizon engine](pending-review/handoffs/HANDOFF-2026-08-15-R2-horizon-engine.md) | Partial | Immutable manifests, replay, contamination gates |
 | R3 | [Semantica VIP](pending-review/handoffs/HANDOFF-2026-08-15-R3-semantica.md) | Partial | Full intelligence behind governed candidate boundary |
-| R4 | [Graphiti/Zep memory](pending-review/handoffs/HANDOFF-2026-08-15-R4-graphiti-zep-memory.md) | Research complete | PostgreSQL belief authority; Graphiti projection |
+| R4 | [Graphiti/Zep memory](pending-review/handoffs/HANDOFF-2026-08-15-R4-graphiti-zep-memory.md) | **CLOSED — Graphiti retired 2026-08-27 (owner ruling; P-09 / GAP-008 zero-caller path). No bake-off pending: no candidate, no replacement store.** ~~Research complete~~ | PostgreSQL remains belief authority; ~~Graphiti projection~~ **no graph projection in this lane** |
 | R5 | [AG2 coordination](pending-review/handoffs/HANDOFF-2026-08-15-R5-ag2-coordination.md) | Research complete | Candidate adapter only; Agno remains current |
 | R6 | [Provider switching](pending-review/handoffs/HANDOFF-2026-08-15-R6-provider-switching.md) | Research complete | Portkey/OpenCode/direct route registry |
 | R7 | [OpenCode workspace](pending-review/handoffs/HANDOFF-2026-08-15-R7-opencode-workspace.md) | Partial | Persistent control; isolated execution |

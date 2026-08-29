@@ -491,9 +491,28 @@ candidate adapter only. No lane may claim a local build is live without deployme
 | R10E Retrieval | Source-aware chunks, multi-axis routing, versioned isolated embedding profiles, rank fusion + reranking | Proposed contracts; bake-off required |
 
 R10 must not leapfrog the R9 activation gates or silently repurpose the parked legacy Surreal
-deployment. Graphiti remains the baseline until an observed bake-off. Exact Surreal isolation,
+deployment. ~~Graphiti remains the baseline until an observed bake-off.~~ Exact Surreal isolation,
 physical schemas, embedding profiles, TraceIQ projection, behavior taxonomy/budgets, and exclusive
 walk-agent retrieval remain owner decisions.
+
+> **Memory-substrate correction — Claude · Opus 5 · 2026-08-29, owner ruling.** The "Graphiti
+> remains the baseline until an observed bake-off" sentence above is **void**. Graphiti was retired
+> by owner order on 2026-08-27 (P-09 / GAP-008 retired-Graphiti zero-caller path: "Graphiti is
+> retired, the target is zero callers, there is no replacement store, and no new ledger is
+> authorized"). **There is no baseline to bake off against and no bake-off is pending.** Owner,
+> 2026-08-29: *"Every time I try to deploy it, it doesn't work right."* Graphiti is not a
+> dependency, not a gate, and must not appear as a blocker in any lane.
+>
+> **Where memory/graph work actually lives now (owner, 2026-08-29):**
+> - **PostgreSQL** remains the belief/canonical authority. Unchanged.
+> - **SurrealDB** is the governed analytical/walk projection lane (R10/R11) — already the route of
+>   record for bringing this together.
+> - **Two temporally-aware RAG paths** are in use. Both remain in service; neither depends on
+>   Graphiti.
+> - **Memgraph** is a named candidate, discussed repeatedly, for the graph tier. Not selected, not
+>   scheduled, not blocking.
+> - **The agent-layer implementation of all of the above is explicitly DEFERRED** by owner ruling —
+>   "it can wait." Deferred is not blocked: no lane may cite agent-memory work as its gate.
 
 ## 2026-08-16 — R11 Surreal investigation Phase 0 review package
 
