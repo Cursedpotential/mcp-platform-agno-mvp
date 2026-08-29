@@ -739,6 +739,47 @@ section without beginning at its heading line. Only 2 of 4 files were run. `Stru
 was called with defaults. Treat this as a directional result that disqualifies B and flags a real
 problem with C, not as a final ranking.
 
+#### Reproducibility (supplied on Codex's challenge — do not treat the above as evidence without it)
+
+**Environment:** Python 3.13.12 AMD64, `chonkie==1.7.0`, run with the repo's own
+`.venv/Scripts/python.exe`. Read-only; no repo file was written by the experiment.
+
+**Input fingerprints** (bytes and UTF-8 hash identical — files are pure ASCII/UTF-8, no BOM):
+
+| File | bytes | chars | sha256 |
+|---|---|---|---|
+| `Copy of Michigan Custody_ Digital Evidence Standards.md` | 56,371 | 56,341 | `18618992f24e492c19b7bf3be27188385df19efc6f133107495b6d8a78406914` |
+| `FULL CASE EXTRACTION — ALL TIMELINES, EVENTS, STRA.md` | 17,601 | 17,553 | `8d766277b73baf69b7afbdccfc9056f630ce056af6280a21b7abb67b2fe586c6` |
+
+**Reassembly proof, 56KB guide** — `sha256` of `"".join(chunk_texts)` versus the source hash:
+
+| Candidate | reassembled sha256 | chars | match |
+|---|---|---|---|
+| source | `18618992…406914` | 56,341 | — |
+| **A** RecursiveChunker default | `18618992…406914` | 56,341 | **True** |
+| **C** `StructuralChunker` | `5afef976f177fede7eedda9c5145cadb098d5884fad6222914fbac4a6b7aabb0` | 56,165 | **False** |
+
+**Why C fails — and it is worse than "lossy".** Diagnosis run on the same input:
+
+- **176 characters missing** from the concatenation (56,165 vs 56,341).
+- **Not whitespace normalization** — whitespace-normalised equality is also `False`.
+- **24 of 35 chunks do not appear verbatim anywhere in the source.**
+
+That last line is the disqualifying one. `StructuralChunker` is **not a pure splitter — it
+transforms content.** For a forensic platform this is categorically unusable in its default
+configuration regardless of boundary quality: a chunk that does not match the original cannot be
+cited, cannot be hash-verified against the source, and breaks the chunk → `source_locator` →
+original-document path that the evidence promotion flow depends on.
+
+**Revised next step for C:** the question is no longer "is it lossy, and can byte-range locators
+work around it" — locators cannot rescue text that has been altered. It is: **what transformation
+is it applying, and can it be disabled?** If it cannot be configured into a verbatim-preserving
+mode, it is out, and the search moves to a different structure-aware splitter. Do not adopt it on
+boundary quality alone.
+
+**Scripts:** `scratchpad/bakeoff.py` (the table above) and `scratchpad/proof.py` (the hashes and
+diagnosis), both session-scratchpad, read-only, re-runnable against the fingerprints above.
+
 ### WP-5c — original brief
 
 Run the **chunk-stage** candidates A, C, and E (D as a complement for tables) over the **four
