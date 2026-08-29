@@ -96,6 +96,29 @@ No item is classified DONE+LIVE VERIFIED from the evidence inspected here.
 - Queued behind the current unified Workbench/UIW release slice; recording it does not authorize
   work during that critical path.
 
+## CRITICAL GAP — cross-medium conversation threads (`context_thread_id`) — queued
+
+> _Added by Claude Code · Opus 5 · 2026-08-29 from an owner directive. Owner: "one of the most
+> critical things for this entire platform" — higher priority than, and broader than, the
+> document-ingest wiring above; do not nest this under it._
+
+- No schema anywhere represents a human conversation that hops platforms (SMS → Messenger →
+  iMessage → email) as one thread — `context_thread_id` does not exist. In a custody matter whose
+  evidence is largely messaging, **the cross-platform pattern is the evidence** (register R58,
+  "nuance IS the abuse"); fragmenting by source file destroys it. Blocks R09 (parent-thread id on
+  extraction chunks) and R15 (chronology matrix `context_thread_id` column).
+- Depends on two things that must land first or in parallel: party identity resolution across
+  platforms (R17 — same human, different per-platform representations) and timestamp
+  normalization to one timezone at ingest (R05) — attempting threading before these produces
+  confidently-wrong threads, worse than no threads in an evidence context.
+- Design sketch, the two-axis chunk-linkage distinction (reassembly vs. thread), and the
+  recommendation for its own ADR/handoff: see "CRITICAL GAP" in
+  [`HANDOFF-2026-08-29-derived-document-ingest-wiring.md`](HANDOFF-2026-08-29-derived-document-ingest-wiring.md).
+- **Naming debt tracked, not yet actioned (owner 2026-08-29):** "chat" (`working.chat_*`) means
+  AI-chat-only and "transcript" (`parse.transcript` / `parse.messages-transcript`) ambiguously
+  covers both AI chats and human messaging — do not conflate them in any NEW name; renaming the
+  live ones is a separate, later, explicitly-scheduled change. See "Glossary" in the handoff.
+
 ## Resume
 
 **NOT COMPLETE. Start with the Evidence Desk handoff step 1.** Use the least-expensive

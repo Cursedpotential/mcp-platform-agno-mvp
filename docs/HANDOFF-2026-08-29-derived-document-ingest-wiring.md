@@ -83,6 +83,178 @@ taxonomy" below.
 | Chonkie semantic tier | `SemanticChunker`/`NeuralChunker`/`LateChunker`/`SlumberChunker` require model or embedding inference. Owner hard rule: no local models on this box — model-backed work routes through **Portkey** (the model gateway; `docker/gateway/portkey/`, `x-portkey-config` header at `server/core/session.py:210`) to a remote provider (NVIDIA NIM, Ollama Cloud, or a free-tier API) as the normal path, keeping the provider swappable. **Colab (via the Colab MCP) is only for the narrow case of a local-model-only application with no API equivalent**, and — like every other MCP server — would be reached through **ContextForge** (`CF_GATEWAY_URL`/`CF_GATEWAY_TOKEN`, `deploy/exec.yaml:24-26,109`), never as a direct client; unverified reachable this session (a tool search for it returned no Colab tools). `NimEmbedder` (`server/core/embedder.py:26`) already exists for NIM-backed embeddings via this Portkey path. Chonkie's own remote executor is still a stub (`chonkie_chunkers.py:186-228`, line 192 "the remote executor is not wired yet", D-046) — a blocker independent of which remote path is used |
 | Gateways | **Portkey = the model gateway** (`docker/gateway/portkey/`, `portkey/configs/embed.json` NVIDIA `nv-embed-v1` 4096-d dimension-locked, `x-portkey-config` header at `server/core/session.py:210`, `graphiti-portkeyfix` sidecar injecting `custom_host=integrate.api.nvidia.com` at `deploy/compose.yaml:207-208`, `deploy/portkey.yaml`). **ContextForge = the MCP gateway** (`CF_GATEWAY_URL`/`CF_GATEWAY_TOKEN`, docker-DNS name `contextforge` on the shared `agno` network, `deploy/exec.yaml:24-26,109`, `deploy/contextforge.yaml`) — standing rule: MCP servers are reached ONLY through ContextForge, never as direct clients. Model/embedding calls route through Portkey; MCP calls (including a hypothetical Colab MCP) route through ContextForge |
 
+## Identifier taxonomy (owner flag, 2026-08-29 — context every later section depends on)
+
+> Owner: *"There's chat IDs which is for AI chats, and then there's the chunks, and then we also
+> have conversation IDs which can actually spread across different mediums and files because of
+> platform hopping, and those are separate entirely."*
+
+| Concept | Column / table | Exists? | Note |
+|---|---|---|---|
+| AI chat session | `working.chat_conversation.id`, referenced as `chat_chunk.conversation_id` | **YES** | One ChatGPT/Claude/Gemini conversation export. **Read "conversation" here as "AI chat session"** — see the name-trap warning below |
+| Chunk | `working.chat_chunk.id` | **YES** | `UNIQUE(conversation_id, chunk_index)` + `UNIQUE(content_hash)` |
+| Message | `working.chat_message.id`, `chat_chunk_message.message_id` | **YES** | One message inside a chat |
+| Source artifact / file | `source_id`, `source_version_id` | **YES** | One ingested file/version — the most common id in the schema |
+| **Cross-medium human thread** (SMS → Messenger → iMessage → email, spanning multiple files, "platform hopping") | — | **NO — DOES NOT EXIST** | See below |
+| Case | `matter_id`, `case_id` | YES | |
+| Normalized record | `normalized_record_id`, `record_id` | YES | |
+| Run / extraction | `run_id`, `extraction_run_id`, `raw_generation_id`, `normalized_generation_id`, `manifest_id` | YES | |
+
+**Problem 1 — the cross-medium thread concept is ABSENT, and it's a documented requirement that
+was never implemented.** Grepping `sql/*.sql`, `server/evidence/*.py`, `server/contracts/*.py`
+for `context_thread`, `thread_id`, and cross-medium/platform-hopping language: **zero matches.**
+But the August requirements register already specifies it: **R09** — extraction output must be
+dual-granularity, a flat structured record PLUS a contextual embedding chunk carrying a
+**parent-thread ID**; **R15** — the exported chronology matrix must include a
+**`context_thread_id`** column. This closes the loop: the requirement predates the gap.
+
+**Problem 2 — `conversation_id` is a name trap.** In the schema it means "AI chat session." In
+the owner's domain language it means "the human conversation, spanning mediums." These are
+different things, and the ambiguous name is already load-bearing in a live table
+(`chat_chunk.conversation_id NOT NULL REFERENCES working.chat_conversation(id)`). **Naming rule,
+going forward:** the cross-medium thread, when it lands, **MUST NOT be called `conversation_id`**
+— use **`context_thread_id`**, already the owner's own vocabulary (R09/R15), so this adopts
+existing terminology rather than inventing new. Renaming the existing column is **NOT proposed**
+— it's a live FK with a UNIQUE constraint depending on it; the mitigation is unambiguous naming
+for the NEW concept plus this glossary entry.
+
+**Structural consequence:** a cross-medium thread is **many-to-many with sources** — one thread
+draws messages from multiple files across multiple mediums, and one file can contain messages
+belonging to several threads. It cannot be a column on a source or a chat; it needs its own table
+plus a join (thread ↔ message), the same shape as the existing `chat_chunk_message` join —
+modelling it as an FK column on either side is the obvious wrong turn. It is also the **only**
+identifier in this list that is **inferred, not observed** — a thread is a judgment about which
+messages belong together across platforms, not something any source file declares — so it needs
+provenance and a review state, exactly like `chat_chunk_lane` already carries
+`classifier_id`/`confidence`/`review_status`. Reuse that established pattern rather than
+inventing one. Tracked as a distinct UNRESOLVED gap below — it is broader than, and not part of,
+the document-ingest work packages (WP-0..WP-11).
+
+## CRITICAL GAP — cross-medium conversation threads (`context_thread_id`)
+
+> Owner, 2026-08-29, elevating this above the document-ingest work below: *"That's going to need
+> to be a gap that's resolved. That's actually one of the most critical things for this entire
+> platform."* **This is the highest-severity finding in this document — higher priority than
+> the WP-0..WP-11 document-ingest work packages below, which are comparatively narrow.**
+
+**Why it is critical, not cosmetic.** This is a custody matter whose evidence is largely
+messaging. When a conversation moves SMS → Messenger → iMessage → email, **the pattern across
+platforms is the evidence.** Fragmenting that thread by source file destroys exactly what the
+record is meant to show. This is register requirement **R58** verbatim: preserve full
+conversational nuance rather than over-summarizing when the pattern itself is the evidence
+("nuance IS the abuse") — a per-file view cannot express a cross-platform pattern no matter how
+good the chunking is. It concretely blocks: **R09** (dual-granularity extraction needs a
+parent-thread ID on the contextual chunk), **R15** (the exported chronology matrix needs a
+`context_thread_id` column), and any chronology/exhibit that must show a conversation continuing
+across platforms. Two recorded output requirements cannot be satisfied at all today.
+
+**Design sketch (a sketch, not a decision — flagged as such):**
+- **`context_thread`** — its own table. A thread is INFERRED, never declared by any source file,
+  so it must carry provenance and review state: `classifier_id`, `classifier_version`,
+  `confidence`, `review_status`. Reuse the exact vocabulary `working.chat_chunk_lane` already
+  established (`auto_accepted` / `pending_review` / `human_approved` / `human_corrected` /
+  `classification_failed`) rather than inventing a parallel scheme.
+- **`context_thread_member`** — the join, many-to-many (mandatory): one thread draws messages
+  from multiple files and mediums; one file can contain messages from several threads. Carries
+  `thread_id`, the message/record reference, `ordinal`, `source_id`, and medium — same shape as
+  the existing `chat_chunk_message` join.
+- **Corrections are new rows, not edits** — the owner must be able to re-thread, and prior
+  threading must survive. Reuse the append-only pattern from `timeline.event_candidate`
+  (`forbid_mutation()` trigger; "a correction is a NEW row, never an edit"). This also satisfies
+  **R48** (reviewer corrections persist and downstream outputs reuse the corrected version).
+
+**Two independent linkage axes per chunk (owner follow-up, 2026-08-29) — orthogonal, not variants
+of each other:**
+
+1. **DOWN to its original source (reassembly axis).** chunk → source file, `chunk_index` for
+   order, `char_start`/`char_end` for range. Scoped to ONE source file — this is what makes the
+   completeness check above possible. Already exists on `working.chat_chunk`.
+2. **UP to the cross-platform conversation (thread axis).** chunk → the `context_thread` that
+   hops platforms. Spans MANY source files and mediums. Does not exist yet (this section).
+
+**These cannot share an ordinal — the critical consequence an implementer will get wrong.**
+Reassembly order is *within one source file* (contiguous, gap-free ranges, ordered by
+`chunk_index`). Thread order is *across source files* (interleaved chronologically by normalized
+timestamp). `chat_chunk.chunk_index` serves reassembly and must keep serving only that; the
+thread needs its own ordering — either its own ordinal on `context_thread_member`, or ordering by
+normalized timestamp (why the R05 clock-normalization dependency below is load-bearing, not
+incidental). A single "position" column trying to serve both silently corrupts one of them.
+
+**How the thread link should attach — recommend the derived path, do not add a column.** A chunk
+is a slice of text; a thread is composed of MESSAGES. The natural chain is chunk → message(s) →
+thread, via the existing `working.chat_chunk_message` join (`chunk_id`, `message_id`, `ordinal`)
+plus the new `context_thread_member` join (`thread_id`, `message_id`, ...). **Recommendation: do
+NOT add a `context_thread_id` column to the chunk table.** Thread membership is a property of
+messages, not of text slices, and a chunk may span messages — deriving membership through the
+message join keeps one source of truth and avoids a denormalized column that can disagree with
+the join. If query performance later demands it, a materialized view or maintained
+denormalization is the fix, not a hand-set column.
+
+**Scope boundary, narrowed by owner follow-up: the thread axis applies to HUMAN-TO-HUMAN
+messaging ONLY** (SMS, Facebook Messenger, iMessage, and similar) — **explicitly excluding**:
+**AI chats** (ChatGPT/Claude/Gemini/Perplexity sessions — a session with an assistant, not a
+conversation hopping platforms between people; no thread membership), and **document-class work
+products** (the four sample files — reassembly axis only, as already stated). If a document needs
+to point at a thread, that's a citation/reference, not membership — don't blur the two as
+document ingest and thread work proceed in parallel.
+
+### Glossary — naming reconciliation (owner directive, 2026-08-29: "don't conflate AI chats and
+human-to-human interactions")
+
+The parser layer already separates them correctly (`server/tools/parsers/ai_chat/` vs.
+`server/tools/parsers/messaging/`) — preserve and extend that split. Storage and capability
+naming do not: `working.chat_conversation`/`chat_message`/`chat_chunk` hold **AI chats only**
+(migration `0024_chat_conversation_and_message.sql`), but the bare word "chat" reads as generic
+conversation. Worse: **"transcript" is used on both sides** — capability `parse.transcript`
+covers AI-chat parsers *and* generic markdown fallbacks, while `messages.transcript-marker`
+(`parse.messages-transcript`) covers human messaging — the same word denoting two different
+things, live in the registry today.
+
+| Term | Means | Applies to |
+|---|---|---|
+| **AI chat** | a session with an AI assistant | `parsers/ai_chat/`, `working.chat_*` tables |
+| **Message / messaging** | human-to-human communication | `parsers/messaging/`, SMS/Facebook/iMessage |
+| **Context thread** (`context_thread_id`) | one human conversation spanning platforms and files | messaging ONLY, never AI chats |
+| **Document / work product** | derived analytical material about the case | the four sample files |
+| **Chunk** (`chunk_id`) | a retrievable slice of text | all of the above |
+| **"Transcript"** | **AMBIGUOUS — avoid in new names** | currently used for both; see rules below |
+
+**Rules:** do not use bare "transcript" in any NEW capability, table, or column name — qualify it
+(`ai_chat` or `messages`) where a distinction is needed. New human-messaging storage uses
+`message_*`/`messaging_*`, matching the existing parser directory — not `chat_*`. `chat_*` is
+henceforth documented as **AI-chat-only** — that's what it already means; the fix is making it
+explicit, not renaming a live table.
+
+**Migration posture — same realism as "Ingest taxonomy" above:** `parse.transcript` is a live
+registry capability used by ~16 parsers; `working.chat_*` are live tables with FKs. Renaming
+either is **NOT a same-turn change** and must not happen during the freeze. Adopt the glossary
+for everything NEW immediately; document the existing ambiguous names with their true meanings so
+no one is misled; treat any rename of `parse.transcript` or `chat_*` as a separate, later,
+explicitly-scheduled change — tracked as known naming debt, not silently forgotten.
+
+**Naming resolved:** keep `chunk_id` — it already exists (`working.chat_chunk.id`), is already
+used in `chat_chunk_message`, `chat_chunk_lane`, `chat_chunk_embedding`, `chat_chunk_projection`,
+and is unambiguous. The ambiguity is with `conversation_id` (see "Identifier taxonomy" above),
+not with `chunk_id` — no rename needed.
+
+**Hard dependencies — name them, they decide feasibility.** Threading across mediums is not
+primarily a schema problem:
+1. **Party identity resolution across platforms (R17)** — normalize people so the same human is
+   recognized despite differing representations (a phone number in SMS, a Facebook user id in
+   Messenger, an address in email). Without this, threads cannot be assembled correctly.
+   `server/tools/parsers/messaging/_source_parties.py` exists and is the natural place to check
+   what identity handling already exists — start there rather than assume nothing exists.
+2. **Timestamp normalization to a single timezone at ingest (R05)** — interleaving messages from
+   different mediums into one ordered thread is wrong if their clocks aren't normalized; the
+   register separately warns that source clocks must be verified.
+
+**Attempting the thread table before identity resolution and clock normalization will produce
+confidently-wrong threads — in an evidence context, worse than no threads at all.**
+
+**Recommendation (for the owner to decide, not an action taken here):** this likely warrants its
+own ADR or a dedicated handoff, rather than living permanently inside a document-ingest handoff.
+Also queued separately (not nested under document-ingest) in `docs/MASTER-TODO-2026-08-18.md`.
+
 ## HARD CONSTRAINT — Semantica atomic tool vs Semantica lane
 
 > _Owner ruling, 2026-08-29._
@@ -676,6 +848,10 @@ or must be confined to the one-time discovery step, never per-run chunking.
 
 ## UNRESOLVED (mandatory)
 
+- **`context_thread_id` (cross-medium human thread) does not exist anywhere in the schema.**
+  Owner-elevated to the highest-severity finding in this document — see "CRITICAL GAP" near the
+  top, not a normal document-ingest work package. Broader than WP-0..WP-11; tracked here only as
+  a pointer.
 - **Do not remove `format_router.py` / the Python parser-selection mesh yet.** It is flagged for
   removal (owner 2026-08-29), sequenced on Go adapter coverage per format — see "MIGRATION
   CONSTRAINT" and WP-2/WP-3/WP-4 (shrunk/inverted/downgraded below). An unqualified removal now
