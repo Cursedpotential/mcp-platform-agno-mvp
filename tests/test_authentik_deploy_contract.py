@@ -129,9 +129,10 @@ class TestAuthentikProvider:
 
 
 class TestWorkbenchConsumer:
-    def test_no_direct_8020_host_bypass(self) -> None:
+    def test_private_tailscale_door_is_loopback_only_and_port_translated(self) -> None:
         service = _load(WORKBENCH_PATH)["services"]["knowledge-workbench"]
-        assert not service.get("ports")
+        assert service.get("ports") == ["127.0.0.1:18080:8020"]
+        assert all("0.0.0.0" not in binding for binding in service["ports"])
 
     def test_exact_proxy_boundary_is_required_in_manifest(self) -> None:
         service = _load(WORKBENCH_PATH)["services"]["knowledge-workbench"]

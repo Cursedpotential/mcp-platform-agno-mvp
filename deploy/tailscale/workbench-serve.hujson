@@ -6,15 +6,15 @@
 //   tailscale serve advertise svc:workbench
 //
 // The HTTPS listener and TailVIP belong to svc:workbench, not to the VPS.
-// Tailscale forwards the original Host header to loopback Traefik. The
-// workbench-tailnet router in deploy/workbench.yaml is the only matching
-// backend route. Never use `tailscale funnel` for this service.
+// Tailscale forwards directly to Workbench's unique loopback-only host port.
+// Coolify Traefik remains an independent public/future Authentik door. Never
+// use `tailscale funnel` for this service.
 {
   "version": "0.0.1",
   "services": {
     "svc:workbench": {
       "endpoints": {
-        "tcp:443": "http://127.0.0.1:80"
+        "tcp:443": "http://127.0.0.1:18080"
       }
     }
   }

@@ -24,6 +24,7 @@ def _client(
     *,
     tailnet_bypass: bool = False,
     tailnet_cidrs: str = "100.64.0.0/10",
+    serve_proxy_cidrs: str = "",
 ) -> TestClient:
     """Create an isolated auth client without mutating global settings."""
     configured_settings = Settings(_env_file=None)
@@ -31,6 +32,11 @@ def _client(
         object.__setattr__(configured_settings, "trusted_auth_proxy_cidrs", cidrs)
     object.__setattr__(configured_settings, "tailnet_auth_bypass_enabled", tailnet_bypass)
     object.__setattr__(configured_settings, "tailnet_auth_bypass_cidrs", tailnet_cidrs)
+    object.__setattr__(
+        configured_settings,
+        "trusted_tailscale_serve_proxy_cidrs",
+        serve_proxy_cidrs,
+    )
 
     app = FastAPI()
 
@@ -91,6 +97,61 @@ class TestFeatureGatedTailnetBypass:
             tailnet_cidrs="0.0.0.0/0",
         )
         response = client.get("/principal", headers={"X-Real-IP": "100.88.12.4"})
+        assert response.status_code == 403
+
+    def test_direct_tailscale_serve_identity_is_accepted_from_exact_proxy(self) -> None:
+        client = _client(
+            "172.17.0.1",
+            "172.18.0.4/32",
+            tailnet_bypass=True,
+            serve_proxy_cidrs="172.17.0.1/32",
+        )
+        response = client.get(
+            "/principal",
+            headers={"Tailscale-User-Login": "owner@example.com"},
+        )
+        assert response.status_code == 200
+        assert response.json() == {
+            "principal": "owner@example.com",
+            "subject_uid": "tailscale:owner@example.com",
+        }
+
+    def test_direct_tailscale_serve_identity_rejected_when_flag_is_off(self) -> None:
+        client = _client(
+            "172.17.0.1",
+            "172.18.0.4/32",
+            serve_proxy_cidrs="172.17.0.1/32",
+        )
+        response = client.get(
+            "/principal",
+            headers={"Tailscale-User-Login": "owner@example.com"},
+        )
+        assert response.status_code == 403
+
+    def test_direct_tailscale_serve_header_rejected_from_untrusted_peer(self) -> None:
+        client = _client(
+            "172.17.0.2",
+            "172.18.0.4/32",
+            tailnet_bypass=True,
+            serve_proxy_cidrs="172.17.0.1/32",
+        )
+        response = client.get(
+            "/principal",
+            headers={"Tailscale-User-Login": "owner@example.com"},
+        )
+        assert response.status_code == 403
+
+    def test_tailscale_serve_proxy_range_must_be_single_host(self) -> None:
+        client = _client(
+            "172.17.0.1",
+            "172.18.0.4/32",
+            tailnet_bypass=True,
+            serve_proxy_cidrs="172.17.0.0/16",
+        )
+        response = client.get(
+            "/principal",
+            headers={"Tailscale-User-Login": "owner@example.com"},
+        )
         assert response.status_code == 403
 
 

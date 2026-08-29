@@ -18,6 +18,7 @@ from fastapi.responses import JSONResponse
 _AUTHENTIK_UID_HEADER = "x-authentik-uid"
 _AUTHENTIK_USERNAME_HEADER = "x-authentik-username"
 _TRAEFIK_CLIENT_IP_HEADER = "x-real-ip"
+_TAILSCALE_LOGIN_HEADER = "tailscale-user-login"
 _MAX_HEADER_VALUE_LEN = 256
 _CTRL_CHARS_RE = re.compile(r"[\x00-\x1f\x7f]")
 
@@ -70,6 +71,20 @@ async def authentication_middleware(
     if request.url.path == "/health":
         return await call_next(request)
 
+    client_ip = _client_ip(request)
+
+    # Tailscale Serve terminates the private svc:workbench HTTPS endpoint and
+    # connects directly through the host-loopback port. It strips spoofed
+    # identity headers before supplying Tailscale-User-Login. Trust that
+    # header only from explicitly configured single-host proxy addresses.
+    if settings.tailnet_auth_bypass_enabled:
+        serve_cidrs = settings.trusted_tailscale_serve_proxy_cidrs_parsed
+        login = _validate_identity_header(request.headers.get(_TAILSCALE_LOGIN_HEADER))
+        if client_ip and serve_cidrs and _ip_in_cidrs(client_ip, serve_cidrs) and login:
+            request.state.principal = login
+            request.state.subject_uid = f"tailscale:{login}"
+            return await call_next(request)
+
     # Trusted proxy CIDR check (fail-closed)
     trusted_cidrs = settings.trusted_auth_proxy_cidrs_parsed
     if not trusted_cidrs:
@@ -78,7 +93,6 @@ async def authentication_middleware(
             content={"detail": "Authentication gateway not configured"},
         )
 
-    client_ip = _client_ip(request)
     if not client_ip or not _ip_in_cidrs(client_ip, trusted_cidrs):
         return JSONResponse(
             status_code=403,

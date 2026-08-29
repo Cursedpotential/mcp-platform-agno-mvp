@@ -126,6 +126,9 @@ class Settings(BaseSettings):
     # without Authentik. The flag is off by default in application code.
     tailnet_auth_bypass_enabled: bool = False
     tailnet_auth_bypass_cidrs: str = "100.64.0.0/10"
+    # Exact local proxy addresses used by Tailscale Serve's direct loopback
+    # mapping. Every entry must be a single-host /32 or /128 network.
+    trusted_tailscale_serve_proxy_cidrs: str = ""
 
     # --- App ---
     app_port: int = 8020
@@ -220,6 +223,25 @@ class Settings(BaseSettings):
             except ValueError:
                 return []
             if not network.subnet_of(ipaddress.ip_network("100.64.0.0/10")):
+                return []
+            cidrs.append(network)
+        return cidrs
+
+    @property
+    def trusted_tailscale_serve_proxy_cidrs_parsed(
+        self,
+    ) -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
+        """Parse exact trusted Tailscale Serve proxy addresses fail-closed."""
+        if not self.trusted_tailscale_serve_proxy_cidrs:
+            return []
+        cidrs = []
+        for part in self.trusted_tailscale_serve_proxy_cidrs.split(","):
+            part = part.strip()
+            try:
+                network = ipaddress.ip_network(part, strict=True)
+            except ValueError:
+                return []
+            if network.num_addresses != 1:
                 return []
             cidrs.append(network)
         return cidrs
