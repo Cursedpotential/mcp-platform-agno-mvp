@@ -64,10 +64,16 @@ No item is classified DONE+LIVE VERIFIED from the evidence inspected here.
 > _Added by Claude Code · Opus 5 · 2026-08-29 from an owner directive._
 
 - Documents that are AI-assistant **work products** (case chronologies, strategy memos, research
-  guides — not chat transcripts, no role markers) currently have **no parser that preserves
-  structure**: `format_router.SIGNATURES` holds 3 JSON signatures and none for markdown, so every
-  `.md` skips routing and falls to the flat `transcripts.markdown` whole-file record. Once
-  ingested they are **not semantically searchable** — only `ILIKE` on `/v1/records`.
+  guides — not chat transcripts, no role markers) **need no parse step at all** — they are already
+  text, with no export format to decode. The defect is that nothing routes them accordingly:
+  `.md` sits in `_TEXT_SUFFIXES` and is filed into the **transcript** branch, where it fails all
+  16 `.md`-accepting parsers in turn and lands on the flat `transcripts.markdown` whole-file
+  record by exhaustion. Structure preservation is therefore a **chunk-stage** requirement, not a
+  parser gap. Once ingested they are also **not semantically searchable** — only `ILIKE` on
+  `/v1/records`.
+  _(Corrected 2026-08-29: an earlier revision of this bullet said these have "no parser that
+  preserves structure," which framed a category error as a missing capability and contradicted
+  the parse/extract/chunk taxonomy recorded later in the same section. Caught in reconciliation.)_
 - Downstream is built and unwired: `timeline.event_candidate` (`sql/0035:62`) is purpose-built
   for this class (`source_system='ai_chat'`, D-082 lead-never-evidence, append-only) and has
   **no producer**; `server/timeline/` is CLI-only with **zero production callers**.
