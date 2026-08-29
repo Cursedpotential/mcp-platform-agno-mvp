@@ -1,4 +1,5 @@
 // Byline: Codex · GPT-5 · 2026-08-28 (production unified intake vertical slice)
+// Byline: Codex · GPT-5 · 2026-08-29 (truthful Matter baseline failure state)
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -104,7 +105,11 @@ export function UnifiedIntake() {
   useEffect(() => {
     listMatters()
       .then((response) => setMatters(response.data))
-      .catch((requestError) => setError(errorText(requestError)));
+      .catch(() =>
+        setError(
+          "Matter list unavailable. The fresh Platform case schema is not ready yet. You can inspect a file, but intake cannot start until Matter scope is restored.",
+        ),
+      );
   }, []);
 
   const primaryCourtCase = matter?.court_cases.find((item) => item.is_primary);
