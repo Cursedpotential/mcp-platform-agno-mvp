@@ -476,7 +476,18 @@ def test_pg18_rollback_role_and_review_lifecycle_behavior() -> None:
             cursor.execute("SELECT current_setting('server_version_num')::INTEGER")
             assert cursor.fetchone()[0] >= 180000
             cursor.execute(ddl)
-            cursor.execute("SET LOCAL ROLE platform_runtime")
+            # The review guards deliberately authorize the authenticated login
+            # (session_user), not an impersonated current role.  The disposable
+            # migration service is privileged, so SET ROLE cannot exercise the
+            # runtime denial: a superuser is considered a member of every role.
+            cursor.execute("RESET ROLE")
+            cursor.execute("SELECT session_user, current_user")
+            migration_session_user, migration_current_user = cursor.fetchone()
+            assert migration_current_user == migration_session_user
+            assert migration_session_user != "platform_runtime"
+            cursor.execute("SET SESSION AUTHORIZATION platform_runtime")
+            cursor.execute("SELECT session_user, current_user")
+            assert cursor.fetchone() == ("platform_runtime", "platform_runtime")
             cursor.execute(
                 """
                 INSERT INTO working.context_review_case (
@@ -502,7 +513,9 @@ def test_pg18_rollback_role_and_review_lifecycle_behavior() -> None:
                     (case_key, case_id),
                 )
             cursor.execute("ROLLBACK TO SAVEPOINT runtime_terminal_probe")
-            cursor.execute("RESET ROLE")
+            cursor.execute("RESET SESSION AUTHORIZATION")
+            cursor.execute("SELECT session_user, current_user")
+            assert cursor.fetchone() == (migration_session_user, migration_session_user)
             cursor.execute(
                 "SELECT has_table_privilege('platform_runtime', "
                 "'working.context_review_decision', 'INSERT'), "
