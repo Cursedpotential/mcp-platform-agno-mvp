@@ -1,6 +1,7 @@
 # HANDOFF — Derived-document ingest wiring (AI work products → context → timeline/vectors/graphs) (2026-08-29)
 
 > _Byline: Claude Code · Opus 5 · 2026-08-29_
+> _Byline amendment: Claude Code · Opus 5 · 2026-08-29_
 STATUS: COMPLETE (audit + handoff only — no code changes were in scope)
 BUILD_STATUS: UNKNOWN (no tests run this session; `PHASE-0-FREEZE` itself records BUILD_STATUS UNKNOWN)
 
@@ -12,9 +13,12 @@ will handle them, where should they land, and are they searchable?** Then: write
 TODO to get documents of this class through the Temporal/n8n path, into the right tables, so
 change detection can drive them to timeline, vectors, and graphs.
 
-Answer up front: **no parser handles them structurally, they are not semantically searchable
-once ingested, and the downstream timeline/graph machinery is built but has no producer.**
-Nearly every missing piece already exists in-tree and is unwired.
+Answer up front (**corrected same-day, see "Ingest taxonomy" below**): **these files need no
+parser at all — they are already text, so parsing (decoding a structured export format) is a
+category error for them.** The real gaps are a structure-aware **chunker** and a **producer** for
+the timeline table; once chunked they are not yet semantically searchable, and the downstream
+timeline/graph machinery is built but has no producer. Nearly every missing piece already exists
+in-tree and is unwired.
 
 ## The four files (content class)
 
@@ -24,7 +28,9 @@ TIMELINES, EVENTS, STRA", 17.6KB), a courtroom-framing strategy memo (3.8KB), a 
 Michigan digital-evidence practitioner guide (56.4KB), and statute analysis with NotebookLM
 `[span_N](start_span)` citation markers still embedded (5.0KB).
 
-This class has no representation in the parser registry or the format router.
+This class has no representation in the parser registry or the format router — **because there
+is nothing for a parser to decode.** They need chunk + ingest, not parse + ingest. See "Ingest
+taxonomy" below.
 
 ## Verified-live state (do not re-derive)
 
@@ -52,7 +58,7 @@ This class has no representation in the parser registry or the format router.
 | Lane semantics | **ADR-0053** governs (supersedes ADR-0050): `legal` = law/procedure/strategy/created legal work; `personal_history` = personal/relationship history (absorbed retired `relationship_timeline`); `context` = general/ambiguous; `evidence` = custody-approved only |
 | Canonical chunker | `server/ingest/chunking.py::chunk_records()` (`service.py:321-323`) — Chonkie `RecursiveChunker(tokenizer="character", chunk_size=1500)`, **no overlap, lane-blind**. `chunking_policy.lane_chunker()` is NOT on this path (only caller `server/core/session.py:426`) |
 | Chonkie | **1.7.0 installed, `requirements.txt:23-24`** — in production. Chunkers available: Recursive, Semantic, Sentence, Token, Fast, Code, Table, Late, Neural, Slumber |
-| Chonkie markdown recipe | **`RecursiveRules.from_recipe("markdown")` FAILS live** — attempts a network download of `markdown_en`. Default `RecursiveRules` levels are `['\n\n','\r\n','\n','\r']` → sentences → punctuation. **No heading delimiters.** A 56KB record → ~37 chunks with section structure destroyed |
+| Chonkie markdown recipe | **`RecursiveRules.from_recipe("markdown")` FAILS live** — root cause verified: `from_recipe()` → `chonkie.utils.hub.get_recipe(name, lang, path)` → `huggingface_hub` download → raises `huggingface_hub.errors.LocalEntryNotFoundError`, because this machine sets `HF_HUB_OFFLINE=1` / `TRANSFORMERS_OFFLINE=1` (owner's "no local models, ever" enforcement guard) — **not a Chonkie bug, not a network outage, not a reason to reject Chonkie.** Ranked Hub-free options: (a) hand-specify `RecursiveLevel(delimiters=['\n# ','\n## ','\n### '])` inline — **preferred**, no vendored asset, no Hub call; (b) Semantica `StructuralChunker` (candidate A); (c) vendor the recipe JSON and call `from_recipe(..., path=<local>)` — **last resort only** (owner correction: not the recommended fix). Default `RecursiveRules` levels are `['\n\n','\r\n','\n','\r']` → sentences → punctuation, no heading delimiters — a 56KB record → ~37 chunks with section structure destroyed |
 | Docling | Declared `pyproject.toml:87` (`document-ai` extra). **NOT in `requirements.txt`; NOT installed by the root `Dockerfile` (`RUN uv pip sync requirements.txt --system`) nor `docker/tools/Dockerfile`.** Not present in any deployed image |
 | Docling failure mode | `.pdf` degrades to `documents.extract-text`; **`.docx/.pptx/.xlsx/.html/.htm` have no fallback and hard-fail** (`docling_extract.py:6-17`, their URGENT-TODO #17) |
 | Tesseract OCR | `ocr` extra (`pyproject.toml:80-83`); absent from `requirements.txt` and both Dockerfiles — **not functional at runtime** |
@@ -74,7 +80,8 @@ This class has no representation in the parser registry or the format router.
 | PII / git safety | Ingested content lands in Postgres + `/r2/evidence` blob root + `/tmp` staging — **outside git**. Owner ruling 2026-08-29: no redaction or PII modification until export time; everything stays in |
 | Production database | **`platform` is the new production database** (owner, 2026-08-29). The `ai` database referenced in the `PHASE-0-FREEZE` STOP items (`STOP-R13-2`, `STOP-R14-2`) is **no longer production** — that freeze line is stale. See `sql/0043_platform_single_case_foundation.sql`, `sql/0046_agno_app_role.sql` |
 | n8n integration pattern | **Owner, 2026-08-29: n8n exists to utilize the tools. To date every custom tool is wrapped in an n8n code node.** New capability should be exposed as a callable tool and wrapped that way, not as a bespoke route. `n8n_webhook_activity` (`server/temporal/n8n_activities.py:45`) is the Temporal↔n8n bridge and is registered on the worker |
-| Chonkie semantic tier | `SemanticChunker`/`NeuralChunker`/`LateChunker`/`SlumberChunker` require model or LLM inference. Owner hard rule: **no local models on this box** — any model-backed chunking must call out to remote (Colab Pro / NIM), and Chonkie's own remote executor is a stub (`chonkie_chunkers.py:186-228`, line 192 "the remote executor is not wired yet", D-046) |
+| Chonkie semantic tier | `SemanticChunker`/`NeuralChunker`/`LateChunker`/`SlumberChunker` require model or embedding inference. Owner hard rule: no local models on this box — model-backed work routes through **Portkey** (the model gateway; `docker/gateway/portkey/`, `x-portkey-config` header at `server/core/session.py:210`) to a remote provider (NVIDIA NIM, Ollama Cloud, or a free-tier API) as the normal path, keeping the provider swappable. **Colab (via the Colab MCP) is only for the narrow case of a local-model-only application with no API equivalent**, and — like every other MCP server — would be reached through **ContextForge** (`CF_GATEWAY_URL`/`CF_GATEWAY_TOKEN`, `deploy/exec.yaml:24-26,109`), never as a direct client; unverified reachable this session (a tool search for it returned no Colab tools). `NimEmbedder` (`server/core/embedder.py:26`) already exists for NIM-backed embeddings via this Portkey path. Chonkie's own remote executor is still a stub (`chonkie_chunkers.py:186-228`, line 192 "the remote executor is not wired yet", D-046) — a blocker independent of which remote path is used |
+| Gateways | **Portkey = the model gateway** (`docker/gateway/portkey/`, `portkey/configs/embed.json` NVIDIA `nv-embed-v1` 4096-d dimension-locked, `x-portkey-config` header at `server/core/session.py:210`, `graphiti-portkeyfix` sidecar injecting `custom_host=integrate.api.nvidia.com` at `deploy/compose.yaml:207-208`, `deploy/portkey.yaml`). **ContextForge = the MCP gateway** (`CF_GATEWAY_URL`/`CF_GATEWAY_TOKEN`, docker-DNS name `contextforge` on the shared `agno` network, `deploy/exec.yaml:24-26,109`, `deploy/contextforge.yaml`) — standing rule: MCP servers are reached ONLY through ContextForge, never as direct clients. Model/embedding calls route through Portkey; MCP calls (including a hypothetical Colab MCP) route through ContextForge |
 
 ## HARD CONSTRAINT — Semantica atomic tool vs Semantica lane
 
@@ -95,57 +102,540 @@ the two lanes must observe the same ordered context state to be comparable at al
 **Do not read WP-5 as authorization to wire the Semantica lane.** WP-5 is an atomic call for
 document structure only. Lane activation is WP-6+, gated on WP-1.
 
-## Parser strategy — multiple approaches, deliberately selected
+## HARD CONSTRAINT — Local-model routing (Portkey first, Colab only as narrow exception)
+
+> _Owner directive, 2026-08-29 (addendum, corrected twice same day — Colab is the exception, not
+> the default; gateway routing added)._
+
+**Model-backed work routes through Portkey — the established model gateway**
+(`docker/gateway/portkey/`, `portkey/configs/embed.json` for NVIDIA `nv-embed-v1`,
+`x-portkey-config` header wiring at `server/core/session.py:210`, `graphiti-portkeyfix` sidecar
+injecting `custom_host=integrate.api.nvidia.com` at `deploy/compose.yaml:207-208`,
+`deploy/portkey.yaml`) — **to a remote provider** (NVIDIA NIM, Ollama Cloud, or any free-tier
+API) **as the normal path.** This is the general form of the same no-local-models policy that
+sets `HF_HUB_OFFLINE=1` / `TRANSFORMERS_OFFLINE=1` on this machine. Never write code that calls
+a provider (NIM, Ollama Cloud, etc.) directly — route it through Portkey, which is also what
+keeps the provider swappable.
+
+**Colab (via the Colab MCP) is ONLY for the specific applications that require a local model
+with no API equivalent.** Owner: *"It's only specific applications that require local models
+that are not available on an API that have to be used that way."* Do not default model-backed
+work to Colab — check for a Portkey-routed remote-API equivalent first. If that narrow case is
+ever hit, the Colab MCP is an MCP server like any other and must be reached through
+**ContextForge** (`CF_GATEWAY_URL`/`CF_GATEWAY_TOKEN`, resolved via docker-DNS name
+`contextforge` on the shared `agno` network, `deploy/exec.yaml:24-26,109`;
+`deploy/contextforge.yaml`) — never wired as a direct client.
+
+Applies to Chonkie `SemanticChunker` / `NeuralChunker` / `LateChunker` / `SlumberChunker`, any
+embedding-backed chunking (`NimEmbedder`, `server/core/embedder.py:26`, subclasses
+`OpenAIEmbedder`, already routes NIM calls this way), and the extraction-quality scorer discussed
+in WP-5d below if that scorer turns out to be model-backed.
+
+**Verified caveat:** the Colab MCP was NOT connected in the session that produced this handoff —
+a tool search for it returned no Colab tools — and it would additionally need to be exposed
+through ContextForge. If a genuine local-model-only application is ever identified, confirm both
+before relying on it; do not assume it is callable.
+
+## Where this gets installed
+
+> _Verified 2026-08-29 (addendum, updated same day once the bridge substrate was confirmed)._
+> Answers "where does a new parser dependency actually land" and "how does the Go coordinator
+> reach a Python parser" — see "Orchestration and the quality gate" below for how selection and
+> execution divide.
+
+- **The callable-tool space is `server/tools/`, by design (D-026).** `server/tools/AGENTS.md`:
+  *"The atomic-tool capability layer (D-026): a **polyglot registry** consumed by `evidence/`,
+  `analysis/`, `agents/`, workflows, and the CLI — not owned by any one domain."* **Polyglot is
+  the operative word** — the registry was designed from the start to front non-Python tools, and
+  `@register` appears ONLY under `server/tools/` today (verified: zero strays elsewhere in
+  `server/`). Precedent for fronting an out-of-process engine from inside the registry already
+  exists: `server/tools/_sbv_client.py` is an SBV REST client shared by `sbv_sms.py` and the
+  `docker/tools` facade. WP-6a's Go-adapter-fronting-`platform-tools` design is the mirror image
+  of a pattern this repo already runs — see WP-0 for the consolidation gap this implies.
+- **`platform-tools`** (Coolify app `exec-platform-tools` on **OVH-1**, `deploy/platform-tools.yaml`)
+  runs the Python FastAPI facade `docker/tools/tools/facade.py`, which **volume-mounts the
+  `server.tools` package** so its inventory and execution surface stay in sync with the registry
+  (D-026). Port **`:8090`** (`"${BIND_IP:-127.0.0.1}:8090:8090"` — parsers/extractors facade,
+  tailnet-only; port `8085` on the same container is the SBV GUI). Reachable cross-app over the
+  shared external `agno` docker network by DNS name `platform-tools` — this is already how
+  `agentos-api`/`agentos-mcp` reach it (`SBV_BASE_URL=http://platform-tools:8085`).
+- **Verified routes:** `GET /health` → `registry_ok`/`registry_error` + the sorted tool-id list;
+  `GET /tools` → full manifest (id, capability, description, provenance); `GET
+  /tools/resolve/{capability}?hint=&size=` → ordered substitution candidates for a
+  capability+input; `POST /tools/{tool_id}/run` with a contract payload (e.g. `{"path":
+  "/r2/..."}`) → executes one atomic tool and returns its result. Errors: `422` = contract
+  rejection/wrong format ("caller should try resolve() alternatives"), `404` = unknown tool or
+  file not found, `503` = registry load failure (degrades, never crashes).
+- **This IS the Go→Python bridge for parser execution** (see MIGRATION CONSTRAINT above for the
+  dated correction). **Authority split, stated explicitly:** `platform-tools` provides
+  **execution**; the Go coordinator (`engine/parser`) retains **selection**. A Go adapter fronting
+  this facade must use `GET /tools` for discovery and apply its OWN `Capability`/
+  `QualityFor(format)` to choose — it must **not** trust `GET /tools/resolve`'s ordering, which is
+  exactly the Python priority-0/alphabetical mesh flagged for removal. Getting this backwards
+  re-imports the rejected behavior into Go. See WP-6a for the adapter and its capability/quality
+  mapping design.
+- **Separately, `deploy/parser-activity-runtime.yaml`** is a **different** Coolify application on
+  **ovh-files** — also HTTP, coincidentally also on `:8090` (different host, different app, not a
+  conflict today — do not wire the wrong `:8090`), token-auth (`PARSER_ACTIVITY_TOKEN`), a
+  parser-bundle volume at `/data/agno/volumes/universal-import/parser-bundles`, watch paths
+  `engine/**`, `vendored/sbv/**`. Its `docker/parser-activity-runtime/Dockerfile` is **Go-only**
+  (`FROM golang:1.25-bookworm AS builder` → `debian:bookworm-slim`, one static binary,
+  `ENTRYPOINT ["/usr/local/bin/parser-activity-runtime"]`) — it does not run Python and is not
+  the bridge; `platform-tools` is.
+- **Python parsers ship in the MAIN image**, built by the root `Dockerfile` via
+  `RUN uv pip sync requirements.txt --system`. Consequence: **any new Python dependency must be
+  added to `requirements.txt` and the main image rebuilt/redeployed** — a `pyproject.toml` extra
+  alone (e.g. `document-ai`) never reaches production. This is exactly why Docling and the OCR
+  tier are declared but absent at runtime today (see the Docling/Tesseract rows above and Pending
+  owner decision #3).
+- **Consolidation gap (WP-0):** Semantica's 17 `parse/` modules and `StructuralChunker`, plus
+  `server/analysis/chonkie_chunkers.py`, are real working code that is **not** `@register`ed
+  under `server/tools/` today — so none of it is yet reachable via `GET /tools` /
+  `POST /tools/{id}/run`, and therefore not yet reachable from the Go coordinator either.
+  Registering them is not extra work on top of the bridge — **it delivers the bridge** for those
+  modules, with no Go-native rewrite required.
+
+## Orchestration and the quality gate
+
+> _Owner directive, 2026-08-29 (amended by a same-day addendum: parser SELECTION lives in the Go
+> coordinator, not in n8n, Unleash flags, or Python)._
+
+> **Caveat:** `engine/` is in Codex's active dirty set this session (`engine/activities/`,
+> `engine/stagegraph/`, `engine/uiw/` all modified) — the `engine/parser/*.go` symbols cited below
+> are especially volatile even by this document's usual standard; anchor on symbol names
+> (`Registry.Select`, `Capability.QualityFor`, `ExecuteSelected`), not the line numbers given.
+
+- **n8n orchestrates.** It is the orchestrator; the whole point of n8n here is to utilize the
+  tools. Every custom tool to date is wrapped in an n8n code node — follow that pattern.
+- **The Go coordinator selects and executes the parser.** `engine/parser/registry.go:63`
+  `Registry.Select(format)` already implements quality-ranked, declared-coverage adapter
+  selection — documented "Quality breaks [ties]" — using `QualityPrimary` / `QualityFallback` /
+  `QualityExperimental` (`engine/parser/parser.go:69-95`), where each adapter declares its own
+  `Capability.QualityFor(format)` (`parser.go:151`). This IS the multi-approach mechanism the
+  owner asked for: alternates are registered adapters with a declared quality, not
+  exception-chained fallbacks. n8n calls into this selection+execution; it does not reimplement
+  it.
+- **Temporal executes durably.** n8n runs the extraction as a Temporal **activity** (bridge
+  already exists: `n8n_webhook_activity`, `server/temporal/n8n_activities.py`, registered on the
+  worker in `server/temporal/worker.py`); that activity is what invokes the Go coordinator's
+  `Select` + `ExecuteSelected` (`registry.go:158`), which pins the exact `parserID`/
+  `parserVersion` used, giving deterministic replay.
+- **For Python-implemented adapters, execution routes through `platform-tools`**
+  (`deploy/platform-tools.yaml`, port `:8090`, `POST /tools/{id}/run`) — but selection stays with
+  the Go coordinator's `Capability`/`QualityFor(format)`, never `platform-tools`' own `GET
+  /tools/resolve` ordering. See "Where this gets installed" and WP-6a.
+- **A model or worker then scores the extraction QUALITY / confidence** — this is a distinct
+  evaluation step after the activity returns, not part of the parser (atomicity constraint, see
+  "PARSE vs CHUNK" and WP-5d).
+- **If quality/confidence is low, OR the extraction failed, the workflow calls `Select` again for
+  the next-best declared quality and executes that DIFFERENT adapter — before the workflow moves
+  on.** The retry is quality-ranked adapter substitution inside the Go coordinator, not a re-run
+  of the same activity and not a Python-side exception catch.
+
+**This is quality-gated method substitution using the Go coordinator's existing declared-quality
+registry, NOT the exception-chained fallback mesh the owner rejected, and NOT a parallel
+selection scheme invented in Python or n8n.** The discriminator is an extraction-quality score,
+not a caught exception. Each candidate method is its own registered `Adapter` with its own
+declared `Quality`, so the substitution is explicit, durable (both attempts are recorded via
+`ExecuteSelected`'s immutable capability snapshot, `registry.go:74`), observable in workflow
+history, and individually retryable.
+
+This supersedes the purely static "flag-selected alternates" framing in the Parser strategy
+section below: **selection is the Go coordinator's job** (`engine/parser`), not a Python
+`format_router` priority list or a bare Unleash flag pick. Named flags still gate which adapters
+are *registered* as eligible; the Go registry's declared `Quality` decides ranking among them,
+and the runtime choice on a failing score is made by the quality gate calling `Select` again. See
+WP-5d.
+
+## MIGRATION CONSTRAINT — Python router removal, sequenced on Go adapter coverage
+
+> _Owner directive, 2026-08-29: "That Python router needs to just be flagged for removal."_
+>
+> **Dated correction (2026-08-29, same session).** An earlier draft of this section stated "no
+> Go→Python bridge adapter exists" and called that the single biggest open blocker on this
+> migration. **That was wrong and is superseded here** — the bridge substrate already exists and
+> is already deployed. See "Where this gets installed" below for `platform-tools`. Do not act on
+> the earlier "no bridge" framing; the corrected picture follows.
+
+**Still true and still load-bearing:** `engine/adapters/` currently contains exactly **ONE**
+adapter — `sbv/`. There are no document, markdown, or AI-chat adapters yet. Meanwhile the
+**Python registry holds 25 registered parsers, 16 of which accept `.md`/`.txt`.**
+
+**Corrected:** the Go coordinator is not missing a way to reach Python parsers. `platform-tools`
+(`deploy/platform-tools.yaml`, Coolify app on OVH-1) already fronts the Python tool registry over
+HTTP on `:8090` (`GET /tools`, `POST /tools/{id}/run` — see "Where this gets installed"). The
+vendored Semantica `parse/` modules, `StructuralChunker`, and Chonkie remain usable from the Go
+coordinator once registered as Python tools with `@register` — **this migration does not force a
+Go-native rewrite of every parser.** What remains open is narrower: the `capability`→`FormatID`
+mapping, and who declares `QualityFor(format)` on behalf of each Python-fronted tool — design
+work, tracked as **WP-6a**, not a missing mechanism.
+
+So `format_router.py` and the Python parser-selection mesh around it
+(`chat_parse.py::_parse_via_registry`, `registry.resolve` priority ordering,
+`service.py::_parse`'s try-next-candidate loop) are **flagged for removal — not extended** — but
+removal is still **sequenced on Go coordinator adapter coverage existing for the formats those
+parsers serve.** The required order:
+
+1. Prove a candidate parser standalone on the four sample files (**WP-5c — safe to run now, not
+   blocked on anything below**).
+2. Register it as a Go `Adapter` with a declared `Capability` / `QualityFor(format)`, fronting it
+   through `platform-tools` where the implementation is Python (**WP-5b** / **WP-6a**).
+3. **Only once Go coverage exists for a given format** does the Python path for that format get
+   removed.
+4. `format_router.py` is deleted **last**, when nothing routes through it any more.
+
+Do not read this as authorization to delete `format_router.py` or the registry mesh now — an
+unqualified removal would break every currently-working ingest path. See WP-2 (inverted) and
+WP-4 (downgraded) below.
+
+## Parser strategy — multiple approaches, deliberately selected (selection lives in the Go coordinator)
 
 > _Owner directive, 2026-08-29: "I would like to have multiple approaches for parsing these
-> things out, in case one of them doesn't work the way that we expect."_
+> things out, in case one of them doesn't work the way that we expect." Amended same day: "Parsing
+> should all be coordinated through the GO coordinator. The Go parsing coordinator can call on
+> whichever parser is best for that particular document. So for testing, validate that any one of
+> the parsers work and then it gets written into the Go orchestrator."_
 
 This is **not** a return to the exception-chained fallback mesh (owner rejected that: routing
-must be by analysis, not by retry-until-something-doesn't-raise). The contract is:
+must be by analysis, not by retry-until-something-doesn't-raise) — and, per the same-day
+amendment, it is **not a Python `format_router` priority scheme either.** The contract is:
 
-- **Detection selects a primary** — signature-based, via `format_router`.
-- **Alternates are registered under the same capability with EXPLICIT priorities** (the
-  `sbv_sms.py:393 priority=100` pattern), never left to `pkgutil` alphabetical order.
-- **Alternates are chosen by named Unleash flag or explicit operator hint**, not reached by
-  catching an exception.
-- **A failure of the routed primary is a hard, logged error naming the file** — never a silent
-  slide into a lesser parser.
+- **The Go coordinator (`engine/parser`) owns selection**, via `Registry.Select(format)`
+  (`registry.go:63`) and each adapter's declared `Capability.QualityFor(format)`
+  (`parser.go:151`, `QualityPrimary`/`QualityFallback`/`QualityExperimental`, `priority()` at
+  `parser.go:69-95`). `format_router.SIGNATURES` in Python still does upstream format
+  DETECTION (what kind of file is this); it is not where selection among competing parser
+  implementations belongs going forward. For Python-implemented adapters, execution is fronted
+  by `platform-tools` (`:8090`); selection never defers to that facade's own `/tools/resolve`
+  ordering — see WP-6a.
+- **Alternates are registered adapters with an EXPLICIT declared quality** — `QualityPrimary` /
+  `QualityFallback` / `QualityExperimental` — never left to `pkgutil` alphabetical order or an
+  undeclared Python priority.
+- **Named Unleash flags gate which adapters are registered/eligible at all**; the Go registry's
+  declared quality decides ranking among eligible adapters, and the runtime choice on a failing
+  score is made by the quality gate ("Orchestration and the quality gate" above, WP-5d), not by a
+  static flag pick or an operator hint alone.
+- **A failure or a low-confidence score on the selected adapter triggers `Select` again for the
+  next-best declared quality (WP-5d)** — never a silent slide into a lesser parser outside that
+  mechanism. `ExecuteSelected` (`registry.go:158`) pins the exact `parserID`/`parserVersion` used
+  each time, so both attempts are recorded for deterministic replay. Only exhausting every
+  registered adapter without a passing score is a hard, logged error naming the file.
 
-### Candidate set (verified availability as of this HEAD)
+### PARSE vs CHUNK — a strict contract (owner invariant, 2026-08-29)
+
+> Owner: *"Every single parser has the same contract and the same destinations. And they're
+> entirely atomic. And they do one thing, they parse, they do nothing more."*
+
+- **Uniform contract.** Every registered parser takes the same payload shape (`{"path": ...,
+  "source_meta": ...}`) and returns the same shape (`{"records": [...], "stats": {...}}`) — this
+  is what lets `POST /tools/{id}/run` front any of them generically and what lets
+  `_parse_via_registry` swap candidates. The Go side mirrors it: `ParserInput` →
+  `RawRecordEnvelope` via `BundleWriter`.
+- **Same destinations.** Parsers do not choose where output goes. They emit normalized records;
+  the pipeline decides storage, lane, and projection. Lane assignment is a pipeline/caller
+  decision (Pending owner decision #1 below) — no work package here proposes a parser that picks
+  its own lane.
+- **Atomic, single-purpose.** A parser parses. It does **not** chunk, embed, classify, score,
+  route, or assign lanes.
+
+**Correction this forces, applied throughout this document:** `StructuralChunker` and the
+Chonkie chunkers (candidates A/C/D/E below) are **CHUNKERS, not parsers.** If registered under
+`server/tools/` (WP-0), they must carry a DISTINCT capability — e.g. `chunk.text` /
+`chunk.structural` — never `parse.transcript` or any `parse.*` id. Anywhere earlier text in this
+document calls `StructuralChunker` a "parser" or implies the `.md` **parse** stage itself must
+preserve `##` boundaries, read that as superseded here: boundary preservation is a **chunk-stage**
+concern (WP-5/WP-5c below), not a parse-stage one. The **parse** stage for this content class is
+comparatively simple: does a document parser emit ONE record per document, or one record PER
+SECTION? Both are contract-legal (chat parsers already emit one record per message — multi-record
+output is normal) — **recommendation: one record per document at the parse stage**, keeping the
+parser dumb and uniform, and let a structure-aware chunker (chunk stage) own section granularity,
+since heading-based segmentation is a semantic/retrieval-tuning judgment that should be changeable
+without touching the parser.
+
+### Ingest taxonomy — parse vs extract vs chunk (owner reframing, 2026-08-29)
+
+> Owner: *"Chunking can be separate... If it doesn't need to be parsed and it really needs to be
+> chunked and ingested, then so be it."*
+
+**The insight:** parsing means decoding a *structured export format* into records — a ChatGPT
+JSON export, an SMS Backup XML, a Facebook HTML dump each have a format to decode. **A markdown
+document has no format to decode. It is already text.** This reframes a finding this document
+otherwise presents as a defect: 16 registered parsers accept `.md`/`.txt` and every one fails on
+document-class markdown. That is not primarily a missing-signature bug — **it is a category
+error.** These four files were never parse-stage inputs; `transcripts.markdown` (the whole-file
+fallback) exists precisely to paper over that mismatch, and it is doing **document ingest under a
+transcript id** — misnamed, not merely a weak fallback.
+
+**Taxonomy, using vocabulary the repo already has** (`server/ingest/`, `ingest_file()`,
+`IngestLane`, `IngestReceipt` all exist — "ingest" is the established stage name; do not invent
+"processing" as a competing term):
+
+- **Stage: `ingest`** — the umbrella pipeline every input goes through.
+- **`parse.*`** — decode a structured export format into records. Only applies when there IS a
+  format to decode (chat exports, SMS XML, messaging CSV).
+- **`extract.*`** — get text out of an opaque/binary container (PDF, DOCX, PPTX, images). Already
+  exists: `extract.text` → `documents.extract-docling` / `documents.extract-text`.
+- **`chunk.*`** — segment text into retrievable units. NEW capability; `StructuralChunker` and the
+  Chonkie chunkers register here (see the correction above).
+- Optionally **`normalize.*`** for a cleaning step (e.g. stripping the NotebookLM
+  `[span_N](start_span)` markers still embedded in one of the four sample files).
+
+**Plainly: an ingest run does not require a parse step.** For already-text inputs the path is
+ingest → (optional normalize) → chunk → store — the parse stage is **skipped, not failed-through.**
+The four sample files take exactly this path: chunk + ingest, no parser.
+
+**The pipeline shape is broadly right; one suffix is misrouted.** `service.py` already
+distinguishes `_extract_document()` (documents) from `_parse()` (transcripts) — the actual defect
+is narrower than "no parser exists": `.md` sits in `_TEXT_SUFFIXES` and is therefore misfiled into
+the TRANSCRIPT branch, when document-class markdown should take a document/text path instead
+(chunk, not parse).
+
+**Naming migration cost — do not start it now.** The existing pipeline names the stage "parse"
+throughout: `parse_activity`, `_parse()`, `parse.transcript`, `parse_chat_export`,
+`ParseParams`/`ParseResult`. Adopting the parse/extract/chunk split under the `ingest` umbrella
+does **not** require renaming any of that today. Recommendation: use the new taxonomy for NEW
+capabilities immediately (`chunk.*`), leave existing `parse.*` ids alone, and treat any rename as
+a separate, later change — not something to start inside the current freeze.
+
+### Candidate set — chunker bake-off (verified availability as of this HEAD)
+
+> Per the contract above, candidates **A, C, D, E are CHUNK-stage** (they operate on already-parsed
+> records/text and must register, if at all, under a `chunk.*` capability, never `parse.*`).
+> Candidates **B, F, G are PARSE/CONVERT-stage** (format converters for office documents) — not
+> applicable to the four already-markdown sample files, kept here for the separate office-format
+> decision (Pending owner decision #3).
 
 | # | Approach | Installed? | Needs | Risk / unknown |
 |---|---|---|---|---|
-| A | **Semantica `StructuralChunker`** (`vendored/semantica/semantica/split/structural_chunker.py`) | **Yes — vendored** | Nothing. No network, no model | Zero callers today; behavior on these files unproven |
-| B | **Semantica `parse/` document modules** (17 modules incl. `document_parser`, `docling_parser`) | **Yes — vendored** | Nothing for the pure-python ones | `docling_parser` inherits the missing-Docling problem; others use pdfplumber/python-docx/BeautifulSoup which ARE base deps |
-| C | **Chonkie `RecursiveChunker` + hand-specified heading delimiters** (`RecursiveLevel(delimiters=['\n# ','\n## ','\n### '])`) | **Yes — `requirements.txt:23`** | Explicit rules config | `from_recipe("markdown")` is NOT usable — verified live, attempts a network download of `markdown_en` and fails |
-| D | **Chonkie `TableChunker`** for the tabular passages | **Yes** | Nothing | Narrow; complements rather than replaces |
-| E | **Chonkie `SemanticChunker`** | **Yes (lib)** | **Remote inference** — embedding model. Owner hard rule: no local models. Must call out (Colab Pro / NIM) | Chonkie's own remote executor is a stub (`chonkie_chunkers.py:192`, D-046) — the call-out path does not exist yet |
-| F | **Docling** | **NO — not in any deploy image** | `document-ai` extra + image rebuild | Converter; for *already-markdown* input the conversion is a no-op, so low value for THIS class. Real value is the office formats that hard-fail today |
-| G | **LlamaParse** | **NO — not present at all** | API key; transmits case content externally | Escalation tier for hard scanned PDFs only. Not needed for markdown |
+| A | **[CHUNK] Semantica `StructuralChunker`** (`vendored/semantica/semantica/split/structural_chunker.py`) | **Yes — vendored** | Nothing. No network, no model | Zero callers today; behavior on these files unproven |
+| B | **[PARSE/CONVERT] Semantica `parse/` document modules** (17 modules incl. `document_parser`, `docling_parser`) | **Yes — vendored** | Nothing for the pure-python ones | `docling_parser` inherits the missing-Docling problem; others use pdfplumber/python-docx/BeautifulSoup which ARE base deps. Not needed for the four (already-markdown) sample files |
+| C | **[CHUNK] Chonkie `RecursiveChunker` + hand-specified heading delimiters** (`RecursiveLevel(delimiters=['\n# ','\n## ','\n### '])`) — the **preferred** Hub-free fix | **Yes — `requirements.txt:23`** | Explicit rules config (inline; no vendored asset, no Hub call) | Root cause of the live `from_recipe("markdown")` failure: `chonkie.utils.hub.get_recipe()` → `huggingface_hub` download → `LocalEntryNotFoundError`, because this machine sets `HF_HUB_OFFLINE=1`/`TRANSFORMERS_OFFLINE=1` (owner's no-local-models guard) — not a Chonkie defect. That guard would block the Hub call in any container inheriting these env vars, which this inline-delimiter approach sidesteps entirely (no Hub touch at all). Vendoring the recipe JSON + `from_recipe(..., path=<local>)` is also Hub-free but is a **last resort only** — owner correction: do not treat vendoring as the recommended fix |
+| D | **[CHUNK] Chonkie `TableChunker`** for the tabular passages | **Yes** | Nothing | Narrow; complements rather than replaces |
+| E | **[CHUNK] Chonkie `SemanticChunker`** | **Yes (lib)** | **Remote inference through Portkey** — a thin `BaseEmbeddings` shim fronting the existing `NimEmbedder` (`server/core/embedder.py:26`, NVIDIA NIM through Portkey) | **VERIFIED: accepts a custom embedder — Colab blocker removed.** `SemanticChunker.__init__(embedding_model: Union[str, BaseEmbeddings] = "minishlab/potion-base-32M", ...)`: a string goes through `AutoEmbeddings.get_embeddings()` (HF Hub, hits the offline guard); a `BaseEmbeddings` instance is used directly, bypassing the Hub entirely. Candidate E does **not** require Colab — it requires writing the `BaseEmbeddings` shim. **Remaining unverified sub-question:** immediately after, `__init__` calls `self.embedding_model.get_tokenizer()` — the shim must also supply a tokenizer, and a naive one could pull an HF tokenizer and re-trip the offline guard. Chonkie's own remote executor is a stub either way (`chonkie_chunkers.py:192`, D-046). **WP-5e:** compare this remote-embedder path against running native `potion-base-32M` on Colab (chunk quality, latency, cost) — owner wants both measured, do not pre-judge |
+| F | **[PARSE/CONVERT] Docling** | **NO — not in any deploy image** | `document-ai` extra + image rebuild | Converter; for *already-markdown* input the conversion is a no-op, so low value for THIS class. Real value is the office formats that hard-fail today |
+| G | **[PARSE/CONVERT] LlamaParse** | **NO — not present at all** | API key; transmits case content externally | Escalation tier for hard scanned PDFs only. Not needed for markdown |
 
 ### Recommended order to try (and prove)
 
-**A → C → B**, with D as a complement for tables. A and C are both zero-install and
-zero-network, so they can be bake-offed immediately. E only becomes viable once a remote
-inference path exists. F is worth doing for *office formats*, on its own merits, not for these
-files. G stays deferred.
+**A → C → E → D** among the chunk-stage candidates (B/F/G are the separate office-format
+decision, not this bake-off). A and C are both zero-install and zero-network, so they can be
+bake-offed immediately. E is now unblocked (a `BaseEmbeddings`/`NimEmbedder` shim, not Colab) but
+needs that shim written first and compared per WP-5e. D complements rather than replaces the
+others for tabular passages.
 
-### WP-5c — Bake-off, not a guess
+### WP-5c — Chunker bake-off, not a guess
 
-Run A, C, and B over the **four real sample files** (the two NotebookLM outputs, the strategy
-memo, and the 56KB Michigan guide) and record, per approach: chunk count, whether `##` section
-boundaries survive, whether the chronology's dated entries stay intact as units, and whether a
-known phrase ("MRE 901 authentication") retrieves as one coherent section. Pick the primary on
-evidence; register the runners-up behind flags. This is the only way "in case one doesn't work
-as expected" is actually answered rather than assumed.
+Run the **chunk-stage** candidates A, C, and E (D as a complement for tables) over the **four
+real sample files** (the two NotebookLM outputs, the strategy memo, and the 56KB Michigan guide)
+and record, per approach: chunk count, whether `##` section boundaries survive, whether the
+chronology's dated entries stay intact as units, and whether a known phrase ("MRE 901
+authentication") retrieves as one coherent section. Pick the primary on evidence; register the
+runners-up behind flags. This is the only way "in case one doesn't work as expected" is actually
+answered rather than assumed. This bake-off measures the **chunk stage only** — the parse stage
+for this content class is the simpler one-record-per-document question addressed above.
+
+### WP-5d — Quality gate + method substitution
+
+> _Owner directive, 2026-08-29. See "Orchestration and the quality gate" above._
+
+Define the extraction-quality score and wire it around the Go coordinator's `Select` /
+`ExecuteSelected` mechanism (`engine/parser/registry.go:63,158`). **Atomicity constraint (per
+"PARSE vs CHUNK" above): the scorer is its OWN step — a separate Temporal activity or its own
+registered capability — and must NOT be implemented inside a parser or a chunker.** A parser or
+chunker that scores its own output is doing two things.
+
+**The gate splits in two (owner requirement, 2026-08-29): completeness is a correctness gate,
+quality is a judgment gate.** A chunk set that fails completeness is broken regardless of how
+good the model says the boundaries are.
+
+1. **Completeness check — DETERMINISTIC, no model, always runs, hard gate.** **Invariant:
+   chunking must be lossless and reversible — the ordered set of chunks for a source must
+   reassemble to the original.** This is the same discipline the platform already applies to
+   custody (H1/H2/H3 exist to prove nothing changed), applied to the chunk stage. Define
+   reassembly over **byte-range locators, not naive concatenation** — `engine/parser/parser.go`
+   already defines `LocatorType`, `ByteRange`, and `Locator` (with `Validate()`); each chunk
+   carries its range into the source so reconstruction is verifiable rather than assumed. The
+   check is "do the ranges cover `[0, len(source))` with no gaps" (dedupe overlapping ranges),
+   compared by hash (`sha256(reassembled) == sha256(original)`) or against an explicitly declared
+   and bounded normalization applied identically to both sides — never left implicit. **This
+   catches dropped content, duplicated content, boundary corruption, and silent truncation** —
+   exactly what a model-based scorer is worst at noticing, since a plausible-looking chunk set
+   with a missing section still reads fine. Cheap, exact, needs no API call; gates every chunk
+   run. **Tension to record, not gloss over:** the current canonical chunker runs with NO overlap
+   (`RecursiveChunker(tokenizer="character", chunk_size=1500)`), which is what makes naive
+   concatenation look viable today, but several retrieval strategies want overlap for context
+   continuity — locator-based reassembly (above) resolves this, since overlapping chunks still
+   reassemble correctly by range coverage. Adopt the locator-based definition from the start so
+   overlap remains available later without breaking the invariant. Byte-range locators also
+   independently serve R33 (material findings must open to the exact source page/location plus
+   surrounding context) — they pay for themselves twice: reassembly proof AND source-opening for
+   the reviewer.
+**Correction (owner follow-up, 2026-08-29): most of this reassembly/back-reference machinery
+already exists at the PG layer — do not design it from scratch, generalize and tighten it.**
+`working.chat_chunk` (`sql/0024_chat_conversation_and_message.sql:103-118`) already has
+`chunk_index`, `content_hash` (64-char), `chunker_id`+`chunker_version` (the chunk-stage replay
+pin from the receipt paragraph above already exists at chunk level, not just as a proposed
+addition), and `char_start`/`char_end`. Given those columns, the completeness check above is
+implementable **today** — order by `chunk_index`, assert char ranges are contiguous and cover
+`[0, len(source))` with no gaps/overlaps, hash-compare the reconstruction — this is "use the
+columns that exist," not "add reassembly support." **One real, small gap:** `char_start`/
+`char_end` are nullable (`CHECK (char_start IS NULL OR ...)`) and nothing enforces a chunker
+populates them; they must be **NOT NULL for document chunks**, and the chunker must always emit
+them — a constraint, not a redesign. **The actual gap: the parent link is chat-specific** —
+`conversation_id` is `NOT NULL REFERENCES working.chat_conversation(id)`, so document-class
+content can't use this table as-is. Two options: (a) a sibling `working.document_chunk`
+duplicating the column set with `document_id`, or (b) generalize the parent reference so one
+canonical chunk store serves both. **Recommend (b) in principle** (matches the "one space"
+principle; `chat_chunk` is already effectively the canonical chunk store) **but it is a migration
+against a live table with an existing NOT NULL FK and `UNIQUE(conversation_id, chunk_index)`** —
+not a same-turn change, and must not happen during the freeze. If (a) is chosen for speed, it
+creates exactly the kind of parallel implementation the zero-tech-debt discipline warns about;
+timebox it with a merge plan. **Vectoring, connected explicitly:** `working.chat_chunk_embedding`
+is an idempotency ledger (the vector itself lives in Weaviate) — **chunk id is the join key
+between PG and the vector store**, which is why stable chunk identity matters beyond bookkeeping:
+without it a vector hit can't resolve back to its text or source. `working.chat_chunk_projection`
+(sink CHECK `weaviate|graphiti`) tracks where a chunk has been projected. **Evidence
+back-reference, closing a loop already in this document:** `char_start`/`char_end` + parent id
+IS the source-opening pointer for R33 ("material findings must open to the exact source
+page/location plus enough surrounding material to judge meaning"), and it feeds
+`timeline.event_candidate.source_locator` (`sql/0035`, documented example
+`{"schema":"context","table":"chat_message","pk":"..."}`) directly — a chunk locator populates
+that field when a lead is promoted. Chain: chunk id + char range → `source_locator` on the event
+candidate → owner opens the original when classifying it toward evidence — one populated field
+away from working, not a new mechanism.
+
+2. **Quality check — JUDGMENT, model-backed, advisory or substitution-triggering.** Are the
+   boundaries semantically sensible (does a section hold together, is a dated chronology entry
+   intact) — candidate signals: section-boundary survival (`##`/`#` boundaries survive into
+   distinct chunks), chunk-count sanity (not 1, not absurdly many for the input size), and
+   empty/degenerate-output detection (blank or near-duplicate chunks). **This non-model heuristic
+   is the cheaper first cut** — no model, no gateway call, no API at all.
+- If a model-backed scorer is ever needed instead, it routes through **Portkey** to a remote
+  provider (NVIDIA NIM, Ollama Cloud, or a free-tier API) like any other model-backed work here.
+  Colab is reserved only for the narrow local-model-only case in the HARD CONSTRAINT above and
+  does not apply to a scorer.
+- **The flow is `Select(format)` → `ExecuteSelected` → score.** On a failing score, a raised
+  error, or a `422` from a Python-fronted tool via `platform-tools` (WP-6a), call `Select` again
+  — the registry's declared `Quality` ranking (`QualityPrimary` → `QualityFallback` →
+  `QualityExperimental`) hands back the next-best registered `Adapter` — and run
+  `ExecuteSelected` for that adapter, before the workflow proceeds to WP-6. Both invocations pin
+  their own `parserID`/`parserVersion`, so both attempts are individually replayable and show up
+  distinctly in workflow history.
+- Each candidate proven in WP-5c is registered per WP-5b/WP-6a as its own `Adapter` with its own
+  declared quality — not as branches inside one activity — so substitution is explicit and
+  durable by construction, not something this work package has to separately implement.
+
+**Verifiable outcome:** feeding a file that defeats the primary adapter causes the workflow
+history to show `Select` returning a second, different adapter, `ExecuteSelected` running and
+succeeding on it, without a human in the loop.
+
+### WP-5e — Remote-embedder vs Colab-native comparison for candidate E
+
+> _Owner directive, 2026-08-29: measure both, do not pre-judge._
+
+Compare (a) the `BaseEmbeddings` shim fronting `NimEmbedder` through Portkey against (b) running
+the native `potion-base-32M` model on Colab (via the Colab MCP, narrow-exception path, HARD
+CONSTRAINT above) on chunk quality, latency, and cost. Resolve the tokenizer sub-question from
+candidate E's row as part of building the shim.
+
+### WP-5f — Model-discovered schema, deterministic chunk application
+
+> _Owner proposal, 2026-08-29: "use a model to discover the structure and properly chunk based on
+> the markdown structure and a created schema?" **Endorsed, with one hard guard.** Run this AFTER
+> WP-5c, not before — a deterministic chunker's section-boundary result is the baseline the model
+> approach must beat; without it there is no control to compare against._
+
+**Not a new idea — already a recorded requirement.** `conversation_ingestion_system_design.md`'s
+distilled register (2026-08-23) already specifies this pattern: R03 (check ingested samples
+against a library of known schemas — fingerprint + similarity score, >85% threshold — before full
+discovery), R04 (interactive field-mapping with reusable mapping templates), R06
+(preview-before-commit on ~10 records before a full run), R67 (save/version transformation and
+mapping configs for reuse). The four sample files are genuinely heterogeneous (a dated
+chronology, a nested research guide, a framing memo, statute text with residual citation
+markers) — one fixed chunking rule serves none of them well, which is exactly the case R03/R67
+are for.
+
+**HARD GUARD — determinism, non-negotiable:** the model must **NOT** chunk. The model discovers
+a **schema**, once; a deterministic chunker **applies** that schema on every run, including
+replays. This is a forensic/evidence platform — chunk boundaries that vary between runs break
+replay and undermine custody, and `ExecuteSelected` exists specifically to re-run "precisely the
+parser named by an immutable persisted" record (`registry.go:158`) — a model-in-the-loop chunker
+defeats that guarantee. Correct shape: model runs **once per document-type** → emits a
+**versioned schema artifact** → a deterministic chunker applies that schema on every run.
+**Acceptance test: re-ingesting the same document against the same schema version MUST produce
+byte-identical chunk boundaries.** Cost/latency follows for free — one model call per
+document-type, not per document and never per chunk; R03's fingerprint matching lets repeat
+document types skip discovery entirely.
+
+**Capability shape (per the atomicity rule):** three separate capabilities, not one blended step
+— `schema.discover` (model-backed, routes through **Portkey**, emits a versioned schema
+artifact; its own capability, its own tool), `chunk.*` (deterministic, consumes the schema, no
+model), and schema storage (the schema library from R03 needs a home — PG table vs. versioned
+config is an open question, connects to R67).
+
+**Register it as a manifest, per owner follow-up — using the pattern that already exists, not a
+new one.** Two distinct artifacts, kept separate:
+
+1. **Schema manifest (the library).** Lists discovered schemas: schema id, version,
+   document-type fingerprint (R03's >85% similarity match key), created-by/run id, and the
+   chunking rules it encodes — what a new document is fingerprinted against to skip
+   re-discovery. This is the same shape of thing as `registry.manifest()` (served at
+   `GET /tools`) and `SelectCapability`'s "immutable capability snapshot" (`registry.go`) —
+   reuse the pattern, don't invent a new one.
+2. **Receipt pin (the replay record).** Which schema was actually applied to THIS ingest. **This
+   is nearly free:** `IngestReceipt` (`server/contracts/ingest.py`) already carries `receipt_id`,
+   `parser_id` + engine, **`chunker_id`**, record/chunk counts, `rejections[]`, `attempts[]`,
+   `projections[]`. Adding `schema_id`/`schema_version` alongside the existing `chunker_id` is
+   purely additive and completes the replay triple: **parser id+version, chunker id, schema
+   id+version.** That triple is what makes the byte-identical-boundaries acceptance test above
+   actually checkable after the fact. Symmetry: the platform already pins WHICH PARSER ran for
+   replay (`ExecuteSelected` takes `parserID`+`parserVersion`); pinning WHICH SCHEMA ran is the
+   same discipline applied to the chunk stage — without it, a model-discovered schema would be
+   the one un-replayable step in an otherwise replayable pipeline. **Extend the receipt further
+   (per the completeness gate in WP-5d):** also record the completeness-check result and the
+   source hash it was checked against, so a past ingest can be shown to have been complete
+   without re-running it.
+
+**DECIDED (owner, 2026-08-29): the schema manifest lives in PostgreSQL, not versioned config
+files or the parser-bundle volume.** Consistent with the single system of record — matches R18
+(store extracted artifacts in the existing bitemporal Postgres schema rather than a parallel
+tool, so the custody trail isn't fragmented) and avoids re-opening the four-store split
+(Contradiction 2). PG is the right answer, not just a convenient one: R03 requires fingerprint +
+similarity matching (>85% threshold) against the schema library at ingest time — an indexed
+lookup, which a table supports and versioned config files do not. **Schema rows must be
+IMMUTABLE once referenced** — a receipt that pins `schema_id`/`schema_version` for replay is
+meaningless if that row can later be edited, and replay would silently diverge. Reuse the
+platform's existing pattern rather than inventing a new one: append-only, a correction is a NEW
+row/version, never an edit — exactly `timeline.event_candidate`'s `forbid_mutation()` trigger
+(`sql/0035_timeline_projection.sql`, "a correction is a NEW row... never an edit to this one").
+**Migration numbering:** `sql/0046_agno_app_role.sql` was highest as of this audit (next free was
+`0047`) — Codex is committing rapidly, so re-check the highest number immediately before creating
+the file, don't trust this document. **Do not apply during the freeze** — draft only, held like
+`sql/0030`, until the Workbench/UIW critical path clears; per R68, "migration written" and
+"migration applied to the live database" are two separately-verified states, never conflate them.
+
+**Check off-the-shelf first (owner rule: wire what we own).** Chonkie already ships model-backed
+chunkers — `SlumberChunker` (LLM-driven), `NeuralChunker`, `LateChunker`. **Verified caveat: in
+this repo's wrapper they are stubs** (`server/analysis/chonkie_chunkers.py:186-228`, line 192
+"the remote executor is not wired yet", D-046) — the capability exists off-the-shelf, the wiring
+does not. The determinism guard applies to `SlumberChunker` too: an LLM chunker that re-decides
+boundaries per run has the same replay problem, so it needs the same schema-then-apply treatment
+or must be confined to the one-time discovery step, never per-run chunking.
 
 ## Findings (ranked)
 
-1. **The router is correct; its signature table is unfinished.** `detect_format` runs on every
-   ingest and works as designed — it just has three JSON signatures and none for markdown, so
-   100% of `.md` input skips routing and lands in the try-until-one-doesn't-raise mesh. This is
-   the single root cause of the "guessing instead of routing" behavior. Fixing it is additive
-   (new `FormatSig` rows), not architectural.
+1. **The router is correct as far as it goes, but the deeper issue is a category error, not a
+   missing signature.** `detect_format` runs on every ingest and works as designed — it just has
+   three JSON signatures and none for markdown, so 100% of `.md` input skips routing and lands in
+   the try-until-one-doesn't-raise mesh. For real markdown **chat exports** (which do have role
+   markers), adding `FormatSig` rows is the right, narrow fix — see WP-2. But for **document-class**
+   markdown like the four sample files, no signature should route to a parser at all: per "Ingest
+   taxonomy" above, these files need no parse step, only chunk + ingest. The narrower underlying
+   defect is that `.md` sits in `service.py`'s `_TEXT_SUFFIXES` and is misfiled into the
+   `_parse()`/transcript branch instead of a document/chunk path. Per the owner's same-day
+   amendment ("MIGRATION CONSTRAINT" above), selection among competing parser *implementations*
+   durably belongs to the Go coordinator (`engine/parser`), not more Python `FormatSig` rows;
+   `format_router.py` is superseded and scheduled for removal once Go coverage exists.
 
 2. **The destination table was purpose-built for this content class and has no producer.**
    `timeline.event_candidate` already names `'ai_chat'` as a source system and already encodes
@@ -157,9 +647,11 @@ as expected" is actually answered rather than assumed.
    Semantica's `parse/` has 17 working format modules with zero callers. The platform is
    maintaining two document layers and running neither.
 
-4. **`StructuralChunker` is the closest thing to the right tool for this class** and is vendored,
-   tested, and uncalled. For already-markdown input it needs no converter at all — Docling and
-   LlamaParse are converters, and conversion is a no-op here.
+4. **`StructuralChunker` is the closest thing to the right tool for this class — as a CHUNKER, not
+   a parser** (see "PARSE vs CHUNK" above) — and is vendored, tested, and uncalled. For
+   already-markdown input it needs no converter at all — Docling and LlamaParse are converters,
+   and conversion is a no-op here; the four files skip both the parse and extract/convert stages
+   entirely and go straight to chunk + ingest.
 
 5. **Ingest defaults to the `platform` lane.** Forgetting `lane=` silently routes custody-case
    material into `platform`. The "nothing reaches evidence without promotion" invariant holds,
@@ -170,16 +662,40 @@ as expected" is actually answered rather than assumed.
    Not currently exploitable (nothing routes straight to evidence), but the protection is not
    structural.
 
-7. **Parser precedence is decided by alphabetical filesystem order.** Only `sbv_sms` declares a
-   priority. `ai_chat/` sorting before `generic/` is what currently keeps the whole-file fallback
-   last. Renaming a package would silently promote the fallback above every real parser, and no
-   test would catch it because whole-file always succeeds.
+7. **Parser precedence is decided by alphabetical filesystem order — a Python-side risk now
+   scheduled for retirement, not a permanent fix target.** Only `sbv_sms` declares a priority.
+   `ai_chat/` sorting before `generic/` is what currently keeps the whole-file fallback last.
+   Renaming a package would silently promote the fallback above every real parser, and no test
+   would catch it because whole-file always succeeds. Per the owner's same-day amendment
+   ("MIGRATION CONSTRAINT" above), the durable fix is Go coordinator adapter coverage
+   (`engine/parser/registry.go:63`), not a Python priority scheme — WP-4 is at most a throwaway
+   interim mitigation while that migration is in flight.
 
 8. **Ingested content is effectively unsearchable.** Substring `ILIKE` only; semantically
    invisible; and the FTS/trigram indexes that already exist are not used by that route.
 
 ## UNRESOLVED (mandatory)
 
+- **Do not remove `format_router.py` / the Python parser-selection mesh yet.** It is flagged for
+  removal (owner 2026-08-29), sequenced on Go adapter coverage per format — see "MIGRATION
+  CONSTRAINT" and WP-2/WP-3/WP-4 (shrunk/inverted/downgraded below). An unqualified removal now
+  would break every currently-working ingest path.
+- **Design work remaining for the Go↔platform-tools bridge, tracked as WP-6a (not a missing
+  mechanism).** The bridge itself exists and is deployed (`platform-tools`, `:8090` — see "Where
+  this gets installed"); what's still open is the `capability`→`FormatID` mapping and who
+  declares `QualityFor(format)` for each Python-fronted tool. RECOMMENDED design (not just an
+  option): declare `formats=(...)` and `quality={format: "primary"|"fallback"|"experimental"}`
+  as optional `@register` kwargs, surface both via `GET /tools`, and have the Go bridge adapter
+  build its `Capability`/`QualityFor(format)` directly from that manifest — see WP-6a. This keeps
+  declaration (Python, next to the implementation) and selection (Go, `Registry.Select`) separate,
+  the same split `sbv_sms.py`'s `priority=100` already runs today. Until the new `@register`
+  fields exist, a hand-maintained Go-side override list is acceptable as **throwaway scaffolding
+  only** — not the destination.
+- **Consolidation gap tracked as WP-0.** `engine/adapters/` currently holds only `sbv/`; the
+  vendored Semantica `parse/` modules, `StructuralChunker`, and `server/analysis/chonkie_chunkers.py`
+  are real working code not yet `@register`ed under `server/tools/` (D-026's polyglot registry),
+  so none of it is reachable via `platform-tools` yet either. This is design/registration work,
+  not a blocked or unsolved mechanism.
 - **No bridge `working.candidate_event` → `timeline.event_candidate`.** Semantica's existing
   extractor writes the former; the timeline reads the latter. Not attempted — the correct
   direction (bridge vs. write `event_candidate` directly) is an owner/architecture call, and
@@ -187,10 +703,22 @@ as expected" is actually answered rather than assumed.
 - **`sql/0045_context_fingerprint_semantics.sql` not reviewed.** It is untracked and in Codex's
   live working tree; auditing a file changing underneath produces false findings. It is very
   likely the change-detection substrate this handoff depends on — reconcile before building.
-- **Chonkie heading-aware chunking has no verified path.** `from_recipe("markdown")` fails
-  (network download). Workaround would be hand-specified `RecursiveLevel` delimiters
-  (`['\n# ','\n## ',...]`) — NOT verified working. `StructuralChunker` is the untested-in-context
-  alternative. One must be proven before relying on either.
+- **Chunk-stage heading-aware chunking has a diagnosed root cause but no verified fix yet** (this
+  is chunk-stage, not parse-stage — see "PARSE vs CHUNK"). `from_recipe("markdown")` fails
+  because `chonkie.utils.hub.get_recipe()` calls `huggingface_hub`, and this machine has
+  `HF_HUB_OFFLINE=1`/`TRANSFORMERS_OFFLINE=1` set (the owner's no-local-models guard) — not a
+  Chonkie bug or network outage. Preferred fix order: (a) hand-specify
+  `RecursiveLevel(delimiters=['\n# ','\n## ','\n### '])` inline; (b) Semantica `StructuralChunker`;
+  (c) vendor the recipe JSON and call `from_recipe(..., path=<local>)` — **last resort only**.
+  `SemanticChunker` (candidate E) is now verified to accept a custom `BaseEmbeddings` and no
+  longer needs Colab, but its tokenizer sub-question is still open. **None of A/C/E has been
+  executed and verified yet** — one must be proven before relying on any of them (WP-5c).
+- **Local-model routing: Colab is a narrow exception, not the default.** Model-backed work
+  routes through **Portkey** to a remote provider (NIM/Ollama Cloud/free-tier) as the normal
+  path; Colab via the Colab MCP (reached through ContextForge like any other MCP server) is only
+  for an application that requires a local model with no API equivalent. The Colab MCP was not
+  reachable from the audit session — keep that caveat, but it no longer blocks the current work
+  packages (WP-5d's scorer doesn't need it; candidate E doesn't either, per WP-5e).
 - **BUILD_STATUS UNKNOWN.** No tests run; repo is frozen and dirty. Do not claim PASS.
 - **Nothing verified against a live database or deployed service.** All findings are from source
   reading plus one local read-only parser probe. Migration/deploy state is read from file headers.
@@ -227,39 +755,102 @@ as expected" is actually answered rather than assumed.
 Each item is a bounded work package. Nothing here is authorized to run during the
 Workbench/UIW critical path or against Codex's in-flight files.
 
+0. **WP-0 — Register the already-owned, currently-unregistered callable modules into
+   `server/tools/` per D-026.** Semantica `StructuralChunker` first (leading chunk-stage
+   candidate), then the Semantica `parse/`/`extract/` modules needed for the office formats that
+   currently hard-fail, then the Chonkie chunkers (`server/analysis/chonkie_chunkers.py`). Each
+   gets an `@register` id, a **capability under `chunk.*` or `extract.*` (never `parse.*` for a
+   chunker)**, and an `accept` predicate. Confirm which of Semantica's `parse/` dependencies
+   (pdfplumber, python-docx, python-pptx, openpyxl, BeautifulSoup, pytesseract) are already in
+   `requirements.txt` before registering — anything missing there is absent at runtime, the same
+   trap that leaves Docling and the OCR tier non-functional today. Verifiable: each module appears
+   in `GET /tools` and executes via `POST /tools/{id}/run`. Unblocks the WP-5c bake-off (uniform
+   interface to compare candidates under) and WP-6a (delivers the Go↔Python bridge for these
+   modules with no Go-native rewrite).
 1. **WP-1 — Reconcile with `0045`.** Read `sql/0045_context_fingerprint_semantics.sql` once
    committed; confirm whether it provides the change-detection trigger this chain assumes.
    Blocks WP-6.
-2. **WP-2 — Add markdown signatures to `format_router.SIGNATURES`.** Lift the existing role
-   regexes into `FormatSig` rows: `gemini_md._ROLE_RE` (`**You:**`/`**Gemini:**`),
+2. **WP-2 — Add markdown signatures to `format_router.SIGNATURES`, SHRUNK to real chat exports
+   only.** Per "Ingest taxonomy" above, this is only needed to route markdown **chat exports**
+   (which do have role markers) to their correct parser — lift the existing role regexes into
+   `FormatSig` rows: `gemini_md._ROLE_RE` (`**You:**`/`**Gemini:**`),
    `chatgpt_custom_gpt_md._ROLE_RE` (`You asked:`/`ChatGPT Replied:`), plus claude/perplexity
-   markdown markers. Verifiable: a real Gemini `.md` export routes first-try with
-   `attempts == 1`.
-3. **WP-3 — Add a `document-markdown` signature** (headings present, role markers absent) that
-   routes AWAY from `parse.transcript` to a document capability. This is the class the four
-   files belong to; nothing detects it today.
-4. **WP-4 — Give the whole-file fallback an explicit lowest priority.** Set `priority=-100` on
-   `transcripts.markdown` (and `transcripts.generic-md` above it) so precedence stops depending
-   on `pkgutil` alphabetical order. Add a test asserting the fallback resolves last.
-5. **WP-5 — Wire a structure-preserving document parse for markdown.** Prefer the **bundled
-   Semantica tools** (owner-sanctioned): `StructuralChunker`
-   (`server/vendored/semantica/semantica/split/structural_chunker.py`) and, where a format
-   converter is genuinely needed, the matching module from Semantica's `parse/` set. Fallback
-   option is a hand-specified Chonkie `RecursiveRules` with heading delimiters — whichever is
-   proven working first. **Do not use Chonkie's `from_recipe("markdown")`** (verified failing:
-   attempts a network download). If a model-backed tier (`SemanticChunker`) is chosen instead,
-   it must route to remote inference per the no-local-models rule, and Chonkie's remote executor
-   is still a stub. Register behind a named Unleash flag. Verifiable: the 56KB guide chunks on
-   `##` boundaries, and "MRE 901 authentication" retrieves as one coherent section.
-5b. **WP-5b — Expose the chosen parser as a tool and wrap it in an n8n code node,** matching the
-   existing pattern (owner: every custom tool to date is wrapped that way). It should be
-   callable from n8n and reachable from Temporal via `n8n_webhook_activity`
-   (`server/temporal/n8n_activities.py:45`), not added as a bespoke HTTP route. Verifiable: the
-   n8n workflow parses one of the four sample files end-to-end and returns chunk counts.
+   markdown markers. **Document-class markdown (the four sample files) does NOT need a signature
+   that selects a parser** — it needs the routing fix in WP-3 instead. Per "MIGRATION CONSTRAINT"
+   above, `format_router.py` itself is flagged for removal, so treat this as maintenance on a
+   superseded module, sequenced per that constraint, not a destination. Verifiable: a real
+   Gemini `.md` export routes first-try with `attempts == 1`.
+3. **WP-3 — Route document-class markdown PAST the parse stage entirely, not into a new parser
+   signature.** The four sample files need no parser (see "Ingest taxonomy"). The narrower
+   defect: `.md` sits in `service.py`'s `_TEXT_SUFFIXES` and is misfiled into the `_parse()`/
+   transcript branch. Fix the routing so headings-present/role-markers-absent `.md` takes the
+   document/chunk path (`_extract_document()`'s sibling, or a new document-text path) instead of
+   `_parse_via_registry`. Do not add this as a new Python `FormatSig` row selecting a parser —
+   there is no parser to select. Verifiable: one of the four sample files ingests with zero
+   `_parse()` calls and lands as chunked records via the winning WP-5c chunker.
+4. **WP-4 — OPTIONAL interim mitigation only (throwaway), not a goal in its own right.** The Go
+   coordinator's `Quality` ranking (`QualityPrimary`/`QualityFallback`/`QualityExperimental`,
+   `engine/parser`) already provides ranking durably for parser selection. **Only if the Python
+   path must keep running during migration** (MIGRATION CONSTRAINT ordering above), set
+   `priority=-100` on `transcripts.markdown` (and `transcripts.generic-md` above it) as a stopgap
+   so precedence stops depending on `pkgutil` alphabetical order in the interim. Explicitly
+   throwaway: delete this mitigation along with `format_router.py`/the registry mesh once Go
+   coverage lets that format's Python path retire.
+5. **WP-5 — Confirm the chunk-only path for document-class markdown; no parser to wire.**
+   Per "Ingest taxonomy," the four sample files skip parse and go straight to chunk + ingest.
+   This work package is: (a) make WP-3's routing land already-text `.md` on a chunk-only path,
+   and (b) prove the winning chunker from WP-5c (`StructuralChunker`, or Chonkie
+   `RecursiveChunker` with inline heading delimiters — `from_recipe("markdown")` fails here
+   because `HF_HUB_OFFLINE=1`/`TRANSFORMERS_OFFLINE=1` are set, the owner's no-local-models guard,
+   not a Chonkie defect; vendoring the recipe JSON is Hub-free too but last-resort only) actually
+   preserves `##` boundaries end-to-end through that path. If `SemanticChunker` (candidate E) is
+   chosen instead, it fronts `NimEmbedder` through **Portkey** via a `BaseEmbeddings` shim — not
+   Colab, not a local model (see WP-5e). Register the winning chunker behind a named Unleash
+   flag. **This step is standalone validation only (WP-5c) — it does not decide runtime
+   selection; that belongs to the Go coordinator (WP-5b / WP-6a).** Verifiable: the 56KB guide
+   chunks on `##` boundaries with no parse-stage call in between, and "MRE 901 authentication"
+   retrieves as one coherent section.
+5b. **WP-5b — Register the proven chunker as a Go coordinator `Adapter` under a `chunk.*`
+   capability** (never `parse.*` — see "PARSE vs CHUNK"). Once WP-5c has proven a candidate
+   against the four real sample files, implement it as an `engine/parser`-family `Adapter`
+   declaring a `Capability` with `QualityFor(format)` — `QualityPrimary` for the winner,
+   `QualityFallback`/`QualityExperimental` for registered runners-up (`parser.go:69-151`). n8n
+   still orchestrates the workflow (every custom tool to date is wrapped in an n8n code node —
+   follow that pattern) and Temporal still executes durably via `n8n_webhook_activity`
+   (`server/temporal/n8n_activities.py:45`); the activity invoked calls into the Go coordinator's
+   `Select`/`ExecuteSelected`, which for a Python-implemented winner executes through the
+   `platform-tools` facade (`:8090`, `POST /tools/{id}/run` — see "Where this gets installed" and
+   WP-6a) rather than a bespoke HTTP route or a Python-side priority pick. Verifiable: the n8n
+   workflow triggers the Go coordinator's `Select` for the sample file's format,
+   `ExecuteSelected` runs the registered chunk adapter (via `platform-tools` if Python-backed),
+   and chunk counts come back through the same n8n/Temporal path.
 6. **WP-6 — Build the `timeline.event_candidate` producer.** Write rows with
    `source_system='ai_chat'`, a real `extraction_run_id`, and `source_locator` pointing back at
    the context row. Decide bridge-vs-direct per UNRESOLVED. Verifiable: an event from the FULL
    CASE EXTRACTION chronology appears as a candidate with a working source-open pointer.
+6a. **WP-6a — Build the platform-tools bridge `Adapter` in `engine/adapters/`, and the
+   capability/quality declaration it reads.** The execution substrate already exists —
+   `platform-tools` (`deploy/platform-tools.yaml`, port `:8090`) — see "Where this gets
+   installed." Build one Go `Adapter` that: (a) calls `GET /tools` for the manifest (id,
+   capability, description, provenance) — discovery only; (b) applies the Go side's OWN
+   `Capability`/`QualityFor(format)` to choose among them — **do NOT trust `GET
+   /tools/resolve/{capability}`'s ordering**, that is exactly the Python priority-0/alphabetical
+   mesh flagged for removal (MIGRATION CONSTRAINT above); (c) executes via `POST
+   /tools/{tool_id}/run` and maps the result into a `RawRecordEnvelope`. Pair it with the
+   **recommended declaration design**: add optional `@register` kwargs `formats=(...)` and
+   `quality={format: "primary"|"fallback"|"experimental"}`, surface both via `GET /tools`, and
+   have this adapter build its `Capability`/`QualityFor(format)` directly from that manifest —
+   declaration (Python, next to the implementation) and selection (Go, `Registry.Select`) stay
+   separate, mirroring `sbv_sms.py`'s existing `priority=100` split. Until those `@register`
+   fields exist, a hand-maintained Go-side override list is acceptable as throwaway scaffolding
+   only. Treat a `422` (contract rejection/wrong format) from the facade as a hard substitution
+   trigger, distinct from a low quality score on a successful parse (WP-5d) — both feed the same
+   `Select`-again flow but are different signals. **Caution:** port `:8090` is also used by the
+   unrelated `parser-activity-runtime` app on `ovh-files` — different host, different Coolify app,
+   not a conflict today, but do not wire the wrong `:8090`. Verifiable: the adapter resolves a
+   registered capability to a Go-declared `QualityPrimary` choice, executes it through
+   `platform-tools`, and a `422` from the facade correctly triggers substitution to the
+   next-declared-quality adapter.
 7. **WP-7 — Give the timeline an HTTP/Temporal surface.** It is CLI-only today. Expose
    generation/projection as a Temporal activity so n8n can drive it.
 8. **WP-8 — Close the searchability gap.** Make non-evidence lanes reachable from a real

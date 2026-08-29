@@ -1,6 +1,7 @@
 # Master application TODO — production resume ledger
 
 > Byline: Codex · GPT-5 · 2026-08-18
+> Byline amendment: Claude Code · Opus 5 · 2026-08-29
 
 ## Completion rule
 
