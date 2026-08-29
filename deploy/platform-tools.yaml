@@ -37,6 +37,22 @@ services:
     volumes:
       - /data/agno/volumes/sbv_data:/opt/sbv/data   # SAME bind as the bundle
       - r2-nexus:/r2
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          python -c "import json,urllib.request;
+          request=urllib.request.Request('http://127.0.0.1:8090/tools/repair.capabilities/run',
+          data=b'{}',headers={'Content-Type':'application/json'},method='POST');
+          result=json.load(urllib.request.urlopen(request,timeout=5));
+          expected={'xml','html','json','ndjson','csv','pdf','image'};
+          ready={row['format'] for row in result['engines'] if row['ready']};
+          missing=sorted(expected-ready);
+          assert not missing,(missing,result)"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
     networks:
       - agno
 

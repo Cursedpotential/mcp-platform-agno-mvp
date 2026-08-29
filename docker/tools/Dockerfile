@@ -43,6 +43,7 @@ FROM ghcr.io/cursedpotential/sbv-forensic@sha256:18a2a21cceb22433ad2ec9a458b0fd0
 FROM python:3.12-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ffmpeg libheif1 nodejs npm supervisor curl \
+        poppler-utils tesseract-ocr \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=sbv /app /opt/sbv
@@ -55,16 +56,38 @@ COPY --from=sbv /usr/lib /opt/sbv-libs
 # to main anyway, so a self-contained image is strictly better than a runtime
 # mount. facade.py imports `server.tools.registry` + `load_builtin_tools()`,
 # which resolves from the baked /opt/tools/server tree.
-# pydantic = NormalizedRecord schema dep for the parser tools.
+# pydantic = NormalizedRecord schema dep for the parser tools. Repair and
+# extraction dependencies are pinned to the repository lock/requirements
+# versions rather than installing the whole application dependency graph. That
+# keeps this capability image small and prevents an optional local model stack
+# from arriving through an unrelated extra.
 WORKDIR /opt/tools
 COPY docker/tools/tools/ /opt/tools/
 # The whole server tree: server.tools.registry pulls in server.contracts.records
 # (the NormalizedRecord schema, ADR-0035) + server.tools/parsers/* +
 # server.tools._sbv_client + server.vendored.chatminer transitively.
-# All lightweight (stdlib + pydantic); heavy modules (api/workflows/core) are
-# never imported by load_builtin_tools, so the slim deps below suffice.
+# All lightweight; heavy modules (api/workflows/core) are never imported by
+# load_builtin_tools. Optional repair imports remain function-local, but every
+# engine advertised by this production image must be present.
 COPY server/ /opt/tools/server/
-RUN pip install --no-cache-dir fastapi uvicorn python-multipart pydantic
+RUN pip install --no-cache-dir \
+        fastapi uvicorn python-multipart pydantic \
+        beautifulsoup4==4.15.0 \
+        charset-normalizer==3.4.9 \
+        clevercsv==0.8.5 \
+        ijson==3.5.1 \
+        json-repair==0.62.0 \
+        lxml==6.1.1 \
+        pdf2image==1.17.0 \
+        pdfplumber==0.11.10 \
+        pikepdf==10.11.0 \
+        pillow==12.3.0 \
+        pypdf==6.15.0 \
+        pytesseract==0.3.13 \
+    && python -c "from server.tools.repair.engines import manifest; expected={'xml','html','json','ndjson','csv','pdf','image'}; rows=manifest(); ready={row['format'] for row in rows if row['ready']}; missing=sorted(expected-ready); assert not missing, f'repair engines unavailable: {missing}; manifest={rows}'" \
+    && python -c "import pikepdf; assert pikepdf.__version__" \
+    && command -v tesseract >/dev/null \
+    && command -v pdftoppm >/dev/null
 
 COPY docker/tools/supervisord.conf /etc/supervisor/conf.d/platform-tools.conf
 EXPOSE 8080 8090
