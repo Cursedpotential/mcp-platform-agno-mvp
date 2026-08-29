@@ -1,7 +1,7 @@
 # server/ — the backend boundary
 
 > Nested map. Root map: `../AGENTS.md`. Closest file wins — if you're editing inside
-> `contracts/`, `evidence/`, `tools/`, or `agents/`, read THAT directory's `AGENTS.md` too.
+> `contracts/`, `evidence/`, `timeline/`, `tools/`, or `agents/`, read THAT directory's `AGENTS.md` too.
 
 ## What's here
 
@@ -19,6 +19,10 @@ is `server.*`). ADR-0035 sub-namespaced `server/tools/` by capability.
 | `agents/` | Agent/team constructors, providers, `@tool` wrappers — see `agents/AGENTS.md` |
 | `analysis/` | Behavioral domain: `detection.py`, `patterns.py`, `court_language.py`, `semantica_wiring.py` |
 | `ingest/` | Framework-neutral ingest application service + PostgreSQL knowledge read model |
+| `case_management/` | Case-management application services and governed case views |
+| `observability/` | Audit, telemetry, and operational visibility helpers |
+| `temporal/` | Temporal activities/workflows and durable orchestration integration |
+| `timeline/` | Canonical timeline membership + Timesketch projection — see `timeline/AGENTS.md` |
 | `vendored/` | Third-party projects (`chatminer`, `semantica`) — import-only, excluded from ruff/mypy/pytest |
 
 ## Dependency direction (downward only)
@@ -31,6 +35,8 @@ tools/       <- imports contracts/ (records), vendored/chatminer. Parsers depend
                 INWARD on server.contracts.records, never on evidence/ or agents/.
 analysis/    <- imports contracts/, core/, tools/ (registry).
 ingest/      <- imports contracts/; composes evidence/tools lazily behind neutral ports.
+case_management/, observability/, temporal/, timeline/ <- application/integration packages;
+                preserve their governed source and dependency boundaries.
 agents/      <- outermost domain layer. Imports evidence/, tools/, analysis/, core/.
 api/         <- outermost. Mounts agents/ + evidence/ + tools/ into FastAPI/AgentOS.
 ```
@@ -52,6 +58,7 @@ container, so a heavy import there FATAL-loops that container (ADR-0035).
 | Evidence custody/normalize/store work | `evidence/AGENTS.md` |
 | Building/changing an agent or team | `agents/AGENTS.md` |
 | Touching the record schema | `contracts/AGENTS.md` |
+| Timeline membership or Timesketch projection | `timeline/AGENTS.md` |
 | DB session, embedder, model provider chain | `core/settings.py`, `core/session.py` (no nested map — small, read the file) |
 
 ---

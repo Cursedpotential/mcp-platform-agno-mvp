@@ -117,7 +117,7 @@ Portkey gateway (Ollama Cloud primary; LiteLLM retired, ADR-0042). Graphiti is
 retired for now (D-070). The **legacy Agno operational Surreal adapter and old
 `data-surreal` instance only** remain retired/zero-caller and parked read-only;
 they are not the current Surreal analytical role or target. Its export remains
-at `_stale/surreal-export-20260804` — **WORKSPACE-ROOT-relative**; the `_stale/`
+at `../_stale/surreal-export-20260804` — relative to this repository root; the `_stale/`
 archive is a sibling of this repo and only the owner deletes. Weaviate cutover
 was verified 2026-08-09 (D-042); Milvus `data-vector` stays deliberately down.
 
@@ -134,7 +134,9 @@ was verified 2026-08-09 (D-042); Milvus `data-vector` stays deliberately down.
 | `server/evidence/` | The evidence spine: custody, store, workflows, cli | `server/evidence/AGENTS.md` |
 | `server/tools/` | Cross-domain parser/extractor/gateway registry | `server/tools/AGENTS.md` |
 | `server/agents/` | Agent/team constructors, providers, `@tool` wrappers | `server/agents/AGENTS.md` |
-| `server/api/`, `server/core/`, `server/analysis/` | Entrypoint/config, DB session/model factory, behavioral analysis | see `server/AGENTS.md` |
+| `server/timeline/` | Canonical timeline membership and Timesketch projection | `server/timeline/AGENTS.md` |
+| `server/api/`, `server/core/`, `server/analysis/`, `server/ingest/` | Entrypoint/config, DB session/model factory, behavioral analysis, ingest application service | see `server/AGENTS.md` |
+| `server/case_management/`, `server/observability/`, `server/temporal/` | Case views/workflows, audit/telemetry, and Temporal integration | see `server/AGENTS.md` |
 | `server/vendored/` | Third-party Python projects (chatminer, semantica) — not ours to lint | — |
 | `vendored/` | Third-party **non-Python** projects we do actively develop — currently `vendored/sbv` (Go). Distinct from `server/vendored/`; both are real. | `vendored/sbv/DEVELOPMENT.md` |
 | `workbench/` | Operator Workbench — `workbench/api` (FastAPI) + `workbench/web` (Next.js) | — |
