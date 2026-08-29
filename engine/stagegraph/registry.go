@@ -71,9 +71,9 @@ var Stages = []Descriptor{
 		DependsOn:      []StageID{RetainOriginal},
 	},
 	{
-		ID:             HashSource,
+		ID:             FingerprintSource,
 		Responsibility: RespComputeHash,
-		Result:         "H1 receipt reference",
+		Result:         "context source fingerprint receipt reference",
 		DependsOn:      []StageID{RetainOriginal},
 	},
 	{
@@ -94,7 +94,7 @@ var Stages = []Descriptor{
 		Result:         "parser selection receipt",
 		DependsOn: []StageID{
 			CaptureFilesystemMetadata,
-			HashSource,
+			FingerprintSource,
 			InventoryContainer,
 			ExtractEmbeddedMetadata,
 		},
@@ -112,28 +112,28 @@ var Stages = []Descriptor{
 		DependsOn:      []StageID{ExecuteParser},
 	},
 	{
-		ID:             HashRawRecords,
+		ID:             FingerprintRawRecords,
 		Responsibility: RespComputeHash,
-		Result:         "H2 raw-record hash-manifest reference",
+		Result:         "context raw-record fingerprint manifest reference",
 		DependsOn:      []StageID{PersistRawGeneration},
 	},
 	{
-		ID:             HashRawGeneration,
+		ID:             FingerprintRawGeneration,
 		Responsibility: RespComputeHash,
-		Result:         "H3 raw-generation chain reference",
-		DependsOn:      []StageID{HashRawRecords},
+		Result:         "context raw-generation fingerprint chain reference",
+		DependsOn:      []StageID{FingerprintRawRecords},
 	},
 	{
 		ID:             ReconcileRecordAccounting,
 		Responsibility: RespReconcile,
 		Result:         "accounting receipt",
-		DependsOn:      []StageID{HashRawGeneration},
+		DependsOn:      []StageID{FingerprintRawGeneration},
 	},
 	{
 		ID:             ReconcileByteCoverage,
 		Responsibility: RespReconcile,
 		Result:         "coverage receipt",
-		DependsOn:      []StageID{HashRawGeneration},
+		DependsOn:      []StageID{FingerprintRawGeneration},
 	},
 	{
 		ID:             VerifyRawCoverageAgainstSource,
@@ -142,7 +142,7 @@ var Stages = []Descriptor{
 		DependsOn: []StageID{
 			ReconcileRecordAccounting,
 			ReconcileByteCoverage,
-			HashSource,
+			FingerprintSource,
 		},
 	},
 	{

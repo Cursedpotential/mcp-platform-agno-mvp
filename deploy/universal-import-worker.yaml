@@ -22,6 +22,8 @@
 # /data/uiw/parser-bundles.
 # Stored file:// paths are container-visible authority locators, so changing
 # only one side's mount path will fail closed.
+#
+# Byline: Codex · GPT-5 · 2026-08-29 (fixed Case Bible Sorted runtime secret)
 
 services:
   universal-import-worker:
@@ -44,11 +46,13 @@ services:
       PARSER_BUNDLE_DIR: /data/uiw/parser-bundles
       NORMALIZED_BUNDLE_DIR: /data/uiw/normalized-bundles
       INVENTORY_MANIFEST_DIR: /data/uiw/inventory-manifests
+      CASEBIBLE_R2_CONFIG_PATH: /run/secrets/casebible-r2.json
     volumes:
       - /data/agno/volumes/universal-import/source-objects:/data/uiw/source-objects
       - /data/agno/volumes/universal-import/parser-bundles:/data/uiw/parser-bundles
       - /data/agno/volumes/universal-import/normalized-bundles:/data/uiw/normalized-bundles
       - /data/agno/volumes/universal-import/inventory-manifests:/data/uiw/inventory-manifests
+      - /data/agno/secrets/casebible-r2.json:/run/secrets/casebible-r2.json:ro
     networks:
       - coolify
 
