@@ -1,6 +1,9 @@
 // Byline: Codex · GPT-5 · 2026-08-28 (production unified intake vertical slice)
 // Byline: Codex · GPT-5 · 2026-08-29 (truthful Matter baseline failure state)
 // Byline: Codex · GPT-5 · 2026-08-29 (single-case automatic scope binding)
+// Byline: Codex · GPT-5 · 2026-08-29 (Case Bible Sorted default source browser)
+// Byline: Codex · GPT-5 · 2026-08-29 (approved inspector and receipt anatomy)
+// Byline: Codex · GPT-5 · 2026-08-29 (shared fixed-case shell context)
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -22,27 +25,29 @@ import { Button } from "@/components/ui/button";
 import {
   ApiError,
   decideUIW,
-  getMatter,
   getUIWPreview,
-  listMatters,
+  listUIWSources,
   startUIW,
   uploadUIWSource,
 } from "@/lib/api-client";
 import type {
-  MatterDetail,
   UIWPreviewResponse,
   UIWStartResponse,
   UIWUploadResponse,
+  UIWSourceBrowserResponse,
+  UIWSourceObject,
 } from "@/lib/shared/types";
+import { useFixedCase } from "@/lib/fixed-case-context";
 
 type IntakePhase = "choose" | "ready" | "starting" | "review" | "deciding" | "complete" | "error";
+type PreviewTab = "source" | "metadata" | "parser";
 
 function errorText(error: unknown) {
   return error instanceof ApiError ? error.message : error instanceof Error ? error.message : "The intake request failed";
 }
 
-function declaredFormat(file: File) {
-  const extension = file.name.split(".").pop()?.toLowerCase();
+function declaredFormat(source: { name: string }) {
+  const extension = source.name.split(".").pop()?.toLowerCase();
   const formats: Record<string, string> = {
     xml: "sms_export_xml",
     json: "message_export_json",
@@ -90,10 +95,14 @@ async function fileDigest(file: File) {
 }
 
 export function UnifiedIntake() {
-  const [matter, setMatter] = useState<MatterDetail | null>(null);
-  const [scopeLoading, setScopeLoading] = useState(true);
-  const [scopeError, setScopeError] = useState<string | null>(null);
+  const { matter, primaryCourtCase, loading: scopeLoading, error: scopeError } = useFixedCase();
   const [file, setFile] = useState<File | null>(null);
+  const [remote, setRemote] = useState<UIWSourceObject | null>(null);
+  const [sources, setSources] = useState<UIWSourceBrowserResponse | null>(null);
+  const [sourcePrefix, setSourcePrefix] = useState("");
+  const [sourceFilter, setSourceFilter] = useState("");
+  const [sourcesLoading, setSourcesLoading] = useState(true);
+  const [sourcesError, setSourcesError] = useState<string | null>(null);
   const [digest, setDigest] = useState("");
   const [textPreview, setTextPreview] = useState("");
   const [phase, setPhase] = useState<IntakePhase>("choose");
@@ -102,46 +111,51 @@ export function UnifiedIntake() {
   const [preview, setPreview] = useState<UIWPreviewResponse | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [previewTab, setPreviewTab] = useState<PreviewTab>("source");
 
   useEffect(() => {
     let cancelled = false;
-
-    listMatters()
-      .then((response) => {
-        if (response.total === 0) {
-          throw new Error("Intake is blocked because the Platform has no case. Restore the single canonical case before ingesting evidence.");
-        }
-        if (response.total !== 1 || response.data.length !== 1) {
-          throw new Error(
-            `Intake is blocked because the Platform returned ${response.total} Matters. This indicates split or duplicated case data and must be repaired before ingestion continues.`,
-          );
-        }
-        return getMatter(response.data[0].id);
-      })
-      .then((fixedMatter) => {
-        if (!cancelled) setMatter(fixedMatter);
-      })
-      .catch((requestError) => {
-        if (!cancelled) setScopeError(errorText(requestError));
-      })
-      .finally(() => {
-        if (!cancelled) setScopeLoading(false);
-      });
-
+    const timer = setTimeout(() => {
+      listUIWSources({ prefix: sourcePrefix, filter: sourceFilter, pageSize: 100 })
+        .then((response) => {
+          if (!cancelled) {
+            setSources(response);
+            setSourcesError(null);
+          }
+        })
+        .catch((requestError) => {
+          if (!cancelled) setSourcesError(errorText(requestError));
+        })
+        .finally(() => {
+          if (!cancelled) setSourcesLoading(false);
+        });
+    }, sourceFilter ? 250 : 0);
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
-  }, []);
+  }, [sourcePrefix, sourceFilter]);
 
-  const primaryCourtCase = matter?.court_cases.find((item) => item.is_primary);
   const lines = useMemo(() => textPreview.split(/\r?\n/).filter(Boolean).slice(0, 12), [textPreview]);
+
+  function changeSourcePrefix(nextPrefix: string) {
+    setSourcesLoading(true);
+    setSourcePrefix(nextPrefix);
+  }
+
+  function changeSourceFilter(nextFilter: string) {
+    setSourcesLoading(true);
+    setSourceFilter(nextFilter);
+  }
 
   async function selectFile(selected: File | null) {
     setFile(selected);
+    setRemote(null);
     setUpload(null);
     setRun(null);
     setPreview(null);
     setError(null);
+    setPreviewTab("source");
     if (!selected) {
       setDigest("");
       setTextPreview("");
@@ -159,18 +173,51 @@ export function UnifiedIntake() {
     setTextPreview(nextText.slice(0, 250_000));
   }
 
+  function selectRemote(selected: UIWSourceObject) {
+    setRemote(selected);
+    setFile(null);
+    setDigest("");
+    setTextPreview("");
+    setUpload(null);
+    setRun(null);
+    setPreview(null);
+    setError(null);
+    setPreviewTab("source");
+    setPhase("ready");
+  }
+
+  async function loadMoreSources() {
+    if (!sources?.continuation_token) return;
+    setSourcesLoading(true);
+    try {
+      const next = await listUIWSources({
+        prefix: sourcePrefix,
+        filter: sourceFilter,
+        continuationToken: sources.continuation_token,
+        pageSize: sources.page_size,
+      });
+      setSources({ ...next, prefixes: [...sources.prefixes, ...next.prefixes], objects: [...sources.objects, ...next.objects] });
+    } catch (requestError) {
+      setSourcesError(errorText(requestError));
+    } finally {
+      setSourcesLoading(false);
+    }
+  }
+
   async function start() {
-    if (!file || !matter || !primaryCourtCase) return;
+    if ((!file && !remote) || !matter || !primaryCourtCase) return;
     setPhase("starting");
     setError(null);
     try {
-      const sealed = await uploadUIWSource(file);
+      const sealed = file ? await uploadUIWSource(file) : null;
       setUpload(sealed);
+      const selected = file ?? remote;
+      if (!selected) return;
       const requestId = `uiw-${matter.id}-${crypto.randomUUID()}`;
       const started = await startUIW({
         request_id: requestId,
-        source_ref: sealed.acquisition_ref,
-        declared_format: declaredFormat(file),
+        source_ref: sealed?.acquisition_ref ?? `r2://casebible-sorted/${remote?.key}`,
+        declared_format: declaredFormat(selected),
         parser_options_ref: "parser-options://default-v1",
         matter_id: matter.id,
         court_case_id: primaryCourtCase.id,
@@ -211,6 +258,7 @@ export function UnifiedIntake() {
 
   function reset() {
     setFile(null);
+    setRemote(null);
     setDigest("");
     setTextPreview("");
     setUpload(null);
@@ -218,10 +266,14 @@ export function UnifiedIntake() {
     setPreview(null);
     setRejectionReason("");
     setError(null);
+    setPreviewTab("source");
     setPhase("choose");
   }
 
   const activeStep = phase === "choose" || phase === "ready" ? 1 : phase === "starting" ? 2 : phase === "review" || phase === "deciding" ? 3 : 4;
+  const selectedSource = file ?? remote;
+  const selectedSize = file?.size ?? remote?.byte_length ?? 0;
+  const selectedSourceRef = upload?.acquisition_ref ?? (remote ? `r2://casebible-sorted/${remote.key}` : null);
 
   return (
     <div className="min-h-full">
@@ -229,8 +281,8 @@ export function UnifiedIntake() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="platform-kicker mb-1">Evidence operations desk</p>
-            <h1 className="text-xl font-semibold tracking-tight">Intake new evidence</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Choose a source, inspect it, then make the durable workflow decision for the fixed case.</p>
+            <h1 className="text-xl font-semibold tracking-tight">Import source context</h1>
+            <p className="mt-1 text-sm text-muted-foreground">Choose a source, inspect it, then start the context-only workflow for the fixed case.</p>
           </div>
           <div className="flex items-center gap-2 border bg-background px-3 py-2 text-xs text-muted-foreground">
             <ShieldCheck className="h-4 w-4" /> PostgreSQL authority preserved
@@ -262,17 +314,30 @@ export function UnifiedIntake() {
 
       <div className="grid min-h-[620px] lg:grid-cols-[minmax(0,1fr)_330px]">
         <main className="min-w-0 p-6">
-          {!file ? (
-            <div className="platform-panel mx-auto grid min-h-[430px] max-w-3xl place-items-center border-dashed p-10 text-center">
-              <div>
-                <div className="mx-auto mb-5 grid h-14 w-14 place-items-center border bg-accent text-accent-foreground"><Upload className="h-6 w-6" /></div>
-                <p className="platform-kicker mb-2">Source acquisition</p>
-                <h2 className="text-2xl font-semibold">Choose the source you want to inspect</h2>
-                <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-muted-foreground">The browser computes an integrity preview. Starting intake streams the bytes to the authenticated immutable upload ingress and sends only its opaque reference through Temporal.</p>
-                <label className="mt-6 inline-flex cursor-pointer items-center gap-2 border border-primary bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary/90">
-                  <FolderOpen className="h-4 w-4" /> Choose file
-                  <input className="sr-only" type="file" onChange={(event) => void selectFile(event.target.files?.[0] ?? null)} />
-                </label>
+          {!file && !remote ? (
+            <div className="platform-panel mx-auto max-w-3xl overflow-hidden">
+              <div className="border-b px-5 py-4">
+                <p className="platform-kicker mb-1">Default ingestion point</p>
+                <h2 className="text-xl font-semibold">Case Bible Sorted</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Browse the canonical sorted bucket. Provider and bucket scope are fixed by the Platform.</p>
+              </div>
+              <div className="flex gap-2 border-b p-4">
+                {sourcePrefix && <Button variant="outline" onClick={() => changeSourcePrefix(sourcePrefix.replace(/[^/]+\/$/, ""))}>Up</Button>}
+                <input className="h-10 min-w-0 flex-1 border bg-background px-3 text-sm" value={sourceFilter} onChange={(event) => changeSourceFilter(event.target.value)} placeholder="Filter this folder" aria-label="Filter Case Bible Sorted" />
+              </div>
+              <div className="min-h-[260px] divide-y">
+                {sourcesLoading ? <div className="flex items-center gap-2 p-5 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading Case Bible Sorted</div> : sourcesError ? <div className="p-5 text-sm text-[#8f302a]">{sourcesError}</div> : (
+                  <>
+                    {sources?.prefixes.map((item) => <button key={item.prefix} type="button" onClick={() => changeSourcePrefix(item.prefix)} className="flex w-full items-center gap-3 px-5 py-3 text-left hover:bg-accent"><FolderOpen className="h-4 w-4" /><span className="text-sm font-medium">{item.name}</span></button>)}
+                    {sources?.objects.map((item) => <button key={item.key} type="button" onClick={() => selectRemote(item)} className="flex w-full items-center gap-3 px-5 py-3 text-left hover:bg-accent"><FileText className="h-4 w-4" /><span className="min-w-0 flex-1 truncate text-sm">{item.name}</span><span className="text-xs text-muted-foreground">{bytes(item.byte_length)}</span></button>)}
+                    {!sources?.prefixes.length && !sources?.objects.length && <div className="p-8 text-center text-sm text-muted-foreground">No sorted sources match this view.</div>}
+                    {sources?.is_truncated && <div className="p-4 text-center"><Button variant="outline" onClick={() => void loadMoreSources()}>Load more</Button></div>}
+                  </>
+                )}
+              </div>
+              <div className="border-t bg-accent/30 px-5 py-4 text-sm">
+                <span className="text-muted-foreground">Or add a source from this device: </span>
+                <label className="cursor-pointer font-semibold text-primary hover:underline"><Upload className="mr-1 inline h-4 w-4" />Choose local file<input className="sr-only" type="file" onChange={(event) => void selectFile(event.target.files?.[0] ?? null)} /></label>
               </div>
             </div>
           ) : (
@@ -281,30 +346,75 @@ export function UnifiedIntake() {
                 <div className="grid h-10 w-10 place-items-center border bg-accent text-accent-foreground"><FileText className="h-5 w-5" /></div>
                 <div className="min-w-0 flex-1">
                   <p className="platform-rule-title">Selected source</p>
-                  <strong className="block truncate text-sm">{file.name}</strong>
-                  <span className="text-xs text-muted-foreground">{declaredFormat(file)} · {bytes(file.size)}</span>
+                  <strong className="block truncate text-sm">{file?.name ?? remote?.name}</strong>
+                  <span className="text-xs text-muted-foreground">{declaredFormat(file ?? remote!)} · {bytes(file?.size ?? remote?.byte_length ?? 0)}</span>
                 </div>
-                <Button variant="outline" onClick={reset}><RotateCcw className="h-4 w-4" /> Change file</Button>
+                <Button variant="outline" onClick={reset}><RotateCcw className="h-4 w-4" /> Change source</Button>
               </div>
 
-              <div className="border-b px-5 py-3">
-                <p className="platform-rule-title mb-2">Local content preview</p>
-                {lines.length ? (
-                  <div className="max-h-[310px] overflow-auto border bg-background font-mono text-[11px] leading-5" role="region" aria-label="Selected source preview" tabIndex={0}>
-                    {lines.map((line, index) => <div key={`${index}-${line.slice(0, 24)}`} className="grid grid-cols-[42px_1fr] border-b px-3 py-2 last:border-b-0"><span className="text-muted-foreground">{String(index + 1).padStart(2, "0")}</span><span className="break-words">{line}</span></div>)}
-                  </div>
-                ) : (
-                  <div className="border bg-background px-4 py-10 text-center text-sm text-muted-foreground">Binary content is not rendered in the browser. The server-side parser selection remains authoritative.</div>
+              <div className="flex min-h-11 gap-5 border-b px-5" role="tablist" aria-label="Source inspection">
+                {(["source", "metadata", "parser"] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    role="tab"
+                    aria-selected={previewTab === tab}
+                    onClick={() => setPreviewTab(tab)}
+                    className={`border-b-2 px-1 text-xs font-semibold capitalize ${previewTab === tab ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+                  >
+                    {tab === "source" ? "Source preview" : tab}
+                  </button>
+                ))}
+              </div>
+
+              <div className="min-h-[330px] border-b px-5 py-4">
+                {previewTab === "source" && (
+                  <section aria-label="Source preview">
+                    <p className="platform-rule-title mb-3">Source preview</p>
+                    {remote ? (
+                      <div className="border bg-background px-4 py-12 text-center text-sm text-muted-foreground">Remote content is fetched and sealed by the acquisition worker after intake starts. No content or SHA-256 is claimed before that seal completes.</div>
+                    ) : lines.length ? (
+                      <div className="max-h-[270px] overflow-auto border bg-background font-mono text-[11px] leading-5" role="region" aria-label="Selected source content" tabIndex={0}>
+                        {lines.map((line, index) => <div key={`${index}-${line.slice(0, 24)}`} className="grid grid-cols-[42px_1fr] border-b px-3 py-2 last:border-b-0"><span className="text-muted-foreground">{String(index + 1).padStart(2, "0")}</span><span className="break-words">{line}</span></div>)}
+                      </div>
+                    ) : (
+                      <div className="border bg-background px-4 py-12 text-center text-sm text-muted-foreground">Binary content is not rendered in the browser. The server-side parser selection remains authoritative.</div>
+                    )}
+                  </section>
+                )}
+
+                {previewTab === "metadata" && selectedSource && (
+                  <section aria-label="Source metadata">
+                    <p className="platform-rule-title mb-3">Observed source metadata</p>
+                    <dl className="grid gap-px border bg-border sm:grid-cols-2">
+                      <div className="bg-card p-4"><dt className="text-[10px] uppercase text-muted-foreground">Name</dt><dd className="mt-1 break-words text-sm font-semibold">{selectedSource.name}</dd></div>
+                      <div className="bg-card p-4"><dt className="text-[10px] uppercase text-muted-foreground">Declared format</dt><dd className="mt-1 font-mono text-xs">{declaredFormat(selectedSource)}</dd></div>
+                      <div className="bg-card p-4"><dt className="text-[10px] uppercase text-muted-foreground">Source location</dt><dd className="mt-1 text-sm">{remote ? "Case Bible Sorted" : "This device"}</dd></div>
+                      <div className="bg-card p-4"><dt className="text-[10px] uppercase text-muted-foreground">Declared size</dt><dd className="mt-1 text-sm">{bytes(selectedSize)}</dd></div>
+                      <div className="bg-card p-4 sm:col-span-2"><dt className="text-[10px] uppercase text-muted-foreground">Integrity state</dt><dd className="mt-1 break-all font-mono text-[11px]">{remote ? "Pending acquisition and seal" : upload?.sha256 || digest || "Computing browser preview"}</dd></div>
+                      {remote?.last_modified && <div className="bg-card p-4"><dt className="text-[10px] uppercase text-muted-foreground">Object modified</dt><dd className="mt-1 text-sm">{new Date(remote.last_modified).toLocaleString()}</dd></div>}
+                      {selectedSourceRef && <div className="bg-card p-4 sm:col-span-2"><dt className="text-[10px] uppercase text-muted-foreground">Acquisition reference</dt><dd className="mt-1 break-all font-mono text-[11px]">{selectedSourceRef}</dd></div>}
+                    </dl>
+                  </section>
+                )}
+
+                {previewTab === "parser" && (
+                  <section aria-label="Parser selection">
+                    <p className="platform-rule-title mb-3">Durable parser selection</p>
+                    {preview ? (
+                      <div className="border bg-accent/30 p-5">
+                        <div className="flex flex-wrap items-center justify-between gap-3"><strong className="capitalize">{preview.phase.replaceAll("_", " ")}</strong><span className="border bg-card px-2 py-1 text-[10px] uppercase text-muted-foreground">Temporal read-back</span></div>
+                        <dl className="mt-5 grid gap-4 text-xs">
+                          <div><dt className="text-muted-foreground">Selection reference</dt><dd className="mt-1 break-all font-mono text-[11px]">{preview.select_ref || "Selection has not been recorded yet"}</dd></div>
+                          {preview.reason && <div><dt className="text-muted-foreground">Runtime reason</dt><dd className="mt-1">{preview.reason}</dd></div>}
+                        </dl>
+                      </div>
+                    ) : (
+                      <div className="border bg-background px-5 py-12 text-center text-sm leading-6 text-muted-foreground">The Platform has not selected a parser yet. Starting intake sends the sealed source reference to the durable workflow; this screen will show only the selection returned by that workflow.</div>
+                    )}
+                  </section>
                 )}
               </div>
-
-              {preview && (
-                <div className="border-b bg-accent/40 px-5 py-4">
-                  <p className="platform-rule-title mb-2">Durable parser selection</p>
-                  <div className="flex flex-wrap items-center gap-3 text-sm"><span className="font-semibold">{preview.phase.replaceAll("_", " ")}</span><span className="font-mono text-xs text-muted-foreground">{preview.select_ref}</span></div>
-                  {preview.reason && <p className="mt-2 text-xs text-muted-foreground">{preview.reason}</p>}
-                </div>
-              )}
 
               <div className="flex flex-col gap-3 border-t bg-card px-5 py-4 sm:flex-row sm:items-center">
                 {phase === "review" || phase === "deciding" ? (
@@ -314,11 +424,26 @@ export function UnifiedIntake() {
                     <Button disabled={phase === "deciding"} onClick={() => void decide(true)}>{phase === "deciding" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Approve and continue</Button>
                   </>
                 ) : phase === "complete" ? (
-                  <><div className="flex-1 text-sm"><strong className="capitalize">{preview?.phase ?? "Decision signaled"}</strong><p className="text-xs text-muted-foreground">This status was read from the running Temporal workflow.</p></div><Button variant="outline" onClick={reset}>Start another intake</Button></>
+                  <><div className="flex-1 text-sm"><strong className="capitalize">{preview?.phase ?? "Decision signaled"}</strong><p className="text-xs text-muted-foreground">The result below was read back from the durable workflow.</p></div><Button variant="outline" onClick={reset}>Start another intake</Button></>
                 ) : (
-                  <><div className="flex-1 text-xs text-muted-foreground">{matter && !primaryCourtCase ? "This Matter needs a primary proceeding before evidence can be bound to it." : "Nothing becomes evidence by selecting or previewing this file."}</div><Button disabled={!matter || !primaryCourtCase || phase === "starting"} onClick={() => void start()} className="min-w-56">{phase === "starting" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} Seal and start intake <ChevronRight className="h-4 w-4" /></Button></>
+                  <><div className="flex-1 text-xs text-muted-foreground">{matter && !primaryCourtCase ? "The fixed case needs its primary proceeding restored before context intake can start." : "Nothing becomes evidence by selecting, previewing, or importing this source."}</div><Button disabled={!matter || !primaryCourtCase || phase === "starting"} onClick={() => void start()} className="min-w-56">{phase === "starting" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} Seal and start context intake <ChevronRight className="h-4 w-4" /></Button></>
                 )}
               </div>
+
+              {phase === "complete" && run && (
+                <section className="border-l-4 border-l-[#2f9d67] bg-card p-5" aria-label="Intake execution receipt">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div><p className="platform-kicker mb-1">Execution receipt</p><h2 className="text-lg font-semibold capitalize">{preview?.phase.replaceAll("_", " ") ?? "Decision recorded"}</h2><p className="mt-1 text-xs text-muted-foreground">Server-returned workflow identity and latest Temporal phase.</p></div>
+                    <span className="border border-[#2f9d67] bg-[#e2f3e9] px-2 py-1 text-[10px] font-semibold uppercase text-[#17794b] dark:bg-[#203d31] dark:text-[#72d9a1]">Live workflow read-back</span>
+                  </div>
+                  <dl className="mt-5 grid gap-px border bg-border sm:grid-cols-2">
+                    <div className="bg-card p-4"><dt className="text-[10px] uppercase text-muted-foreground">Workflow ID</dt><dd className="mt-1 break-all font-mono text-[11px]">{run.workflow_id}</dd></div>
+                    <div className="bg-card p-4"><dt className="text-[10px] uppercase text-muted-foreground">Run ID</dt><dd className="mt-1 break-all font-mono text-[11px]">{run.run_id}</dd></div>
+                    <div className="bg-card p-4"><dt className="text-[10px] uppercase text-muted-foreground">Source</dt><dd className="mt-1 break-words text-xs">{selectedSource?.name}</dd></div>
+                    <div className="bg-card p-4"><dt className="text-[10px] uppercase text-muted-foreground">Authority boundary</dt><dd className="mt-1 text-xs">Context only; not evidence</dd></div>
+                  </dl>
+                </section>
+              )}
             </div>
           )}
         </main>
@@ -338,8 +463,8 @@ export function UnifiedIntake() {
           <section className="border-b py-5">
             <p className="platform-rule-title mb-3">Integrity preview</p>
             <dl className="space-y-3 text-xs">
-              <div><dt className="text-muted-foreground">SHA-256</dt><dd className="mt-1 break-all font-mono text-[10px]">{upload?.sha256 || digest || "Choose a source"}</dd></div>
-              <div className="grid grid-cols-2 gap-3"><div><dt className="text-muted-foreground">Local size</dt><dd>{file ? bytes(file.size) : "—"}</dd></div><div><dt className="text-muted-foreground">Sealed size</dt><dd>{upload ? bytes(upload.byte_length) : "—"}</dd></div></div>
+              <div><dt className="text-muted-foreground">SHA-256</dt><dd className="mt-1 break-all font-mono text-[10px]">{remote ? "Computed after acquisition seals the object" : upload?.sha256 || digest || "Choose a source"}</dd></div>
+              <div className="grid grid-cols-2 gap-3"><div><dt className="text-muted-foreground">Source size</dt><dd>{file ? bytes(file.size) : remote ? bytes(remote.byte_length) : "—"}</dd></div><div><dt className="text-muted-foreground">Sealed size</dt><dd>{upload ? bytes(upload.byte_length) : remote ? "Pending acquisition" : "—"}</dd></div></div>
               {upload && <div><dt className="text-muted-foreground">Acquisition reference</dt><dd className="mt-1 break-all font-mono text-[10px]">{upload.acquisition_ref}</dd></div>}
             </dl>
           </section>
