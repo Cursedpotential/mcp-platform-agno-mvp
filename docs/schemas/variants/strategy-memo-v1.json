@@ -14,7 +14,7 @@
       { "id": "small", "size_bytes_max": 12000 }
     ],
     "reference_instance": {
-      "sha256": "pending — recompute at ingest",
+      "sha256": "6ed692e0c0f958003532b644ac77adc4369d9586f6e26226e11a52f9a217180f",
       "bytes": 3767,
       "measured": { "headings": 4, "heading_levels": [3], "blockquote_lines": 5, "date_mentions": 0, "legal_citations": 0, "role_markers": 0, "bold_runs": 11 }
     },

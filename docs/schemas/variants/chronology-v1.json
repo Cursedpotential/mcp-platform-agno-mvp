@@ -124,7 +124,8 @@
         "finding": "There is NO link table between timeline.event_candidate and context.relative_time_anchor. Verified: zero matches in sql/0047. The relative-time subsystem currently links to THREAD entities only — first/third_party_thread_version, _source, and _message anchors.",
         "consequence": "A chronology entry whose date is unbounded/relative has nowhere to record its anchor today. It can only be emitted as temporal_precision='uncertain' with all timestamps NULL and the raw phrase preserved.",
         "recommended": "An event_candidate ↔ relative_time_anchor link table, following the same typed-link pattern 0047 already uses (its comment: 'Typed link tables prevent weak entity_type/entity_id pointers or nullable-FK soup'). Do NOT add a nullable anchor_id column to event_candidate — that is the pattern 0047 explicitly rejects.",
-        "owner_note": "Flagged, not built. The engine is WIP and will evolve; this schema should follow it rather than pre-empt it."
+        "owner_note": "Flagged, not built. The engine is WIP and will evolve; this schema should follow it rather than pre-empt it.",
+        "status": "ACKNOWLEDGED AND BEING ADDRESSED (owner, 2026-08-29 13:06 EDT). Not an unowned gap — do not re-raise it, and do not implement a competing link. Follow whatever shape the relative-date work lands; this schema adapts to it."
       }
     },
 

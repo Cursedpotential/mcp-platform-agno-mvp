@@ -108,7 +108,7 @@
 
   "open_questions": [
     "No verbatim-preserving structure-aware chunker has been identified. Candidate A is verbatim-safe but structure-blind; B changes nothing; C alters content (24 of 35 chunks not verbatim). Unresolved — this is now the primary blocker.",
-    "GAP: no link table between timeline.event_candidate and context.relative_time_anchor (verified: zero matches in 0047). A chronology entry with an unbounded/relative date has nowhere to record its anchor. See variants/chronology-v1.json relative_date_handoff.",
+    "event_candidate <-> relative_time_anchor link table: verified absent in 0047, raised, and ACKNOWLEDGED BY THE OWNER AS BEING ADDRESSED (2026-08-29 13:06). Not open, not unowned — do not re-raise or implement a competing link. See variants/chronology-v1.json relative_date_handoff.",
     "Variant thresholds are derived from ONE instance each — a starting point, not a calibrated classifier. Widen as more documents arrive.",
     "strategy_memo reference instance sha256 is pending — recompute at ingest."
   ]

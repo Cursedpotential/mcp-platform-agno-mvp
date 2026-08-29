@@ -90,14 +90,31 @@ No item is classified DONE+LIVE VERIFIED from the evidence inspected here.
 - **Multiple chunk-stage approaches required** (owner 2026-08-29), selected by the **Go
   coordinator's** declared `Quality` (`engine/parser`), not a Python flag pick.
   `Chonkie.from_recipe("markdown")` fails because `HF_HUB_OFFLINE=1`/`TRANSFORMERS_OFFLINE=1` are
-  set (no-local-models guard, not a Chonkie defect) — preferred fix is inline `RecursiveLevel`
-  delimiters. `format_router.py`'s Python selection mesh is **flagged for removal**, sequenced on
+  set (no-local-models guard, not a Chonkie defect). ~~Preferred fix is inline `RecursiveLevel`
+  delimiters.~~ **DISPROVED BY MEASUREMENT 2026-08-29** — inline heading delimiters produced
+  *identical* heading alignment to the default (1 of 26 chunks starting at a heading) while
+  creating more chunks (65 vs 46); `chunk_size` still dominates and re-splits across headings.
+  **There is currently NO viable candidate:** default is verbatim-safe but structure-blind,
+  inline delimiters change nothing, and Semantica `StructuralChunker` preserves structure (13/26)
+  but **alters content** — 24 of 35 chunks not found verbatim in source, 176 chars missing, not
+  whitespace. Reproducibility and hashes in the handoff. `format_router.py`'s Python selection
+  mesh is **flagged for removal**, sequenced on
   Go adapter coverage per format; the Go↔Python bridge already exists (`platform-tools`, `:8090`).
 - **n8n orchestrates, Temporal executes, a quality gate substitutes the method:** extraction runs
   as a Temporal activity invoked by n8n; a deterministic completeness check (byte-range
   reassembly) plus a model-backed quality score (via Portkey) — not a caught exception — select a
   different named Go adapter on failure/low confidence. Document-class markdown needs no parser
   at all (see "Ingest taxonomy" in the handoff) — only chunk + ingest.
+- **Authored schemas exist** (2026-08-29, [`docs/schemas/`](schemas/)): class signature + variant
+  registry [`document-markdown-v1.json`](schemas/document-markdown-v1.json) plus four
+  self-contained modules under [`schemas/variants/`](schemas/variants/) — `chronology` (the only
+  one emitting a timeline artifact), `research-report`, `statute-extract`, `strategy-memo`.
+  Authored against the **measured** structure of the four real files, each with a sha256
+  fingerprint. They record: stage routing (no parse step), the chunk contract (char offsets
+  required, reassembly gate, verbatim requirement), extraction as a pass **separate from**
+  chunking, and a four-tier date policy that defers unbounded dates to the relative-date
+  subsystem rather than guessing. Draft/unapplied — the authored source that seeds the PG
+  schema-manifest table, not the runtime store.
 - Full analysis, verified-live state, owner decisions, and work packages WP-0, WP-1..WP-11
   (incl. WP-5b..WP-5f, WP-6a):
   [`HANDOFF-2026-08-29-derived-document-ingest-wiring.md`](HANDOFF-2026-08-29-derived-document-ingest-wiring.md).
