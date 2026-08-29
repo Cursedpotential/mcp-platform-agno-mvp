@@ -86,7 +86,12 @@ func (r *Repository) OpenRawRecords(ctx context.Context, ref uiw.Ref) (activitie
 		       COALESCE(object.storage_class, ''),
 		       COALESCE(object.object_uri, ''),
 		       CASE WHEN object.storage_class = 'inline'
-		            THEN substring(object.inline_bytes FROM raw.byte_offset + 1 FOR raw.byte_length)
+		            AND raw.byte_offset >= 0
+		            AND raw.byte_offset <= 2147483646
+		            AND raw.byte_length >= 0
+		            AND raw.byte_length <= 2147483647
+		            AND raw.byte_offset + raw.byte_length <= octet_length(object.inline_bytes)
+		            THEN substring(object.inline_bytes FROM (raw.byte_offset + 1)::int4 FOR raw.byte_length::int4)
 		       END,
 		       COALESCE(raw.byte_offset, 0),
 		       COALESCE(raw.byte_length, 0)

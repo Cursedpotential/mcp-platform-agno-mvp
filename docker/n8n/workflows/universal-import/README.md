@@ -41,14 +41,23 @@ worker and a starter process) could not give that guarantee and was rejected
 | `wf-preview-decision.json` | approve/reject a held run | `universal-import/decision` | `engine/temporal` starter `POST /reference-import/{workflow_id}/decision` |
 | `wf-preview-status.json` | read a run's current preview state | `universal-import/preview` (GET, `?workflow_id=`) | `engine/temporal` starter `GET /reference-import/{workflow_id}/preview` |
 
-The runtime URLs are expressions based on two deployment variables:
-`PLATFORM_IMPORT_RUNTIME_URL` (the Go parser runtime, `engine/runtimeapi`,
-example `https://import-runtime.example.invalid`) and
-`REFERENCE_IMPORT_STARTER_URL` (the `engine/temporal` starter HTTP service,
-example `https://reference-import-starter.example.invalid`). Set both in
-n8n's environment when deploying; the `.invalid`-style hosts are only safe
-fallback placeholders and must not be used for a live activation. All five
-workflows are inactive on import until reviewed and enabled.
+The runtime URLs are explicit, non-secret configuration in each HTTP Request
+node. Checked-in exports use the fail-closed hosts
+`https://import-runtime.example.invalid` and
+`https://reference-import-starter.example.invalid`; deployment must replace
+those literals with the two stable service endpoints before activation. Keep
+the authentication values in the existing n8n credentials, never in the URL
+or export.
+
+This split is deliberate for n8n Community 2.36.6. n8n 2.x blocks `$env`
+access from node expressions by default, Custom Variables (`$vars`) are not a
+Community feature, and HTTP Header/Custom Auth credentials can add request
+headers, query parameters, or body fields but do not own the request URL.
+Disabling `N8N_BLOCK_ENV_ACCESS_IN_NODE` would relax the entire instance, so
+these workflows do not use `$env` at all. The HTTP node's own URL field is the
+smallest supported, workflow-scoped home for a non-secret endpoint. All five
+workflows remain inactive on import until the URL literals and credential IDs
+have both been bound and re-read.
 
 **Corrected 2026-08-27:** the select/execute workflows previously called
 `.../v1/activities/<name>` — a path `engine/runtimeapi/parser_activities.go`
@@ -225,9 +234,11 @@ otherwise retained `file://` locators correctly fail closed.
 ## Deployment checklist
 
 1. Import all five JSON files into the n8n 2.36.6 instance.
-2. Set `PLATFORM_IMPORT_RUNTIME_URL` + the `PLATFORM_IMPORT_RUNTIME` header
-   credential (select/execute), and `REFERENCE_IMPORT_STARTER_URL` + the
-   `REFERENCE_IMPORT_STARTER` header credential (start/decision/preview).
+2. Replace `https://import-runtime.example.invalid` in select/execute and
+   `https://reference-import-starter.example.invalid` in
+   start/decision/preview with the stable, non-secret live service endpoints.
+   Bind the `PLATFORM_IMPORT_RUNTIME` and `REFERENCE_IMPORT_STARTER` header
+   credentials separately; do not put tokens in the URL or workflow export.
 3. Attach a real `N8N_UNIVERSAL_IMPORT_WEBHOOK` `headerAuth` credential to
    all five Webhook trigger nodes, and configure `engine/temporal`'s worker
    and starter with the matching header/value via

@@ -5,6 +5,9 @@ import (
 	"context"
 	"errors"
 	"io"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/activities"
@@ -153,5 +156,33 @@ func TestResultReferenceUsesReceiptOrGenerationSetBinding(t *testing.T) {
 				t.Fatal("generation result ref is empty")
 			}
 		})
+	}
+}
+
+func TestOpenRawRecordsInlineSliceUsesSafeIntegerArguments(t *testing.T) {
+	source, err := os.ReadFile(filepath.Join("hash_repository.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	query := string(source)
+	for _, marker := range []string{
+		"(raw.byte_offset + 1)::int4",
+		"raw.byte_length::int4",
+		"raw.byte_offset >= 0",
+		"raw.byte_offset <= 2147483646",
+		"raw.byte_length >= 0",
+		"raw.byte_length <= 2147483647",
+		"raw.byte_offset + raw.byte_length <= octet_length(object.inline_bytes)",
+	} {
+		if !strings.Contains(query, marker) {
+			t.Errorf("OpenRawRecords query is missing safe inline-slice marker %q", marker)
+		}
+	}
+	for _, forbidden := range []string{
+		"FROM raw.byte_offset + 1 FOR raw.byte_length",
+	} {
+		if strings.Contains(query, forbidden) {
+			t.Errorf("OpenRawRecords query still contains the unsafe bigint substring form %q", forbidden)
+		}
 	}
 }

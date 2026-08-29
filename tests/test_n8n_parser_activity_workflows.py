@@ -21,6 +21,7 @@ WORKFLOW_SPECS = {
     ROOT / "docker/n8n/workflows/universal-import/wf-select-parser-activity.json": "select_parser_activity",
     ROOT / "docker/n8n/workflows/universal-import/wf-execute-parser-activity.json": "execute_parser_activity",
 }
+ALL_UIW_WORKFLOWS = tuple(sorted((ROOT / "docker/n8n/workflows/universal-import").glob("wf-*.json")))
 
 REQUEST_FIELDS = {"request_id", "source_version_ref", "declared_format", "refs"}
 RESULT_FIELDS = {"stage", "status", "ref", "receipt_ref"}
@@ -185,7 +186,7 @@ def test_request_body_is_compact_references_only(path: Path, stage: str):
 
 
 @pytest.mark.parametrize("path,stage", WORKFLOW_SPECS.items())
-def test_platform_call_is_authenticated_and_uses_placeholder_base_url(path: Path, stage: str):
+def test_platform_call_is_authenticated_and_uses_literal_placeholder_base_url(path: Path, stage: str):
     workflow = _load_workflow(path)
     sequence, _, _ = _linear_nodes(workflow)
     parameters = sequence[2]["parameters"]
@@ -194,18 +195,29 @@ def test_platform_call_is_authenticated_and_uses_placeholder_base_url(path: Path
     assert parameters.get("genericAuthType") or parameters.get("nodeCredentialType") or sequence[2].get("credentials")
 
     url = str(parameters.get("url", ""))
-    assert re.search(r"(?:\$env|process\.env)\.[A-Z][A-Z0-9_]*(?:URL|BASE_URL)", url, re.I)
+    assert "$env" not in url and "process.env" not in url
     literal = re.search(r"https?://[^\s'\"}]+", url)
-    if literal:
-        host = urlparse(literal.group(0)).hostname
-        assert host in {
-            "localhost",
-            "127.0.0.1",
-            "parser-runtime",
-            "engine-runtime",
-            "temporal-runtime",
-            "host.docker.internal",
-        } or (host and host.endswith((".example", ".invalid"))), f"unexpected non-placeholder host: {host}"
+    assert literal, "checked-in workflow must contain an explicit fail-closed URL placeholder"
+    host = urlparse(literal.group(0)).hostname
+    assert host and host.endswith(".example.invalid"), f"unexpected non-placeholder host: {host}"
+
+
+@pytest.mark.parametrize("path", ALL_UIW_WORKFLOWS)
+def test_all_uiw_workflows_keep_env_access_blocked_and_fail_closed(path: Path):
+    workflow = _load_workflow(path)
+    workflow_text = json.dumps(workflow, sort_keys=True)
+    assert "$env" not in workflow_text
+    assert "process.env" not in workflow_text
+
+    http_nodes = [node for node in workflow["nodes"] if node.get("type") == "n8n-nodes-base.httpRequest"]
+    assert len(http_nodes) == 1, f"{path.name} must have exactly one downstream HTTP call"
+    url = str(http_nodes[0].get("parameters", {}).get("url", ""))
+    literal = re.search(r"https?://[^\s'\"}]+", url)
+    assert literal, f"{path.name} must contain an explicit URL placeholder"
+    host = urlparse(literal.group(0)).hostname
+    assert host and host.endswith(".example.invalid"), (
+        f"{path.name} checked-in endpoint must fail closed until deployment binds it"
+    )
 
 
 @pytest.mark.parametrize("path,stage", WORKFLOW_SPECS.items())
