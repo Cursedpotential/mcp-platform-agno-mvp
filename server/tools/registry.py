@@ -17,27 +17,111 @@ shells out / calls HTTP — same contract, different transport.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+import re
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Literal, Protocol, runtime_checkable
+
+
+_UNVERSIONED = "unversioned"
+_VERSION_PATTERN = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9._+-]*[A-Za-z0-9])?$")
+_FORMAT_ID_PATTERN = re.compile(r"^[a-z](?:[a-z0-9]*|[a-z0-9]*(?:_[a-z0-9]+)+)$")
+ToolQuality = Literal["primary", "fallback", "experimental"]
+_TOOL_QUALITY_RANKS = frozenset({"primary", "fallback", "experimental"})
+
+
+def _validate_version(field_name: str, value: str) -> str:
+    """Require a stable, transport-safe version token or the explicit default."""
+    if not isinstance(value, str) or not value or value != value.strip() or not _VERSION_PATTERN.fullmatch(value):
+        raise ValueError(
+            f"registry: {field_name} must be a non-empty version token containing only "
+            "letters, numbers, '.', '_', '+', or '-'"
+        )
+    return value
+
+
+def _validate_format(format_name: str) -> str:
+    if (
+        not isinstance(format_name, str)
+        or len(format_name) < 1
+        or len(format_name) > 59
+        or not _FORMAT_ID_PATTERN.fullmatch(format_name)
+    ):
+        raise ValueError("registry: format id must be 1 through 59 characters of canonical lowercase snake_case")
+    return format_name
+
+
+def _normalize_declarations(
+    formats: tuple[str, ...] | None,
+    quality: Mapping[str, ToolQuality] | None,
+) -> tuple[tuple[str, ...], tuple[tuple[str, ToolQuality], ...]]:
+    if formats is not None and not isinstance(formats, tuple):
+        raise ValueError("registry: formats must be a tuple of format identifiers")
+    normalized_formats = tuple(sorted(_validate_format(format_name) for format_name in (formats or ())))
+    if len(set(normalized_formats)) != len(normalized_formats):
+        raise ValueError("registry: formats must contain unique identifiers")
+    if quality is not None and not isinstance(quality, Mapping):
+        raise ValueError("registry: quality must map declared formats to selector ranks")
+
+    normalized_quality: list[tuple[str, ToolQuality]] = []
+    declared = set(normalized_formats)
+    for format_name, rank in sorted((quality or {}).items()):
+        _validate_format(format_name)
+        if format_name not in declared:
+            raise ValueError(f"registry: quality key {format_name!r} is not present in formats")
+        if rank not in _TOOL_QUALITY_RANKS:
+            raise ValueError(
+                f"registry: quality rank for {format_name!r} must be one of 'primary', 'fallback', or 'experimental'"
+            )
+        normalized_quality.append((format_name, rank))
+    return normalized_formats, tuple(normalized_quality)
 
 
 @runtime_checkable
 class ToolPlugin(Protocol):
     """Contract every atomic tool satisfies."""
 
-    id: str
-    capability: str  # e.g. 'parse.transcript', 'parse.sms-xml'
-    description: str
-    execution_policy: str
-    side_effect: str
-    priority: int
+    @property
+    def id(self) -> str: ...
+
+    @property
+    def capability(self) -> str: ...
+
+    @property
+    def description(self) -> str: ...
+
+    @property
+    def execution_policy(self) -> str: ...
+
+    @property
+    def side_effect(self) -> str: ...
+
+    @property
+    def priority(self) -> int: ...
+
+    @property
+    def tool_version(self) -> str: ...
+
+    @property
+    def contract_version(self) -> str: ...
+
+    @property
+    def input_schema_version(self) -> str: ...
+
+    @property
+    def output_schema_version(self) -> str: ...
+
+    @property
+    def formats(self) -> tuple[str, ...]: ...
+
+    @property
+    def quality(self) -> tuple[tuple[str, ToolQuality], ...]: ...
 
     def accepts(self, media_hint: str, size_bytes: int) -> bool: ...
     def run(self, payload: dict[str, Any]) -> dict[str, Any]: ...
 
 
-@dataclass
+@dataclass(frozen=True)
 class FunctionTool:
     """In-process Python tool: wraps a callable under the ToolPlugin contract."""
 
@@ -50,6 +134,30 @@ class FunctionTool:
     execution_policy: str = "manual_or_auto"
     side_effect: str = "read_only"
     priority: int = 0
+    tool_version: str = _UNVERSIONED
+    contract_version: str = _UNVERSIONED
+    input_schema_version: str = _UNVERSIONED
+    output_schema_version: str = _UNVERSIONED
+    formats: tuple[str, ...] = ()
+    quality: tuple[tuple[str, ToolQuality], ...] = ()
+
+    def __post_init__(self) -> None:
+        _validate_version("tool_version", self.tool_version)
+        _validate_version("contract_version", self.contract_version)
+        _validate_version("input_schema_version", self.input_schema_version)
+        _validate_version("output_schema_version", self.output_schema_version)
+        if not isinstance(self.quality, tuple) or not all(
+            isinstance(declaration, tuple) and len(declaration) == 2 for declaration in self.quality
+        ):
+            raise ValueError("registry: quality declarations must be an immutable tuple of format/rank pairs")
+        quality_mapping = dict(self.quality)
+        if len(quality_mapping) != len(self.quality):
+            raise ValueError("registry: quality declarations must name each format at most once")
+        normalized_formats, normalized_quality = _normalize_declarations(self.formats, quality_mapping)
+        if normalized_formats != self.formats:
+            raise ValueError("registry: formats must be sorted")
+        if normalized_quality != self.quality:
+            raise ValueError("registry: quality declarations must be unique and sorted by format")
 
     def accepts(self, media_hint: str, size_bytes: int) -> bool:
         return self.accept(media_hint, size_bytes)
@@ -87,6 +195,10 @@ class ToolRegistry:
         return sorted(matches, key=lambda tool: getattr(tool, "priority", 0), reverse=True)
 
     def manifest(self) -> list[dict[str, str]]:
+        """Legacy inventory retained for existing in-process Python consumers.
+
+        New direct consumers use contract_manifest() through GET /tools.
+        """
         return [
             {
                 "id": t.id,
@@ -97,6 +209,33 @@ class ToolRegistry:
                 "side_effect": getattr(t, "side_effect", "read_only"),
             }
             for t in self._tools.values()
+        ]
+
+    def contract_manifest(self) -> list[dict[str, Any]]:
+        """Canonical deterministic declarations exposed by the platform-tools facade.
+
+        Declared quality values are selector ranks only, not observed output-quality
+        scores. Execution success, completeness, and observed quality require separate
+        version-pinned receipts.
+        Direct consumers, including the Go engine, call the facade rather than
+        duplicating tool implementations outside Platform Tools.
+        """
+        return [
+            {
+                "id": tool.id,
+                "capability": tool.capability,
+                "description": tool.description,
+                "provenance": getattr(tool, "provenance", ""),
+                "execution_policy": getattr(tool, "execution_policy", "manual_or_auto"),
+                "side_effect": getattr(tool, "side_effect", "read_only"),
+                "tool_version": getattr(tool, "tool_version", _UNVERSIONED),
+                "contract_version": getattr(tool, "contract_version", _UNVERSIONED),
+                "input_schema_version": getattr(tool, "input_schema_version", _UNVERSIONED),
+                "output_schema_version": getattr(tool, "output_schema_version", _UNVERSIONED),
+                "formats": list(getattr(tool, "formats", ())),
+                "quality": dict(getattr(tool, "quality", ())),
+            }
+            for tool in sorted(self._tools.values(), key=lambda candidate: candidate.id)
         ]
 
 
@@ -114,10 +253,17 @@ def register(
     execution_policy: str = "manual_or_auto",
     side_effect: str = "read_only",
     priority: int = 0,
+    tool_version: str = _UNVERSIONED,
+    contract_version: str = _UNVERSIONED,
+    input_schema_version: str = _UNVERSIONED,
+    output_schema_version: str = _UNVERSIONED,
+    formats: tuple[str, ...] | None = None,
+    quality: Mapping[str, ToolQuality] | None = None,
 ) -> Callable:
     """Decorator: register a payload->payload function as an atomic tool."""
 
     def _wrap(fn: Callable[[dict[str, Any]], dict[str, Any]]) -> Callable:
+        normalized_formats, normalized_quality = _normalize_declarations(formats, quality)
         registry.register(
             FunctionTool(
                 id=id,
@@ -129,6 +275,12 @@ def register(
                 execution_policy=execution_policy,
                 side_effect=side_effect,
                 priority=priority,
+                tool_version=tool_version,
+                contract_version=contract_version,
+                input_schema_version=input_schema_version,
+                output_schema_version=output_schema_version,
+                formats=normalized_formats,
+                quality=normalized_quality,
             )
         )
         return fn

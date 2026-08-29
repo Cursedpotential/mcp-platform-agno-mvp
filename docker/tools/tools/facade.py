@@ -23,6 +23,9 @@ Two surfaces, ONE FastAPI app (so ContextForge REST-wraps a single OpenAPI):
      (server/tools/parsers/{messaging,ai_chat,generic}/, extractors/) and
      load_builtin_tools() walks them recursively. Porting a parser = adding
      one module under server/tools/parsers/, nothing to edit here.
+     GET /tools is the canonical declaration contract for direct consumers,
+     including the Go engine. Implementations remain here in Platform Tools;
+     consumers must not duplicate parser/extractor/chunker implementations.
 
   2. SBV PROXY (/sbv/...) — proxies the session-authenticated SBV REST API
      (localhost:8085/api/...) so every SBV function is callable over this
@@ -107,10 +110,10 @@ async def health() -> dict[str, Any]:
 
 
 @app.get("/tools")
-async def tools() -> list[dict[str, str]]:
-    """Full registry manifest: id, capability, description, provenance."""
+async def tools() -> list[dict[str, Any]]:
+    """Stable tool declarations; observed execution/completeness live in receipts."""
     _require_registry()
-    return registry.manifest()  # type: ignore[union-attr]
+    return registry.contract_manifest()  # type: ignore[union-attr]
 
 
 @app.get("/tools/resolve/{capability}")

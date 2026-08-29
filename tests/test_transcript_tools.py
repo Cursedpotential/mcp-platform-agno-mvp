@@ -57,6 +57,18 @@ def test_all_chatminer_wrappers_register():
     assert len(ids) == 16
 
 
+def test_existing_builtin_tools_make_no_unverified_format_or_quality_claims():
+    manifest = {entry["id"]: entry for entry in registry.contract_manifest()}
+    assert manifest
+    for entry in manifest.values():
+        assert entry["tool_version"] == "unversioned"
+        assert entry["contract_version"] == "unversioned"
+        assert entry["input_schema_version"] == "unversioned"
+        assert entry["output_schema_version"] == "unversioned"
+        assert entry["formats"] == []
+        assert entry["quality"] == {}
+
+
 def test_whole_file_fallback_resolves_last_for_md():
     order = [t.id for t in registry.resolve("parse.transcript", media_hint="notes.md", size_bytes=1)]
     # The fallback never rejects a non-empty file; anything after it is dead code.
