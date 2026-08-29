@@ -11,6 +11,11 @@ acceptance and the SBV bounded preview remain open.
   `Matter`/`CourtCase` binding on `context.source_version` through migration 0043.
 - `b1f3df5` — real Workbench unified intake shell/BFF, UIW upload/start/preview/decision
   client, and the previously completed durable run-event stream work.
+- `657ca05` — removed Workbench/UIW bearer credentials and enforced the
+  direct-tailnet socket-peer boundary in the Workbench and Go starter/upload
+  handlers.
+- `14392c3` — preserved the real tailnet peer through host networking while
+  binding the starter only to `100.91.190.107:8091`.
 - The Workbench deployment definition no longer mounts the retired LanceDB intake
   volume. The released intake route uses only the authenticated UIW acquisition
   ingress and reference-only Temporal start contract.
@@ -26,6 +31,9 @@ acceptance and the SBV bounded preview remain open.
 - `npm run lint -- --max-warnings=0` — passed.
 - `npm run build` — passed; `/intake` emitted as a static Next route.
 - Scoped `git diff --check` — passed before both commits.
+- `uv run pytest -q tests/test_universal_import_deploy_contract.py` — 8 passed
+  after the host-network correction.
+- Workbench UIW/auth focused suite — 11 passed after token removal.
 
 ## Deployment boundary
 
@@ -50,8 +58,18 @@ acceptance and the SBV bounded preview remain open.
 - The UIW starter and upload boundary has now been rewritten for direct socket-peer
   tailnet authorization. The Workbench strips caller `Authorization` headers, and
   the starter ignores forwarded identity headers. Focused Go tests/build,
-  deployment-contract tests, and Workbench UIW/auth tests pass locally; deployment
-  and live UIW proof remain required.
+  deployment-contract tests, and Workbench UIW/auth tests pass locally.
+- The existing `universal-import-starter` Coolify resource was corrected in place
+  from a stale Dockerfile application to `/deploy/universal-import-starter.yaml`;
+  no duplicate resource was created. Deployment `e46yekbynzl6ix7kgtubvwez`
+  finished at `14392c3`.
+- Direct tailnet `GET http://100.91.190.107:8091/healthz` returned 200. A synthetic
+  raw upload through `http://100.72.169.40:8020/api/uiw/upload` returned 201 with
+  a 64-character SHA-256 and no Basic challenge, proving the live
+  Workbench-to-starter upload path.
+- `GET http://100.72.169.40:8020/api/matters` still returns 500. The intake shell
+  is previewable, but matter selection and an end-to-end UIW decision remain
+  blocked by the incomplete fresh-`platform` database baseline.
 
 ## Security follow-up
 
@@ -88,11 +106,15 @@ census. Every retirement candidate still requires caller/volume reconciliation,
 an observation window, and explicit owner confirmation; nothing is approved for
 deletion.
 
+The three NocoDB duplicates were separately stopped after the owner confirmed
+they contained no data. They were not deleted; exact UUIDs and verified stopped
+states are recorded in `2026-08-29-nocodb-quarantine-receipt.md`.
+
 ## Next release actions
 
 1. Apply and prove migration 0043 against database `platform` only.
-2. Deploy the direct-tailnet UIW starter with the shared upload mount and
-   live-prove upload, reject-without-parse, resume, approval, and idempotency.
+2. Live-prove reject-without-parse, resume, approval, and idempotency after the
+   fresh database baseline permits a bound Matter/CourtCase start.
 3. Live-prove Matter listing, source upload, preview decision, and receipt from
    the VPS-hosted Workbench after the fresh `platform` baseline is reconciled.
 4. Implement the U0/U1 launch-context foundation, then expose SBV as the bounded
