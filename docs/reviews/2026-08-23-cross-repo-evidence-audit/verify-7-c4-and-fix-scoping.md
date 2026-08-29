@@ -149,9 +149,9 @@
    - Linked to full ADR-0059 supersession context at line 44–51
 
 2. **Two broken links:**
-   - FIXED. Both now point to correct `pending-review/plans/` path:
-     - `pending-review/plans/GOALS-2026-08-15-surreal-investigation-memory.md`
-     - `pending-review/plans/SURREAL-INVESTIGATION-BLUEPRINT-2026-08-15.md`
+   - FIXED. Both now point to correct `awaiting-verification/plans/` path:
+     - `awaiting-verification/plans/GOALS-2026-08-15-surreal-investigation-memory.md`
+     - `awaiting-verification/plans/SURREAL-INVESTIGATION-BLUEPRINT-2026-08-15.md`
 
 **Verification:** Both fixes confirmed live in HANDOFFS.md as of 2026-08-23.
 
@@ -159,7 +159,7 @@
 
 **Status:** **STILL PENDING / UNANSWERED**
 
-- **Location:** `docs/pending-review/plans/PENDING-OWNER-DECISIONS-MATTER-MVP-2026-08-15.md`
+- **Location:** `docs/awaiting-verification/plans/PENDING-OWNER-DECISIONS-MATTER-MVP-2026-08-15.md`
 - **State:** Line 5 still reads "STATUS: PENDING OWNER RULING — review packet only; not an ADR"
 - **Decisions outstanding:** P1–P5 (people authority, review meaning, role cardinality, court-event scope, identity dedup), R1–R6 (auth/release, confidence, methods, redaction, who-may-release, custody coupling), A1–A4 (activation approvals)
 - **Line 159:** "Recommended compact ruling" template has NOT been filled with owner decisions

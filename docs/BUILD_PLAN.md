@@ -19,7 +19,7 @@
 ## Current forward plan — 2026-08-18
 
 The detailed execution source is
-[`PLAN-2026-08-15-platform-runtime-migration.md`](pending-review/plans/PLAN-2026-08-15-platform-runtime-migration.md),
+[`PLAN-2026-08-15-platform-runtime-migration.md`](awaiting-verification/plans/PLAN-2026-08-15-platform-runtime-migration.md),
 with bounded lanes indexed in [`HANDOFFS.md`](HANDOFFS.md). The older Phase A–E narrative
 below remains useful history, but any Agno-first or AgentOS-UI wording in it is superseded by
 this current direction:

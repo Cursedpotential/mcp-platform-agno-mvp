@@ -30,7 +30,7 @@ deployed.
 | Derived-document ingest wiring | [HANDOFF-2026-08-29-derived-document-ingest-wiring.md](HANDOFF-2026-08-29-derived-document-ingest-wiring.md) | AI work products (chronologies/strategy/guides) → context → timeline/vectors/graphs; WP-1..WP-11 |
 | Repository placement | [REPO_STRUCTURE.md](REPO_STRUCTURE.md) | Structural index |
 | Live multi-lane log | [COORDINATION.md](COORDINATION.md) | Append-only coordination history |
-| Pending historical review | [pending-review/README.md](pending-review/README.md) | Moved records; all claims UNVERIFIED |
+| Pending historical review | [awaiting-verification/README.md](awaiting-verification/README.md) | Moved records; all claims UNVERIFIED |
 | Archive policy | [archive/README.md](archive/README.md) | Verified or explicitly historical records only |
 | Temporal adoption plan | [plans/TEMPORAL-INTEGRATION-PLAN-2026-08-23.md](plans/TEMPORAL-INTEGRATION-PLAN-2026-08-23.md) | Phased adoption plan; D-067 ruled it 2026-08-23 |
 | Ingestion readiness | [INGESTION-READINESS-2026-08-23.md](INGESTION-READINESS-2026-08-23.md) | What's up and working for tonight's ingest |
@@ -81,7 +81,7 @@ the storage-free SBV client is its bounded `/evidence/preview` pipeline surface.
 
 ## Archived lane packets and historical plans
 
-- [R0–R14 packets](pending-review/handoffs/) (pending independent review)
+- [R0–R14 packets](awaiting-verification/handoffs/) (pending independent review)
 
 Historical packets, dated plans, inventories, summaries, evaluations, and design history are
 archived by category. They remain read-only context and never override current production truth.

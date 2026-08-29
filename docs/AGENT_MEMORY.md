@@ -28,7 +28,7 @@ contains_secrets: false
 - **Owner directive:** material findings and verification must be persisted, with a byline and an
   honest validation boundary.
 - ADRs and `docs/DECISION_LOG.md` remain in place. Superseded ordinary documentation moves under
-  `docs/archive/`; pending-review material is explicitly unverified.
+  `docs/archive/`; awaiting-verification material is explicitly unverified.
 - Keep historical corrections visible and dated. Never silently rewrite history into apparent
   contemporaneous truth.
 - Complex architecture reports should include a viewable HTML or diagram when it improves owner

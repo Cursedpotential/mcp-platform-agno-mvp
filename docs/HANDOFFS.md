@@ -9,21 +9,21 @@
 
 | Lane | Current packet | Status at packet | Boundary |
 |---|---|---|---|
-| R0 | [Wave-1 audit](pending-review/handoffs/HANDOFF-2026-08-15-R0-wave1-audit.md) | Complete / build failed | Audit only; migrations held |
-| R1 | [Go ingestion](pending-review/handoffs/HANDOFF-2026-08-15-R1-go-ingestion.md) | Partial | Coverage-based parsing and ordered custody |
-| R2 | [Horizon engine](pending-review/handoffs/HANDOFF-2026-08-15-R2-horizon-engine.md) | Partial | Immutable manifests, replay, contamination gates |
-| R3 | [Semantica VIP](pending-review/handoffs/HANDOFF-2026-08-15-R3-semantica.md) | Partial | Full intelligence behind governed candidate boundary |
-| R4 | [Graphiti/Zep memory](pending-review/handoffs/HANDOFF-2026-08-15-R4-graphiti-zep-memory.md) | **CLOSED — Graphiti retired 2026-08-27 (owner ruling; P-09 / GAP-008 zero-caller path). No bake-off pending: no candidate, no replacement store.** ~~Research complete~~ | PostgreSQL remains belief authority; ~~Graphiti projection~~ **no graph projection in this lane** |
-| R5 | [AG2 coordination](pending-review/handoffs/HANDOFF-2026-08-15-R5-ag2-coordination.md) | Research complete | Candidate adapter only; Agno remains current |
-| R6 | [Provider switching](pending-review/handoffs/HANDOFF-2026-08-15-R6-provider-switching.md) | Research complete | Portkey/OpenCode/direct route registry |
-| R7 | [OpenCode workspace](pending-review/handoffs/HANDOFF-2026-08-15-R7-opencode-workspace.md) | Partial | Persistent control; isolated execution |
-| R8 | [Custom Workbench](pending-review/handoffs/HANDOFF-2026-08-15-R8-workbench.md) | Partial | Framework-neutral operator product |
-| R9 | [Knowledge to case MVP](pending-review/handoffs/HANDOFF-2026-08-15-R9-knowledge-to-case-mvp.md) | Superseded in part by local build | Matter/CourtCase + evidence promotion, held/unapplied |
-| R10 | [Surreal analytical memory and investigation design](pending-review/handoffs/HANDOFF-2026-08-15-R10-surreal-investigation-design.md) | Complete design / build unknown | Governed Surreal projection, claim assembly, investigation and behavior |
-| R11 | [Surreal investigation Phase 0](pending-review/handoffs/HANDOFF-2026-08-16-R11-surreal-investigation-phase0.md) | Complete for owner review | Logical contracts, question inventory, evaluation gates, synthetic horizon canary, owner packet |
-| R12 | [Surreal investigation owner rulings](pending-review/handoffs/HANDOFF-2026-08-16-R12-surreal-investigation-owner-rulings.md) | Complete | S1–S6 settled; Phase-1 design authorized, physical work separately gated |
-| R13 | [Phase-1 Surreal T0 reboot checkpoint](pending-review/handoffs/HANDOFF-2026-08-16-R13-phase1-surreal-t0-reboot-checkpoint.md) | Paused / target stopped | Local gates pass; live projection fails closed; resume from sealed disposable state |
-| R14 | [Phase-1 Surreal live core pass](pending-review/handoffs/HANDOFF-2026-08-17-R14-phase1-surreal-live-core-pass.md) | ~~Core live gates pass / full set partial~~ — **superseded 2026-08-18, see below** | Target stopped; sealed snapshot, linked rewalk, and export/import parity remain |
+| R0 | [Wave-1 audit](awaiting-verification/handoffs/HANDOFF-2026-08-15-R0-wave1-audit.md) | Complete / build failed | Audit only; migrations held |
+| R1 | [Go ingestion](awaiting-verification/handoffs/HANDOFF-2026-08-15-R1-go-ingestion.md) | Partial | Coverage-based parsing and ordered custody |
+| R2 | [Horizon engine](awaiting-verification/handoffs/HANDOFF-2026-08-15-R2-horizon-engine.md) | Partial | Immutable manifests, replay, contamination gates |
+| R3 | [Semantica VIP](awaiting-verification/handoffs/HANDOFF-2026-08-15-R3-semantica.md) | Partial | Full intelligence behind governed candidate boundary |
+| R4 | [Graphiti/Zep memory](awaiting-verification/handoffs/HANDOFF-2026-08-15-R4-graphiti-zep-memory.md) | **CLOSED — Graphiti retired 2026-08-27 (owner ruling; P-09 / GAP-008 zero-caller path). No bake-off pending: no candidate, no replacement store.** ~~Research complete~~ | PostgreSQL remains belief authority; ~~Graphiti projection~~ **no graph projection in this lane** |
+| R5 | [AG2 coordination](awaiting-verification/handoffs/HANDOFF-2026-08-15-R5-ag2-coordination.md) | Research complete | Candidate adapter only; Agno remains current |
+| R6 | [Provider switching](awaiting-verification/handoffs/HANDOFF-2026-08-15-R6-provider-switching.md) | Research complete | Portkey/OpenCode/direct route registry |
+| R7 | [OpenCode workspace](awaiting-verification/handoffs/HANDOFF-2026-08-15-R7-opencode-workspace.md) | Partial | Persistent control; isolated execution |
+| R8 | [Custom Workbench](awaiting-verification/handoffs/HANDOFF-2026-08-15-R8-workbench.md) | Partial | Framework-neutral operator product |
+| R9 | [Knowledge to case MVP](awaiting-verification/handoffs/HANDOFF-2026-08-15-R9-knowledge-to-case-mvp.md) | Superseded in part by local build | Matter/CourtCase + evidence promotion, held/unapplied |
+| R10 | [Surreal analytical memory and investigation design](awaiting-verification/handoffs/HANDOFF-2026-08-15-R10-surreal-investigation-design.md) | Complete design / build unknown | Governed Surreal projection, claim assembly, investigation and behavior |
+| R11 | [Surreal investigation Phase 0](awaiting-verification/handoffs/HANDOFF-2026-08-16-R11-surreal-investigation-phase0.md) | Complete for owner review | Logical contracts, question inventory, evaluation gates, synthetic horizon canary, owner packet |
+| R12 | [Surreal investigation owner rulings](awaiting-verification/handoffs/HANDOFF-2026-08-16-R12-surreal-investigation-owner-rulings.md) | Complete | S1–S6 settled; Phase-1 design authorized, physical work separately gated |
+| R13 | [Phase-1 Surreal T0 reboot checkpoint](awaiting-verification/handoffs/HANDOFF-2026-08-16-R13-phase1-surreal-t0-reboot-checkpoint.md) | Paused / target stopped | Local gates pass; live projection fails closed; resume from sealed disposable state |
+| R14 | [Phase-1 Surreal live core pass](awaiting-verification/handoffs/HANDOFF-2026-08-17-R14-phase1-surreal-live-core-pass.md) | ~~Core live gates pass / full set partial~~ — **superseded 2026-08-18, see below** | Target stopped; sealed snapshot, linked rewalk, and export/import parity remain |
 
 R9's claim that Matter identity and the Knowledge-to-Evidence slice are missing is now
 historical: those components are pushed to `main`, undeployed, and dependent on
@@ -33,9 +33,9 @@ status is recorded in the newest R9 addendum.
 
 R10 is documentation/design only. It authorizes no Surreal activation, corpus copy,
 schema/migration, Graphiti replacement, or production change. Its goal hierarchy is
-[`GOALS-2026-08-15-surreal-investigation-memory.md`](pending-review/plans/GOALS-2026-08-15-surreal-investigation-memory.md)
+[`GOALS-2026-08-15-surreal-investigation-memory.md`](awaiting-verification/plans/GOALS-2026-08-15-surreal-investigation-memory.md)
 and its consolidated technical contract is
-[`SURREAL-INVESTIGATION-BLUEPRINT-2026-08-15.md`](pending-review/plans/SURREAL-INVESTIGATION-BLUEPRINT-2026-08-15.md).
+[`SURREAL-INVESTIGATION-BLUEPRINT-2026-08-15.md`](awaiting-verification/plans/SURREAL-INVESTIGATION-BLUEPRINT-2026-08-15.md).
 
 R11 executes the contract/evaluation portion of R10 Phase 0. The synthetic canary passes 14
 tests, but no live adapter is verified. Six owner choices remain pending; Phase 1 and every R9

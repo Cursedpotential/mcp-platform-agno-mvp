@@ -3,7 +3,7 @@
 > _Byline: Claude Code · Fable 5 · 2026-08-18._
 >
 > **Purpose:** Codex (GPT-5) spent 2026-08-18 moving 70 stale/superseded documents from `docs/`
-> into `docs/pending-review/` and writing a fresh `docs/MASTER-TODO-2026-08-18.md`. The owner
+> into `docs/awaiting-verification/` and writing a fresh `docs/MASTER-TODO-2026-08-18.md`. The owner
 > asked for an **independent** second pass: reconcile every iteration of every task thread up to
 > today, verify what Codex's MASTER-TODO claims against live code/tests/git/production Postgres
 > (not just doc text), and hand back a single list of what's actually undone or ambiguous.
@@ -12,7 +12,7 @@
 > Postgres (tailnet `100.91.190.107`), 4 code/test verification passes against MASTER-TODO's own
 > claims, a full sweep of `docs/DEBT.md` + `docs/DECISION_LOG.md` + `docs/CHANGE-ORDER.md` +
 > `docs/RULINGS-SHEET-2026-08-09.md` + `docs/UNRESOLVED-QUESTIONS-*.md`, and two sweeps of the 33
-> handoff docs and 17 plan docs Codex moved into `docs/pending-review/`. Every claim below is
+> handoff docs and 17 plan docs Codex moved into `docs/awaiting-verification/`. Every claim below is
 > traceable to a specific agent finding; nothing here is re-stated doc text taken on faith.
 
 ## Bottom line
@@ -88,7 +88,7 @@ clean" — that is flatly false right now.
      R14.
    - Two of its prose links (`GOALS-2026-08-15-surreal-investigation-memory.md`,
      `SURREAL-INVESTIGATION-BLUEPRINT-2026-08-15.md`) point at `docs/`, but both files were moved
-     to `docs/pending-review/plans/` in today's reorg — broken links.
+     to `docs/awaiting-verification/plans/` in today's reorg — broken links.
 5. **The 2026-08-09 "S1–S10" handoff series has zero coverage in `docs/HANDOFFS.md`'s index.**
    Cross-referencing suggests it was folded forward into the R0–R9 series (e.g., S6's
    horizon/derivation work → R2 "Horizon engine," still "Partial"), but nothing in the current
@@ -142,7 +142,7 @@ clean" — that is flatly false right now.
 These are not "undone work" in the normal sense; they're stalled on a decision only the owner
 can make. Surfacing them separately so they don't get conflated with straightforward build work.
 
-**Still open — never actually ruled on** (from `docs/pending-review/plans/PENDING-OWNER-DECISIONS-MATTER-MVP-2026-08-15.md`; the doc's own compact-ruling recommendation was never confirmed by the owner):
+**Still open — never actually ruled on** (from `docs/awaiting-verification/plans/PENDING-OWNER-DECISIONS-MATTER-MVP-2026-08-15.md`; the doc's own compact-ruling recommendation was never confirmed by the owner):
 
 - **P1** People authority — is `analysis.matter_person` Matter-local, or must every person tie back to `working.person`?
 - **P2** Review meaning for an operator-created person — usable immediately at `safe_for_legal_use=false`, or does creation imply approval?

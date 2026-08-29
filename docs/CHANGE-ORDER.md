@@ -261,12 +261,12 @@ pipeline, not the schema.
 
 > _Byline: Claude Code · Fable 5 · 2026-08-18._
 
-Owner asked for an independent second pass on Codex's same-day `docs/pending-review/` reorg and
+Owner asked for an independent second pass on Codex's same-day `docs/awaiting-verification/` reorg and
 `MASTER-TODO-2026-08-18.md`: reconcile every task-thread iteration to date, verify claims against
 live code/tests/git/production Postgres (not doc text), and consolidate undone/ambiguous items.
 Ran 9 parallel subagents (live read-only DuckDB probe against prod Postgres `100.91.190.107`;
 4 code/test verification passes; a DEBT/DECISION_LOG/CHANGE-ORDER/RULINGS/UNRESOLVED-QUESTIONS
-sweep; two sweeps of the 33 handoffs + 17 plans in `docs/pending-review/`).
+sweep; two sweeps of the 33 handoffs + 17 plans in `docs/awaiting-verification/`).
 
 **Result:** MASTER-TODO-2026-08-18.md is accurate everywhere checked — no overstated claims
 found. Gaps are in *coverage*, not correctness: 5 real work threads (Investigation/Behavioral

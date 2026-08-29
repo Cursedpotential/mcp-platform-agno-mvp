@@ -22,11 +22,11 @@
 
 **PARTIALLY RESOLVED; Multiple Items PENDING OWNER RULING**
 
-- **Document:** `docs/pending-review/plans/PENDING-OWNER-DECISIONS-MATTER-MVP-2026-08-15.md`
+- **Document:** `docs/awaiting-verification/plans/PENDING-OWNER-DECISIONS-MATTER-MVP-2026-08-15.md`
 - **Status (line 5):** "PENDING OWNER RULING — review packet only; not an ADR and not implementation authority"
 - **ADR-0055 (D-060, 2026-08-15):** ACCEPTED; covers Matter/CourtCase identity boundary — answers the STRUCTURAL question ("one Matter, many CourtCases, preserve single-owner scope") but DOES NOT answer the 15 subsidiary P/R decisions in the pending doc.
 - **File:line:** 
-  - Pending doc: `docs/pending-review/plans/PENDING-OWNER-DECISIONS-MATTER-MVP-2026-08-15.md:5` (PENDING status)
+  - Pending doc: `docs/awaiting-verification/plans/PENDING-OWNER-DECISIONS-MATTER-MVP-2026-08-15.md:5` (PENDING status)
   - Ruling doc: `docs/adr/0055-matter-and-court-case-identity-boundary.md:5` (ACCEPTED 2026-08-15)
 - **Finding:** The architectural boundary is DECIDED (ADR-0055). The 15 operational sub-decisions within that file (P1–P5 on People authority/review/roles/timeline/identity; R1–R6 on authentication/confidence/methods/redaction/release/custody) and A1–A4 (activation gates) remain marked "PENDING OWNER RULING" in their file. The template at line 159 of the pending doc shows what a ruling would look like but has not been filled with an owner answer.
 
@@ -98,7 +98,7 @@
 | # | Question | Status | Date | Authority |
 |---|----------|--------|------|-----------|
 | Q1 | Migration 0026–0030 cutover | **RESOLVED** (activation HELD, ready to apply) | 2026-08-18 | D-066, ADR-0059 |
-| Q2 | Matter MVP P1–P5, R1–R6, A1–A4 | **PENDING** (ADR-0055 covers structure, not sub-decisions) | 2026-08-15 (partial) | ADR-0055 (structure only); pending-review doc still "PENDING OWNER RULING" |
+| Q2 | Matter MVP P1–P5, R1–R6, A1–A4 | **PENDING** (ADR-0055 covers structure, not sub-decisions) | 2026-08-15 (partial) | ADR-0055 (structure only); awaiting-verification doc still "PENDING OWNER RULING" |
 | Q3 | SurrealDB: retired or live? | **RESOLVED** (retired from ops, revived as analytical projection) | 2026-08-15 | ADR-0056 D.2, D-061 |
 | Q4 | Full-text vs substring search | **DESIGNED** (full-text decided; engine TBD) | 2026-07-11 | D-037; ADR-0058 (modes only) |
 | Q5 | Custody: mandatory or best-effort? | **RESOLVED** (primary mandatory, fallback flagged) | 2026-07-02 (mandate); 2026-08-12 (log) | Owner mandate in workflows.py:702; D-054/D-055 |

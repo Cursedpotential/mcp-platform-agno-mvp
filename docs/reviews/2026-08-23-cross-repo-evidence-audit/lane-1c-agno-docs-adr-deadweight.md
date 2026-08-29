@@ -159,7 +159,7 @@ generator.** Deployed Workbench at `100.72.169.40:8020` is stale; "NOT COMPLETE 
   `docs/wiki/project-docs/components/orchestration/contextforge/IMPLEMENTATION_ANALYSIS.md:334`, a regex
   `"bates_number": r"\b[A-Z]{2,4}\d{6,8}\b"` for **detecting** Bates numbers in imported text, not
   generating them. Archived wiki tree.
-- **packet** — ~30 hits, overwhelmingly `docs/pending-review/`, `docs/plans/` pre-mortems, and the
+- **packet** — ~30 hits, overwhelmingly `docs/awaiting-verification/`, `docs/plans/` pre-mortems, and the
   forensic-db-architecture planning tree. One is COORDINATION.md's "R11 owner packet" (a sign-off
   document, unrelated to legal exhibit packets).
 - **disclosure** — 100+ hits, overwhelmingly the ADR-0018 **disclosure-tier** bitemporal concept.

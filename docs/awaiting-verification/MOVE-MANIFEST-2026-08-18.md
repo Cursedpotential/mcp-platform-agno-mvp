@@ -3,8 +3,8 @@
 > _Byline: Codex · GPT-5 · 2026-08-18._
 
 Every listed source was `docs/<filename>`; every destination preserves the filename under
-`docs/pending-review/<category>/<filename>`. Status is `UNVERIFIED` for every row. Review
-criteria: [pending-review README](README.md).
+`docs/awaiting-verification/<category>/<filename>`. Status is `UNVERIFIED` for every row. Review
+criteria: [awaiting-verification README](README.md).
 
 | Category | Files moved from `docs/` | Status |
 |---|---|---|

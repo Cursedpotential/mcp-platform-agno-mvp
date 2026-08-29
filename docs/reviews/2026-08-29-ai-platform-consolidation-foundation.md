@@ -12,7 +12,7 @@ copied, no caller was changed, and the legacy `ai` database was not mutated or p
 - `sql/0049_ai_platform_consolidation_foundation.sql`
 - `scripts/audit_ai_platform_consolidation.py`
 - `tests/test_0049_ai_platform_consolidation_foundation.py`
-- `docs/pending-review/AI-TO-PLATFORM-CONSOLIDATION-2026-08-29.md`
+- `docs/awaiting-verification/AI-TO-PLATFORM-CONSOLIDATION-2026-08-29.md`
 - this receipt
 
 ## Corrections made

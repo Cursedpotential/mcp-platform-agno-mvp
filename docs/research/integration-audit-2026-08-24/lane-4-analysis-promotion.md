@@ -266,8 +266,8 @@ string's presence in those 9 files.
 `Dockerfile`, `fixtures/`, `pyproject.toml`, `queries/`, `schema/`, `src/horizon_surreal_phase1/`,
 `tests/`, `uv.lock` — i.e. a packaged Python project, not a stub directory.
 
-**Newest handoff STATUS line** — `docs/pending-review/handoffs/HANDOFF-2026-08-17-R14-phase1-surreal-live-core-pass.md`
-is the newest file in `docs/pending-review/handoffs/` by filename date (confirmed by directory
+**Newest handoff STATUS line** — `docs/awaiting-verification/handoffs/HANDOFF-2026-08-17-R14-phase1-surreal-live-core-pass.md`
+is the newest file in `docs/awaiting-verification/handoffs/` by filename date (confirmed by directory
 listing sorted; no handoff dated after 2026-08-17 exists in that directory). Its exact status lines
 (`HANDOFF-2026-08-17-R14-phase1-surreal-live-core-pass.md:11-12`):
 > `STATUS: CORE LIVE GATES PASS; FULL R13 GATE SET PARTIAL; TARGET STOPPED`
