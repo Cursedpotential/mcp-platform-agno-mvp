@@ -12,6 +12,8 @@ WORKER_DEPLOY = ROOT / "deploy/universal-import-worker.yaml"
 STARTER_DEPLOY = ROOT / "deploy/universal-import-starter.yaml"
 SHARED_PARSER_HOST = "/data/agno/volumes/universal-import/parser-bundles"
 SHARED_PARSER_CONTAINER = "/data/uiw/parser-bundles"
+PARSER_ARTIFACT_HOST = "/data/agno/volumes/universal-import/parser-artifacts"
+PARSER_ARTIFACT_CONTAINER = "/data/uiw/parser-artifacts"
 
 
 def _compose(path: Path) -> dict:
@@ -48,6 +50,17 @@ def test_parser_and_worker_share_exact_content_addressed_bundle_mount() -> None:
         _compose(PARSER_DEPLOY)["services"]["parser-activity-runtime"]["environment"]["PARSER_BUNDLE_DIR"]
         == SHARED_PARSER_CONTAINER
     )
+
+
+def test_parser_artifacts_use_a_protected_persistent_fail_closed_bind() -> None:
+    parser = _compose(PARSER_DEPLOY)["services"]["parser-activity-runtime"]
+    assert parser["environment"]["PARSER_ARTIFACT_DIR"] == PARSER_ARTIFACT_CONTAINER
+    assert {
+        "type": "bind",
+        "source": PARSER_ARTIFACT_HOST,
+        "target": PARSER_ARTIFACT_CONTAINER,
+        "bind": {"create_host_path": False},
+    } in parser["volumes"]
     assert (
         _compose(WORKER_DEPLOY)["services"]["universal-import-worker"]["environment"]["PARSER_BUNDLE_DIR"]
         == SHARED_PARSER_CONTAINER
@@ -81,7 +94,15 @@ def test_starter_and_parser_mount_only_their_required_shared_storage() -> None:
     starter = _compose(STARTER_DEPLOY)["services"]["universal-import-starter"]
     parser = _compose(PARSER_DEPLOY)["services"]["parser-activity-runtime"]
     assert starter["volumes"] == ["/data/agno/volumes/universal-import/source-objects:/data/uiw/source-objects"]
-    assert parser["volumes"] == [f"{SHARED_PARSER_HOST}:{SHARED_PARSER_CONTAINER}"]
+    assert parser["volumes"] == [
+        f"{SHARED_PARSER_HOST}:{SHARED_PARSER_CONTAINER}",
+        {
+            "type": "bind",
+            "source": PARSER_ARTIFACT_HOST,
+            "target": PARSER_ARTIFACT_CONTAINER,
+            "bind": {"create_host_path": False},
+        },
+    ]
 
 
 def test_dockerfiles_build_the_intended_commands_and_health_surfaces() -> None:
@@ -101,3 +122,23 @@ def test_existing_python_worker_is_not_referenced_or_replaced() -> None:
     combined = "\n".join(path.read_text(encoding="utf-8") for path in (PARSER_DEPLOY, WORKER_DEPLOY, STARTER_DEPLOY))
     assert "docker/temporal-worker" not in combined
     assert "server.temporal.worker" not in combined
+def test_r2_is_api_access_via_runtime_json_secret_not_a_bucket_mount() -> None:
+    worker = _compose(WORKER_DEPLOY)["services"]["universal-import-worker"]
+    assert worker["environment"]["CASEBIBLE_R2_CONFIG_PATH"] == "/run/secrets/casebible-r2.json"
+    assert "/data/agno/secrets/casebible-r2.json:/run/secrets/casebible-r2.json:ro" in worker["volumes"]
+    assert all("r2" not in mount.casefold() or "casebible-r2.json" in mount for mount in worker["volumes"])
+    assert not any(name.startswith("R2_") for name in worker["environment"])
+
+
+def test_workbench_uses_same_runtime_json_contract_without_credential_envs() -> None:
+    workbench_compose = _compose(ROOT / "deploy/workbench.yaml")
+    workbench = next(iter(workbench_compose["services"].values()))
+    assert workbench["environment"]["CASEBIBLE_R2_CONFIG_PATH"] == "/run/secrets/casebible-r2.json"
+    assert "/data/agno/secrets/casebible-r2.json:/run/secrets/casebible-r2.json:ro" in workbench["volumes"]
+    forbidden = {
+        "OBJECT_STORE_ACCESS_KEY_ID",
+        "OBJECT_STORE_SECRET_ACCESS_KEY",
+        "R2_ACCESS_KEY_ID",
+        "R2_SECRET_ACCESS_KEY",
+    }
+    assert forbidden.isdisjoint(workbench["environment"])

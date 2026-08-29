@@ -9,6 +9,35 @@ import (
 	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
 )
 
+const (
+	fingerprintVocabularyChangeID   = "uiw-context-fingerprint-vocabulary-v1"
+	fingerprintVocabularyVersion    = workflow.Version(1)
+	previewRepairChangeID           = "uiw-preview-explicit-repair-refs-v1"
+	previewRepairVersion            = workflow.Version(1)
+	legacyHashSourceActivity        = "hash_source_activity"
+	legacyHashRawRecordsActivity    = "hash_raw_records_activity"
+	legacyHashRawGenerationActivity = "hash_raw_generation_activity"
+)
+
+type fingerprintVocabulary struct {
+	source, rawRecords, rawGeneration stagegraph.StageID
+	sourceRefKey, rawManifestRefKey   string
+}
+
+func fingerprintVocabularyFor(ctx workflow.Context) fingerprintVocabulary {
+	if workflow.GetVersion(ctx, fingerprintVocabularyChangeID, workflow.DefaultVersion, fingerprintVocabularyVersion) == workflow.DefaultVersion {
+		return fingerprintVocabulary{
+			source: stagegraph.StageID(legacyHashSourceActivity), rawRecords: stagegraph.StageID(legacyHashRawRecordsActivity),
+			rawGeneration: stagegraph.StageID(legacyHashRawGenerationActivity), sourceRefKey: "h1", rawManifestRefKey: "raw_hash_manifest",
+		}
+	}
+	return fingerprintVocabulary{
+		source: stagegraph.FingerprintSource, rawRecords: stagegraph.FingerprintRawRecords,
+		rawGeneration: stagegraph.FingerprintRawGeneration, sourceRefKey: "context_source_fingerprint",
+		rawManifestRefKey: "raw_fingerprint_manifest",
+	}
+}
+
 // UniversalImportWorkflow is the single Temporal workflow every source runs
 // through (boundary document acceptance gate 1). It executes the exact
 // engine/stagegraph.Stages graph — all 23 atomic Activities, the documented
@@ -23,6 +52,7 @@ import (
 // a later lane can register real Activities without this file changing.
 func UniversalImportWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, error) {
 	r := &run{requestID: in.RequestID, matterID: in.MatterID, courtCaseID: in.CourtCaseID}
+	fingerprint := fingerprintVocabularyFor(ctx)
 
 	// Stage 1: register_source_activity — the root. It creates the
 	// identity/idempotency coordinate every later stage keys off.
@@ -48,7 +78,7 @@ func UniversalImportWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowRe
 	// stagegraph.TestSafeParallelFanOutAfterRetainOriginal).
 	fanOut, err := r.join(ctx,
 		r.start(ctx, stagegraph.CaptureFilesystemMetadata, "", map[string]Ref{"original": originalRef}),
-		r.start(ctx, stagegraph.HashSource, "", map[string]Ref{"original": originalRef}),
+		r.start(ctx, fingerprint.source, "", map[string]Ref{"original": originalRef}),
 		r.start(ctx, stagegraph.InventoryContainer, "", map[string]Ref{"original": originalRef}),
 		r.start(ctx, stagegraph.ExtractEmbeddedMetadata, "", map[string]Ref{"original": originalRef}),
 	)
@@ -56,16 +86,16 @@ func UniversalImportWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowRe
 		return r.result(""), err
 	}
 	filesystemMetadataRef := fanOut[stagegraph.CaptureFilesystemMetadata]
-	h1Ref := fanOut[stagegraph.HashSource]
+	contextSourceFingerprintRef := fanOut[fingerprint.source]
 	containerManifestRef := fanOut[stagegraph.InventoryContainer]
 	metadataManifestRef := fanOut[stagegraph.ExtractEmbeddedMetadata]
 
 	// Stage 7: select_parser_activity joins the fan-out; it needs the
 	// container manifest and metadata manifest to pick an adapter. It does
-	// NOT receive h1Ref: hash identity must never influence parser
+	// NOT receive contextSourceFingerprintRef: hash identity must never influence parser
 	// selection. The workflow still joins the fan-out (including
-	// hash_source) before scheduling select_parser — only the H1 reference
-	// itself is withheld from this stage's request.
+	// fingerprint_source) before scheduling select_parser — only the context source fingerprint
+	// reference itself is withheld from this stage's request.
 	parserSelectionRef, err := r.exec(ctx, stagegraph.SelectParser, in.DeclaredFormat, map[string]Ref{
 		"filesystem_metadata": filesystemMetadataRef,
 		"container_manifest":  containerManifestRef,
@@ -82,49 +112,84 @@ func UniversalImportWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowRe
 	// precisely so the hold survives a worker restart or a replica change —
 	// Temporal replays this workflow's own durable history, not any single
 	// worker's in-memory state.
-	preview := PreviewState{Phase: PhaseAwaitingDecision, SelectRef: parserSelectionRef}
+	activeSelectionRef := parserSelectionRef
+	activeParserOptionsRef := in.ParserOptionsRef
+	preview := PreviewState{
+		Phase: PhaseAwaitingDecision, SelectRef: activeSelectionRef,
+		ParserOptionsRef: activeParserOptionsRef,
+	}
 	if err := workflow.SetQueryHandler(ctx, PreviewQueryName, func() (PreviewState, error) {
 		return preview, nil
 	}); err != nil {
 		return r.result(""), fmt.Errorf("uiw: register preview query handler: %w", err)
 	}
 
-	var decision PreviewDecision
-	var decided bool
+	repairVersion := workflow.GetVersion(ctx, previewRepairChangeID, workflow.DefaultVersion, previewRepairVersion)
 	signalChan := workflow.GetSignalChannel(ctx, PreviewDecisionSignalName)
-	selector := workflow.NewSelector(ctx)
-	timer := workflow.NewTimer(ctx, previewDecisionTimeout)
-	selector.AddReceive(signalChan, func(c workflow.ReceiveChannel, more bool) {
-		c.Receive(ctx, &decision)
-		decided = true
-	})
-	selector.AddFuture(timer, func(f workflow.Future) { _ = f.Get(ctx, nil) })
-	selector.Select(ctx)
+	wasRejected := false
+	repairedSinceRejection := false
+	for {
+		var decision PreviewDecision
+		var decided bool
+		timerCtx, cancelTimer := workflow.WithCancel(ctx)
+		selector := workflow.NewSelector(ctx)
+		timer := workflow.NewTimer(timerCtx, previewDecisionTimeout)
+		selector.AddReceive(signalChan, func(c workflow.ReceiveChannel, more bool) {
+			c.Receive(ctx, &decision)
+			decided = true
+		})
+		selector.AddFuture(timer, func(f workflow.Future) { _ = f.Get(timerCtx, nil) })
+		selector.Select(ctx)
 
-	if !decided {
-		preview.Phase = PhaseTimedOut
-		preview.Reason = "preview decision timed out"
-		return r.result(""), errors.New("uiw: preview decision timed out")
+		if !decided {
+			preview.Phase = PhaseTimedOut
+			preview.Reason = "preview decision timed out"
+			return r.result(""), errors.New("uiw: preview decision timed out")
+		}
+		cancelTimer()
+		if repairVersion != workflow.DefaultVersion {
+			if decision.RepairedSelectionRef != "" {
+				activeSelectionRef = decision.RepairedSelectionRef
+				preview.SelectRef = activeSelectionRef
+				repairedSinceRejection = true
+			}
+			if decision.RepairedParserOptionsRef != "" {
+				activeParserOptionsRef = decision.RepairedParserOptionsRef
+				preview.ParserOptionsRef = activeParserOptionsRef
+				repairedSinceRejection = true
+			}
+		}
+		if !decision.Approved {
+			// Rejection is a durable review state, not terminal workflow
+			// failure. A later approval Signal resumes this same workflow
+			// identity after the operator repairs the selection/options.
+			preview.Phase = PhaseRejected
+			preview.Reason = decision.Reason
+			wasRejected = true
+			continue
+		}
+		if repairVersion != workflow.DefaultVersion && wasRejected && !repairedSinceRejection {
+			preview.Phase = PhaseRejected
+			preview.Reason = "approval after rejection requires an explicit repaired selection or parser-options reference"
+			continue
+		}
+		preview.Phase = PhaseApproved
+		preview.Reason = ""
+		break
 	}
-	if !decision.Approved {
-		preview.Phase = PhaseRejected
-		preview.Reason = decision.Reason
-		return r.result(""), fmt.Errorf("uiw: rejected by operator %s: %s", decision.Decider, decision.Reason)
-	}
-	preview.Phase = PhaseApproved
 
 	// Stage 8: execute_parser_activity — parse only.
 	rawBundleRef, err := r.exec(ctx, stagegraph.ExecuteParser, in.DeclaredFormat, map[string]Ref{
-		"parser_selection": parserSelectionRef,
+		"parser_selection": activeSelectionRef,
 		"original":         originalRef,
-		"parser_options":   in.ParserOptionsRef,
+		"parser_options":   activeParserOptionsRef,
 	})
 	if err != nil {
 		return r.result(""), err
 	}
 
 	// Stage 9: persist_raw_generation_activity, then stage 10:
-	// hash_raw_records_activity (H2 per raw record/span) — strict sequence
+	// fingerprint_raw_records_activity (context raw-record fingerprint) — strict sequence
 	// (persist before hashing the persisted rows). DeclaredFormat is
 	// preserved here (not dropped to "") because the raw generation's own
 	// persisted record needs to know what format it was parsed from.
@@ -134,32 +199,34 @@ func UniversalImportWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowRe
 	if err != nil {
 		return r.result(""), err
 	}
-	rawHashManifestRef, err := r.exec(ctx, stagegraph.HashRawRecords, "", map[string]Ref{
+	rawFingerprintManifestRef, err := r.exec(ctx, fingerprint.rawRecords, "", map[string]Ref{
 		"raw_generation": rawGenerationRef,
 	})
 	if err != nil {
 		return r.result(""), err
 	}
 
-	// Stage 10a: hash_raw_generation_activity — folds the ordered H2
-	// membership from hash_raw_records into the raw generation's H3 chain.
-	// It reuses the SBV fold formula under the platform raw-all membership tag,
-	// because envelope/unparsed spans are members too. Raw custody is not complete until both the
-	// per-record digests and their order-sensitive chain exist.
-	rawGenerationChainRef, err := r.exec(ctx, stagegraph.HashRawGeneration, "", map[string]Ref{
-		"raw_hash_manifest": rawHashManifestRef,
-		"raw_generation":    rawGenerationRef,
+	// Stage 10a: fingerprint_raw_generation_activity — folds the ordered
+	// context raw-record fingerprints from fingerprint_raw_records into the
+	// raw generation's context fingerprint chain. It reuses the SBV fold
+	// formula under the platform raw-all membership tag, because
+	// envelope/unparsed spans are members too. Context fingerprint chain is
+	// not complete until both the per-record fingerprints and their
+	// order-sensitive chain exist. This is NOT custody H3.
+	rawGenerationFingerprintChainRef, err := r.exec(ctx, fingerprint.rawGeneration, "", map[string]Ref{
+		fingerprint.rawManifestRefKey: rawFingerprintManifestRef,
+		"raw_generation":              rawGenerationRef,
 	})
 	if err != nil {
 		return r.result(""), err
 	}
 
 	// Stages 11-12: the second parallel pair — both depend only on
-	// hash_raw_generation (the completed H2+H3 raw custody chain), not on
+	// fingerprint_raw_generation (the completed context fingerprint chain), not on
 	// each other.
 	reconcilePair, err := r.join(ctx,
-		r.start(ctx, stagegraph.ReconcileRecordAccounting, "", map[string]Ref{"raw_generation_chain": rawGenerationChainRef}),
-		r.start(ctx, stagegraph.ReconcileByteCoverage, "", map[string]Ref{"raw_generation_chain": rawGenerationChainRef}),
+		r.start(ctx, stagegraph.ReconcileRecordAccounting, "", map[string]Ref{"raw_generation_chain": rawGenerationFingerprintChainRef}),
+		r.start(ctx, stagegraph.ReconcileByteCoverage, "", map[string]Ref{"raw_generation_chain": rawGenerationFingerprintChainRef}),
 	)
 	if err != nil {
 		return r.result(""), err
@@ -169,13 +236,14 @@ func UniversalImportWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowRe
 
 	// Stage 13: verify_raw_coverage_against_source_activity joins the
 	// reconciliation pair, independently recomputes/verifies the ordered raw
-	// generation chain, and checks the accounted byte coverage against H1.
-	// Verification remains separate from every hash computation.
+	// generation fingerprint chain, and checks the accounted byte coverage
+	// against the context source fingerprint. Verification remains separate
+	// from every fingerprint computation.
 	rawSourceVerificationRef, err := r.exec(ctx, stagegraph.VerifyRawCoverageAgainstSource, "", map[string]Ref{
-		"accounting":           accountingRef,
-		"coverage":             coverageRef,
-		"h1":                   h1Ref,
-		"raw_generation_chain": rawGenerationChainRef,
+		"accounting":             accountingRef,
+		"coverage":               coverageRef,
+		fingerprint.sourceRefKey: contextSourceFingerprintRef,
+		"raw_generation_chain":   rawGenerationFingerprintChainRef,
 	})
 	if err != nil {
 		return r.result(""), err

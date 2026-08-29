@@ -337,7 +337,7 @@ func verifyRequest() uiw.StageRequest {
 	return uiw.StageRequest{
 		RequestID: "req-1", SourceVersionRef: "src-1",
 		Refs: map[string]uiw.Ref{
-			"accounting": "acc-1", "coverage": "cov-1", "h1": "h1-1", "raw_generation_chain": "chain-1",
+			"accounting": "acc-1", "coverage": "cov-1", "context_source_fingerprint": "fingerprint-1", "raw_generation_chain": "chain-1",
 		},
 	}
 }
@@ -353,13 +353,13 @@ func TestVerifyRawCoverageAgainstSourceHappyPath(t *testing.T) {
 		t.Fatalf("result = %+v", result)
 	}
 	if repo.lastVerifySpec.AccountingRef != "acc-1" || repo.lastVerifySpec.CoverageRef != "cov-1" ||
-		repo.lastVerifySpec.H1Ref != "h1-1" || repo.lastVerifySpec.RawGenerationChainRef != "chain-1" {
+		repo.lastVerifySpec.ContextSourceFingerprintRef != "fingerprint-1" || repo.lastVerifySpec.RawGenerationChainRef != "chain-1" {
 		t.Fatalf("verify spec = %+v", repo.lastVerifySpec)
 	}
 }
 
 func TestVerifyRawCoverageAgainstSourceRequiresEachReference(t *testing.T) {
-	for _, missing := range []string{"accounting", "coverage", "h1", "raw_generation_chain"} {
+	for _, missing := range []string{"accounting", "coverage", "context_source_fingerprint", "raw_generation_chain"} {
 		t.Run(missing, func(t *testing.T) {
 			req := verifyRequest()
 			delete(req.Refs, missing)
@@ -368,6 +368,27 @@ func TestVerifyRawCoverageAgainstSourceRequiresEachReference(t *testing.T) {
 				t.Fatalf("missing %q reference accepted", missing)
 			}
 		})
+	}
+}
+
+func TestVerifyRawCoverageAgainstSourceAcceptsLegacyH1Alias(t *testing.T) {
+	req := verifyRequest()
+	delete(req.Refs, "context_source_fingerprint")
+	req.Refs["h1"] = "legacy-fingerprint-1"
+	repo := &fakeRawPipelineRepository{verifyOutcome: ReconciliationOutcome{Status: uiw.StatusSuccess, Ref: "verify-1", ReceiptRef: "receipt-1"}}
+	if _, err := (RawPipelineActivities{Repository: repo}).VerifyRawCoverageAgainstSource(context.Background(), req); err != nil {
+		t.Fatal(err)
+	}
+	if repo.lastVerifySpec.ContextSourceFingerprintRef != "legacy-fingerprint-1" {
+		t.Fatalf("legacy alias was not translated: %+v", repo.lastVerifySpec)
+	}
+}
+
+func TestVerifyRawCoverageAgainstSourceRejectsConflictingFingerprintAliases(t *testing.T) {
+	req := verifyRequest()
+	req.Refs["h1"] = "different"
+	if _, err := (RawPipelineActivities{Repository: &fakeRawPipelineRepository{}}).VerifyRawCoverageAgainstSource(context.Background(), req); err == nil {
+		t.Fatal("conflicting canonical and legacy fingerprint refs accepted")
 	}
 }
 

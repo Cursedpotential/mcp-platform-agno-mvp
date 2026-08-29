@@ -144,78 +144,93 @@ func generationRequest(manifestName string, manifestRef, generationRef uiw.Ref) 
 	}
 }
 
-func TestHashSourceComputesCanonicalH1(t *testing.T) {
+func TestFingerprintSourceComputesCanonicalContextSourceFingerprint(t *testing.T) {
 	repo := &fakeRepository{originals: map[uiw.Ref][]byte{"original-1": []byte("exact source bytes\n")}}
-	result, err := (HashActivities{Repository: repo, Attempt: func(context.Context) int32 { return 3 }}).HashSource(context.Background(), testRequest("original", "original-1"))
+	result, err := (HashActivities{Repository: repo, Attempt: func(context.Context) int32 { return 3 }}).FingerprintSource(context.Background(), testRequest("original", "original-1"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Stage != stagegraph.HashSource || result.Status != uiw.StatusSuccess {
+	if result.Stage != stagegraph.FingerprintSource || result.Status != uiw.StatusSuccess {
 		t.Fatalf("unexpected result: %#v", result)
 	}
 	want := custodyhash.HashBytes([]byte("exact source bytes\n"))
-	if repo.lastWriter.summary.Digest != want || repo.lastWriter.summary.Canon != custodyhash.CanonH1 || repo.lastWriter.summary.Construction != custodyhash.CanonH1 {
-		t.Fatalf("H1 summary = %#v, want digest %s canon %s", repo.lastWriter.summary, want, custodyhash.CanonH1)
+	if repo.lastWriter.summary.Digest != want || repo.lastWriter.summary.Canon != CanonContextSourceFingerprint || repo.lastWriter.summary.Construction != CanonContextSourceFingerprint {
+		t.Fatalf("context source fingerprint summary = %#v, want digest %s canon %s", repo.lastWriter.summary, want, CanonContextSourceFingerprint)
 	}
 	if repo.lastWriter.spec.Attempt != 3 {
 		t.Fatalf("batch attempt = %d, want 3", repo.lastWriter.spec.Attempt)
 	}
 }
 
-func TestHashRawRecordsUsesExactBytesAndH2Names(t *testing.T) {
-	repo := &fakeRepository{raw: map[uiw.Ref][]byteFixture{
-		"raw-generation": {
-			{ref: "raw-1", ordinal: 0, canon: custodyhash.CanonH2, data: []byte(`<sms body="a" />`)},
-			{ref: "raw-2", ordinal: 1, canon: custodyhash.CanonH2Record, data: []byte("same logical value, different bytes\n")},
-		},
-	}}
-	result, err := (HashActivities{Repository: repo}).HashRawRecords(context.Background(), testRequest("raw_generation", "raw-generation"))
+func TestLegacyFingerprintRetryPreservesActivityExecutionIdentity(t *testing.T) {
+	repo := &fakeRepository{originals: map[uiw.Ref][]byte{"original-1": []byte("exact source bytes\n")}}
+	result, err := (HashActivities{Repository: repo}).LegacyHashSource(context.Background(), testRequest("original", "original-1"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Stage != stagegraph.HashRawRecords || len(repo.lastWriter.members) != 2 {
+	legacy := stagegraph.StageID("hash_source_activity")
+	if result.Stage != legacy || repo.lastWriter.spec.Stage != legacy {
+		t.Fatalf("legacy stage identity changed: result=%q execution=%q", result.Stage, repo.lastWriter.spec.Stage)
+	}
+	if repo.lastWriter.spec.Kind != HashKindContextSourceFingerprint || repo.lastWriter.summary.Canon != CanonContextSourceFingerprint {
+		t.Fatalf("legacy replay did not use corrected fingerprint semantics: %#v %#v", repo.lastWriter.spec, repo.lastWriter.summary)
+	}
+}
+
+func TestFingerprintRawRecordsUsesExactBytesAndContextRawRecordNames(t *testing.T) {
+	repo := &fakeRepository{raw: map[uiw.Ref][]byteFixture{
+		"raw-generation": {
+			{ref: "raw-1", ordinal: 0, canon: CanonContextRawRecordFingerprint, data: []byte(`<sms body="a" />`)},
+			{ref: "raw-2", ordinal: 1, canon: CanonContextRawSpanFingerprint, data: []byte("same logical value, different bytes\n")},
+		},
+	}}
+	result, err := (HashActivities{Repository: repo}).FingerprintRawRecords(context.Background(), testRequest("raw_generation", "raw-generation"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Stage != stagegraph.FingerprintRawRecords || len(repo.lastWriter.members) != 2 {
 		t.Fatalf("unexpected result or member count: %#v %#v", result, repo.lastWriter.members)
 	}
 	if got, want := repo.lastWriter.members[0].Digest, custodyhash.HashRecordH2([]byte(`<sms body="a" />`)); got != want {
-		t.Fatalf("first H2 = %s, want %s", got, want)
+		t.Fatalf("first context raw-record fingerprint = %s, want %s", got, want)
 	}
-	if repo.lastWriter.members[0].Canon != custodyhash.CanonH2 || repo.lastWriter.members[1].Canon != custodyhash.CanonH2Record {
+	if repo.lastWriter.members[0].Canon != CanonContextRawRecordFingerprint || repo.lastWriter.members[1].Canon != CanonContextRawSpanFingerprint {
 		t.Fatalf("raw canons drifted: %#v", repo.lastWriter.members)
 	}
 }
 
-func TestHashRawGenerationMatchesAuthoritativeH3AndDetectsOrdering(t *testing.T) {
+func TestFingerprintRawGenerationMatchesAuthoritativeChainAndDetectsOrdering(t *testing.T) {
 	h2a := custodyhash.HashRecordH2([]byte("a"))
 	h2b := custodyhash.HashRecordH2([]byte("b"))
 	members := []DigestMember{
-		{SubjectRef: "raw-1", Ordinal: 0, Digest: h2a, Canon: custodyhash.CanonH2Record},
-		{SubjectRef: "raw-2", Ordinal: 1, Digest: h2b, Canon: custodyhash.CanonH2Record},
+		{SubjectRef: "raw-1", Ordinal: 0, Digest: h2a, Canon: CanonContextRawRecordFingerprint},
+		{SubjectRef: "raw-2", Ordinal: 1, Digest: h2b, Canon: CanonContextRawRecordFingerprint},
 	}
-	repo := &fakeRepository{manifests: map[uiw.Ref][]DigestMember{"h2-manifest": members}}
-	_, err := (HashActivities{Repository: repo}).HashRawGeneration(context.Background(), generationRequest("raw_hash_manifest", "h2-manifest", "raw-generation"))
+	repo := &fakeRepository{manifests: map[uiw.Ref][]DigestMember{"raw-fingerprint-manifest": members}}
+	_, err := (HashActivities{Repository: repo}).FingerprintRawGeneration(context.Background(), generationRequest("raw_fingerprint_manifest", "raw-fingerprint-manifest", "raw-generation"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got, want := repo.lastWriter.summary.Digest, custodyhash.ChainH3([]string{h2a, h2b}, ""); got != want {
-		t.Fatalf("H3 = %s, want %s", got, want)
+		t.Fatalf("context raw-generation fingerprint chain = %s, want %s", got, want)
 	}
-	if repo.lastWriter.summary.Canon != CanonRawGeneration || repo.lastWriter.summary.Construction != CanonRawGeneration {
-		t.Fatalf("H3 canon = %q", repo.lastWriter.summary.Canon)
+	if repo.lastWriter.summary.Canon != CanonContextRawGenerationFingerprint || repo.lastWriter.summary.Construction != CanonContextRawGenerationFingerprint {
+		t.Fatalf("context raw-generation fingerprint canon = %q", repo.lastWriter.summary.Canon)
 	}
 	if repo.lastWriter.spec.SubjectRef != "raw-generation" {
-		t.Fatalf("H3 subject = %q, want raw generation identity", repo.lastWriter.spec.SubjectRef)
+		t.Fatalf("context raw-generation fingerprint subject = %q, want raw generation identity", repo.lastWriter.spec.SubjectRef)
 	}
 
-	repo.manifests["h2-manifest"] = []DigestMember{
-		{SubjectRef: "raw-2", Ordinal: 0, Digest: h2b, Canon: custodyhash.CanonH2Record},
-		{SubjectRef: "raw-1", Ordinal: 1, Digest: h2a, Canon: custodyhash.CanonH2Record},
+	repo.manifests["raw-fingerprint-manifest"] = []DigestMember{
+		{SubjectRef: "raw-2", Ordinal: 0, Digest: h2b, Canon: CanonContextRawRecordFingerprint},
+		{SubjectRef: "raw-1", Ordinal: 1, Digest: h2a, Canon: CanonContextRawRecordFingerprint},
 	}
-	_, err = (HashActivities{Repository: repo}).HashRawGeneration(context.Background(), generationRequest("raw_hash_manifest", "h2-manifest", "raw-generation"))
+	_, err = (HashActivities{Repository: repo}).FingerprintRawGeneration(context.Background(), generationRequest("raw_fingerprint_manifest", "raw-fingerprint-manifest", "raw-generation"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if repo.lastWriter.summary.Digest == custodyhash.ChainH3([]string{h2a, h2b}, "") {
-		t.Fatal("reordering H2 members did not change H3")
+		t.Fatal("reordering context raw-record fingerprint members did not change the fingerprint chain")
 	}
 }
 
@@ -274,23 +289,23 @@ func TestNormalizedDigestsRemainDistinctFromCustodyH2H3(t *testing.T) {
 
 func TestHashActivitiesFailClosedOnEmptyAndCancellation(t *testing.T) {
 	repo := &fakeRepository{raw: map[uiw.Ref][]byteFixture{"empty": nil}}
-	_, err := (HashActivities{Repository: repo}).HashRawRecords(context.Background(), testRequest("raw_generation", "empty"))
+	_, err := (HashActivities{Repository: repo}).FingerprintRawRecords(context.Background(), testRequest("raw_generation", "empty"))
 	if err == nil || !repo.lastWriter.aborted || repo.lastWriter.committed {
 		t.Fatalf("empty generation did not fail closed: err=%v writer=%#v", err, repo.lastWriter)
 	}
 
-	repo.manifests = map[uiw.Ref][]DigestMember{"empty-h2": nil}
-	_, err = (HashActivities{Repository: repo}).HashRawGeneration(
-		context.Background(), generationRequest("raw_hash_manifest", "empty-h2", "raw-generation"),
+	repo.manifests = map[uiw.Ref][]DigestMember{"empty-fingerprint": nil}
+	_, err = (HashActivities{Repository: repo}).FingerprintRawGeneration(
+		context.Background(), generationRequest("raw_fingerprint_manifest", "empty-fingerprint", "raw-generation"),
 	)
 	if err == nil || !repo.lastWriter.aborted || repo.lastWriter.committed {
-		t.Fatalf("empty H3 membership did not fail closed: err=%v writer=%#v", err, repo.lastWriter)
+		t.Fatalf("empty context raw-generation fingerprint chain did not fail closed: err=%v writer=%#v", err, repo.lastWriter)
 	}
 
 	repo.originals = map[uiw.Ref][]byte{"original-1": []byte("bytes")}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err = (HashActivities{Repository: repo}).HashSource(ctx, testRequest("original", "original-1"))
+	_, err = (HashActivities{Repository: repo}).FingerprintSource(ctx, testRequest("original", "original-1"))
 	if !errors.Is(err, context.Canceled) || !repo.lastWriter.aborted || repo.lastWriter.committed {
 		t.Fatalf("cancellation did not abort: err=%v writer=%#v", err, repo.lastWriter)
 	}
@@ -300,7 +315,7 @@ func TestHashActivitiesRejectOrdinalAndCanonDrift(t *testing.T) {
 	repo := &fakeRepository{raw: map[uiw.Ref][]byteFixture{"raw-generation": {
 		{ref: "raw-1", ordinal: 1, canon: CanonNormalizedRecord, data: []byte("x")},
 	}}}
-	_, err := (HashActivities{Repository: repo}).HashRawRecords(context.Background(), testRequest("raw_generation", "raw-generation"))
+	_, err := (HashActivities{Repository: repo}).FingerprintRawRecords(context.Background(), testRequest("raw_generation", "raw-generation"))
 	if err == nil || !repo.lastWriter.aborted {
 		t.Fatalf("ordinal/canon drift did not fail closed: err=%v writer=%#v", err, repo.lastWriter)
 	}

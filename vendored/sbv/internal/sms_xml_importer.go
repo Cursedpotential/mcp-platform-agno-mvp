@@ -14,6 +14,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"hash"
 	"io"
@@ -212,12 +213,27 @@ func streamMMSRecord(sink ImportSink, r *bufio.Reader, prefix []byte, pos string
 		return nil, err
 	}
 	defer sanitized.Close()
+	rawSpool, err := os.CreateTemp(root, "mms-raw-*.xml")
+	if err != nil {
+		return nil, err
+	}
+	defer rawSpool.Close()
+	rawBuffered := bufio.NewWriterSize(rawSpool, mmsStreamBufferBytes)
 	h := sha256.New()
 	var rawSize int64
 	writeRaw := func(data []byte) error {
-		n, err := h.Write(data)
+		if _, err := h.Write(data); err != nil {
+			return err
+		}
+		n, err := rawBuffered.Write(data)
 		rawSize += int64(n)
-		return err
+		if err != nil {
+			return err
+		}
+		if n != len(data) {
+			return io.ErrShortWrite
+		}
+		return nil
 	}
 	writeBoth := func(data []byte) error {
 		if err := writeRaw(data); err != nil {
@@ -285,26 +301,15 @@ func streamMMSRecord(sink ImportSink, r *bufio.Reader, prefix []byte, pos string
 			if err := writeBoth([]byte{b}); err != nil {
 				return nil, err
 			}
-			if attr, _ := r.Peek(5); string(attr) == "data=" {
-				_, _ = r.Discard(5)
-				if err := writeBoth([]byte("data=")); err != nil {
-					return nil, err
-				}
-				q, err := r.ReadByte()
-				if err != nil || (q != '\'' && q != '"') {
-					return nil, fmt.Errorf("malformed MMS data attribute")
-				}
-				if err := writeRaw([]byte{q}); err != nil {
-					return nil, err
-				}
-				marker := fmt.Sprintf("__SBV_ATTACHMENT_%d__", len(drafts))
-				if _, err := sanitized.WriteString(string(q) + marker + string(q)); err != nil {
-					return nil, err
-				}
-				draft, err := decodeMMSAttribute(r, h, &rawSize, q, attachmentDir, marker)
-				if err != nil {
-					return nil, err
-				}
+			candidate, _ := r.Peek(len("data"))
+			if string(candidate) != "data" {
+				continue
+			}
+			draft, captured, err := captureMMSDataAttribute(r, writeBoth, writeRaw, sanitized, h, rawBuffered, &rawSize, attachmentDir, len(drafts))
+			if err != nil {
+				return nil, err
+			}
+			if captured {
 				drafts = append(drafts, draft)
 			}
 			continue
@@ -316,6 +321,15 @@ func streamMMSRecord(sink ImportSink, r *bufio.Reader, prefix []byte, pos string
 	if err := sanitized.Sync(); err != nil {
 		return nil, err
 	}
+	if err := rawBuffered.Flush(); err != nil {
+		return nil, err
+	}
+	if err := rawSpool.Sync(); err != nil {
+		return nil, err
+	}
+	if err := rawSpool.Close(); err != nil {
+		return nil, err
+	}
 	if _, err := sanitized.Seek(0, io.SeekStart); err != nil {
 		return nil, err
 	}
@@ -324,12 +338,17 @@ func streamMMSRecord(sink ImportSink, r *bufio.Reader, prefix []byte, pos string
 		return nil, fmt.Errorf("decode sanitized MMS: %w", err)
 	}
 	attachments := make([]AttachmentArtifact, 0, len(drafts))
+	matchedDrafts := make([]bool, len(drafts))
 	for partIndex := range entry.Parts {
 		part := &entry.Parts[partIndex]
+		matchedPart := false
 		for draftIndex := range drafts {
 			draft := &drafts[draftIndex]
 			if part.Data != draft.marker {
 				continue
+			}
+			if matchedDrafts[draftIndex] {
+				return nil, fmt.Errorf("MMS attachment marker %d appeared more than once", draftIndex)
 			}
 			name := sanitizedAttachmentName(part.Name, part.CL, draftIndex)
 			// part sequence repeats for every MMS, so include the source position;
@@ -345,9 +364,17 @@ func streamMMSRecord(sink ImportSink, r *bufio.Reader, prefix []byte, pos string
 				ByteCount: draft.bytes, StoredPath: finalPath,
 				ConversionStatus: draft.status, ConversionError: draft.decodeErr,
 			})
+			matchedDrafts[draftIndex] = true
+			matchedPart = true
 			part.Data = ""
 			break
 		}
+		if !matchedPart && strings.TrimSpace(part.Data) != "" {
+			return nil, fmt.Errorf("MMS inline data escaped lossless capture at part %d", partIndex)
+		}
+	}
+	if len(attachments) != len(drafts) {
+		return nil, fmt.Errorf("MMS captured %d inline payloads but associated %d parts", len(drafts), len(attachments))
 	}
 	msg, err := convertMMSEntry(entry)
 	if err != nil {
@@ -357,15 +384,103 @@ func streamMMSRecord(sink ImportSink, r *bufio.Reader, prefix []byte, pos string
 		msg.MediaType = attachments[0].MIME
 	}
 	rec := messageSourceRecord(nil, pos, &msg, entry)
+	rec.RawPath = rawSpool.Name()
 	rec.PrecomputedH2 = hex.EncodeToString(h.Sum(nil))
 	rec.RawSize = rawSize
 	rec.Attachments = attachments
 	return rec, nil
 }
 
+// captureMMSDataAttribute recognizes the XML attribute grammar
+// `data S* = S* ("..."|'...')` only at an attribute boundary. Bytes are not
+// committed to the sanitized spool until the name and delimiter are known, so
+// data-prefixed attributes are preserved normally and legal whitespace cannot
+// bypass attachment capture.
+func captureMMSDataAttribute(
+	r *bufio.Reader,
+	writeBoth func([]byte) error,
+	writeRaw func([]byte) error,
+	sanitized io.Writer,
+	rawHash hash.Hash,
+	rawSpool io.Writer,
+	rawSize *int64,
+	dir string,
+	ordinal int,
+) (streamedAttachment, bool, error) {
+	consumed := make([]byte, 0, 16)
+	flushOrdinary := func() (streamedAttachment, bool, error) {
+		if err := writeBoth(consumed); err != nil {
+			return streamedAttachment{}, false, err
+		}
+		return streamedAttachment{}, false, nil
+	}
+	name, err := r.Peek(len("data"))
+	if err != nil || string(name) != "data" {
+		return streamedAttachment{}, false, err
+	}
+	_, _ = r.Discard(len("data"))
+	consumed = append(consumed, name...)
+	b, err := r.ReadByte()
+	if err != nil {
+		return streamedAttachment{}, false, err
+	}
+	consumed = append(consumed, b)
+	if isXMLNameByte(b) {
+		return flushOrdinary()
+	}
+	if !isXMLSpace(b) && b != '=' {
+		return streamedAttachment{}, false, errors.New("malformed MMS data attribute delimiter")
+	}
+	for isXMLSpace(b) {
+		b, err = r.ReadByte()
+		if err != nil {
+			return streamedAttachment{}, false, err
+		}
+		consumed = append(consumed, b)
+	}
+	if b != '=' {
+		return flushOrdinary()
+	}
+	b, err = r.ReadByte()
+	if err != nil {
+		return streamedAttachment{}, false, err
+	}
+	consumed = append(consumed, b)
+	for isXMLSpace(b) {
+		b, err = r.ReadByte()
+		if err != nil {
+			return streamedAttachment{}, false, err
+		}
+		consumed = append(consumed, b)
+	}
+	if b != '\'' && b != '"' {
+		return streamedAttachment{}, false, errors.New("malformed MMS data attribute: quoted value required")
+	}
+	if err := writeRaw(consumed); err != nil {
+		return streamedAttachment{}, false, err
+	}
+	marker := fmt.Sprintf("__SBV_ATTACHMENT_%d__", ordinal)
+	if _, err := sanitized.Write(consumed); err != nil {
+		return streamedAttachment{}, false, err
+	}
+	if _, err := io.WriteString(sanitized, marker+string(b)); err != nil {
+		return streamedAttachment{}, false, err
+	}
+	draft, err := decodeMMSAttribute(r, rawHash, rawSpool, rawSize, b, dir, marker)
+	if err != nil {
+		return streamedAttachment{}, false, err
+	}
+	return draft, true, nil
+}
+
+func isXMLNameByte(b byte) bool {
+	return b == ':' || b == '_' || b == '-' || b == '.' || b >= '0' && b <= '9' || b >= 'A' && b <= 'Z' || b >= 'a' && b <= 'z' || b >= 0x80
+}
+
 type quotedHashReader struct {
 	r     *bufio.Reader
 	h     hash.Hash
+	raw   io.Writer
 	size  *int64
 	quote byte
 	done  bool
@@ -382,6 +497,9 @@ func (q *quotedHashReader) Read(p []byte) (int, error) {
 			return n, err
 		}
 		_, _ = q.h.Write([]byte{b})
+		if _, err := q.raw.Write([]byte{b}); err != nil {
+			return n, err
+		}
 		*q.size++
 		if b == q.quote {
 			q.done = true
@@ -396,7 +514,7 @@ func (q *quotedHashReader) Read(p []byte) (int, error) {
 	return n, nil
 }
 
-func decodeMMSAttribute(r *bufio.Reader, rawHash hash.Hash, rawSize *int64, quote byte,
+func decodeMMSAttribute(r *bufio.Reader, rawHash hash.Hash, rawSpool io.Writer, rawSize *int64, quote byte,
 	dir, marker string) (streamedAttachment, error) {
 	f, err := os.CreateTemp(dir, "decoded-*.bin")
 	if err != nil {
@@ -404,7 +522,7 @@ func decodeMMSAttribute(r *bufio.Reader, rawHash hash.Hash, rawSize *int64, quot
 	}
 	defer f.Close()
 	decodedHash := sha256.New()
-	qr := &quotedHashReader{r: r, h: rawHash, size: rawSize, quote: quote}
+	qr := &quotedHashReader{r: r, h: rawHash, raw: rawSpool, size: rawSize, quote: quote}
 	decoder := base64.NewDecoder(base64.StdEncoding, qr)
 	written, decodeErr := io.CopyBuffer(io.MultiWriter(f, decodedHash), decoder, make([]byte, mmsStreamBufferBytes))
 	if !qr.done {

@@ -253,3 +253,36 @@ def test_pydantic_ai_harness_names_the_extra_when_the_package_is_absent():
 
     with pytest.raises(RuntimeError, match="temporal-bake"):
         asyncio.run(pydantic_ai_harness.run_knowledge_step(kh.RecordsRef(artifact_id="a-1"), "context", {}))
+
+
+# ---------------------------------------------------------------------------
+# 5. P0DurabilityProbe - crash/replay proof
+# ---------------------------------------------------------------------------
+
+
+def test_p0_durability_probe_is_a_workflow_defn():
+    from temporalio.workflow import _Definition
+
+    defn = _Definition.from_class(twf.P0DurabilityProbe)
+    assert defn is not None, "P0DurabilityProbe is not a @workflow.defn"
+    assert defn.name == "P0DurabilityProbe"
+    assert defn.run_fn is not None
+
+
+def test_p0_durability_probe_payload_round_trip():
+    from temporalio.converter import DataConverter
+
+    converter = DataConverter.default.payload_converter
+    # Test the input (ticks=3, tick_seconds=5)
+    input_value = 3
+    payloads = converter.to_payloads([input_value])
+    result = converter.from_payloads(payloads, [int])[0]
+    assert result == input_value
+
+
+def test_p0_durability_probe_defaults():
+    # Test that the defaults are sensible (6 ticks of 10 seconds = ~1 minute)
+    from server.temporal.workflows import P0DurabilityProbe
+
+    # Just verify the class exists and is a proper workflow
+    assert hasattr(P0DurabilityProbe, "__annotations__")

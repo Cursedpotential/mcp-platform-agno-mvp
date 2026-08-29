@@ -18,7 +18,6 @@ import (
 	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/lowcarbdev/sbv/pkg/custodyhash"
 )
 
 // DB is the small subset implemented by *pgxpool.Pool and used for reads and
@@ -134,7 +133,7 @@ func (r *Repository) OpenHashMembers(ctx context.Context, ref uiw.Ref) (activiti
 		FROM context.hash_receipt h
 		JOIN context.raw_record_identity raw ON raw.id = h.raw_record_id
 		WHERE raw.raw_generation_id = $1::uuid
-		  AND h.hash_kind = 'raw_record_digest'
+		  AND h.hash_kind = 'context_raw_record_fingerprint'
 		ORDER BY 2`
 	if setKind == "normalized_hash_receipt_set" {
 		query = `
@@ -244,7 +243,7 @@ func (r *Repository) BeginHashBatch(ctx context.Context, spec activities.BatchSp
 	}
 	batchID := uuid.New()
 	var rawGenerationID, normalizedGenerationID any
-	if spec.Kind == activities.HashKindRawRecordDigest || spec.Kind == activities.HashKindH3RawGeneration {
+	if spec.Kind == activities.HashKindContextRawRecordFingerprint || spec.Kind == activities.HashKindContextRawGenerationFingerprint {
 		rawGenerationID = spec.SubjectRef
 	} else if spec.Kind == activities.HashKindNormalizedRecordDigest || spec.Kind == activities.HashKindNormalizedGenerationDigest {
 		normalizedGenerationID = spec.SubjectRef
@@ -323,7 +322,7 @@ func (w *batchWriter) Append(ctx context.Context, member activities.HashMember) 
 		return err
 	}
 	column, value := "source_version_id", w.sourceVersionID
-	if w.spec.Kind == activities.HashKindRawRecordDigest || w.spec.Kind == activities.HashKindH3RawGeneration {
+	if w.spec.Kind == activities.HashKindContextRawRecordFingerprint || w.spec.Kind == activities.HashKindContextRawGenerationFingerprint {
 		column, value = "raw_record_id", memberID
 	}
 	if w.spec.Kind == activities.HashKindNormalizedRecordDigest || w.spec.Kind == activities.HashKindNormalizedGenerationDigest {
@@ -425,10 +424,13 @@ func (w *batchWriter) Commit(ctx context.Context, summary activities.HashSummary
 
 func (w *batchWriter) resultReference(hashReceiptID uuid.UUID) (uiw.Ref, string, string) {
 	switch w.spec.Kind {
-	case activities.HashKindH1Source, activities.HashKindH3RawGeneration, activities.HashKindNormalizedGenerationDigest:
+	case activities.HashKindContextSourceFingerprint, activities.HashKindContextRawGenerationFingerprint, activities.HashKindNormalizedGenerationDigest:
 		return uiw.Ref(hashReceiptID.String()), "hash_receipt", hashReceiptID.String()
-	case activities.HashKindRawRecordDigest:
-		return uiw.Ref("raw_hash_receipt_set:" + string(w.spec.SubjectRef)), "raw_hash_receipt_set", string(w.spec.SubjectRef)
+	case activities.HashKindContextRawRecordFingerprint:
+		if w.spec.Stage == stagegraph.StageID("hash_raw_records_activity") {
+			return uiw.Ref("raw_hash_receipt_set:" + string(w.spec.SubjectRef)), "raw_hash_receipt_set", string(w.spec.SubjectRef)
+		}
+		return uiw.Ref("context_raw_fingerprint_receipt_set:" + string(w.spec.SubjectRef)), "context_raw_fingerprint_receipt_set", string(w.spec.SubjectRef)
 	default:
 		return uiw.Ref("normalized_hash_receipt_set:" + string(w.spec.SubjectRef)), "normalized_hash_receipt_set", string(w.spec.SubjectRef)
 	}
@@ -458,7 +460,7 @@ func jsonbRef(kind, refID string) []byte {
 
 func insertManifestMembers(ctx context.Context, tx pgx.Tx, spec activities.BatchSpec, batchID, manifestID uuid.UUID) error {
 	var query string
-	if spec.Kind == activities.HashKindH3RawGeneration {
+	if spec.Kind == activities.HashKindContextRawGenerationFingerprint {
 		query = `INSERT INTO context.hash_manifest_member (hash_manifest_id, ordinal, raw_record_id, member_digest, member_canon) SELECT $1::uuid, member.ordinal, member.raw_record_id, member.digest, member.construction FROM context.hash_batch_member member WHERE member.hash_batch_id = $2::uuid ORDER BY member.ordinal`
 	} else {
 		query = `INSERT INTO context.hash_manifest_member (hash_manifest_id, ordinal, normalized_record_id, member_digest, member_canon) SELECT $1::uuid, member.ordinal, member.normalized_record_id, member.digest, member.construction FROM context.hash_batch_member member WHERE member.hash_batch_id = $2::uuid ORDER BY member.ordinal`
@@ -472,22 +474,22 @@ func insertManifestMembers(ctx context.Context, tx pgx.Tx, spec activities.Batch
 func insertReceipts(ctx context.Context, tx pgx.Tx, spec activities.BatchSpec, batchID, manifestID, receiptID, hashReceiptID uuid.UUID, digest []byte, summary activities.HashSummary, computedAt time.Time) error {
 	kind, stage := string(spec.Kind), string(spec.Stage)
 	switch spec.Kind {
-	case activities.HashKindH1Source:
+	case activities.HashKindContextSourceFingerprint:
 		_, err := tx.Exec(ctx, `INSERT INTO context.hash_receipt (id, activity_receipt_id, hash_kind, digest, construction, source_version_id, computed_at, computed_by) VALUES ($1::uuid,$2::uuid,$3,$4,$5,$6::uuid,$7,$8)`, hashReceiptID, receiptID, kind, digest, summary.Canon, spec.SubjectRef, computedAt, stage)
 		if err != nil {
-			return fmt.Errorf("write H1 receipt: %w", err)
+			return fmt.Errorf("write context source fingerprint receipt: %w", err)
 		}
-	case activities.HashKindRawRecordDigest:
+	case activities.HashKindContextRawRecordFingerprint:
 		_, err := tx.Exec(ctx, `INSERT INTO context.hash_receipt (activity_receipt_id, hash_kind, digest, construction, raw_record_id, computed_at, computed_by) SELECT $1::uuid,$2,digest,construction,raw_record_id,$3,$4 FROM context.hash_batch_member WHERE hash_batch_id=$5::uuid ORDER BY ordinal`, receiptID, kind, computedAt, stage, batchID)
 		if err != nil {
-			return fmt.Errorf("write H2 receipts: %w", err)
+			return fmt.Errorf("write context raw-record fingerprint receipts: %w", err)
 		}
 	case activities.HashKindNormalizedRecordDigest:
 		_, err := tx.Exec(ctx, `INSERT INTO context.hash_receipt (activity_receipt_id, hash_kind, digest, construction, normalized_record_id, computed_at, computed_by) SELECT $1::uuid,$2,digest,construction,normalized_record_id,$3,$4 FROM context.hash_batch_member WHERE hash_batch_id=$5::uuid ORDER BY ordinal`, receiptID, kind, computedAt, stage, batchID)
 		if err != nil {
 			return fmt.Errorf("write normalized receipts: %w", err)
 		}
-	case activities.HashKindH3RawGeneration, activities.HashKindNormalizedGenerationDigest:
+	case activities.HashKindContextRawGenerationFingerprint, activities.HashKindNormalizedGenerationDigest:
 		column := "raw_generation_id"
 		if spec.Kind == activities.HashKindNormalizedGenerationDigest {
 			column = "normalized_generation_id"
@@ -533,19 +535,19 @@ func (w *idempotentWriter) Append(ctx context.Context, member activities.HashMem
 	}
 	var matches bool
 	switch w.spec.Kind {
-	case activities.HashKindH1Source:
+	case activities.HashKindContextSourceFingerprint:
 		err = w.db.QueryRow(ctx, `
 			SELECT EXISTS (
 				SELECT 1 FROM context.hash_receipt
 				WHERE id = $1::uuid AND activity_receipt_id = $2::uuid
-				  AND hash_kind = 'h1_source' AND source_version_id = $3::uuid
+				  AND hash_kind = 'context_source_fingerprint' AND source_version_id = $3::uuid
 				  AND digest = $4 AND construction = $5)`, w.priorRefID, w.priorActivityReceiptID, memberID, digest, member.Canon).Scan(&matches)
-	case activities.HashKindRawRecordDigest:
+	case activities.HashKindContextRawRecordFingerprint:
 		err = w.db.QueryRow(ctx, `
 			SELECT EXISTS (
 				SELECT 1 FROM context.hash_receipt h
 				JOIN context.raw_record_identity raw ON raw.id = h.raw_record_id
-				WHERE h.activity_receipt_id = $1::uuid AND h.hash_kind = 'raw_record_digest'
+				WHERE h.activity_receipt_id = $1::uuid AND h.hash_kind = 'context_raw_record_fingerprint'
 				  AND h.raw_record_id = $2::uuid AND raw.raw_generation_id = $3::uuid
 				  AND raw.record_ordinal = $4 AND h.digest = $5 AND h.construction = $6)`,
 			w.priorActivityReceiptID, memberID, w.priorRefID, member.Ordinal, digest, member.Canon).Scan(&matches)
@@ -558,8 +560,8 @@ func (w *idempotentWriter) Append(ctx context.Context, member activities.HashMem
 				  AND h.normalized_record_id = $2::uuid AND normalized.normalized_generation_id = $3::uuid
 				  AND normalized.record_ordinal = $4 AND h.digest = $5 AND h.construction = $6)`,
 			w.priorActivityReceiptID, memberID, w.priorRefID, member.Ordinal, digest, member.Canon).Scan(&matches)
-	case activities.HashKindH3RawGeneration, activities.HashKindNormalizedGenerationDigest:
-		identityColumn, generationColumn, kind := "raw_record_id", "raw_generation_id", "h3_raw_generation"
+	case activities.HashKindContextRawGenerationFingerprint, activities.HashKindNormalizedGenerationDigest:
+		identityColumn, generationColumn, kind := "raw_record_id", "raw_generation_id", "context_raw_generation_fingerprint"
 		if w.spec.Kind == activities.HashKindNormalizedGenerationDigest {
 			identityColumn, generationColumn, kind = "normalized_record_id", "normalized_generation_id", "normalized_generation_manifest_digest"
 		}
@@ -602,8 +604,8 @@ func (w *idempotentWriter) Commit(ctx context.Context, summary activities.HashSu
 }
 
 func (w *idempotentWriter) verifySummary(ctx context.Context, summary activities.HashSummary) error {
-	if w.spec.Kind == activities.HashKindRawRecordDigest || w.spec.Kind == activities.HashKindNormalizedRecordDigest {
-		kind, table, generationColumn := "raw_record_digest", "context.raw_record_identity", "raw_generation_id"
+	if w.spec.Kind == activities.HashKindContextRawRecordFingerprint || w.spec.Kind == activities.HashKindNormalizedRecordDigest {
+		kind, table, generationColumn := "context_raw_record_fingerprint", "context.raw_record_identity", "raw_generation_id"
 		if w.spec.Kind == activities.HashKindNormalizedRecordDigest {
 			kind, table, generationColumn = "normalized_record_digest", "context.normalized_record_identity", "normalized_generation_id"
 		}
@@ -651,7 +653,7 @@ func identityColumnFor(kind activities.HashKind) string {
 }
 
 func priorResultRef(kind, refID string) uiw.Ref {
-	if kind == "raw_hash_receipt_set" || kind == "normalized_hash_receipt_set" {
+	if kind == "context_raw_fingerprint_receipt_set" || kind == "raw_hash_receipt_set" || kind == "normalized_hash_receipt_set" {
 		return uiw.Ref(kind + ":" + refID)
 	}
 	return uiw.Ref(refID)
@@ -659,10 +661,10 @@ func priorResultRef(kind, refID string) uiw.Ref {
 
 func expectedResultKind(kind activities.HashKind) string {
 	switch kind {
-	case activities.HashKindH1Source, activities.HashKindH3RawGeneration, activities.HashKindNormalizedGenerationDigest:
+	case activities.HashKindContextSourceFingerprint, activities.HashKindContextRawGenerationFingerprint, activities.HashKindNormalizedGenerationDigest:
 		return "hash_receipt"
-	case activities.HashKindRawRecordDigest:
-		return "raw_hash_receipt_set"
+	case activities.HashKindContextRawRecordFingerprint:
+		return "context_raw_fingerprint_receipt_set"
 	default:
 		return "normalized_hash_receipt_set"
 	}
@@ -834,7 +836,7 @@ func (r *rangeReadCloser) Close() error { return r.closer.Close() }
 
 func parseSetRef(ref uiw.Ref) (kind, generationID string, err error) {
 	parts := strings.SplitN(string(ref), ":", 2)
-	if len(parts) != 2 || (parts[0] != "raw_hash_receipt_set" && parts[0] != "normalized_hash_receipt_set") {
+	if len(parts) != 2 || (parts[0] != "context_raw_fingerprint_receipt_set" && parts[0] != "raw_hash_receipt_set" && parts[0] != "normalized_hash_receipt_set") {
 		return "", "", fmt.Errorf("hash member reference %q must be a prefixed receipt set", ref)
 	}
 	if _, err := uuid.Parse(parts[1]); err != nil {
@@ -846,7 +848,7 @@ func parseSetRef(ref uiw.Ref) (kind, generationID string, err error) {
 func sourceVersionFor(ctx context.Context, tx pgx.Tx, kind activities.HashKind, ref uiw.Ref) (uuid.UUID, error) {
 	var id uuid.UUID
 	query := `SELECT id FROM context.source_version WHERE id = $1::uuid`
-	if kind == activities.HashKindRawRecordDigest || kind == activities.HashKindH3RawGeneration {
+	if kind == activities.HashKindContextRawRecordFingerprint || kind == activities.HashKindContextRawGenerationFingerprint {
 		query = `SELECT source_version_id FROM context.raw_generation WHERE id = $1::uuid`
 	} else if kind == activities.HashKindNormalizedRecordDigest || kind == activities.HashKindNormalizedGenerationDigest {
 		query = `SELECT source_version_id FROM context.normalized_generation WHERE id = $1::uuid`
@@ -866,11 +868,14 @@ func validateSpec(spec activities.BatchSpec) error {
 		return errors.New("hash batch attempt must be positive")
 	}
 	expected := map[stagegraph.StageID]activities.HashKind{
-		stagegraph.HashSource:               activities.HashKindH1Source,
-		stagegraph.HashRawRecords:           activities.HashKindRawRecordDigest,
-		stagegraph.HashRawGeneration:        activities.HashKindH3RawGeneration,
-		stagegraph.HashNormalizedRecords:    activities.HashKindNormalizedRecordDigest,
-		stagegraph.HashNormalizedGeneration: activities.HashKindNormalizedGenerationDigest,
+		stagegraph.FingerprintSource:                       activities.HashKindContextSourceFingerprint,
+		stagegraph.FingerprintRawRecords:                   activities.HashKindContextRawRecordFingerprint,
+		stagegraph.FingerprintRawGeneration:                activities.HashKindContextRawGenerationFingerprint,
+		stagegraph.StageID("hash_source_activity"):         activities.HashKindContextSourceFingerprint,
+		stagegraph.StageID("hash_raw_records_activity"):    activities.HashKindContextRawRecordFingerprint,
+		stagegraph.StageID("hash_raw_generation_activity"): activities.HashKindContextRawGenerationFingerprint,
+		stagegraph.HashNormalizedRecords:                   activities.HashKindNormalizedRecordDigest,
+		stagegraph.HashNormalizedGeneration:                activities.HashKindNormalizedGenerationDigest,
 	}
 	if expected[spec.Stage] != spec.Kind {
 		return fmt.Errorf("stage %q and hash kind %q do not match", spec.Stage, spec.Kind)
@@ -878,11 +883,11 @@ func validateSpec(spec activities.BatchSpec) error {
 	return nil
 }
 func validateMemberCanon(kind activities.HashKind, canon string) error {
-	valid := kind == activities.HashKindH1Source && canon == "h1-rawbytes-v1"
-	valid = valid || kind == activities.HashKindRawRecordDigest && (canon == custodyhash.CanonH2 || canon == custodyhash.CanonH2Record || canon == activities.CanonRawSpan)
+	valid := kind == activities.HashKindContextSourceFingerprint && canon == activities.CanonContextSourceFingerprint
+	valid = valid || kind == activities.HashKindContextRawRecordFingerprint && (canon == activities.CanonContextRawRecordFingerprint || canon == activities.CanonContextRawSpanFingerprint)
 	valid = valid || kind == activities.HashKindNormalizedRecordDigest && canon == activities.CanonNormalizedRecord
-	if !valid && kind == activities.HashKindH3RawGeneration {
-		valid = canon == custodyhash.CanonH2 || canon == custodyhash.CanonH2Record || canon == activities.CanonRawSpan
+	if !valid && kind == activities.HashKindContextRawGenerationFingerprint {
+		valid = canon == activities.CanonContextRawRecordFingerprint || canon == activities.CanonContextRawSpanFingerprint
 	}
 	if !valid && kind == activities.HashKindNormalizedGenerationDigest {
 		valid = canon == activities.CanonNormalizedRecord
@@ -893,11 +898,11 @@ func validateMemberCanon(kind activities.HashKind, canon string) error {
 	return nil
 }
 func validateSummary(kind activities.HashKind, summary activities.HashSummary) error {
-	if kind == activities.HashKindH1Source && summary.Canon != "h1-rawbytes-v1" {
-		return fmt.Errorf("H1 summary canon %q is invalid", summary.Canon)
+	if kind == activities.HashKindContextSourceFingerprint && summary.Canon != activities.CanonContextSourceFingerprint {
+		return fmt.Errorf("context source fingerprint summary canon %q is invalid", summary.Canon)
 	}
-	if kind == activities.HashKindRawRecordDigest && summary.Canon != activities.CanonRawRecordManifest {
-		return fmt.Errorf("H2 summary canon %q is invalid", summary.Canon)
+	if kind == activities.HashKindContextRawRecordFingerprint && summary.Canon != activities.CanonRawRecordManifest {
+		return fmt.Errorf("context raw-record fingerprint summary canon %q is invalid", summary.Canon)
 	}
 	if kind == activities.HashKindNormalizedRecordDigest && summary.Canon != activities.CanonNormalizedRecordManifest {
 		return fmt.Errorf("normalized summary canon %q is invalid", summary.Canon)
@@ -906,15 +911,15 @@ func validateSummary(kind activities.HashKind, summary activities.HashSummary) e
 		if summary.Digest == "" || summary.Construction == "" {
 			return errors.New("generation summary requires digest and construction")
 		}
-		want := activities.CanonRawGeneration
+		want := activities.CanonContextRawGenerationFingerprint
 		if kind == activities.HashKindNormalizedGenerationDigest {
 			want = activities.CanonNormalizedGeneration
 		}
 		if summary.Canon != want || summary.Construction != want {
 			return fmt.Errorf("generation summary canon/construction must be %q", want)
 		}
-	} else if kind == activities.HashKindH1Source && summary.Digest == "" {
-		return errors.New("H1 summary requires digest")
+	} else if kind == activities.HashKindContextSourceFingerprint && summary.Digest == "" {
+		return errors.New("context source fingerprint summary requires digest")
 	}
 	if summary.Digest != "" {
 		if err := validateDigest(summary.Digest); err != nil {
@@ -924,7 +929,7 @@ func validateSummary(kind activities.HashKind, summary activities.HashSummary) e
 	return nil
 }
 func isGenerationKind(kind activities.HashKind) bool {
-	return kind == activities.HashKindH3RawGeneration || kind == activities.HashKindNormalizedGenerationDigest
+	return kind == activities.HashKindContextRawGenerationFingerprint || kind == activities.HashKindNormalizedGenerationDigest
 }
 func validateDigest(value string) error {
 	if len(value) != 64 || strings.ToLower(value) != value {

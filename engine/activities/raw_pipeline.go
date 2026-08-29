@@ -57,9 +57,9 @@ type RawGenerationWriter interface {
 
 // RawGenerationChainSpec is the compact input shared by
 // reconcile_record_accounting_activity and reconcile_byte_coverage_activity.
-// Both key entirely off the raw generation's sealed H3 chain reference — the
-// exact result produced by hash_raw_generation_activity — because neither may
-// run until the raw generation's full custody chain exists.
+// Both key entirely off the raw generation's sealed context fingerprint chain
+// reference — the exact result produced by fingerprint_raw_generation_activity
+// — because neither may run until the raw generation's integrity chain exists.
 type RawGenerationChainSpec struct {
 	RequestID             string
 	Attempt               int32
@@ -69,16 +69,16 @@ type RawGenerationChainSpec struct {
 
 // RawSourceVerificationSpec is the compact input to
 // verify_raw_coverage_against_source_activity: the two reconciliation
-// receipts it joins, the raw generation's H1 source digest, and its H3 chain
-// reference, which this Activity independently recomputes rather than trusts.
+// receipts it joins, the context source fingerprint, and the raw-generation
+// context fingerprint chain, which this Activity independently recomputes.
 type RawSourceVerificationSpec struct {
-	RequestID             string
-	Attempt               int32
-	SourceVersionRef      uiw.Ref
-	AccountingRef         uiw.Ref
-	CoverageRef           uiw.Ref
-	H1Ref                 uiw.Ref
-	RawGenerationChainRef uiw.Ref
+	RequestID                   string
+	Attempt                     int32
+	SourceVersionRef            uiw.Ref
+	AccountingRef               uiw.Ref
+	CoverageRef                 uiw.Ref
+	ContextSourceFingerprintRef uiw.Ref
+	RawGenerationChainRef       uiw.Ref
 }
 
 // ReconciliationOutcome is the durable result of one reconciliation or
@@ -333,8 +333,9 @@ func (a RawPipelineActivities) reconcileChain(
 }
 
 // VerifyRawCoverageAgainstSource compares only the raw coverage/recomposition
-// proof against H1; it does not normalize and does not trust the earlier H3
-// hash computation — the repository must independently recompute it.
+// proof against the context source fingerprint. It does not normalize and does
+// not trust the earlier generation fingerprint computation; the repository
+// must independently recompute it.
 func (a RawPipelineActivities) VerifyRawCoverageAgainstSource(ctx context.Context, req uiw.StageRequest) (uiw.StageResult, error) {
 	if err := a.validate(); err != nil {
 		return uiw.StageResult{}, err
@@ -354,7 +355,9 @@ func (a RawPipelineActivities) VerifyRawCoverageAgainstSource(ctx context.Contex
 	if err != nil {
 		return uiw.StageResult{}, err
 	}
-	h1Ref, err := requiredRawRef(req, stage, "h1")
+	contextSourceFingerprintRef, err := requiredRawRefWithLegacyAlias(
+		req, stage, "context_source_fingerprint", "h1",
+	)
 	if err != nil {
 		return uiw.StageResult{}, err
 	}
@@ -364,7 +367,8 @@ func (a RawPipelineActivities) VerifyRawCoverageAgainstSource(ctx context.Contex
 	}
 	outcome, err := a.Repository.VerifyRawCoverageAgainstSource(ctx, RawSourceVerificationSpec{
 		RequestID: req.RequestID, Attempt: a.attempt(ctx), SourceVersionRef: req.SourceVersionRef,
-		AccountingRef: accountingRef, CoverageRef: coverageRef, H1Ref: h1Ref, RawGenerationChainRef: chainRef,
+		AccountingRef: accountingRef, CoverageRef: coverageRef,
+		ContextSourceFingerprintRef: contextSourceFingerprintRef, RawGenerationChainRef: chainRef,
 	})
 	if err != nil {
 		return uiw.StageResult{}, fmt.Errorf("%s: %w", stage, err)
@@ -373,6 +377,24 @@ func (a RawPipelineActivities) VerifyRawCoverageAgainstSource(ctx context.Contex
 		return uiw.StageResult{}, err
 	}
 	return rawPipelineOutcome(stage, outcome), nil
+}
+
+// requiredRawRefWithLegacyAlias keeps already-open Temporal histories build-
+// safe while making canonical new requests unambiguous. New workflows always
+// emit canonicalName; legacyName is read-only compatibility and is rejected if
+// both names are supplied with different values.
+func requiredRawRefWithLegacyAlias(req uiw.StageRequest, stage stagegraph.StageID, canonicalName, legacyName string) (uiw.Ref, error) {
+	canonical, legacy := req.Refs[canonicalName], req.Refs[legacyName]
+	if canonical != "" && legacy != "" && canonical != legacy {
+		return "", fmt.Errorf("%s received conflicting %q and legacy %q references", stage, canonicalName, legacyName)
+	}
+	if canonical != "" {
+		return canonical, nil
+	}
+	if legacy != "" {
+		return legacy, nil
+	}
+	return "", fmt.Errorf("%s requires non-empty %q reference", stage, canonicalName)
 }
 
 func requiredRawRef(req uiw.StageRequest, stage stagegraph.StageID, name string) (uiw.Ref, error) {

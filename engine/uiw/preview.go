@@ -39,15 +39,18 @@ const (
 // PreviewDecision is the human operator's approve/reject input, sent as
 // PreviewDecisionSignalName's payload.
 type PreviewDecision struct {
-	Approved bool
-	Reason   string
-	Decider  string
+	Approved                 bool   `json:"approved"`
+	Reason                   string `json:"reason,omitempty"`
+	Decider                  string `json:"decider"`
+	RepairedSelectionRef     Ref    `json:"repaired_selection_ref,omitempty"`
+	RepairedParserOptionsRef Ref    `json:"repaired_parser_options_ref,omitempty"`
 }
 
 // PreviewState is PreviewQueryName's response: what select_parser_activity
 // produced (SelectRef) and where the hold currently stands.
 type PreviewState struct {
-	Phase     PreviewPhase
-	SelectRef Ref
-	Reason    string
+	Phase            PreviewPhase `json:"phase"`
+	SelectRef        Ref          `json:"select_ref"`
+	ParserOptionsRef Ref          `json:"parser_options_ref,omitempty"`
+	Reason           string       `json:"reason,omitempty"`
 }

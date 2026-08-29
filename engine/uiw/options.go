@@ -52,7 +52,7 @@ var stageOptions = map[stagegraph.StageID]workflow.ActivityOptions{
 		StartToCloseTimeout: 2 * time.Minute,
 		RetryPolicy:         retryPolicy(time.Second, 5),
 	},
-	stagegraph.HashSource: {
+	stagegraph.FingerprintSource: {
 		StartToCloseTimeout: 30 * time.Minute,
 		HeartbeatTimeout:    time.Minute,
 		RetryPolicy:         retryPolicy(5*time.Second, 5),
@@ -90,16 +90,16 @@ var stageOptions = map[stagegraph.StageID]workflow.ActivityOptions{
 		StartToCloseTimeout: 5 * time.Minute,
 		RetryPolicy:         retryPolicy(2*time.Second, 5),
 	},
-	stagegraph.HashRawRecords: {
+	stagegraph.FingerprintRawRecords: {
 		StartToCloseTimeout: 30 * time.Minute,
 		HeartbeatTimeout:    time.Minute,
 		RetryPolicy:         retryPolicy(5*time.Second, 5),
 	},
-	stagegraph.HashRawGeneration: {
-		// Folds already-computed H2 hex digests (cheap, sequential SHA-256
-		// over short strings) rather than walking source bytes, so this
-		// mirrors hash_normalized_generation's short timeout, not
-		// hash_raw_records' heartbeat-bearing one.
+	stagegraph.FingerprintRawGeneration: {
+		// Folds already-computed context raw-record fingerprints (cheap,
+		// sequential SHA-256 over short strings) rather than walking source
+		// bytes, so this mirrors hash_normalized_generation's short timeout,
+		// not fingerprint_raw_records' heartbeat-bearing one.
 		StartToCloseTimeout: 5 * time.Minute,
 		RetryPolicy:         retryPolicy(2*time.Second, 5),
 	},
@@ -175,6 +175,14 @@ var stageOptions = map[stagegraph.StageID]workflow.ActivityOptions{
 // stageOptions, and TestEveryStageHasExplicitOptions proves that statically
 // so this path is unreachable in a correctly built binary.
 func optionsFor(id stagegraph.StageID) workflow.ActivityOptions {
+	switch string(id) {
+	case legacyHashSourceActivity:
+		id = stagegraph.FingerprintSource
+	case legacyHashRawRecordsActivity:
+		id = stagegraph.FingerprintRawRecords
+	case legacyHashRawGenerationActivity:
+		id = stagegraph.FingerprintRawGeneration
+	}
 	opts, ok := stageOptions[id]
 	if !ok {
 		panic("uiw: no ActivityOptions registered for stage " + string(id))

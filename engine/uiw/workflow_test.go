@@ -2,6 +2,7 @@ package uiw
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"reflect"
 	"strings"
@@ -13,9 +14,25 @@ import (
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/converter"
 	"go.temporal.io/sdk/testsuite"
+	"go.temporal.io/sdk/workflow"
 
 	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
 )
+
+func TestPreviewDecisionDecodesCrossLanguageRepairReferences(t *testing.T) {
+	var decision PreviewDecision
+	if err := json.Unmarshal([]byte(`{
+		"approved": true,
+		"decider": "operator",
+		"repaired_selection_ref": "selection-v2",
+		"repaired_parser_options_ref": "options-v2"
+	}`), &decision); err != nil {
+		t.Fatal(err)
+	}
+	if !decision.Approved || decision.RepairedSelectionRef != "selection-v2" || decision.RepairedParserOptionsRef != "options-v2" {
+		t.Fatalf("decoded repair decision = %#v", decision)
+	}
+}
 
 // approveHold signals the preview hold approved shortly after the workflow
 // starts. Temporal Signals sent to a running workflow are buffered against
@@ -201,6 +218,48 @@ func TestGoldenPathRunsEveryStageExactlyOnce(t *testing.T) {
 	}
 }
 
+func TestLegacyOpenWorkflowUsesVersionedActivityAliases(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	env.RegisterWorkflow(UniversalImportWorkflow)
+	registerAllStages(env)
+	legacyIDs := []stagegraph.StageID{
+		stagegraph.StageID(legacyHashSourceActivity),
+		stagegraph.StageID(legacyHashRawRecordsActivity),
+		stagegraph.StageID(legacyHashRawGenerationActivity),
+	}
+	for _, id := range legacyIDs {
+		env.RegisterActivityWithOptions(placeholderActivity, activity.RegisterOptions{Name: string(id)})
+	}
+	env.OnGetVersion(fingerprintVocabularyChangeID, workflow.DefaultVersion, fingerprintVocabularyVersion).
+		Return(workflow.DefaultVersion).Once()
+	for _, id := range legacyIDs {
+		env.OnActivity(string(id), mock.Anything, mock.Anything).Return(stageStub(id), nil).Once()
+	}
+	for _, descriptor := range stagegraph.Stages {
+		if descriptor.ID == stagegraph.FingerprintSource || descriptor.ID == stagegraph.FingerprintRawRecords || descriptor.ID == stagegraph.FingerprintRawGeneration {
+			continue
+		}
+		env.OnActivity(string(descriptor.ID), mock.Anything, mock.Anything).Return(stageStub(descriptor.ID), nil).Once()
+	}
+	order := newOrderRecorder(env)
+	approveHold(env)
+	env.ExecuteWorkflow(UniversalImportWorkflow, testInput())
+	if err := env.GetWorkflowError(); err != nil {
+		t.Fatalf("legacy-version workflow failed: %v", err)
+	}
+	for _, id := range legacyIDs {
+		if !order.contains(string(id)) {
+			t.Errorf("legacy workflow did not schedule replay alias %q", id)
+		}
+	}
+	for _, id := range []stagegraph.StageID{stagegraph.FingerprintSource, stagegraph.FingerprintRawRecords, stagegraph.FingerprintRawGeneration} {
+		if order.contains(string(id)) {
+			t.Errorf("legacy workflow scheduled new activity name %q", id)
+		}
+	}
+}
+
 func TestSafeParallelFanOutAfterRetainOriginal(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
@@ -221,7 +280,7 @@ func TestSafeParallelFanOutAfterRetainOriginal(t *testing.T) {
 	}
 	fanOut := []stagegraph.StageID{
 		stagegraph.CaptureFilesystemMetadata,
-		stagegraph.HashSource,
+		stagegraph.FingerprintSource,
 		stagegraph.InventoryContainer,
 		stagegraph.ExtractEmbeddedMetadata,
 	}
@@ -232,12 +291,12 @@ func TestSafeParallelFanOutAfterRetainOriginal(t *testing.T) {
 		}
 	}
 
-	hashRawIdx := order.indexOf(string(stagegraph.HashRawRecords))
+	fingerprintRawIdx := order.indexOf(string(stagegraph.FingerprintRawRecords))
 	verifyRawIdx := order.indexOf(string(stagegraph.VerifyRawCoverageAgainstSource))
 	for _, id := range []stagegraph.StageID{stagegraph.ReconcileRecordAccounting, stagegraph.ReconcileByteCoverage} {
 		idx := order.indexOf(string(id))
-		if idx <= hashRawIdx || idx >= verifyRawIdx {
-			t.Errorf("reconcile stage %q started at position %d, want strictly between hash_raw_records (%d) and verify_raw_coverage_against_source (%d)", id, idx, hashRawIdx, verifyRawIdx)
+		if idx <= fingerprintRawIdx || idx >= verifyRawIdx {
+			t.Errorf("reconcile stage %q started at position %d, want strictly between fingerprint_raw_records (%d) and verify_raw_coverage_against_source (%d)", id, idx, fingerprintRawIdx, verifyRawIdx)
 		}
 	}
 
@@ -282,41 +341,66 @@ func allStagesExcept(before ...stagegraph.StageID) []stagegraph.StageID {
 	return out
 }
 
-// TestPreviewRejectionNeverExecutesParser proves the human preview hold
-// (workflow.go, between select_parser_activity and execute_parser_activity)
-// fails the run closed on rejection: execute_parser_activity — the actual
-// parse — and every stage after it never start, even though every stage up
-// to and including select_parser_activity already succeeded.
-func TestPreviewRejectionNeverExecutesParser(t *testing.T) {
+// TestPreviewRejectionPausesAndLaterApprovalResumes proves rejection is a
+// durable review state rather than terminal workflow failure. Parsing starts
+// only after a later approval Signal resumes the same workflow identity.
+func TestPreviewRejectionPausesAndLaterApprovalResumes(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
 	env.RegisterWorkflow(UniversalImportWorkflow)
 	mockAllStagesSucceed(env)
-	order := newOrderRecorder(env)
 	rejectHold(env, "wrong format selected")
+	var executeReq StageRequest
+	var executeSeen bool
+	var selectSeen bool
+	var activityMu sync.Mutex
+	env.SetOnActivityStartedListener(func(info *activity.Info, _ context.Context, args converter.EncodedValues) {
+		activityMu.Lock()
+		defer activityMu.Unlock()
+		if info.ActivityType.Name == string(stagegraph.SelectParser) {
+			selectSeen = true
+			return
+		}
+		if info.ActivityType.Name != string(stagegraph.ExecuteParser) {
+			return
+		}
+		if err := args.Get(&executeReq); err != nil {
+			t.Fatalf("decoding repaired execute-parser request: %v", err)
+		}
+		executeSeen = true
+	})
+	env.RegisterDelayedCallback(func() {
+		env.SignalWorkflow(PreviewDecisionSignalName, PreviewDecision{Approved: true, Decider: "premature-operator"})
+	}, 2*time.Millisecond)
+	env.RegisterDelayedCallback(func() {
+		env.SignalWorkflow(PreviewDecisionSignalName, PreviewDecision{
+			Approved: true, Decider: "repair-operator",
+			RepairedSelectionRef:     "repaired-selection-ref",
+			RepairedParserOptionsRef: "repaired-parser-options-ref",
+		})
+	}, 3*time.Millisecond)
 
 	env.ExecuteWorkflow(UniversalImportWorkflow, testInput())
 
 	if !env.IsWorkflowCompleted() {
 		t.Fatal("workflow did not complete")
 	}
-	err := env.GetWorkflowError()
-	if err == nil {
-		t.Fatal("workflow returned nil error after a rejected preview decision; fail-closed requires an error")
+	if err := env.GetWorkflowError(); err != nil {
+		t.Fatalf("workflow did not resume after repaired approval: %v", err)
 	}
-	if !strings.Contains(err.Error(), "wrong format selected") {
-		t.Errorf("workflow error %q does not surface the rejection reason", err.Error())
-	}
-
-	if !order.contains(string(stagegraph.SelectParser)) {
+	activityMu.Lock()
+	defer activityMu.Unlock()
+	if !selectSeen {
 		t.Fatal("select_parser_activity never ran; test setup is broken")
 	}
-	for _, id := range allStagesExcept(stagegraph.RegisterSource, stagegraph.RetainOriginal,
-		stagegraph.CaptureFilesystemMetadata, stagegraph.HashSource, stagegraph.InventoryContainer,
-		stagegraph.ExtractEmbeddedMetadata, stagegraph.SelectParser) {
-		if order.contains(string(id)) {
-			t.Errorf("stage %q ran after a rejected preview decision; the parser must never execute on rejection", id)
-		}
+	if !executeSeen {
+		t.Fatal("parser did not execute after later approval resumed the workflow")
+	}
+	if got := executeReq.Refs["parser_selection"]; got != "repaired-selection-ref" {
+		t.Fatalf("execute parser selection ref = %q, want repaired-selection-ref", got)
+	}
+	if got := executeReq.Refs["parser_options"]; got != "repaired-parser-options-ref" {
+		t.Fatalf("execute parser options ref = %q, want repaired-parser-options-ref", got)
 	}
 }
 
@@ -393,7 +477,7 @@ func TestActivityErrorHaltsDescendantsAndSealPublish(t *testing.T) {
 	env := suite.NewTestWorkflowEnvironment()
 	env.RegisterWorkflow(UniversalImportWorkflow)
 	mockStages(env, nil, map[stagegraph.StageID]error{
-		stagegraph.HashSource: errors.New("boom: object storage unreachable"),
+		stagegraph.FingerprintSource: errors.New("boom: object storage unreachable"),
 	})
 	order := newOrderRecorder(env)
 
@@ -406,10 +490,10 @@ func TestActivityErrorHaltsDescendantsAndSealPublish(t *testing.T) {
 		t.Fatal("workflow returned nil error after an Activity execution error; fail-closed requires an error")
 	}
 
-	if !order.contains(string(stagegraph.HashSource)) {
-		t.Fatal("hash_source never ran; test setup is broken")
+	if !order.contains(string(stagegraph.FingerprintSource)) {
+		t.Fatal("fingerprint_source never ran; test setup is broken")
 	}
-	// hash_source's fan-out siblings are independent and were already
+	// fingerprint_source's fan-out siblings are independent and were already
 	// scheduled concurrently — they are expected to have run.
 	for _, id := range []stagegraph.StageID{
 		stagegraph.CaptureFilesystemMetadata,
@@ -417,7 +501,7 @@ func TestActivityErrorHaltsDescendantsAndSealPublish(t *testing.T) {
 		stagegraph.ExtractEmbeddedMetadata,
 	} {
 		if !order.contains(string(id)) {
-			t.Errorf("fan-out sibling %q should still have run concurrently with the failing hash_source stage", id)
+			t.Errorf("fan-out sibling %q should still have run concurrently with the failing fingerprint_source stage", id)
 		}
 	}
 	// Nothing that depends on the fan-out joining successfully may run.
@@ -425,8 +509,8 @@ func TestActivityErrorHaltsDescendantsAndSealPublish(t *testing.T) {
 		stagegraph.SelectParser,
 		stagegraph.ExecuteParser,
 		stagegraph.PersistRawGeneration,
-		stagegraph.HashRawRecords,
-		stagegraph.HashRawGeneration,
+		stagegraph.FingerprintRawRecords,
+		stagegraph.FingerprintRawGeneration,
 		stagegraph.ReconcileRecordAccounting,
 		stagegraph.ReconcileByteCoverage,
 		stagegraph.VerifyRawCoverageAgainstSource,
@@ -765,12 +849,13 @@ func TestRequestIDPropagatesToEveryActivity(t *testing.T) {
 	}
 }
 
-// TestSelectParserDoesNotReceiveH1Ref proves hash identity (H1, from
-// hash_source_activity) never reaches select_parser_activity's request, even
-// though select_parser still joins the fan-out that produces H1 (proven
-// separately by TestSafeParallelFanOutAfterRetainOriginal, which asserts
-// hash_source starts strictly before select_parser).
-func TestSelectParserDoesNotReceiveH1Ref(t *testing.T) {
+// TestSelectParserDoesNotReceiveContextSourceFingerprintRef proves context
+// source fingerprint identity (from fingerprint_source_activity) never reaches
+// select_parser_activity's request, even though select_parser still joins the
+// fan-out that produces it (proven separately by
+// TestSafeParallelFanOutAfterRetainOriginal, which asserts fingerprint_source
+// starts strictly before select_parser).
+func TestSelectParserDoesNotReceiveContextSourceFingerprintRef(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
 	env.RegisterWorkflow(UniversalImportWorkflow)
@@ -800,8 +885,8 @@ func TestSelectParserDoesNotReceiveH1Ref(t *testing.T) {
 	if gotReq == nil {
 		t.Fatal("select_parser_activity was never observed by the listener")
 	}
-	if ref, ok := gotReq.Refs["h1"]; ok {
-		t.Errorf("select_parser_activity request carried an h1 ref (%q); hash identity must not influence parser selection", ref)
+	if ref, ok := gotReq.Refs["context_source_fingerprint"]; ok {
+		t.Errorf("select_parser_activity request carried a context_source_fingerprint ref (%q); hash identity must not influence parser selection", ref)
 	}
 }
 
@@ -825,7 +910,7 @@ func TestSettleRejectsInvalidStageResults(t *testing.T) {
 		{"not_applicable empty receipt ref", StageResult{Status: StatusNotApplicable, Reason: "n/a"}},
 		{"failed empty reason", StageResult{Status: StatusFailed, ReceiptRef: "r"}},
 		{"failed empty receipt ref", StageResult{Status: StatusFailed, Reason: "boom"}},
-		{"mismatched stage identity", StageResult{Stage: stagegraph.HashSource, Status: StatusSuccess, Ref: "x", ReceiptRef: "r"}},
+		{"mismatched stage identity", StageResult{Stage: stagegraph.FingerprintSource, Status: StatusSuccess, Ref: "x", ReceiptRef: "r"}},
 	}
 
 	for _, tc := range cases {

@@ -7,6 +7,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,6 +20,7 @@ import (
 	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/lowcarbdev/sbv/pkg/parseonly"
 )
 
 // BundleWriterFactory is the only parser-output persistence dependency.  The
@@ -51,6 +53,137 @@ type ParserRepository = ParserStore
 
 func NewParserRepository(db DB, factory BundleWriterFactory) (*ParserRepository, error) {
 	return NewParserStore(db, factory)
+}
+
+// RegisterArtifact atomically binds a fully published parse output to its
+// retained source. Logical identity is source/kind/parent/ordinal; the digest
+// is integrity data and therefore cannot create a second identity.
+func (s *ParserStore) RegisterArtifact(ctx context.Context, registration parseonly.ArtifactRegistration) (parseonly.ArtifactLocator, error) {
+	artifact := registration.Artifact
+	sourceID, err := uuid.Parse(strings.TrimSpace(artifact.SourceAssociation))
+	if err != nil {
+		return parseonly.ArtifactLocator{}, fmt.Errorf("register parser artifact source: %w", err)
+	}
+	if strings.TrimSpace(artifact.ParentSourcePos) == "" || strings.TrimSpace(registration.ObjectURI) == "" {
+		return parseonly.ArtifactLocator{}, errors.New("register parser artifact requires parent position and object URI")
+	}
+	if artifact.ByteCount < 0 || len(registration.DigestSHA256) != 64 {
+		return parseonly.ArtifactLocator{}, errors.New("register parser artifact requires valid byte count and SHA-256")
+	}
+	digest, err := hex.DecodeString(registration.DigestSHA256)
+	if err != nil || len(digest) != 32 {
+		return parseonly.ArtifactLocator{}, errors.New("register parser artifact SHA-256 is invalid")
+	}
+	role := "derived_reference"
+	if artifact.Kind == parseonly.ArtifactAttachment {
+		role = "attachment"
+	} else if artifact.Kind != parseonly.ArtifactRawRecord {
+		return parseonly.ArtifactLocator{}, fmt.Errorf("register parser artifact kind %q is unsupported", artifact.Kind)
+	}
+	memberLocator, err := json.Marshal(map[string]any{
+		"artifact_kind": string(artifact.Kind), "parent_source_pos": artifact.ParentSourcePos,
+		"attachment_ordinal": artifact.AttachmentOrdinal, "original_name": artifact.OriginalName,
+		"mime": artifact.MIME,
+	})
+	if err != nil {
+		return parseonly.ArtifactLocator{}, fmt.Errorf("encode parser artifact locator: %w", err)
+	}
+	logicalIdentity := fmt.Sprintf("%s\x00%s\x00%s\x00%d", sourceID, artifact.Kind, artifact.ParentSourcePos, artifact.AttachmentOrdinal)
+	var storageClass, objectURI, contentHash string
+	var byteLength int64
+	var identityExisted, membershipBound bool
+	err = s.db.QueryRow(ctx, `
+		WITH lock_identity AS (
+		    SELECT pg_advisory_xact_lock(hashtextextended($1, 0))
+		), retained_source AS (
+		    SELECT original_object_id
+		    FROM context.source_version, lock_identity
+		    WHERE id = $2::uuid AND status = 'retained'
+		), logical_object AS (
+		    SELECT object.id, object.storage_class, object.object_uri,
+		           object.content_sha256, object.byte_length
+		    FROM context.source_version_object member
+		    JOIN context.retained_object object ON object.id = member.object_id
+		    CROSS JOIN LATERAL jsonb_array_elements(
+		        COALESCE(member.member_locator->'artifact_occurrences', '[]'::jsonb)
+		    ) occurrence
+		    WHERE member.source_version_id = $2::uuid
+		      AND occurrence->>'artifact_kind' = $3
+		      AND occurrence->>'parent_source_pos' = $4
+		      AND (occurrence->>'attachment_ordinal')::bigint = $5
+		    LIMIT 1
+		), inserted_object AS (
+		    INSERT INTO context.retained_object
+		        (storage_class, object_uri, content_sha256, byte_length)
+		    SELECT 'filesystem', $6, $7, $8 FROM retained_source
+		    WHERE NOT EXISTS (SELECT 1 FROM logical_object)
+		    ON CONFLICT DO NOTHING
+		    RETURNING id, storage_class, object_uri, content_sha256, byte_length
+		), resolved_object AS (
+		    SELECT *, true AS identity_existed FROM logical_object
+		    UNION ALL
+		    SELECT *, false FROM inserted_object
+		    UNION ALL
+		    SELECT object.id, object.storage_class, object.object_uri,
+		           object.content_sha256, object.byte_length, false
+		    FROM context.retained_object object, retained_source
+		    WHERE object.content_sha256 = $7 AND object.byte_length = $8
+		      AND NOT EXISTS (SELECT 1 FROM logical_object)
+		      AND NOT EXISTS (SELECT 1 FROM inserted_object)
+		    LIMIT 1
+		), bound AS (
+		    INSERT INTO context.source_version_object
+		        (source_version_id, object_id, object_role, parent_object_id, member_locator)
+		    SELECT $2::uuid, resolved.id, $9, source.original_object_id,
+		           jsonb_build_object('artifact_occurrences', jsonb_build_array($10::jsonb))
+		    FROM resolved_object resolved, retained_source source
+		    WHERE NOT resolved.identity_existed
+		    ON CONFLICT (source_version_id, object_id) DO UPDATE
+		    SET member_locator = jsonb_set(
+		        context.source_version_object.member_locator,
+		        '{artifact_occurrences}',
+		        COALESCE(context.source_version_object.member_locator->'artifact_occurrences', '[]'::jsonb)
+		            || CASE WHEN EXISTS (
+		                SELECT 1 FROM jsonb_array_elements(
+		                    COALESCE(context.source_version_object.member_locator->'artifact_occurrences', '[]'::jsonb)
+		                ) existing WHERE existing = $10::jsonb
+		            ) THEN '[]'::jsonb ELSE jsonb_build_array($10::jsonb) END,
+		        true
+		    )
+		    WHERE context.source_version_object.object_role = EXCLUDED.object_role
+		      AND context.source_version_object.parent_object_id = EXCLUDED.parent_object_id
+		    RETURNING object_id
+		)
+		SELECT resolved.storage_class, resolved.object_uri,
+		       encode(resolved.content_sha256, 'hex'), resolved.byte_length,
+		       resolved.identity_existed,
+		       (EXISTS (SELECT 1 FROM bound) OR EXISTS (
+		           SELECT 1 FROM context.source_version_object member
+		           CROSS JOIN LATERAL jsonb_array_elements(
+		               COALESCE(member.member_locator->'artifact_occurrences', '[]'::jsonb)
+		           ) occurrence
+		           WHERE member.source_version_id = $2::uuid AND member.object_id = resolved.id
+		             AND occurrence = $10::jsonb
+		       ))
+		FROM resolved_object resolved`, logicalIdentity, sourceID, string(artifact.Kind), artifact.ParentSourcePos,
+		artifact.AttachmentOrdinal, registration.ObjectURI, digest, artifact.ByteCount, role, memberLocator,
+	).Scan(&storageClass, &objectURI, &contentHash, &byteLength, &identityExisted, &membershipBound)
+	if err != nil {
+		return parseonly.ArtifactLocator{}, fmt.Errorf("register parser artifact: %w", err)
+	}
+	if !membershipBound && identityExisted {
+		return parseonly.ArtifactLocator{}, errors.New("parser artifact logical identity conflicts with previously registered metadata")
+	}
+	if !membershipBound {
+		return parseonly.ArtifactLocator{}, errors.New("parser artifact was not bound to its retained source")
+	}
+	if contentHash != registration.DigestSHA256 || byteLength != artifact.ByteCount {
+		if identityExisted {
+			return parseonly.ArtifactLocator{}, errors.New("parser artifact logical identity conflicts with previously registered bytes")
+		}
+		return parseonly.ArtifactLocator{}, errors.New("registered parser artifact does not match published bytes")
+	}
+	return parseonly.ArtifactLocator{StorageClass: storageClass, URI: objectURI, ContentHash: contentHash}, nil
 }
 
 func (s *ParserStore) PersistParserSelection(ctx context.Context, spec activities.ParserSelectionSpec) (uiw.Ref, uiw.Ref, error) {
@@ -432,3 +565,4 @@ func executionIdempotencyKey(spec activities.ParserExecutionSpec) string {
 }
 
 var _ activities.ParserActivityStore = (*ParserStore)(nil)
+var _ parseonly.ArtifactRegistrar = (*ParserStore)(nil)

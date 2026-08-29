@@ -52,6 +52,10 @@ func run() error {
 	if bundleDirectory == "" {
 		return errors.New("PARSER_BUNDLE_DIR is required")
 	}
+	artifactDirectory := strings.TrimSpace(os.Getenv("PARSER_ARTIFACT_DIR"))
+	if artifactDirectory == "" {
+		return errors.New("PARSER_ARTIFACT_DIR is required")
+	}
 	address := strings.TrimSpace(os.Getenv("PARSER_ACTIVITY_ADDR"))
 	if address == "" {
 		address = defaultAddress
@@ -75,14 +79,6 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	adapters, err := sbvadapter.NewAll(objectOpener)
-	if err != nil {
-		return fmt.Errorf("register SBV parser adapters: %w", err)
-	}
-	registry, err := parser.NewRegistry(adapters...)
-	if err != nil {
-		return fmt.Errorf("build parser capability registry: %w", err)
-	}
 	bundleFactory, err := runtimeapi.NewFilesystemBundleFactory(pool, bundleDirectory)
 	if err != nil {
 		return err
@@ -90,6 +86,23 @@ func run() error {
 	parserStore, err := platformpostgres.NewParserStore(pool, bundleFactory)
 	if err != nil {
 		return err
+	}
+	artifactSink, err := sbvadapter.NewFilesystemArtifactSink(artifactDirectory, parserStore)
+	if err != nil {
+		return fmt.Errorf("configure governed SBV artifact sink: %w", err)
+	}
+	defer func() {
+		if err := artifactSink.Close(); err != nil {
+			slog.Error("release governed SBV artifact runtime lock", "error", err)
+		}
+	}()
+	adapters, err := sbvadapter.NewAllWithArtifactSink(objectOpener, artifactSink)
+	if err != nil {
+		return fmt.Errorf("register SBV parser adapters: %w", err)
+	}
+	registry, err := parser.NewRegistry(adapters...)
+	if err != nil {
+		return fmt.Errorf("build parser capability registry: %w", err)
 	}
 	parserActivities := activities.ParserActivities{Registry: registry, Store: parserStore}
 	handler, err := runtimeapi.NewParserActivityHandler(parserActivities, token)

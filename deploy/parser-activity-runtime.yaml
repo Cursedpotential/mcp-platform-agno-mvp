@@ -1,6 +1,8 @@
 # Parser Activity Runtime — separate Coolify application on ovh-files.
 # Watch paths: engine/**, vendored/sbv/**,
 # docker/parser-activity-runtime/**, deploy/parser-activity-runtime.yaml
+# Host prep (root-owned, before deployment):
+# install -d -m 0700 /data/agno/volumes/universal-import/parser-artifacts
 
 services:
   parser-activity-runtime:
@@ -16,8 +18,14 @@ services:
       PARSER_ACTIVITY_TOKEN: ${PARSER_ACTIVITY_TOKEN:?set}
       PARSER_ACTIVITY_ADDR: :8090
       PARSER_BUNDLE_DIR: /data/uiw/parser-bundles
+      PARSER_ARTIFACT_DIR: /data/uiw/parser-artifacts
     volumes:
       - /data/agno/volumes/universal-import/parser-bundles:/data/uiw/parser-bundles
+      - type: bind
+        source: /data/agno/volumes/universal-import/parser-artifacts
+        target: /data/uiw/parser-artifacts
+        bind:
+          create_host_path: false
     networks:
       - coolify
 

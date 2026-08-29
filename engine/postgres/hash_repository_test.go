@@ -95,9 +95,12 @@ func TestValidateSpecPinsEachStageToItsHashKind(t *testing.T) {
 		stage stagegraph.StageID
 		kind  activities.HashKind
 	}{
-		{stagegraph.HashSource, activities.HashKindH1Source},
-		{stagegraph.HashRawRecords, activities.HashKindRawRecordDigest},
-		{stagegraph.HashRawGeneration, activities.HashKindH3RawGeneration},
+		{stagegraph.FingerprintSource, activities.HashKindContextSourceFingerprint},
+		{stagegraph.FingerprintRawRecords, activities.HashKindContextRawRecordFingerprint},
+		{stagegraph.FingerprintRawGeneration, activities.HashKindContextRawGenerationFingerprint},
+		{stagegraph.StageID("hash_source_activity"), activities.HashKindContextSourceFingerprint},
+		{stagegraph.StageID("hash_raw_records_activity"), activities.HashKindContextRawRecordFingerprint},
+		{stagegraph.StageID("hash_raw_generation_activity"), activities.HashKindContextRawGenerationFingerprint},
 		{stagegraph.HashNormalizedRecords, activities.HashKindNormalizedRecordDigest},
 		{stagegraph.HashNormalizedGeneration, activities.HashKindNormalizedGenerationDigest},
 	}
@@ -106,19 +109,19 @@ func TestValidateSpecPinsEachStageToItsHashKind(t *testing.T) {
 			t.Errorf("%s/%s rejected: %v", tc.stage, tc.kind, err)
 		}
 	}
-	if err := validateSpec(activities.BatchSpec{RequestID: "req", Attempt: 1, Stage: stagegraph.HashSource, Kind: activities.HashKindH3RawGeneration, SubjectRef: "subject"}); err == nil {
+	if err := validateSpec(activities.BatchSpec{RequestID: "req", Attempt: 1, Stage: stagegraph.FingerprintSource, Kind: activities.HashKindContextRawGenerationFingerprint, SubjectRef: "subject"}); err == nil {
 		t.Fatal("mismatched stage and kind accepted")
 	}
 }
 
 func TestValidateMemberCanonRejectsCrossLayerCanons(t *testing.T) {
-	if err := validateMemberCanon(activities.HashKindRawRecordDigest, activities.CanonNormalizedRecord); err == nil {
+	if err := validateMemberCanon(activities.HashKindContextRawRecordFingerprint, activities.CanonNormalizedRecord); err == nil {
 		t.Fatal("normalized canon accepted for raw member")
 	}
 	if err := validateMemberCanon(activities.HashKindNormalizedRecordDigest, "h2-rawrecord-v1"); err == nil {
 		t.Fatal("raw canon accepted for normalized member")
 	}
-	if err := validateMemberCanon(activities.HashKindH3RawGeneration, activities.CanonRawSpan); err != nil {
+	if err := validateMemberCanon(activities.HashKindContextRawGenerationFingerprint, activities.CanonContextRawSpanFingerprint); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -134,16 +137,24 @@ func TestParseSetRefRequiresExplicitKindPrefix(t *testing.T) {
 	}
 }
 
+func TestParseSetRefAcceptsCanonicalContextFingerprintSet(t *testing.T) {
+	id := "00000000-0000-0000-0000-000000000001"
+	kind, gotID, err := parseSetRef(uiw.Ref("context_raw_fingerprint_receipt_set:" + id))
+	if err != nil || kind != "context_raw_fingerprint_receipt_set" || gotID != id {
+		t.Fatalf("parseSetRef canonical context set = %q, %q, %v", kind, gotID, err)
+	}
+}
+
 func TestResultReferenceUsesReceiptOrGenerationSetBinding(t *testing.T) {
 	hashID := "00000000-0000-0000-0000-000000000001"
 	for _, tc := range []struct {
 		name, wantKind, wantRef string
 		kind                    activities.HashKind
 	}{
-		{name: "h1", kind: activities.HashKindH1Source, wantKind: "hash_receipt", wantRef: hashID},
-		{name: "h3", kind: activities.HashKindH3RawGeneration, wantKind: "hash_receipt", wantRef: hashID},
+		{name: "context-source-fingerprint", kind: activities.HashKindContextSourceFingerprint, wantKind: "hash_receipt", wantRef: hashID},
+		{name: "context-raw-generation-fingerprint", kind: activities.HashKindContextRawGenerationFingerprint, wantKind: "hash_receipt", wantRef: hashID},
 		{name: "normalized-generation", kind: activities.HashKindNormalizedGenerationDigest, wantKind: "hash_receipt", wantRef: hashID},
-		{name: "raw-set", kind: activities.HashKindRawRecordDigest, wantKind: "raw_hash_receipt_set", wantRef: "raw-generation"},
+		{name: "context-raw-set", kind: activities.HashKindContextRawRecordFingerprint, wantKind: "context_raw_fingerprint_receipt_set", wantRef: "raw-generation"},
 		{name: "normalized-set", kind: activities.HashKindNormalizedRecordDigest, wantKind: "normalized_hash_receipt_set", wantRef: "normalized-generation"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -152,10 +163,21 @@ func TestResultReferenceUsesReceiptOrGenerationSetBinding(t *testing.T) {
 			if refKind != tc.wantKind || refID != tc.wantRef {
 				t.Fatalf("reference kind/id = %q/%q, want %q/%q", refKind, refID, tc.wantKind, tc.wantRef)
 			}
-			if tc.wantKind == "hash_receipt" && tc.kind == activities.HashKindH3RawGeneration && result == "" {
+			if tc.wantKind == "hash_receipt" && tc.kind == activities.HashKindContextRawGenerationFingerprint && result == "" {
 				t.Fatal("generation result ref is empty")
 			}
 		})
+	}
+}
+
+func TestLegacyRawRetryKeepsLegacyReceiptSetReference(t *testing.T) {
+	w := batchWriter{spec: activities.BatchSpec{
+		Stage: stagegraph.StageID("hash_raw_records_activity"), Kind: activities.HashKindContextRawRecordFingerprint,
+		SubjectRef: "raw-generation",
+	}}
+	result, kind, refID := w.resultReference(uuid.MustParse("00000000-0000-0000-0000-000000000001"))
+	if result != "raw_hash_receipt_set:raw-generation" || kind != "raw_hash_receipt_set" || refID != "raw-generation" {
+		t.Fatalf("legacy result reference = %q/%q/%q", result, kind, refID)
 	}
 }
 

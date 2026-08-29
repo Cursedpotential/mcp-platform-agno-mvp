@@ -19,20 +19,33 @@ import (
 )
 
 // HashKind values match contracts/import/v1/schemas/hash-receipt.schema.json.
+// Context integrity fingerprints (R02) are DISTINCT from custody hashes (R04).
+// Custody hashes use: h1_source, raw_record_digest, h3_raw_generation
+// Context fingerprints use: context_source_fingerprint, context_raw_record_fingerprint, context_raw_generation_fingerprint
 type HashKind string
 
 const (
-	HashKindH1Source                   HashKind = "h1_source"
-	HashKindRawRecordDigest            HashKind = "raw_record_digest"
-	HashKindH3RawGeneration            HashKind = "h3_raw_generation"
+	// Custody hash kinds (R04 owner promotion only) — preserved for R04 use
+	HashKindH1Source        HashKind = "h1_source"
+	HashKindRawRecordDigest HashKind = "raw_record_digest"
+	HashKindH3RawGeneration HashKind = "h3_raw_generation"
+
+	// Context integrity fingerprint kinds (R02 intake only) — NOT custody
+	HashKindContextSourceFingerprint        HashKind = "context_source_fingerprint"
+	HashKindContextRawRecordFingerprint     HashKind = "context_raw_record_fingerprint"
+	HashKindContextRawGenerationFingerprint HashKind = "context_raw_generation_fingerprint"
+
+	// Normalized reproducibility digests (neither custody nor context fingerprints)
 	HashKindNormalizedRecordDigest     HashKind = "normalized_record_digest"
 	HashKindNormalizedGenerationDigest HashKind = "normalized_generation_manifest_digest"
 
-	// Universal-import raw rows include otherwise-unparsed and envelope spans,
-	// so their membership tag is distinct from legacy SBV logical-record H3.
-	// Normalized hashes deliberately do not reuse the custody H2/H3 labels.
-	CanonRawSpan                  = "h2-rawspan-v1"
-	CanonRawGeneration            = "h3-chain-platform-rawall-genesisempty-v1"
+	// Canon constants for context integrity fingerprints (R02)
+	CanonContextSourceFingerprint        = "context-source-fingerprint-v1"
+	CanonContextRawRecordFingerprint     = "context-rawrecord-fingerprint-v1"
+	CanonContextRawSpanFingerprint       = "context-rawspan-fingerprint-v1"
+	CanonContextRawGenerationFingerprint = "context-rawgen-fingerprint-chain-v1"
+
+	// Canon constants for normalized reproducibility (neither custody nor context fingerprints)
 	CanonNormalizedRecord         = "normalized-record-postgresql18-jsonb-text-utf8-sha256-v1"
 	CanonNormalizedGeneration     = "normalized-generation-ordered-digests-lengthframed-sha256-v1"
 	CanonRawRecordManifest        = "raw-record-digest-manifest-v1"
@@ -87,7 +100,7 @@ type HashMember struct {
 	Canon      string
 }
 
-// HashSummary seals a batch. Digest is populated for H1 and generation-level
+// HashSummary seals a batch. Digest is populated for source and generation-level
 // results; member batches are represented by their durable manifest reference.
 type HashSummary struct {
 	Digest       string
@@ -160,8 +173,13 @@ func (a HashActivities) attempt(ctx context.Context) int32 {
 	return attempt
 }
 
-// HashSource computes raw-source H1 over the retained original bytes.
-func (a HashActivities) HashSource(ctx context.Context, req uiw.StageRequest) (uiw.StageResult, error) {
+// FingerprintSource computes context source fingerprint over the retained original bytes.
+// This is a CONTEXT INTEGRITY FINGERPRINT (R02), NOT custody H1 (which is R04 only).
+func (a HashActivities) FingerprintSource(ctx context.Context, req uiw.StageRequest) (uiw.StageResult, error) {
+	return a.fingerprintSource(ctx, req, stagegraph.FingerprintSource)
+}
+
+func (a HashActivities) fingerprintSource(ctx context.Context, req uiw.StageRequest, stage stagegraph.StageID) (uiw.StageResult, error) {
 	const refName = "original"
 	if err := a.validate(); err != nil {
 		return uiw.StageResult{}, err
@@ -177,11 +195,11 @@ func (a HashActivities) HashSource(ctx context.Context, req uiw.StageRequest) (u
 	defer reader.Close()
 
 	writer, err := a.Repository.BeginHashBatch(ctx, BatchSpec{
-		RequestID: req.RequestID, Attempt: a.attempt(ctx), Stage: stagegraph.HashSource,
-		Kind: HashKindH1Source, SubjectRef: req.SourceVersionRef,
+		RequestID: req.RequestID, Attempt: a.attempt(ctx), Stage: stage,
+		Kind: HashKindContextSourceFingerprint, SubjectRef: req.SourceVersionRef,
 	})
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("begin H1 batch: %w", err)
+		return uiw.StageResult{}, fmt.Errorf("begin context source fingerprint batch: %w", err)
 	}
 	committed := false
 	defer func() {
@@ -190,36 +208,58 @@ func (a HashActivities) HashSource(ctx context.Context, req uiw.StageRequest) (u
 		}
 	}()
 
-	progress := &progressReader{ctx: ctx, reader: reader, stage: stagegraph.HashSource, heartbeat: a.heartbeat}
+	progress := &progressReader{ctx: ctx, reader: reader, stage: stage, heartbeat: a.heartbeat}
 	digest, err := custodyhash.HashReaderH1(progress)
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("compute H1: %w", err)
+		return uiw.StageResult{}, fmt.Errorf("compute context source fingerprint: %w", err)
 	}
-	member := HashMember{SubjectRef: req.SourceVersionRef, Ordinal: 0, Digest: digest, Canon: custodyhash.CanonH1}
+	member := HashMember{SubjectRef: req.SourceVersionRef, Ordinal: 0, Digest: digest, Canon: CanonContextSourceFingerprint}
 	if err := writer.Append(ctx, member); err != nil {
-		return uiw.StageResult{}, fmt.Errorf("persist H1 member: %w", err)
+		return uiw.StageResult{}, fmt.Errorf("persist context source fingerprint member: %w", err)
 	}
 	resultRef, receiptRef, err := writer.Commit(ctx, HashSummary{
-		Digest: digest, Canon: custodyhash.CanonH1, Construction: custodyhash.CanonH1, MemberCount: 1,
+		Digest: digest, Canon: CanonContextSourceFingerprint, Construction: CanonContextSourceFingerprint, MemberCount: 1,
 	})
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("commit H1: %w", err)
+		return uiw.StageResult{}, fmt.Errorf("commit context source fingerprint: %w", err)
 	}
 	committed = true
-	return success(stagegraph.HashSource, resultRef, receiptRef), nil
+	return success(stage, resultRef, receiptRef), nil
 }
 
-// HashRawRecords computes raw-custody H2 for each exact logical record/span.
-func (a HashActivities) HashRawRecords(ctx context.Context, req uiw.StageRequest) (uiw.StageResult, error) {
+// LegacyHashSource is a replay-only adapter for histories that scheduled the
+// pre-correction Activity name. Its durable computation is the canonical
+// context source fingerprint; only the workflow-facing stage identity stays
+// legacy so settle can replay the recorded command sequence.
+func (a HashActivities) LegacyHashSource(ctx context.Context, req uiw.StageRequest) (uiw.StageResult, error) {
+	return a.fingerprintSource(ctx, req, stagegraph.StageID("hash_source_activity"))
+}
+
+// FingerprintRawRecords computes context raw-record fingerprint for each exact logical record/span.
+// This is a CONTEXT INTEGRITY FINGERPRINT (R02), NOT custody H2 (which is R04 only).
+func (a HashActivities) FingerprintRawRecords(ctx context.Context, req uiw.StageRequest) (uiw.StageResult, error) {
 	if err := a.validate(); err != nil {
 		return uiw.StageResult{}, err
 	}
 	return a.hashRecordBytes(ctx, req, recordHashConfig{
-		stage: stagegraph.HashRawRecords, refName: "raw_generation",
-		kind: HashKindRawRecordDigest, manifestCanon: CanonRawRecordManifest, open: a.Repository.OpenRawRecords,
+		stage: stagegraph.FingerprintRawRecords, refName: "raw_generation",
+		kind: HashKindContextRawRecordFingerprint, manifestCanon: CanonRawRecordManifest, open: a.Repository.OpenRawRecords,
 		canon: func(member ByteMember) (string, error) {
-			if member.Canon != custodyhash.CanonH2 && member.Canon != custodyhash.CanonH2Record && member.Canon != CanonRawSpan {
-				return "", fmt.Errorf("raw member %q has unsupported H2 canon %q", member.SubjectRef, member.Canon)
+			if member.Canon != CanonContextRawRecordFingerprint && member.Canon != CanonContextRawSpanFingerprint {
+				return "", fmt.Errorf("raw member %q has unsupported context raw-record canon %q", member.SubjectRef, member.Canon)
+			}
+			return member.Canon, nil
+		},
+	})
+}
+
+func (a HashActivities) LegacyHashRawRecords(ctx context.Context, req uiw.StageRequest) (uiw.StageResult, error) {
+	return a.hashRecordBytes(ctx, req, recordHashConfig{
+		stage: stagegraph.StageID("hash_raw_records_activity"), refName: "raw_generation",
+		kind: HashKindContextRawRecordFingerprint, manifestCanon: CanonRawRecordManifest, open: a.Repository.OpenRawRecords,
+		canon: func(member ByteMember) (string, error) {
+			if member.Canon != CanonContextRawRecordFingerprint && member.Canon != CanonContextRawSpanFingerprint {
+				return "", fmt.Errorf("raw member %q has unsupported context raw-record canon %q", member.SubjectRef, member.Canon)
 			}
 			return member.Canon, nil
 		},
@@ -324,15 +364,36 @@ func (a HashActivities) hashRecordBytes(ctx context.Context, req uiw.StageReques
 	return success(cfg.stage, resultRef, receiptRef), nil
 }
 
-// HashRawGeneration computes raw-custody H3 over the ordered H2 manifest.
-func (a HashActivities) HashRawGeneration(ctx context.Context, req uiw.StageRequest) (uiw.StageResult, error) {
+// FingerprintRawGeneration computes context raw-generation fingerprint chain over the ordered context raw-record fingerprints.
+// This is a CONTEXT INTEGRITY FINGERPRINT (R02), NOT custody H3 (which is R04 only).
+// It reuses the SBV fold formula under the platform raw-all membership tag.
+func (a HashActivities) FingerprintRawGeneration(ctx context.Context, req uiw.StageRequest) (uiw.StageResult, error) {
 	return a.hashDigestGeneration(ctx, req, generationHashConfig{
-		stage: stagegraph.HashRawGeneration, refName: "raw_hash_manifest", subjectRefName: "raw_generation",
-		kind: HashKindH3RawGeneration, canon: CanonRawGeneration,
+		stage: stagegraph.FingerprintRawGeneration, refName: "raw_fingerprint_manifest", subjectRefName: "raw_generation",
+		kind: HashKindContextRawGenerationFingerprint, canon: CanonContextRawGenerationFingerprint,
 		acceptCanon: func(canon string) bool {
-			return canon == custodyhash.CanonH2 || canon == custodyhash.CanonH2Record || canon == CanonRawSpan
+			return canon == CanonContextRawRecordFingerprint || canon == CanonContextRawSpanFingerprint
 		},
-		newAccumulator: func() digestAccumulator { return &rawH3Accumulator{chain: custodyhash.NewChain("")} },
+		newAccumulator: func() digestAccumulator { return &rawFingerprintChainAccumulator{chain: custodyhash.NewChain("")} },
+	})
+}
+
+func (a HashActivities) LegacyHashRawGeneration(ctx context.Context, req uiw.StageRequest) (uiw.StageResult, error) {
+	if req.Refs["raw_fingerprint_manifest"] == "" && req.Refs["raw_hash_manifest"] != "" {
+		refs := make(map[string]uiw.Ref, len(req.Refs)+1)
+		for key, ref := range req.Refs {
+			refs[key] = ref
+		}
+		refs["raw_fingerprint_manifest"] = req.Refs["raw_hash_manifest"]
+		req.Refs = refs
+	}
+	return a.hashDigestGeneration(ctx, req, generationHashConfig{
+		stage: stagegraph.StageID("hash_raw_generation_activity"), refName: "raw_fingerprint_manifest", subjectRefName: "raw_generation",
+		kind: HashKindContextRawGenerationFingerprint, canon: CanonContextRawGenerationFingerprint,
+		acceptCanon: func(canon string) bool {
+			return canon == CanonContextRawRecordFingerprint || canon == CanonContextRawSpanFingerprint
+		},
+		newAccumulator: func() digestAccumulator { return &rawFingerprintChainAccumulator{chain: custodyhash.NewChain("")} },
 	})
 }
 
@@ -437,14 +498,14 @@ type digestAccumulator interface {
 	Sum() string
 }
 
-type rawH3Accumulator struct{ chain *custodyhash.Chain }
+type rawFingerprintChainAccumulator struct{ chain *custodyhash.Chain }
 
-func (a *rawH3Accumulator) Add(member DigestMember) error {
+func (a *rawFingerprintChainAccumulator) Add(member DigestMember) error {
 	a.chain.Add(member.Digest)
 	return nil
 }
 
-func (a *rawH3Accumulator) Sum() string { return a.chain.Value() }
+func (a *rawFingerprintChainAccumulator) Sum() string { return a.chain.Value() }
 
 type normalizedHash struct {
 	hashState interface {

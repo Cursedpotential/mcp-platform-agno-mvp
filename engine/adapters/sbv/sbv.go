@@ -15,10 +15,11 @@ import (
 	"github.com/lowcarbdev/sbv/pkg/parseonly"
 )
 
-// 1.1.0 adds the exact input-locator coverage envelope and promotes native
-// message values into native_fields. Pinning the change prevents a retry or
-// re-import from silently claiming the prior 1.0.0 output contract.
-const adapterVersion = "1.1.0"
+// 1.3.0 adds governed registration, attempt quarantine, and explicit failed
+// attachment accounting to caller-owned raw-record and attachment locators.
+// Pinning the change prevents a retry or re-import from silently claiming the
+// prior attachment-free 1.1.0 output contract.
+const adapterVersion = "1.3.0"
 
 // ObjectOpener resolves the immutable object URI in ParserInput. The parser
 // package supplies only coordinates; this seam keeps object access outside
@@ -28,13 +29,28 @@ type ObjectOpener func(context.Context, string) (io.ReadCloser, error)
 // Adapter is one canonical SBV format adapter. A separate adapter is returned
 // per format so Registry selection remains coverage-based and deterministic.
 type Adapter struct {
-	format parser.FormatID
-	open   ObjectOpener
+	format    parser.FormatID
+	open      ObjectOpener
+	artifacts parseonly.ImmutableArtifactSink
 }
 
 // New constructs one format adapter after validating the canonical format and
 // the required immutable-object opener.
 func New(format parser.FormatID, open ObjectOpener) (*Adapter, error) {
+	return newAdapter(format, open, nil)
+}
+
+// NewWithArtifactSink constructs an adapter that can truthfully preserve
+// streamed source records and attachments. The sink owns immutable storage;
+// the adapter owns only mapping its returned locators into the parser contract.
+func NewWithArtifactSink(format parser.FormatID, open ObjectOpener, artifacts parseonly.ImmutableArtifactSink) (*Adapter, error) {
+	if artifacts == nil {
+		return nil, errors.New("SBV attachment support requires an immutable artifact sink")
+	}
+	return newAdapter(format, open, artifacts)
+}
+
+func newAdapter(format parser.FormatID, open ObjectOpener, artifacts parseonly.ImmutableArtifactSink) (*Adapter, error) {
 	if err := format.Validate(); err != nil {
 		return nil, err
 	}
@@ -44,7 +60,7 @@ func New(format parser.FormatID, open ObjectOpener) (*Adapter, error) {
 	if _, err := parseonly.New(string(format)); err != nil {
 		return nil, err
 	}
-	return &Adapter{format: format, open: open}, nil
+	return &Adapter{format: format, open: open, artifacts: artifacts}, nil
 }
 
 // NewAll returns adapters for every SBV format whose public importer can
@@ -53,6 +69,19 @@ func New(format parser.FormatID, open ObjectOpener) (*Adapter, error) {
 // Other formats fail closed at the record boundary if an attachment locator
 // cannot be represented as an immutable platform ObjectRef.
 func NewAll(open ObjectOpener) ([]parser.Adapter, error) {
+	return newAll(open, nil)
+}
+
+// NewAllWithArtifactSink returns the complete SBV adapter set with immutable
+// attachment support enabled end to end.
+func NewAllWithArtifactSink(open ObjectOpener, artifacts parseonly.ImmutableArtifactSink) ([]parser.Adapter, error) {
+	if artifacts == nil {
+		return nil, errors.New("SBV attachment support requires an immutable artifact sink")
+	}
+	return newAll(open, artifacts)
+}
+
+func newAll(open ObjectOpener, artifacts parseonly.ImmutableArtifactSink) ([]parser.Adapter, error) {
 	if open == nil {
 		return nil, errors.New("SBV adapters require an immutable object opener")
 	}
@@ -64,7 +93,7 @@ func NewAll(open ObjectOpener) ([]parser.Adapter, error) {
 	}
 	result := make([]parser.Adapter, 0, len(formats))
 	for _, format := range formats {
-		adapter, err := New(format, open)
+		adapter, err := newAdapter(format, open, artifacts)
 		if err != nil {
 			return nil, fmt.Errorf("create SBV adapter %q: %w", format, err)
 		}
@@ -81,7 +110,7 @@ func (a *Adapter) Capability() parser.Capability {
 		Language:            parser.LanguageGo,
 		DeclaredFormats:     []parser.FormatID{a.format},
 		FormatQuality:       map[parser.FormatID]parser.Quality{a.format: parser.QualityPrimary},
-		SupportsAttachments: false,
+		SupportsAttachments: a != nil && a.artifacts != nil,
 		SupportsStreaming:   true,
 	}
 }
@@ -122,7 +151,7 @@ func (a *Adapter) Parse(ctx context.Context, input parser.ParserInput, sink pars
 	}
 	var accounting parser.BundleAccounting
 	var ordinal uint64
-	err = importer.Parse(ctx, parseSource, func(emitCtx context.Context, record parseonly.Record) error {
+	emit := func(emitCtx context.Context, record parseonly.Record) error {
 		if err := emitCtx.Err(); err != nil {
 			return err
 		}
@@ -141,8 +170,14 @@ func (a *Adapter) Parse(ctx context.Context, input parser.ParserInput, sink pars
 		case parseonly.StatusRejected:
 			accounting.Rejected++
 		}
+		accounting.Attachments += uint64(len(record.Attachments))
 		return nil
-	})
+	}
+	if a.artifacts != nil {
+		err = importer.ParseWithArtifacts(ctx, parseSource, input.SourceVersionRef, a.artifacts, emit)
+	} else {
+		err = importer.Parse(ctx, parseSource, emit)
+	}
 	if err != nil {
 		return parser.BundleAccounting{}, err
 	}
@@ -257,8 +292,11 @@ func (r *rangeReader) Read(p []byte) (int, error) {
 }
 
 func toEnvelope(format parser.FormatID, record parseonly.Record) (parser.RawRecordEnvelope, error) {
-	if len(record.Raw) == 0 {
-		return parser.RawRecordEnvelope{}, errors.New("SBV record has no exact raw bytes")
+	if (len(record.Raw) == 0) == (record.RawLocator == nil) {
+		return parser.RawRecordEnvelope{}, errors.New("SBV record requires exactly one exact raw byte value or immutable raw locator")
+	}
+	if uint64(len(record.Attachments)+len(record.AttachmentFailures)) != record.CapturedAttachments {
+		return parser.RawRecordEnvelope{}, errors.New("SBV record attachment accounting is not one-to-one")
 	}
 	recipientIdentities := make([]string, 0, len(record.Recipients))
 	for _, recipient := range record.Recipients {
@@ -277,22 +315,56 @@ func toEnvelope(format parser.FormatID, record parseonly.Record) (parser.RawReco
 		return parser.RawRecordEnvelope{}, fmt.Errorf("encode SBV native fields: %w", err)
 	}
 	nativeMetadata, err := json.Marshal(struct {
-		Kind         string                `json:"sbv_kind"`
-		SourcePos    string                `json:"sbv_source_pos"`
-		Participants []string              `json:"sbv_participants"`
-		Recipients   []parseonly.Recipient `json:"sbv_recipients,omitempty"`
-		Metadata     map[string]any        `json:"source_metadata,omitempty"`
-	}{record.Kind, record.SourcePos, record.Participants, record.Recipients, record.Metadata})
+		Kind                 string                          `json:"sbv_kind"`
+		SourcePos            string                          `json:"sbv_source_pos"`
+		Participants         []string                        `json:"sbv_participants"`
+		Recipients           []parseonly.Recipient           `json:"sbv_recipients,omitempty"`
+		AttachmentReferences []parseonly.AttachmentReference `json:"sbv_attachment_references,omitempty"`
+		AttachmentFailures   []parseonly.AttachmentFailure   `json:"sbv_attachment_failures,omitempty"`
+		CapturedAttachments  uint64                          `json:"sbv_captured_attachments"`
+		Metadata             map[string]any                  `json:"source_metadata,omitempty"`
+	}{record.Kind, record.SourcePos, record.Participants, record.Recipients, record.AttachmentReferences, record.AttachmentFailures, record.CapturedAttachments, record.Metadata})
 	if err != nil {
 		return parser.RawRecordEnvelope{}, fmt.Errorf("encode SBV native metadata: %w", err)
 	}
-	return parser.RawRecordEnvelope{
+	envelope := parser.RawRecordEnvelope{
 		RecordStatus: parser.RecordStatus(record.Status),
 		StatusReason: strings.TrimSpace(record.StatusReason),
-		StoredBytes:  &parser.StoredBytes{Bytes: append([]byte(nil), record.Raw...)},
 		FormatID:     format,
 		NativeFields: nativeFields, NativeMetadata: nativeMetadata,
-	}, nil
+	}
+	if record.RawLocator != nil {
+		envelope.Locator = &parser.Locator{Type: parser.LocatorWholeObject, ObjectRef: parser.ObjectRef{
+			StorageClass: record.RawLocator.StorageClass,
+			URI:          record.RawLocator.URI, ContentHash: record.RawLocator.ContentHash,
+		}}
+	} else {
+		envelope.StoredBytes = &parser.StoredBytes{Bytes: append([]byte(nil), record.Raw...)}
+	}
+	for _, attachment := range record.Attachments {
+		metadata, err := json.Marshal(struct {
+			SourceAssociation string `json:"source_association"`
+			ParentSourcePos   string `json:"parent_source_pos"`
+			OriginalName      string `json:"original_name"`
+			MIME              string `json:"mime"`
+			DigestSHA256      string `json:"digest_sha256"`
+			ByteCount         int64  `json:"byte_count"`
+			ConversionStatus  string `json:"conversion_status,omitempty"`
+			ConversionError   string `json:"conversion_error,omitempty"`
+		}{attachment.SourceAssociation, attachment.ParentSourcePos, attachment.OriginalName, attachment.MIME, attachment.DigestSHA256, attachment.ByteCount, attachment.ConversionStatus, attachment.ConversionError})
+		if err != nil {
+			return parser.RawRecordEnvelope{}, fmt.Errorf("encode SBV attachment %d metadata: %w", attachment.AttachmentOrdinal, err)
+		}
+		envelope.Attachments = append(envelope.Attachments, parser.AttachmentRef{
+			AttachmentOrdinal: attachment.AttachmentOrdinal,
+			Locator: parser.Locator{Type: parser.LocatorWholeObject, ObjectRef: parser.ObjectRef{
+				StorageClass: attachment.Locator.StorageClass,
+				URI:          attachment.Locator.URI, ContentHash: attachment.Locator.ContentHash,
+			}},
+			NativeMetadata: metadata,
+		})
+	}
+	return envelope, nil
 }
 
 var _ parser.Adapter = (*Adapter)(nil)

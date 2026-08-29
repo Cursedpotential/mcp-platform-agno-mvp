@@ -335,6 +335,19 @@ func (w *rawGenerationWriter) Append(ctx context.Context, record parser.RawRecor
 	if err != nil {
 		return err
 	}
+	for _, attachment := range record.Attachments {
+		objectID, err := resolveLocatorObject(ctx, w.tx, w.sourceID, attachment.Locator.ObjectRef)
+		if err != nil {
+			return fmt.Errorf("resolve attachment %d governed locator: %w", attachment.AttachmentOrdinal, err)
+		}
+		var objectLength int64
+		if err := w.tx.QueryRow(ctx, `SELECT byte_length FROM context.retained_object WHERE id = $1::uuid`, objectID).Scan(&objectLength); err != nil {
+			return fmt.Errorf("resolve attachment %d object length: %w", attachment.AttachmentOrdinal, err)
+		}
+		if _, _, err := checkedLocatorRange(attachment.Locator.ByteRange, objectLength); err != nil {
+			return fmt.Errorf("validate attachment %d locator range: %w", attachment.AttachmentOrdinal, err)
+		}
+	}
 	construction := rawHashConstruction(record.RecordStatus)
 	recordMetadata, err := attachmentsMetadataJSON(record.Attachments)
 	if err != nil {
@@ -499,20 +512,15 @@ func tallyAccounting(tally *parser.BundleAccounting, record parser.RawRecordEnve
 	}
 }
 
-// rawHashConstruction assigns the exact H2 construction, per SQL 0036's
-// comment on context.raw_record_identity: the persist stage, not the parser,
-// owns this decision. Envelope and unparsed spans are raw byte spans, never a
-// source-native logical record or element, so they must use h2-rawspan-v1.
-// Every other status is treated as a non-XML logical record
-// (h2-rawrecord-v1): the raw-record envelope contract carries no per-record
-// signal that would justify the XML-element construction (h2-rawelement-v1)
-// without inventing one.
+// rawHashConstruction assigns the exact context fingerprint construction.
+// The persist stage, not the parser, owns this decision. Envelope and
+// unparsed values are byte spans; every other status is a logical raw record.
 func rawHashConstruction(status parser.RecordStatus) string {
 	switch status {
 	case parser.StatusEnvelope, parser.StatusUnparsed:
-		return activities.CanonRawSpan
+		return activities.CanonContextRawSpanFingerprint
 	default:
-		return custodyhash.CanonH2Record
+		return activities.CanonContextRawRecordFingerprint
 	}
 }
 
@@ -678,8 +686,8 @@ func resolveRawGenerationFromChain(ctx context.Context, tx pgx.Tx, ref uiw.Ref) 
 		WHERE hash_receipt.id = $1::uuid`, receiptID).Scan(&rawGenerationID, &kind, &sourceVersionID); err != nil {
 		return uuid.Nil, uuid.Nil, fmt.Errorf("resolve raw generation chain %q: %w", ref, err)
 	}
-	if kind != "h3_raw_generation" {
-		return uuid.Nil, uuid.Nil, fmt.Errorf("raw generation chain reference %q is not an h3_raw_generation receipt", ref)
+	if kind != "context_raw_generation_fingerprint" {
+		return uuid.Nil, uuid.Nil, fmt.Errorf("raw generation chain reference %q is not a context_raw_generation_fingerprint receipt", ref)
 	}
 	return rawGenerationID, sourceVersionID, nil
 }
@@ -704,7 +712,7 @@ func reconcileKey(stage stagegraph.StageID, spec activities.RawGenerationChainSp
 
 func verifyKey(spec activities.RawSourceVerificationSpec) string {
 	return fmt.Sprintf("%s:%s:%s:%s:%s:%s", stagegraph.VerifyRawCoverageAgainstSource,
-		spec.RequestID, spec.AccountingRef, spec.CoverageRef, spec.H1Ref, spec.RawGenerationChainRef)
+		spec.RequestID, spec.AccountingRef, spec.CoverageRef, spec.ContextSourceFingerprintRef, spec.RawGenerationChainRef)
 }
 
 func validateChainSpec(spec activities.RawGenerationChainSpec) error {
@@ -721,8 +729,8 @@ func validateVerificationSpec(spec activities.RawSourceVerificationSpec) error {
 	if strings.TrimSpace(spec.RequestID) == "" || spec.SourceVersionRef == "" {
 		return errors.New("raw source verification requires request and source version references")
 	}
-	if spec.AccountingRef == "" || spec.CoverageRef == "" || spec.H1Ref == "" || spec.RawGenerationChainRef == "" {
-		return errors.New("raw source verification requires accounting, coverage, H1, and chain references")
+	if spec.AccountingRef == "" || spec.CoverageRef == "" || spec.ContextSourceFingerprintRef == "" || spec.RawGenerationChainRef == "" {
+		return errors.New("raw source verification requires accounting, coverage, context source fingerprint, and chain references")
 	}
 	if spec.Attempt < 1 {
 		return errors.New("raw source verification attempt must be positive")
@@ -1232,42 +1240,114 @@ func loadHashReceiptDigest(ctx context.Context, tx pgx.Tx, ref uiw.Ref, wantKind
 	}
 }
 
-// recomputeRawGenerationChain independently re-folds the ordered H2
-// raw_record_digest receipts using the same construction as
-// hash_raw_generation_activity, so verify_raw_coverage_against_source_activity
-// never merely re-labels the earlier hash Activity's own output.
-func recomputeRawGenerationChain(ctx context.Context, tx pgx.Tx, rawGenerationID uuid.UUID) (string, error) {
+// recomputeRawGenerationFromBytes reopens every retained raw member and hashes
+// the bytes again. It never reads context.hash_receipt.digest, so verification
+// cannot pass by merely refolding the fingerprint Activity's stored claims.
+func recomputeRawGenerationFromBytes(ctx context.Context, tx pgx.Tx, rawGenerationID uuid.UUID, open ObjectOpener) (string, error) {
 	rows, err := tx.Query(ctx, `
-		SELECT receipt.digest, receipt.construction
-		FROM context.hash_receipt receipt
-		JOIN context.raw_record_identity raw ON raw.id = receipt.raw_record_id
-		WHERE raw.raw_generation_id = $1::uuid AND receipt.hash_kind = 'raw_record_digest'
+		SELECT raw.id::text, raw.record_ordinal, raw.raw_hash_construction,
+		       raw.stored_bytes, COALESCE(object.storage_class, ''),
+		       COALESCE(object.object_uri, ''),
+		       CASE WHEN object.storage_class = 'inline'
+		            AND raw.byte_offset >= 0 AND raw.byte_length >= 0
+		            AND raw.byte_offset + raw.byte_length <= octet_length(object.inline_bytes)
+		            THEN substring(object.inline_bytes FROM raw.byte_offset + 1 FOR raw.byte_length)
+		       END,
+		       COALESCE(raw.byte_offset, 0), COALESCE(raw.byte_length, 0)
+		FROM context.raw_record_identity raw
+		LEFT JOIN context.retained_object object ON object.id = raw.locator_object_id
+		WHERE raw.raw_generation_id = $1::uuid
 		ORDER BY raw.record_ordinal`, rawGenerationID)
 	if err != nil {
-		return "", fmt.Errorf("load ordered H2 digests: %w", err)
+		return "", fmt.Errorf("open ordered retained raw members: %w", err)
 	}
-	defer rows.Close()
+	stream := &byteRows{rows: rows, open: open, raw: true}
+	return recomputeRawGenerationFingerprint(ctx, stream)
+}
+
+// recomputeRawGenerationFingerprint is the byte-reading core used by the
+// PostgreSQL verifier. Keeping it stream-oriented makes the retained-byte
+// behavior executable in isolation without replacing PostgreSQL's schema
+// contract with a SQL-string mock.
+func recomputeRawGenerationFingerprint(ctx context.Context, stream activities.ByteMemberStream) (string, error) {
+	if stream == nil {
+		return "", errors.New("retained raw member stream is required")
+	}
+	defer stream.Close()
 	chain := custodyhash.NewChain("")
 	var count int64
-	for rows.Next() {
-		var digest []byte
-		var construction string
-		if err := rows.Scan(&digest, &construction); err != nil {
-			return "", err
+	for {
+		member, nextErr := stream.Next(ctx)
+		if errors.Is(nextErr, io.EOF) {
+			break
 		}
-		if construction != custodyhash.CanonH2 && construction != custodyhash.CanonH2Record && construction != activities.CanonRawSpan {
-			return "", fmt.Errorf("raw record digest has unsupported construction %q", construction)
+		if nextErr != nil {
+			return "", fmt.Errorf("read retained raw member %d: %w", count, nextErr)
 		}
-		chain.Add(hex.EncodeToString(digest))
+		if member.Ordinal != count {
+			_ = member.Reader.Close()
+			return "", fmt.Errorf("retained raw member ordinal %d, want %d", member.Ordinal, count)
+		}
+		if member.Canon != activities.CanonContextRawRecordFingerprint && member.Canon != activities.CanonContextRawSpanFingerprint {
+			_ = member.Reader.Close()
+			return "", fmt.Errorf("raw member has unsupported construction %q", member.Canon)
+		}
+		digest, hashErr := custodyhash.HashReaderH1(member.Reader)
+		closeErr := member.Reader.Close()
+		if hashErr != nil {
+			return "", fmt.Errorf("hash retained raw member %q: %w", member.SubjectRef, hashErr)
+		}
+		if closeErr != nil {
+			return "", fmt.Errorf("close retained raw member %q: %w", member.SubjectRef, closeErr)
+		}
+		chain.Add(digest)
 		count++
 	}
-	if err := rows.Err(); err != nil {
-		return "", err
-	}
 	if count == 0 {
-		return "", errors.New("raw generation has no H2 digests to recompute its H3 chain")
+		return "", errors.New("raw generation has no retained raw members to verify")
 	}
 	return chain.Value(), nil
+}
+
+func recomputeSourceFingerprint(reader io.ReadCloser) (string, error) {
+	if reader == nil {
+		return "", errors.New("retained source reader is required")
+	}
+	digest, hashErr := custodyhash.HashReaderH1(reader)
+	closeErr := reader.Close()
+	if hashErr != nil {
+		return "", fmt.Errorf("hash retained original bytes: %w", hashErr)
+	}
+	if closeErr != nil {
+		return "", fmt.Errorf("close retained original bytes: %w", closeErr)
+	}
+	return digest, nil
+}
+
+func recomputeSourceFromBytes(ctx context.Context, tx pgx.Tx, sourceVersionID uuid.UUID, open ObjectOpener) (string, error) {
+	var storageClass, objectURI string
+	var inline []byte
+	if err := tx.QueryRow(ctx, `
+		SELECT object.storage_class, object.object_uri, object.inline_bytes
+		FROM context.source_version source
+		JOIN context.retained_object object ON object.id = source.original_object_id
+		WHERE source.id = $1::uuid`, sourceVersionID).Scan(&storageClass, &objectURI, &inline); err != nil {
+		return "", fmt.Errorf("resolve retained original bytes: %w", err)
+	}
+	var reader io.ReadCloser
+	if storageClass == "inline" {
+		reader = io.NopCloser(bytes.NewReader(inline))
+	} else {
+		if open == nil {
+			return "", fmt.Errorf("non-inline retained original %q requires an ObjectOpener", objectURI)
+		}
+		var err error
+		reader, err = open(ctx, objectURI)
+		if err != nil {
+			return "", fmt.Errorf("open retained original %q: %w", objectURI, err)
+		}
+	}
+	return recomputeSourceFingerprint(reader)
 }
 
 func (r *RawPipelineRepository) VerifyRawCoverageAgainstSource(ctx context.Context, spec activities.RawSourceVerificationSpec) (activities.ReconciliationOutcome, error) {
@@ -1321,39 +1401,49 @@ func (r *RawPipelineRepository) VerifyRawCoverageAgainstSource(ctx context.Conte
 	if err != nil {
 		return activities.ReconciliationOutcome{}, err
 	}
-	storedH3Digest, _, h3SourceID, err := loadHashReceiptDigest(ctx, tx, spec.RawGenerationChainRef, "h3_raw_generation")
+	storedGenerationFingerprint, _, chainSourceID, err := loadHashReceiptDigest(ctx, tx, spec.RawGenerationChainRef, "context_raw_generation_fingerprint")
 	if err != nil {
 		return activities.ReconciliationOutcome{}, err
 	}
-	if h3SourceID != sourceID {
+	if chainSourceID != sourceID {
 		return activities.ReconciliationOutcome{}, errors.New("raw generation chain reference belongs to a different source version")
 	}
-	h1Digest, _, h1SourceID, err := loadHashReceiptDigest(ctx, tx, spec.H1Ref, "h1_source")
+	sourceFingerprint, _, fingerprintSourceID, err := loadHashReceiptDigest(ctx, tx, spec.ContextSourceFingerprintRef, "context_source_fingerprint")
 	if err != nil {
 		return activities.ReconciliationOutcome{}, err
 	}
-	if h1SourceID != sourceID {
-		return activities.ReconciliationOutcome{}, errors.New("h1 reference belongs to a different source version")
+	if fingerprintSourceID != sourceID {
+		return activities.ReconciliationOutcome{}, errors.New("context source fingerprint reference belongs to a different source version")
 	}
-	recomputedH3, err := recomputeRawGenerationChain(ctx, tx, rawGenerationID)
+	recomputedGenerationFingerprint, err := recomputeRawGenerationFromBytes(ctx, tx, rawGenerationID, r.open)
+	if err != nil {
+		return activities.ReconciliationOutcome{}, err
+	}
+	recomputedSourceFingerprint, err := recomputeSourceFromBytes(ctx, tx, sourceID, r.open)
 	if err != nil {
 		return activities.ReconciliationOutcome{}, err
 	}
 
 	expected := map[string]any{
-		"h3_raw_generation": storedH3Digest, "verification_mode": "independent_recomputation",
-		"h1_source": h1Digest, "accounting_status": accountingStatus, "coverage_status": coverageStatus,
+		"context_raw_generation_fingerprint": storedGenerationFingerprint, "verification_mode": "retained_bytes_recomputation",
+		"context_source_fingerprint": sourceFingerprint, "accounting_status": accountingStatus, "coverage_status": coverageStatus,
 	}
 	observed := map[string]any{
-		"h3_raw_generation": recomputedH3, "verification_mode": "independent_recomputation",
-		"h1_source": h1Digest, "accounting_status": accountingStatus, "coverage_status": coverageStatus,
+		"context_raw_generation_fingerprint": recomputedGenerationFingerprint, "verification_mode": "retained_bytes_recomputation",
+		"context_source_fingerprint": recomputedSourceFingerprint, "accounting_status": accountingStatus, "coverage_status": coverageStatus,
 	}
 
 	var discrepancies []discrepancy
-	if recomputedH3 != storedH3Digest {
+	if recomputedGenerationFingerprint != storedGenerationFingerprint {
 		discrepancies = append(discrepancies, discrepancy{
-			Field: "h3_raw_generation", Expected: storedH3Digest, Observed: recomputedH3,
-			Explanation: "independently recomputed H3 raw-generation chain does not match the stored digest",
+			Field: "context_raw_generation_fingerprint", Expected: storedGenerationFingerprint, Observed: recomputedGenerationFingerprint,
+			Explanation: "independently recomputed raw-generation context fingerprint does not match the stored digest",
+		})
+	}
+	if recomputedSourceFingerprint != sourceFingerprint {
+		discrepancies = append(discrepancies, discrepancy{
+			Field: "context_source_fingerprint", Expected: sourceFingerprint, Observed: recomputedSourceFingerprint,
+			Explanation: "independently recomputed retained original bytes do not match the stored context source fingerprint",
 		})
 	}
 	if accountingStatus != "success" {
@@ -1402,7 +1492,7 @@ func (r *RawPipelineRepository) VerifyRawCoverageAgainstSource(ctx context.Conte
 
 // sealRawGeneration performs the sole legitimate raw-generation lifecycle
 // transition. SQL 0036's transition trigger independently requires complete
-// subtype rows, H1/H2/H3 custody, and successful accounting, byte-coverage,
+// subtype rows, context fingerprints, and successful accounting, byte-coverage,
 // and raw/source verification receipts. Keeping the final receipt and seal in
 // one transaction prevents a generation from being observed as verified but
 // still mutable.

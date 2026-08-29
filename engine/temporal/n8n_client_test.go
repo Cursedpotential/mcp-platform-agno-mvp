@@ -203,7 +203,7 @@ func TestCallStageFailsClosedOnUnroutableStage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewN8NClient() error = %v", err)
 	}
-	if _, err := client.CallStage(t.Context(), stagegraph.HashSource, selectRequest()); err == nil {
+	if _, err := client.CallStage(t.Context(), stagegraph.FingerprintSource, selectRequest()); err == nil {
 		t.Fatal("CallStage() error = nil, want error for a stage this client has no route for")
 	}
 }

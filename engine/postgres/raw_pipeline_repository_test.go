@@ -1,13 +1,127 @@
 package postgres
 
 import (
+	"bytes"
+	"context"
+	"errors"
+	"io"
 	"testing"
 
 	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/activities"
 	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/parser"
 	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
-	"github.com/lowcarbdev/sbv/pkg/custodyhash"
+	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
 )
+
+type retainedMemberStream struct {
+	members []activities.ByteMember
+	next    int
+	closed  bool
+}
+
+func (s *retainedMemberStream) Next(context.Context) (activities.ByteMember, error) {
+	if s.next >= len(s.members) {
+		return activities.ByteMember{}, io.EOF
+	}
+	member := s.members[s.next]
+	s.next++
+	return member, nil
+}
+
+func (s *retainedMemberStream) Close() error {
+	s.closed = true
+	return nil
+}
+
+func retainedStream(values ...string) *retainedMemberStream {
+	members := make([]activities.ByteMember, 0, len(values))
+	for ordinal, value := range values {
+		members = append(members, activities.ByteMember{
+			SubjectRef: uiw.Ref(string(rune('a' + ordinal))), Ordinal: int64(ordinal),
+			Canon:  activities.CanonContextRawRecordFingerprint,
+			Reader: io.NopCloser(bytes.NewBufferString(value)),
+		})
+	}
+	return &retainedMemberStream{members: members}
+}
+
+func TestRetainedByteRecomputationSuccessIsDeterministic(t *testing.T) {
+	first := retainedStream("first exact record", "second exact record")
+	want, err := recomputeRawGenerationFingerprint(context.Background(), first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want == "" || !first.closed {
+		t.Fatalf("raw fingerprint = %q, stream closed = %v", want, first.closed)
+	}
+	got, err := recomputeRawGenerationFingerprint(context.Background(), retainedStream("first exact record", "second exact record"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("recomputed raw fingerprint = %q, want %q", got, want)
+	}
+
+	sourceWant, err := recomputeSourceFingerprint(io.NopCloser(bytes.NewBufferString("retained original")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sourceGot, err := recomputeSourceFingerprint(io.NopCloser(bytes.NewBufferString("retained original")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sourceGot == "" || sourceGot != sourceWant {
+		t.Fatalf("recomputed source fingerprint = %q, want %q", sourceGot, sourceWant)
+	}
+}
+
+func TestRetainedByteRecomputationDetectsCorruptSourceAndMember(t *testing.T) {
+	sourceExpected, err := recomputeSourceFingerprint(io.NopCloser(bytes.NewBufferString("retained original")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sourceCorrupt, err := recomputeSourceFingerprint(io.NopCloser(bytes.NewBufferString("retained original!")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sourceCorrupt == sourceExpected {
+		t.Fatal("corrupt retained source produced the expected fingerprint")
+	}
+
+	rawExpected, err := recomputeRawGenerationFingerprint(context.Background(), retainedStream("member one", "member two"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rawCorrupt, err := recomputeRawGenerationFingerprint(context.Background(), retainedStream("member one", "member TWO"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rawCorrupt == rawExpected {
+		t.Fatal("corrupt retained raw member produced the expected generation fingerprint")
+	}
+}
+
+func TestRetainedRawRecomputationFailsOnTruncatedExternalRange(t *testing.T) {
+	reader, err := openBytes(context.Background(), func(context.Context, string) (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewBufferString("short")), nil
+	}, "filesystem", "file:///retained", nil, nil, 3, 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stream := &retainedMemberStream{members: []activities.ByteMember{{
+		SubjectRef: "raw-1", Ordinal: 0, Canon: activities.CanonContextRawSpanFingerprint, Reader: reader,
+	}}}
+	_, err = recomputeRawGenerationFingerprint(context.Background(), stream)
+	if !errors.Is(err, io.ErrUnexpectedEOF) {
+		t.Fatalf("truncated retained range error = %v, want %v", err, io.ErrUnexpectedEOF)
+	}
+}
+
+func TestRetainedExternalBytesRequireGovernedOpener(t *testing.T) {
+	if _, err := openBytes(context.Background(), nil, "filesystem", "file:///retained", nil, nil, 0, 10); err == nil {
+		t.Fatal("external retained member accepted without governed object opener")
+	}
+}
 
 func TestNewRawPipelineRepositoryRequiresDatabase(t *testing.T) {
 	if _, err := NewRawPipelineRepository(nil, nil); err == nil {
@@ -89,17 +203,17 @@ func TestValidateChainSpecAndVerificationSpec(t *testing.T) {
 		t.Fatal("empty chain spec accepted")
 	}
 	valid := activities.RawSourceVerificationSpec{
-		RequestID: "r", SourceVersionRef: "s", AccountingRef: "a", CoverageRef: "c", H1Ref: "h", RawGenerationChainRef: "g", Attempt: 1,
+		RequestID: "r", SourceVersionRef: "s", AccountingRef: "a", CoverageRef: "c", ContextSourceFingerprintRef: "h", RawGenerationChainRef: "g", Attempt: 1,
 	}
 	if err := validateVerificationSpec(valid); err != nil {
 		t.Fatal(err)
 	}
 	for name, invalid := range map[string]activities.RawSourceVerificationSpec{
-		"missing accounting": {RequestID: "r", SourceVersionRef: "s", CoverageRef: "c", H1Ref: "h", RawGenerationChainRef: "g", Attempt: 1},
-		"missing coverage":   {RequestID: "r", SourceVersionRef: "s", AccountingRef: "a", H1Ref: "h", RawGenerationChainRef: "g", Attempt: 1},
-		"missing h1":         {RequestID: "r", SourceVersionRef: "s", AccountingRef: "a", CoverageRef: "c", RawGenerationChainRef: "g", Attempt: 1},
-		"missing chain":      {RequestID: "r", SourceVersionRef: "s", AccountingRef: "a", CoverageRef: "c", H1Ref: "h", Attempt: 1},
-		"zero attempt":       {RequestID: "r", SourceVersionRef: "s", AccountingRef: "a", CoverageRef: "c", H1Ref: "h", RawGenerationChainRef: "g"},
+		"missing accounting":  {RequestID: "r", SourceVersionRef: "s", CoverageRef: "c", ContextSourceFingerprintRef: "h", RawGenerationChainRef: "g", Attempt: 1},
+		"missing coverage":    {RequestID: "r", SourceVersionRef: "s", AccountingRef: "a", ContextSourceFingerprintRef: "h", RawGenerationChainRef: "g", Attempt: 1},
+		"missing fingerprint": {RequestID: "r", SourceVersionRef: "s", AccountingRef: "a", CoverageRef: "c", RawGenerationChainRef: "g", Attempt: 1},
+		"missing chain":       {RequestID: "r", SourceVersionRef: "s", AccountingRef: "a", CoverageRef: "c", ContextSourceFingerprintRef: "h", Attempt: 1},
+		"zero attempt":        {RequestID: "r", SourceVersionRef: "s", AccountingRef: "a", CoverageRef: "c", ContextSourceFingerprintRef: "h", RawGenerationChainRef: "g"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			if err := validateVerificationSpec(invalid); err == nil {
@@ -123,7 +237,7 @@ func TestRawGenerationKeyReconcileKeyVerifyKeyAreDeterministicAndDistinct(t *tes
 	if accountingKey != reconcileKey(stagegraph.ReconcileRecordAccounting, chainSpec) {
 		t.Fatal("reconcile key is not deterministic")
 	}
-	verifySpec := activities.RawSourceVerificationSpec{RequestID: "r", AccountingRef: "a", CoverageRef: "c", H1Ref: "h", RawGenerationChainRef: "g"}
+	verifySpec := activities.RawSourceVerificationSpec{RequestID: "r", AccountingRef: "a", CoverageRef: "c", ContextSourceFingerprintRef: "h", RawGenerationChainRef: "g"}
 	if verifyKey(verifySpec) != verifyKey(verifySpec) {
 		t.Fatal("verify key is not deterministic")
 	}
@@ -134,12 +248,12 @@ func TestRawGenerationKeyReconcileKeyVerifyKeyAreDeterministicAndDistinct(t *tes
 
 func TestRawHashConstruction(t *testing.T) {
 	for status, want := range map[parser.RecordStatus]string{
-		parser.StatusEnvelope:  activities.CanonRawSpan,
-		parser.StatusUnparsed:  activities.CanonRawSpan,
-		parser.StatusParsed:    custodyhash.CanonH2Record,
-		parser.StatusRejected:  custodyhash.CanonH2Record,
-		parser.StatusMalformed: custodyhash.CanonH2Record,
-		parser.StatusUnknown:   custodyhash.CanonH2Record,
+		parser.StatusEnvelope:  activities.CanonContextRawSpanFingerprint,
+		parser.StatusUnparsed:  activities.CanonContextRawSpanFingerprint,
+		parser.StatusParsed:    activities.CanonContextRawRecordFingerprint,
+		parser.StatusRejected:  activities.CanonContextRawRecordFingerprint,
+		parser.StatusMalformed: activities.CanonContextRawRecordFingerprint,
+		parser.StatusUnknown:   activities.CanonContextRawRecordFingerprint,
 	} {
 		if got := rawHashConstruction(status); got != want {
 			t.Errorf("rawHashConstruction(%s) = %q, want %q", status, got, want)

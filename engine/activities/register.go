@@ -78,13 +78,26 @@ func NewSourceObservationActivities(
 // RegisterHashActivities registers each atomic body under the exact StageID
 // invoked by UniversalImportWorkflow. Registering methods individually avoids
 // Go method names silently becoming a second naming scheme.
+// Context integrity fingerprints (R02) are registered under their new names.
+// Custody hashes (R04) are registered separately when R04 is implemented.
 func RegisterHashActivities(registrar ActivityRegistrar, activities HashActivities) {
-	registrar.RegisterActivityWithOptions(activities.HashSource, activity.RegisterOptions{Name: string(stagegraph.HashSource)})
-	registrar.RegisterActivityWithOptions(activities.HashRawRecords, activity.RegisterOptions{Name: string(stagegraph.HashRawRecords)})
-	registrar.RegisterActivityWithOptions(activities.HashRawGeneration, activity.RegisterOptions{Name: string(stagegraph.HashRawGeneration)})
+	registrar.RegisterActivityWithOptions(activities.FingerprintSource, activity.RegisterOptions{Name: string(stagegraph.FingerprintSource)})
+	registrar.RegisterActivityWithOptions(activities.FingerprintRawRecords, activity.RegisterOptions{Name: string(stagegraph.FingerprintRawRecords)})
+	registrar.RegisterActivityWithOptions(activities.FingerprintRawGeneration, activity.RegisterOptions{Name: string(stagegraph.FingerprintRawGeneration)})
+	// Replay aliases for workflows started before the context-fingerprint
+	// vocabulary correction. Do not use these names for new schedules.
+	registrar.RegisterActivityWithOptions(activities.LegacyHashSource, activity.RegisterOptions{Name: legacyHashSourceActivity})
+	registrar.RegisterActivityWithOptions(activities.LegacyHashRawRecords, activity.RegisterOptions{Name: legacyHashRawRecordsActivity})
+	registrar.RegisterActivityWithOptions(activities.LegacyHashRawGeneration, activity.RegisterOptions{Name: legacyHashRawGenerationActivity})
 	registrar.RegisterActivityWithOptions(activities.HashNormalizedRecords, activity.RegisterOptions{Name: string(stagegraph.HashNormalizedRecords)})
 	registrar.RegisterActivityWithOptions(activities.HashNormalizedGeneration, activity.RegisterOptions{Name: string(stagegraph.HashNormalizedGeneration)})
 }
+
+const (
+	legacyHashSourceActivity        = "hash_source_activity"
+	legacyHashRawRecordsActivity    = "hash_raw_records_activity"
+	legacyHashRawGenerationActivity = "hash_raw_generation_activity"
+)
 
 // RegisterParserActivities preserves the stage graph as the only Activity
 // naming authority and prevents Go method names from drifting into history.

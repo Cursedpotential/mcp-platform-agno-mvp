@@ -70,6 +70,7 @@ type SourceRecord struct {
 	Kind          string                 // message | call | row | object | ...
 	SourcePos     string                 // human-readable position in the source ("bytes 120-456", "line 42", ...)
 	Raw           []byte                 // exact raw logical source-record bytes (H2 input)
+	RawPath       string                 // exact streamed raw logical record; parse-only callers mint its immutable locator
 	RawCanon      string                 // H2 canon tag for this span (h2-rawelement-v1 for XML, h2-rawrecord-v1 otherwise)
 	PrecomputedH2 string                 // lowercase SHA-256 when Raw was streamed and not materialized
 	RawSize       int64                  // exact logical span length (len(Raw) when materialized)

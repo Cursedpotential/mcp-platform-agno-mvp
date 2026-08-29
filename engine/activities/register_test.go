@@ -18,9 +18,12 @@ func TestRegisterHashActivitiesUsesExactCanonicalStageNames(t *testing.T) {
 	registrar := &recordingRegistrar{}
 	RegisterHashActivities(registrar, HashActivities{})
 	want := []string{
-		string(stagegraph.HashSource),
-		string(stagegraph.HashRawRecords),
-		string(stagegraph.HashRawGeneration),
+		string(stagegraph.FingerprintSource),
+		string(stagegraph.FingerprintRawRecords),
+		string(stagegraph.FingerprintRawGeneration),
+		legacyHashSourceActivity,
+		legacyHashRawRecordsActivity,
+		legacyHashRawGenerationActivity,
 		string(stagegraph.HashNormalizedRecords),
 		string(stagegraph.HashNormalizedGeneration),
 	}

@@ -155,12 +155,12 @@ func TestNoStageReachesPublishWithoutItsOwnGate(t *testing.T) {
 }
 
 func TestFiveHashComputationStagesAreDistinct(t *testing.T) {
-	// Five, not four: raw custody requires both hash_raw_records (H2 per raw
-	// record/span) and hash_raw_generation (H3, the ordered H2 chain) in
-	// addition to hash_source (H1) — and normalized reproducibility requires
-	// its own separately-named pair (hash_normalized_records,
-	// hash_normalized_generation), neither of which is H2 or H3. See
-	// vendored/sbv/CUSTODY.md.
+	// Five hash computation stages: three context integrity fingerprints
+	// (fingerprint_source, fingerprint_raw_records, fingerprint_raw_generation)
+	// plus two normalized reproducibility digests (hash_normalized_records,
+	// hash_normalized_generation). Context fingerprints are NOT custody H1/H2/H3
+	// — those are created only by R04 owner promotion. See vendored/sbv/CUSTODY.md
+	// for custody definitions.
 	var hashStages []StageID
 	for _, d := range Stages {
 		if d.Responsibility == RespComputeHash {
@@ -173,9 +173,9 @@ func TestFiveHashComputationStagesAreDistinct(t *testing.T) {
 	}
 
 	want := map[StageID]bool{
-		HashSource:               true,
-		HashRawRecords:           true,
-		HashRawGeneration:        true,
+		FingerprintSource:        true,
+		FingerprintRawRecords:    true,
+		FingerprintRawGeneration: true,
 		HashNormalizedRecords:    true,
 		HashNormalizedGeneration: true,
 	}
@@ -196,7 +196,7 @@ func TestFiveHashComputationStagesAreDistinct(t *testing.T) {
 	}
 
 	// Distinct results too: five hashes over five different representations
-	// (raw-custody H1/H2/H3 plus normalized record and generation digests)
+	// (three context fingerprints plus two normalized reproducibility digests)
 	// must not collapse to the same receipt name.
 	results := make(map[string]StageID, len(hashStages))
 	for _, id := range hashStages {
@@ -319,7 +319,7 @@ func TestEveryDescriptorHasExactlyOneResponsibilityBit(t *testing.T) {
 func TestSafeParallelFanOutAfterRetainOriginal(t *testing.T) {
 	fanOut := []StageID{
 		CaptureFilesystemMetadata,
-		HashSource,
+		FingerprintSource,
 		InventoryContainer,
 		ExtractEmbeddedMetadata,
 	}

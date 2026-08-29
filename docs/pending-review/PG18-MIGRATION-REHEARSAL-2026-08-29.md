@@ -94,8 +94,14 @@ uv run pytest -q -m integration tests/test_0047_content_chunk_and_context_thread
 1 passed in 2.69s
 
 uv run pytest -q -m "integration or not integration" tests/test_0047_content_chunk_and_context_thread_foundation.py tests/test_0048_context_fingerprint_uiw_repair.py tests/test_0045_context_fingerprint_semantics.py
-33 passed in 5.40s
+35 passed in 9.07s
 ```
+
+The final count includes 0048's hardened PostgreSQL refusal-path test,
+`test_0048_pg18_refuses_preconfigured_function_when_service_is_available`, as well as its static
+catalog-rewrite refusal contract. After the suite, direct catalog probes confirmed that rollback
+left no `working.context_review_case`, `timeline.event_candidate_source_range`, or temporary
+`context.hash_receipt_legacy_snapshot` relation behind.
 
 ## Required follow-up
 
