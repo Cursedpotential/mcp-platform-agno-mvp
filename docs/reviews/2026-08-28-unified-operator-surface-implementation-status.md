@@ -70,6 +70,11 @@ acceptance and the SBV bounded preview remain open.
 - `GET http://100.72.169.40:8020/api/matters` still returns 500. The intake shell
   is previewable, but matter selection and an end-to-end UIW decision remain
   blocked by the incomplete fresh-`platform` database baseline.
+- Workbench deployment `xozcknkg3biu0kvdx0w0n7w7` finished at `05bba3a`. A
+  browser reload proved the rendered surface no longer advertises retired
+  LanceDB or inactive Milvus and now explains the Matter-schema blocker instead
+  of showing a generic internal-server error. The verified production capture is
+  `2026-08-29-production-workbench-intake-final.png`.
 
 ## Security follow-up
 
