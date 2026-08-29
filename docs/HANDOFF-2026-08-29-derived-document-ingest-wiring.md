@@ -141,25 +141,64 @@ provenance and a review state, exactly like `chat_chunk_lane` already carries
 inventing one. Tracked as a distinct UNRESOLVED gap below — it is broader than, and not part of,
 the document-ingest work packages (WP-0..WP-11).
 
-**Problem 3 — threads cross an AUTHORIZATION boundary. Design this in now; it is expensive to
-retrofit.** A cross-platform human conversation can legitimately contain **both** first-party
-messages (`working.message`) and acquired third-party messages (`working.third_party_message`).
-Third-party content is not equivalent to first-party content: it carries an acquisition and
-approval gate — `working.third_party_conversation_acquisition` exists precisely to record how it
-was obtained, and `MASTER-TODO` tracks "Conversations / acquired third-party approval" as a
-distinct surface with its own verification gate (`docs/adr/0059-*`).
+**Problem 3 — two thread populations, same shape, never mixed.**
 
-Consequences for `context_thread`:
+> ~~Earlier revision (2026-08-29, superseded same day): "threads cross an AUTHORIZATION boundary…
+> a cross-platform human conversation can legitimately contain **both** first-party messages and
+> acquired third-party messages… thread membership records each member's `projection_kind`, and
+> every thread read filters by approval state."~~
+>
+> **Superseded by owner ruling, 2026-08-29:** *"Cross-platform is only going to be first-party.
+> Third party is Katrina and her friends, or Katrina and somebody else, that came from a
+> third-party device. First party will platform hop."* The mixed-authorization design above was
+> built on an assumption that was never confirmed and is wrong. Recorded rather than deleted so
+> the reasoning is not re-derived later.
 
-- A thread spanning both parties has **mixed authorization state** across its members.
-- Thread assembly must not become a path that surfaces **unapproved** third-party content
-  alongside approved first-party content. A naive join over both tables does exactly that.
-- **Recommended:** thread membership records each member's `projection_kind`, and every thread
-  read filters by approval state — reusing the discipline `evidence_search` already applies
-  (deny-by-default, compound pre-filter applied *before* ranking) rather than inventing a new one.
-- Approving a **thread** must not implicitly approve the third-party **messages** inside it. The
-  thread's own review state (above) is about whether the *grouping* is correct; it is not a
-  substitute for per-member acquisition approval. Keep the two states separate.
+**Refined same day by the owner:** *"The third party will also platform hop, but it will not
+include myself. So it needs to have the same format and the same shape. But likely different
+tables."* So the first-party-only scoping immediately above is itself superseded — **both**
+populations platform-hop.
+
+**Settled model — two populations, same shape, never mixed:**
+
+| | Members | Owner a party? | Platform-hops? |
+|---|---|---|---|
+| **First-party thread** | `working.message` | yes | **yes** |
+| **Third-party thread** | `working.third_party_message` | no | **yes** |
+
+A single thread is **always one population or the other**, because the defining property of each
+is who is party to it. There is no mixed thread, so there is no mixed-authorization thread.
+
+**Recommendation — separate tables, shared logic.** Follow the precedent the schema already set
+one layer down: first- and third-party *messages* were NOT modelled as one table with a
+discriminator. They are separate tables, each with a CHECK pinning `projection_kind`
+(`working.message` → `'first_party'`; `working.third_party_message` → `'acquired_third_party'`,
+`sql/0026:154,196`). Threads should mirror that:
+
+- **Consistency.** One shared thread table would be inconsistent with the message layer directly
+  beneath it, and inconsistency between adjacent layers is what produces join mistakes.
+- **Safety by construction.** A query against the first-party thread table *cannot* return
+  third-party rows — stronger than a `WHERE projection_kind = …` a caller can forget, and it
+  matters because third-party content carries an acquisition/approval gate
+  (`working.third_party_conversation_acquisition`, `docs/adr/0059-*`, tracked in `MASTER-TODO`).
+- **Divergence is likely.** A third-party thread will plausibly need linkage to its acquisition
+  record; a first-party thread will not. Separate tables absorb that without a nullable column
+  that is meaningless for half the rows.
+
+**Same shape means the LOGIC is shared even though the tables are not.** Threading operates on
+(participant identity, normalized timestamp, medium) and is party-agnostic — one implementation
+over two tables, not two implementations. The duplication is in the schema, deliberately, and
+must not spread into the code.
+
+**Authorization, correctly scoped:** a third-party thread inherits the acquisition/approval
+posture of its members, so third-party thread reads are filtered by approval state. First-party
+threads carry no such gate. This is a property of *which thread table is being read* — not a
+per-member check inside a mixed thread.
+
+**Identity-resolution asymmetry — size the work accordingly.** In a first-party thread one
+participant is always known (the owner), which anchors cross-platform matching. In a third-party
+thread every participant is someone else, so identity resolution (**R17**) is strictly harder and
+has no anchor. Expect third-party threading to need materially more human review.
 
 ## CRITICAL GAP — cross-medium conversation threads (`context_thread_id`)
 
