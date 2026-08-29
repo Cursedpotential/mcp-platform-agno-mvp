@@ -5,6 +5,8 @@
 #         route lost during compose consolidation; auth remains OS_SECURITY_KEY.
 # Byline: Codex · GPT-5 · 2026-08-18 — native-evidence blue/green activation
 #         inputs; secrets remain Coolify-managed and are never committed.
+# Byline: Codex · GPT-5.6 · 2026-08-29 — persistent, fail-closed upload
+#         staging for restart-safe framework-neutral ingest recovery.
 # =============================================================================
 # EXEC TIER (RUMP) — deploy on OVH-1 ("ovh1-agno"; tailnet 100.72.169.40, salem
 # private 10.1.1.122, public 40.160.5.19), the execution + surfaces box.
@@ -37,8 +39,17 @@
 #               Default 100.119.96.29 (tailnet); salem alt 10.1.2.101.
 # plus DB_*, MILVUS_*, SURREALDB_*, CF_*, R2_*, OPENROUTER_API_KEY.
 #
-# HOST-PREP on OVH-1 BEFORE first deploy:
+# Coolify watch paths REQUIRED for this app:
+#   deploy/exec.yaml
+#   Dockerfile
+#   server/**
+# The live app must be corrected from the retired compose.exec.yaml path before
+# this source change can be considered deployed.
+#
+# HOST-PREP on OVH-1 BEFORE first deploy (the repo image currently runs as
+# root, so the staging directory is deliberately root-only):
 #   sudo mkdir -p /data/agno/volumes/{sbv_data,agent_workspace,kasm_profile,contextforge}
+#   sudo install -d -m 0700 -o root -g root /data/agno/volumes/ingest-staging
 #   sudo chown -R 1000:1000 /data/agno/volumes/agent_workspace  # shared sandbox<->desktop
 #   sudo chown -R 1000:1000 /data/agno/volumes/contextforge     # ContextForge SQLite db + state
 # (r2-nexus stays a named volume — it uses the rclone driver, not a bind.)
@@ -69,6 +80,14 @@ services:
       # mounts on ovh-files (/data/ingest + /data/r2-sorted there).
       - r2-casebible-sorted:/data/r2-sorted:ro
       - /srv/ingest:/data/ingest
+      # API-upload staging is distinct from the operator drop-dir above. Long
+      # bind syntax prevents Compose from silently creating an unprotected
+      # replacement directory when the required host-prep step was missed.
+      - type: bind
+        source: /data/agno/volumes/ingest-staging
+        target: /data/ingest-staging
+        bind:
+          create_host_path: false
     env_file:
       - path: .env
         required: false
@@ -77,6 +96,10 @@ services:
       AGNO_DEBUG: "True"
       WAIT_FOR_DB: "True"
       AGENTOS_URL: http://127.0.0.1:8000
+      # Durable source bytes used by restart recovery. This is intentionally a
+      # literal mounted path: no container-local /tmp or env fallback is valid
+      # in the production manifest.
+      INGEST_STAGING_ROOT: /data/ingest-staging
       # Data tier WAS all on OVH-3; PG moved to ovh-files 2026-08-02 (app
       # data-pg-files, BIND_IP 100.91.190.107) as wave 1 of the ovh-data
       # retirement. PG_HOST overrides just the Postgres hop; services still on

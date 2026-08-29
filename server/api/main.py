@@ -26,17 +26,20 @@ Hard rules:
 # Byline: Codex · GPT-5 · 2026-08-18 (remove legacy Agno evidence base; native-only fail-closed cutover)
 # Byline: Codex · GPT-5 · 2026-08-13 (ADR-0053 alignment; ADR-0054 optional Langfuse OTLP export)
 # Byline: Codex · GPT-5 · 2026-08-16 (framework-neutral ingest and canonical knowledge routes)
+# Byline: Codex · GPT-5 · 2026-08-27 (durable replayable run-event SSE registration)
+# Byline: Codex · GPT-5.6 · 2026-08-29 (restart-safe durable ingest recovery scheduling)
 # Byline: Claude Code · Opus 5 · 2026-08-05 (SurrealDB→Postgres doc-drift cleanup — the
 #   2026-08-04 flatten (ADR-0043 decision 3) moved the operational store to Postgres, but
 #   these comments still described the pre-flatten two-backend split)
 # DEPLOY NOTE (2026-08-01): exec-tier auto-deploys from `main` via the Coolify
 # GitHub App (`cursedpotential`, app_id 4047891, installation 140142795;
-# Coolify source_id=2). Watch paths are `compose.exec.yaml`, `Dockerfile`,
-# `server/**` — a change confined to `docs/` will NOT redeploy the API.
+# Coolify source_id=2). The source contract watches `deploy/exec.yaml`,
+# `Dockerfile`, and `server/**`; live Coolify must be reconciled to that path.
 
 from __future__ import annotations
 
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 from functools import partial
 from os import getenv
@@ -103,6 +106,7 @@ _extra_knowledge_handles: dict[str, KnowledgeHandle] = {
 _native_evidence_runtime: Any | None = None
 _native_evidence_stop: asyncio.Event | None = None
 _native_evidence_task: asyncio.Task[None] | None = None
+_ingest_recovery_task: asyncio.Task[None] | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -114,8 +118,8 @@ _native_evidence_task: asyncio.Task[None] | None = None
 async def lifespan(app: Any) -> Any:
     """AgentOS lifespan: ensure pg_duckdb R2 secret on startup, start the
     knowledge-handle background reconnect if boot-time connect failed, log
-    shutdown."""
-    global _native_evidence_stop, _native_evidence_task
+    shutdown. Also recovers incomplete ingests from the durable run ledger."""
+    global _ingest_recovery_task, _native_evidence_stop, _native_evidence_task
 
     log_info("AgentOS lifespan: startup")
     from server.core import ensure_duckdb_r2_secret
@@ -143,9 +147,30 @@ async def lifespan(app: Any) -> Any:
             ),
             name="native-evidence-projection-drain",
         )
+
+    async def run_ingest_recovery() -> None:
+        from server.ingest.service import recover_incomplete_ingests
+
+        try:
+            recovered = await recover_incomplete_ingests(projector=_native_evidence_runtime)
+        except Exception as error:
+            logging.getLogger(__name__).exception("durable ingest recovery failed", exc_info=error)
+            return
+        log_info(f"Durable ingest recovery finished: recovered={recovered}")
+
+    _ingest_recovery_task = asyncio.create_task(run_ingest_recovery(), name="durable-ingest-recovery")
+    log_info("Durable ingest recovery scheduled from the workflow ledger")
     try:
         yield
     finally:
+        if _ingest_recovery_task is not None:
+            if not _ingest_recovery_task.done():
+                _ingest_recovery_task.cancel()
+            try:
+                await _ingest_recovery_task
+            except asyncio.CancelledError:
+                pass
+            _ingest_recovery_task = None
         for handle in (_knowledge_handle, *_extra_knowledge_handles.values()):
             handle.stop_background_retry()
         if _native_evidence_runtime is not None:
