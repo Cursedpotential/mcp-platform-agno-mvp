@@ -82,6 +82,12 @@ acceptance and the SBV bounded preview remain open.
   LanceDB or inactive Milvus and now explains the Matter-schema blocker instead
   of showing a generic internal-server error. The verified production capture is
   `2026-08-29-production-workbench-intake-final.png`.
+- Workbench deployment `ca1hpkviuqgl1slyjlws20kh` finished at `236884a`. A
+  direct tailnet read of `/intake` returned 200, rendered `Fixed case` and the
+  fixed-scope header, and contained neither `Select a Matter` nor the former
+  selector ARIA label. `/api/matters` still returned 500, so the released surface
+  correctly blocks intake instead of inventing or offering a case choice while
+  the fresh-platform baseline remains incomplete.
 
 ## Security follow-up
 
