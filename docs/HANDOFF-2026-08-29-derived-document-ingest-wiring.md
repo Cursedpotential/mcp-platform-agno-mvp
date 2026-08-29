@@ -95,6 +95,50 @@ the two lanes must observe the same ordered context state to be comparable at al
 **Do not read WP-5 as authorization to wire the Semantica lane.** WP-5 is an atomic call for
 document structure only. Lane activation is WP-6+, gated on WP-1.
 
+## Parser strategy — multiple approaches, deliberately selected
+
+> _Owner directive, 2026-08-29: "I would like to have multiple approaches for parsing these
+> things out, in case one of them doesn't work the way that we expect."_
+
+This is **not** a return to the exception-chained fallback mesh (owner rejected that: routing
+must be by analysis, not by retry-until-something-doesn't-raise). The contract is:
+
+- **Detection selects a primary** — signature-based, via `format_router`.
+- **Alternates are registered under the same capability with EXPLICIT priorities** (the
+  `sbv_sms.py:393 priority=100` pattern), never left to `pkgutil` alphabetical order.
+- **Alternates are chosen by named Unleash flag or explicit operator hint**, not reached by
+  catching an exception.
+- **A failure of the routed primary is a hard, logged error naming the file** — never a silent
+  slide into a lesser parser.
+
+### Candidate set (verified availability as of this HEAD)
+
+| # | Approach | Installed? | Needs | Risk / unknown |
+|---|---|---|---|---|
+| A | **Semantica `StructuralChunker`** (`vendored/semantica/semantica/split/structural_chunker.py`) | **Yes — vendored** | Nothing. No network, no model | Zero callers today; behavior on these files unproven |
+| B | **Semantica `parse/` document modules** (17 modules incl. `document_parser`, `docling_parser`) | **Yes — vendored** | Nothing for the pure-python ones | `docling_parser` inherits the missing-Docling problem; others use pdfplumber/python-docx/BeautifulSoup which ARE base deps |
+| C | **Chonkie `RecursiveChunker` + hand-specified heading delimiters** (`RecursiveLevel(delimiters=['\n# ','\n## ','\n### '])`) | **Yes — `requirements.txt:23`** | Explicit rules config | `from_recipe("markdown")` is NOT usable — verified live, attempts a network download of `markdown_en` and fails |
+| D | **Chonkie `TableChunker`** for the tabular passages | **Yes** | Nothing | Narrow; complements rather than replaces |
+| E | **Chonkie `SemanticChunker`** | **Yes (lib)** | **Remote inference** — embedding model. Owner hard rule: no local models. Must call out (Colab Pro / NIM) | Chonkie's own remote executor is a stub (`chonkie_chunkers.py:192`, D-046) — the call-out path does not exist yet |
+| F | **Docling** | **NO — not in any deploy image** | `document-ai` extra + image rebuild | Converter; for *already-markdown* input the conversion is a no-op, so low value for THIS class. Real value is the office formats that hard-fail today |
+| G | **LlamaParse** | **NO — not present at all** | API key; transmits case content externally | Escalation tier for hard scanned PDFs only. Not needed for markdown |
+
+### Recommended order to try (and prove)
+
+**A → C → B**, with D as a complement for tables. A and C are both zero-install and
+zero-network, so they can be bake-offed immediately. E only becomes viable once a remote
+inference path exists. F is worth doing for *office formats*, on its own merits, not for these
+files. G stays deferred.
+
+### WP-5c — Bake-off, not a guess
+
+Run A, C, and B over the **four real sample files** (the two NotebookLM outputs, the strategy
+memo, and the 56KB Michigan guide) and record, per approach: chunk count, whether `##` section
+boundaries survive, whether the chronology's dated entries stay intact as units, and whether a
+known phrase ("MRE 901 authentication") retrieves as one coherent section. Pick the primary on
+evidence; register the runners-up behind flags. This is the only way "in case one doesn't work
+as expected" is actually answered rather than assumed.
+
 ## Findings (ranked)
 
 1. **The router is correct; its signature table is unfinished.** `detect_format` runs on every

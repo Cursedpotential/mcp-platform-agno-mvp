@@ -78,6 +78,12 @@ No item is classified DONE+LIVE VERIFIED from the evidence inspected here.
   change detection is ordered — Semantica is downstream of context creation and triggered by
   change detection. Running the lane early breaks D-069 context-first ordering and invalidates
   the `no-fusion` `semantica` vs `sat_temporal` comparison.
+- **Multiple parsing approaches are required** (owner 2026-08-29), selected by detection + named
+  flag — NOT by exception-chained fallback. Zero-install candidates that can be bake-offed now:
+  Semantica `StructuralChunker`, Chonkie `RecursiveChunker` with hand-specified heading
+  delimiters, Semantica `parse/` modules. `Chonkie.from_recipe("markdown")` is **verified
+  broken** here (attempts a network download). Model-backed chunking must call out to remote
+  inference (no local models) and Chonkie's remote executor is still a stub.
 - Full analysis, verified-live state, owner decisions, and work packages WP-1..WP-11:
   [`HANDOFF-2026-08-29-derived-document-ingest-wiring.md`](HANDOFF-2026-08-29-derived-document-ingest-wiring.md).
 - Queued behind the current unified Workbench/UIW release slice; recording it does not authorize
