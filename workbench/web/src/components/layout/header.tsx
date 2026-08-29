@@ -1,6 +1,7 @@
 // Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: Records/Evidence Queue/Schemas page titles)
 // Byline: Codex · GPT-5 · 2026-08-16 (Knowledge + Surreal projection page titles)
 // Byline: Codex · GPT-5 · 2026-08-28 (unified product header)
+// Byline: Codex · GPT-5 · 2026-08-29 (remove legacy dependency strip)
 "use client";
 
 import { usePathname } from "next/navigation";
@@ -8,8 +9,6 @@ import { useTheme } from "next-themes";
 import { Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { Separator } from "@/components/ui/separator";
-import { HealthChips } from "@/components/layout/health-chips";
 
 const pageTitles: Record<string, string> = {
   "/intake": "Intake new evidence",
@@ -32,11 +31,9 @@ export function Header() {
       </div>
       <div className="flex min-w-0 flex-1 flex-col justify-center px-5">
         <strong className="truncate text-sm">{pageTitle}</strong>
-        <span className="truncate text-[11px] text-[#b9c0c5]">Matter scope is selected and verified inside the intake workspace</span>
+        <span className="truncate text-[11px] text-[#b9c0c5]">Matter scope is set inside intake before a workflow starts</span>
       </div>
       <div className="ml-auto flex items-center gap-3">
-        <HealthChips />
-        <Separator orientation="vertical" className="h-5 bg-nav-foreground/20" />
         <Button
           variant="ghost"
           size="icon"
