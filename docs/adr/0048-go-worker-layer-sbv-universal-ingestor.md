@@ -25,6 +25,37 @@
 - _Byline: Claude Code · Fable 5 · 2026-08-09_
 - Records (retroactively) the July decision that never got an ADR, plus the 2026-08-09 direction.
 
+## 2026-08-29 supersession boundary — ADR-0061
+
+> _Correction: Codex · GPT-5 · 2026-08-29. This section preserves the dated decision below as
+> history while identifying the portions that are no longer current architecture._
+
+**Status: accepted historical implementation record; superseded in part by ADR-0061.** The shipped
+streaming decoders, parse-only package, and Go adapter remain valid implementation assets. The following
+application-boundary claims below are no longer instructions for new work:
+
+- SBV is not the target-state storage, authentication, ingestion, hashing, or orchestration authority.
+  Workbench is the unified shell and auth/context boundary; the storage-free SBV client is the bounded
+  message and pipeline-preview presentation composed inside it.
+- Parser selection belongs to the common Go coordinator contract. An implementation may be Go-native or
+  reached through the governed `platform-tools` adapter; Python is not the permanent platform
+  orchestrator. Temporal is the durable scheduler, while n8n supplies visual integration/agent workflow
+  bodies and starts or signals Temporal at bounded seams.
+- UIW pre-parse computations are **context integrity fingerprints**, not evidence custody H1/H2/H3.
+  Evidence custody begins only at governed promotion, which re-opens the original, verifies the complete
+  ordered normalized generation, and dispatches by the precise algorithm/level/canonical-byte recipe/
+  membership-order/construction-tag/writer-version tuple. In particular,
+  `h3-chain-h1genesis-hexconcat-v1` is the platform promotion chain;
+  `h3-chain-sbv-genesisempty-v1` is a distinct historical/import construction and cannot satisfy it.
+- The current `streamMMSRecord` walks every MMS part. Historical SQLite can still be lossy, but the active
+  adapter blocker is different: `pkg/parseonly` has no immutable platform attachment sink/locator and
+  `engine/adapters/sbv` therefore declares `SupportsAttachments: false` and fails closed when attachment
+  data is emitted.
+
+The original text below remains visible so the 2026-08-09 decision and implementation history are not
+rewritten. Where it says SBV owns storage/custody/the all-in-one application, or that Agno/Python remains
+the permanent orchestrator, read it as superseded by this boundary and ADR-0061.
+
 ## Context
 
 A 5-day claude.ai conversation (~2026-07-22→26; export:

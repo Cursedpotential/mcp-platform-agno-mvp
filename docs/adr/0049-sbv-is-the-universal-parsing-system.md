@@ -16,6 +16,40 @@
   "every future *evidence* format is a decoder module," this ADR widens the target to **all
   parsing** and names what is missing.
 
+## 2026-08-29 supersession boundary — ADR-0061
+
+> _Correction: Codex · GPT-5 · 2026-08-29. The dated analysis below is retained visibly; this
+> section states which application-shape and authority conclusions no longer govern._
+
+**Status: accepted historical direction, amended in 2026-08-12, and superseded in part by
+ADR-0061.** The common Go-selected parser contract survives. The "single all-encompassing SBV app,"
+SBV-owned GUI/storage/auth/hashing, and permanent Python-orchestrator conclusions do not.
+
+Current authority is:
+
+1. Workbench owns the unified shell, verified operator context, and authentication boundary. The
+   storage-free SBV client is the composed message/pipeline-preview presentation and owns no canonical
+   state.
+2. The Go coordinator selects one registered parser by declared coverage and quality. Go-native and
+   governed `platform-tools` implementations share that contract; Python does not independently choose
+   the destination or permanently orchestrate the platform. Temporal durably schedules load-bearing
+   activities, and n8n supplies bounded visual integration/agent workflow bodies and signals.
+3. UIW context-source/raw-record/raw-generation fingerprints occur before parsing for integrity and
+   reproducibility. They are not evidence H1/H2/H3. At governed promotion, custody verification dispatches
+   only on the exact algorithm, hash level, canonical byte recipe, ordered membership, construction tag,
+   and writer/version tuple. The platform promotion H3 is
+   `h3-chain-h1genesis-hexconcat-v1`; an SBV empty-genesis/newline import receipt is never interchangeable.
+4. SBV's current streaming MMS decoder iterates every part. The current platform gap is the parse-only
+   attachment boundary: there is no immutable platform attachment sink/locator, so the adapter advertises
+   `SupportsAttachments: false` and rejects attachment-bearing records. Historical SQLite remains a lossy
+   migration source and is not canonical.
+5. Preview reads and decisions require UIW-native, correlation-aware platform APIs keyed by the UIW
+   workflow/source/run identities. UIW identifiers must never be passed to legacy `/v1/records` or legacy
+   run-event SSE endpoints as though those namespaces were interchangeable.
+
+The remainder of this ADR is the contemporaneous 2026-08-10/12 rationale and gap inventory. It is useful
+history, but its superseded all-in-one application and authority statements are not implementation orders.
+
 ## Context
 
 Owner statement, 2026-08-10, verbatim:

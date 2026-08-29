@@ -3,6 +3,7 @@
 > _Byline: Claude Code · Opus 5 · 2026-08-29_
 > _Byline amendment: Claude Code · Opus 5 · 2026-08-29_
 > _Byline implementation-state amendment: Codex · GPT-5 · 2026-08-29_
+> _Byline ADR-0061/SBV-boundary correction: Codex · GPT-5 · 2026-08-29_
 STATUS: PARTIAL — audit decisions are reconciled; schema, auth, Workbench shell, and SBV-preview
 implementation lanes are local/in review; nothing in this document is yet production-complete.
 BUILD_STATUS: PARTIAL PASS — focused migration/contract/auth tests and Workbench lint/build pass locally;
@@ -15,19 +16,27 @@ operator proof remain mandatory.
   SBV is the storage-free pipeline-preview client composed inside it. The Vite mockup is a design donor,
   not a third production application.
 - **SBV retirement contract:** no target-state SBV SQLite/cache, local auth, bespoke ingest, parser
-  selection, or custody authority. SMS joins the common Go-selected parser contract; hashing remains a
-  separate upstream custody activity. Retained XML is the MMS migration authority because SQLite kept
-  only the first attachment. Quarantine only after complete re-ingest and live platform read proof.
+  selection, or custody authority. SMS joins the common Go-selected parser contract. UIW computes
+  separately named **context fingerprints** before parsing; these are not evidence custody. Evidence
+  H1/H2/H3 begins only at governed promotion and dispatches by the precise canon tuple. Retained XML
+  remains the MMS migration authority because historical SQLite is lossy, but the current streaming
+  decoder iterates every part. The active blocker is the missing immutable platform attachment
+  sink/locator in `pkg/parseonly`, reflected by `SupportsAttachments: false` in the adapter. Quarantine
+  only after complete re-ingest and live platform read proof.
 - **Schema foundation:** migration `0047` and its import-light contracts are implemented locally after
   independent review remediation. Focused static tests report 21 pass; the PostgreSQL 18 rollback-only
   behavior harness is ready but skipped until a disposable `PLATFORM_0047_TEST_SERVICE` is bound. It is
   not applied live.
 - **Fingerprint/UIW repair:** migration `0048`, contract vectors, and Go activity/replay changes are
-  implemented locally and undergoing an independent read-only review. Do not commit or deploy until that
-  review closes.
+  implemented locally. The first independent read-only review returned **REQUEST CHANGES**; remediation,
+  executable PostgreSQL proof, and re-review remain required. Do not commit or deploy this lane yet.
 - **Workbench shell:** fixed-case provider plus approved graphite shell/intake integration builds and
   lints locally. The bounded SBV client/API implementation is still in progress. Local build proof is
   not a preview URL or production proof.
+- **Preview identity/API boundary:** the SBV composition must read preview, records, decisions, and events
+  through UIW-native APIs that carry the UIW workflow/source/run correlation explicitly. Never pass a UIW
+  workflow or run ID to legacy `/v1/records` or legacy run-event SSE and assume the namespaces correlate;
+  the BFF must resolve and verify the mapping or fail closed.
 - **Authentication:** Authentik 2026.8/Traefik source contracts are implemented locally with no Basic
   Auth/password env and no direct `:8020` bypass. Focused tests report 18 provider/consumer + 43
   Workbench auth pass. Exact Traefik address, secret files, Authentik objects, DNS/TLS, deployment, and
@@ -504,16 +513,26 @@ This **supersedes the fork above rather than selecting either branch**: SBV stop
 self-contained application and becomes the **pipeline-preview client inside the Workbench shell**,
 reading the platform's canonical store and workflow receipts through bounded APIs.
 
+Those APIs must be UIW-native and correlation-aware. The preview client may hold a UIW workflow ID,
+source-version reference, and correlated platform run ID only after the BFF has verified their mapping.
+It must not send a UIW identifier to legacy `/v1/records` or legacy run-event SSE as if an equal string
+proved identity; absent a verified mapping, records/events are unavailable and the client fails closed.
+
 **Three separations follow:**
 
 | SBV layer today | Destination |
 |---|---|
 | **Storage** — per-user `sbv_<uuid>.db`, shared auth `sbv.db`, `messages`, `messages_fts`, `imports` | **Retired.** Platform tables own this — `working.message` / `working.third_party_message` and the content-chunk spine |
 | **Parsing** — `internal/parser.go` | **The Go engine adapter.** `engine/adapters/sbv/` already exists as the coordinator-side seat for it |
-| **Custody hashing** — `internal/custody.go` (H1/H2/H3) | **The custody activity — NOT the parser.** See the correction below |
+| **Hash implementation** — `internal/custody.go` / `pkg/custodyhash` | **Decoupled deterministic capability, never parser authority.** UIW uses separately named context fingerprints; promotion-time custody dispatches the exact evidence canon tuple. See the correction below |
 | **Frontend** — the React viewer | **Stays as the embedded pipeline-preview client inside Workbench**; it reads platform data and run events, renders messages, and owns no canonical state |
 
-### CORRECTION — hashing is its own activity, and always was
+### DATED CORRECTION — hashing was separate, but the custody boundary below is superseded
+
+> **Preserved history; not current architecture.** This 2026-08-29 correction correctly separated
+> hashing from parsing, but it still described the old intake-time evidence-custody workflow. D-069,
+> the R04 reviewed boundary, and ADR-0061 supersede that part: UIW's pre-parse hashes are context
+> fingerprints, while evidence H1/H2/H3 begins only at governed promotion.
 
 > _Owner, 2026-08-29: hashing is always a separate activity in n8n/Temporal — already discussed
 > and resolved. (Caching may follow the same pattern.)_
@@ -544,6 +563,21 @@ failure can report **completed with zero documents ingested**. `store_activity` 
 `_store_step_impl`'s guard rather than re-deriving it — keep any new document-ingest path on that
 same guard rather than writing a parallel dedupe branch.
 
+### CURRENT CORRECTION — context fingerprints first; evidence custody only at promotion
+
+The common UIW runs separate context-source, raw-record, and raw-generation fingerprint activities
+before parser execution. They protect intake integrity and reproducibility but create no evidence
+authority and must never be labeled custody H1/H2/H3. The parser remains separately selected by the Go
+coordinator and emits through the common contract.
+
+Only the governed evidence-promotion workflow may establish custody. It re-opens the retained original,
+recomputes H1, verifies every H2 over the pinned canonical normalized bytes in the frozen generation
+order, and constructs/verifies H3. Verification dispatch is by the full canon tuple — algorithm, hash
+level, canonical byte recipe/serializer version, ordered membership definition, construction tag, and
+writer/version — never by the bare name "H3." The platform promotion construction is
+`h3-chain-h1genesis-hexconcat-v1`; the SBV empty-genesis/newline construction remains a separate import
+receipt and cannot satisfy promotion.
+
 **SMS stops being special-cased.** Today SMS enters through a bespoke arrangement — `sbv_sms.py`
 registers `parse.sms-xml` at `priority=100` and its `accept` predicate additionally requires
 `_sbv_enabled()`, so ingest depends on a *separate running service*. Under the same-contract rule
@@ -565,14 +599,20 @@ deliberately.
 - `InsertCallLogBatch` omitting `content_hash` — dead code in a retired store.
 
 **CARRY OVER into the engine adapter — these are PARSING behaviour, not storage:**
-- **Multi-attachment MMS keeps only the first part.** `convertMMSEntry` guards with
+- ~~**Multi-attachment MMS keeps only the first part.** `convertMMSEntry` guards with
   `if msg.MediaType == "" { // Only store first media item }`. That is a decode-time decision, so
-  porting the parser ports the data loss. **Fix during the port, not after.**
+  porting the parser ports the data loss. **Fix during the port, not after.**~~
+  **Superseded 2026-08-29:** current `streamMMSRecord` iterates every `<part>`. The current blocker is
+  the parse-only boundary: attachment artifacts have no immutable platform sink/locator, and the SBV
+  adapter advertises `SupportsAttachments: false` and fails closed rather than silently dropping them.
 - **`extractGroupNameFromTrID` is a live no-op** returning `""` — RCS group-chat names silently
   dropped at parse time.
-- **H3 chains do not span import batches** — `ChainH3(recordHashes, "")` at the only production
+- ~~**H3 chains do not span import batches** — `ChainH3(recordHashes, "")` at the only production
   call site. This is a custody-stage defect. **Do not move that hashing call into the parser
-  adapter**; reconcile it inside the separately versioned custody activity/canon.
+  adapter**; reconcile it inside the separately versioned custody activity/canon.~~
+  **Superseded boundary:** the SBV empty-genesis chain is a generation-scoped context/import receipt,
+  not evidence H3. Promotion independently builds/verifies the complete platform custody generation
+  under `h3-chain-h1genesis-hexconcat-v1`; readers dispatch by the full canon tuple.
 
 **Remains a frontend gap:** SBV's React frontend has *zero* references to
 hash/custody/automation. Because SBV is the preview client composed inside Workbench, it must
@@ -582,16 +622,17 @@ surface the platform's custody receipts and workflow state without computing or 
 
 Two verified facts collide here, and the collision is the whole point:
 
-1. SBV's per-user SQLite stores MMS attachments as `media_data` BLOBs — but
-   `convertMMSEntry` only ever decoded **the first non-SMIL part** per MMS
-   (`if msg.MediaType == "" { // Only store first media item }`). Later attachments in a
-   multi-media MMS were never stored.
+1. SBV's historical per-user SQLite stores MMS attachments as `media_data` BLOBs and may be lossy.
+   The old `convertMMSEntry` first-media behavior explains affected historical rows, but it is not the
+   current decoder: `streamMMSRecord` now walks every part. Current platform re-ingest is blocked until
+   `pkg/parseonly` can hand every artifact/reference to an immutable platform attachment locator and the
+   adapter can truthfully set `SupportsAttachments: true`.
 2. SBV **never deletes its source files.** Auto-import moves the source to
    `data/<uuid>/complete/` and retains it; the headless extract path opens the source read-only
    and explicitly keeps it as evidence.
 
-**Therefore: migrating the SQLite BLOBs would faithfully preserve the data loss. Re-ingesting from
-the retained source XML recovers attachments that were never stored in the first place.**
+**Therefore: SQLite remains the wrong migration authority. Re-ingest from retained source XML after the
+immutable attachment sink/locator exists, then prove every part through the platform read path.**
 
 This inverts the usual migration instinct — the old store is *lossier than its own inputs*, so the
 inputs are the better migration source. Any "caller and data migration proof" for the retired
@@ -607,11 +648,14 @@ proven, and treat it — not the SQLite — as the authority for what *should* b
 Three of the defects re-triaged above are **parse-time**, so porting the decoder ports them. They
 are easy to miss because they read as storage bugs and are not:
 
-- **Multi-attachment MMS keeps only the first part** (`convertMMSEntry`) — decode-time.
+- ~~**Multi-attachment MMS keeps only the first part** (`convertMMSEntry`) — decode-time.~~
+  **Superseded:** current `streamMMSRecord` iterates every part; the carry-over defect is the missing
+  immutable parse-only attachment sink/locator plus adapter `SupportsAttachments: false`.
 - **`extractGroupNameFromTrID` is a live no-op** returning `""` — RCS group names dropped at parse.
-- **H3 chains do not span import batches** — `ChainH3(recordHashes, "")` at the sole production
+- ~~**H3 chains do not span import batches** — `ChainH3(recordHashes, "")` at the sole production
   call site; fix this within the separately versioned custody activity/canon, not the parser
-  adapter.
+  adapter.~~ **Superseded:** this is an SBV context/import construction, not platform evidence H3;
+  the promotion verifier owns the distinct full-generation custody construction.
 
 Fix them **during** the port. Porting first and fixing later means a second pass over every record
 already ingested under the ported decoder.
@@ -733,8 +777,12 @@ deployment decision with a data-locality question attached, not a refactor. Flag
 > are especially volatile even by this document's usual standard; anchor on symbol names
 > (`Registry.Select`, `Capability.QualityFor`, `ExecuteSelected`), not the line numbers given.
 
-- **n8n orchestrates.** It is the orchestrator; the whole point of n8n here is to utilize the
-  tools. Every custom tool to date is wrapped in an n8n code node — follow that pattern.
+- ~~**n8n orchestrates.** It is the orchestrator; the whole point of n8n here is to utilize the
+  tools. Every custom tool to date is wrapped in an n8n code node — follow that pattern.~~
+  **Superseded boundary:** n8n owns visual integration/agent workflow bodies, notifications, and
+  human-facing signals. Temporal is the durable spine and the only scheduler of load-bearing
+  activities. n8n starts/signals Temporal or is invoked by a bounded Temporal activity; it does not
+  replace durable sequencing.
 - **The Go coordinator selects and executes the parser.** `engine/parser/registry.go:63`
   `Registry.Select(format)` already implements quality-ranked, declared-coverage adapter
   selection — documented "Quality breaks [ties]" — using `QualityPrimary` / `QualityFallback` /
