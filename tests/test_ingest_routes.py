@@ -32,7 +32,7 @@ def _receipt(request: IngestRequest) -> IngestReceipt:
         parser_engine="python",
         chunker_id="chonkie.recursive@1.7.0:1500-chars",
         record_count=1,
-        chunk_count=1,
+        chunk_count=0,
         projections=[ProjectionResult(sink="weaviate", status="skipped")],
         started_at=now,
         completed_at=now,
@@ -55,7 +55,6 @@ def test_upload_route_stages_safely_and_returns_compatible_receipt(tmp_path, mon
         "/v1/ingest",
         files={"file": ("../../knowledge.md", b"canonical", "text/markdown")},
         data={
-            "lane": "legal",
             "matter_id": "matter-a",
             "source_identity": '{"doc_type":"brief"}',
         },
@@ -65,7 +64,7 @@ def test_upload_route_stages_safely_and_returns_compatible_receipt(tmp_path, mon
     assert response.status_code == 202
     assert response.json()["run_id"] == "receipt-1"
     assert response.json()["status"] == "running"
-    assert seen[0].lane is IngestLane.legal
+    assert seen[0].lane is IngestLane.context
     assert seen[0].source_identity == {"doc_type": "brief", "original_name": "knowledge.md"}
     assert Path(seen[0].staged_path).parent == tmp_path.resolve()
     assert Path(seen[0].staged_path).name.endswith("-knowledge.md")
@@ -102,7 +101,6 @@ def test_upload_route_accepts_typed_third_party_acquisition(tmp_path, monkeypatc
         "/v1/ingest",
         files={"file": ("friends.json", b"{}", "application/json")},
         data={
-            "lane": "evidence",
             "message_corpus": "acquired_third_party",
             "source_principal": "alex",
             "acquisition": '{"acquired_at":"2025-03-04T12:00:00Z","method":"voluntary_third_party",'
@@ -116,6 +114,21 @@ def test_upload_route_accepts_typed_third_party_acquisition(tmp_path, monkeypatc
     assert seen[0].acquisition is not None
     assert seen[0].acquisition.acquired_at.isoformat() == "2025-03-04T12:00:00+00:00"
     assert seen[0].acquisition.asserted_by == "owner"
+
+
+def test_upload_route_rejects_direct_non_context_lane(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("INGEST_STAGING_ROOT", str(tmp_path))
+    monkeypatch.setenv("OS_SECURITY_KEY", "test-ingest-key")
+    app = FastAPI()
+    ingest_routes.register_ingest_routes(app)
+    response = TestClient(app).post(
+        "/v1/ingest",
+        files={"file": ("brief.md", b"canonical", "text/markdown")},
+        data={"lane": "legal"},
+        headers={"Authorization": "Bearer test-ingest-key"},
+    )
+    assert response.status_code == 422
+    assert "context" in response.text
 
 
 def test_first_party_upload_requires_explicit_authenticated_ownership(tmp_path, monkeypatch) -> None:
@@ -194,8 +207,9 @@ def test_folder_walk_calls_neutral_port_without_framework_object(tmp_path, monke
     monkeypatch.setattr(service, "ingest_file", fake_ingest)
     assert asyncio.run(ingest_knowledge.ingest_all()) == 1
     assert len(seen) == 1
-    assert seen[0].lane is IngestLane.platform
+    assert seen[0].lane is IngestLane.context
     assert seen[0].source_identity["doc_type"] == "platform"
+    assert seen[0].source_identity["requested_projection"] == "platform"
 
 
 def test_folder_walk_source_has_no_agno_insert() -> None:

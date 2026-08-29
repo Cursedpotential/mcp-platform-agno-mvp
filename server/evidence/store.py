@@ -268,6 +268,11 @@ def store_records(
     `engine.begin()` transaction per attempt, so a retry after a transient
     failure never risks a partial/duplicate insert — the prior attempt's
     transaction was already rolled back by the failure.
+
+    NOTE: When called from Temporal activities, retry should be disabled
+    (retry=False) because Temporal's activity RetryPolicy is the single
+    retry budget owner. The internal _retry_sync would create a multiplicative
+    retry (Temporal 4x × store 4x = 16x).
     """
     projection_request = None
     classified = records
@@ -308,6 +313,7 @@ def store_records(
         case_id=case_id,
         domain=domain,
         projection_request=projection_request,
+        retry=False,  # Temporal activity RetryPolicy owns the retry budget
     )
 
 
@@ -343,6 +349,7 @@ def store_record_batch(
     case_id: str = "primary",
     domain: str = "evidence",
     projection_request: IngestRequest | None = None,
+    retry: bool = True,
 ) -> int:
     """Atomically store source records, chunks, and governed message projections."""
 
@@ -470,7 +477,12 @@ def store_record_batch(
 
                 write_message_projections(conn, records, record_ids, artifact, projection_request)
 
-    _retry_sync(f"store_record_batch[{artifact.artifact_id}]", _do_insert, attempts_log)
+    if retry:
+        _retry_sync(f"store_record_batch[{artifact.artifact_id}]", _do_insert, attempts_log)
+    else:
+        _do_insert()
+        if attempts_log is not None:
+            attempts_log.append({"n": 1, "error": None, "waited_s": 0.0})
     return len(rows)
 
 

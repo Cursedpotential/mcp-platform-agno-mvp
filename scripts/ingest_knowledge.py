@@ -88,7 +88,7 @@ async def ingest_all(_knowledge=None, bases: dict | None = None) -> int:
             # the domain rather than repeating the folder name.
             category = path.parent.name if path.parent != root else domain
             name = _safe_name(path.stem)
-            lane = IngestLane.personal_history if domain == "relationship_timeline" else IngestLane(domain)
+            lane = IngestLane.context
             print(f"  ingesting [{domain}/{category}] {name} -> canonical PostgreSQL")
             await asyncio.to_thread(
                 ingest_file,
@@ -100,6 +100,7 @@ async def ingest_all(_knowledge=None, bases: dict | None = None) -> int:
                     source_identity={
                         "name": name,
                         "lane": lane.value,
+                        "requested_projection": ("personal_history" if domain == "relationship_timeline" else domain),
                         "doc_type": category,
                         "source": str(path),
                         "case_id": "primary",

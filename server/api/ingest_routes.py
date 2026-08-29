@@ -135,7 +135,7 @@ def register_ingest_routes(app: FastAPI, native_projector: Any | None = None) ->
                 in {"1", "true", "yes"},
                 acquisition=acquisition,
                 coverage_hint=form.get("coverage_hint") or None,
-                lane=str(form.get("lane") or "platform"),
+                lane=str(form.get("lane") or "context"),
                 matter_id=str(form.get("matter_id") or "primary"),
                 engine=str(form.get("engine") or "auto"),
                 allow_fallback=str(form.get("allow_fallback") or "false").lower() in {"1", "true", "yes"},
