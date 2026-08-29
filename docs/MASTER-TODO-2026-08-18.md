@@ -71,9 +71,11 @@ No item is classified DONE+LIVE VERIFIED from the evidence inspected here.
 - Downstream is built and unwired: `timeline.event_candidate` (`sql/0035:62`) is purpose-built
   for this class (`source_system='ai_chat'`, D-082 lead-never-evidence, append-only) and has
   **no producer**; `server/timeline/` is CLI-only with **zero production callers**.
-- Preferred tools are already vendored — Semantica `StructuralChunker` and its `parse/` modules
-  (owner: "if one of the bundled semantica tools will work, we can call on those"). Docling and
-  the OCR tier are declared but **installed in no deploy image**.
+- Preferred tools are already vendored — Semantica `StructuralChunker` (a **chunk-stage** tool,
+  not a parser) and its `parse/` modules (owner: "if one of the bundled semantica tools will work,
+  we can call on those"). Docling and the OCR tier are declared but **installed in no deploy
+  image**. Note the stage split: these files are already text, so they need **no parse step** —
+  the section-structure requirement is a chunk-stage concern.
 - **HARD CONSTRAINT (owner 2026-08-29):** Semantica may be called **atomically as a tool** for
   document parse/chunk. Content may **NOT** flow through the **Semantica extraction lane** until
   change detection is ordered — Semantica is downstream of context creation and triggered by
@@ -107,6 +109,16 @@ No item is classified DONE+LIVE VERIFIED from the evidence inspected here.
   evidence is largely messaging, **the cross-platform pattern is the evidence** (register R58,
   "nuance IS the abuse"); fragmenting by source file destroys it. Blocks R09 (parent-thread id on
   extraction chunks) and R15 (chronology matrix `context_thread_id` column).
+- **Two populations, same shape, never mixed (owner 2026-08-29):** first-party threads
+  (`working.message`, owner is a party) AND acquired third-party threads
+  (`working.third_party_message`, owner is not) — **both platform-hop**. A thread is always one
+  population or the other, so no thread has mixed authorization state. **Recommended: separate
+  tables, shared logic**, mirroring the precedent already set one layer down, where first- and
+  third-party messages are separate tables each with a CHECK pinning `projection_kind`
+  (`sql/0026:154,196`) rather than one table with a discriminator.
+- **Identity-resolution asymmetry — size the two separately:** a first-party thread is anchored by
+  a known participant (the owner); a third-party thread has no anchor, so cross-platform matching
+  is strictly harder and will need materially more human review.
 - Depends on two things that must land first or in parallel: party identity resolution across
   platforms (R17 — same human, different per-platform representations) and timestamp
   normalization to one timezone at ingest (R05) — attempting threading before these produces
