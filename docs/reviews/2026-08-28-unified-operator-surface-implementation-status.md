@@ -1,8 +1,9 @@
 # Unified operator surface implementation status — 2026-08-28
 
-> _Byline: Codex · GPT-5 · 2026-08-28._
+> _Byline: Codex · GPT-5 · 2026-08-28; updated 2026-08-29._
 
-STATUS: PARTIAL — production deployment and live acceptance remain open.
+STATUS: PARTIAL — the Workbench shell is live on the tailnet; end-to-end UIW
+acceptance and the SBV bounded preview remain open.
 
 ## Integrated and pushed
 
@@ -34,10 +35,37 @@ STATUS: PARTIAL — production deployment and live acceptance remain open.
   no decisive health proof.
 - Migration 0043 and the later commits still require current-revision Coolify
   deployment and live schema/behavior proof.
-- Coolify currently has a deployed `unified-operator-surface` mockup on port 8020
-  but no deployed production Workbench app. A safe cutover must replace that
-  resource without losing its rollback path, provision Workbench/UIW credentials,
-  and verify the real application on its VPS origin. Localhost is not acceptance.
+- The former `unified-operator-surface` Coolify resource was cut over in place to
+  `/deploy/workbench.yaml` and renamed `knowledge-workbench`; no resource was
+  deleted. Deployment `yswdcw4cjezm5xlk2jnfxfxe` finished for `0bc6f16`.
+- Direct tailnet proof at `http://100.72.169.40:8020/intake` returned HTTP 200,
+  the title `The Platform — Evidence & Legal Operations`, the unified Platform
+  marker, and no legacy `Operator Console` marker.
+- Workbench browser access uses the direct Tailscale socket peer as the existing
+  security boundary. It does not use a Workbench password, Basic auth, forwarded
+  identity headers, or a password environment variable.
+- An incorrectly generated Workbench credential was disabled and its local file
+  moved to `C:/Users/matts/.secrets/to_be_deleted/workbench-access-20260829.md`.
+  It remains recoverable and only the owner deletes quarantined material.
+- The UIW starter and upload boundary has now been rewritten for direct socket-peer
+  tailnet authorization. The Workbench strips caller `Authorization` headers, and
+  the starter ignores forwarded identity headers. Focused Go tests/build,
+  deployment-contract tests, and Workbench UIW/auth tests pass locally; deployment
+  and live UIW proof remain required.
+
+## Security follow-up
+
+- On 2026-08-29, a Workbench test was invoked from the repository root instead of
+  `workbench/api`. Pydantic loaded the root `.env`, rejected unrelated keys, and
+  emitted secret-bearing values into the agent tool transcript. No values are
+  reproduced here. Treat every credential present in that diagnostic output as
+  exposed and rotate it through its owning system. This incident does not change
+  the settled no-password Workbench/UIW boundary.
+- A bounded `nemotron-3-ultra:cloud` review confirmed the direct-peer and
+  forwarded-header regression targets. It also identified the remaining
+  infrastructure assumption: the application check recognizes any tailnet node,
+  while Workbench-specific least privilege must be enforced by existing Tailscale
+  ACLs/grants. See `2026-08-29-nemotron-tailnet-boundary-review.md`.
 
 ## SBV preview boundary
 
@@ -63,11 +91,11 @@ deletion.
 ## Next release actions
 
 1. Apply and prove migration 0043 against database `platform` only.
-2. Confirm current-revision UIW deployments, configure the shared upload mount and
-   credentials, and live-prove upload, reject-without-parse, resume, approval, and
-   idempotency.
-3. Cut over port 8020 from the mockup to the real Workbench through Coolify and
-   live-prove the VPS-hosted intake surface.
+2. Deploy the direct-tailnet UIW starter with the shared upload mount and
+   live-prove upload, reject-without-parse, resume, approval, and idempotency.
+3. Live-prove Matter listing, source upload, preview decision, and receipt from
+   the VPS-hosted Workbench after the fresh `platform` baseline is reconciled.
 4. Implement the U0/U1 launch-context foundation, then expose SBV as the bounded
    `/evidence/preview` client without bypassing UIW.
 5. Start the Timesketch round-trip slice only after the first slice has live proof.
+6. Rotate the credentials exposed by the 2026-08-29 root-directory test diagnostic.

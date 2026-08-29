@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import asyncio
 
+import httpx
+
 from app.runtime import uiw as runtime
 from app.service import uiw
 from app.types.uiw import UIWDecisionRequest, UIWPreviewResponse, UIWStartRequest
@@ -52,7 +54,6 @@ def test_service_preserves_exact_upstream_contract(monkeypatch) -> None:
 
     captured = {}
     monkeypatch.setattr(uiw.settings, "uiw_starter_url", "https://starter.internal")
-    monkeypatch.setattr(uiw.settings, "uiw_starter_token", "starter-token")
 
     async def fake_request(method, path, **kwargs):
         captured.update(method=method, path=path, kwargs=kwargs)
@@ -82,6 +83,33 @@ def test_service_preserves_exact_upstream_contract(monkeypatch) -> None:
     assert captured["kwargs"]["json"]["court_case_id"] == "00000000-0000-0000-0000-000000000002"
 
 
+def test_service_does_not_forward_authorization(monkeypatch) -> None:
+    class Client:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def request(self, method, url, **kwargs):
+            assert "Authorization" not in kwargs["headers"]
+            assert "authorization" not in kwargs["headers"]
+            return httpx.Response(200, json={"workflow_id": "wf-1", "run_id": "run-1"})
+
+    monkeypatch.setattr(uiw.settings, "uiw_starter_url", "https://starter.internal")
+    monkeypatch.setattr(uiw.httpx, "AsyncClient", Client)
+
+    async def exercise():
+        return await uiw._request(
+            "GET", "/reference-import/wf-1/preview", headers={"Authorization": "forbidden"}
+        )
+
+    asyncio.run(exercise())
+
+
 def test_preview_allows_blank_select_ref_before_selection() -> None:
     state = UIWPreviewResponse.model_validate({"phase": "awaiting_decision", "select_ref": ""})
     assert state.select_ref == ""
@@ -89,7 +117,6 @@ def test_preview_allows_blank_select_ref_before_selection() -> None:
 
 def test_service_fails_closed_without_dedicated_starter_configuration(monkeypatch) -> None:
     monkeypatch.setattr(uiw.settings, "uiw_starter_url", "")
-    monkeypatch.setattr(uiw.settings, "uiw_starter_token", None)
 
     async def exercise():
         await uiw.start(

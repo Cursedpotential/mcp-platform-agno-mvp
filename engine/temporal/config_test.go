@@ -10,7 +10,7 @@ func clearConfigEnv(t *testing.T) {
 	names := []string{
 		"TEMPORAL_HOST_PORT", "TEMPORAL_NAMESPACE", "TEMPORAL_TASK_QUEUE",
 		"N8N_UNIVERSAL_IMPORT_BASE_URL", "N8N_UNIVERSAL_IMPORT_AUTH_HEADER", "N8N_UNIVERSAL_IMPORT_AUTH_VALUE",
-		"REFERENCE_STARTER_TOKEN", "REFERENCE_STARTER_ADDR",
+		"REFERENCE_STARTER_ADDR",
 		"SELECT_PARSER_HTTP_TIMEOUT", "EXECUTE_PARSER_HTTP_TIMEOUT",
 	}
 	for _, name := range names {
@@ -26,7 +26,6 @@ func setRequiredConfigEnv(t *testing.T) {
 	t.Setenv("N8N_UNIVERSAL_IMPORT_BASE_URL", "https://n8n.example.com/webhook/")
 	t.Setenv("N8N_UNIVERSAL_IMPORT_AUTH_HEADER", "Authorization")
 	t.Setenv("N8N_UNIVERSAL_IMPORT_AUTH_VALUE", "Bearer test-token")
-	t.Setenv("REFERENCE_STARTER_TOKEN", "starter-token")
 }
 
 func TestLoadConfigSucceedsWithAllRequiredVars(t *testing.T) {
@@ -61,7 +60,6 @@ func TestLoadConfigCollectsEveryMissingVar(t *testing.T) {
 	for _, name := range []string{
 		"TEMPORAL_HOST_PORT", "TEMPORAL_NAMESPACE", "TEMPORAL_TASK_QUEUE",
 		"N8N_UNIVERSAL_IMPORT_BASE_URL", "N8N_UNIVERSAL_IMPORT_AUTH_HEADER", "N8N_UNIVERSAL_IMPORT_AUTH_VALUE",
-		"REFERENCE_STARTER_TOKEN",
 	} {
 		if !strings.Contains(err.Error(), name) {
 			t.Errorf("LoadConfig() error %q does not mention missing var %q", err.Error(), name)

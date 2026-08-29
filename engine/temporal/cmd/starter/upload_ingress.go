@@ -14,7 +14,6 @@ import (
 
 const (
 	uploadIngressPath = "/acquisition/upload"
-	uploadTokenEnv    = "UNIVERSAL_IMPORT_UPLOAD_TOKEN"
 	uploadMaxBytesEnv = "UNIVERSAL_IMPORT_UPLOAD_MAX_BYTES"
 )
 
@@ -23,15 +22,13 @@ const (
 // starter must resolve the same content-addressed object store.
 func newUploadIngress() (*acquisition.UploadIngress, error) {
 	root := strings.TrimSpace(os.Getenv("SOURCE_OBJECT_DIR"))
-	token := strings.TrimSpace(os.Getenv(uploadTokenEnv))
 	maxBytes, err := positiveEnvInt64(uploadMaxBytesEnv)
 	if err != nil {
 		return nil, err
 	}
 	ingress, err := acquisition.NewUploadIngress(acquisition.UploadIngressConfig{
-		Root:        root,
-		MaxBytes:    maxBytes,
-		BearerToken: token,
+		Root:     root,
+		MaxBytes: maxBytes,
 	})
 	if err != nil {
 		return nil, err
@@ -52,7 +49,7 @@ func positiveEnvInt64(name string) (int64, error) {
 }
 
 // starterRoutes preserves the existing Temporal routes and adds one exact,
-// authenticated upload route. UploadIngress owns bearer checking and body
+// tailnet-authorized upload route. UploadIngress owns peer checking and body
 // limits; the starter only mounts it, so no token or bytes enter workflow
 // payloads.
 func starterRoutes(existing http.Handler, ingress *acquisition.UploadIngress) (http.Handler, error) {

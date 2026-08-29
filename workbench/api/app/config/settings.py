@@ -31,10 +31,8 @@ class Settings(BaseSettings):
     # --- Existing platform ingestion API (the promote target + the run spine) ---
     agentos_api_url: str = "http://100.72.169.40:8000"
     agentos_api_token: str | None = None
-    # Dedicated UIW starter boundary; blank values fail closed in the adapter.
+    # Direct-tailnet UIW starter boundary; blank values fail closed in the adapter.
     uiw_starter_url: str = ""
-    uiw_starter_token: str | None = None
-    uiw_upload_token: str | None = None
     # Separate from the shared AgentOS service bearer. Only the operator
     # Workbench receives this capability; agent calls must use walk context.
     evidence_operator_security_key: str = ""

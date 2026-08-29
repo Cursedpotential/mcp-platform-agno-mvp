@@ -59,7 +59,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	handler, err := platformtemporal.NewStarterHTTPHandler(starter, cfg.StarterToken)
+	handler, err := platformtemporal.NewStarterHTTPHandler(starter)
 	if err != nil {
 		return err
 	}

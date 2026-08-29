@@ -4,11 +4,11 @@ package acquisition
 import (
 	"context"
 	"crypto/sha256"
-	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -28,10 +28,7 @@ import (
 // binds it.
 const uploadRefScheme = "upload"
 
-// UploadIngressConfig configures one authenticated HTTP upload endpoint.
-// BearerToken is compared in constant time and is supplied by the caller
-// (environment-sourced at the deployment layer); nothing in this package
-// hardcodes a token, port, or path.
+// UploadIngressConfig configures one tailnet-authorized HTTP upload endpoint.
 type UploadIngressConfig struct {
 	// Root is the seal root this ingress publishes into. It should be the
 	// same root passed to other resolvers in this package (and may be the
@@ -41,9 +38,6 @@ type UploadIngressConfig struct {
 	// MaxBytes bounds one upload's body size. Required; there is no
 	// unbounded default.
 	MaxBytes int64
-	// BearerToken authorizes POST /  (mounted path is the caller's choice).
-	// Required.
-	BearerToken string
 }
 
 func (c UploadIngressConfig) validate() error {
@@ -53,9 +47,6 @@ func (c UploadIngressConfig) validate() error {
 	}
 	if c.MaxBytes <= 0 {
 		problems = append(problems, "max bytes must be positive")
-	}
-	if strings.TrimSpace(c.BearerToken) == "" {
-		problems = append(problems, "bearer token is required")
 	}
 	if len(problems) > 0 {
 		return fmt.Errorf("acquisition: upload ingress config invalid: %s", strings.Join(problems, "; "))
@@ -94,8 +85,8 @@ type uploadAcceptedResponse struct {
 }
 
 // ServeHTTP implements http.Handler. Only POST is accepted; the body is
-// bound to MaxBytes; the Authorization header must be "Bearer <token>"
-// matching cfg.BearerToken via a constant-time comparison. On success it
+// bound to MaxBytes; the socket peer must be in the 100.64.0.0/10 tailnet
+// range. Forwarded identity headers are ignored. On success it
 // streams the request body straight into sealStream (single pass, no
 // intermediate unbounded buffering) and returns the resulting acquisition
 // reference.
@@ -105,7 +96,7 @@ func (u *UploadIngress) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if !u.authorized(r) {
+	if !authorizedTailnetPeer(r) {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -132,14 +123,13 @@ func (u *UploadIngress) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(response)
 }
 
-func (u *UploadIngress) authorized(r *http.Request) bool {
-	header := r.Header.Get("Authorization")
-	const prefix = "Bearer "
-	if !strings.HasPrefix(header, prefix) {
+func authorizedTailnetPeer(r *http.Request) bool {
+	host, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr))
+	if err != nil {
 		return false
 	}
-	presented := strings.TrimPrefix(header, prefix)
-	return subtle.ConstantTimeCompare([]byte(presented), []byte(u.cfg.BearerToken)) == 1
+	ip := net.ParseIP(host).To4()
+	return ip != nil && ip[0] == 100 && ip[1] >= 64 && ip[1] <= 127
 }
 
 // NewUploadIngressResolver resolves "upload://<sha256-hex>" acquisition

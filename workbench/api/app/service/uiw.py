@@ -39,10 +39,13 @@ def _detail(response: httpx.Response) -> str:
 
 
 async def _request(method: str, path: str, **kwargs: Any) -> httpx.Response:
-    if not settings.uiw_starter_url.strip() or not settings.uiw_starter_token:
+    if not settings.uiw_starter_url.strip():
         raise UIWError("UIW starter is not configured", 503)
-    headers = dict(kwargs.pop("headers", {}))
-    headers["Authorization"] = f"Bearer {settings.uiw_starter_token}"
+    headers = {
+        key: value
+        for key, value in dict(kwargs.pop("headers", {})).items()
+        if key.lower() != "authorization"
+    }
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.request(
@@ -76,9 +79,9 @@ async def open_upload_stream(
     body: AsyncIterator[bytes], *, content_type: str | None, content_length: str | None
 ) -> tuple[httpx.AsyncClient, httpx.Response]:
     """Open a streaming acquisition upload; caller owns response/client closure."""
-    if not settings.uiw_starter_url.strip() or not settings.uiw_upload_token:
+    if not settings.uiw_starter_url.strip():
         raise UIWError("UIW acquisition upload is not configured", 503)
-    headers = {"Authorization": f"Bearer {settings.uiw_upload_token}"}
+    headers: dict[str, str] = {}
     if content_type:
         headers["Content-Type"] = content_type
     if content_length:

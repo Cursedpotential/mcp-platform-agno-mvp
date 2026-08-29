@@ -48,11 +48,16 @@ func (f *fakeStarter) Preview(_ context.Context, workflowID string) (uiw.Preview
 
 func newTestHandler(t *testing.T, starter *fakeStarter) http.Handler {
 	t.Helper()
-	handler, err := NewStarterHTTPHandler(starter, "starter-token")
+	handler, err := NewStarterHTTPHandler(starter)
 	if err != nil {
 		t.Fatalf("NewStarterHTTPHandler() error = %v", err)
 	}
-	return handler.Routes()
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("test_peer") == "tailnet" {
+			r.RemoteAddr = "100.64.1.2:1234"
+		}
+		handler.Routes().ServeHTTP(w, r)
+	})
 }
 
 func validStartBody() []byte {
@@ -72,8 +77,7 @@ func TestStartHandlerSuccess(t *testing.T) {
 	server := httptest.NewServer(newTestHandler(t, starter))
 	defer server.Close()
 
-	req, _ := http.NewRequest(http.MethodPost, server.URL+"/reference-import/start", bytes.NewReader(validStartBody()))
-	req.Header.Set("Authorization", "Bearer starter-token")
+	req, _ := http.NewRequest(http.MethodPost, server.URL+"/reference-import/start?test_peer=tailnet", bytes.NewReader(validStartBody()))
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("POST /reference-import/start: %v", err)
@@ -115,8 +119,7 @@ func TestStartHandlerRejectsMissingFields(t *testing.T) {
 	defer server.Close()
 
 	body, _ := json.Marshal(startRequest{RequestID: "req-1", SourceRef: "acquisition-ref", MatterID: "11111111-1111-1111-1111-111111111111", CourtCaseID: "22222222-2222-2222-2222-222222222222"})
-	req, _ := http.NewRequest(http.MethodPost, server.URL+"/reference-import/start", bytes.NewReader(body))
-	req.Header.Set("Authorization", "Bearer starter-token")
+	req, _ := http.NewRequest(http.MethodPost, server.URL+"/reference-import/start?test_peer=tailnet", bytes.NewReader(body))
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("POST /reference-import/start: %v", err)
@@ -133,8 +136,7 @@ func TestDecisionHandlerSuccess(t *testing.T) {
 	defer server.Close()
 
 	body, _ := json.Marshal(decisionRequest{Approved: true, Decider: "operator-1"})
-	req, _ := http.NewRequest(http.MethodPost, server.URL+"/reference-import/wf-req-1/decision", bytes.NewReader(body))
-	req.Header.Set("Authorization", "Bearer starter-token")
+	req, _ := http.NewRequest(http.MethodPost, server.URL+"/reference-import/wf-req-1/decision?test_peer=tailnet", bytes.NewReader(body))
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("POST decision: %v", err)
@@ -154,8 +156,7 @@ func TestDecisionHandlerRejectsRejectionWithoutReason(t *testing.T) {
 	defer server.Close()
 
 	body, _ := json.Marshal(decisionRequest{Approved: false, Decider: "operator-1"})
-	req, _ := http.NewRequest(http.MethodPost, server.URL+"/reference-import/wf-req-1/decision", bytes.NewReader(body))
-	req.Header.Set("Authorization", "Bearer starter-token")
+	req, _ := http.NewRequest(http.MethodPost, server.URL+"/reference-import/wf-req-1/decision?test_peer=tailnet", bytes.NewReader(body))
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("POST decision: %v", err)
@@ -171,8 +172,7 @@ func TestPreviewHandlerSuccess(t *testing.T) {
 	server := httptest.NewServer(newTestHandler(t, starter))
 	defer server.Close()
 
-	req, _ := http.NewRequest(http.MethodGet, server.URL+"/reference-import/wf-req-1/preview", nil)
-	req.Header.Set("Authorization", "Bearer starter-token")
+	req, _ := http.NewRequest(http.MethodGet, server.URL+"/reference-import/wf-req-1/preview?test_peer=tailnet", nil)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("GET preview: %v", err)
@@ -207,11 +207,8 @@ func TestHealthzIsUnauthenticated(t *testing.T) {
 	}
 }
 
-func TestNewStarterHTTPHandlerRequiresStarterAndToken(t *testing.T) {
-	if _, err := NewStarterHTTPHandler(nil, "token"); err == nil {
+func TestNewStarterHTTPHandlerRequiresStarter(t *testing.T) {
+	if _, err := NewStarterHTTPHandler(nil); err == nil {
 		t.Error("NewStarterHTTPHandler() error = nil, want error for nil starter")
-	}
-	if _, err := NewStarterHTTPHandler(&fakeStarter{}, ""); err == nil {
-		t.Error("NewStarterHTTPHandler() error = nil, want error for empty token")
 	}
 }

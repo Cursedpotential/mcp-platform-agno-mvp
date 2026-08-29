@@ -37,8 +37,6 @@ type Config struct {
 	// StarterAddr is the HTTP listen address for the starter service n8n's
 	// start/decision/preview workflows call.
 	StarterAddr string
-	// StarterToken is the bearer token the starter HTTP service requires.
-	StarterToken string
 
 	// SelectHTTPTimeout/ExecuteHTTPTimeout bound this package's own HTTP call
 	// to n8n for each stage. They are sized slightly above the corresponding
@@ -75,7 +73,6 @@ func LoadConfig() (Config, error) {
 		N8NBaseURL:        strings.TrimRight(require("N8N_UNIVERSAL_IMPORT_BASE_URL"), "/"),
 		N8NAuthHeader:     require("N8N_UNIVERSAL_IMPORT_AUTH_HEADER"),
 		N8NAuthValue:      require("N8N_UNIVERSAL_IMPORT_AUTH_VALUE"),
-		StarterToken:      require("REFERENCE_STARTER_TOKEN"),
 	}
 
 	cfg.StarterAddr = strings.TrimSpace(os.Getenv("REFERENCE_STARTER_ADDR"))

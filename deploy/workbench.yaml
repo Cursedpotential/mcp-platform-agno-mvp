@@ -54,11 +54,8 @@ services:
       # console) — base_app's OS_SECURITY_KEY gate applies to every route
       # regardless of authorization=False (see AGENTS.md Claude-Reflect note).
       AGENTOS_API_TOKEN: ${AGENTOS_API_TOKEN:-}
-      # Dedicated Universal Import Workflow boundary on ovh-files. These
-      # credentials are server-side only and fail closed when unset.
+      # Direct-tailnet Universal Import Workflow boundary on ovh-files.
       UIW_STARTER_URL: ${UIW_STARTER_URL:-http://100.91.190.107:8091}
-      UIW_STARTER_TOKEN: ${UIW_STARTER_TOKEN:-}
-      UIW_UPLOAD_TOKEN: ${UIW_UPLOAD_TOKEN:-}
       # Distinct owner-only capability for bounded exploratory evidence search.
       # It must not be issued to agents; their route is walk/checkpoint-bound.
       EVIDENCE_OPERATOR_SECURITY_KEY: ${EVIDENCE_OPERATOR_SECURITY_KEY:-}

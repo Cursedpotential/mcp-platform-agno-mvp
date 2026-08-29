@@ -25,20 +25,19 @@ func (uploadTestStarter) Preview(context.Context, string) (uiw.PreviewState, err
 	return uiw.PreviewState{Phase: uiw.PhaseAwaitingDecision}, nil
 }
 
-func TestStarterRoutesMountsAuthenticatedUploadOnSharedRoot(t *testing.T) {
+func TestStarterRoutesMountsTailnetAuthorizedUploadOnSharedRoot(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("SOURCE_OBJECT_DIR", root)
-	t.Setenv(uploadTokenEnv, "upload-token")
 	t.Setenv(uploadMaxBytesEnv, "1024")
 	ingress, err := newUploadIngress()
 	require.NoError(t, err)
-	starter, err := platformtemporal.NewStarterHTTPHandler(uploadTestStarter{}, "starter-token")
+	starter, err := platformtemporal.NewStarterHTTPHandler(uploadTestStarter{})
 	require.NoError(t, err)
 	routes, err := starterRoutes(starter.Routes(), ingress)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodPost, uploadIngressPath, bytes.NewBufferString("uploaded bytes"))
-	req.Header.Set("Authorization", "Bearer upload-token")
+	req.RemoteAddr = "100.64.1.2:1234"
 	recorder := httptest.NewRecorder()
 	routes.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusCreated, recorder.Code)
@@ -57,10 +56,10 @@ func TestStarterRoutesMountsAuthenticatedUploadOnSharedRoot(t *testing.T) {
 func TestStarterRoutesPreservesHealthAndProtectsUpload(t *testing.T) {
 	root := t.TempDir()
 	ingress, err := acquisition.NewUploadIngress(acquisition.UploadIngressConfig{
-		Root: root, MaxBytes: 1024, BearerToken: "upload-token",
+		Root: root, MaxBytes: 1024,
 	})
 	require.NoError(t, err)
-	starter, err := platformtemporal.NewStarterHTTPHandler(uploadTestStarter{}, "starter-token")
+	starter, err := platformtemporal.NewStarterHTTPHandler(uploadTestStarter{})
 	require.NoError(t, err)
 	routes, err := starterRoutes(starter.Routes(), ingress)
 	require.NoError(t, err)
@@ -70,7 +69,9 @@ func TestStarterRoutesPreservesHealthAndProtectsUpload(t *testing.T) {
 	require.Equal(t, http.StatusOK, health.Code)
 
 	unauthorized := httptest.NewRecorder()
-	routes.ServeHTTP(unauthorized, httptest.NewRequest(http.MethodPost, uploadIngressPath, bytes.NewBufferString("secret")))
+	unauthorizedReq := httptest.NewRequest(http.MethodPost, uploadIngressPath, bytes.NewBufferString("secret"))
+	unauthorizedReq.RemoteAddr = "192.0.2.1:1234"
+	routes.ServeHTTP(unauthorized, unauthorizedReq)
 	require.Equal(t, http.StatusUnauthorized, unauthorized.Code)
 
 	suffix := httptest.NewRecorder()

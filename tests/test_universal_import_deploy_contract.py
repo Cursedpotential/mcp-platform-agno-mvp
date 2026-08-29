@@ -31,7 +31,7 @@ def test_only_http_services_publish_tailnet_bound_ports() -> None:
 
     assert parser["ports"] == ["${BIND_IP:-127.0.0.1}:8090:8090"]
     assert "ports" not in worker
-    assert starter["ports"] == ["${BIND_IP:-127.0.0.1}:8091:8091"]
+    assert starter["ports"] == ["100.91.190.107:8091:8091"]
     assert all("0.0.0.0" not in port for service in (parser, starter) for port in service["ports"])
 
 
@@ -69,10 +69,10 @@ def test_worker_and_starter_share_dedicated_nonlegacy_queue_default() -> None:
     assert "evidence-pipeline" not in worker_queue
 
 
-def test_starter_has_no_storage_and_parser_has_no_normalization_storage() -> None:
+def test_starter_and_parser_mount_only_their_required_shared_storage() -> None:
     starter = _compose(STARTER_DEPLOY)["services"]["universal-import-starter"]
     parser = _compose(PARSER_DEPLOY)["services"]["parser-activity-runtime"]
-    assert "volumes" not in starter
+    assert starter["volumes"] == ["/data/agno/volumes/universal-import/source-objects:/data/uiw/source-objects"]
     assert parser["volumes"] == [f"{SHARED_PARSER_HOST}:{SHARED_PARSER_CONTAINER}"]
 
 

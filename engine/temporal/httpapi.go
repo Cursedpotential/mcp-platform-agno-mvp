@@ -1,10 +1,10 @@
 package temporal
 
 import (
-	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 
@@ -17,25 +17,20 @@ const maxStarterRequestBytes int64 = 16 << 10
 
 // StarterHTTPHandler is the HTTP surface n8n's start/decision/preview
 // workflows call, since n8n has no native Temporal client. It is a thin,
-// authenticated shim over WorkflowStarter: it decodes/validates JSON,
+// tailnet-authorized shim over WorkflowStarter: it decodes/validates JSON,
 // delegates to Temporal, and reports back — it holds no business logic and
 // no Temporal SDK dependency of its own beyond what WorkflowStarter exposes.
 type StarterHTTPHandler struct {
-	starter     WorkflowStarter
-	bearerToken []byte
+	starter WorkflowStarter
 }
 
-// NewStarterHTTPHandler constructs a fail-closed handler: a nil starter or
-// blank bearer token is rejected rather than creating an endpoint that can't
-// actually authenticate or do anything.
-func NewStarterHTTPHandler(starter WorkflowStarter, bearerToken string) (*StarterHTTPHandler, error) {
+// NewStarterHTTPHandler constructs a fail-closed handler: a nil starter is
+// rejected rather than creating an endpoint that cannot do anything.
+func NewStarterHTTPHandler(starter WorkflowStarter) (*StarterHTTPHandler, error) {
 	if starter == nil {
 		return nil, errors.New("temporal: starter HTTP handler requires a WorkflowStarter")
 	}
-	if strings.TrimSpace(bearerToken) == "" {
-		return nil, errors.New("temporal: starter HTTP handler requires a bearer token")
-	}
-	return &StarterHTTPHandler{starter: starter, bearerToken: []byte(bearerToken)}, nil
+	return &StarterHTTPHandler{starter: starter}, nil
 }
 
 // Routes returns the mux n8n's three workflows call:
@@ -57,8 +52,7 @@ func (h *StarterHTTPHandler) Routes() http.Handler {
 
 func (h *StarterHTTPHandler) withAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !validStarterBearerToken(r.Header.Get("Authorization"), h.bearerToken) {
-			w.Header().Set("WWW-Authenticate", `Bearer realm="reference-import-starter"`)
+		if !authorizedTailnetPeer(r) {
 			writeStarterError(w, http.StatusUnauthorized, errors.New("reference import starter authorization required"))
 			return
 		}
@@ -193,16 +187,13 @@ type previewResponse struct {
 	Reason    string `json:"reason,omitempty"`
 }
 
-func validStarterBearerToken(header string, expected []byte) bool {
-	const prefix = "Bearer "
-	if len(header) <= len(prefix) || !strings.EqualFold(header[:len(prefix)], prefix) {
+func authorizedTailnetPeer(r *http.Request) bool {
+	host, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr))
+	if err != nil {
 		return false
 	}
-	provided := strings.TrimSpace(header[len(prefix):])
-	if provided == "" || len(expected) == 0 {
-		return false
-	}
-	return subtle.ConstantTimeCompare([]byte(provided), expected) == 1
+	ip := net.ParseIP(host).To4()
+	return ip != nil && ip[0] == 100 && ip[1] >= 64 && ip[1] <= 127
 }
 
 func securityHeaders(next http.Handler) http.Handler {

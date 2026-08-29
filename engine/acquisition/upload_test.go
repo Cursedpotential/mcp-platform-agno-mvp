@@ -18,12 +18,12 @@ import (
 
 func TestUploadIngressAcceptsAuthorizedUpload(t *testing.T) {
 	root := t.TempDir()
-	ingress, err := NewUploadIngress(UploadIngressConfig{Root: root, MaxBytes: 1 << 20, BearerToken: "windows-desktop-token"})
+	ingress, err := NewUploadIngress(UploadIngressConfig{Root: root, MaxBytes: 1 << 20})
 	require.NoError(t, err)
 
 	content := bytes.Repeat([]byte("windows-upload-ingress"), 3_000)
 	req := httptest.NewRequest(http.MethodPost, "/uploads", bytes.NewReader(content))
-	req.Header.Set("Authorization", "Bearer windows-desktop-token")
+	req.RemoteAddr = "100.64.1.2:1234"
 	recorder := httptest.NewRecorder()
 
 	ingress.ServeHTTP(recorder, req)
@@ -44,16 +44,17 @@ func TestUploadIngressAcceptsAuthorizedUpload(t *testing.T) {
 	require.Equal(t, int64(len(content)), result.ByteLength)
 }
 
-func TestUploadIngressRejectsMissingOrWrongToken(t *testing.T) {
+func TestUploadIngressRejectsNonTailnetPeerAndIgnoresForwardedHeaders(t *testing.T) {
 	root := t.TempDir()
-	ingress, err := NewUploadIngress(UploadIngressConfig{Root: root, MaxBytes: 1024, BearerToken: "correct-token"})
+	ingress, err := NewUploadIngress(UploadIngressConfig{Root: root, MaxBytes: 1024})
 	require.NoError(t, err)
 
-	for _, header := range []string{"", "Bearer wrong-token", "correct-token"} {
+	for _, addr := range []string{"192.0.2.1:1234", "100.63.1.2:1234", "100.128.1.2:1234"} {
 		req := httptest.NewRequest(http.MethodPost, "/uploads", bytes.NewReader([]byte("payload")))
-		if header != "" {
-			req.Header.Set("Authorization", header)
-		}
+		req.RemoteAddr = addr
+		req.Header.Set("Forwarded", "for=100.64.1.2")
+		req.Header.Set("X-Forwarded-For", "100.64.1.2")
+		req.Header.Set("X-Real-IP", "100.64.1.2")
 		recorder := httptest.NewRecorder()
 		ingress.ServeHTTP(recorder, req)
 		require.Equal(t, http.StatusUnauthorized, recorder.Code)
@@ -62,11 +63,11 @@ func TestUploadIngressRejectsMissingOrWrongToken(t *testing.T) {
 
 func TestUploadIngressRejectsWrongMethod(t *testing.T) {
 	root := t.TempDir()
-	ingress, err := NewUploadIngress(UploadIngressConfig{Root: root, MaxBytes: 1024, BearerToken: "token"})
+	ingress, err := NewUploadIngress(UploadIngressConfig{Root: root, MaxBytes: 1024})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodGet, "/uploads", nil)
-	req.Header.Set("Authorization", "Bearer token")
+	req.RemoteAddr = "100.64.1.2:1234"
 	recorder := httptest.NewRecorder()
 	ingress.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusMethodNotAllowed, recorder.Code)
@@ -74,11 +75,11 @@ func TestUploadIngressRejectsWrongMethod(t *testing.T) {
 
 func TestUploadIngressRejectsOversizedBody(t *testing.T) {
 	root := t.TempDir()
-	ingress, err := NewUploadIngress(UploadIngressConfig{Root: root, MaxBytes: 16, BearerToken: "token"})
+	ingress, err := NewUploadIngress(UploadIngressConfig{Root: root, MaxBytes: 16})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodPost, "/uploads", bytes.NewReader(bytes.Repeat([]byte("x"), 1024)))
-	req.Header.Set("Authorization", "Bearer token")
+	req.RemoteAddr = "100.64.1.2:1234"
 	recorder := httptest.NewRecorder()
 	ingress.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusRequestEntityTooLarge, recorder.Code)
@@ -97,12 +98,12 @@ func TestUploadIngressResolverRejectsMalformedRef(t *testing.T) {
 
 func TestUploadIngressResolverFailsClosedOnTamperedObject(t *testing.T) {
 	root := t.TempDir()
-	ingress, err := NewUploadIngress(UploadIngressConfig{Root: root, MaxBytes: 1 << 20, BearerToken: "token"})
+	ingress, err := NewUploadIngress(UploadIngressConfig{Root: root, MaxBytes: 1 << 20})
 	require.NoError(t, err)
 
 	content := bytes.Repeat([]byte("tamper-me"), 2_000)
 	req := httptest.NewRequest(http.MethodPost, "/uploads", bytes.NewReader(content))
-	req.Header.Set("Authorization", "Bearer token")
+	req.RemoteAddr = "100.64.1.2:1234"
 	recorder := httptest.NewRecorder()
 	ingress.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusCreated, recorder.Code)
@@ -134,8 +135,8 @@ func TestUploadIngressResolverRejectsMissingObject(t *testing.T) {
 func TestUploadIngressConfigValidation(t *testing.T) {
 	_, err := NewUploadIngress(UploadIngressConfig{})
 	require.Error(t, err)
-	_, err = NewUploadIngress(UploadIngressConfig{Root: t.TempDir(), MaxBytes: 0, BearerToken: "t"})
+	_, err = NewUploadIngress(UploadIngressConfig{Root: t.TempDir(), MaxBytes: 0})
 	require.Error(t, err)
-	_, err = NewUploadIngress(UploadIngressConfig{Root: t.TempDir(), MaxBytes: 10, BearerToken: ""})
-	require.Error(t, err)
+	_, err = NewUploadIngress(UploadIngressConfig{Root: t.TempDir(), MaxBytes: 10})
+	require.NoError(t, err)
 }
