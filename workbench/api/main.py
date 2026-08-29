@@ -66,8 +66,8 @@ This API includes a comprehensive test system for running conversation chunks an
 - **Portkey Integration**: Unified gateway with tracing, fallbacks, cost tracking
 
 ### Authentication
-Mandatory `WORKBENCH_API_KEY`. API clients use `Authorization: Bearer <key>`;
-browsers may use HTTP Basic credentials `owner:<key>`. Only `/health` is public.
+Direct tailnet socket identity only. Forwarded identity headers, passwords,
+and HTTP Basic credentials are not accepted. Only `/health` is public.
 
 ### Documentation
 - Swagger UI: `/docs`

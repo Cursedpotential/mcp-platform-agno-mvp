@@ -47,11 +47,8 @@ services:
       - "${BIND_IP:-127.0.0.1}:8020:8020"   # tailnet-only; NEVER 0.0.0.0
     environment:
       APP_PORT: "8020"
-      # Mandatory inbound boundary for the static UI, API, and API docs.
-      # Set a long random secret in Coolify before deploy; empty fails closed
-      # everywhere except the exact /health orchestration probe. Browsers use
-      # Basic owner:<secret>; API clients may send Bearer <secret>.
-      WORKBENCH_API_KEY: ${WORKBENCH_API_KEY:-}
+      # Direct browser traffic is authorized only by the tailnet socket peer.
+      # Forwarded identity headers, passwords, and Basic auth are not accepted.
       AGENTOS_API_URL: ${AGENTOS_API_URL:-http://100.72.169.40:8000}
       # Bearer for both /knowledge/* (legacy promote) and /v1/runs (C1
       # console) — base_app's OS_SECURITY_KEY gate applies to every route

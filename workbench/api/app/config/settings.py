@@ -114,9 +114,8 @@ class Settings(BaseSettings):
     app_port: int = 8020
     static_dir: str = "/app/static"
     max_upload_mb: int = 200
-    # Mandatory inbound operator credential. The exact /health path is the
-    # sole exemption so orchestration can distinguish healthy-but-unconfigured
-    # from a dead container. Every API, docs, and static request fails closed.
+    # Compatibility read only: older local .env files may contain this key.
+    # The Workbench boundary does not consult or deploy it.
     workbench_api_key: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
