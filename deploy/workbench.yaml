@@ -49,6 +49,11 @@ services:
       # Coolify Traefik address as a /32 (or /128), never a broad Docker/tailnet
       # range. Missing or malformed configuration fails closed.
       TRUSTED_AUTH_PROXY_CIDRS: ${TRAEFIK_PROXY_CIDR:?exact Traefik proxy CIDR required}
+      # Feature-gated owner testing path. Traefik remains the trusted socket
+      # peer and X-Real-IP must be inside this Tailscale range. Disable after
+      # Authentik activation without changing application code.
+      TAILNET_AUTH_BYPASS_ENABLED: ${WORKBENCH_TAILNET_AUTH_BYPASS_ENABLED:-true}
+      TAILNET_AUTH_BYPASS_CIDRS: ${WORKBENCH_TAILNET_AUTH_BYPASS_CIDRS:-100.64.0.0/10}
       PLATFORM_API_URL: ${PLATFORM_API_URL:-http://100.72.169.40:8000}
       # The Platform API currently uses the backend runtime's native bearer contract. The secret is
       # read fresh from the read-only mount below for every upstream request;
@@ -134,9 +139,6 @@ services:
       - traefik.http.routers.workbench-tailnet-preview.rule=Host(`xjbuo6drbwjfby75lalk8bk7.100.72.169.40.sslip.io`)
       - traefik.http.routers.workbench-tailnet-preview.entrypoints=http
       - traefik.http.routers.workbench-tailnet-preview.service=workbench
-      - traefik.http.routers.workbench-tailnet-preview.middlewares=workbench-tailnet-preview-identity
-      - traefik.http.middlewares.workbench-tailnet-preview-identity.headers.customrequestheaders.X-authentik-uid=tailnet-owner-preview
-      - traefik.http.middlewares.workbench-tailnet-preview-identity.headers.customrequestheaders.X-authentik-username=owner
       - traefik.http.routers.workbench.rule=Host(`workbench.int.mitechconsult.com`)
       - traefik.http.routers.workbench.entrypoints=https
       - traefik.http.routers.workbench.tls=true

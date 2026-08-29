@@ -121,6 +121,11 @@ class Settings(BaseSettings):
     # Only socket peers inside these CIDRs are accepted for protected routes.
     # Invalid/empty config denies all protected traffic — no silent trust.
     trusted_auth_proxy_cidrs: str = ""
+    # Explicit testing feature flag. When enabled, a request forwarded by the
+    # trusted Traefik peer may authenticate from a configured Tailscale CIDR
+    # without Authentik. The flag is off by default in application code.
+    tailnet_auth_bypass_enabled: bool = False
+    tailnet_auth_bypass_cidrs: str = "100.64.0.0/10"
 
     # --- App ---
     app_port: int = 8020
@@ -198,6 +203,25 @@ class Settings(BaseSettings):
                 cidrs.append(ipaddress.ip_network(part, strict=True))
             except ValueError:
                 return []
+        return cidrs
+
+    @property
+    def tailnet_auth_bypass_cidrs_parsed(self) -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
+        """Parse the feature-gated tailnet testing ranges fail-closed."""
+        if not self.tailnet_auth_bypass_cidrs:
+            return []
+        cidrs = []
+        for part in self.tailnet_auth_bypass_cidrs.split(","):
+            part = part.strip()
+            if not part:
+                return []
+            try:
+                network = ipaddress.ip_network(part, strict=True)
+            except ValueError:
+                return []
+            if not network.subnet_of(ipaddress.ip_network("100.64.0.0/10")):
+                return []
+            cidrs.append(network)
         return cidrs
 
 

@@ -18,11 +18,19 @@ from main import app as workbench_app
 from starlette.middleware.base import BaseHTTPMiddleware
 
 
-def _client(host: str, cidrs: str | None = None) -> TestClient:
+def _client(
+    host: str,
+    cidrs: str | None = None,
+    *,
+    tailnet_bypass: bool = False,
+    tailnet_cidrs: str = "100.64.0.0/10",
+) -> TestClient:
     """Create an isolated auth client without mutating global settings."""
     configured_settings = Settings(_env_file=None)
     if cidrs is not None:
         object.__setattr__(configured_settings, "trusted_auth_proxy_cidrs", cidrs)
+    object.__setattr__(configured_settings, "tailnet_auth_bypass_enabled", tailnet_bypass)
+    object.__setattr__(configured_settings, "tailnet_auth_bypass_cidrs", tailnet_cidrs)
 
     app = FastAPI()
 
@@ -45,6 +53,45 @@ def _client(host: str, cidrs: str | None = None) -> TestClient:
         return {"path": path}
 
     return TestClient(app, client=(host, 50000))
+
+
+class TestFeatureGatedTailnetBypass:
+    """Tailnet testing bypass works only through the trusted proxy."""
+
+    def test_enabled_tailnet_client_is_authenticated_without_authentik(self) -> None:
+        client = _client("172.18.0.4", "172.18.0.4/32", tailnet_bypass=True)
+        response = client.get("/principal", headers={"X-Real-IP": "100.88.12.4"})
+        assert response.status_code == 200
+        assert response.json() == {
+            "principal": "tailnet-owner",
+            "subject_uid": "tailscale:100.88.12.4",
+        }
+
+    def test_disabled_bypass_still_requires_authentik(self) -> None:
+        client = _client("172.18.0.4", "172.18.0.4/32")
+        response = client.get("/principal", headers={"X-Real-IP": "100.88.12.4"})
+        assert response.status_code == 403
+
+    def test_non_tailnet_forwarded_client_is_rejected(self) -> None:
+        client = _client("172.18.0.4", "172.18.0.4/32", tailnet_bypass=True)
+        response = client.get("/principal", headers={"X-Real-IP": "192.0.2.10"})
+        assert response.status_code == 403
+
+    def test_untrusted_peer_cannot_spoof_tailnet_client(self) -> None:
+        client = _client("172.19.0.9", "172.18.0.4/32", tailnet_bypass=True)
+        response = client.get("/principal", headers={"X-Real-IP": "100.88.12.4"})
+        assert response.status_code == 403
+        assert response.json() == {"detail": "Untrusted proxy"}
+
+    def test_configured_range_must_remain_inside_tailscale(self) -> None:
+        client = _client(
+            "172.18.0.4",
+            "172.18.0.4/32",
+            tailnet_bypass=True,
+            tailnet_cidrs="0.0.0.0/0",
+        )
+        response = client.get("/principal", headers={"X-Real-IP": "100.88.12.4"})
+        assert response.status_code == 403
 
 
 class TestHealthExactness:

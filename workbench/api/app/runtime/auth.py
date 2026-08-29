@@ -17,6 +17,7 @@ from fastapi.responses import JSONResponse
 
 _AUTHENTIK_UID_HEADER = "x-authentik-uid"
 _AUTHENTIK_USERNAME_HEADER = "x-authentik-username"
+_TRAEFIK_CLIENT_IP_HEADER = "x-real-ip"
 _MAX_HEADER_VALUE_LEN = 256
 _CTRL_CHARS_RE = re.compile(r"[\x00-\x1f\x7f]")
 
@@ -83,6 +84,17 @@ async def authentication_middleware(
             status_code=403,
             content={"detail": "Untrusted proxy"},
         )
+
+    # Explicit owner-testing feature flag. X-Real-IP is consulted only after
+    # the socket peer is proven to be the configured Traefik proxy. The
+    # forwarded client must be inside the configured Tailscale subset.
+    if settings.tailnet_auth_bypass_enabled:
+        tailnet_cidrs = settings.tailnet_auth_bypass_cidrs_parsed
+        forwarded_ip = _validate_identity_header(request.headers.get(_TRAEFIK_CLIENT_IP_HEADER))
+        if tailnet_cidrs and forwarded_ip and _ip_in_cidrs(forwarded_ip, tailnet_cidrs):
+            request.state.principal = "tailnet-owner"
+            request.state.subject_uid = f"tailscale:{forwarded_ip}"
+            return await call_next(request)
 
     # Authentik identity headers (case-insensitive via Starlette Headers)
     uid_raw = request.headers.get(_AUTHENTIK_UID_HEADER)
