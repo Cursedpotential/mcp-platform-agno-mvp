@@ -504,9 +504,19 @@ WP-5d.
 >
 > **Dated correction (2026-08-29, same session).** An earlier draft of this section stated "no
 > Go→Python bridge adapter exists" and called that the single biggest open blocker on this
-> migration. **That was wrong and is superseded here** — the bridge substrate already exists and
-> is already deployed. See "Where this gets installed" below for `platform-tools`. Do not act on
-> the earlier "no bridge" framing; the corrected picture follows.
+> migration. **That was wrong and is superseded here** — the bridge substrate already exists in
+> the repo. See "Where this gets installed" below for `platform-tools`. Do not act on the earlier
+> "no bridge" framing; the corrected picture follows.
+>
+> **Second correction (2026-08-29, from Codex reconciliation).** The phrase "and is already
+> deployed" appeared here and is an **overclaim, now withdrawn**. What was verified is that
+> `deploy/platform-tools.yaml` and `docker/tools/tools/facade.py` exist in the repo, with routes
+> and a documented cross-app DNS contract. **Nothing in this audit confirmed a running container.**
+> Manifest present ≠ service live — the same distinction the platform already learned the hard way
+> with migrations (R68: "design complete" and "deployed to the live database" are two separately
+> verified states). **Before building the Go bridge adapter, curl `platform-tools:8090/health` and
+> confirm `registry_ok: true`.** The same caveat applies to any statement in this document that the
+> timeline machinery is "tested" — 392 lines of tests exist; this audit did not run them.
 
 **Still true and still load-bearing:** `engine/adapters/` currently contains exactly **ONE**
 adapter — `sbv/`. There are no document, markdown, or AI-chat adapters yet. Meanwhile the
@@ -674,7 +684,62 @@ bake-offed immediately. E is now unblocked (a `BaseEmbeddings`/`NimEmbedder` shi
 needs that shim written first and compared per WP-5e. D complements rather than replaces the
 others for tabular passages.
 
-### WP-5c — Chunker bake-off, not a guess
+### WP-5c — Chunker bake-off — **PARTIALLY RUN 2026-08-29. Results below overturn the recommendation.**
+
+> **Run against two of the four real sample files** with the repo's own venv, read-only, no repo
+> changes. Metric `starts_at_heading` = how many chunks begin at a markdown heading, out of the
+> headings present. `reassembles_exactly` = `sha256(concat(chunks)) == sha256(source)`.
+
+**56KB Michigan guide — 56,341 chars, 26 headings**
+
+| Candidate | chunks | starts_at_heading | reassembles exactly |
+|---|---|---|---|
+| **A** RecursiveChunker default *(current production)* | 46 | **1 / 26** | **yes** |
+| **B** RecursiveChunker + hand-specified heading delimiters | 65 | **1 / 26** | **yes** |
+| **C** Semantica `StructuralChunker` | 35 | **13 / 26** | **NO** |
+
+**Chronology — 17,553 chars, 8 headings**
+
+| Candidate | chunks | starts_at_heading | reassembles exactly |
+|---|---|---|---|
+| **A** RecursiveChunker default | 13 | 0 / 8 | yes |
+| **B** RecursiveChunker + heading delimiters | 18 | 0 / 8 | yes |
+| **C** Semantica `StructuralChunker` | 11 | 1 / 8 | **NO** |
+
+**Two findings, both of which change the plan:**
+
+1. **Candidate B does not work.** Hand-specified heading delimiters produced *identical*
+   heading alignment to the default (1/26) while creating **more** chunks (65 vs 46). It
+   subdivides more, it does not align better — `chunk_size=1500` still dominates, so heading
+   boundaries get recursively split anyway. **The earlier recommendation of "(a) hand-specified
+   `RecursiveLevel` delimiters inline" as the preferred Hub-free fix is empirically WRONG and is
+   withdrawn.**
+2. **Candidate C preserves structure but FAILS the reassembly invariant.** `StructuralChunker` is
+   the only candidate that meaningfully respects headings (13/26 vs 1/26) — and it does not
+   reassemble losslessly. Per the completeness gate, a chunker that cannot reassemble **fails
+   outright**, regardless of how good its boundaries look.
+
+**So the current candidate set has no winner:** the structure-preserving option violates the
+reassembly requirement, and the reassembly-safe options do not preserve structure. This tension
+was not visible from reading the code and is exactly what the bake-off existed to find.
+
+**Next steps for whoever picks this up** (do not treat the above as final):
+- Determine *why* `StructuralChunker` is lossy — it was invoked with default settings via a
+  guessed method name; the loss may be whitespace normalization or a configurable behaviour, in
+  which case it may be recoverable. Check before discarding the only structure-aware candidate.
+- If it is inherently lossy, the fix is likely **byte-range locators rather than concatenation**
+  (already recommended above): `StructuralChunker` may be usable if chunks record `char_start`/
+  `char_end` into the source and completeness is checked as full range coverage rather than
+  string equality.
+- Test the remaining two sample files and add candidate D (`TableChunker`) for the guide's
+  tabular passages.
+
+**Caveats on these numbers:** `starts_at_heading` is a coarse proxy — a chunk can contain a whole
+section without beginning at its heading line. Only 2 of 4 files were run. `StructuralChunker`
+was called with defaults. Treat this as a directional result that disqualifies B and flags a real
+problem with C, not as a final ranking.
+
+### WP-5c — original brief
 
 Run the **chunk-stage** candidates A, C, and E (D as a complement for tables) over the **four
 real sample files** (the two NotebookLM outputs, the strategy memo, and the 56KB Michigan guide)
