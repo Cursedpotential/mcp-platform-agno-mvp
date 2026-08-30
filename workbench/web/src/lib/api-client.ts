@@ -72,17 +72,26 @@ import type {
   StagedFile,
   StagedFileMeta,
   ToolServerGroup,
+  MonitoredActionCapability,
+  MonitoredActionRun,
+  StartAtomicToolActionRequest,
   UploadResponse,
   VerifyResponse,
   WeaviateDetail,
   Workflow,
   UIWDecisionResponse,
   UIWPreviewResponse,
+  UIWRepairDecisionRequest,
+  UIWRepairDecisionResponse,
   UIWPreviewMessagesResponse,
   UIWStartRequest,
   UIWStartResponse,
   UIWUploadResponse,
   UIWSourceBrowserResponse,
+  UIWSourceInspection,
+  UIWSourceObject,
+  UIWHumanSourceAssertions,
+  UIWSourceContextReceipt,
 } from "./shared/types";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
@@ -608,6 +617,42 @@ export function listUIWSources(params: {
   return apiFetch<UIWSourceBrowserResponse>(`/api/uiw/sources${suffix}`);
 }
 
+export function inspectUIWSource(source: UIWSourceObject) {
+  return apiFetch<UIWSourceInspection>("/api/uiw/source-inspection", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      key: source.key,
+      expected_byte_length: source.byte_length,
+      expected_etag: source.etag ?? null,
+    }),
+  });
+}
+
+export function createUIWSourceContext(payload: {
+  request_id: string;
+  matter_id: string;
+  court_case_id: string;
+  source_ref: string;
+  observed_source: {
+    key: string;
+    name: string;
+    byte_length: number;
+    etag: string;
+    preview_sha256: string;
+    verification_state: "preview_only";
+  };
+  supersedes_ref?: string | null;
+  assertions: UIWHumanSourceAssertions;
+  change_reason: string;
+}) {
+  return apiFetch<UIWSourceContextReceipt>("/api/uiw/source-contexts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
 export function startUIW(payload: UIWStartRequest) {
   return apiFetch<UIWStartResponse>("/api/uiw/start", {
     method: "POST",
@@ -618,6 +663,17 @@ export function startUIW(payload: UIWStartRequest) {
 
 export function getUIWPreview(previewHandle: string, signal?: AbortSignal) {
   return apiFetch<UIWPreviewResponse>(`/api/uiw/previews/${encodeURIComponent(previewHandle)}`, { signal });
+}
+
+export function decideUIWRepair(previewHandle: string, payload: UIWRepairDecisionRequest) {
+  return apiFetch<UIWRepairDecisionResponse>(
+    `/api/uiw/previews/${encodeURIComponent(previewHandle)}/repair-decision`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
 }
 
 export function decideUIW(
@@ -797,14 +853,30 @@ export async function listTools() {
   return apiFetch<ToolServerGroup[]>("/api/tools");
 }
 
-/** Raw tool-call result — shape is whatever the target MCP tool returns. */
-export type ToolCallResult = unknown;
+/**
+ * Capability handshake for the only browser-supported atomic-tool path.
+ * A missing route is intentionally reported by callers as unavailable; the
+ * browser must never fall back to a legacy direct-call route for execution.
+ */
+export async function getMonitoredActionCapability() {
+  return apiFetch<MonitoredActionCapability>("/api/monitored-actions/capabilities");
+}
 
-export async function callTool(server: string, name: string, args: Record<string, unknown>) {
-  return apiFetch<ToolCallResult>("/api/tools/call", {
+export async function startAtomicToolAction(request: StartAtomicToolActionRequest) {
+  return apiFetch<MonitoredActionRun>("/api/monitored-actions", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ server, name, arguments: args }),
+    body: JSON.stringify(request),
+  });
+}
+
+export async function getMonitoredAction(actionId: string) {
+  return apiFetch<MonitoredActionRun>(`/api/monitored-actions/${encodeURIComponent(actionId)}`);
+}
+
+export async function cancelMonitoredAction(actionId: string) {
+  return apiFetch<MonitoredActionRun>(`/api/monitored-actions/${encodeURIComponent(actionId)}/cancel`, {
+    method: "POST",
   });
 }
 

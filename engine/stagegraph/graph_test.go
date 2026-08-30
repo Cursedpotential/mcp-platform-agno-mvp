@@ -12,6 +12,8 @@ import (
 var requiredStages = map[StageID]bool{
 	RegisterSource:                 true,
 	RetainOriginal:                 true,
+	AssessSourceRepair:             true,
+	ResolveSourceRepair:            true,
 	CaptureFilesystemMetadata:      true,
 	FingerprintSource:              true,
 	InventoryContainer:             true,
@@ -31,6 +33,7 @@ var requiredStages = map[StageID]bool{
 	HashNormalizedRecords:          true,
 	HashNormalizedGeneration:       true,
 	VerifyNormalizedGeneration:     true,
+	PublishPreview:                 true,
 	SealGeneration:                 true,
 	PublishGeneration:              true,
 }
@@ -333,8 +336,8 @@ func TestSafeParallelFanOutAfterRetainOriginal(t *testing.T) {
 		if !ok {
 			t.Fatalf("%q missing from registry", id)
 		}
-		if len(d.DependsOn) != 1 || d.DependsOn[0] != RetainOriginal {
-			t.Errorf("%q must depend only on %q to be safely parallel after retention, got %v", id, RetainOriginal, d.DependsOn)
+		if len(d.DependsOn) != 1 || d.DependsOn[0] != ResolveSourceRepair {
+			t.Errorf("%q must depend only on %q to be safely parallel after repair resolution, got %v", id, ResolveSourceRepair, d.DependsOn)
 		}
 		for _, dep := range d.DependsOn {
 			if fanOutSet[dep] {

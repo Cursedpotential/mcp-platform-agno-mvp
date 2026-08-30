@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"go.temporal.io/api/serviceerror"
 	"go.temporal.io/sdk/client"
 
 	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
@@ -27,6 +28,7 @@ type WorkflowStarter interface {
 	// survives a worker restart between the hold starting and the decision
 	// arriving.
 	Decide(ctx context.Context, workflowID string, decision uiw.PreviewDecision) error
+	DecideRepair(ctx context.Context, workflowID string, decision uiw.RepairDecision) error
 	// Preview queries uiw.PreviewQueryName on a run. Like Decide, this goes
 	// through the Temporal server against durable workflow state, not any
 	// process-local cache.
@@ -65,9 +67,20 @@ func (s *temporalStarter) Start(ctx context.Context, in uiw.WorkflowInput) (stri
 		TaskQueue: s.taskQueue,
 	}, uiw.UniversalImportWorkflow, in)
 	if err != nil {
+		if runID, ok := alreadyStartedRunID(err); ok {
+			return in.RequestID, runID, nil
+		}
 		return "", "", fmt.Errorf("temporal: start universal import workflow: %w", err)
 	}
 	return run.GetID(), run.GetRunID(), nil
+}
+
+func alreadyStartedRunID(err error) (string, bool) {
+	var alreadyStarted *serviceerror.WorkflowExecutionAlreadyStarted
+	if !errors.As(err, &alreadyStarted) || strings.TrimSpace(alreadyStarted.RunId) == "" {
+		return "", false
+	}
+	return alreadyStarted.RunId, true
 }
 
 // Decide sends the human preview_decision Signal to a held workflow.
@@ -77,6 +90,16 @@ func (s *temporalStarter) Decide(ctx context.Context, workflowID string, decisio
 	}
 	if err := s.client.SignalWorkflow(ctx, workflowID, "", uiw.PreviewDecisionSignalName, decision); err != nil {
 		return fmt.Errorf("temporal: signal preview decision: %w", err)
+	}
+	return nil
+}
+
+func (s *temporalStarter) DecideRepair(ctx context.Context, workflowID string, decision uiw.RepairDecision) error {
+	if strings.TrimSpace(workflowID) == "" || decision.DecisionRef == "" {
+		return errors.New("temporal: workflow_id and repair decision reference are required")
+	}
+	if err := s.client.SignalWorkflow(ctx, workflowID, "", uiw.RepairDecisionSignalName, decision); err != nil {
+		return fmt.Errorf("temporal: signal repair decision: %w", err)
 	}
 	return nil
 }

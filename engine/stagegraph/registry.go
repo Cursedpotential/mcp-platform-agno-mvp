@@ -20,11 +20,11 @@ package stagegraph
 //
 //   - register_source is the root: it creates the identity/idempotency
 //     coordinate every other stage keys off.
-//   - retain_original is the only stage after register_source that must run
-//     before anything touches source bytes.
+//   - retain_original precedes repair assessment/resolution; the resolved
+//     retained object is the only byte source used by the remaining stages.
 //   - capture_filesystem_metadata, hash_source (H1), inventory_container, and
 //     extract_embedded_metadata are the named "safe parallel fan-out": each
-//     depends only on retain_original and not on one another.
+//     depends only on resolve_source_repair and not on one another.
 //   - select_parser joins that fan-out (it needs the container manifest and
 //     metadata manifest to pick an adapter) before execute_parser runs.
 //   - persist_raw_generation, hash_raw_records (H2 per raw record/span), then
@@ -65,28 +65,40 @@ var Stages = []Descriptor{
 		DependsOn:      []StageID{RegisterSource},
 	},
 	{
+		ID:             AssessSourceRepair,
+		Responsibility: RespAssessRepair,
+		Result:         "repair assessment reference",
+		DependsOn:      []StageID{RetainOriginal},
+	},
+	{
+		ID:             ResolveSourceRepair,
+		Responsibility: RespResolveRepair,
+		Result:         "active retained-object reference",
+		DependsOn:      []StageID{AssessSourceRepair},
+	},
+	{
 		ID:             CaptureFilesystemMetadata,
 		Responsibility: RespCaptureMetadata,
 		Result:         "filesystem metadata reference",
-		DependsOn:      []StageID{RetainOriginal},
+		DependsOn:      []StageID{ResolveSourceRepair},
 	},
 	{
 		ID:             FingerprintSource,
 		Responsibility: RespComputeHash,
 		Result:         "context source fingerprint receipt reference",
-		DependsOn:      []StageID{RetainOriginal},
+		DependsOn:      []StageID{ResolveSourceRepair},
 	},
 	{
 		ID:             InventoryContainer,
 		Responsibility: RespInventory,
 		Result:         "container manifest reference",
-		DependsOn:      []StageID{RetainOriginal},
+		DependsOn:      []StageID{ResolveSourceRepair},
 	},
 	{
 		ID:             ExtractEmbeddedMetadata,
 		Responsibility: RespExtractMetadata,
 		Result:         "metadata manifest reference",
-		DependsOn:      []StageID{RetainOriginal},
+		DependsOn:      []StageID{ResolveSourceRepair},
 	},
 	{
 		ID:             SelectParser,
@@ -191,10 +203,16 @@ var Stages = []Descriptor{
 		},
 	},
 	{
+		ID:             PublishPreview,
+		Responsibility: RespProjectPreview,
+		Result:         "opaque preview handle",
+		DependsOn:      []StageID{VerifyNormalizedGeneration},
+	},
+	{
 		ID:             SealGeneration,
 		Responsibility: RespSeal,
 		Result:         "sealed generation receipt",
-		DependsOn:      []StageID{VerifyNormalizedGeneration},
+		DependsOn:      []StageID{PublishPreview},
 	},
 	{
 		ID:             PublishGeneration,

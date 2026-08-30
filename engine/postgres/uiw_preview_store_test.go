@@ -4,6 +4,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -124,17 +125,129 @@ func TestMigration0050RollbackOnlyOnPostgreSQL18(t *testing.T) {
 	if _, err := store.Snapshot(ctx, binding.Handle); !errors.Is(err, previewmodel.ErrNotReady) {
 		t.Fatalf("unpublished snapshot error = %v", err)
 	}
-	if err := store.RecordDecision(ctx, binding.Handle, false, "repair required", "actor-1", "selection-1", "options-1"); err != nil {
+	var sourceID, rawID, normalizedID string
+	err = tx.QueryRow(ctx, `SELECT source_version_id::text, raw_generation_id::text, id::text
+		FROM context.normalized_generation ORDER BY created_at LIMIT 1`).Scan(&sourceID, &rawID, &normalizedID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		if err := store.RecordDecision(ctx, binding.Handle, false, "repair required", "actor-1", "selection-1", "options-1"); !errors.Is(err, previewmodel.ErrNotReady) {
+			t.Fatalf("decision without projection error = %v, want ErrNotReady", err)
+		}
+		var decisions int
+		if err := tx.QueryRow(ctx, `SELECT count(*) FROM context.uiw_preview_decision WHERE preview_handle=$1`, binding.Handle).Scan(&decisions); err != nil || decisions != 0 {
+			t.Fatalf("rolled-back premature decisions = %d, %v", decisions, err)
+		}
+	} else if err != nil {
 		t.Fatal(err)
-	}
-	if err := store.RecordDecision(ctx, binding.Handle, false, "repair required", "actor-1", "selection-1", "options-1"); err != nil {
-		t.Fatal(err)
+	} else {
+		if _, err := tx.Exec(ctx, `INSERT INTO context.uiw_preview_snapshot
+			(preview_handle,snapshot_seq,phase,source_version_id,raw_generation_id,normalized_generation_id,
+			 parser_id,parser_version,parser_config_digest,preview_digest)
+			VALUES ($1,0,'awaiting_decision',$2,$3,$4,'sbv','1.2.3',decode(repeat('b',64),'hex'),decode(repeat('a',64),'hex'))`,
+			binding.Handle, sourceID, rawID, normalizedID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO context.uiw_preview_receipt
+			(preview_handle,snapshot_seq,receipt_type,receipt_ref,status,recorded_at)
+			SELECT $1,0,receipt_type,'receipt-'||receipt_type,'completed',now()
+			FROM unnest(ARRAY['custody','parser_selection','parser_execution','normalization','storage','completeness']) receipt_type`, binding.Handle); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO context.uiw_preview_participant
+			(preview_handle,snapshot_seq,participant_id,display_name,canonical_address)
+			VALUES ($1,0,'p-1','Person One','person@example.test')`, binding.Handle); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO context.uiw_preview_message
+			(preview_handle,snapshot_seq,message_id,ordinal,sender_participant_id,body,participant_ids,source_locator_ref)
+			VALUES ($1,0,'m-1',0,'p-1','body',ARRAY['p-1'],'locator-1')`, binding.Handle); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO context.uiw_preview_attachment
+			(preview_handle,snapshot_seq,message_id,attachment_id,filename,source_locator_ref)
+			VALUES ($1,0,'m-1','a-1','file.txt','attachment-locator')`, binding.Handle); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := store.RecordDecision(ctx, binding.Handle, false, "repair required", "actor-1", "selection-1", "options-1"); err != nil {
+			t.Fatal(err)
+		}
+		if err := store.RecordDecision(ctx, binding.Handle, false, "repair required", "actor-1", "selection-1", "options-1"); err != nil {
+			t.Fatal(err)
+		}
+		if err := store.RecordDecision(ctx, binding.Handle, true, "repair accepted", "actor-1", "selection-2", "options-2"); err != nil {
+			t.Fatal(err)
+		}
+
+		rows, err := tx.Query(ctx, `SELECT snapshot_seq, phase, reason FROM context.uiw_preview_snapshot
+			WHERE preview_handle=$1 ORDER BY snapshot_seq`, binding.Handle)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		var snapshots []struct {
+			seq    int64
+			phase  string
+			reason string
+		}
+		for rows.Next() {
+			var snapshot struct {
+				seq    int64
+				phase  string
+				reason string
+			}
+			if err := rows.Scan(&snapshot.seq, &snapshot.phase, &snapshot.reason); err != nil {
+				t.Fatal(err)
+			}
+			snapshots = append(snapshots, snapshot)
+		}
+		if err := rows.Err(); err != nil {
+			t.Fatal(err)
+		}
+		if len(snapshots) != 3 || snapshots[0].seq != 0 || snapshots[0].phase != "awaiting_decision" || snapshots[0].reason != "" || snapshots[1].seq != 1 || snapshots[1].phase != "rejected" || snapshots[2].seq != 2 || snapshots[2].phase != "approved" {
+			t.Fatalf("append-only decision snapshots = %+v", snapshots)
+		}
+		for _, table := range []string{"uiw_preview_receipt", "uiw_preview_participant", "uiw_preview_message", "uiw_preview_attachment"} {
+			var initial, rejected, approved int
+			query := fmt.Sprintf(`SELECT count(*) FILTER (WHERE snapshot_seq=0), count(*) FILTER (WHERE snapshot_seq=1), count(*) FILTER (WHERE snapshot_seq=2) FROM context.%s WHERE preview_handle=$1`, table)
+			if err := tx.QueryRow(ctx, query, binding.Handle).Scan(&initial, &rejected, &approved); err != nil {
+				t.Fatal(err)
+			}
+			if initial == 0 || rejected != initial || approved != initial {
+				t.Fatalf("%s child copies = initial %d rejected %d approved %d", table, initial, rejected, approved)
+			}
+		}
 	}
 	events, err := store.EventsAfter(ctx, binding.Handle, -1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(events) != 2 || events[0].EventID != 0 || events[1].EventID != 1 {
+	wantEvents := 1
+	if normalizedID != "" {
+		wantEvents = 3
+	}
+	if len(events) != wantEvents || events[0].EventID != 0 || events[len(events)-1].EventID != int64(wantEvents-1) {
 		t.Fatalf("idempotent event replay = %+v", events)
+	}
+}
+
+func TestRecordDecisionContainsNoSnapshotMutation(t *testing.T) {
+	body, err := os.ReadFile("uiw_preview_store.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := string(body)
+	if strings.Contains(source, "UPDATE context.uiw_preview_snapshot") {
+		t.Fatal("RecordDecision contains a forbidden snapshot UPDATE")
+	}
+	for _, table := range []string{
+		"INSERT INTO context.uiw_preview_snapshot",
+		"INSERT INTO context.uiw_preview_receipt",
+		"INSERT INTO context.uiw_preview_participant",
+		"INSERT INTO context.uiw_preview_message",
+		"INSERT INTO context.uiw_preview_attachment",
+	} {
+		if !strings.Contains(source, table) {
+			t.Fatalf("append-only decision path is missing %q", table)
+		}
 	}
 }

@@ -36,6 +36,7 @@ from app.runtime import (
     run_events,
     runs,
     sentiment,
+    source_inspection,
     tools,
     upload,
     uiw,
@@ -110,6 +111,7 @@ app.add_middleware(BaseHTTPMiddleware, dispatch=authentication_middleware)
 app.include_router(health.router)
 app.include_router(upload.router)
 app.include_router(uiw.router)
+app.include_router(source_inspection.router)
 app.include_router(files.router)
 app.include_router(promote.router)
 app.include_router(documents.router)

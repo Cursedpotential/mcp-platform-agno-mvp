@@ -147,6 +147,7 @@ func (s *RepairActivityStore) persistAssessment(ctx context.Context, spec activi
 			return activities.RepairPersistenceResult{}, err
 		}
 		rollback = false
+		prior.ReviewRequired = spec.ReviewRequired
 		return prior, nil
 	}
 	assessmentID, receiptID := uuid.New(), uuid.New()
@@ -162,7 +163,20 @@ func (s *RepairActivityStore) persistAssessment(ctx context.Context, spec activi
 		return activities.RepairPersistenceResult{}, err
 	}
 	rollback = false
-	return activities.RepairPersistenceResult{ResultRef: uiw.Ref(assessmentID.String()), ReceiptRef: uiw.Ref(receiptID.String())}, nil
+	return activities.RepairPersistenceResult{ResultRef: uiw.Ref(assessmentID.String()), ReceiptRef: uiw.Ref(receiptID.String()), ReviewRequired: spec.ReviewRequired}, nil
+}
+
+func (s *RepairActivityStore) PersistAutomaticRepairResolution(ctx context.Context, spec activities.RepairResolutionSpec) (activities.RepairPersistenceResult, error) {
+	decisionRef, err := s.PersistRepairDecision(ctx, uiw.RepairDecisionSpec{
+		SourceVersionRef: spec.SourceVersionRef, AssessmentRef: spec.AssessmentRef,
+		ActorRef: "uiw:auto-clean", Approved: true,
+		IdempotencyKey: "uiw:auto-clean:" + string(spec.AssessmentRef),
+	})
+	if err != nil {
+		return activities.RepairPersistenceResult{}, err
+	}
+	spec.DecisionRef, spec.ActorRef, spec.Applied = decisionRef, "uiw:auto-clean", false
+	return s.PersistRepairResolution(ctx, spec)
 }
 
 func repairPrior(ctx context.Context, tx pgx.Tx, executionID uuid.UUID) (activities.RepairPersistenceResult, bool, error) {

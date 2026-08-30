@@ -14,6 +14,8 @@ type StageID string
 const (
 	RegisterSource                 StageID = "register_source_activity"
 	RetainOriginal                 StageID = "retain_original_activity"
+	AssessSourceRepair             StageID = "assess_source_repair_activity"
+	ResolveSourceRepair            StageID = "resolve_source_repair_activity"
 	CaptureFilesystemMetadata      StageID = "capture_filesystem_metadata_activity"
 	FingerprintSource              StageID = "fingerprint_source_activity"
 	InventoryContainer             StageID = "inventory_container_activity"
@@ -33,6 +35,7 @@ const (
 	HashNormalizedRecords          StageID = "hash_normalized_records_activity"
 	HashNormalizedGeneration       StageID = "hash_normalized_generation_activity"
 	VerifyNormalizedGeneration     StageID = "verify_normalized_generation_activity"
+	PublishPreview                 StageID = "publish_preview_activity"
 	SealGeneration                 StageID = "seal_generation_activity"
 	PublishGeneration              StageID = "publish_generation_activity"
 )
@@ -58,6 +61,9 @@ const (
 	RespValidate
 	RespSeal
 	RespPublish
+	RespAssessRepair
+	RespResolveRepair
+	RespProjectPreview
 )
 
 // Descriptor is the static, dependency-free description of one stage: its

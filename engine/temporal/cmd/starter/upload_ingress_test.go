@@ -20,7 +20,8 @@ type uploadTestStarter struct{}
 func (uploadTestStarter) Start(context.Context, uiw.WorkflowInput) (string, string, error) {
 	return "workflow", "run", nil
 }
-func (uploadTestStarter) Decide(context.Context, string, uiw.PreviewDecision) error { return nil }
+func (uploadTestStarter) Decide(context.Context, string, uiw.PreviewDecision) error      { return nil }
+func (uploadTestStarter) DecideRepair(context.Context, string, uiw.RepairDecision) error { return nil }
 func (uploadTestStarter) Preview(context.Context, string) (uiw.PreviewState, error) {
 	return uiw.PreviewState{Phase: uiw.PhaseAwaitingDecision}, nil
 }

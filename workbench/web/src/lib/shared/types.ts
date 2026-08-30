@@ -391,6 +391,65 @@ export interface ToolServerGroup {
   error?: string;
 }
 
+// Monitored actions
+// ---------------------------------------------------------------------------
+
+export type MonitoredActionStatus =
+  | "accepted"
+  | "scheduled"
+  | "running"
+  | "waiting"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
+export interface MonitoredActionCapability {
+  available: boolean;
+  reason?: string;
+  supports_cancel?: boolean;
+  supports_live_status?: boolean;
+}
+
+export interface MonitoredActionWait {
+  kind: string;
+  detail?: string;
+  since?: string;
+}
+
+export interface MonitoredActionReceipt {
+  label?: string;
+  ref: string;
+}
+
+export interface MonitoredActionRun {
+  action_id: string;
+  workflow_id: string;
+  run_id: string;
+  status: MonitoredActionStatus;
+  retry_count?: number;
+  waits?: MonitoredActionWait[];
+  receipts?: MonitoredActionReceipt[];
+  output?: unknown;
+  output_ref?: string;
+  error?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface StartAtomicToolActionRequest {
+  kind: "atomic_tool";
+  intent: string;
+  matter_id: string;
+  court_case_id: string;
+  horizon: "as_lived" | "hindsight" | "paired";
+  authority_scope: "read_only" | "derived_output" | "governed_write";
+  tool: {
+    server: string;
+    name: string;
+    arguments: Record<string, unknown>;
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Records (C3 — parse-quality review + curation, requirements addenda 1, 3)
 // mirrors console/c3-spine's GET /v1/records, a parallel branch this
@@ -924,6 +983,52 @@ export interface UIWSourceBrowserResponse {
   objects: UIWSourceObject[];
 }
 
+export interface UIWSourceInspection {
+  source: "casebible-sorted";
+  key: string;
+  source_ref: string;
+  name: string;
+  byte_length: number;
+  etag: string;
+  last_modified?: string | null;
+  content_type: string;
+  sha256: string;
+  digest_status: "preview_only";
+  preview_kind: "pdf" | "text" | "image" | "unsupported";
+  preview_text: string;
+  preview_url?: string | null;
+  parser_preflight: {
+    declared_format: string;
+    route_label: string;
+    basis: "filename_extension";
+    authoritative: false;
+  };
+}
+
+export interface UIWHumanSourceAssertions {
+  source_class: "first_party" | "acquired_third_party" | "unknown";
+  source_principal: string;
+  other_party: string;
+  acquired_at: string | null;
+  acquisition_method: "" | "own_device" | "household_device" | "voluntary_third_party" | "legal_process" | "public_source" | "unknown";
+  acquisition_authority: "" | "device_owner" | "parent_guardian" | "account_holder" | "consent_given" | "court_order" | "unclear";
+  source_device: string;
+  device_custodian: string;
+  occurred_start: string;
+  occurred_end: string;
+  date_certainty: "" | "exact" | "approximate" | "range" | "unknown";
+  context: string;
+  notes: string;
+}
+
+export interface UIWSourceContextReceipt {
+  source_context_ref: string;
+  receipt_ref: string;
+  content_digest: string;
+  revision: number;
+  recorded_at: string;
+}
+
 export interface UIWStartRequest {
   request_id: string;
   source_ref: string;
@@ -931,6 +1036,7 @@ export interface UIWStartRequest {
   parser_options_ref: string;
   matter_id: string;
   court_case_id: string;
+  source_context_ref?: string | null;
 }
 
 export interface UIWStartResponse {
@@ -943,6 +1049,25 @@ export interface UIWPreviewReceipt {
   status: "pending" | "running" | "completed" | "failed" | "skipped";
   digest?: string | null;
   recorded_at: string;
+}
+
+export interface UIWRepairAssessmentView {
+  assessment_ref: string;
+  source_version_ref: string;
+  review_required: boolean;
+}
+
+export interface UIWRepairDecisionRequest {
+  approved: boolean;
+  apply_repair: boolean;
+  tool_id?: string;
+  tool_payload?: Record<string, unknown>;
+}
+
+export interface UIWRepairDecisionResponse {
+  preview_handle: string;
+  decision_ref: string;
+  status: string;
 }
 
 export interface UIWPreviewResponse {
@@ -962,6 +1087,7 @@ export interface UIWPreviewResponse {
   preview_digest: string;
   receipts: UIWPreviewReceipt[];
   reason?: string;
+  repair_assessment?: UIWRepairAssessmentView | null;
 }
 
 export interface UIWPreviewParticipant {

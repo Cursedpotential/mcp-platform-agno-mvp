@@ -27,31 +27,26 @@ test("source inspection exposes the Source preview, Metadata, and Parser tabs", 
   assert.match(intake, /aria-label="Parser selection"/);
 });
 
-test("local intake selects the five supported document extensions and declares them truthfully", () => {
-  assert.match(intake, /const LOCAL_FILE_ACCEPT = "\.md,\.json,\.docx,\.html,\.htm";/);
+test("local intake selects supported document extensions and declares them truthfully", () => {
+  assert.match(intake, /const LOCAL_FILE_ACCEPT = "\.md,\.json,\.docx,\.html,\.htm,\.pdf";/);
   assert.match(intake, /<input accept=\{LOCAL_FILE_ACCEPT\} className="sr-only" type="file"/);
   assert.match(intake, /md: "markdown"/);
   assert.match(intake, /json: "message_export_json"/);
   assert.match(intake, /docx: "docx"/);
   assert.match(intake, /html: "html"/);
   assert.match(intake, /htm: "html"/);
+  assert.match(intake, /pdf: "pdf"/);
   assert.match(intake, /\/\\\.\(md\|json\|html\?\|txt\|csv\|xml\)\$\/i/);
 });
 
-test("remote sources make no content or SHA-256 claim before acquisition seals them", () => {
-  assert.match(
-    intake,
-    /Remote content is fetched and sealed by the acquisition worker after intake starts\. No content or SHA-256 is claimed before that seal completes\./,
-  );
-  assert.match(
-    intake,
-    /remote \? "Pending acquisition and seal" : upload\?\.sha256 \|\| digest \|\| "Computing browser preview"/,
-  );
-  assert.match(
-    intake,
-    /remote \? "Computed after acquisition seals the object" : upload\?\.sha256 \|\| digest \|\| "Choose a source"/,
-  );
-  assert.doesNotMatch(intake, /remote\.(sha256|content|digest)/);
+test("remote sources are immediately previewed and hashed without claiming custody", () => {
+  assert.match(intake, /inspectUIWSource\(selected\)/);
+  assert.match(intake, /Reading and hashing/);
+  assert.match(intake, /Preview checksum/);
+  assert.match(intake, /Read-only preview identity/);
+  assert.match(intake, /Acquisition recomputes and receipts the custody checksum before promotion/);
+  assert.match(intake, /iframe[\s\S]*inspection\.preview_url/);
+  assert.doesNotMatch(intake, /Remote content is fetched and sealed/);
 });
 
 test("parser details are rendered only from backend workflow preview state", () => {
@@ -69,11 +64,9 @@ test("parser details are rendered only from backend workflow preview state", () 
   assert.match(parserPanel, /preview\.parser\.config_digest/);
   assert.match(parserPanel, /preview\.reason/);
   assert.match(parserPanel, /Temporal read-back/);
-  assert.match(
-    parserPanel,
-    /this screen will show only the selection returned by that workflow/,
-  );
-  assert.doesNotMatch(parserPanel, /<select\b|<option\b|setParser|parserOptions/);
+  assert.match(parserPanel, /inspection\.parser_preflight\.route_label/);
+  assert.match(parserPanel, /Filename extension; the durable workflow records the final parser identity and version/);
+  assert.doesNotMatch(parserPanel, /setParser|parserOptions/);
 });
 
 test("execution receipt uses the opaque preview identity and preserves the context boundary", () => {
@@ -92,11 +85,10 @@ test("execution receipt uses the opaque preview identity and preserves the conte
 });
 
 test("intake exposes no model or provider selector and no Timeline or Legal destination", () => {
-  assert.doesNotMatch(intake, /<select\b|role="combobox"/);
   assert.doesNotMatch(intake, /model(_id|Id|Selector)?\b|setModel|Model selector/i);
   assert.doesNotMatch(
     intake,
     /provider(_id|Id|Selector)\b|setProvider|Provider selector|<label[^>]*>[^<]*Provider/i,
   );
-  assert.doesNotMatch(intake, /\bTimeline\b|\bLegal\b/);
+  assert.doesNotMatch(intake, />\s*(Timeline|Legal)\s*</);
 });

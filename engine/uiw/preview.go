@@ -11,6 +11,8 @@ import "time"
 // state.
 const PreviewDecisionSignalName = "preview_decision"
 
+const RepairDecisionSignalName = "repair_decision"
+
 // PreviewQueryName is the Query a caller uses to read the current hold state
 // (see PreviewState) while UniversalImportWorkflow is waiting on
 // PreviewDecisionSignalName. Queries, like Signals, are served from the
@@ -30,10 +32,12 @@ const previewDecisionTimeout = 24 * time.Hour
 type PreviewPhase string
 
 const (
-	PhaseAwaitingDecision PreviewPhase = "awaiting_decision"
-	PhaseApproved         PreviewPhase = "approved"
-	PhaseRejected         PreviewPhase = "rejected"
-	PhaseTimedOut         PreviewPhase = "timed_out"
+	PhaseAwaitingDecision       PreviewPhase = "awaiting_decision"
+	PhaseAwaitingRepairDecision PreviewPhase = "awaiting_repair_decision"
+	PhaseRepairApproved         PreviewPhase = "repair_approved"
+	PhaseApproved               PreviewPhase = "approved"
+	PhaseRejected               PreviewPhase = "rejected"
+	PhaseTimedOut               PreviewPhase = "timed_out"
 )
 
 // PreviewDecision is the human operator's approve/reject input, sent as
@@ -46,11 +50,40 @@ type PreviewDecision struct {
 	RepairedParserOptionsRef Ref    `json:"repaired_parser_options_ref,omitempty"`
 }
 
+// RepairDecision contains only the durable decision reference. The HTTP
+// surface persists the authenticated actor-bound decision before signaling.
+type RepairDecision struct {
+	DecisionRef Ref `json:"decision_ref"`
+}
+
+type RepairDecisionSpec struct {
+	SourceVersionRef Ref            `json:"source_version_ref"`
+	AssessmentRef    Ref            `json:"assessment_ref"`
+	ActorRef         Ref            `json:"actor_ref"`
+	Approved         bool           `json:"approved"`
+	ApplyRepair      bool           `json:"apply_repair"`
+	ToolID           string         `json:"tool_id,omitempty"`
+	ToolPayload      map[string]any `json:"tool_payload,omitempty"`
+	IdempotencyKey   string         `json:"idempotency_key"`
+}
+
 // PreviewState is PreviewQueryName's response: what select_parser_activity
 // produced (SelectRef) and where the hold currently stands.
 type PreviewState struct {
-	Phase            PreviewPhase `json:"phase"`
-	SelectRef        Ref          `json:"select_ref"`
-	ParserOptionsRef Ref          `json:"parser_options_ref,omitempty"`
-	Reason           string       `json:"reason,omitempty"`
+	Phase               PreviewPhase          `json:"phase"`
+	PreviewHandle       Ref                   `json:"preview_handle,omitempty"`
+	SourceVersionRef    Ref                   `json:"source_version_ref,omitempty"`
+	RepairAssessmentRef Ref                   `json:"repair_assessment_ref,omitempty"`
+	SelectRef           Ref                   `json:"select_ref"`
+	ParserOptionsRef    Ref                   `json:"parser_options_ref,omitempty"`
+	Reason              string                `json:"reason,omitempty"`
+	RepairAssessment    *RepairAssessmentView `json:"repair_assessment,omitempty"`
+}
+
+// RepairAssessmentView is the reference-only human-gate projection. Detailed
+// detector output remains in PostgreSQL and never enters Temporal history.
+type RepairAssessmentView struct {
+	AssessmentRef    Ref  `json:"assessment_ref"`
+	SourceVersionRef Ref  `json:"source_version_ref"`
+	ReviewRequired   bool `json:"review_required"`
 }

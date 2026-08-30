@@ -11,12 +11,16 @@ import (
 type repairClientStub struct {
 	calls    []string
 	payloads []map[string]any
+	result   json.RawMessage
 }
 
 func (c *repairClientStub) Run(_ context.Context, id string, payload map[string]any) (json.RawMessage, error) {
 	c.calls = append(c.calls, id)
 	c.payloads = append(c.payloads, payload)
-	return json.RawMessage(`{"ok":true}`), nil
+	if c.result != nil {
+		return c.result, nil
+	}
+	return json.RawMessage(`{"needs_repair":false}`), nil
 }
 
 type repairStoreStub struct {
@@ -36,6 +40,9 @@ func (s *repairStoreStub) LoadApprovedRepairDecision(context.Context, uiw.Ref, u
 func (s *repairStoreStub) PersistRepairResolution(context.Context, RepairResolutionSpec) (RepairPersistenceResult, error) {
 	return s.resolution, nil
 }
+func (s *repairStoreStub) PersistAutomaticRepairResolution(context.Context, RepairResolutionSpec) (RepairPersistenceResult, error) {
+	return s.resolution, nil
+}
 
 func repairRequest(refs map[string]uiw.Ref) uiw.StageRequest {
 	return uiw.StageRequest{RequestID: "req", SourceVersionRef: "source", DeclaredFormat: "pdf", Refs: refs}
@@ -43,7 +50,7 @@ func repairRequest(refs map[string]uiw.Ref) uiw.StageRequest {
 
 func TestAssessSourceRepairCallsExistingCapabilitiesAndReturnsOnlyRefs(t *testing.T) {
 	client := &repairClientStub{}
-	store := &repairStoreStub{assessment: RepairPersistenceResult{ResultRef: "assessment", ReceiptRef: "receipt"}}
+	store := &repairStoreStub{assessment: RepairPersistenceResult{ResultRef: "assessment", ReceiptRef: "receipt", ReviewRequired: false}}
 	result, err := (RepairActivities{Client: client, Store: store}).AssessSourceRepair(t.Context(), repairRequest(map[string]uiw.Ref{"original": "original"}))
 	if err != nil {
 		t.Fatal(err)
@@ -52,6 +59,34 @@ func TestAssessSourceRepairCallsExistingCapabilitiesAndReturnsOnlyRefs(t *testin
 		t.Fatalf("calls=%v", client.calls)
 	}
 	if result.Ref != "assessment" || result.ReceiptRef != "receipt" {
+		t.Fatalf("result=%+v", result)
+	}
+	if result.Status != uiw.StatusNotApplicable {
+		t.Fatalf("clean assessment status=%q", result.Status)
+	}
+}
+
+func TestAssessSourceRepairRequiresReviewWhenDetectorFlagsRepair(t *testing.T) {
+	client := &repairClientStub{result: json.RawMessage(`{"needs_repair":true}`)}
+	store := &repairStoreStub{assessment: RepairPersistenceResult{ResultRef: "assessment", ReceiptRef: "receipt", ReviewRequired: true}}
+	result, err := (RepairActivities{Client: client, Store: store}).AssessSourceRepair(t.Context(), repairRequest(map[string]uiw.Ref{"original": "original"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != uiw.StatusSuccess {
+		t.Fatalf("review assessment status=%q", result.Status)
+	}
+}
+
+func TestResolveSourceRepairAutomaticallyPersistsCleanResolution(t *testing.T) {
+	store := &repairStoreStub{resolution: RepairPersistenceResult{ResultRef: "original-resolution", ReceiptRef: "receipt"}}
+	result, err := (RepairActivities{Client: &repairClientStub{}, Store: store}).ResolveSourceRepair(t.Context(), repairRequest(map[string]uiw.Ref{
+		"original": "original", "repair_assessment": "assessment", "auto_clean_assessment": "assessment",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Ref != "original-resolution" || result.ReceiptRef != "receipt" {
 		t.Fatalf("result=%+v", result)
 	}
 }

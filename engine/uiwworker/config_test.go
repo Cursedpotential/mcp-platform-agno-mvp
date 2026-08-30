@@ -19,6 +19,7 @@ func setWorkerEnvironment(t *testing.T) {
 		"PARSER_BUNDLE_DIR":                filepath.Join(root, "parser"),
 		"NORMALIZED_BUNDLE_DIR":            filepath.Join(root, "normalized"),
 		"INVENTORY_MANIFEST_DIR":           filepath.Join(root, "inventory"),
+		"PLATFORM_TOOLS_BASE_URL":          "https://platform-tools.example.test",
 		"N8N_UNIVERSAL_IMPORT_BASE_URL":    "https://n8n.example.test/webhook/",
 		"N8N_UNIVERSAL_IMPORT_AUTH_HEADER": "Authorization",
 		"N8N_UNIVERSAL_IMPORT_AUTH_VALUE":  "Bearer secret-value",

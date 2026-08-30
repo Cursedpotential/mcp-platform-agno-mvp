@@ -23,8 +23,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Registrations contains the seven bounded Activity groups that collectively
-// implement all 23 UIW stages. Filesystem and embedded observation bodies are
+// Registrations contains the bounded Activity groups that collectively
+// implement all 26 UIW stages. Filesystem and embedded observation bodies are
 // separate values so extractor provenance cannot cross activity boundaries.
 type Registrations struct {
 	Lifecycle             activities.SourceLifecycleActivities
@@ -35,6 +35,8 @@ type Registrations struct {
 	Hash                  activities.HashActivities
 	Raw                   activities.RawPipelineActivities
 	Normalized            activities.NormalizedPipelineActivities
+	Repair                activities.RepairActivities
+	Preview               activities.PreviewProjectionActivity
 }
 
 // RegisterAll installs the one workflow plus every exact stagegraph name on
@@ -53,6 +55,8 @@ func RegisterAll(registrar interface {
 	registrar.RegisterActivityWithOptions(registrations.N8N.ExecuteParser, activity.RegisterOptions{Name: string(stagegraph.ExecuteParser)})
 	activities.RegisterRawPipelineActivities(registrar, registrations.Raw)
 	activities.RegisterNormalizedPipelineActivities(registrar, registrations.Normalized)
+	activities.RegisterRepairActivities(registrar, registrations.Repair)
+	activities.RegisterPreviewProjectionActivity(registrar, registrations.Preview)
 }
 
 // Run constructs concrete production adapters, verifies PostgreSQL and shared
@@ -153,6 +157,18 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config) (Registrations, error) {
 	if err != nil {
 		return Registrations{}, err
 	}
+	repairStore, err := platformpostgres.NewRepairActivityStore(pool, []string{cfg.SourceObjectDir, cfg.ParserBundleDir, cfg.NormalizedBundleDir})
+	if err != nil {
+		return Registrations{}, err
+	}
+	toolsClient, err := runtimeapi.NewPlatformToolsClient(cfg.PlatformToolsBaseURL)
+	if err != nil {
+		return Registrations{}, err
+	}
+	previewStore, err := platformpostgres.NewUIWPreviewStore(pool, nil)
+	if err != nil {
+		return Registrations{}, err
+	}
 	n8nClient, err := platformtemporal.NewN8NClient(cfg.temporalConfig())
 	if err != nil {
 		return Registrations{}, err
@@ -166,6 +182,8 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config) (Registrations, error) {
 		Hash:                  activities.NewHashActivities(hashRepo),
 		Raw:                   activities.NewRawPipelineActivities(rawRepo),
 		Normalized:            activities.NewNormalizedPipelineActivities(normalizedRepo, normalize.GenericMessageNormalizer{}),
+		Repair:                activities.NewRepairActivities(toolsClient, repairStore),
+		Preview:               activities.PreviewProjectionActivity{Store: previewStore},
 	}, nil
 }
 
@@ -199,7 +217,7 @@ func stringsTrim(value string) string {
 }
 
 // ProbeSchema is the startup admission gate. It verifies the fresh platform
-// database, active migration ledger, all 20 context tables, runtime role
+// database, active migration ledger, all required context tables, runtime role
 // membership, and absence of elevated role attributes before the queue is
 // polled.
 func ProbeSchema(ctx context.Context, pool *pgxpool.Pool) error {
@@ -208,11 +226,11 @@ func ProbeSchema(ctx context.Context, pool *pgxpool.Pool) error {
 	var roleSafe bool
 	err := pool.QueryRow(ctx, `
 		SELECT current_database(), current_user,
-		       (SELECT count(*) FROM public.schema_version WHERE migration_id = '0036' AND status = 'active'),
+		       (SELECT count(*) FROM public.schema_version WHERE migration_id = ANY($2::text[]) AND status = 'active'),
 		       (SELECT count(*) FROM information_schema.tables WHERE table_schema = 'context' AND table_name = ANY($1::text[])),
 		       COALESCE((SELECT rolcanlogin AND NOT (rolsuper OR rolcreatedb OR rolcreaterole OR rolreplication OR rolbypassrls)
 		                 AND pg_has_role('platform_runtime', 'context_import_writer', 'MEMBER')
-		                 FROM pg_roles WHERE rolname = 'platform_runtime'), false)`, requiredContextTables).Scan(
+		                 FROM pg_roles WHERE rolname = 'platform_runtime'), false)`, requiredContextTables, requiredMigrations).Scan(
 		&database, &currentUser, &ledgerCount, &relationCount, &roleSafe,
 	)
 	if err != nil {
@@ -224,7 +242,7 @@ func ProbeSchema(ctx context.Context, pool *pgxpool.Pool) error {
 	if currentUser != "platform_runtime" {
 		return fmt.Errorf("uiw worker: refusing database role %q; platform_runtime is required", currentUser)
 	}
-	if ledgerCount != 1 || relationCount != len(requiredContextTables) || !roleSafe {
+	if ledgerCount != len(requiredMigrations) || relationCount != len(requiredContextTables) || !roleSafe {
 		return fmt.Errorf("uiw worker: platform schema admission failed: ledger=%d context_tables=%d/%d runtime_role_safe=%t", ledgerCount, relationCount, len(requiredContextTables), roleSafe)
 	}
 	return nil
@@ -236,4 +254,9 @@ var requiredContextTables = []string{
 	"normalized_generation", "normalized_generation_publication", "normalized_record_identity",
 	"raw_format_registry", "raw_generation", "raw_record_identity", "reconciliation_receipt",
 	"retained_object", "source", "source_metadata", "source_version", "source_version_object",
+	"uiw_preview_binding", "uiw_preview_snapshot", "uiw_preview_receipt", "uiw_preview_participant",
+	"uiw_preview_message", "uiw_preview_attachment", "uiw_preview_event", "uiw_preview_decision",
+	"repair_assessment", "repair_decision", "repair_resolution",
 }
+
+var requiredMigrations = []string{"0036", "0050", "0051"}

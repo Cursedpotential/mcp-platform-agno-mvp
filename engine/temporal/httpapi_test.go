@@ -37,6 +37,7 @@ func (f *fakeStarter) Decide(_ context.Context, workflowID string, decision uiw.
 	f.decideArg = decision
 	return f.decideErr
 }
+func (f *fakeStarter) DecideRepair(context.Context, string, uiw.RepairDecision) error { return nil }
 
 func (f *fakeStarter) Preview(_ context.Context, workflowID string) (uiw.PreviewState, error) {
 	f.previewID = workflowID

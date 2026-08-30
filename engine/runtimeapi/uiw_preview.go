@@ -2,6 +2,7 @@
 package runtimeapi
 
 import (
+	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/rand"
@@ -14,15 +15,20 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 
 	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/runtimeapi/previewmodel"
+	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/sourcecontext"
 	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
 )
 
@@ -63,11 +69,16 @@ type PreviewPage = previewmodel.Page
 type PreviewStore = previewmodel.Store
 
 type memoryPreview struct {
-	binding      PreviewBinding
-	snapshot     *PreviewSnapshot
+	binding     PreviewBinding
+	projections []memoryPreviewProjection
+	decisions   map[[sha256.Size]byte]struct{}
+	events      []PreviewEvent
+}
+
+type memoryPreviewProjection struct {
+	snapshot     PreviewSnapshot
 	participants []PreviewParticipant
 	messages     []PreviewMessage
-	events       []PreviewEvent
 }
 
 type MemoryPreviewStore struct {
@@ -94,6 +105,14 @@ func (s *MemoryPreviewStore) PersistRepairDecision(_ context.Context, spec uiw.R
 func (s *MemoryPreviewStore) Create(_ context.Context, binding PreviewBinding) (PreviewBinding, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	for _, entry := range s.entries {
+		if entry.binding.RequestID == binding.RequestID {
+			if entry.binding.WorkflowID == binding.WorkflowID && entry.binding.RunID == binding.RunID {
+				return entry.binding, nil
+			}
+			return PreviewBinding{}, errors.New("preview request is already bound to another workflow execution")
+		}
+	}
 	for attempts := 0; attempts < 4; attempts++ {
 		raw := make([]byte, 24)
 		if _, err := io.ReadFull(s.entropy, raw); err != nil {
@@ -103,7 +122,7 @@ func (s *MemoryPreviewStore) Create(_ context.Context, binding PreviewBinding) (
 		if _, exists := s.entries[binding.Handle]; exists {
 			continue
 		}
-		s.entries[binding.Handle] = &memoryPreview{binding: binding, events: []PreviewEvent{{
+		s.entries[binding.Handle] = &memoryPreview{binding: binding, decisions: make(map[[sha256.Size]byte]struct{}), events: []PreviewEvent{{
 			EventID: 0, EventType: "phase_changed", OccurredAt: time.Unix(0, 0).UTC(),
 			PreviewHandle: binding.Handle, Phase: "starting",
 		}}}
@@ -129,10 +148,10 @@ func (s *MemoryPreviewStore) Snapshot(_ context.Context, handle string) (Preview
 	if entry == nil {
 		return PreviewSnapshot{}, ErrPreviewNotFound
 	}
-	if entry.snapshot == nil {
+	if len(entry.projections) == 0 {
 		return PreviewSnapshot{}, ErrPreviewNotReady
 	}
-	return *entry.snapshot, nil
+	return clonePreviewSnapshot(entry.projections[len(entry.projections)-1].snapshot), nil
 }
 
 func (s *MemoryPreviewStore) Page(_ context.Context, handle string, offset, limit int) (PreviewPage, error) {
@@ -142,21 +161,22 @@ func (s *MemoryPreviewStore) Page(_ context.Context, handle string, offset, limi
 	if entry == nil {
 		return PreviewPage{}, ErrPreviewNotFound
 	}
-	if entry.snapshot == nil {
+	if len(entry.projections) == 0 {
 		return PreviewPage{}, ErrPreviewNotReady
 	}
-	if offset < 0 || offset > len(entry.messages) {
+	projection := entry.projections[len(entry.projections)-1]
+	if offset < 0 || offset > len(projection.messages) {
 		return PreviewPage{}, ErrPreviewEventGap
 	}
 	end := offset + limit
-	if end > len(entry.messages) {
-		end = len(entry.messages)
+	if end > len(projection.messages) {
+		end = len(projection.messages)
 	}
 	page := PreviewPage{
-		Participants: append([]PreviewParticipant(nil), entry.participants...),
-		Messages:     append([]PreviewMessage(nil), entry.messages[offset:end]...),
+		Participants: clonePreviewParticipants(projection.participants),
+		Messages:     clonePreviewMessages(projection.messages[offset:end]),
 	}
-	if end < len(entry.messages) {
+	if end < len(projection.messages) {
 		page.NextOffset = &end
 	}
 	return page, nil
@@ -187,11 +207,21 @@ func (s *MemoryPreviewStore) EventsAfter(_ context.Context, handle string, after
 }
 
 func (s *MemoryPreviewStore) RecordDecision(_ context.Context, handle string, approved bool, reason, actor string, selection, options uiw.Ref) error {
+	if strings.TrimSpace(actor) == "" || strings.TrimSpace(string(selection)) == "" || strings.TrimSpace(string(options)) == "" {
+		return errors.New("memory preview decision requires actor, selection, and options refs")
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	entry := s.entries[handle]
 	if entry == nil {
 		return ErrPreviewNotFound
+	}
+	if len(entry.projections) == 0 {
+		return ErrPreviewNotReady
+	}
+	key := memoryDecisionKey(handle, approved, reason, actor, selection, options)
+	if _, exists := entry.decisions[key]; exists {
+		return nil
 	}
 	entry.binding.SelectionRef = selection
 	entry.binding.ParserOptionsRef = options
@@ -199,6 +229,15 @@ func (s *MemoryPreviewStore) RecordDecision(_ context.Context, handle string, ap
 	if approved {
 		status = "approved"
 	}
+	current := entry.projections[len(entry.projections)-1]
+	successor := memoryPreviewProjection{
+		snapshot:     clonePreviewSnapshot(current.snapshot),
+		participants: clonePreviewParticipants(current.participants),
+		messages:     clonePreviewMessages(current.messages),
+	}
+	successor.snapshot.Phase, successor.snapshot.Reason = status, strings.TrimSpace(reason)
+	entry.projections = append(entry.projections, successor)
+	entry.decisions[key] = struct{}{}
 	entry.events = append(entry.events, PreviewEvent{
 		EventID: int64(len(entry.events)), EventType: "decision_recorded", OccurredAt: time.Now().UTC(),
 		PreviewHandle: handle, Phase: status, Detail: strings.TrimSpace(actor + ": " + reason),
@@ -222,19 +261,94 @@ func (s *MemoryPreviewStore) PutProjection(handle string, snapshot PreviewSnapsh
 		return errors.New("preview projection request correlation does not match its server binding")
 	}
 	sort.SliceStable(messages, func(i, j int) bool { return messages[i].Ordinal < messages[j].Ordinal })
-	entry.binding.SourceVersionID = snapshot.Correlation.SourceVersionID
-	entry.binding.RawGenerationID = snapshot.Correlation.RawGenerationID
-	entry.binding.NormalizedGenerationID = snapshot.Correlation.NormalizedGenerationID
-	entry.snapshot = &snapshot
-	entry.participants = append([]PreviewParticipant(nil), participants...)
-	entry.messages = append([]PreviewMessage(nil), messages...)
+	if len(entry.projections) > 0 {
+		current := entry.projections[len(entry.projections)-1].snapshot
+		if current.Correlation.NormalizedGenerationID == snapshot.Correlation.NormalizedGenerationID {
+			if current.PreviewDigest == snapshot.PreviewDigest {
+				return nil
+			}
+			return errors.New("preview projection retry changed digest for the same normalized generation")
+		}
+	}
 	for _, event := range events {
 		if event.PreviewHandle != handle || event.EventID != int64(len(entry.events)) {
 			return errors.New("preview events must be contiguous and handle-bound")
 		}
+	}
+	entry.binding.SourceVersionID = snapshot.Correlation.SourceVersionID
+	entry.binding.RawGenerationID = snapshot.Correlation.RawGenerationID
+	entry.binding.NormalizedGenerationID = snapshot.Correlation.NormalizedGenerationID
+	entry.projections = append(entry.projections, memoryPreviewProjection{
+		snapshot:     clonePreviewSnapshot(snapshot),
+		participants: clonePreviewParticipants(participants),
+		messages:     clonePreviewMessages(messages),
+	})
+	for _, event := range events {
 		entry.events = append(entry.events, event)
 	}
 	return nil
+}
+
+func memoryDecisionKey(handle string, approved bool, reason, actor string, selection, options uiw.Ref) [sha256.Size]byte {
+	return sha256.Sum256([]byte(fmt.Sprintf("%s\x00%t\x00%s\x00%s\x00%s\x00%s", handle, approved, reason, actor, selection, options)))
+}
+
+func clonePreviewSnapshot(snapshot PreviewSnapshot) PreviewSnapshot {
+	clone := snapshot
+	clone.Receipts = append([]PreviewReceipt(nil), snapshot.Receipts...)
+	if snapshot.Parser != nil {
+		parser := *snapshot.Parser
+		clone.Parser = &parser
+	}
+	return clone
+}
+
+func clonePreviewParticipants(participants []PreviewParticipant) []PreviewParticipant {
+	clone := append([]PreviewParticipant(nil), participants...)
+	for index := range clone {
+		if clone[index].CanonicalAddress != nil {
+			value := *clone[index].CanonicalAddress
+			clone[index].CanonicalAddress = &value
+		}
+	}
+	return clone
+}
+
+func clonePreviewMessages(messages []PreviewMessage) []PreviewMessage {
+	clone := append([]PreviewMessage(nil), messages...)
+	for index := range clone {
+		clone[index].ParticipantIDs = append([]string(nil), messages[index].ParticipantIDs...)
+		clone[index].Attachments = append([]PreviewAttachment(nil), messages[index].Attachments...)
+		for attachmentIndex := range clone[index].Attachments {
+			attachment := &clone[index].Attachments[attachmentIndex]
+			original := messages[index].Attachments[attachmentIndex]
+			if original.Filename != nil {
+				value := *original.Filename
+				attachment.Filename = &value
+			}
+			if original.MediaType != nil {
+				value := *original.MediaType
+				attachment.MediaType = &value
+			}
+			if original.ByteLength != nil {
+				value := *original.ByteLength
+				attachment.ByteLength = &value
+			}
+			if original.SHA256 != nil {
+				value := *original.SHA256
+				attachment.SHA256 = &value
+			}
+		}
+		if messages[index].SentAt != nil {
+			value := *messages[index].SentAt
+			clone[index].SentAt = &value
+		}
+		if messages[index].SenderParticipantID != nil {
+			value := *messages[index].SenderParticipantID
+			clone[index].SenderParticipantID = &value
+		}
+	}
+	return clone
 }
 
 var receiptTypes = previewmodel.ReceiptTypes
@@ -246,20 +360,32 @@ func ValidatePreviewProjection(handle string, snapshot PreviewSnapshot, particip
 }
 
 type PreviewHTTPHandler struct {
-	workflow  PreviewWorkflow
-	store     PreviewStore
-	repairs   RepairDecisionWriter
-	cursorKey []byte
+	workflow         PreviewWorkflow
+	store            PreviewStore
+	repairs          RepairDecisionWriter
+	cursorKey        []byte
+	serviceTokenPath string
+	sourceContext    sourcecontext.Validator
 }
 
-func NewPreviewHTTPHandler(workflow PreviewWorkflow, store PreviewStore, repairs RepairDecisionWriter, cursorKey []byte) (*PreviewHTTPHandler, error) {
+func NewPreviewHTTPHandler(workflow PreviewWorkflow, store PreviewStore, repairs RepairDecisionWriter, cursorKey []byte, serviceTokenPath string, validators ...sourcecontext.Validator) (*PreviewHTTPHandler, error) {
 	if workflow == nil || store == nil || repairs == nil {
 		return nil, errors.New("uiw preview handler requires workflow, preview store, and repair decision writer")
 	}
 	if len(cursorKey) < 32 {
 		return nil, errors.New("uiw preview cursor key must be at least 32 bytes")
 	}
-	return &PreviewHTTPHandler{workflow: workflow, store: store, repairs: repairs, cursorKey: append([]byte(nil), cursorKey...)}, nil
+	if _, err := loadServiceToken(serviceTokenPath); err != nil {
+		return nil, err
+	}
+	if len(validators) > 1 {
+		return nil, errors.New("uiw preview handler accepts at most one source context validator")
+	}
+	var validator sourcecontext.Validator
+	if len(validators) == 1 {
+		validator = validators[0]
+	}
+	return &PreviewHTTPHandler{workflow: workflow, store: store, repairs: repairs, cursorKey: append([]byte(nil), cursorKey...), serviceTokenPath: serviceTokenPath, sourceContext: validator}, nil
 }
 
 func (h *PreviewHTTPHandler) Routes() http.Handler {
@@ -277,7 +403,11 @@ func (h *PreviewHTTPHandler) auth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		host, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr))
 		ip := net.ParseIP(host).To4()
-		if err != nil || ip == nil || ip[0] != 100 || ip[1] < 64 || ip[1] > 127 {
+		serviceToken, tokenErr := loadServiceToken(h.serviceTokenPath)
+		auth := strings.TrimSpace(r.Header.Get("Authorization"))
+		provided := strings.TrimSpace(strings.TrimPrefix(auth, "Bearer "))
+		trusted := tokenErr == nil && strings.HasPrefix(auth, "Bearer ") && hmac.Equal([]byte(provided), serviceToken)
+		if err != nil || ip == nil || ip[0] != 100 || ip[1] < 64 || ip[1] > 127 || !trusted {
 			previewError(w, http.StatusUnauthorized, errors.New("uiw preview tailnet authorization required"))
 			return
 		}
@@ -287,8 +417,44 @@ func (h *PreviewHTTPHandler) auth(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+var serviceTokenPattern = regexp.MustCompile(`^[A-Za-z0-9._~+/\-]+={0,}$`)
+
+func loadServiceToken(path string) ([]byte, error) {
+	if path == "" || path != strings.TrimSpace(path) || !filepath.IsAbs(path) {
+		return nil, errors.New("uiw preview service token path must be absolute")
+	}
+	info, err := os.Lstat(path)
+	if err != nil {
+		return nil, fmt.Errorf("read uiw preview service token: %w", err)
+	}
+	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || info.Size() < 32 || info.Size() > 4098 {
+		return nil, errors.New("uiw preview service token must be a safe regular file of 32-4098 bytes")
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	openedInfo, err := file.Stat()
+	if err != nil || !openedInfo.Mode().IsRegular() || !os.SameFile(info, openedInfo) {
+		return nil, errors.New("uiw preview service token changed or is not a regular file")
+	}
+	raw, err := io.ReadAll(io.LimitReader(file, 4099))
+	if err != nil {
+		return nil, err
+	}
+	if len(raw) < 32 || len(raw) > 4098 {
+		return nil, errors.New("uiw preview service token raw length is invalid")
+	}
+	raw = bytes.TrimRight(raw, "\r\n")
+	if len(raw) < 32 || len(raw) > 4096 || !utf8.Valid(raw) || bytes.IndexByte(raw, 0) >= 0 || !serviceTokenPattern.Match(raw) {
+		return nil, errors.New("uiw preview service token is invalid")
+	}
+	return raw, nil
+}
+
 type previewStartRequest struct {
-	RequestID, MatterID, CourtCaseID, SourceRef, DeclaredFormat, ParserOptionsRef string
+	RequestID, MatterID, CourtCaseID, SourceRef, DeclaredFormat, ParserOptionsRef, SourceContextRef string
 }
 
 func (r *previewStartRequest) UnmarshalJSON(data []byte) error {
@@ -299,12 +465,13 @@ func (r *previewStartRequest) UnmarshalJSON(data []byte) error {
 		SourceRef        string `json:"source_ref"`
 		DeclaredFormat   string `json:"declared_format"`
 		ParserOptionsRef string `json:"parser_options_ref"`
+		SourceContextRef string `json:"source_context_ref"`
 	}
 	var value wire
 	if err := json.Unmarshal(data, &value); err != nil {
 		return err
 	}
-	*r = previewStartRequest{value.RequestID, value.MatterID, value.CourtCaseID, value.SourceRef, value.DeclaredFormat, value.ParserOptionsRef}
+	*r = previewStartRequest{value.RequestID, value.MatterID, value.CourtCaseID, value.SourceRef, value.DeclaredFormat, value.ParserOptionsRef, value.SourceContextRef}
 	return nil
 }
 
@@ -326,7 +493,25 @@ func (h *PreviewHTTPHandler) start(w http.ResponseWriter, r *http.Request) {
 		previewError(w, 400, errors.New("court_case_id must be a UUID"))
 		return
 	}
-	in := uiw.WorkflowInput{RequestID: req.RequestID, MatterID: req.MatterID, CourtCaseID: req.CourtCaseID, SourceRef: uiw.Ref(req.SourceRef), DeclaredFormat: req.DeclaredFormat, ParserOptionsRef: uiw.Ref(req.ParserOptionsRef)}
+	if _, _, err := validateAuthorizedSourceRef(req.SourceRef); err != nil {
+		previewError(w, http.StatusUnprocessableEntity, err)
+		return
+	}
+	if req.SourceContextRef != "" {
+		if _, err := uuid.Parse(req.SourceContextRef); err != nil {
+			previewError(w, http.StatusUnprocessableEntity, errors.New("source_context_ref must be a UUID"))
+			return
+		}
+		if h.sourceContext == nil {
+			previewError(w, http.StatusServiceUnavailable, errors.New("source context validation is unavailable"))
+			return
+		}
+		if err := h.sourceContext.ValidateSourceContext(r.Context(), req.SourceContextRef, req.RequestID, req.MatterID, req.CourtCaseID, req.SourceRef); err != nil {
+			previewError(w, http.StatusUnprocessableEntity, err)
+			return
+		}
+	}
+	in := uiw.WorkflowInput{RequestID: req.RequestID, MatterID: req.MatterID, CourtCaseID: req.CourtCaseID, SourceRef: uiw.Ref(req.SourceRef), DeclaredFormat: req.DeclaredFormat, ParserOptionsRef: uiw.Ref(req.ParserOptionsRef), SourceContextRef: uiw.Ref(req.SourceContextRef)}
 	workflowID, runID, err := h.workflow.Start(r.Context(), in)
 	if err != nil {
 		previewError(w, 422, err)
@@ -344,6 +529,24 @@ func (h *PreviewHTTPHandler) snapshot(w http.ResponseWriter, r *http.Request) {
 	handle := r.PathValue("preview_handle")
 	snapshot, err := h.store.Snapshot(r.Context(), handle)
 	if err != nil {
+		if errors.Is(err, ErrPreviewNotReady) {
+			binding, bindErr := h.store.Binding(r.Context(), handle)
+			if bindErr != nil {
+				h.storeError(w, bindErr)
+				return
+			}
+			state, queryErr := h.workflow.Preview(r.Context(), binding.WorkflowID)
+			if queryErr != nil {
+				previewError(w, http.StatusServiceUnavailable, queryErr)
+				return
+			}
+			previewJSON(w, http.StatusOK, struct {
+				PreviewHandle    string                    `json:"preview_handle"`
+				Phase            uiw.PreviewPhase          `json:"phase"`
+				RepairAssessment *uiw.RepairAssessmentView `json:"repair_assessment,omitempty"`
+			}{handle, state.Phase, state.RepairAssessment})
+			return
+		}
 		h.storeError(w, err)
 		return
 	}
@@ -429,7 +632,7 @@ func (h *PreviewHTTPHandler) decide(w http.ResponseWriter, r *http.Request) {
 	}
 	selection, options := state.SelectRef, state.ParserOptionsRef
 	decision := uiw.PreviewDecision{Approved: req.Approved, Reason: req.Reason, Decider: actor}
-	if state.Phase == uiw.PhaseRejected && req.Approved {
+	if state.Phase == uiw.PhaseRejected && req.Approved && state.PreviewHandle == "" {
 		if selection == binding.SelectionRef && options == binding.ParserOptionsRef {
 			previewError(w, http.StatusConflict, errors.New("approval after rejection requires changed repair selection or options refs"))
 			return

@@ -21,8 +21,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"go.temporal.io/sdk/client"
 
+	platformpostgres "github.com/Cursedpotential/mcp-platform-agno-mvp/engine/postgres"
+	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/runtimeapi"
 	platformtemporal "github.com/Cursedpotential/mcp-platform-agno-mvp/engine/temporal"
 )
 
@@ -54,6 +57,14 @@ func run() error {
 		return fmt.Errorf("dial temporal client: %w", err)
 	}
 	defer c.Close()
+	pool, err := pgxpool.New(context.Background(), os.Getenv("PLATFORM_DATABASE_URL"))
+	if err != nil {
+		return errors.New("configure platform preview database: invalid configuration")
+	}
+	defer pool.Close()
+	if err := pool.Ping(context.Background()); err != nil {
+		return errors.New("connect platform preview database: unavailable")
+	}
 
 	starter, err := platformtemporal.NewWorkflowStarter(c, cfg.TemporalTaskQueue)
 	if err != nil {
@@ -68,6 +79,42 @@ func run() error {
 		return err
 	}
 	routes, err := starterRoutes(handler.Routes(), uploadIngress)
+	if err != nil {
+		return err
+	}
+	previewStore, err := platformpostgres.NewUIWPreviewStore(pool, nil)
+	if err != nil {
+		return err
+	}
+	repairStore, err := platformpostgres.NewRepairActivityStore(pool, []string{os.Getenv("SOURCE_OBJECT_DIR")})
+	if err != nil {
+		return err
+	}
+	cursorKey, err := previewCursorKey()
+	if err != nil {
+		return err
+	}
+	serviceTokenFile, err := previewServiceTokenFile()
+	if err != nil {
+		return err
+	}
+	sourceContextStore, err := platformpostgres.NewSourceContextStore(pool)
+	if err != nil {
+		return err
+	}
+	previewHandler, err := runtimeapi.NewPreviewHTTPHandler(starter, previewStore, repairStore, cursorKey, serviceTokenFile, sourceContextStore)
+	if err != nil {
+		return err
+	}
+	routes, err = mountPreviewRoutes(routes, previewHandler.Routes())
+	if err != nil {
+		return err
+	}
+	sourceContextHandler, err := runtimeapi.NewSourceContextHTTPHandler(sourceContextStore, serviceTokenFile)
+	if err != nil {
+		return err
+	}
+	routes, err = mountSourceContextRoutes(routes, sourceContextHandler.Routes())
 	if err != nil {
 		return err
 	}

@@ -48,6 +48,15 @@ var stageOptions = map[stagegraph.StageID]workflow.ActivityOptions{
 		HeartbeatTimeout:    time.Minute,
 		RetryPolicy:         retryPolicy(5*time.Second, 5),
 	},
+	stagegraph.AssessSourceRepair: {
+		StartToCloseTimeout: 10 * time.Minute,
+		RetryPolicy:         retryPolicy(5*time.Second, 3),
+	},
+	stagegraph.ResolveSourceRepair: {
+		StartToCloseTimeout: 30 * time.Minute,
+		HeartbeatTimeout:    time.Minute,
+		RetryPolicy:         retryPolicy(5*time.Second, 3),
+	},
 	stagegraph.CaptureFilesystemMetadata: {
 		StartToCloseTimeout: 2 * time.Minute,
 		RetryPolicy:         retryPolicy(time.Second, 5),
@@ -151,6 +160,10 @@ var stageOptions = map[stagegraph.StageID]workflow.ActivityOptions{
 
 	// Verification join, seal, publish.
 	stagegraph.VerifyNormalizedGeneration: {
+		StartToCloseTimeout: 5 * time.Minute,
+		RetryPolicy:         retryPolicy(2*time.Second, 5),
+	},
+	stagegraph.PublishPreview: {
 		StartToCloseTimeout: 5 * time.Minute,
 		RetryPolicy:         retryPolicy(2*time.Second, 5),
 	},

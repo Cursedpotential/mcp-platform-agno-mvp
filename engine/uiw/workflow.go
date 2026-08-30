@@ -14,6 +14,8 @@ const (
 	fingerprintVocabularyVersion    = workflow.Version(1)
 	previewRepairChangeID           = "uiw-preview-explicit-repair-refs-v1"
 	previewRepairVersion            = workflow.Version(1)
+	integratedPreviewChangeID       = "uiw-integrated-repair-preview-v1"
+	integratedPreviewVersion        = workflow.Version(1)
 	legacyHashSourceActivity        = "hash_source_activity"
 	legacyHashRawRecordsActivity    = "hash_raw_records_activity"
 	legacyHashRawGenerationActivity = "hash_raw_generation_activity"
@@ -40,7 +42,7 @@ func fingerprintVocabularyFor(ctx workflow.Context) fingerprintVocabulary {
 
 // UniversalImportWorkflow is the single Temporal workflow every source runs
 // through (boundary document acceptance gate 1). It executes the exact
-// engine/stagegraph.Stages graph — all 23 atomic Activities, the documented
+// engine/stagegraph.Stages graph — all 26 atomic Activities, the documented
 // safe parallel fan-outs, and deterministic ordering everywhere else — and
 // fails closed: any Activity error or explicit StatusFailed result halts
 // every descendant and both seal_generation_activity and
@@ -53,12 +55,15 @@ func fingerprintVocabularyFor(ctx workflow.Context) fingerprintVocabulary {
 func UniversalImportWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, error) {
 	r := &run{requestID: in.RequestID, matterID: in.MatterID, courtCaseID: in.CourtCaseID}
 	fingerprint := fingerprintVocabularyFor(ctx)
+	integratedPreview := workflow.GetVersion(ctx, integratedPreviewChangeID, workflow.DefaultVersion, integratedPreviewVersion)
 
 	// Stage 1: register_source_activity — the root. It creates the
 	// identity/idempotency coordinate every later stage keys off.
-	sourceVersionRef, err := r.exec(ctx, stagegraph.RegisterSource, in.DeclaredFormat, map[string]Ref{
-		"acquisition": in.SourceRef,
-	})
+	registerRefs := map[string]Ref{"acquisition": in.SourceRef}
+	if in.SourceContextRef != "" {
+		registerRefs["source_context"] = in.SourceContextRef
+	}
+	sourceVersionRef, err := r.exec(ctx, stagegraph.RegisterSource, in.DeclaredFormat, registerRefs)
 	if err != nil {
 		return r.result(""), err
 	}
@@ -73,14 +78,52 @@ func UniversalImportWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowRe
 		return r.result(""), err
 	}
 
+	activeOriginalRef := originalRef
+	preview := PreviewState{ParserOptionsRef: in.ParserOptionsRef}
+	if integratedPreview != workflow.DefaultVersion {
+		// Repair assessment is produced before the repair gate, so the human is
+		// deciding against durable data that already exists. The signal contains
+		// only the persisted actor-bound decision reference.
+		repairAssessmentRef, err := r.exec(ctx, stagegraph.AssessSourceRepair, in.DeclaredFormat, map[string]Ref{
+			"original": originalRef,
+		})
+		if err != nil {
+			return r.result(""), err
+		}
+		assessmentResult := r.results[len(r.results)-1]
+		preview = PreviewState{SourceVersionRef: r.sourceVersionRef, RepairAssessmentRef: repairAssessmentRef, ParserOptionsRef: in.ParserOptionsRef,
+			RepairAssessment: &RepairAssessmentView{AssessmentRef: repairAssessmentRef, SourceVersionRef: r.sourceVersionRef, ReviewRequired: assessmentResult.Status != StatusNotApplicable}}
+		if err := workflow.SetQueryHandler(ctx, PreviewQueryName, func() (PreviewState, error) {
+			return preview, nil
+		}); err != nil {
+			return r.result(""), fmt.Errorf("uiw: register preview query handler: %w", err)
+		}
+		refs := map[string]Ref{"original": originalRef, "repair_assessment": repairAssessmentRef}
+		if assessmentResult.Status == StatusNotApplicable {
+			refs["auto_clean_assessment"] = repairAssessmentRef
+		} else {
+			preview.Phase = PhaseAwaitingRepairDecision
+			repairDecision, waitErr := awaitRepairDecision(ctx, &preview)
+			if waitErr != nil {
+				return r.result(""), waitErr
+			}
+			refs["repair_decision"] = repairDecision.DecisionRef
+		}
+		activeOriginalRef, err = r.exec(ctx, stagegraph.ResolveSourceRepair, in.DeclaredFormat, refs)
+		if err != nil {
+			return r.result(""), err
+		}
+		preview.Phase = PhaseRepairApproved
+	}
+
 	// Stages 3-6: the named safe parallel fan-out. Each depends only on
 	// retain_original, not on one another (proven for the graph itself by
 	// stagegraph.TestSafeParallelFanOutAfterRetainOriginal).
 	fanOut, err := r.join(ctx,
-		r.start(ctx, stagegraph.CaptureFilesystemMetadata, "", map[string]Ref{"original": originalRef}),
-		r.start(ctx, fingerprint.source, "", map[string]Ref{"original": originalRef}),
-		r.start(ctx, stagegraph.InventoryContainer, "", map[string]Ref{"original": originalRef}),
-		r.start(ctx, stagegraph.ExtractEmbeddedMetadata, "", map[string]Ref{"original": originalRef}),
+		r.start(ctx, stagegraph.CaptureFilesystemMetadata, "", map[string]Ref{"original": activeOriginalRef}),
+		r.start(ctx, fingerprint.source, "", map[string]Ref{"original": activeOriginalRef}),
+		r.start(ctx, stagegraph.InventoryContainer, "", map[string]Ref{"original": activeOriginalRef}),
+		r.start(ctx, stagegraph.ExtractEmbeddedMetadata, "", map[string]Ref{"original": activeOriginalRef}),
 	)
 	if err != nil {
 		return r.result(""), err
@@ -105,83 +148,22 @@ func UniversalImportWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowRe
 		return r.result(""), err
 	}
 
-	// Human preview hold: between selection and execution, the workflow
-	// pauses for a human decision on the persisted parser_selection before
-	// the actual parse (execute_parser_activity) ever runs. This is a real
-	// Signal + Query + Timer (preview.go), not an Activity-level trick,
-	// precisely so the hold survives a worker restart or a replica change —
-	// Temporal replays this workflow's own durable history, not any single
-	// worker's in-memory state.
 	activeSelectionRef := parserSelectionRef
 	activeParserOptionsRef := in.ParserOptionsRef
-	preview := PreviewState{
-		Phase: PhaseAwaitingDecision, SelectRef: activeSelectionRef,
-		ParserOptionsRef: activeParserOptionsRef,
-	}
-	if err := workflow.SetQueryHandler(ctx, PreviewQueryName, func() (PreviewState, error) {
-		return preview, nil
-	}); err != nil {
-		return r.result(""), fmt.Errorf("uiw: register preview query handler: %w", err)
-	}
-
-	repairVersion := workflow.GetVersion(ctx, previewRepairChangeID, workflow.DefaultVersion, previewRepairVersion)
-	signalChan := workflow.GetSignalChannel(ctx, PreviewDecisionSignalName)
-	wasRejected := false
-	repairedSinceRejection := false
-	for {
-		var decision PreviewDecision
-		var decided bool
-		timerCtx, cancelTimer := workflow.WithCancel(ctx)
-		selector := workflow.NewSelector(ctx)
-		timer := workflow.NewTimer(timerCtx, previewDecisionTimeout)
-		selector.AddReceive(signalChan, func(c workflow.ReceiveChannel, more bool) {
-			c.Receive(ctx, &decision)
-			decided = true
-		})
-		selector.AddFuture(timer, func(f workflow.Future) { _ = f.Get(timerCtx, nil) })
-		selector.Select(ctx)
-
-		if !decided {
-			preview.Phase = PhaseTimedOut
-			preview.Reason = "preview decision timed out"
-			return r.result(""), errors.New("uiw: preview decision timed out")
+	if integratedPreview == workflow.DefaultVersion {
+		preview = PreviewState{Phase: PhaseAwaitingDecision, SelectRef: activeSelectionRef, ParserOptionsRef: activeParserOptionsRef}
+		if err := workflow.SetQueryHandler(ctx, PreviewQueryName, func() (PreviewState, error) { return preview, nil }); err != nil {
+			return r.result(""), fmt.Errorf("uiw: register legacy preview query handler: %w", err)
 		}
-		cancelTimer()
-		if repairVersion != workflow.DefaultVersion {
-			if decision.RepairedSelectionRef != "" {
-				activeSelectionRef = decision.RepairedSelectionRef
-				preview.SelectRef = activeSelectionRef
-				repairedSinceRejection = true
-			}
-			if decision.RepairedParserOptionsRef != "" {
-				activeParserOptionsRef = decision.RepairedParserOptionsRef
-				preview.ParserOptionsRef = activeParserOptionsRef
-				repairedSinceRejection = true
-			}
+		if err := awaitLegacyPreviewDecision(ctx, &preview, &activeSelectionRef, &activeParserOptionsRef); err != nil {
+			return r.result(""), err
 		}
-		if !decision.Approved {
-			// Rejection is a durable review state, not terminal workflow
-			// failure. A later approval Signal resumes this same workflow
-			// identity after the operator repairs the selection/options.
-			preview.Phase = PhaseRejected
-			preview.Reason = decision.Reason
-			wasRejected = true
-			continue
-		}
-		if repairVersion != workflow.DefaultVersion && wasRejected && !repairedSinceRejection {
-			preview.Phase = PhaseRejected
-			preview.Reason = "approval after rejection requires an explicit repaired selection or parser-options reference"
-			continue
-		}
-		preview.Phase = PhaseApproved
-		preview.Reason = ""
-		break
 	}
 
 	// Stage 8: execute_parser_activity — parse only.
 	rawBundleRef, err := r.exec(ctx, stagegraph.ExecuteParser, in.DeclaredFormat, map[string]Ref{
 		"parser_selection": activeSelectionRef,
-		"original":         originalRef,
+		"original":         activeOriginalRef,
 		"parser_options":   activeParserOptionsRef,
 	})
 	if err != nil {
@@ -321,6 +303,36 @@ func UniversalImportWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowRe
 		return r.result(""), err
 	}
 
+	// The browser-facing preview can only be projected after normalized
+	// messages and their validation receipts exist. Publishing it before the
+	// human hold removes the former circular wait: the operator now reviews
+	// actual persisted messages, while workflow_id/run_id remain internal to
+	// the opaque binding created by the starter.
+	if integratedPreview != workflow.DefaultVersion {
+		previewHandle, err := r.execPreview(ctx, PreviewPublicationRequest{
+			RequestID: in.RequestID, SourceVersionRef: r.sourceVersionRef,
+			RawGenerationRef: rawGenerationRef, NormalizedGenerationRef: normalizedGenerationRef,
+			ParserSelectionRef: activeSelectionRef, ParserOptionsRef: activeParserOptionsRef,
+			ReceiptRefs: map[string]Ref{
+				"custody":          r.receiptRef(stagegraph.VerifyRawCoverageAgainstSource),
+				"parser_selection": r.receiptRef(stagegraph.SelectParser),
+				"parser_execution": r.receiptRef(stagegraph.ExecuteParser),
+				"normalization":    r.receiptRef(stagegraph.PersistNormalizedGeneration),
+				"storage":          r.receiptRef(stagegraph.PersistRawGeneration),
+				"completeness":     r.receiptRef(stagegraph.VerifyNormalizedGeneration),
+			},
+		})
+		if err != nil {
+			return r.result(""), err
+		}
+		preview.Phase, preview.PreviewHandle = PhaseAwaitingDecision, previewHandle
+		preview.SelectRef, preview.ParserOptionsRef = activeSelectionRef, activeParserOptionsRef
+		preview.Reason = ""
+		if err := awaitPreviewDecision(ctx, &preview); err != nil {
+			return r.result(""), err
+		}
+	}
+
 	// Stage 21: seal_generation_activity.
 	sealedGenerationRef, err := r.exec(ctx, stagegraph.SealGeneration, "", map[string]Ref{
 		"normalized_verification": normalizedVerificationRef,
@@ -340,6 +352,103 @@ func UniversalImportWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowRe
 	}
 
 	return r.result(publicationRef), nil
+}
+
+func awaitRepairDecision(ctx workflow.Context, state *PreviewState) (RepairDecision, error) {
+	var decision RepairDecision
+	var decided bool
+	timerCtx, cancelTimer := workflow.WithCancel(ctx)
+	selector := workflow.NewSelector(ctx)
+	timer := workflow.NewTimer(timerCtx, previewDecisionTimeout)
+	selector.AddReceive(workflow.GetSignalChannel(ctx, RepairDecisionSignalName), func(channel workflow.ReceiveChannel, more bool) {
+		channel.Receive(ctx, &decision)
+		decided = true
+	})
+	selector.AddFuture(timer, func(f workflow.Future) { _ = f.Get(timerCtx, nil) })
+	selector.Select(ctx)
+	if !decided {
+		state.Phase, state.Reason = PhaseTimedOut, "repair decision timed out"
+		return RepairDecision{}, errors.New("uiw: repair decision timed out")
+	}
+	cancelTimer()
+	if decision.DecisionRef == "" {
+		state.Phase, state.Reason = PhaseRejected, "repair decision reference is required"
+		return RepairDecision{}, errors.New("uiw: repair decision reference is required")
+	}
+	return decision, nil
+}
+
+func awaitPreviewDecision(ctx workflow.Context, state *PreviewState) error {
+	signalChannel := workflow.GetSignalChannel(ctx, PreviewDecisionSignalName)
+	for {
+		var decision PreviewDecision
+		var decided bool
+		timerCtx, cancelTimer := workflow.WithCancel(ctx)
+		selector := workflow.NewSelector(ctx)
+		timer := workflow.NewTimer(timerCtx, previewDecisionTimeout)
+		selector.AddReceive(signalChannel, func(channel workflow.ReceiveChannel, more bool) {
+			channel.Receive(ctx, &decision)
+			decided = true
+		})
+		selector.AddFuture(timer, func(f workflow.Future) { _ = f.Get(timerCtx, nil) })
+		selector.Select(ctx)
+		if !decided {
+			state.Phase, state.Reason = PhaseTimedOut, "preview decision timed out"
+			return errors.New("uiw: preview decision timed out")
+		}
+		cancelTimer()
+		if !decision.Approved {
+			state.Phase, state.Reason = PhaseRejected, decision.Reason
+			continue
+		}
+		state.Phase, state.Reason = PhaseApproved, ""
+		return nil
+	}
+}
+
+// awaitLegacyPreviewDecision preserves command ordering and repaired-reference
+// behavior for histories started before the normalized preview projection was
+// introduced. New runs never take this branch.
+func awaitLegacyPreviewDecision(ctx workflow.Context, state *PreviewState, selection, options *Ref) error {
+	repairVersion := workflow.GetVersion(ctx, previewRepairChangeID, workflow.DefaultVersion, previewRepairVersion)
+	signalChannel := workflow.GetSignalChannel(ctx, PreviewDecisionSignalName)
+	wasRejected, repaired := false, false
+	for {
+		var decision PreviewDecision
+		var decided bool
+		timerCtx, cancelTimer := workflow.WithCancel(ctx)
+		selector := workflow.NewSelector(ctx)
+		timer := workflow.NewTimer(timerCtx, previewDecisionTimeout)
+		selector.AddReceive(signalChannel, func(channel workflow.ReceiveChannel, more bool) {
+			channel.Receive(ctx, &decision)
+			decided = true
+		})
+		selector.AddFuture(timer, func(f workflow.Future) { _ = f.Get(timerCtx, nil) })
+		selector.Select(ctx)
+		if !decided {
+			state.Phase, state.Reason = PhaseTimedOut, "preview decision timed out"
+			return errors.New("uiw: preview decision timed out")
+		}
+		cancelTimer()
+		if repairVersion != workflow.DefaultVersion {
+			if decision.RepairedSelectionRef != "" {
+				*selection, state.SelectRef, repaired = decision.RepairedSelectionRef, decision.RepairedSelectionRef, true
+			}
+			if decision.RepairedParserOptionsRef != "" {
+				*options, state.ParserOptionsRef, repaired = decision.RepairedParserOptionsRef, decision.RepairedParserOptionsRef, true
+			}
+		}
+		if !decision.Approved {
+			state.Phase, state.Reason, wasRejected = PhaseRejected, decision.Reason, true
+			continue
+		}
+		if repairVersion != workflow.DefaultVersion && wasRejected && !repaired {
+			state.Phase, state.Reason = PhaseRejected, "approval after rejection requires an explicit repaired selection or parser-options reference"
+			continue
+		}
+		state.Phase, state.Reason = PhaseApproved, ""
+		return nil
+	}
 }
 
 // run accumulates the ordered stage receipts and the running
@@ -366,6 +475,22 @@ type pending struct {
 // no Temporal API call is made to schedule them.
 func (r *run) exec(ctx workflow.Context, id stagegraph.StageID, declaredFormat string, refs map[string]Ref) (Ref, error) {
 	return r.settle(id, r.start(ctx, id, declaredFormat, refs).fut.Get, ctx)
+}
+
+func (r *run) execPreview(ctx workflow.Context, request PreviewPublicationRequest) (Ref, error) {
+	id := stagegraph.PublishPreview
+	actCtx := workflow.WithActivityOptions(ctx, optionsFor(id))
+	future := workflow.ExecuteActivity(actCtx, string(id), request)
+	return r.settle(id, future.Get, ctx)
+}
+
+func (r *run) receiptRef(id stagegraph.StageID) Ref {
+	for index := len(r.results) - 1; index >= 0; index-- {
+		if r.results[index].Stage == id {
+			return r.results[index].ReceiptRef
+		}
+	}
+	return ""
 }
 
 // start schedules one Activity without blocking, for use in parallel

@@ -27,6 +27,20 @@ type ActivityName = stagegraph.StageID
 // following the Refs handed across the workflow boundary.
 type Ref string
 
+// PreviewPublicationRequest is the compact reference-only payload used by
+// publish_preview_activity. Workflow and run identifiers stay in the durable
+// preview binding created by the starter and are never exposed as the browser
+// handle.
+type PreviewPublicationRequest struct {
+	RequestID               string         `json:"request_id"`
+	SourceVersionRef        Ref            `json:"source_version_ref"`
+	RawGenerationRef        Ref            `json:"raw_generation_ref"`
+	NormalizedGenerationRef Ref            `json:"normalized_generation_ref"`
+	ParserSelectionRef      Ref            `json:"parser_selection_ref"`
+	ParserOptionsRef        Ref            `json:"parser_options_ref"`
+	ReceiptRefs             map[string]Ref `json:"receipt_refs"`
+}
+
 // Status is the recorded business outcome of one stage. success and
 // not_applicable are both valid terminal states that let the workflow
 // proceed to the stage's dependents; failed halts every descendant and the
@@ -64,6 +78,9 @@ type WorkflowInput struct {
 	// ParserOptionsRef is the ParserInput.parser_options_ref: a reference to
 	// parser configuration, not the configuration payload itself.
 	ParserOptionsRef Ref
+	// SourceContextRef points to the append-only, actor-bound operator
+	// assertion receipt. Metadata values never enter Temporal history.
+	SourceContextRef Ref
 }
 
 // StageRequest is the single compact wire type sent to every Activity: the

@@ -536,19 +536,20 @@ func (s *UIWPreviewStore) RecordDecision(ctx context.Context, handle string, app
 		rollback()
 		return err
 	}
+	recordedAt := s.clock()
 	result, err := tx.Exec(ctx, `
 		INSERT INTO context.uiw_preview_decision
 		    (id, preview_handle, decision_key, approved, reason, actor_subject_uid,
 		     selection_ref, parser_options_ref, recorded_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		ON CONFLICT (preview_handle, decision_key) DO NOTHING`, decisionID, handle, key[:],
-		approved, reason, actor, selection, options, s.clock())
+		approved, reason, actor, selection, options, recordedAt)
 	if err != nil {
 		rollback()
 		return fmt.Errorf("record preview decision: %w", err)
 	}
 	if result.RowsAffected() == 1 {
-		var eventID int64
+		var eventID, successorSeq int64
 		if err := tx.QueryRow(ctx, `SELECT COALESCE(max(event_id) + 1, 0) FROM context.uiw_preview_event WHERE preview_handle = $1`, handle).Scan(&eventID); err != nil {
 			rollback()
 			return err
@@ -557,11 +558,69 @@ func (s *UIWPreviewStore) RecordDecision(ctx context.Context, handle string, app
 		if approved {
 			phase = "approved"
 		}
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO context.uiw_preview_snapshot
+			    (preview_handle, snapshot_seq, phase, source_version_id, raw_generation_id,
+			     normalized_generation_id, parser_id, parser_version, parser_config_digest,
+			     preview_digest, reason, recorded_at)
+			SELECT preview_handle, snapshot_seq + 1, $2, source_version_id, raw_generation_id,
+			       normalized_generation_id, parser_id, parser_version, parser_config_digest,
+			       preview_digest, $3, $4
+			FROM context.uiw_preview_snapshot
+			WHERE preview_handle = $1
+			ORDER BY snapshot_seq DESC LIMIT 1
+			RETURNING snapshot_seq`, handle, phase, strings.TrimSpace(reason), recordedAt).Scan(&successorSeq); err != nil {
+			rollback()
+			if errors.Is(err, pgx.ErrNoRows) {
+				return previewmodel.ErrNotReady
+			}
+			return fmt.Errorf("append preview decision snapshot: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO context.uiw_preview_receipt
+			    (preview_handle, snapshot_seq, receipt_type, receipt_ref, status, digest, recorded_at)
+			SELECT preview_handle, $2, receipt_type, receipt_ref, status, digest, recorded_at
+			FROM context.uiw_preview_receipt
+			WHERE preview_handle = $1 AND snapshot_seq = $2 - 1`, handle, successorSeq); err != nil {
+			rollback()
+			return fmt.Errorf("copy preview decision receipts: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO context.uiw_preview_participant
+			    (preview_handle, snapshot_seq, participant_id, display_name, canonical_address)
+			SELECT preview_handle, $2, participant_id, display_name, canonical_address
+			FROM context.uiw_preview_participant
+			WHERE preview_handle = $1 AND snapshot_seq = $2 - 1`, handle, successorSeq); err != nil {
+			rollback()
+			return fmt.Errorf("copy preview decision participants: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO context.uiw_preview_message
+			    (preview_handle, snapshot_seq, message_id, ordinal, sent_at,
+			     sender_participant_id, body, participant_ids, source_locator_ref)
+			SELECT preview_handle, $2, message_id, ordinal, sent_at,
+			       sender_participant_id, body, participant_ids, source_locator_ref
+			FROM context.uiw_preview_message
+			WHERE preview_handle = $1 AND snapshot_seq = $2 - 1`, handle, successorSeq); err != nil {
+			rollback()
+			return fmt.Errorf("copy preview decision messages: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO context.uiw_preview_attachment
+			    (preview_handle, snapshot_seq, message_id, attachment_id, filename,
+			     media_type, byte_length, sha256, source_locator_ref)
+			SELECT preview_handle, $2, message_id, attachment_id, filename,
+			       media_type, byte_length, sha256, source_locator_ref
+			FROM context.uiw_preview_attachment
+			WHERE preview_handle = $1 AND snapshot_seq = $2 - 1`, handle, successorSeq); err != nil {
+			rollback()
+			return fmt.Errorf("copy preview decision attachments: %w", err)
+		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO context.uiw_preview_event
 			    (preview_handle, event_id, event_type, occurred_at, phase, detail)
 			VALUES ($1, $2, 'decision_recorded', $3, $4, $5)`,
-			handle, eventID, s.clock(), phase, strings.TrimSpace(actor+": "+reason)); err != nil {
+			handle, eventID, recordedAt, phase, strings.TrimSpace(actor+": "+reason)); err != nil {
 			rollback()
 			return err
 		}

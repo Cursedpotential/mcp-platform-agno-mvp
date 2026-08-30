@@ -6,11 +6,18 @@ Byline: Codex · GPT-5 · 2026-08-29.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+import hashlib
 import io
 import json
 
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
 from app.repo import object_store_client
+from app.runtime import source_inspection as source_runtime
 from app.service import uiw
+from app.service import source_inspection
+from app.types.source_context import SourceContextReceipt
 
 
 def test_browser_lists_fixed_bucket_with_delimiter_pagination_and_filter(monkeypatch) -> None:
@@ -140,3 +147,144 @@ def test_browser_rejects_escape_prefix_before_object_store_call(monkeypatch) -> 
         assert error.status_code == 422
     else:
         raise AssertionError("escaping prefix accepted")
+
+
+def test_source_inspection_hashes_immediately_without_claiming_a_custody_digest(monkeypatch) -> None:
+    payload = b"%PDF-1.7\nsmall source preview"
+    modified = datetime(2026, 8, 30, tzinfo=UTC)
+    monkeypatch.setattr(
+        source_inspection,
+        "head_casebible_sorted_object",
+        lambda key: {
+            "ContentLength": len(payload),
+            "ETag": '"object-etag"',
+            "ContentType": "application/pdf",
+            "LastModified": modified,
+        },
+    )
+    monkeypatch.setattr(
+        source_inspection,
+        "open_casebible_sorted_object",
+        lambda key, **kwargs: {"Body": io.BytesIO(payload)},
+    )
+    app = FastAPI()
+    app.include_router(source_runtime.router)
+
+    response = TestClient(app).post(
+        "/api/uiw/source-inspection",
+        json={
+            "key": "filings/source.pdf",
+            "expected_byte_length": len(payload),
+            "expected_etag": '"object-etag"',
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["sha256"] == hashlib.sha256(payload).hexdigest()
+    assert body["digest_status"] == "preview_only"
+    assert body["preview_kind"] == "pdf"
+    assert body["preview_url"].startswith("/api/uiw/source-content?")
+    assert body["parser_preflight"] == {
+        "declared_format": "pdf",
+        "route_label": "PDF document route",
+        "basis": "filename_extension",
+        "authoritative": False,
+    }
+
+
+def test_source_inspection_rejects_a_changed_listing_identity(monkeypatch) -> None:
+    monkeypatch.setattr(
+        source_inspection,
+        "head_casebible_sorted_object",
+        lambda key: {"ContentLength": 12, "ETag": '"new-etag"'},
+    )
+    app = FastAPI()
+    app.include_router(source_runtime.router)
+
+    response = TestClient(app).post(
+        "/api/uiw/source-inspection",
+        json={"key": "source.pdf", "expected_byte_length": 11, "expected_etag": '"old-etag"'},
+    )
+
+    assert response.status_code == 409
+    assert "choose it again" in response.json()["detail"]
+
+
+def test_source_content_is_same_origin_etag_pinned_and_range_bounded(monkeypatch) -> None:
+    payload = b"0123456789"
+    captured = {}
+    monkeypatch.setattr(
+        source_inspection,
+        "head_casebible_sorted_object",
+        lambda key: {"ContentLength": len(payload), "ETag": '"etag"', "ContentType": "application/pdf"},
+    )
+
+    def fake_open(key, **kwargs):
+        captured.update(kwargs)
+        return {"Body": io.BytesIO(payload[2:6])}
+
+    monkeypatch.setattr(source_inspection, "open_casebible_sorted_object", fake_open)
+    app = FastAPI()
+    app.include_router(source_runtime.router)
+
+    response = TestClient(app).get(
+        "/api/uiw/source-content",
+        params={"key": "source.pdf", "etag": '"etag"'},
+        headers={"Range": "bytes=2-5"},
+    )
+
+    assert response.status_code == 206
+    assert response.content == b"2345"
+    assert response.headers["content-range"] == "bytes 2-5/10"
+    assert response.headers["accept-ranges"] == "bytes"
+    assert captured == {"if_match": '"etag"', "byte_range": "bytes=2-5"}
+
+
+def test_source_context_route_uses_authenticated_actor_and_returns_only_receipt(monkeypatch) -> None:
+    captured = {}
+
+    async def fake_create(body, actor):
+        captured.update(body=body, actor=actor)
+        return SourceContextReceipt(
+            source_context_ref="33333333-3333-3333-3333-333333333333",
+            receipt_ref="uiw-source-context://33333333-3333-3333-3333-333333333333",
+            content_digest="a" * 64,
+            revision=1,
+            recorded_at=datetime(2026, 8, 30, tzinfo=UTC),
+        )
+
+    monkeypatch.setattr(source_runtime, "create_source_context", fake_create)
+    app = FastAPI()
+
+    @app.middleware("http")
+    async def identity(request, call_next):
+        request.state.subject_uid = "authentik-user-1"
+        request.state.principal = "operator"
+        return await call_next(request)
+
+    app.include_router(source_runtime.router)
+    response = TestClient(app).post(
+        "/api/uiw/source-contexts",
+        json={
+            "request_id": "request-1",
+            "matter_id": "11111111-1111-1111-1111-111111111111",
+            "court_case_id": "22222222-2222-2222-2222-222222222222",
+            "source_ref": "r2://casebible-sorted/source.pdf",
+            "observed_source": {
+                "key": "source.pdf",
+                "name": "source.pdf",
+                "byte_length": 10,
+                "etag": '"etag"',
+                "preview_sha256": "b" * 64,
+            },
+            "assertions": {"source_class": "acquired_third_party", "other_party": "Other party"},
+            "change_reason": "Operator supplied source context during intake",
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json()["source_context_ref"] == "33333333-3333-3333-3333-333333333333"
+    assert captured["actor"].subject_uid == "authentik-user-1"
+    assert captured["actor"].username == "operator"
+    assert captured["body"].assertions.other_party == "Other party"

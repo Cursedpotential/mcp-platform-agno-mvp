@@ -113,6 +113,21 @@ func RegisterSourceLifecycleActivities(registrar ActivityRegistrar, activities S
 	registrar.RegisterActivityWithOptions(activities.RetainOriginal, activity.RegisterOptions{Name: string(stagegraph.RetainOriginal)})
 }
 
+func NewRepairActivities(client RepairToolClient, store RepairActivityStore) RepairActivities {
+	return RepairActivities{Client: client, Store: store, Attempt: func(ctx context.Context) int32 {
+		return activity.GetInfo(ctx).Attempt
+	}}
+}
+
+func RegisterRepairActivities(registrar ActivityRegistrar, activities RepairActivities) {
+	registrar.RegisterActivityWithOptions(activities.AssessSourceRepair, activity.RegisterOptions{Name: string(stagegraph.AssessSourceRepair)})
+	registrar.RegisterActivityWithOptions(activities.ResolveSourceRepair, activity.RegisterOptions{Name: string(stagegraph.ResolveSourceRepair)})
+}
+
+func RegisterPreviewProjectionActivity(registrar ActivityRegistrar, projection PreviewProjectionActivity) {
+	registrar.RegisterActivityWithOptions(projection.Publish, activity.RegisterOptions{Name: string(stagegraph.PublishPreview)})
+}
+
 // RegisterSourceObservationActivities registers the three observation-only
 // boundaries; none of them parses or hashes source records.
 func RegisterSourceObservationActivities(registrar ActivityRegistrar, activities SourceObservationActivities) {

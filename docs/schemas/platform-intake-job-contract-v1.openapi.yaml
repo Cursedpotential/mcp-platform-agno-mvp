@@ -1,0 +1,168 @@
+openapi: 3.1.0
+info:
+  title: Platform Intake and Governed Job Contract
+  version: 1.0.0
+  x-byline: Codex GPT-5.6-Sol 2026-08-30
+  description: >-
+    Versioned semantic boundary shared by the Platform Workbench and Case Bible.
+    Source facts are immutable, human corrections are append-only, and browser
+    clients exchange stable IDs and references rather than evidence bytes or credentials.
+paths:
+  /api/uiw/source-inspection:
+    post:
+      operationId: inspectIntakeCandidate
+      summary: Read and hash one fixed source without acquiring or promoting it
+      responses:
+        "200":
+          description: Read-only source inspection
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IntakeCandidate" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/uiw/source-contexts:
+    post:
+      operationId: recordInitialHumanCorrection
+      summary: Record actor-bound operator metadata as append-only Platform state
+      responses:
+        "201":
+          description: Durable correction receipt
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JobReceipt" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/uiw/start:
+    post:
+      operationId: startIntakeJob
+      summary: Start one idempotent governed intake over exact source coordinates
+      responses:
+        "201":
+          description: Opaque browser-safe run identity
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JobRun" }
+        default: { $ref: "#/components/responses/Error" }
+  /api/uiw/previews/{run_id}:
+    get:
+      operationId: getIntakeJob
+      parameters:
+        - in: path
+          name: run_id
+          required: true
+          schema: { type: string, minLength: 32, maxLength: 128 }
+      responses:
+        "200":
+          description: Durable status projection
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JobRun" }
+        default: { $ref: "#/components/responses/Error" }
+components:
+  responses:
+    Error:
+      description: Typed validation, authorization, conflict, or runtime failure
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+  schemas:
+    SourceField:
+      type: object
+      required: [name, value, provenance]
+      properties:
+        name: { type: string, minLength: 1 }
+        value: {}
+        provenance:
+          type: string
+          enum: [observed_source, human_assertion, machine_proposal, accepted_human_decision]
+        immutable: { type: boolean }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        source_ref: { type: string }
+    IntakeCandidate:
+      type: object
+      required: [candidate_id, source_ref, stable_record_ids, fields, preview_sha256, digest_status]
+      properties:
+        candidate_id: { type: string, minLength: 1, description: Stable opaque ID }
+        source_ref: { type: string, minLength: 1 }
+        stable_record_ids:
+          type: array
+          items: { type: string, minLength: 1 }
+          uniqueItems: true
+        fields:
+          type: array
+          items: { $ref: "#/components/schemas/SourceField" }
+        preview_sha256: { type: string, pattern: "^[0-9a-f]{64}$" }
+        digest_status: { type: string, const: preview_only }
+        preview_url: { type: [string, "null"] }
+        expected_parser_route: { type: [string, "null"] }
+    HumanCorrection:
+      type: object
+      required: [correction_id, candidate_id, actor_ref, recorded_at, reason, before, after, receipt_ref]
+      properties:
+        correction_id: { type: string, format: uuid }
+        candidate_id: { type: string, minLength: 1 }
+        actor_ref: { type: string, minLength: 1, readOnly: true }
+        recorded_at: { type: string, format: date-time, readOnly: true }
+        reason: { type: string, minLength: 1, maxLength: 4000 }
+        before: { type: object, additionalProperties: true }
+        after: { type: object, additionalProperties: true }
+        receipt_ref: { type: string, minLength: 1, readOnly: true }
+    JobRequest:
+      type: object
+      required: [kind, stable_record_ids, idempotency_key, requested_at]
+      properties:
+        kind: { type: string, minLength: 1, description: Server-registered job kind }
+        stable_record_ids:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { type: string, minLength: 1 }
+        idempotency_key: { type: string, minLength: 1, maxLength: 512 }
+        requested_at: { type: string, format: date-time }
+        source_context_ref: { type: [string, "null"], format: uuid }
+        parameters: { type: object, additionalProperties: true }
+    JobRun:
+      type: object
+      required: [run_id, kind, status, stable_record_ids]
+      properties:
+        run_id: { type: string, minLength: 1, description: Browser-safe durable run ID }
+        kind: { type: string, minLength: 1 }
+        status:
+          type: string
+          enum: [queued, running, succeeded, failed, cancelled]
+        stable_record_ids:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1 }
+        progress:
+          type: object
+          properties:
+            completed: { type: integer, minimum: 0 }
+            total: { type: integer, minimum: 0 }
+            message: { type: string }
+        receipt: { anyOf: [{ $ref: "#/components/schemas/JobReceipt" }, { type: "null" }] }
+        result_ref: { type: [string, "null"] }
+    JobReceipt:
+      type: object
+      required: [receipt_ref, content_digest, revision, recorded_at]
+      properties:
+        receipt_ref: { type: string, minLength: 1 }
+        source_context_ref: { type: [string, "null"], format: uuid }
+        content_digest: { type: string, pattern: "^[0-9a-f]{64}$" }
+        revision: { type: integer, minimum: 1 }
+        recorded_at: { type: string, format: date-time }
+        result_ref: { type: [string, "null"] }
+    ValidationIssue:
+      type: object
+      required: [code, detail]
+      properties:
+        code: { type: string, minLength: 1 }
+        detail: { type: string, minLength: 1 }
+        field: { type: [string, "null"] }
+    ErrorEnvelope:
+      type: object
+      required: [detail]
+      properties:
+        detail: { type: string, minLength: 1 }
+        code: { type: [string, "null"] }
+        issues:
+          type: array
+          items: { $ref: "#/components/schemas/ValidationIssue" }

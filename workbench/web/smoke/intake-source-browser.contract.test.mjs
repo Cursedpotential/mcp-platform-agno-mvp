@@ -20,9 +20,11 @@ test("browser API never accepts provider or bucket input", () => {
   assert.match(types, /source: "casebible-sorted"/);
 });
 
-test("remote rows do not claim a SHA-256 before acquisition", () => {
+test("remote listings stay factual while inspection computes a separate preview checksum", () => {
   const remoteType = types.slice(types.indexOf("interface UIWSourceObject"), types.indexOf("interface UIWSourcePrefix"));
   assert.doesNotMatch(remoteType, /sha256/i);
-  assert.match(intake, /Computed after acquisition seals the object/);
-  assert.match(intake, /r2:\/\/casebible-sorted\//);
+  assert.match(client, /inspectUIWSource/);
+  assert.match(client, /\/api\/uiw\/source-inspection/);
+  assert.match(types, /digest_status: "preview_only"/);
+  assert.match(intake, /Acquisition recomputes and receipts the custody checksum before promotion/);
 });

@@ -17,6 +17,7 @@ import io
 import json
 import logging
 import mimetypes
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import IO
@@ -33,6 +34,8 @@ logger = logging.getLogger(__name__)
 CASEBIBLE_SORTED_BUCKET = "casebible-sorted"
 CASEBIBLE_SORTED_PREFIX = ""
 STAGING_BUCKET = "nexus"
+MAX_SOURCE_KEY_LENGTH = 1024
+_SAFE_SOURCE_KEY = re.compile(r"^[^\x00\r\n\\]+$")
 
 
 @dataclass(frozen=True)
@@ -100,6 +103,53 @@ def list_casebible_sorted_objects(
         return get_casebible_sorted_client().list_objects_v2(**request)
     except ClientError as error:
         raise RuntimeError("Case Bible Sorted source listing failed") from error
+
+
+def validate_casebible_sorted_key(key: str) -> str:
+    """Validate one browser-supplied coordinate inside the fixed source bucket."""
+    normalized = key.strip()
+    if (
+        not normalized
+        or len(normalized) > MAX_SOURCE_KEY_LENGTH
+        or normalized.startswith("/")
+        or not _SAFE_SOURCE_KEY.fullmatch(normalized)
+        or ".." in normalized.split("/")
+    ):
+        raise ValueError("invalid Case Bible Sorted object key")
+    return normalized
+
+
+def head_casebible_sorted_object(key: str) -> dict:
+    """Read immutable-object coordinates from the fixed source bucket."""
+    validated = validate_casebible_sorted_key(key)
+    try:
+        return get_casebible_sorted_client().head_object(
+            Bucket=CASEBIBLE_SORTED_BUCKET,
+            Key=validated,
+        )
+    except ClientError as error:
+        raise RuntimeError("Case Bible Sorted source inspection failed") from error
+
+
+def open_casebible_sorted_object(
+    key: str,
+    *,
+    if_match: str | None = None,
+    byte_range: str | None = None,
+) -> dict:
+    """Open a source stream without allowing the caller to choose storage scope."""
+    request: dict[str, str] = {
+        "Bucket": CASEBIBLE_SORTED_BUCKET,
+        "Key": validate_casebible_sorted_key(key),
+    }
+    if if_match:
+        request["IfMatch"] = if_match
+    if byte_range:
+        request["Range"] = byte_range
+    try:
+        return get_casebible_sorted_client().get_object(**request)
+    except ClientError as error:
+        raise RuntimeError("Case Bible Sorted source read failed") from error
 
 
 def get_client():

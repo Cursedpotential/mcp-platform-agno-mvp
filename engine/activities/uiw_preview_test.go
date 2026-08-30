@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/runtimeapi/previewmodel"
+	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
 	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
 )
 
@@ -39,7 +40,7 @@ func TestPreviewProjectionActivityPublishesReferenceOnlyRequest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != "opaque-handle" || store.got.NormalizedGenerationRef != request.NormalizedGenerationRef {
+	if got.Ref != "opaque-handle" || got.Stage != stagegraph.PublishPreview || store.got.NormalizedGenerationRef != request.NormalizedGenerationRef {
 		t.Fatalf("result=%q request=%+v", got, store.got)
 	}
 }

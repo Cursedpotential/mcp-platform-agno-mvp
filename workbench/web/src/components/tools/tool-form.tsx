@@ -21,20 +21,23 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { callTool } from "@/lib/api-client";
 import { buildExample, saveExample } from "@/lib/tool-examples";
 import type { JsonSchema, McpTool } from "@/lib/shared/types";
+
+interface ToolFormProps {
+  serverKey: string;
+  tool: McpTool;
+  disabled?: boolean;
+  disabledReason?: string;
+  onStart?: (args: Record<string, unknown>) => Promise<void>;
+  /** @deprecated Direct result callbacks are retained only so older stories compile. */
+  onResult?: (result: ToolInvokeResult) => void;
+}
 
 export interface ToolInvokeResult {
   ok: boolean;
   value?: unknown;
   error?: string;
-}
-
-interface ToolFormProps {
-  serverKey: string;
-  tool: McpTool;
-  onResult: (result: ToolInvokeResult) => void;
 }
 
 type FieldValue = string | boolean | undefined;
@@ -49,7 +52,7 @@ function isSimple(schema: JsonSchema): boolean {
   return !!schema.enum || ["string", "number", "integer", "boolean"].includes(schema.type ?? "");
 }
 
-export function ToolForm({ serverKey, tool, onResult }: ToolFormProps) {
+export function ToolForm({ serverKey, tool, disabled = false, disabledReason, onStart }: ToolFormProps) {
   const props = propertiesOf(tool.inputSchema);
   const required = new Set(tool.inputSchema?.required ?? []);
   const useRawFallback = props.length === 0;
@@ -172,10 +175,10 @@ export function ToolForm({ serverKey, tool, onResult }: ToolFormProps) {
     if (args === null) return;
     setBusy(true);
     try {
-      const value = await callTool(serverKey, tool.name, args);
-      onResult({ ok: true, value });
+      if (!onStart) throw new Error("Monitored action adapter required. Direct tool calls are disabled.");
+      await onStart(args);
     } catch (err) {
-      onResult({ ok: false, error: err instanceof Error ? err.message : "Tool call failed" });
+      setFieldError(err instanceof Error ? err.message : "The monitored action could not be started");
     } finally {
       setBusy(false);
     }
@@ -246,8 +249,8 @@ export function ToolForm({ serverKey, tool, onResult }: ToolFormProps) {
       {fieldError && <p className="text-xs text-destructive">{fieldError}</p>}
 
       <div className="flex flex-wrap gap-2">
-        <Button onClick={handleInvoke} disabled={busy}>
-          {busy ? "Invoking…" : "Invoke"}
+        <Button onClick={handleInvoke} disabled={busy || disabled || !onStart} title={disabled ? disabledReason : undefined}>
+          {busy ? "Starting…" : "Start monitored run"}
         </Button>
         <Button type="button" variant="outline" onClick={handleFillExample} disabled={busy}>
           Example
@@ -256,6 +259,7 @@ export function ToolForm({ serverKey, tool, onResult }: ToolFormProps) {
           Save current args as example
         </Button>
       </div>
+      {disabled && disabledReason && <p className="text-xs leading-5 text-muted-foreground">{disabledReason}</p>}
     </div>
   );
 }

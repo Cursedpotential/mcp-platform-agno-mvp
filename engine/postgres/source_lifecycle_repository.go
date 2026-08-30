@@ -77,6 +77,24 @@ func (r *SourceLifecycleRepository) RegisterSource(ctx context.Context, spec act
 			_ = tx.Rollback(cleanupCtx)
 		}
 	}()
+	if spec.SourceContextRef != "" {
+		var valid bool
+		if err := tx.QueryRow(ctx, `
+			SELECT EXISTS (
+				SELECT 1 FROM context.uiw_source_context_revision
+				WHERE source_context_ref=$1::uuid AND request_id=$2
+				  AND matter_id=$3::uuid AND court_case_id=$4::uuid AND source_ref=$5
+			)`, spec.SourceContextRef, spec.RequestID, spec.MatterID, spec.CourtCaseID, spec.AcquisitionRef).Scan(&valid); err != nil {
+			return "", "", fmt.Errorf("validate registration source context: %w", err)
+		}
+		if !valid {
+			return "", "", errors.New("registration source context does not own the requested intake scope")
+		}
+	}
+	var sourceContextValue any
+	if spec.SourceContextRef != "" {
+		sourceContextValue = string(spec.SourceContextRef)
+	}
 
 	var sourceID uuid.UUID
 	if err := tx.QueryRow(ctx, `
@@ -96,12 +114,12 @@ func (r *SourceLifecycleRepository) RegisterSource(ctx context.Context, spec act
 	err = tx.QueryRow(ctx, `
 		INSERT INTO context.source_version
 			(source_id, version_ordinal, workflow_id, submission_idempotency_key,
-			 declared_format, acquired_at, matter_id, court_case_id)
-		SELECT $1, COALESCE(MAX(version_ordinal), 0) + 1, $2, $2, $3, $4, $5::uuid, $6::uuid
+			 declared_format, acquired_at, matter_id, court_case_id, source_context_ref)
+		SELECT $1, COALESCE(MAX(version_ordinal), 0) + 1, $2, $2, $3, $4, $5::uuid, $6::uuid, $7::uuid
 		FROM context.source_version
 		WHERE source_id = $1
 		ON CONFLICT DO NOTHING
-		RETURNING id`, sourceID, spec.RequestID, spec.DeclaredFormat, r.now(), spec.MatterID, spec.CourtCaseID).Scan(&sourceVersionID)
+		RETURNING id`, sourceID, spec.RequestID, spec.DeclaredFormat, r.now(), spec.MatterID, spec.CourtCaseID, sourceContextValue).Scan(&sourceVersionID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		err = tx.QueryRow(ctx, `
 			SELECT version.id
@@ -114,15 +132,16 @@ func (r *SourceLifecycleRepository) RegisterSource(ctx context.Context, spec act
 		return "", "", fmt.Errorf("create or recover source version: %w", err)
 	}
 	var actualSourceKey, actualFormat, actualWorkflow, actualMatterID, actualCourtCaseID string
+	var actualSourceContext pgtype.UUID
 	if err := tx.QueryRow(ctx, `
 		SELECT source.source_key, version.declared_format, version.workflow_id,
-		       version.matter_id::text, version.court_case_id::text
+		       version.matter_id::text, version.court_case_id::text, version.source_context_ref
 		FROM context.source_version version
 		JOIN context.source source ON source.id = version.source_id
-		WHERE version.id = $1::uuid`, sourceVersionID).Scan(&actualSourceKey, &actualFormat, &actualWorkflow, &actualMatterID, &actualCourtCaseID); err != nil {
+		WHERE version.id = $1::uuid`, sourceVersionID).Scan(&actualSourceKey, &actualFormat, &actualWorkflow, &actualMatterID, &actualCourtCaseID, &actualSourceContext); err != nil {
 		return "", "", fmt.Errorf("verify source version ownership: %w", err)
 	}
-	if actualWorkflow != spec.RequestID || actualSourceKey != string(spec.AcquisitionRef) || actualFormat != spec.DeclaredFormat || actualMatterID != spec.MatterID || actualCourtCaseID != spec.CourtCaseID {
+	if actualWorkflow != spec.RequestID || actualSourceKey != string(spec.AcquisitionRef) || actualFormat != spec.DeclaredFormat || actualMatterID != spec.MatterID || actualCourtCaseID != spec.CourtCaseID || uuidOrEmpty(actualSourceContext) != string(spec.SourceContextRef) {
 		return "", "", errors.New("registration idempotency key is already owned by a different source or format")
 	}
 
@@ -408,7 +427,7 @@ func validateRetentionSpec(spec activities.OriginalRetentionSpec) error {
 	return nil
 }
 func registrationKey(spec activities.SourceRegistrationSpec) string {
-	return fmt.Sprintf("source-lifecycle:register:%s:%s:%s", spec.RequestID, spec.AcquisitionRef, spec.DeclaredFormat)
+	return fmt.Sprintf("source-lifecycle:register:%s:%s:%s:%s", spec.RequestID, spec.AcquisitionRef, spec.DeclaredFormat, spec.SourceContextRef)
 }
 func retentionKey(spec activities.OriginalRetentionSpec) string {
 	return fmt.Sprintf("source-lifecycle:retain:%s:%s:%s", spec.RequestID, spec.SourceVersionRef, spec.AcquisitionRef)

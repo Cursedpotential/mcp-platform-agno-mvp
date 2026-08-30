@@ -28,6 +28,7 @@ type Config struct {
 	ParserBundleDir      string
 	NormalizedBundleDir  string
 	InventoryManifestDir string
+	PlatformToolsBaseURL string
 
 	N8NBaseURL         string
 	N8NAuthHeader      string
@@ -58,6 +59,7 @@ func LoadConfig() (Config, error) {
 		ParserBundleDir:      require("PARSER_BUNDLE_DIR"),
 		NormalizedBundleDir:  require("NORMALIZED_BUNDLE_DIR"),
 		InventoryManifestDir: require("INVENTORY_MANIFEST_DIR"),
+		PlatformToolsBaseURL: strings.TrimRight(require("PLATFORM_TOOLS_BASE_URL"), "/"),
 		N8NBaseURL:           strings.TrimRight(require("N8N_UNIVERSAL_IMPORT_BASE_URL"), "/"),
 		N8NAuthHeader:        require("N8N_UNIVERSAL_IMPORT_AUTH_HEADER"),
 		N8NAuthValue:         require("N8N_UNIVERSAL_IMPORT_AUTH_VALUE"),

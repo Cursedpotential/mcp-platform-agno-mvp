@@ -131,8 +131,6 @@ class UIWDecisionActor(BaseModel):
 
 
 class UIWRepairDecisionRequest(BaseModel):
-    """Bounded operator choice; identity and idempotency never come from this body."""
-
     model_config = ConfigDict(extra="forbid")
 
     approved: bool
@@ -206,8 +204,6 @@ class UIWPreviewReceipt(BaseModel):
 
 
 class UIWRepairAssessmentView(BaseModel):
-    """Reference-only repair gate state; detector payloads remain upstream."""
-
     model_config = ConfigDict(extra="ignore")
 
     assessment_ref: Annotated[NonBlank, StringConstraints(max_length=512)]

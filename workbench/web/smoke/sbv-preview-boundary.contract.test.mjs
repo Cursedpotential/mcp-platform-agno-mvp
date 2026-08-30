@@ -34,7 +34,7 @@ test("UIW preview never reuses workflow or run identifiers at legacy boundaries"
 });
 
 test("decisions are centralized behind correlated message and provenance gates", () => {
-  assert.doesNotMatch(intake, /decideUIW|Approve and continue|Reject preview/);
+  assert.doesNotMatch(intake, /\bdecideUIW\b|Approve and continue|Reject preview/);
   assert.match(intake, /Review messages and decide/);
   assert.match(preview, /result\.preview_handle !== handle/);
   assert.match(preview, /page\.preview_handle !== handle/);

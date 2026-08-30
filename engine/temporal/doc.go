@@ -8,13 +8,11 @@
 //
 //	n8n "start" webhook  -> this package's HTTP starter -> Temporal client
 //	  -> engine/uiw.UniversalImportWorkflow
-//	       -> select_parser_activity  -> n8n "select" webhook  -> engine/runtimeapi (Go parser)
-//	       -> [human preview hold: a real Signal + Query + Timer, entirely
-//	           inside UniversalImportWorkflow — see engine/uiw/preview.go]
-//	       -> n8n "decision" webhook -> this package's HTTP starter -> Signal
-//	       -> execute_parser_activity -> n8n "execute" webhook -> engine/runtimeapi (Go parser)
-//	       -> the other 21 canon stages (registered with these two by the
-//	          sole production worker in engine/uiwworker)
+//	       -> repair assessment -> durable repair decision Signal/Query/Timer
+//	       -> select_parser_activity  -> n8n "select" webhook  -> engine/runtimeapi
+//	       -> execute_parser_activity -> n8n "execute" webhook -> engine/runtimeapi
+//	       -> normalized preview projection -> durable approval Signal/Query/Timer
+//	       -> seal and publish (all 26 stages registered by engine/uiwworker)
 //
 // The preview hold deliberately lives inside UniversalImportWorkflow itself,
 // as a genuine Temporal Signal/Query/Timer, rather than as an Activity-level

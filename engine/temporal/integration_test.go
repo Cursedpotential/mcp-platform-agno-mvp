@@ -123,6 +123,7 @@ func TestIntegrationApprovedRunsAllStagesAndCallsRealParserHTTP(t *testing.T) {
 	registerRealActivities(t, env, n8n.server.URL)
 
 	env.RegisterDelayedCallback(func() {
+		env.SignalWorkflow(uiw.RepairDecisionSignalName, uiw.RepairDecision{DecisionRef: "repair-decision-ref"})
 		env.SignalWorkflow(uiw.PreviewDecisionSignalName, uiw.PreviewDecision{Approved: true, Decider: "operator-1"})
 	}, time.Millisecond)
 
@@ -148,7 +149,7 @@ func TestIntegrationApprovedRunsAllStagesAndCallsRealParserHTTP(t *testing.T) {
 		t.Errorf("fake n8n select endpoint called %d times, want exactly 1", got)
 	}
 	if got := atomic.LoadInt32(&n8n.executeCalls); got != 1 {
-		t.Errorf("fake n8n execute endpoint called %d times, want exactly 1 (the real parser call, made only after approval)", got)
+		t.Errorf("fake n8n execute endpoint called %d times, want exactly 1 before normalized preview approval", got)
 	}
 }
 
@@ -162,6 +163,7 @@ func TestIntegrationRejectedNeverCallsRealParserHTTP(t *testing.T) {
 	registerRealActivities(t, env, n8n.server.URL)
 
 	env.RegisterDelayedCallback(func() {
+		env.SignalWorkflow(uiw.RepairDecisionSignalName, uiw.RepairDecision{DecisionRef: "repair-decision-ref"})
 		env.SignalWorkflow(uiw.PreviewDecisionSignalName, uiw.PreviewDecision{Approved: false, Reason: "wrong format", Decider: "operator-1"})
 	}, time.Millisecond)
 
@@ -176,7 +178,7 @@ func TestIntegrationRejectedNeverCallsRealParserHTTP(t *testing.T) {
 	if got := atomic.LoadInt32(&n8n.selectCalls); got != 1 {
 		t.Errorf("fake n8n select endpoint called %d times, want exactly 1 (selection must still run before the hold)", got)
 	}
-	if got := atomic.LoadInt32(&n8n.executeCalls); got != 0 {
-		t.Errorf("fake n8n execute endpoint called %d times, want 0 — the real parser must never be called on rejection", got)
+	if got := atomic.LoadInt32(&n8n.executeCalls); got != 1 {
+		t.Errorf("fake n8n execute endpoint called %d times, want 1 — normalized preview must exist before rejection", got)
 	}
 }

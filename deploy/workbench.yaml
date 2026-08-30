@@ -3,6 +3,7 @@
 # Byline: Codex · GPT-5 · 2026-08-29 (Authentik-only Traefik ingress boundary)
 # Byline: Codex · GPT-5 · 2026-08-29 (private movable Tailscale Service ingress)
 # Byline: Codex · GPT-5.6-Sol · 2026-08-29 (private Platform API service-DNS cutover)
+# Byline: Codex · GPT-5.6-Sol · 2026-08-30 (runtime UIW service credential)
 # =============================================================================
 # KNOWLEDGE WORKBENCH — deploy as its OWN Coolify app on OVH-1 ("ovh-app",
 # tailnet 100.72.169.40). Single-service app per the one-concern-per-app rule
@@ -67,6 +68,9 @@ services:
       PLATFORM_API_BEARER_SECRET_FILE: /run/secrets/platform-api-bearer
       # Direct-tailnet Universal Import Workflow boundary on ovh-files.
       UIW_STARTER_URL: ${UIW_STARTER_URL:-http://100.91.190.107:8091}
+      # Shared service credential for authenticated preview/start/context calls.
+      # The value is runtime-read on every request so rotation needs no rebuild.
+      UIW_SERVICE_TOKEN_FILE: /run/secrets/uiw-service-token
       # Distinct owner-only capability for bounded exploratory evidence search.
       # It is runtime-read from the mount below and never issued to agents.
       EVIDENCE_OPERATOR_BEARER_SECRET_FILE: /run/secrets/evidence-operator-security-key
@@ -125,6 +129,7 @@ services:
       - /data/agno/secrets/platform/api-bearer:/run/secrets/platform-api-bearer:ro
       - /data/agno/secrets/platform/evidence-operator-security-key:/run/secrets/evidence-operator-security-key:ro
       - /data/agno/secrets/casebible-r2.json:/run/secrets/casebible-r2.json:ro
+      - /data/agno/secrets/uiw/service-token:/run/secrets/uiw-service-token:ro
     ports:
       # Private door: Tailscale Serve owns the stable HTTPS identity and
       # proxies directly to this unique loopback-only host port. Public

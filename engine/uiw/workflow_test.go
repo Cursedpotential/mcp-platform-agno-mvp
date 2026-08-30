@@ -41,6 +41,7 @@ func TestPreviewDecisionDecodesCrossLanguageRepairReferences(t *testing.T) {
 // current state, which does need to land after a specific point is reached).
 func approveHold(env *testsuite.TestWorkflowEnvironment) {
 	env.RegisterDelayedCallback(func() {
+		env.SignalWorkflow(RepairDecisionSignalName, RepairDecision{DecisionRef: "repair-decision-ref"})
 		env.SignalWorkflow(PreviewDecisionSignalName, PreviewDecision{Approved: true, Decider: "test-operator"})
 	}, time.Millisecond)
 }
@@ -49,6 +50,7 @@ func approveHold(env *testsuite.TestWorkflowEnvironment) {
 // starts, with reason.
 func rejectHold(env *testsuite.TestWorkflowEnvironment, reason string) {
 	env.RegisterDelayedCallback(func() {
+		env.SignalWorkflow(RepairDecisionSignalName, RepairDecision{DecisionRef: "repair-decision-ref"})
 		env.SignalWorkflow(PreviewDecisionSignalName, PreviewDecision{Approved: false, Reason: reason, Decider: "test-operator"})
 	}, time.Millisecond)
 }
@@ -76,7 +78,7 @@ func stageStub(id stagegraph.StageID) StageResult {
 // never actually run: every test mocks it via OnActivity before executing
 // the workflow. It is test scaffolding for the SDK's name-based dispatch,
 // not an Activity body — this package still implements none of the real
-// 23 Activities.
+// 26 Activities.
 func placeholderActivity(_ context.Context, _ StageRequest) (StageResult, error) {
 	return StageResult{}, errors.New("uiw: placeholder activity ran unmocked")
 }
@@ -342,8 +344,9 @@ func allStagesExcept(before ...stagegraph.StageID) []stagegraph.StageID {
 }
 
 // TestPreviewRejectionPausesAndLaterApprovalResumes proves rejection is a
-// durable review state rather than terminal workflow failure. Parsing starts
-// only after a later approval Signal resumes the same workflow identity.
+// durable review state rather than terminal workflow failure. The normalized
+// preview already exists when the gate opens; later approval resumes the same
+// workflow identity without rerunning the parser.
 func TestPreviewRejectionPausesAndLaterApprovalResumes(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
@@ -370,15 +373,8 @@ func TestPreviewRejectionPausesAndLaterApprovalResumes(t *testing.T) {
 		executeSeen = true
 	})
 	env.RegisterDelayedCallback(func() {
-		env.SignalWorkflow(PreviewDecisionSignalName, PreviewDecision{Approved: true, Decider: "premature-operator"})
+		env.SignalWorkflow(PreviewDecisionSignalName, PreviewDecision{Approved: true, Decider: "review-operator"})
 	}, 2*time.Millisecond)
-	env.RegisterDelayedCallback(func() {
-		env.SignalWorkflow(PreviewDecisionSignalName, PreviewDecision{
-			Approved: true, Decider: "repair-operator",
-			RepairedSelectionRef:     "repaired-selection-ref",
-			RepairedParserOptionsRef: "repaired-parser-options-ref",
-		})
-	}, 3*time.Millisecond)
 
 	env.ExecuteWorkflow(UniversalImportWorkflow, testInput())
 
@@ -396,25 +392,54 @@ func TestPreviewRejectionPausesAndLaterApprovalResumes(t *testing.T) {
 	if !executeSeen {
 		t.Fatal("parser did not execute after later approval resumed the workflow")
 	}
-	if got := executeReq.Refs["parser_selection"]; got != "repaired-selection-ref" {
-		t.Fatalf("execute parser selection ref = %q, want repaired-selection-ref", got)
+	if got := executeReq.Refs["parser_selection"]; got != stageStub(stagegraph.SelectParser).Ref {
+		t.Fatalf("execute parser selection ref = %q, want persisted selection", got)
 	}
-	if got := executeReq.Refs["parser_options"]; got != "repaired-parser-options-ref" {
-		t.Fatalf("execute parser options ref = %q, want repaired-parser-options-ref", got)
+	if got := executeReq.Refs["parser_options"]; got != testInput().ParserOptionsRef {
+		t.Fatalf("execute parser options ref = %q, want input options", got)
+	}
+}
+
+func TestCleanRepairAssessmentAutoResolvesWithoutHumanRepairSignal(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	env.RegisterWorkflow(UniversalImportWorkflow)
+	mockStages(env, map[stagegraph.StageID]StageResult{
+		stagegraph.AssessSourceRepair: {Status: StatusNotApplicable, Ref: "assessment-clean-ref", ReceiptRef: "assessment-clean-receipt", Reason: "no repair indicated"},
+	}, nil)
+	var resolveReq StageRequest
+	env.SetOnActivityStartedListener(func(info *activity.Info, _ context.Context, args converter.EncodedValues) {
+		if info.ActivityType.Name == string(stagegraph.ResolveSourceRepair) {
+			_ = args.Get(&resolveReq)
+		}
+	})
+	env.RegisterDelayedCallback(func() {
+		env.SignalWorkflow(PreviewDecisionSignalName, PreviewDecision{Approved: true, Decider: "operator"})
+	}, time.Millisecond)
+	env.ExecuteWorkflow(UniversalImportWorkflow, testInput())
+	if err := env.GetWorkflowError(); err != nil {
+		t.Fatalf("clean auto-resolution failed: %v", err)
+	}
+	if resolveReq.Refs["auto_clean_assessment"] != "assessment-clean-ref" {
+		t.Fatalf("resolve refs=%v", resolveReq.Refs)
+	}
+	if resolveReq.Refs["repair_decision"] != "" {
+		t.Fatalf("clean path unexpectedly required human decision: %v", resolveReq.Refs)
 	}
 }
 
 // TestPreviewHoldTimesOutWithoutDecision proves an undecided hold fails the
-// run closed once previewDecisionTimeout elapses, without ever starting
-// execute_parser_activity. It sends no Signal at all: the
-// TestWorkflowEnvironment auto-advances its virtual clock past the timer
-// when nothing else is pending.
+// run closed once previewDecisionTimeout elapses after the normalized preview
+// is projected, without ever sealing or publishing the generation.
 func TestPreviewHoldTimesOutWithoutDecision(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
 	env.RegisterWorkflow(UniversalImportWorkflow)
 	mockAllStagesSucceed(env)
 	order := newOrderRecorder(env)
+	env.RegisterDelayedCallback(func() {
+		env.SignalWorkflow(RepairDecisionSignalName, RepairDecision{DecisionRef: "repair-decision-ref"})
+	}, time.Millisecond)
 
 	env.ExecuteWorkflow(UniversalImportWorkflow, testInput())
 
@@ -428,8 +453,11 @@ func TestPreviewHoldTimesOutWithoutDecision(t *testing.T) {
 	if !strings.Contains(err.Error(), "timed out") {
 		t.Errorf("workflow error %q does not mention the timeout", err.Error())
 	}
-	if order.contains(string(stagegraph.ExecuteParser)) {
-		t.Error("execute_parser_activity started despite an undecided, timed-out preview hold")
+	if !order.contains(string(stagegraph.PublishPreview)) {
+		t.Error("publish_preview_activity did not run before the timed-out preview hold")
+	}
+	if order.contains(string(stagegraph.SealGeneration)) || order.contains(string(stagegraph.PublishGeneration)) {
+		t.Error("seal/publish ran despite an undecided, timed-out preview hold")
 	}
 }
 
@@ -480,6 +508,9 @@ func TestActivityErrorHaltsDescendantsAndSealPublish(t *testing.T) {
 		stagegraph.FingerprintSource: errors.New("boom: object storage unreachable"),
 	})
 	order := newOrderRecorder(env)
+	env.RegisterDelayedCallback(func() {
+		env.SignalWorkflow(RepairDecisionSignalName, RepairDecision{DecisionRef: "repair-decision-ref"})
+	}, time.Millisecond)
 
 	env.ExecuteWorkflow(UniversalImportWorkflow, testInput())
 
@@ -808,7 +839,7 @@ func TestPersistRawGenerationReceivesDeclaredFormat(t *testing.T) {
 
 // TestRequestIDPropagatesToEveryActivity proves WorkflowInput.RequestID is
 // not dead input: it decodes the real StageRequest Temporal dispatched for
-// every one of the 23 stages (not just register_source_activity) and checks
+// every one of the 26 stages (not just register_source_activity) and checks
 // each carries the same client-supplied RequestID, so any Activity —
 // register_source_activity included — can key its own idempotency/dedup
 // checks off it.
@@ -821,6 +852,16 @@ func TestRequestIDPropagatesToEveryActivity(t *testing.T) {
 	var mu sync.Mutex
 	seen := make(map[string]string)
 	env.SetOnActivityStartedListener(func(info *activity.Info, _ context.Context, args converter.EncodedValues) {
+		if info.ActivityType.Name == string(stagegraph.PublishPreview) {
+			var req PreviewPublicationRequest
+			if err := args.Get(&req); err != nil {
+				t.Fatalf("decoding PreviewPublicationRequest: %v", err)
+			}
+			mu.Lock()
+			seen[info.ActivityType.Name] = req.RequestID
+			mu.Unlock()
+			return
+		}
 		var req StageRequest
 		if err := args.Get(&req); err != nil {
 			t.Fatalf("decoding StageRequest for %s: %v", info.ActivityType.Name, err)

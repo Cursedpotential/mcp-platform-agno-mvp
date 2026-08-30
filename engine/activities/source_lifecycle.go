@@ -22,12 +22,13 @@ import (
 // activity execution, and immutable activity receipt in one idempotent
 // persistence boundary.
 type SourceRegistrationSpec struct {
-	RequestID      string
-	MatterID       string
-	CourtCaseID    string
-	AcquisitionRef uiw.Ref
-	DeclaredFormat string
-	Attempt        int32
+	RequestID        string
+	MatterID         string
+	CourtCaseID      string
+	AcquisitionRef   uiw.Ref
+	SourceContextRef uiw.Ref
+	DeclaredFormat   string
+	Attempt          int32
 }
 
 // OriginalRetentionSpec is the compact input resolved by
@@ -106,13 +107,15 @@ func (a SourceLifecycleActivities) RegisterSource(ctx context.Context, req uiw.S
 	if err != nil {
 		return uiw.StageResult{}, err
 	}
+	sourceContextRef := req.Refs["source_context"]
 	resultRef, receiptRef, err := a.Store.RegisterSource(ctx, SourceRegistrationSpec{
-		RequestID:      req.RequestID,
-		MatterID:       req.MatterID,
-		CourtCaseID:    req.CourtCaseID,
-		AcquisitionRef: acquisitionRef,
-		DeclaredFormat: req.DeclaredFormat,
-		Attempt:        a.attempt(ctx),
+		RequestID:        req.RequestID,
+		MatterID:         req.MatterID,
+		CourtCaseID:      req.CourtCaseID,
+		AcquisitionRef:   acquisitionRef,
+		SourceContextRef: sourceContextRef,
+		DeclaredFormat:   req.DeclaredFormat,
+		Attempt:          a.attempt(ctx),
 	})
 	if err != nil {
 		return uiw.StageResult{}, fmt.Errorf("register source: %w", err)

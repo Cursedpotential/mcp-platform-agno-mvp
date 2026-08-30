@@ -42,6 +42,7 @@ type RepairAssessmentSpec struct {
 	Attempt                       int32
 	IdempotencyKey                string
 	Detection, Preview            json.RawMessage
+	ReviewRequired                bool
 }
 
 type RepairResolutionSpec struct {
@@ -53,7 +54,10 @@ type RepairResolutionSpec struct {
 	ToolResult                                                          json.RawMessage
 }
 
-type RepairPersistenceResult struct{ ResultRef, ReceiptRef uiw.Ref }
+type RepairPersistenceResult struct {
+	ResultRef, ReceiptRef uiw.Ref
+	ReviewRequired        bool
+}
 
 // RepairActivityStore owns locator resolution, immutable assessment storage,
 // approval revalidation, and the exact activity receipt/idempotency boundary.
@@ -62,6 +66,7 @@ type RepairActivityStore interface {
 	PersistRepairAssessment(context.Context, RepairAssessmentSpec) (RepairPersistenceResult, error)
 	LoadApprovedRepairDecision(context.Context, uiw.Ref, uiw.Ref, uiw.Ref) (RepairDecisionRecord, error)
 	PersistRepairResolution(context.Context, RepairResolutionSpec) (RepairPersistenceResult, error)
+	PersistAutomaticRepairResolution(context.Context, RepairResolutionSpec) (RepairPersistenceResult, error)
 }
 
 type RepairActivities struct {
@@ -114,16 +119,21 @@ func (a RepairActivities) AssessSourceRepair(ctx context.Context, req uiw.StageR
 	if err != nil {
 		return uiw.StageResult{}, fmt.Errorf("run repair preview: %w", err)
 	}
+	reviewRequired := repairReviewRequired(detection, preview)
 	result, err := a.Store.PersistRepairAssessment(ctx, RepairAssessmentSpec{
 		RequestID: req.RequestID, DeclaredFormat: req.DeclaredFormat,
 		SourceVersionRef: req.SourceVersionRef, OriginalRef: original,
 		Attempt: a.attempt(ctx), IdempotencyKey: fmt.Sprintf("repair-assessment:%s:%s:%s", req.RequestID, req.SourceVersionRef, original),
-		Detection: append(json.RawMessage(nil), detection...), Preview: append(json.RawMessage(nil), preview...),
+		Detection: append(json.RawMessage(nil), detection...), Preview: append(json.RawMessage(nil), preview...), ReviewRequired: reviewRequired,
 	})
 	if err != nil {
 		return uiw.StageResult{}, fmt.Errorf("persist repair assessment: %w", err)
 	}
-	return repairSuccess(stagegraph.AssessSourceRepair, result)
+	status := uiw.StatusSuccess
+	if !result.ReviewRequired {
+		status = uiw.StatusNotApplicable
+	}
+	return repairResult(stagegraph.AssessSourceRepair, result, status)
 }
 
 func (a RepairActivities) ResolveSourceRepair(ctx context.Context, req uiw.StageRequest) (uiw.StageResult, error) {
@@ -137,6 +147,17 @@ func (a RepairActivities) ResolveSourceRepair(ctx context.Context, req uiw.Stage
 	assessment, err := repairRef(req, "repair_assessment")
 	if err != nil {
 		return uiw.StageResult{}, err
+	}
+	if req.Refs["auto_clean_assessment"] == assessment {
+		result, persistErr := a.Store.PersistAutomaticRepairResolution(ctx, RepairResolutionSpec{
+			RequestID: req.RequestID, DeclaredFormat: req.DeclaredFormat, SourceVersionRef: req.SourceVersionRef,
+			OriginalRef: original, AssessmentRef: assessment, ActorRef: "uiw:auto-clean",
+			Attempt: a.attempt(ctx), IdempotencyKey: fmt.Sprintf("repair-resolution:auto-clean:%s:%s", req.RequestID, assessment),
+		})
+		if persistErr != nil {
+			return uiw.StageResult{}, fmt.Errorf("persist automatic repair resolution: %w", persistErr)
+		}
+		return repairSuccess(stagegraph.ResolveSourceRepair, result)
 	}
 	decisionRef, err := repairRef(req, "repair_decision")
 	if err != nil {
@@ -199,8 +220,31 @@ func repairRef(req uiw.StageRequest, name string) (uiw.Ref, error) {
 }
 
 func repairSuccess(stage stagegraph.StageID, result RepairPersistenceResult) (uiw.StageResult, error) {
+	return repairResult(stage, result, uiw.StatusSuccess)
+}
+
+func repairResult(stage stagegraph.StageID, result RepairPersistenceResult, status uiw.Status) (uiw.StageResult, error) {
 	if result.ResultRef == "" || result.ReceiptRef == "" {
 		return uiw.StageResult{}, errors.New("repair persistence returned incomplete compact references")
 	}
-	return uiw.StageResult{Stage: stage, Status: uiw.StatusSuccess, Ref: result.ResultRef, ReceiptRef: result.ReceiptRef}, nil
+	return uiw.StageResult{Stage: stage, Status: status, Ref: result.ResultRef, ReceiptRef: result.ReceiptRef}, nil
+}
+
+func repairReviewRequired(values ...json.RawMessage) bool {
+	explicitClean := false
+	for _, raw := range values {
+		var object map[string]any
+		if json.Unmarshal(raw, &object) != nil {
+			return true
+		}
+		for _, key := range []string{"review_required", "needs_repair", "repair_required"} {
+			if value, ok := object[key].(bool); ok {
+				if value {
+					return true
+				}
+				explicitClean = true
+			}
+		}
+	}
+	return !explicitClean
 }
