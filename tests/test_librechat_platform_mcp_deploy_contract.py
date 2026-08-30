@@ -33,4 +33,6 @@ def test_librechat_injects_portkey_published_contextforge_settings() -> None:
     assert "PORTKEY_MCP_API_KEY" in environment
     assert "${PORTKEY_PLATFORM_TOOLS_MCP_URL}" in config
     assert "${PORTKEY_MCP_API_KEY}" in config
+    assert "x-portkey-api-key: \"${PORTKEY_MCP_API_KEY}\"" in config
+    assert 'Authorization: "Bearer ${PORTKEY_MCP_API_KEY}"' not in config
     assert "agentos" not in config.lower()

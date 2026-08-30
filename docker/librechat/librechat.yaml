@@ -30,5 +30,5 @@ mcpServers:
     # endpoint. Both values are runtime configuration, never embedded secrets.
     url: "${PORTKEY_PLATFORM_TOOLS_MCP_URL}"
     headers:
-      Authorization: "Bearer ${PORTKEY_MCP_API_KEY}"
+      x-portkey-api-key: "${PORTKEY_MCP_API_KEY}"
     timeout: 120000

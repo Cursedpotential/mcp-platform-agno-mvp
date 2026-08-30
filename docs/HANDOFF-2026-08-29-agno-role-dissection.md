@@ -78,6 +78,14 @@ Live cutover update (2026-08-30): commit `7440772` deployed successfully to `exe
 the missing operator capability wiring instead of bypassing it. The runtime-file correction is
 implemented and locally test-proven; final redeploy/search proof remains the active gate.
 
+LibreChat MCP activation remains held at the approved gateway boundary. The live ContextForge
+`platform_tools` virtual server passed read-only initialize and tools/list proof with 14 tools, but
+the self-hosted Portkey gateway has no MCP workspace/server/key capability and the active LibreChat
+resource has no hosted Portkey MCP endpoint or scoped invocation key. The client header contract
+was corrected to Portkey's `x-portkey-api-key`; do not substitute the retired AgentOS token or a
+direct ContextForge bypass. Activation requires the hosted/hybrid Portkey `platform-tools`
+publication and an MCP-Invoke-only workspace key, followed by downstream parity proof.
+
 ## Owner rulings after the dissection — current authority
 
 > _Owner, 2026-08-29: "AgentOS dies"; "Temporal and n8n and ContextForge and Portkey handle most
