@@ -1,7 +1,7 @@
 // Byline: Codex · GPT-5 · 2026-08-18 (authored records and derived chunks split)
 "use client";
 
-import Link from "next/link";
+import { AppLink as Link } from "@/lib/router-compat";
 import { FileText, Fingerprint, Loader2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";

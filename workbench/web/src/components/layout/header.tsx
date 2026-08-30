@@ -7,16 +7,16 @@
 // Byline: Codex · GPT-5.6-Sol · 2026-08-30 (surface navigation title registry)
 "use client";
 
-import { usePathname } from "next/navigation";
-import { useTheme } from "next-themes";
 import { AlertTriangle, Loader2, Moon, ShieldCheck, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useFixedCase } from "@/lib/fixed-case-context";
 import { navigationTitle } from "@/platform-ui/navigation";
+import { useCurrentPath } from "@/lib/router-compat";
+import { useTheme } from "@/components/layout/theme-provider";
 
 export function Header() {
-  const pathname = usePathname();
+  const pathname = useCurrentPath();
   const { theme, setTheme } = useTheme();
   const { matter, primaryCourtCase, loading, error } = useFixedCase();
   const pageTitle = navigationTitle(pathname) || "Evidence & legal operations";
@@ -54,6 +54,8 @@ export function Header() {
         <Button
           variant="ghost"
           size="icon"
+          aria-label="Toggle color theme"
+          title="Toggle color theme"
           className="h-9 w-9 rounded-full border border-white/20 text-nav-foreground/70 hover:bg-white/10 hover:text-nav-foreground"
           onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
         >

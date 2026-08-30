@@ -2,7 +2,7 @@
  * Byline: Codex · GPT-5 · 2026-08-16
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || '/api';
+const API_BASE = import.meta.env.VITE_API_BASE || '/api';
 
 export type ProviderName = 'ollama' | 'nvidia' | 'openrouter' | 'anthropic' | 'openai' | 'google' | 'groq' | 'portkey';
 

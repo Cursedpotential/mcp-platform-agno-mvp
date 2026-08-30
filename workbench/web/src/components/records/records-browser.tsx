@@ -12,7 +12,7 @@
  * semantics by eye").
  */
 import { useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useBrowserSearchParams } from "@/lib/router-compat";
 import { RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -40,7 +40,7 @@ export function RecordsBrowser() {
   // Deep-link support: the Evidence Queue's "View run's records" link opens
   // /records?run_id=... — read once on mount so the run picker below comes
   // up pre-scoped instead of the operator re-picking it by hand.
-  const searchParams = useSearchParams();
+  const searchParams = useBrowserSearchParams();
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [runId, setRunId] = useState(() => searchParams.get("run_id") ?? "");
   const [artifactId, setArtifactId] = useState(() => searchParams.get("artifact_id") ?? "");

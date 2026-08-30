@@ -17,7 +17,7 @@ export interface RunEvent {
   recorded_at: string;
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
+const API_BASE = import.meta.env.VITE_API_URL || "";
 const UNSAFE_ATTRIBUTE_SEGMENT =
   /(^|[_.-])(authorization|cookie|secret|password|passphrase|token|api[_-]?key|prompt|completion|response|request[_-]?body|raw|content|evidence|transcript|document|message|detail|stack|exception)([_.-]|$)/i;
 

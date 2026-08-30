@@ -1,5 +1,6 @@
 // Byline: Codex · GPT-5 · 2026-08-15 (Matter promotion, custody, readiness, and review smoke)
 // Byline: Codex · GPT-5 · 2026-08-18 (third-party projection detail coverage)
+// Byline: Codex · GPT-5.6-Sol · 2026-08-30 (Vite SPA harness and fixed-case shell)
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
@@ -21,7 +22,7 @@ const TASK_A = "99999999-9999-4999-8999-999999999999";
 const DECISION_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const SHA_A = "ab".repeat(32);
 const NOW = "2026-08-15T12:00:00Z";
-const OUT = resolve("out");
+const OUT = resolve("dist");
 
 function json(response, statusCode, body) {
   const data = Buffer.from(JSON.stringify(body));
@@ -213,6 +214,11 @@ function createFixtureServer() {
       if (["POST", "PUT", "PATCH"].includes(request.method)) body = await bodyJson(request);
       requests.push({ method: request.method, path: url.pathname, search: url.search, body });
 
+      if (request.method === "GET" && url.pathname === "/api/matters") {
+        assert.equal(url.searchParams.get("limit"), "50");
+        assert.equal(url.searchParams.get("offset"), "0");
+        return json(response, 200, { data: [matterDetail()], total: 1, limit: 50, offset: 0 });
+      }
       if (request.method === "GET" && url.pathname === `/api/matters/${MATTER_A}`) {
         return json(response, 200, matterDetail());
       }
@@ -364,10 +370,11 @@ function createFixtureServer() {
         return json(response, 500, { detail: "MATTER-B-CANARY" });
       }
 
-      const requestedPath = url.pathname === "/matter" ? "/matter.html" : url.pathname;
-      const relative = normalize(decodeURIComponent(requestedPath)).replace(/^([/\\])+/, "");
-      const file = join(OUT, relative || "index.html");
-      if (!file.startsWith(OUT) || !(await stat(file).catch(() => null))?.isFile()) {
+      const relative = normalize(decodeURIComponent(url.pathname)).replace(/^([/\\])+/, "");
+      const requestedFile = join(OUT, relative || "index.html");
+      const requestedStat = await stat(requestedFile).catch(() => null);
+      const file = requestedStat?.isFile() ? requestedFile : join(OUT, "index.html");
+      if (!requestedFile.startsWith(OUT) || !(await stat(file).catch(() => null))?.isFile()) {
         response.writeHead(404);
         return response.end("not found");
       }
@@ -470,7 +477,7 @@ function setValue(selector, value) {
 }
 
 test("Matter-bound Knowledge promotes and reviews one exact custody record", { timeout: 60_000 }, async () => {
-  await stat(join(OUT, "matter.html"));
+  await stat(join(OUT, "index.html"));
   const fixture = createFixtureServer();
   await new Promise((accept) => fixture.server.listen(0, "127.0.0.1", accept));
   const address = fixture.server.address();
@@ -558,7 +565,10 @@ test("Matter-bound Knowledge promotes and reviews one exact custody record", { t
     assert.equal(await evaluate(cdp, session, `document.body.innerText.includes('Reviewer: owner')`), true);
 
     assert.deepEqual(fixture.failures, []);
-    assert.equal(fixture.requests.some((item) => item.path === "/api/matters"), false);
+    assert.equal(
+      fixture.requests.filter((item) => item.method === "GET" && item.path === "/api/matters").length,
+      1,
+    );
     assert.equal(fixture.requests.some((item) => item.path.startsWith("/api/graphiti/")), false);
     assert.equal(fixture.requests.some((item) => item.path.includes(MATTER_B)), false);
     assert.equal(JSON.stringify(fixture.requests).includes("MATTER-B-CANARY"), false);

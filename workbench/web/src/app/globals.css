@@ -51,6 +51,8 @@
 }
 
 :root {
+  --font-inter: "Instrument Sans", "Segoe UI", sans-serif;
+  --font-geist-mono: "IBM Plex Mono", "Cascadia Code", monospace;
   --radius: 0.25rem;
   /* Surfaces */
   --background: #f5f3ee;
@@ -132,6 +134,12 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+  }
+  html, body, #root {
+    height: 100%;
+  }
+  body {
+    margin: 0;
   }
   html, body {
     @apply bg-background text-foreground;

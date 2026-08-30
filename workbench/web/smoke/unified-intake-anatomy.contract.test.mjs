@@ -1,4 +1,5 @@
 // Byline: Codex · GPT-5 · 2026-08-29 (production intake anatomy contract)
+// Byline: Codex · GPT-5.6-Sol · 2026-08-30 (opaque UIW preview contract)
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -62,7 +63,10 @@ test("parser details are rendered only from backend workflow preview state", () 
 
   assert.match(parserPanel, /\{preview \? \(/);
   assert.match(parserPanel, /preview\.phase/);
-  assert.match(parserPanel, /preview\.select_ref/);
+  assert.match(parserPanel, /preview\.parser/);
+  assert.match(parserPanel, /preview\.parser\.parser_id/);
+  assert.match(parserPanel, /preview\.parser\.parser_version/);
+  assert.match(parserPanel, /preview\.parser\.config_digest/);
   assert.match(parserPanel, /preview\.reason/);
   assert.match(parserPanel, /Temporal read-back/);
   assert.match(
@@ -72,16 +76,17 @@ test("parser details are rendered only from backend workflow preview state", () 
   assert.doesNotMatch(parserPanel, /<select\b|<option\b|setParser|parserOptions/);
 });
 
-test("execution receipt uses server-returned workflow identity and preserves the context boundary", () => {
+test("execution receipt uses the opaque preview identity and preserves the context boundary", () => {
   const receipt = between(
     intake,
     'aria-label="Intake execution receipt"',
     "</main>",
   );
 
-  assert.match(receipt, /Server-returned workflow identity and latest Temporal phase\./);
-  assert.match(receipt, /\{run\.workflow_id\}/);
-  assert.match(receipt, /\{run\.run_id\}/);
+  assert.match(receipt, /Server-returned preview identity and latest durable workflow phase\./);
+  assert.match(receipt, /\{run\.preview_handle\}/);
+  assert.match(receipt, /\{preview\?\.phase/);
+  assert.doesNotMatch(receipt, /run\.workflow_id|run\.run_id/);
   assert.match(receipt, /Authority boundary/);
   assert.match(receipt, /Context only; not evidence/);
 });

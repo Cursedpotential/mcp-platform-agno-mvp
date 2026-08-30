@@ -16,7 +16,7 @@
  * shown with a copy button instead of a broken/guessed link.
  */
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { AppLink as Link } from "@/lib/router-compat";
 import { Copy, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";

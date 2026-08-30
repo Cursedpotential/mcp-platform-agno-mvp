@@ -13,6 +13,12 @@ Lanes: **A** = restructure · **B** = ingestion/table redesign · **C** = infra/
 
 ---
 
+## 2026-08-30
+
+| # | Decision | Lane | Status | Rationale / notes |
+|---|---|---|---|---|
+| D-108 | **The Platform Workbench is browser-first React + Vite, served same-origin by its FastAPI API and deployed through the existing Coolify Workbench resource. TanStack Router owns browser routes; Storybook remains the Vite component workshop. A Tauri desktop host may be added after the browser product is complete, without changing PostgreSQL/custody authority or duplicating the separate Case Bible local-first sorter lane.** Next.js server/runtime machinery is retired from this client because the Workbench is a stateful browser application and does not need server components, server actions, SSR, or Next routing. This ruling does not claim that existing data tables have already migrated to Glide Data Grid; that migration proceeds one complete operational table at a time. | B/C | **owner-ruled and locally implemented 2026-08-30; production verification pending** | Owner: _"Just start with the browser mode on your side ... I want to preview what ... you're doing"_ and _"We can do a conversion ... or ... add-on to make your end a desktop app once we get it complete."_ The browser remains continuously previewable; the production container still exposes one same-origin FastAPI/Vite service, calls the existing storage/exec boundaries, and preserves PostgreSQL plus durable receipts as authority. Desktop filesystem, SQLite, and Tauri IPC stay future host adapters rather than browser dependencies. rel: ADR-0061, D-060, D-068, D-107. _Byline: Codex · GPT-5.6-Sol · 2026-08-30._ |
+
 ## 2026-08-29
 
 | # | Decision | Lane | Status | Rationale / notes |

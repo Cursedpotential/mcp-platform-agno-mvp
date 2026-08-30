@@ -9,14 +9,14 @@
  * outside this build's collision-safe scope; this file only ever ADDS new
  * exports. It re-exports `ApiError` from api-client.ts (read-only import)
  * for a consistent error shape, and mirrors that file's same
- * origin-relative fetch pattern (`NEXT_PUBLIC_API_URL` override, same-origin
- * default for the static export served by the FastAPI backend).
+ * origin-relative fetch pattern (`VITE_API_URL` build-time override,
+ * same-origin default for the Vite bundle served by the FastAPI backend).
  */
 import { ApiError } from "./api-client";
 
 export { ApiError };
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
+const API_BASE = import.meta.env.VITE_API_URL || "";
 
 async function copilotFetch<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response;

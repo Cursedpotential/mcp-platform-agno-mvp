@@ -9,9 +9,9 @@
  *
  * The static export (`output: "export"`) is served same-origin by the
  * platform's FastAPI backend, so the base URL is empty by default — every
- * call resolves relative to the page's own origin. `NEXT_PUBLIC_API_URL`
- * remains a supported override for local dev against a backend on a
- * different port (it is baked in at build time, same as the donor kit).
+ * call resolves relative to the page's own origin. `VITE_API_URL` remains a
+ * supported build-time override for browser development against a backend on
+ * a different port.
  */
 import type {
   CustodyTier,
@@ -85,7 +85,7 @@ import type {
   UIWSourceBrowserResponse,
 } from "./shared/types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
+const API_BASE = import.meta.env.VITE_API_URL || "";
 
 /** Typed API error with HTTP status code for caller-side branching. */
 export class ApiError extends Error {

@@ -3,7 +3,7 @@
 // Byline: Codex · GPT-5 · 2026-08-18 (authored, derived, and audit-control authority labels)
 "use client";
 
-import Link from "next/link";
+import { AppLink as Link } from "@/lib/router-compat";
 import { useEffect, useState } from "react";
 import { ChevronDown, ChevronRight, Database, Eye, RefreshCw, Waypoints } from "lucide-react";
 import { toast } from "sonner";

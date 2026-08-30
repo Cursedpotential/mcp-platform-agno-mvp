@@ -6,7 +6,7 @@
 // Byline: Codex · GPT-5 · 2026-08-29 (shared fixed-case shell context)
 "use client";
 
-import Link from "next/link";
+import { AppLink as Link } from "@/lib/router-compat";
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,

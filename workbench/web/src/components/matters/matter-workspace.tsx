@@ -2,8 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { AppLink as Link, useAppNavigate, useBrowserSearchParams } from "@/lib/router-compat";
 import { AlertTriangle, BriefcaseBusiness, Loader2, Scale } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -21,8 +20,8 @@ function errorText(error: unknown) {
 }
 
 export function MatterWorkspace() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
+  const router = useAppNavigate();
+  const searchParams = useBrowserSearchParams();
   const matterId = searchParams.get("matter_id")?.trim() || null;
   const [matters, setMatters] = useState<Matter[]>([]);
   const [matter, setMatter] = useState<MatterDetail | null>(null);

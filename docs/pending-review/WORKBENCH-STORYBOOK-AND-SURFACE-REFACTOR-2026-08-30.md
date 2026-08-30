@@ -2,7 +2,7 @@
 
 > _Byline: Codex · GPT-5.6-Sol · 2026-08-30._
 
-STATUS: FOUNDATION IMPLEMENTED / DEPLOYED / LIVE ROUTES VERIFIED
+STATUS: BROWSER VITE RELEASE CANDIDATE / LOCAL VERIFIED / PRODUCTION DEPLOYMENT PENDING
 
 ## Owner direction captured
 
@@ -13,6 +13,9 @@ STATUS: FOUNDATION IMPLEMENTED / DEPLOYED / LIVE ROUTES VERIFIED
   inside either surface.
 - Storybook is the shared component workshop and visual contract. It is not a canonical data,
   workflow, or authority layer.
+- This Platform Workbench is browser-first for continuous preview. A Tauri desktop host may be
+  added after the browser product is complete; the separate Case Bible local-first sorter lane is
+  not copied or modified here.
 - The separate agent's Storybook/Glide document sorting work belongs to the primary surface when
   its implementation is ready for integration. This slice deliberately does not duplicate it.
 - `react-calendar-timeline` and `vis-timeline` remain available as development-only visualization
@@ -22,21 +25,27 @@ STATUS: FOUNDATION IMPLEMENTED / DEPLOYED / LIVE ROUTES VERIFIED
 
 ## Implemented locally
 
-- Added Storybook 10.5 on the React/Vite adapter, with Docs and accessibility addons.
-- Added `storybook` and `build-storybook` package scripts.
-- Added Storybook light/dark rendering based on the approved warm-paper/graphite palette.
-- Added first-class stories for:
-  - the approved Platform palette;
-  - the primary Evidence Operations Desk boundary;
-  - the advanced Modular Service Cockpit boundary.
-- Added a typed two-surface registry and moved the live navigation definition into
-  `src/surfaces/primary/navigation.ts`.
+- Converted the production browser build from Next.js static export to Vite 8 while retaining the
+  existing React application and FastAPI/API/storage boundaries.
+- Added code-split TanStack Router routes for every current Workbench destination and a FastAPI SPA
+  fallback for direct browser deep links.
+- Reserved `/api`, `/health`, `/docs`, `/redoc`, and `/openapi.json` namespaces from SPA fallback;
+  unknown API paths and missing asset paths remain real 404 responses.
+- Replaced every browser `process.env.NEXT_PUBLIC_*` access with typed `import.meta.env.VITE_*`
+  access. Same-origin remains the production default.
+- Replaced the broken root shell with the live Evidence Operations Desk. It reads the canonical
+  fixed case, health, staged sources, open flags, and durable runs from real APIs and exposes only
+  the complete Desk → Intake → Preview primary path.
+- Added Storybook 10.5 on the React/Vite adapter with Docs, accessibility, approved light/dark
+  palettes, both surface boundaries, and an actual operational-desk story backed by bounded API
+  fixtures.
 - Kept advanced navigation empty and fail-closed. No Timesketch, graph, map, workflow, or legal
   destination is exposed before its live-proof gate passes.
-- Replaced the Storybook Next-specific adapter with the React/Vite adapter after the former
-  introduced a no-fix high-severity advisory through a development-only image parser dependency.
-  The resulting dependency audit is clean.
-- Storybook's generated `storybook-static/` output is ignored by Git and ESLint.
+- Updated the subtree README and agent instructions to the Vite/browser contract. The superseded
+  Next README was preserved under `to_be_deleted/workbench-next-shell-20260830/`; only the owner
+  deletes it.
+- Added one command for the complete 19-test browser/contract smoke suite and migrated the browser
+  journey itself from the stale ignored `out/*.html` tree to the real `dist/index.html` SPA.
 
 ## Timesketch sharing boundary
 
@@ -56,49 +65,37 @@ No launch exchange or Timesketch UI route was implemented in this slice.
 
 | Check | Result |
 |---|---|
-| `npm run build` | PASS — Next production build, 17 static routes |
-| `npm run build-storybook` | PASS — palette plus primary and advanced surface stories |
-| `npm run lint` | PASS with zero errors; two pre-existing warnings in untouched `uiw-preview-client.tsx` |
-| `npm audit --audit-level=high` | PASS — zero vulnerabilities after moving to React/Vite Storybook |
+| `npm run build` | PASS — Vite 8.2.2, TypeScript, 2,072 modules, code-split `dist/` bundle |
+| `npm run build-storybook` | PASS — actual operational desk plus palette and two-surface boundaries |
+| `npm run lint` | PASS with zero errors and 14 warnings; 12 Fast Refresh warnings plus two pre-existing UIW ref-cleanup warnings |
+| `npm audit --audit-level=high` | PASS — zero vulnerabilities |
 | `git diff --check -- workbench/web` | PASS |
-| Workbench smoke files | 16 PASS / 3 FAIL in untouched matter/intake tests |
-
-The three smoke failures are outside this refactor's files:
-
-1. `matter-flow.smoke.test.mjs` does not expect the current fixed-case request to
-   `GET /api/matters?limit=50&offset=0`.
-2. `unified-intake-anatomy.contract.test.mjs` still expects `preview.select_ref`, while the current
-   UI renders the parser identity/version/config digest returned by the preview state.
-3. The same contract test expects older receipt copy referring to a Temporal identity; current UI
-   says "Server-returned preview identity and latest durable workflow phase."
-
-These failures were recorded, not repaired, because neither the affected tests nor their production
-components belong to this Storybook/surface-boundary slice.
+| `npm run smoke` contracts | PASS — 19/19 against the real Vite output and current opaque UIW contract |
+| Focused FastAPI Vite/static suite | PASS — 4/4, including deep-link and reserved-API negative cases |
+| Full Workbench API suite | 232 PASS / 1 pre-existing structure-policy failure: `app/service/uiw.py` is 301 lines and `app/types/case_management.py` is 315 lines |
+| Root integration marker | BLOCKED during collection by the pre-existing missing tracked file `sql/0045_context_fingerprint_semantics.sql` referenced by `tests/test_0048_context_fingerprint_uiw_repair.py` |
+| Local browser render | PASS — real Desk DOM rendered, navigation present, zero console errors; isolated preview correctly showed unavailable API state because it was not attached to the production backend |
+| Exact local container build | NOT AVAILABLE — Docker CLI is not installed; Coolify exact-image build remains the production build gate |
 
 ## Production deployment receipt
 
-- Implementation commit: `2952250dfe8eab94a2fa861658302236ac452e5e`.
-- Coolify application: `knowledge-workbench` (`xjbuo6drbwjfby75lalk8bk7`).
-- Coolify deployment: `vis21loq504r6spk6krpwyg9`, terminal status `finished`.
-- The production image built the Next.js application successfully and generated all 17 static
-  routes before Coolify replaced the prior container.
-- Stable Tailscale Service live proof after replacement:
-  - `GET https://workbench.tilapia-skilift.ts.net/health` returned HTTP `200` and JSON.
-  - `GET https://workbench.tilapia-skilift.ts.net/` returned HTTP `200` and the Platform HTML title.
-  - `GET https://workbench.tilapia-skilift.ts.net/evidence/preview` returned HTTP `200` and the
-    Platform HTML title.
+The prior Storybook-foundation deployment was commit `2952250`, Coolify deployment
+`vis21loq504r6spk6krpwyg9`. It proved only the former Next shell and is not acceptance evidence for
+this Vite/browser release.
 
-This proves deployment and live reachability of the current Workbench build. Storybook remains a
-development workshop built and verified separately; it was not added as a public production route.
+Current Vite release commit, Coolify deployment UUID/revision, stable-route probes, real API state,
+and production browser screenshot remain pending. This section must be updated from the live system
+before status changes to deployed.
 
 ## Still open
 
-- Integrate the other agent's Glide sorter without duplicating its component or query contract.
-- Add stories for real primary-surface components as they are refactored; do not create feature
-  inventory mockups disconnected from production behavior.
+- Commit, push, let Coolify build the exact Docker target, and verify the stable production page
+  visually plus `/health`, `/`, `/intake`, and `/evidence/preview` deep links.
+- Migrate data-heavy tables to Glide Data Grid one complete workflow at a time. This release does
+  not claim that migration, and it does not duplicate the other agent's Case Bible sorter.
+- Quarantine retained `next.config.ts` and `next-env.d.ts` only after Vite production parity is
+  live-proven; no destructive cleanup is authorized.
 - Select a lightweight timeline engine per concrete visualization. Both retained engines may be
   used when their interaction models serve different jobs.
 - Add the Timesketch advanced launch/deep-link contract only after its deployment, authority, and
   PostgreSQL round-trip gates pass.
-- TanStack Query/Router/Form adoption and removal of the static Next shell are separate follow-on
-  slices, not implied complete by this Storybook foundation.

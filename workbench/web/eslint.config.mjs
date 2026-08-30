@@ -1,29 +1,22 @@
-import { defineConfig, globalIgnores } from "eslint/config";
-import nextVitals from "eslint-config-next/core-web-vitals";
-import nextTs from "eslint-config-next/typescript";
+import js from "@eslint/js";
+import { globalIgnores } from "eslint/config";
+import reactHooks from "eslint-plugin-react-hooks";
+import reactRefresh from "eslint-plugin-react-refresh";
+import globals from "globals";
+import tseslint from "typescript-eslint";
 
-const eslintConfig = defineConfig([
-  ...nextVitals,
-  ...nextTs,
-  // Override default ignores of eslint-config-next.
-  globalIgnores([
-    // Default ignores of eslint-config-next:
-    ".next/**",
-    "out/**",
-    "build/**",
-    "storybook-static/**",
-    "next-env.d.ts",
-  ]),
-  // Generated shadcn/ui components — do not modify or lint strictly
+export default tseslint.config(
+  globalIgnores(["dist/**", "build/**", "storybook-static/**", "src/components/ui/**"]),
   {
-    files: ["src/components/ui/**"],
-    rules: {
-      "react-hooks/purity": "off",
+    files: ["**/*.{ts,tsx}"],
+    extends: [js.configs.recommended, ...tseslint.configs.recommended, reactHooks.configs.flat.recommended],
+    languageOptions: {
+      ecmaVersion: 2022,
+      globals: { ...globals.browser, ...globals.node },
     },
-  },
-  {
+    plugins: { "react-refresh": reactRefresh },
     rules: {
-      // Stricter rules for agent-generated code quality
+      "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
       "no-console": ["warn", { allow: ["warn", "error"] }],
       "no-debugger": "error",
       "no-alert": "error",
@@ -32,11 +25,9 @@ const eslintConfig = defineConfig([
       "eqeqeq": ["error", "always"],
       "@typescript-eslint/no-unused-vars": [
         "error",
-        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }
       ],
-      "@typescript-eslint/no-explicit-any": "warn",
-    },
-  },
-]);
-
-export default eslintConfig;
+      "@typescript-eslint/no-explicit-any": "warn"
+    }
+  }
+);

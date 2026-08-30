@@ -4,8 +4,6 @@
 // Byline: Codex · GPT-5.6-Sol · 2026-08-30 (two-surface navigation registry)
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
 import {
   Sidebar,
@@ -21,9 +19,10 @@ import {
 } from "@/components/ui/sidebar";
 import { workbenchNavigation } from "@/platform-ui/navigation";
 import { WORKBENCH_SURFACES } from "@/platform-ui/surfaces";
+import { AppLink, useCurrentPath } from "@/lib/router-compat";
 
 export function AppSidebar() {
-  const pathname = usePathname();
+  const pathname = useCurrentPath();
   return (
     <Sidebar className="border-r border-sidebar-border">
       <SidebarHeader className="border-b border-sidebar-border px-4 py-5">
@@ -37,10 +36,10 @@ export function AppSidebar() {
               {workbenchNavigation.map((item) => (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton asChild isActive={pathname === item.href || pathname.startsWith(`${item.href}/`)} className="h-12 rounded-none border-l-2 border-transparent px-4 text-sm data-[active=true]:border-[#8290ed] data-[active=true]:bg-[#314050] data-[active=true]:text-white">
-                    <Link href={item.href}>
+                    <AppLink href={item.href}>
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
-                    </Link>
+                    </AppLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}

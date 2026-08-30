@@ -43,7 +43,9 @@ from app.runtime import (
 from app.runtime.auth import authentication_middleware
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import FileResponse
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("workbench")
@@ -127,25 +129,41 @@ app.include_router(compare.router)
 
 # Static frontend (built separately) mounted LAST so /api + /health always win.
 _static_dir = Path(settings.static_dir)
+_SPA_RESERVED_PREFIXES = frozenset({"api", "docs", "health", "openapi.json", "redoc"})
 
 
-class _NextStaticFiles(StaticFiles):
-    """StaticFiles that also maps extensionless paths to Next's flat exports.
+def _allows_spa_fallback(path: str) -> bool:
+    """Return whether an unknown path may be a client-side Workbench route."""
 
-    `output: 'export'` (no trailingSlash) writes `/runs` as `runs.html`, which
-    plain StaticFiles(html=True) won't serve for a deep link to `/runs`."""
+    normalized = path.lstrip("/")
+    first_segment = normalized.split("/", 1)[0]
+    final_segment = normalized.rsplit("/", 1)[-1]
+    return first_segment not in _SPA_RESERVED_PREFIXES and "." not in final_segment
+
+
+class _WorkbenchStaticFiles(StaticFiles):
+    """Serve real assets normally and fall back to Vite's SPA entry document.
+
+    API routers are mounted before this catch-all. Extensionless browser routes
+    resolve to ``index.html`` so TanStack Router can restore deep links, while a
+    missing asset-like path remains a real 404 instead of receiving HTML.
+    """
 
     async def get_response(self, path: str, scope):  # type: ignore[override]
-        response = await super().get_response(path, scope)
-        if response.status_code == 404 and path and "." not in path.rsplit("/", 1)[-1]:
-            candidate = Path(self.directory) / f"{path}.html"  # type: ignore[arg-type]
-            if candidate.is_file():
-                return await super().get_response(f"{path}.html", scope)
+        request_path = str(scope.get("path") or path)
+        try:
+            response = await super().get_response(path, scope)
+        except StarletteHTTPException as error:
+            if error.status_code == 404 and _allows_spa_fallback(request_path):
+                return FileResponse(Path(self.directory) / "index.html")  # type: ignore[arg-type]
+            raise
+        if response.status_code == 404 and _allows_spa_fallback(request_path):
+            return FileResponse(Path(self.directory) / "index.html")  # type: ignore[arg-type]
         return response
 
 
 if _static_dir.is_dir():
-    app.mount("/", _NextStaticFiles(directory=str(_static_dir), html=True), name="static")
+    app.mount("/", _WorkbenchStaticFiles(directory=str(_static_dir), html=True), name="static")
     logger.info("Serving static frontend from %s", _static_dir)
 else:
     logger.info("STATIC_DIR %s not found — no frontend mounted", _static_dir)
