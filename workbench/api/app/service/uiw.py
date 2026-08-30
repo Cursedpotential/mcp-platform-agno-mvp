@@ -5,7 +5,11 @@ Byline: Codex · GPT-5 · 2026-08-28.
 
 from __future__ import annotations
 
+import hashlib
 import json
+from pathlib import Path
+import re
+import stat
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -21,6 +25,8 @@ from app.types.uiw import (
     UIWDecisionRequest,
     UIWDecisionActor,
     UIWDecisionResponse,
+    UIWRepairDecisionRequest,
+    UIWRepairDecisionResponse,
     UIWPreviewEvent,
     UIWPreviewMessagesResponse,
     UIWPreviewResponse,
@@ -39,6 +45,40 @@ class UIWError(Exception):
         super().__init__(detail)
 
 
+_SERVICE_TOKEN = re.compile(r"[A-Za-z0-9\-._~+/]+={0,}")
+_MIN_SERVICE_TOKEN_BYTES = 32
+_MAX_SERVICE_TOKEN_BYTES = 4096
+_MAX_SERVICE_TOKEN_FILE_BYTES = _MAX_SERVICE_TOKEN_BYTES + 2
+_SAFE_SERVICE_AUTH_ERROR = "UIW service authentication is unavailable or invalid"
+
+
+def _service_authorization_headers() -> dict[str, str]:
+    """Read and validate the mounted UIW service token for one request."""
+    path = Path(settings.uiw_service_token_file)
+    if not path.is_absolute():
+        raise UIWError(_SAFE_SERVICE_AUTH_ERROR, 503)
+    try:
+        file_info = path.lstat()
+        if not stat.S_ISREG(file_info.st_mode) or not (
+            _MIN_SERVICE_TOKEN_BYTES <= file_info.st_size <= _MAX_SERVICE_TOKEN_FILE_BYTES
+        ):
+            raise UIWError(_SAFE_SERVICE_AUTH_ERROR, 503)
+        with path.open("rb") as secret_file:
+            raw = secret_file.read(_MAX_SERVICE_TOKEN_FILE_BYTES + 1)
+    except OSError:
+        raise UIWError(_SAFE_SERVICE_AUTH_ERROR, 503) from None
+    raw = raw.rstrip(b"\r\n")
+    if not (_MIN_SERVICE_TOKEN_BYTES <= len(raw) <= _MAX_SERVICE_TOKEN_BYTES) or b"\x00" in raw:
+        raise UIWError(_SAFE_SERVICE_AUTH_ERROR, 503)
+    try:
+        token = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        raise UIWError(_SAFE_SERVICE_AUTH_ERROR, 503) from None
+    if _SERVICE_TOKEN.fullmatch(token) is None:
+        raise UIWError(_SAFE_SERVICE_AUTH_ERROR, 503)
+    return {"Authorization": f"Bearer {token}"}
+
+
 def _detail(response: httpx.Response) -> str:
     try:
         payload: Any = response.json()
@@ -52,11 +92,8 @@ def _detail(response: httpx.Response) -> str:
 async def _request(method: str, path: str, **kwargs: Any) -> httpx.Response:
     if not settings.uiw_starter_url.strip():
         raise UIWError("UIW starter is not configured", 503)
-    headers = {
-        key: value
-        for key, value in dict(kwargs.pop("headers", {})).items()
-        if key.lower() != "authorization"
-    }
+    headers = {key: value for key, value in dict(kwargs.pop("headers", {})).items() if key.lower() != "authorization"}
+    headers.update(_service_authorization_headers())
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.request(
@@ -151,7 +188,11 @@ async def decide(
     response = await _request(
         "POST",
         f"/reference-import/previews/{preview_handle}/decision",
-        json={**request.model_dump(), "actor": actor.model_dump()},
+        json=request.model_dump(mode="json"),
+        headers={
+            "X-authentik-uid": actor.subject_uid,
+            "X-authentik-username": actor.username,
+        },
     )
     result = _validated(
         UIWDecisionResponse,
@@ -160,6 +201,47 @@ async def decide(
     )
     if result.preview_handle != preview_handle:
         raise UIWError("UIW decision response correlation failed", 502)
+    return result
+
+
+def _repair_idempotency_key(
+    preview_handle: str,
+    request: UIWRepairDecisionRequest,
+    actor: UIWDecisionActor,
+) -> str:
+    """Bind repair retries to handle, immutable subject, and canonical choice."""
+    canonical = json.dumps(
+        request.model_dump(mode="json"),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
+    digest = hashlib.sha256(f"{preview_handle}\x00{actor.subject_uid}\x00{canonical}".encode()).hexdigest()
+    return f"uiw-repair:{digest}"
+
+
+async def decide_repair(
+    preview_handle: str,
+    request: UIWRepairDecisionRequest,
+    actor: UIWDecisionActor,
+) -> UIWRepairDecisionResponse:
+    response = await _request(
+        "POST",
+        f"/reference-import/previews/{preview_handle}/repair-decision",
+        json=request.model_dump(mode="json"),
+        headers={
+            "X-authentik-uid": actor.subject_uid,
+            "X-authentik-username": actor.username,
+            "Idempotency-Key": _repair_idempotency_key(preview_handle, request, actor),
+        },
+    )
+    result = _validated(
+        UIWRepairDecisionResponse,
+        _json_payload(response, "repair decision response"),
+        "repair decision response",
+    )
+    if result.preview_handle != preview_handle:
+        raise UIWError("UIW repair decision response correlation failed", 502)
     return result
 
 
@@ -175,15 +257,11 @@ async def preview(preview_handle: str) -> UIWPreviewResponse:
     return result
 
 
-async def preview_messages(
-    preview_handle: str, *, cursor: str | None, limit: int
-) -> UIWPreviewMessagesResponse:
+async def preview_messages(preview_handle: str, *, cursor: str | None, limit: int) -> UIWPreviewMessagesResponse:
     params: dict[str, str | int] = {"limit": limit}
     if cursor:
         params["cursor"] = cursor
-    response = await _request(
-        "GET", f"/reference-import/previews/{preview_handle}/messages", params=params
-    )
+    response = await _request("GET", f"/reference-import/previews/{preview_handle}/messages", params=params)
     result = _validated(
         UIWPreviewMessagesResponse,
         _json_payload(response, "preview message page"),
@@ -200,7 +278,7 @@ async def open_preview_event_stream(
     """Open the dedicated UIW event stream; legacy run events are never consulted."""
     if not settings.uiw_starter_url.strip():
         raise UIWError("UIW starter is not configured", 503)
-    headers = {"Accept": "text/event-stream"}
+    headers = {"Accept": "text/event-stream", **_service_authorization_headers()}
     if last_event_id is not None:
         headers["Last-Event-ID"] = str(last_event_id)
     client = httpx.AsyncClient(timeout=httpx.Timeout(connect=15.0, read=None, write=15.0, pool=15.0))
@@ -268,7 +346,7 @@ async def open_upload_stream(
     """Open a streaming acquisition upload; caller owns response/client closure."""
     if not settings.uiw_starter_url.strip():
         raise UIWError("UIW acquisition upload is not configured", 503)
-    headers: dict[str, str] = {}
+    headers: dict[str, str] = _service_authorization_headers()
     if content_type:
         headers["Content-Type"] = content_type
     if content_length:

@@ -14,6 +14,7 @@ from app.service.uiw import (
     UIWError,
     browse_sources,
     decide,
+    decide_repair,
     open_preview_event_stream,
     open_upload_stream,
     preview,
@@ -27,6 +28,8 @@ from app.types.uiw import (
     UIWDecisionResponse,
     UIWPreviewMessagesResponse,
     UIWPreviewResponse,
+    UIWRepairDecisionRequest,
+    UIWRepairDecisionResponse,
     UIWSourceBrowserResponse,
     UIWStartRequest,
     UIWStartResponse,
@@ -39,10 +42,19 @@ def _translate(error: UIWError) -> HTTPException:
     return HTTPException(status_code=error.status_code, detail=error.detail)
 
 
+def _decision_actor(request: Request) -> UIWDecisionActor:
+    subject_uid = str(getattr(request.state, "subject_uid", "")).strip()
+    username = str(getattr(request.state, "principal", "")).strip()
+    if not subject_uid or not username:
+        raise HTTPException(status_code=401, detail="authenticated subject identity is unavailable")
+    try:
+        return UIWDecisionActor(subject_uid=subject_uid, username=username)
+    except ValueError:
+        raise HTTPException(status_code=401, detail="authenticated subject identity is invalid") from None
+
+
 @router.get("/sources", response_model=UIWSourceBrowserResponse)
-def sources_endpoint(
-    prefix: str = "", continuation_token: str | None = None, filter: str = "", page_size: int = 100
-):
+def sources_endpoint(prefix: str = "", continuation_token: str | None = None, filter: str = "", page_size: int = 100):
     if page_size < 1 or page_size > 500:
         raise HTTPException(status_code=422, detail="page_size must be between 1 and 500")
     try:
@@ -83,7 +95,9 @@ async def upload_endpoint(request: Request):
             await response.aclose()
             await client.aclose()
 
-    headers = {key: value for key, value in response.headers.items() if key.lower() in {"content-type", "content-length"}}
+    headers = {
+        key: value for key, value in response.headers.items() if key.lower() in {"content-type", "content-length"}
+    }
     return StreamingResponse(body(), status_code=response.status_code, headers=headers)
 
 
@@ -94,16 +108,25 @@ PreviewHandle = Annotated[str, Path(pattern=r"^[A-Za-z0-9_-]{32,128}$")]
 async def decision_endpoint(preview_handle: PreviewHandle, body: UIWDecisionRequest, request: Request):
     if not body.approved and not body.reason.strip():
         raise HTTPException(status_code=422, detail="a rejection decision requires a non-empty reason")
-    subject_uid = str(getattr(request.state, "subject_uid", "")).strip()
-    username = str(getattr(request.state, "principal", "")).strip()
-    if not subject_uid or not username:
-        raise HTTPException(status_code=401, detail="authenticated subject identity is unavailable")
+    actor = _decision_actor(request)
     try:
-        return await decide(
-            preview_handle,
-            body,
-            UIWDecisionActor(subject_uid=subject_uid, username=username),
-        )
+        return await decide(preview_handle, body, actor)
+    except UIWError as error:
+        raise _translate(error) from None
+
+
+@router.post(
+    "/previews/{preview_handle}/repair-decision",
+    response_model=UIWRepairDecisionResponse,
+)
+async def repair_decision_endpoint(
+    preview_handle: PreviewHandle,
+    body: UIWRepairDecisionRequest,
+    request: Request,
+):
+    actor = _decision_actor(request)
+    try:
+        return await decide_repair(preview_handle, body, actor)
     except UIWError as error:
         raise _translate(error) from None
 
@@ -142,9 +165,7 @@ async def preview_events_endpoint(
         if last_event_id < 0:
             raise HTTPException(status_code=422, detail="Last-Event-ID must be a non-negative integer")
     try:
-        client, response = await open_preview_event_stream(
-            preview_handle, last_event_id=last_event_id
-        )
+        client, response = await open_preview_event_stream(preview_handle, last_event_id=last_event_id)
     except UIWError as error:
         raise _translate(error) from None
 
