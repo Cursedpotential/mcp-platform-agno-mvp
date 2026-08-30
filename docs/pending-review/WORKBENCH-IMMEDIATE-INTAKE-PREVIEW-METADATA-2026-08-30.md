@@ -30,6 +30,10 @@
 - PostgreSQL: migrations 0036, 0050, 0051, and 0053 were exercised together in a rollback-only
   production connection before release. The live database had none of those UIW tables beforehand,
   so deployment requires the full ordered chain rather than forcing migration 0053 alone.
+- The first live apply attempt stopped before UIW DDL because the empty legacy migration ledger used
+  `schema_version_id` while the tracked rich-ledger contract and apply scripts require `id`. The
+  guarded, empty-ledger-only forward true-up is persisted at
+  `sql/bootstrap/schema_version_ledger_trueup.sql`; it must run before 0036.
 
 ## Release state
 
