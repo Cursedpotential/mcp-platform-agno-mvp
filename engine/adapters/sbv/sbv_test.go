@@ -36,12 +36,95 @@ func TestNewAllExcludesEmailFormatsAndUsesCanonicalIDs(t *testing.T) {
 		if len(capability.ParserID) < 4 || capability.ParserID[:4] != "sbv_" {
 			t.Fatalf("parser ID = %q", capability.ParserID)
 		}
-		if capability.ParserVersion != "1.3.0" {
-			t.Fatalf("parser version = %q, want 1.3.0", capability.ParserVersion)
+		if capability.ParserVersion != "1.4.0" {
+			t.Fatalf("parser version = %q, want 1.4.0", capability.ParserVersion)
 		}
 		if capability.SupportsAttachments {
 			t.Fatal("adapter without an immutable artifact sink claimed attachment support")
 		}
+	}
+}
+
+func TestRegistryMapsOnlySafeWorkbenchDeclaredFormats(t *testing.T) {
+	adapters, err := NewAll(func(context.Context, string) (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(nil)), nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	registry, err := parser.NewRegistry(adapters...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, format := range []parser.FormatID{formatWorkbenchSMSExportXML, formatLegacySMSXML} {
+		selected, err := registry.Select(format)
+		if err != nil {
+			t.Fatalf("select safe SMS alias %q: %v", format, err)
+		}
+		if selected.Capability().ParserID != "sbv_"+parseonly.FormatSMSBackupXML {
+			t.Fatalf("format %q selected %q", format, selected.Capability().ParserID)
+		}
+	}
+	for _, format := range []parser.FormatID{"markdown", "message_export_json", "docx", "html"} {
+		if _, err := registry.Select(format); err == nil || !strings.Contains(err.Error(), "no parser adapter declares format") {
+			t.Fatalf("ambiguous/unsupported Workbench format %q did not fail closed: %v", format, err)
+		}
+	}
+}
+
+func TestAdapterExecutesWorkbenchSMSAliasWithoutChangingDeclaredFormat(t *testing.T) {
+	source := []byte(`<smses count="1"><sms address="+15551234567" date="1700000000000" type="1" body="hello" /></smses>`)
+	adapter, err := New(parseonly.FormatSMSBackupXML, func(context.Context, string) (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(source)), nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := parser.ParserInput{
+		ContractVersion: parser.ContractVersion, SourceVersionRef: "source-1",
+		DeclaredFormat: formatWorkbenchSMSExportXML,
+		FileOrMember: parser.Locator{Type: parser.LocatorWholeObject,
+			ObjectRef: parser.ObjectRef{StorageClass: "immutable_object_store", URI: "object://sms"}},
+	}
+	var records []parser.RawRecordEnvelope
+	if _, err := adapter.Parse(context.Background(), input, recordSink{records: &records}); err != nil {
+		t.Fatal(err)
+	}
+	if len(records) != 2 || records[0].FormatID != formatWorkbenchSMSExportXML || records[1].FormatID != formatWorkbenchSMSExportXML {
+		t.Fatalf("records did not preserve declared format %q: %+v", formatWorkbenchSMSExportXML, records)
+	}
+}
+
+func TestAdapterPreservesActualSMSXMLCallSemantics(t *testing.T) {
+	source := []byte(`<smses count="1"><call number="+15551234567" duration="17" date="1700000000000" type="3" /></smses>`)
+	adapter, err := New(parseonly.FormatSMSBackupXML, func(context.Context, string) (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(source)), nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := parser.ParserInput{
+		ContractVersion: parser.ContractVersion, SourceVersionRef: "source-1",
+		DeclaredFormat: parseonly.FormatSMSBackupXML,
+		FileOrMember: parser.Locator{Type: parser.LocatorWholeObject,
+			ObjectRef: parser.ObjectRef{StorageClass: "immutable_object_store", URI: "object://calls"}},
+	}
+	var records []parser.RawRecordEnvelope
+	if _, err := adapter.Parse(context.Background(), input, recordSink{records: &records}); err != nil {
+		t.Fatal(err)
+	}
+	if len(records) != 2 {
+		t.Fatalf("records = %+v", records)
+	}
+	var fields parser.CommonNativeFields
+	if err := json.Unmarshal(records[0].NativeFields, &fields); err != nil {
+		t.Fatal(err)
+	}
+	if fields.RecordKind != parser.NativeKindCall || fields.Call == nil ||
+		fields.Call.Direction != parser.CallDirectionIncoming ||
+		fields.Call.Disposition != parser.CallDispositionMissed || !fields.Call.Missed ||
+		fields.Call.DurationSeconds == nil || *fields.Call.DurationSeconds != 17 {
+		t.Fatalf("actual XML call fields = %+v; metadata=%s", fields, records[0].NativeMetadata)
 	}
 }
 
@@ -471,7 +554,7 @@ func TestAdapterStreamsExactChatGPTRecordIntoCommonContract(t *testing.T) {
 func TestToEnvelopePromotesSBVMessageFields(t *testing.T) {
 	occurredAt := time.Date(2024, 5, 6, 7, 8, 9, 0, time.UTC)
 	envelope, err := toEnvelope(parseonly.FormatNDJSON, parseonly.Record{
-		Status: parseonly.StatusParsed, Raw: []byte(`{"message":"hello"}`), Content: "hello",
+		Status: parseonly.StatusParsed, Kind: "object", Raw: []byte(`{"message":"hello"}`), Content: "hello",
 		Sender: "alice", Participants: []string{"alice", "bob"},
 		Recipients: []parseonly.Recipient{{Identity: "bob", Role: "to"}}, OccurredAt: &occurredAt,
 	})
@@ -479,6 +562,7 @@ func TestToEnvelopePromotesSBVMessageFields(t *testing.T) {
 		t.Fatal(err)
 	}
 	var fields struct {
+		RecordKind   string   `json:"record_kind"`
 		Body         string   `json:"body"`
 		Sender       string   `json:"sender"`
 		Recipients   []string `json:"recipients"`
@@ -488,8 +572,75 @@ func TestToEnvelopePromotesSBVMessageFields(t *testing.T) {
 	if err := json.Unmarshal(envelope.NativeFields, &fields); err != nil {
 		t.Fatal(err)
 	}
-	if fields.Body != "hello" || fields.Sender != "alice" || len(fields.Recipients) != 1 || fields.Recipients[0] != "bob" || len(fields.Participants) != 2 || fields.OccurredAt == "" {
+	if fields.RecordKind != "object" || fields.Body != "hello" || fields.Sender != "alice" || len(fields.Recipients) != 1 || fields.Recipients[0] != "bob" || len(fields.Participants) != 2 || fields.OccurredAt == "" {
 		t.Fatalf("native fields = %+v", fields)
+	}
+}
+
+func TestToEnvelopePromotesMissedCallSemantics(t *testing.T) {
+	envelope, err := toEnvelope(parseonly.FormatSMSBackupXML, parseonly.Record{
+		Status: parseonly.StatusParsed, Kind: "call", Raw: []byte(`<call type="3" duration="0" />`),
+		Participants: []string{"+15551234567"},
+		Metadata:     map[string]any{"Type": "3", "Duration": "0"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fields parser.CommonNativeFields
+	if err := json.Unmarshal(envelope.NativeFields, &fields); err != nil {
+		t.Fatal(err)
+	}
+	if err := fields.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if fields.RecordKind != parser.NativeKindCall || fields.Call == nil ||
+		fields.Call.Direction != parser.CallDirectionIncoming ||
+		fields.Call.Disposition != parser.CallDispositionMissed || !fields.Call.Missed ||
+		fields.Call.DurationSeconds == nil || *fields.Call.DurationSeconds != 0 {
+		t.Fatalf("missed call fields = %+v", fields)
+	}
+}
+
+func TestToEnvelopePromotesOutgoingCallDurationAndRejectsInvalidDuration(t *testing.T) {
+	record := parseonly.Record{
+		Status: parseonly.StatusParsed, Kind: "call", Raw: []byte(`<call type="2" duration="42" />`),
+		Metadata: map[string]any{"Type": "2", "Duration": "42"},
+	}
+	envelope, err := toEnvelope(parseonly.FormatSMSBackupXML, record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fields parser.CommonNativeFields
+	if err := json.Unmarshal(envelope.NativeFields, &fields); err != nil {
+		t.Fatal(err)
+	}
+	if fields.Call == nil || fields.Call.Direction != parser.CallDirectionOutgoing ||
+		fields.Call.Disposition != parser.CallDispositionCompleted || fields.Call.Missed ||
+		fields.Call.DurationSeconds == nil || *fields.Call.DurationSeconds != 42 {
+		t.Fatalf("outgoing call fields = %+v", fields)
+	}
+	record.Metadata["Duration"] = "-1"
+	if _, err := toEnvelope(parseonly.FormatSMSBackupXML, record); err == nil || !strings.Contains(err.Error(), "non-negative integer") {
+		t.Fatalf("negative duration did not fail closed: %v", err)
+	}
+}
+
+func TestToEnvelopePreservesTranscriptMissedCallAndDirection(t *testing.T) {
+	envelope, err := toEnvelope(parseonly.FormatTranscript, parseonly.Record{
+		Status: parseonly.StatusParsed, Kind: "call", Raw: []byte("Missed call"), Content: "Missed call",
+		Metadata: map[string]any{"direction": "inbound"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fields parser.CommonNativeFields
+	if err := json.Unmarshal(envelope.NativeFields, &fields); err != nil {
+		t.Fatal(err)
+	}
+	if fields.Call == nil || fields.Call.Direction != parser.CallDirectionIncoming ||
+		fields.Call.Disposition != parser.CallDispositionMissed || !fields.Call.Missed ||
+		fields.Call.DurationSeconds != nil {
+		t.Fatalf("transcript missed call fields = %+v", fields)
 	}
 }
 

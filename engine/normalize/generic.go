@@ -13,7 +13,7 @@ import (
 
 const (
 	GenericMessageNormalizerID      = "generic_message_normalizer"
-	GenericMessageNormalizerVersion = "1.0.0"
+	GenericMessageNormalizerVersion = "1.1.0"
 )
 
 // GenericMessageNormalizer is the platform's baseline, format-agnostic
@@ -49,18 +49,20 @@ func (GenericMessageNormalizer) Capability() Capability {
 // remains fully preserved: unrecognized native fields are never dropped, only
 // left out of the derived Participants/body convenience fields.
 type genericMessageFields struct {
-	Body         *string  `json:"body"`
-	Text         *string  `json:"text"`
-	Message      *string  `json:"message"`
-	Sender       *string  `json:"sender"`
-	From         *string  `json:"from"`
-	Recipient    *string  `json:"recipient"`
-	Recipients   []string `json:"recipients"`
-	To           []string `json:"to"`
-	Timestamp    *string  `json:"timestamp"`
-	OccurredAt   *string  `json:"occurred_at"`
-	SentAt       *string  `json:"sent_at"`
-	Participants []string `json:"participants"`
+	RecordKind   parser.NativeRecordKind  `json:"record_kind"`
+	Call         *parser.NativeCallFields `json:"call"`
+	Body         *string                  `json:"body"`
+	Text         *string                  `json:"text"`
+	Message      *string                  `json:"message"`
+	Sender       *string                  `json:"sender"`
+	From         *string                  `json:"from"`
+	Recipient    *string                  `json:"recipient"`
+	Recipients   []string                 `json:"recipients"`
+	To           []string                 `json:"to"`
+	Timestamp    *string                  `json:"timestamp"`
+	OccurredAt   *string                  `json:"occurred_at"`
+	SentAt       *string                  `json:"sent_at"`
+	Participants []string                 `json:"participants"`
 }
 
 // genericMessageMetadata recognizes the lossless SBV adapter metadata shape
@@ -127,6 +129,11 @@ func normalizeOne(input NormalizerInput, raw RawRecordView, outputOrdinal uint64
 		}
 		mergeMessageMetadata(&fields, metadata)
 	}
+	if fields.RecordKind != "" || fields.Call != nil {
+		if err := (parser.CommonNativeFields{RecordKind: fields.RecordKind, Call: fields.Call}).Validate(); err != nil {
+			return RecordEnvelope{}, fmt.Errorf("validate typed native fields: %w", err)
+		}
+	}
 
 	body := firstNonNil(fields.Body, fields.Text, fields.Message)
 	occurredAtRaw := firstNonEmpty(fields.Timestamp, fields.OccurredAt, fields.SentAt)
@@ -144,9 +151,20 @@ func normalizeOne(input NormalizerInput, raw RawRecordView, outputOrdinal uint64
 
 	recordType := RecordTypeOther
 	content := raw.NativeFields
-	if body != nil {
+	if fields.RecordKind == parser.NativeKindCall {
+		recordType = RecordTypeCall
+		encoded, err := encodeCallContent(*fields.Call, body)
+		if err != nil {
+			return RecordEnvelope{}, err
+		}
+		content = encoded
+	} else if fields.RecordKind == parser.NativeKindMessage || body != nil {
 		recordType = RecordTypeMessage
-		encoded, err := json.Marshal(map[string]any{"body": *body})
+		bodyText := ""
+		if body != nil {
+			bodyText = *body
+		}
+		encoded, err := json.Marshal(map[string]any{"body": bodyText})
 		if err != nil {
 			return RecordEnvelope{}, fmt.Errorf("encode message content: %w", err)
 		}
@@ -188,6 +206,28 @@ func normalizeOne(input NormalizerInput, raw RawRecordView, outputOrdinal uint64
 			DerivationRole:   DerivationPrimarySource,
 		}},
 	}, nil
+}
+
+type normalizedCallContent struct {
+	Direction       parser.CallDirection   `json:"direction"`
+	Disposition     parser.CallDisposition `json:"disposition"`
+	Missed          bool                   `json:"missed"`
+	DurationSeconds *uint64                `json:"duration_seconds,omitempty"`
+	Body            *string                `json:"body,omitempty"`
+}
+
+func encodeCallContent(call parser.NativeCallFields, body *string) (json.RawMessage, error) {
+	if err := call.Validate(); err != nil {
+		return nil, fmt.Errorf("validate native call fields: %w", err)
+	}
+	encoded, err := json.Marshal(normalizedCallContent{
+		Direction: call.Direction, Disposition: call.Disposition, Missed: call.Missed,
+		DurationSeconds: call.DurationSeconds, Body: body,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("encode call content: %w", err)
+	}
+	return encoded, nil
 }
 
 func deriveParticipants(fields genericMessageFields) []Participant {

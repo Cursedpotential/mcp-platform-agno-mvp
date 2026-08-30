@@ -212,6 +212,29 @@ func TestCapabilityRequiresVersionedCanonicalFormatCoverage(t *testing.T) {
 	}
 }
 
+func TestCommonNativeFieldsKeepCallsTypedAndInternallyConsistent(t *testing.T) {
+	duration := uint64(0)
+	valid := CommonNativeFields{RecordKind: NativeKindCall, Call: &NativeCallFields{
+		Direction: CallDirectionIncoming, Disposition: CallDispositionMissed,
+		Missed: true, DurationSeconds: &duration,
+	}}
+	if err := valid.Validate(); err != nil {
+		t.Fatalf("valid native call fields: %v", err)
+	}
+	invalid := []CommonNativeFields{
+		{RecordKind: NativeKindCall},
+		{RecordKind: NativeKindMessage, Call: valid.Call},
+		{RecordKind: NativeKindCall, Call: &NativeCallFields{
+			Direction: CallDirectionIncoming, Disposition: CallDispositionMissed, Missed: false,
+		}},
+	}
+	for index, fields := range invalid {
+		if err := fields.Validate(); err == nil {
+			t.Fatalf("invalid native fields case %d passed validation: %+v", index, fields)
+		}
+	}
+}
+
 func TestParserInputPreservesFileOrMemberLocatorAndObjectHashShape(t *testing.T) {
 	input := validInput()
 	if err := input.Validate(); err != nil {

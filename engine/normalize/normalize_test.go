@@ -2,6 +2,7 @@ package normalize
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"strings"
@@ -280,6 +281,97 @@ func TestGenericMessageNormalizerMapsSBVNativeFields(t *testing.T) {
 	}
 	if !hasParticipant(record.Participants, RoleSender, "alice") || !hasParticipant(record.Participants, RoleRecipient, "bob") {
 		t.Fatalf("participants = %+v", record.Participants)
+	}
+}
+
+func TestGenericMessageNormalizerPreservesTypedMissedCallSemantics(t *testing.T) {
+	writer := &recordingWriter{bundleRef: "bundle:1"}
+	input := baseInput([]RawRecordView{{
+		RecordOrdinal: 0,
+		RecordStatus:  "parsed",
+		NativeFields: []byte(
+			`{"record_kind":"call","body":"Missed call","participants":["+15551234567"],"occurred_at":"2024-03-02T01:02:03Z","call":{"direction":"incoming","disposition":"missed","missed":true,"duration_seconds":0}}`,
+		),
+	}})
+	if _, err := Execute(context.Background(), input, GenericMessageNormalizer{}, writer); err != nil {
+		t.Fatal(err)
+	}
+	if len(writer.emitted) != 1 {
+		t.Fatalf("emitted %d records, want 1", len(writer.emitted))
+	}
+	record := writer.emitted[0]
+	if record.RecordType != RecordTypeCall {
+		t.Fatalf("record type = %q, want call", record.RecordType)
+	}
+	var content struct {
+		Direction       string  `json:"direction"`
+		Disposition     string  `json:"disposition"`
+		Missed          bool    `json:"missed"`
+		DurationSeconds *uint64 `json:"duration_seconds"`
+		Body            string  `json:"body"`
+	}
+	if err := json.Unmarshal(record.Content, &content); err != nil {
+		t.Fatal(err)
+	}
+	if content.Direction != "incoming" || content.Disposition != "missed" || !content.Missed ||
+		content.DurationSeconds == nil || *content.DurationSeconds != 0 || content.Body != "Missed call" {
+		t.Fatalf("call content = %+v", content)
+	}
+	if !hasParticipant(record.Participants, RoleUnknown, "+15551234567") {
+		t.Fatalf("participants = %+v", record.Participants)
+	}
+	if record.OccurredAt == nil || !record.OccurredAt.Equal(time.Date(2024, 3, 2, 1, 2, 3, 0, time.UTC)) {
+		t.Fatalf("occurred_at = %v", record.OccurredAt)
+	}
+}
+
+func TestGenericMessageNormalizerPreservesBodylessOutgoingCallDuration(t *testing.T) {
+	writer := &recordingWriter{bundleRef: "bundle:1"}
+	input := baseInput([]RawRecordView{{
+		RecordOrdinal: 0, RecordStatus: "parsed",
+		NativeFields: []byte(`{"record_kind":"call","call":{"direction":"outgoing","disposition":"completed","missed":false,"duration_seconds":42}}`),
+	}})
+	if _, err := Execute(context.Background(), input, GenericMessageNormalizer{}, writer); err != nil {
+		t.Fatal(err)
+	}
+	record := writer.emitted[0]
+	if record.RecordType != RecordTypeCall || string(record.Content) != `{"direction":"outgoing","disposition":"completed","missed":false,"duration_seconds":42}` {
+		t.Fatalf("record type/content = %q %s", record.RecordType, record.Content)
+	}
+}
+
+func TestGenericMessageNormalizerPreservesBodylessMessageKind(t *testing.T) {
+	writer := &recordingWriter{bundleRef: "bundle:1"}
+	input := baseInput([]RawRecordView{{
+		RecordOrdinal: 0, RecordStatus: "parsed",
+		NativeFields: []byte(`{"record_kind":"message","participants":["+15551234567"]}`),
+	}})
+	if _, err := Execute(context.Background(), input, GenericMessageNormalizer{}, writer); err != nil {
+		t.Fatal(err)
+	}
+	if len(writer.emitted) != 1 {
+		t.Fatalf("emitted %d records, want 1", len(writer.emitted))
+	}
+	record := writer.emitted[0]
+	if record.RecordType != RecordTypeMessage || string(record.Content) != `{"body":""}` {
+		t.Fatalf("record type/content = %q %s", record.RecordType, record.Content)
+	}
+	if !hasParticipant(record.Participants, RoleUnknown, "+15551234567") {
+		t.Fatalf("participants = %+v", record.Participants)
+	}
+}
+
+func TestGenericMessageNormalizerRejectsInconsistentTypedCall(t *testing.T) {
+	writer := &recordingWriter{bundleRef: "bundle:1"}
+	input := baseInput([]RawRecordView{{
+		RecordOrdinal: 0, RecordStatus: "parsed",
+		NativeFields: []byte(`{"record_kind":"call","body":"Missed call","call":{"direction":"incoming","disposition":"missed","missed":false}}`),
+	}})
+	if _, err := Execute(context.Background(), input, GenericMessageNormalizer{}, writer); err == nil || !strings.Contains(err.Error(), "missed flag") {
+		t.Fatalf("inconsistent call error = %v", err)
+	}
+	if !writer.aborted || writer.finalized {
+		t.Fatalf("finalized=%v aborted=%v", writer.finalized, writer.aborted)
 	}
 }
 

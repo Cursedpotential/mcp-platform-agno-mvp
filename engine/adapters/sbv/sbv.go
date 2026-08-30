@@ -8,18 +8,22 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
-	"time"
 
 	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/parser"
 	"github.com/lowcarbdev/sbv/pkg/parseonly"
 )
 
-// 1.3.0 adds governed registration, attempt quarantine, and explicit failed
-// attachment accounting to caller-owned raw-record and attachment locators.
-// Pinning the change prevents a retry or re-import from silently claiming the
-// prior attachment-free 1.1.0 output contract.
-const adapterVersion = "1.3.0"
+// 1.4.0 adds explicit Workbench SMS declared-format aliases and promotes call
+// kind/direction/disposition/duration into typed native fields. Pinning the
+// change prevents retries from silently claiming the prior generic projection.
+const adapterVersion = "1.4.0"
+
+const (
+	formatWorkbenchSMSExportXML parser.FormatID = "sms_export_xml"
+	formatLegacySMSXML          parser.FormatID = "sms_xml"
+)
 
 // ObjectOpener resolves the immutable object URI in ParserInput. The parser
 // package supplies only coordinates; this seam keeps object access outside
@@ -103,13 +107,24 @@ func newAll(open ObjectOpener, artifacts parseonly.ImmutableArtifactSink) ([]par
 }
 
 func (a *Adapter) Capability() parser.Capability {
+	formats := []parser.FormatID{a.format}
+	if a != nil && a.format == parseonly.FormatSMSBackupXML {
+		// These labels describe the same SMS Backup & Restore XML grammar. The
+		// generic Workbench JSON/Markdown/HTML/DOCX labels are deliberately not
+		// aliases: each is ambiguous or unsupported by this fixed decoder.
+		formats = append(formats, formatWorkbenchSMSExportXML, formatLegacySMSXML)
+	}
+	quality := make(map[parser.FormatID]parser.Quality, len(formats))
+	for _, format := range formats {
+		quality[format] = parser.QualityPrimary
+	}
 	return parser.Capability{
 		ContractVersion:     parser.ContractVersion,
 		ParserID:            "sbv_" + string(a.format),
 		ParserVersion:       adapterVersion,
 		Language:            parser.LanguageGo,
-		DeclaredFormats:     []parser.FormatID{a.format},
-		FormatQuality:       map[parser.FormatID]parser.Quality{a.format: parser.QualityPrimary},
+		DeclaredFormats:     formats,
+		FormatQuality:       quality,
 		SupportsAttachments: a != nil && a.artifacts != nil,
 		SupportsStreaming:   true,
 	}
@@ -122,7 +137,7 @@ func (a *Adapter) Parse(ctx context.Context, input parser.ParserInput, sink pars
 	if err := input.Validate(); err != nil {
 		return parser.BundleAccounting{}, err
 	}
-	if input.DeclaredFormat != a.format {
+	if !a.accepts(input.DeclaredFormat) {
 		return parser.BundleAccounting{}, fmt.Errorf("SBV adapter format %q cannot parse %q", a.format, input.DeclaredFormat)
 	}
 	if sink == nil {
@@ -155,7 +170,7 @@ func (a *Adapter) Parse(ctx context.Context, input parser.ParserInput, sink pars
 		if err := emitCtx.Err(); err != nil {
 			return err
 		}
-		envelope, err := toEnvelope(a.format, record)
+		envelope, err := toEnvelope(input.DeclaredFormat, record)
 		if err != nil {
 			return err
 		}
@@ -198,7 +213,7 @@ func (a *Adapter) Parse(ctx context.Context, input parser.ParserInput, sink pars
 		RecordStatus:  parser.StatusEnvelope,
 		StatusReason:  "exact immutable parser input retained as source coverage envelope",
 		Locator:       cloneLocator(input.FileOrMember),
-		FormatID:      a.format,
+		FormatID:      input.DeclaredFormat,
 		NativeFields:  json.RawMessage(`{}`),
 		NativeMetadata: json.RawMessage(
 			`{"sbv_kind":"source_coverage_envelope","coverage_basis":"input_locator"}`,
@@ -208,6 +223,17 @@ func (a *Adapter) Parse(ctx context.Context, input parser.ParserInput, sink pars
 		return parser.BundleAccounting{}, fmt.Errorf("emit SBV source coverage envelope: %w", err)
 	}
 	return accounting, nil
+}
+
+func (a *Adapter) accepts(format parser.FormatID) bool {
+	if a == nil {
+		return false
+	}
+	if format == a.format {
+		return true
+	}
+	return a.format == parseonly.FormatSMSBackupXML &&
+		(format == formatWorkbenchSMSExportXML || format == formatLegacySMSXML)
 }
 
 func cloneLocator(source parser.Locator) *parser.Locator {
@@ -304,13 +330,26 @@ func toEnvelope(format parser.FormatID, record parseonly.Record) (parser.RawReco
 			recipientIdentities = append(recipientIdentities, identity)
 		}
 	}
-	nativeFields, err := json.Marshal(struct {
-		Body         string     `json:"body"`
-		Sender       string     `json:"sender,omitempty"`
-		Recipients   []string   `json:"recipients,omitempty"`
-		Participants []string   `json:"participants,omitempty"`
-		OccurredAt   *time.Time `json:"occurred_at,omitempty"`
-	}{record.Content, record.Sender, recipientIdentities, record.Participants, record.OccurredAt})
+	nativeKind := parser.NativeRecordKind(strings.TrimSpace(record.Kind))
+	if err := nativeKind.Validate(); err != nil {
+		nativeKind = parser.NativeKindOther
+	}
+	fields := parser.CommonNativeFields{
+		RecordKind: nativeKind, Body: record.Content, Sender: record.Sender,
+		Recipients: recipientIdentities, Participants: record.Participants,
+		OccurredAt: record.OccurredAt,
+	}
+	if nativeKind == parser.NativeKindCall {
+		call, err := callFields(record)
+		if err != nil {
+			return parser.RawRecordEnvelope{}, fmt.Errorf("project SBV call fields: %w", err)
+		}
+		fields.Call = &call
+	}
+	if err := fields.Validate(); err != nil {
+		return parser.RawRecordEnvelope{}, fmt.Errorf("validate SBV native fields: %w", err)
+	}
+	nativeFields, err := json.Marshal(fields)
 	if err != nil {
 		return parser.RawRecordEnvelope{}, fmt.Errorf("encode SBV native fields: %w", err)
 	}
@@ -365,6 +404,82 @@ func toEnvelope(format parser.FormatID, record parseonly.Record) (parser.RawReco
 		})
 	}
 	return envelope, nil
+}
+
+func callFields(record parseonly.Record) (parser.NativeCallFields, error) {
+	typeCode, typePresent, err := nonNegativeMetadataUint(record.Metadata, "Type", "type")
+	if err != nil {
+		return parser.NativeCallFields{}, fmt.Errorf("call type: %w", err)
+	}
+	duration, durationPresent, err := nonNegativeMetadataUint(record.Metadata, "Duration", "duration")
+	if err != nil {
+		return parser.NativeCallFields{}, fmt.Errorf("call duration: %w", err)
+	}
+	call := parser.NativeCallFields{
+		Direction: parser.CallDirectionUnknown, Disposition: parser.CallDispositionUnknown,
+	}
+	if durationPresent {
+		call.DurationSeconds = &duration
+	}
+	if direction := normalizedMetadataText(record.Metadata, "direction", "Direction"); direction != "" {
+		switch direction {
+		case "incoming", "inbound", "received":
+			call.Direction = parser.CallDirectionIncoming
+		case "outgoing", "outbound", "sent":
+			call.Direction = parser.CallDirectionOutgoing
+		}
+	}
+	if strings.Contains(strings.ToLower(record.Content), "missed call") {
+		call.Disposition, call.Missed = parser.CallDispositionMissed, true
+	}
+	if typePresent {
+		switch typeCode {
+		case 1:
+			call.Direction, call.Disposition = parser.CallDirectionIncoming, parser.CallDispositionCompleted
+		case 2:
+			call.Direction, call.Disposition = parser.CallDirectionOutgoing, parser.CallDispositionCompleted
+		case 3:
+			call.Direction, call.Disposition, call.Missed = parser.CallDirectionIncoming, parser.CallDispositionMissed, true
+		case 4:
+			call.Direction, call.Disposition = parser.CallDirectionIncoming, parser.CallDispositionVoicemail
+		case 5:
+			call.Direction, call.Disposition = parser.CallDirectionIncoming, parser.CallDispositionRejected
+		case 6:
+			call.Direction, call.Disposition = parser.CallDirectionIncoming, parser.CallDispositionRefused
+		}
+	}
+	if err := call.Validate(); err != nil {
+		return parser.NativeCallFields{}, err
+	}
+	return call, nil
+}
+
+func normalizedMetadataText(metadata map[string]any, keys ...string) string {
+	for _, key := range keys {
+		if value, exists := metadata[key]; exists && value != nil {
+			return strings.ToLower(strings.TrimSpace(fmt.Sprint(value)))
+		}
+	}
+	return ""
+}
+
+func nonNegativeMetadataUint(metadata map[string]any, keys ...string) (uint64, bool, error) {
+	for _, key := range keys {
+		value, exists := metadata[key]
+		if !exists || value == nil {
+			continue
+		}
+		text := strings.TrimSpace(fmt.Sprint(value))
+		if text == "" {
+			return 0, false, nil
+		}
+		parsed, err := strconv.ParseUint(text, 10, 64)
+		if err != nil {
+			return 0, true, fmt.Errorf("metadata field %q must be a non-negative integer", key)
+		}
+		return parsed, true, nil
+	}
+	return 0, false, nil
 }
 
 var _ parser.Adapter = (*Adapter)(nil)
