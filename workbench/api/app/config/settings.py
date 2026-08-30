@@ -19,12 +19,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    # --- S3-compatible object store: R2 today, B2/AWS/any-S3 = pure env swap ---
-    object_store_endpoint_url: str = ""
-    object_store_bucket: str = ""
-    object_store_access_key_id: str = ""
-    object_store_secret_access_key: str = ""
-    object_store_region: str = "auto"
+    # --- Object store: runtime credentials; fixed buckets live in the repo adapter ---
     object_store_prefix: str = "workbench/staging"
 
     # --- LanceDB local whole-file staging store (no S3, no AWS env vars) ---
@@ -37,7 +32,8 @@ class Settings(BaseSettings):
     # does not require a Workbench restart or redeployment.
     platform_api_bearer_secret_file: str = "/run/secrets/platform-api-bearer"
     # Non-secret path to the runtime-read Cloudflare R2 credentials document.
-    # The bucket itself is fixed in the intake adapter as ``casebible-sorted``.
+    # Buckets are fixed in the adapter: ``casebible-sorted`` for source reads
+    # and ``nexus`` for new Workbench staging writes.
     casebible_r2_config_path: str = "/run/secrets/casebible-r2.json"
     # Direct-tailnet UIW starter boundary; blank values fail closed in the adapter.
     uiw_starter_url: str = ""

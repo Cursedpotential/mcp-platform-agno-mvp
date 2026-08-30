@@ -3,6 +3,7 @@
 > _Byline: Claude Code · Sonnet (agent) · 2026-07-19 (drift-fix 2026-08-14 Claude Code · glm-5.2:cloud: Milvus → Weaviate per ADR-0040; note data-vector DOWN since 2026-08-10)_
 > _Current-product repair: Codex · GPT-5 · 2026-08-15._
 > _Neutral Portkey streaming chat: Codex · GPT-5 · 2026-08-16._
+> _Runtime R2 and current inbound-auth contract: Codex · GPT-5.6-Sol · 2026-08-30._
 <!-- Updated by: Codex (migration-passes/doc-patching) | Date: 2026-08-15 | Rev: 1 | Platform: Codex / win32 | Changes: Correct deploy path, layering, vector-store, and Knowledge status | Context: Align operator documentation with current source without claiming uncommitted work is deployed -->
 
 A staging + promote surface. It stages uploaded files locally (LanceDB
@@ -41,7 +42,7 @@ present and enforces this boundary. SDK-facing clients remain under `app/repo/`.
 
 | Layer | Files | Role |
 |---|---|---|
-| `config` | `settings.py` | S3-agnostic object-store env knobs + LanceDB path + spine URL + MCP server list |
+| `config` | `settings.py` | Runtime credential paths + LanceDB path + Platform URL + MCP server list |
 | `repo` | `object_store_client.py`, `lancedb_client.py`, `staging.py`, `mcp_client.py`, `spine_client.py`, `graphiti_client.py`, `opencode_client.py` | Object storage + LanceDB + MCP/Graphiti + spine/OpenCode HTTP clients |
 | `service` | upload/files/promote/runs/inspect/flags/knowledge/Graphiti/tools/repairs/chat/Copilot/classification/sentiment/comparison modules | Business orchestration over repository clients and the neutral Portkey HTTP adapter |
 | `runtime` | matching FastAPI routers under `app/runtime/` | HTTP validation and error translation |
@@ -49,6 +50,7 @@ present and enforces this boundary. SDK-facing clients remain under `app/repo/`.
 ## Endpoints
 
 - `POST /api/upload` — stream-hash + stage a file (dedupes by sha256)
+- `GET /api/uiw/sources` — browse the fixed, read-only `casebible-sorted` source bucket
 - `GET /api/files`, `GET /api/files/{id}`, `PATCH /api/files/{id}` — list/detail/edit staged files
 - `POST /api/promote/{id}`, `POST /api/promote-all` — framework-neutral document ingest through `/v1/ingest`, tracked by the durable `/v1/runs/{run_id}` receipt; AI-chat exports remain denied by D-082
 - `POST /api/runs` (json `{staged_id, workflow, domain, mode, source_meta}` or multipart `file`), `GET /api/runs`, `GET /api/runs/{id}` — proxy to the spine's `/v1/runs` pipeline (custody → parse → store → knowledge)
@@ -86,16 +88,22 @@ present and enforces this boundary. SDK-facing clients remain under `app/repo/`.
 
 ## Inbound authentication
 
-`WORKBENCH_API_KEY` is mandatory. The Workbench fails closed when it is empty:
-all API routes, API documentation, and static frontend paths return `503`. The
-exact `/health` path is the sole public exception so the container healthcheck
-continues to work.
+Inbound browser identity is asserted by Authentik through the explicitly trusted
+proxy boundary. Missing identity or an untrusted socket peer fails closed. A
+separate, default-off feature flag permits testing from configured Tailscale CIDRs
+through the exact trusted Tailscale Serve proxy; it is not a password or Basic-auth
+fallback. `/health` is the sole unauthenticated route.
 
-API clients send `Authorization: Bearer <WORKBENCH_API_KEY>`. Browsers can use
-HTTP Basic authentication with username `owner` and the same key as the
-password. Successful requests expose the authenticated `owner` principal in
-the request scope; the Workbench's outbound Platform API bearer remains a
-separate runtime-read credential and must never be used as the inbound Workbench key.
+Outbound Platform API and evidence-operator credentials remain separate,
+runtime-read files and are never accepted as inbound Workbench credentials.
+
+## Object storage
+
+One runtime-mounted JSON file supplies the R2 endpoint and account credential.
+The browser cannot choose a bucket: source browsing is fixed read-only to
+`casebible-sorted`, while local `POST /api/upload` staging writes are fixed to
+`nexus` under `OBJECT_STORE_PREFIX`. `POST /api/uiw/upload` is a different route:
+it streams to the UIW starter and does not write the Workbench staging bucket.
 
 ## Origin
 

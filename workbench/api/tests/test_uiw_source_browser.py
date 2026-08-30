@@ -6,6 +6,7 @@ Byline: Codex · GPT-5 · 2026-08-29.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+import io
 import json
 
 from app.repo import object_store_client
@@ -79,13 +80,52 @@ def test_runtime_json_accessor_supplies_credentials_without_configurable_bucket(
 
     monkeypatch.setattr(object_store_client, "get_casebible_r2_config_path", lambda: str(secret_path))
     monkeypatch.setattr(object_store_client.boto3, "client", fake_client)
-    object_store_client.get_casebible_sorted_client.cache_clear()
-    object_store_client.get_casebible_sorted_client()
+    object_store_client.get_r2_client.cache_clear()
+    object_store_client.get_r2_client()
 
     assert captured["service"] == "s3"
     assert captured["endpoint_url"] == "https://example.r2.cloudflarestorage.com"
     assert "bucket" not in captured
-    object_store_client.get_casebible_sorted_client.cache_clear()
+    object_store_client.get_r2_client.cache_clear()
+
+
+def test_runtime_client_uses_fixed_source_and_staging_buckets(monkeypatch) -> None:
+    calls = []
+
+    class Client:
+        def head_bucket(self, **kwargs):
+            calls.append(("head", kwargs))
+
+        def put_object(self, **kwargs):
+            calls.append(("put", kwargs))
+
+        def get_object(self, **kwargs):
+            calls.append(("get", kwargs))
+            return {"Body": io.BytesIO(b"source")}
+
+        def head_object(self, **kwargs):
+            calls.append(("exists", kwargs))
+
+        def generate_presigned_url(self, operation, **kwargs):
+            calls.append((operation, kwargs))
+            return "https://example.invalid/object"
+
+    client = Client()
+    monkeypatch.setattr(object_store_client, "get_r2_client", lambda: client)
+    monkeypatch.setattr(object_store_client, "get_client", lambda: client)
+
+    assert object_store_client.check_connectivity() is True
+    object_store_client.put_object("workbench/staging/sha/source.md", b"text")
+    assert object_store_client.get_object("workbench/staging/sha/source.md") == b"source"
+    assert object_store_client.object_exists("workbench/staging/sha/source.md") is True
+    assert object_store_client.presigned_get("workbench/staging/sha/source.md")
+
+    assert [call[1]["Bucket"] for call in calls[:2]] == ["casebible-sorted", "nexus"]
+    assert calls[2][0] == "put"
+    assert calls[2][1]["Bucket"] == "nexus"
+    assert calls[3][1]["Bucket"] == "nexus"
+    assert calls[4][1]["Bucket"] == "nexus"
+    assert calls[5][1]["Params"]["Bucket"] == "nexus"
 
 
 def test_browser_rejects_escape_prefix_before_object_store_call(monkeypatch) -> None:
