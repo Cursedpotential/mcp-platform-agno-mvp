@@ -24,6 +24,8 @@
 # only one side's mount path will fail closed.
 #
 # Byline: Codex · GPT-5 · 2026-08-29 (fixed Case Bible Sorted runtime secret)
+# Byline: Codex · GPT-5.6-Sol · 2026-08-30 (direct-tailnet host networking)
+# Byline: Codex · GPT-5.6-Terra · 2026-08-30 (rotatable n8n runtime-file auth)
 
 services:
   universal-import-worker:
@@ -32,20 +34,24 @@ services:
       dockerfile: docker/universal-import-worker/Dockerfile
     image: ${UNIVERSAL_IMPORT_WORKER_IMAGE:-platform-universal-import-worker:latest}
     restart: unless-stopped
+    # No inbound listener exists. Host networking avoids consuming another
+    # exhausted Coolify bridge subnet and preserves direct Tailscale routing.
+    network_mode: host
     environment:
-      PLATFORM_DATABASE_URL: ${PLATFORM_DATABASE_URL:?set}
+      PLATFORM_DATABASE_URL_FILE: /run/secrets/platform-database-url
       TEMPORAL_HOST_PORT: ${TEMPORAL_HOST_PORT:?set}
       TEMPORAL_NAMESPACE: ${TEMPORAL_NAMESPACE:-default}
       TEMPORAL_TASK_QUEUE: ${TEMPORAL_TASK_QUEUE:-universal-import-v1}
       N8N_UNIVERSAL_IMPORT_BASE_URL: ${N8N_UNIVERSAL_IMPORT_BASE_URL:?set}
       N8N_UNIVERSAL_IMPORT_AUTH_HEADER: ${N8N_UNIVERSAL_IMPORT_AUTH_HEADER:?set}
-      N8N_UNIVERSAL_IMPORT_AUTH_VALUE: ${N8N_UNIVERSAL_IMPORT_AUTH_VALUE:?set}
+      N8N_UNIVERSAL_IMPORT_AUTH_VALUE_FILE: /run/secrets/n8n-universal-import-auth
       SELECT_PARSER_HTTP_TIMEOUT: ${SELECT_PARSER_HTTP_TIMEOUT:-35s}
       EXECUTE_PARSER_HTTP_TIMEOUT: ${EXECUTE_PARSER_HTTP_TIMEOUT:-31m}
       SOURCE_OBJECT_DIR: /data/uiw/source-objects
       PARSER_BUNDLE_DIR: /data/uiw/parser-bundles
       NORMALIZED_BUNDLE_DIR: /data/uiw/normalized-bundles
       INVENTORY_MANIFEST_DIR: /data/uiw/inventory-manifests
+      PLATFORM_TOOLS_BASE_URL: ${PLATFORM_TOOLS_BASE_URL:?set}
       CASEBIBLE_R2_CONFIG_PATH: /run/secrets/casebible-r2.json
     volumes:
       - /data/agno/volumes/universal-import/source-objects:/data/uiw/source-objects
@@ -53,9 +59,5 @@ services:
       - /data/agno/volumes/universal-import/normalized-bundles:/data/uiw/normalized-bundles
       - /data/agno/volumes/universal-import/inventory-manifests:/data/uiw/inventory-manifests
       - /data/agno/secrets/casebible-r2.json:/run/secrets/casebible-r2.json:ro
-    networks:
-      - coolify
-
-networks:
-  coolify:
-    external: true
+      - /data/agno/secrets/n8n/universal-import-auth:/run/secrets/n8n-universal-import-auth:ro
+      - /data/agno/secrets/platform/database-url:/run/secrets/platform-database-url:ro
