@@ -33,16 +33,28 @@ BEGIN
 END
 $guard$;
 
+-- Create the schema-owned object under the authorized migration identity.
+-- platform_admin owns the table after the guard but deliberately has no
+-- CREATE privilege on public, so doing this after SET ROLE would fail.
+CREATE UNIQUE INDEX IF NOT EXISTS schema_version_active_migration_uq
+    ON public.schema_version (migration_id)
+    WHERE status = 'active';
+
 SET LOCAL ROLE platform_admin;
 
 ALTER TABLE public.schema_version
     ALTER COLUMN ddl_uri SET NOT NULL,
     ALTER COLUMN ddl_hash SET NOT NULL,
     ALTER COLUMN migration_id SET NOT NULL,
+    ALTER COLUMN status SET DEFAULT 'active',
     ALTER COLUMN created_by SET DEFAULT current_user;
 
-CREATE UNIQUE INDEX IF NOT EXISTS schema_version_active_migration_uq
-    ON public.schema_version (migration_id)
-    WHERE status = 'active';
+ALTER TABLE public.schema_version
+    DROP CONSTRAINT IF EXISTS schema_version_status_check,
+    DROP COLUMN IF EXISTS supersedes;
+
+ALTER TABLE public.schema_version
+    ADD CONSTRAINT schema_version_status_check
+    CHECK (status IN ('active', 'superseded', 'rolled_back'));
 
 COMMIT;
