@@ -21,6 +21,7 @@ __all__ = [
     "create_court_case",
     "create_evidence_item",
     "create_matter",
+    "get_case_management_capabilities",
     "get_court_readiness",
     "get_conversation_context",
     "get_evidence_detail",
@@ -32,6 +33,10 @@ __all__ = [
     "review_evidence_item",
     "resolve_knowledge_source",
 ]
+
+
+def get_case_management_capabilities() -> dict:
+    return spine_json("GET", "/v1/case-management/capabilities")
 
 
 def list_matters(*, limit: int = 50, offset: int = 0) -> dict:

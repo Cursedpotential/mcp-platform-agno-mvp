@@ -12,6 +12,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from app.service import case_management as service
 from app.types.case_management import (
+    CaseManagementCapabilities,
     CourtCase,
     CourtCaseCreate,
     EvidenceItemCreate,
@@ -36,6 +37,14 @@ router = APIRouter(prefix="/api", tags=["matters"])
 
 def _raise_spine(error: service.SpineError) -> None:
     raise HTTPException(status_code=error.status_code, detail=error.detail) from None
+
+
+@router.get("/case-management/capabilities", response_model=CaseManagementCapabilities)
+def get_case_management_capabilities_endpoint():
+    try:
+        return service.get_case_management_capabilities()
+    except service.SpineError as error:
+        _raise_spine(error)
 
 
 @router.get("/matters", response_model=MatterList)

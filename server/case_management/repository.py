@@ -67,6 +67,10 @@ from server.contracts.case_management import (
 _engine: Any = None
 _CONTEXT_WINDOW_MAX = 100
 _ORIGINAL_SOURCE_MAX_BYTES = 8 * 1024 * 1024
+ADVANCED_EVIDENCE_UNAVAILABLE_DETAIL = (
+    "Advanced Matter evidence operations are unavailable until the platform-native evidence "
+    "substrate is implemented and activated; legacy ai and Case Bible stores are not fallback sources."
+)
 
 
 class CaseRepositoryError(Exception):
@@ -85,6 +89,31 @@ def _get_engine() -> Any:
 
         _engine = create_engine(db_url, pool_pre_ping=True)
     return _engine
+
+
+def get_case_management_capabilities() -> dict[str, object]:
+    """Report the platform-owned registry and advanced-evidence boundaries.
+
+    Migration 0054 establishes only the Matter/CourtCase registry.  The
+    historical evidence tables are deliberately not treated as capability
+    proof because they belong to the retired split database topology.
+    """
+
+    with _get_engine().connect() as conn:
+        registry_available = bool(
+            conn.execute(
+                text(
+                    "SELECT to_regclass('analysis.matter') IS NOT NULL "
+                    "AND to_regclass('analysis.court_case') IS NOT NULL "
+                    "AND to_regclass('analysis.matter_knowledge_partition') IS NOT NULL"
+                )
+            ).scalar()
+        )
+    return {
+        "registry_available": registry_available,
+        "advanced_evidence_available": False,
+        "advanced_evidence_reason": ADVANCED_EVIDENCE_UNAVAILABLE_DETAIL,
+    }
 
 
 def _matter_from_row(row: dict[str, Any]) -> Matter:

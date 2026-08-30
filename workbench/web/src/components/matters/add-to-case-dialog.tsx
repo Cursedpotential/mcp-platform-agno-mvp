@@ -19,6 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   createEvidenceItem,
+  getCaseManagementCapabilities,
   getMatter,
   listMatters,
   resolveKnowledgeSource,
@@ -85,6 +86,20 @@ export function AddToCaseDialog({
     const operation = operationRef.current;
     setOpen(true);
     setLoading(true);
+    try {
+      const capabilities = await getCaseManagementCapabilities();
+      if (operation !== operationRef.current) return;
+      if (!capabilities.advanced_evidence_available) {
+        setError(capabilities.advanced_evidence_reason);
+        setLoading(false);
+        return;
+      }
+    } catch (requestError) {
+      if (operation !== operationRef.current) return;
+      setError(message(requestError));
+      setLoading(false);
+      return;
+    }
     if (boundMatter) {
       setSelectedMatterId(boundMatter.id);
       setMatter(boundMatter);

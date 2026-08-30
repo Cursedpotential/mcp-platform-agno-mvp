@@ -14,6 +14,7 @@ from typing import Annotated, TypeVar
 from uuid import UUID
 
 from fastapi import FastAPI, HTTPException, Query, status
+from pydantic import BaseModel
 
 from server.case_management import service
 from server.contracts.case_management import (
@@ -40,6 +41,14 @@ from server.contracts.case_management import (
 
 
 _T = TypeVar("_T")
+
+
+class CaseManagementCapabilities(BaseModel):
+    """Availability of platform-native case-management slices."""
+
+    registry_available: bool
+    advanced_evidence_available: bool
+    advanced_evidence_reason: str
 
 
 def _translate(call: Callable[[], _T]) -> _T:
@@ -198,3 +207,10 @@ def register_case_management_routes(app: FastAPI) -> None:
                 after=after,
             )
         )
+    @app.get(
+        "/v1/case-management/capabilities",
+        response_model=CaseManagementCapabilities,
+        tags=["case-management"],
+    )
+    def get_case_management_capabilities() -> CaseManagementCapabilities:
+        return CaseManagementCapabilities.model_validate(_translate(service.get_capabilities))

@@ -20,6 +20,12 @@ RecordSourceKind = Literal["first_party", "third_party_acquired", "unclassified"
 RecordProjectionKind = Literal["authored_normalized", "derived_third_party"]
 
 
+class CaseManagementCapabilities(BaseModel):
+    registry_available: bool
+    advanced_evidence_available: bool
+    advanced_evidence_reason: str
+
+
 class MatterCreate(BaseModel):
     title: str = Field(min_length=1, max_length=300)
     description: str | None = Field(default=None, max_length=10_000)

@@ -8,7 +8,14 @@ import { AlertTriangle, BriefcaseBusiness, Loader2, Scale } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { KnowledgeBrowser } from "@/components/knowledge/knowledge-browser";
-import { ApiError, getMatter, listEvidenceItems, listMatters } from "@/lib/api-client";
+import {
+  ApiError,
+  getCaseManagementCapabilities,
+  getMatter,
+  listEvidenceItems,
+  listMatters,
+} from "@/lib/api-client";
+import type { CaseManagementCapabilities } from "@/lib/api-client";
 import type { EvidenceItem, Matter, MatterDetail } from "@/lib/shared/types";
 import { EvidenceDetailDialog } from "./evidence-detail-dialog";
 import { CourtReadinessDialog } from "./court-readiness-dialog";
@@ -26,6 +33,7 @@ export function MatterWorkspace() {
   const [matters, setMatters] = useState<Matter[]>([]);
   const [matter, setMatter] = useState<MatterDetail | null>(null);
   const [evidence, setEvidence] = useState<EvidenceItem[]>([]);
+  const [capabilities, setCapabilities] = useState<CaseManagementCapabilities | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadedScope, setLoadedScope] = useState<string | null | undefined>(undefined);
   const loading = loadedScope !== matterId;
@@ -33,13 +41,17 @@ export function MatterWorkspace() {
   useEffect(() => {
     let cancelled = false;
     const request = matterId
-      ? Promise.all([getMatter(matterId), listEvidenceItems(matterId)]).then(([detail, items]) => ({
+      ? Promise.all([getMatter(matterId), getCaseManagementCapabilities()]).then(async ([detail, capability]) => ({
           detail,
-          items: items.data,
+          capability,
+          items: capability.advanced_evidence_available
+            ? (await listEvidenceItems(matterId)).data
+            : [],
           matters: [] as Matter[],
         }))
       : listMatters().then((response) => ({
           detail: null,
+          capability: null,
           items: [] as EvidenceItem[],
           matters: response.data,
         }));
@@ -49,6 +61,7 @@ export function MatterWorkspace() {
         if (cancelled) return;
         setMatter(result.detail);
         setEvidence(result.items);
+        setCapabilities(result.capability);
         setMatters(result.matters);
         setError(null);
       })
@@ -56,6 +69,7 @@ export function MatterWorkspace() {
         if (cancelled) return;
         setMatter(null);
         setEvidence([]);
+        setCapabilities(null);
         setMatters([]);
         setError(errorText(requestError));
       })
@@ -125,6 +139,7 @@ export function MatterWorkspace() {
 
   const partitionKey = matter.partition_keys.length === 1 ? matter.partition_keys[0] : undefined;
   const primaryCourtCase = matter.court_cases.find((courtCase) => courtCase.is_primary);
+  const advancedEvidenceAvailable = capabilities?.advanced_evidence_available === true;
 
   return (
     <div className="space-y-6">
@@ -176,7 +191,7 @@ export function MatterWorkspace() {
         </Card>
       </div>
 
-      {partitionKey ? (
+      {advancedEvidenceAvailable && partitionKey ? (
         <section aria-labelledby="matter-knowledge-heading" className="space-y-3">
           <div>
             <h2 id="matter-knowledge-heading" className="text-xl font-semibold tracking-tight">
@@ -199,7 +214,7 @@ export function MatterWorkspace() {
             }}
           />
         </section>
-      ) : (
+      ) : advancedEvidenceAvailable ? (
         <Card className="border-amber-500/60" role="status">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -213,9 +228,21 @@ export function MatterWorkspace() {
             </CardDescription>
           </CardHeader>
         </Card>
+      ) : (
+        <Card className="border-amber-500/60" role="status">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <AlertTriangle className="h-4 w-4 text-amber-600" aria-hidden="true" />
+              Evidence operations not yet available
+            </CardTitle>
+            <CardDescription>
+              {capabilities?.advanced_evidence_reason || "The platform-native evidence substrate is unavailable."}
+            </CardDescription>
+          </CardHeader>
+        </Card>
       )}
 
-      <Card>
+      {advancedEvidenceAvailable && <Card>
         <CardHeader>
           <CardTitle>Draft evidence</CardTitle>
           <CardDescription>Knowledge-derived items enter a human review queue; they are never legal-ready on creation.</CardDescription>
@@ -248,7 +275,7 @@ export function MatterWorkspace() {
             </article>
           ))}
         </CardContent>
-      </Card>
+      </Card>}
     </div>
   );
 }

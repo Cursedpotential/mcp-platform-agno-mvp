@@ -575,6 +575,16 @@ export async function getMatter(matterId: string) {
   return apiFetch<MatterDetail>(`/api/matters/${encodeURIComponent(matterId)}`);
 }
 
+export interface CaseManagementCapabilities {
+  registry_available: boolean;
+  advanced_evidence_available: boolean;
+  advanced_evidence_reason: string;
+}
+
+export async function getCaseManagementCapabilities() {
+  return apiFetch<CaseManagementCapabilities>("/api/case-management/capabilities");
+}
+
 // ---------------------------------------------------------------------------
 // Universal Import Workflow — production acquisition and decision boundary
 // ---------------------------------------------------------------------------

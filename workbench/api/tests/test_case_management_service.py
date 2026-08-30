@@ -22,6 +22,25 @@ RECORD_ID = UUID("44444444-4444-4444-8444-444444444444")
 SHA256 = "a" * 64
 
 
+def test_capability_probe_forwards_to_platform(monkeypatch):
+    captured = {}
+
+    def fake_spine_json(method, path, **kwargs):
+        captured.update(method=method, path=path, kwargs=kwargs)
+        return {
+            "registry_available": True,
+            "advanced_evidence_available": False,
+            "advanced_evidence_reason": "held",
+        }
+
+    monkeypatch.setattr(case_management, "spine_json", fake_spine_json)
+
+    result = case_management.get_case_management_capabilities()
+
+    assert result["advanced_evidence_available"] is False
+    assert captured == {"method": "GET", "path": "/v1/case-management/capabilities", "kwargs": {}}
+
+
 def test_resolve_forwards_only_platform_source_coordinates(monkeypatch):
     captured = {}
 

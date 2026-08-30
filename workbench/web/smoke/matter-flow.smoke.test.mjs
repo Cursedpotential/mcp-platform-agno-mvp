@@ -204,7 +204,7 @@ function matterDetail() {
   };
 }
 
-function createFixtureServer() {
+function createFixtureServer({ advancedEvidenceAvailable = true } = {}) {
   const requests = [];
   const failures = [];
   const server = createServer(async (request, response) => {
@@ -221,6 +221,15 @@ function createFixtureServer() {
       }
       if (request.method === "GET" && url.pathname === `/api/matters/${MATTER_A}`) {
         return json(response, 200, matterDetail());
+      }
+      if (request.method === "GET" && url.pathname === "/api/case-management/capabilities") {
+        return json(response, 200, {
+          registry_available: true,
+          advanced_evidence_available: advancedEvidenceAvailable,
+          advanced_evidence_reason: advancedEvidenceAvailable
+            ? ""
+            : "Advanced Matter evidence operations are unavailable until the platform-native evidence substrate is implemented and activated; legacy ai and Case Bible stores are not fallback sources.",
+        });
       }
       if (request.method === "GET" && url.pathname === "/api/health/deps") {
         return json(response, 200, {
@@ -596,5 +605,44 @@ test("Matter-bound Knowledge promotes and reviews one exact custody record", { t
     await new Promise((accept) => fixture.server.close(accept));
     // Project safety contract: never hard-delete. The isolated browser profile
     // remains quarantined under to_be_deleted for owner-only cleanup.
+  }
+});
+
+test("Matter registry stays usable without issuing advanced evidence calls", { timeout: 60_000 }, async () => {
+  await stat(join(OUT, "index.html"));
+  const fixture = createFixtureServer({ advancedEvidenceAvailable: false });
+  await new Promise((accept) => fixture.server.listen(0, "127.0.0.1", accept));
+  const address = fixture.server.address();
+  const profile = await mkdtemp(join(resolve("../..", "to_be_deleted"), "matter-gate-browser-profile-"));
+  const browser = spawn(browserPath(), [
+    "--headless=new",
+    "--disable-gpu",
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--remote-debugging-pipe",
+    `--user-data-dir=${profile}`,
+    "about:blank",
+  ], { stdio: ["ignore", "ignore", "pipe", "pipe", "pipe"] });
+  const cdp = new CdpPipe(browser);
+
+  try {
+    const target = await cdp.command("Target.createTarget", {
+      url: `http://127.0.0.1:${address.port}/matter?matter_id=${MATTER_A}`,
+    });
+    const attached = await cdp.command("Target.attachToTarget", { targetId: target.targetId, flatten: true });
+    const session = attached.sessionId;
+    await cdp.command("Page.enable", {}, session);
+    await cdp.command("Runtime.enable", {}, session);
+    await waitFor(cdp, session, `document.body?.innerText.includes('Matter Alpha')`, "Matter registry");
+    await waitFor(cdp, session, `document.body?.innerText.includes('Evidence operations not yet available')`, "capability hold");
+
+    assert.equal(fixture.failures.length, 0);
+    assert.equal(fixture.requests.some((item) => item.path.includes("/evidence-items")), false);
+    assert.equal(fixture.requests.some((item) => item.path === "/api/knowledge/search"), false);
+    assert.equal(fixture.requests.some((item) => item.path.includes("/knowledge/resolve")), false);
+    assert.equal(await evaluate(cdp, session, `document.body.innerText.includes('Court proceedings')`), true);
+  } finally {
+    browser.kill();
+    await new Promise((accept) => fixture.server.close(accept));
   }
 });

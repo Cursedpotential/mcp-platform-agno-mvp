@@ -39,6 +39,20 @@ def _client() -> TestClient:
     return TestClient(app)
 
 
+def test_capability_503_is_preserved_exactly(monkeypatch):
+    detail = "platform-native evidence substrate unavailable"
+    monkeypatch.setattr(
+        runtime.service,
+        "get_case_management_capabilities",
+        lambda: (_ for _ in ()).throw(SpineError(detail, 503)),
+    )
+
+    response = _client().get("/api/case-management/capabilities")
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": detail}
+
+
 def test_resolve_requires_custody_coordinates():
     response = _client().post(
         f"/api/matters/{MATTER_ID}/knowledge/resolve",

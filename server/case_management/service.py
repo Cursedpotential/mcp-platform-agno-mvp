@@ -37,6 +37,16 @@ from server.contracts.case_management import (
 CaseManagementError = repository.CaseRepositoryError
 
 
+def get_capabilities() -> dict[str, object]:
+    return repository.get_case_management_capabilities()
+
+
+def _require_advanced_evidence() -> None:
+    capabilities = get_capabilities()
+    if not capabilities["advanced_evidence_available"]:
+        raise CaseManagementError(repository.ADVANCED_EVIDENCE_UNAVAILABLE_DETAIL, 503)
+
+
 def list_matters(*, limit: int, offset: int) -> MatterList:
     return repository.list_matters(limit=limit, offset=offset)
 
@@ -54,18 +64,22 @@ def create_court_case(matter_id: UUID, body: CourtCaseCreate) -> CourtCase:
 
 
 def resolve_source(matter_id: UUID, body: KnowledgeSourceResolveRequest) -> KnowledgeSourceResolution:
+    _require_advanced_evidence()
     return repository.resolve_source(matter_id, body)
 
 
 def promote_evidence(matter_id: UUID, body: EvidenceItemCreate) -> EvidencePromotionResult:
+    _require_advanced_evidence()
     return repository.promote_evidence(matter_id, body)
 
 
 def get_evidence_detail(matter_id: UUID, evidence_item_id: UUID) -> EvidenceItemDetail:
+    _require_advanced_evidence()
     return repository.get_evidence_detail(matter_id, evidence_item_id)
 
 
 def get_court_readiness(matter_id: UUID, evidence_item_id: UUID) -> CourtReadiness:
+    _require_advanced_evidence()
     return repository.get_court_readiness(matter_id, evidence_item_id)
 
 
@@ -74,6 +88,7 @@ def review_evidence(
     evidence_item_id: UUID,
     body: EvidenceReviewCreate,
 ) -> EvidenceReviewResult:
+    _require_advanced_evidence()
     return repository.review_evidence(matter_id, evidence_item_id, body)
 
 
@@ -81,6 +96,7 @@ def list_evidence_reviews(
     matter_id: UUID,
     evidence_item_id: UUID,
 ) -> EvidenceReviewList:
+    _require_advanced_evidence()
     return repository.list_evidence_reviews(matter_id, evidence_item_id)
 
 
@@ -91,6 +107,7 @@ def list_evidence_items(
     limit: int,
     offset: int,
 ) -> EvidenceItemList:
+    _require_advanced_evidence()
     return repository.list_evidence_items(
         matter_id,
         review_status=review_status,
@@ -100,6 +117,7 @@ def list_evidence_items(
 
 
 def get_original_source_content(matter_id: UUID, evidence_item_id: UUID) -> OriginalSourceContent:
+    _require_advanced_evidence()
     return repository.get_original_source_content(matter_id, evidence_item_id)
 
 
@@ -110,6 +128,7 @@ def get_conversation_context(
     before: int,
     after: int,
 ) -> ConversationContext:
+    _require_advanced_evidence()
     return repository.get_conversation_context(
         matter_id,
         evidence_item_id,
