@@ -1,11 +1,12 @@
 // Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: Records/Evidence Queue/Schemas nav entries + open-flags badge; C4: Knowledge nav entry added 2026-07-23)
 // Byline: Codex · GPT-5 · 2026-08-16 (Data Explorer + Surreal projection nav)
 // Byline: Codex · GPT-5 · 2026-08-28 (focused unified-surface navigation)
+// Byline: Codex · GPT-5.6-Sol · 2026-08-30 (two-surface navigation registry)
 "use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Inbox, ShieldCheck } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -18,23 +19,22 @@ import {
   SidebarMenuItem,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-const navItems = [
-  { title: "Intake", href: "/intake", icon: Inbox },
-];
+import { workbenchNavigation } from "@/platform-ui/navigation";
+import { WORKBENCH_SURFACES } from "@/platform-ui/surfaces";
 
 export function AppSidebar() {
   const pathname = usePathname();
   return (
     <Sidebar className="border-r border-sidebar-border">
       <SidebarHeader className="border-b border-sidebar-border px-4 py-5">
-        <span className="platform-kicker text-[#9ca7ad]">Daily work</span>
+        <span className="platform-kicker text-[#9ca7ad]">{WORKBENCH_SURFACES.primary.kicker}</span>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel className="sr-only">Available workspaces</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItems.map((item) => (
+              {workbenchNavigation.map((item) => (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton asChild isActive={pathname === item.href || pathname.startsWith(`${item.href}/`)} className="h-12 rounded-none border-l-2 border-transparent px-4 text-sm data-[active=true]:border-[#8290ed] data-[active=true]:bg-[#314050] data-[active=true]:text-white">
                     <Link href={item.href}>

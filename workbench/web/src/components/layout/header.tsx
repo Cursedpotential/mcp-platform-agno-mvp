@@ -4,6 +4,7 @@
 // Byline: Codex · GPT-5 · 2026-08-29 (remove legacy dependency strip)
 // Byline: Codex · GPT-5 · 2026-08-29 (fixed single-case scope)
 // Byline: Codex · GPT-5 · 2026-08-29 (approved full-width case-context header)
+// Byline: Codex · GPT-5.6-Sol · 2026-08-30 (surface navigation title registry)
 "use client";
 
 import { usePathname } from "next/navigation";
@@ -12,16 +13,13 @@ import { AlertTriangle, Loader2, Moon, ShieldCheck, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useFixedCase } from "@/lib/fixed-case-context";
-
-const pageTitles: Record<string, string> = {
-  "/intake": "Intake new evidence",
-};
+import { navigationTitle } from "@/platform-ui/navigation";
 
 export function Header() {
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
   const { matter, primaryCourtCase, loading, error } = useFixedCase();
-  const pageTitle = pageTitles[pathname] || "Evidence & legal operations";
+  const pageTitle = navigationTitle(pathname) || "Evidence & legal operations";
 
   return (
     <header className="relative z-20 grid h-[74px] shrink-0 grid-cols-[14.5rem_minmax(0,1fr)_auto] items-stretch bg-nav text-nav-foreground">
