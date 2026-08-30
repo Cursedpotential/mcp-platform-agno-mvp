@@ -1,10 +1,74 @@
 # HANDOFF — Agno role dissection (what Agno still does, and what it should)
 
 > _Byline: Claude · Opus 5 · 2026-08-29, from an owner directive._
+> _Ruling reconciliation: Codex · GPT-5.6-Sol · 2026-08-29._
 
-STATUS: SCOPED — inventory complete, analysis not started. This is a dissection task, **not** a
-removal task. Nothing in this packet authorizes deleting, replacing, or refactoring Agno.
-BUILD_STATUS: N/A — no code change is in scope.
+STATUS: ANALYZED — runtime/data dissection complete; owner rulings recorded below; implementation
+not started.
+BUILD_STATUS: NOT STARTED — this packet now authorizes an ordered replacement plan, but no source,
+database, deployment, or live-service change has been made from it.
+
+## Owner rulings after the dissection — current authority
+
+> _Owner, 2026-08-29: "AgentOS dies"; "Temporal and n8n and ContextForge and Portkey handle most
+> of that"; and Surreal promotion is manual until a governed automatic process is designed._
+
+- **AgentOS is retired completely.** Plain FastAPI replaces it as the process/API host. AgentOS
+  generic agents, teams, workflows, registry, session/Knowledge ownership, scheduler, tracing,
+  approvals, authentication surface, and MCP mount do not survive the cutover.
+- **Agno may remain only as a bounded atomic-agent library adapter.** All nine current agent
+  definitions are preserved but disabled. None is callable until it has an explicit Temporal task
+  ID, reference-only input/output contract, case/horizon/authority scope, tool allowlist, and tested
+  approval path. Agno owns no database, Knowledge/vector, provider registry, workflow, team, router,
+  scheduler, tracing, or public API surface.
+- **Temporal owns durable execution:** workflow/run state, retries, timers, long human waits,
+  signals, activity history, agent invocation state, and projection fan-out/reconciliation. n8n is
+  the visual business/integration layer, ContextForge is the MCP gateway, and Portkey is the only
+  model/embedding/reranking gateway.
+- **PostgreSQL remains canonical and detects committed changes through its transactional
+  outbox/CDC contract.** Temporal consumes immutable change references; it does not poll or rewrite
+  canonical rows. PostgreSQL retains only domain-facing, independently queryable receipts and
+  decisions rather than recreating Agno's operational session tables.
+- **SurrealDB is manual-promotion-only for now.** A PostgreSQL change may automatically drive the
+  governed Weaviate search projection and the Semantica/Neo4j plus SAT-RAG analysis paths, but it
+  MUST NOT automatically update SurrealDB. Change detection may create a promotion candidate.
+  Surreal changes only after the owner explicitly promotes material as worthy of a governed walk,
+  evidence/reference use, or another approved analytical purpose. Temporal durably executes and
+  receipts that decision; neither Temporal nor a model may infer promotion authority from change
+  detection alone. An approved Surreal materialization may assemble inputs from canonical
+  PostgreSQL plus either Neo4j projection independently or both together: the Semantica `evidence`
+  graph and the SAT-RAG `sat-temporal` graph. Its receipt must pin the PostgreSQL projection
+  generation and every graph snapshot/version used so the Surreal result remains reproducible,
+  provenance-complete, and strictly derived. Approval to include material in Surreal authorizes a
+  derived analytical projection only; it does not itself promote a source or claim to evidentiary
+  status, which remains a separate PostgreSQL-governed decision.
+- **No destructive cleanup is authorized.** Retired code/configuration moves to `to_be_deleted/`
+  only after zero-caller, retained-state, rollback, and live-parity proof. Only the owner deletes
+  anything from that directory.
+
+These rulings supersede this handoff's original analysis-only boundary and the undecided session/
+factory language below. They do not authorize touching the concurrent evolving files
+`example.env`, `docs/design/CLAIM-AND-ASSERTION-CANDIDATES-2026-08-29.md`, or
+`sql/0052_claim_and_assertion_candidates.sql`.
+
+### Verified current Surreal enforcement boundary
+
+_Read-only caller audit: Codex subagent · 2026-08-29._
+
+- No production caller in `server/`, `engine/`, Workbench, n8n, Temporal, or the PostgreSQL
+  CDC/outbox consumers currently writes to the governed Surreal target.
+- The isolated `docker/surreal-phase1-runner/` synthetic harness is the only writer. Its network,
+  target-identity allowlist, and T0-only schema currently prevent it from reaching canonical data.
+- That runner is **not** a production promotion mechanism. It trusts `authority_state` and
+  `promotion_state` strings from its bundled manifest and changes a projection from `building` to
+  `active` without a PostgreSQL human-decision receipt or Temporal approval signal.
+- Keep the runner synthetic-only. Do not add a Surreal CDC sink, outbox consumer, Temporal
+  projection activity, n8n projection node, or real-data caller until a PostgreSQL-authored
+  promotion manifest pins the approved sources/spans and source generations, the human actor and
+  decision receipt, and a separate Temporal signal gates activation after reconciliation.
+- The future production projector must be able to select canonical PostgreSQL plus Semantica
+  `evidence`, SAT-RAG `sat-temporal`, or both Neo4j projections. Selection is explicit in the
+  promotion manifest; graph-derived input never displaces PostgreSQL authority.
 
 ## Why this exists
 
