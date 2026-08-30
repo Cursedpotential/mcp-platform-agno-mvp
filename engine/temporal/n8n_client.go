@@ -15,7 +15,10 @@ import (
 	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
 )
 
-const maxN8NResponseBytes int64 = 64 << 10
+const (
+	maxN8NResponseBytes  int64 = 64 << 10
+	maxN8NAuthValueBytes       = 4096
+)
 
 // stageRoute is everything the N8N client needs to reach and safely wait on
 // one n8n-backed Activity: its webhook path, the compact set of Refs keys
@@ -49,30 +52,44 @@ func stageRoutes(cfg Config) map[stagegraph.StageID]stageRoute {
 // workflows already validate (request_id/source_version_ref/declared_format/
 // refs in, stage/status/ref/receipt_ref out).
 type N8NClient struct {
-	baseURL    string
-	authHeader string
-	authValue  string
-	routes     map[stagegraph.StageID]stageRoute
-	httpClient *http.Client
+	baseURL       string
+	authHeader    string
+	authValueFile string
+	routes        map[stagegraph.StageID]stageRoute
+	httpClient    *http.Client
 }
 
 // NewN8NClient builds a client from Config. It fails closed if the base URL
-// or auth header/value are empty — an unauthenticated call to the n8n
+// or auth header/file are empty — an unauthenticated call to the n8n
 // webhook is not a degraded mode this package supports.
 func NewN8NClient(cfg Config) (*N8NClient, error) {
 	if strings.TrimSpace(cfg.N8NBaseURL) == "" {
 		return nil, errors.New("temporal: n8n client requires a base URL")
 	}
-	if strings.TrimSpace(cfg.N8NAuthHeader) == "" || strings.TrimSpace(cfg.N8NAuthValue) == "" {
-		return nil, errors.New("temporal: n8n client requires an auth header name and value")
+	if strings.TrimSpace(cfg.N8NAuthHeader) == "" {
+		return nil, errors.New("temporal: n8n client requires an auth header name")
+	}
+	if strings.TrimSpace(cfg.N8NAuthValueFile) == "" {
+		return nil, errors.New("temporal: n8n client requires an auth value file")
+	}
+	if !isAbsoluteRuntimePath(cfg.N8NAuthValueFile) {
+		return nil, errors.New("temporal: n8n auth value file is unavailable or invalid")
 	}
 	return &N8NClient{
-		baseURL:    strings.TrimRight(cfg.N8NBaseURL, "/"),
-		authHeader: cfg.N8NAuthHeader,
-		authValue:  cfg.N8NAuthValue,
-		routes:     stageRoutes(cfg),
-		httpClient: &http.Client{},
+		baseURL:       strings.TrimRight(cfg.N8NBaseURL, "/"),
+		authHeader:    cfg.N8NAuthHeader,
+		authValueFile: cfg.N8NAuthValueFile,
+		routes:        stageRoutes(cfg),
+		httpClient:    &http.Client{},
 	}, nil
+}
+
+func (c *N8NClient) currentAuthValue() (string, error) {
+	value, err := ReadRuntimeSecretFile(c.authValueFile, maxN8NAuthValueBytes)
+	if err != nil {
+		return "", errors.New("temporal: n8n auth value file is unavailable or invalid")
+	}
+	return value, nil
 }
 
 // stageRequestWire is the exact JSON shape the n8n workflows' "Validate +
@@ -116,6 +133,10 @@ func (c *N8NClient) CallStage(ctx context.Context, id stagegraph.StageID, req ui
 	if err := validateOutboundRequest(route, req); err != nil {
 		return uiw.StageResult{}, err
 	}
+	authValue, err := c.currentAuthValue()
+	if err != nil {
+		return uiw.StageResult{}, err
+	}
 
 	wire := stageRequestWire{
 		RequestID:        req.RequestID,
@@ -140,7 +161,7 @@ func (c *N8NClient) CallStage(ctx context.Context, id stagegraph.StageID, req ui
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("X-Request-ID", req.RequestID)
 	httpReq.Header.Set("Idempotency-Key", req.RequestID)
-	httpReq.Header.Set(c.authHeader, c.authValue)
+	httpReq.Header.Set(c.authHeader, authValue)
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {

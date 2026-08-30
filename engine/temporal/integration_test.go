@@ -48,10 +48,10 @@ func stageStub(id stagegraph.StageID) uiw.StageResult {
 // succeed via OnActivity.
 func registerRealActivities(t *testing.T, env *testsuite.TestWorkflowEnvironment, n8nBaseURL string) {
 	t.Helper()
-	client, err := NewN8NClient(Config{
-		N8NBaseURL: n8nBaseURL, N8NAuthHeader: "Authorization", N8NAuthValue: "Bearer test-token",
-		SelectHTTPTimeout: 5 * time.Second, ExecuteHTTPTimeout: 5 * time.Second,
-	})
+	cfg := testConfig(t, n8nBaseURL)
+	cfg.SelectHTTPTimeout = 5 * time.Second
+	cfg.ExecuteHTTPTimeout = 5 * time.Second
+	client, err := NewN8NClient(cfg)
 	if err != nil {
 		t.Fatalf("NewN8NClient() error = %v", err)
 	}

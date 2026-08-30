@@ -1,6 +1,7 @@
 package uiwworker
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -9,22 +10,29 @@ import (
 func setWorkerEnvironment(t *testing.T) {
 	t.Helper()
 	root := t.TempDir()
+	authValueFile := filepath.Join(root, "n8n-auth-value")
+	if err := os.WriteFile(authValueFile, []byte("Bearer secret-value\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	databaseURLFile := filepath.Join(root, "platform-database-url")
+	if err := os.WriteFile(databaseURLFile, []byte("postgresql://runtime:secret@postgres/platform\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	values := map[string]string{
-		"TEMPORAL_HOST_PORT":               "temporal:7233",
-		"TEMPORAL_NAMESPACE":               "default",
-		"TEMPORAL_TASK_QUEUE":              "universal-import-v1",
-		"PLATFORM_DATABASE_URL":            "postgresql://runtime:secret@postgres/platform",
-		"DATABASE_URL":                     "",
-		"SOURCE_OBJECT_DIR":                filepath.Join(root, "source"),
-		"PARSER_BUNDLE_DIR":                filepath.Join(root, "parser"),
-		"NORMALIZED_BUNDLE_DIR":            filepath.Join(root, "normalized"),
-		"INVENTORY_MANIFEST_DIR":           filepath.Join(root, "inventory"),
-		"PLATFORM_TOOLS_BASE_URL":          "https://platform-tools.example.test",
-		"N8N_UNIVERSAL_IMPORT_BASE_URL":    "https://n8n.example.test/webhook/",
-		"N8N_UNIVERSAL_IMPORT_AUTH_HEADER": "Authorization",
-		"N8N_UNIVERSAL_IMPORT_AUTH_VALUE":  "Bearer secret-value",
-		"SELECT_PARSER_HTTP_TIMEOUT":       "",
-		"EXECUTE_PARSER_HTTP_TIMEOUT":      "",
+		"TEMPORAL_HOST_PORT":                   "temporal:7233",
+		"TEMPORAL_NAMESPACE":                   "default",
+		"TEMPORAL_TASK_QUEUE":                  "universal-import-v1",
+		"PLATFORM_DATABASE_URL_FILE":           databaseURLFile,
+		"SOURCE_OBJECT_DIR":                    filepath.Join(root, "source"),
+		"PARSER_BUNDLE_DIR":                    filepath.Join(root, "parser"),
+		"NORMALIZED_BUNDLE_DIR":                filepath.Join(root, "normalized"),
+		"INVENTORY_MANIFEST_DIR":               filepath.Join(root, "inventory"),
+		"PLATFORM_TOOLS_BASE_URL":              "https://platform-tools.example.test",
+		"N8N_UNIVERSAL_IMPORT_BASE_URL":        "https://n8n.example.test/webhook/",
+		"N8N_UNIVERSAL_IMPORT_AUTH_HEADER":     "Authorization",
+		"N8N_UNIVERSAL_IMPORT_AUTH_VALUE_FILE": authValueFile,
+		"SELECT_PARSER_HTTP_TIMEOUT":           "",
+		"EXECUTE_PARSER_HTTP_TIMEOUT":          "",
 	}
 	for name, value := range values {
 		t.Setenv(name, value)
@@ -43,8 +51,24 @@ func TestLoadConfigBuildsDedicatedWorkerContract(t *testing.T) {
 	if strings.HasSuffix(cfg.N8NBaseURL, "/") {
 		t.Fatalf("n8n base URL retained trailing slash: %q", cfg.N8NBaseURL)
 	}
+	if cfg.DatabaseURL != "postgresql://runtime:secret@postgres/platform" {
+		t.Fatal("database URL was not loaded from its runtime file")
+	}
 	if err := validateSharedPaths(cfg); err != nil {
 		t.Fatalf("validateSharedPaths() error = %v", err)
+	}
+}
+
+func TestLoadConfigRejectsMissingDatabaseURLFileWithoutLeakingPath(t *testing.T) {
+	setWorkerEnvironment(t)
+	path := filepath.Join(t.TempDir(), "missing-secret")
+	t.Setenv("PLATFORM_DATABASE_URL_FILE", path)
+	_, err := LoadConfig()
+	if err == nil || !strings.Contains(err.Error(), "PLATFORM_DATABASE_URL_FILE is unavailable or invalid") {
+		t.Fatalf("LoadConfig() error = %v, want generic database secret error", err)
+	}
+	if strings.Contains(err.Error(), path) {
+		t.Fatalf("LoadConfig() error leaked database secret path: %q", err)
 	}
 }
 

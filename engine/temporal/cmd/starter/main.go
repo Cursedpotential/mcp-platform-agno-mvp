@@ -57,7 +57,11 @@ func run() error {
 		return fmt.Errorf("dial temporal client: %w", err)
 	}
 	defer c.Close()
-	pool, err := pgxpool.New(context.Background(), os.Getenv("PLATFORM_DATABASE_URL"))
+	databaseURL, err := platformDatabaseURL()
+	if err != nil {
+		return err
+	}
+	pool, err := pgxpool.New(context.Background(), databaseURL)
 	if err != nil {
 		return errors.New("configure platform preview database: invalid configuration")
 	}

@@ -9,7 +9,7 @@ func clearConfigEnv(t *testing.T) {
 	t.Helper()
 	names := []string{
 		"TEMPORAL_HOST_PORT", "TEMPORAL_NAMESPACE", "TEMPORAL_TASK_QUEUE",
-		"N8N_UNIVERSAL_IMPORT_BASE_URL", "N8N_UNIVERSAL_IMPORT_AUTH_HEADER", "N8N_UNIVERSAL_IMPORT_AUTH_VALUE",
+		"N8N_UNIVERSAL_IMPORT_BASE_URL", "N8N_UNIVERSAL_IMPORT_AUTH_HEADER", "N8N_UNIVERSAL_IMPORT_AUTH_VALUE_FILE",
 		"REFERENCE_STARTER_ADDR",
 		"SELECT_PARSER_HTTP_TIMEOUT", "EXECUTE_PARSER_HTTP_TIMEOUT",
 	}
@@ -25,7 +25,6 @@ func setRequiredConfigEnv(t *testing.T) {
 	t.Setenv("TEMPORAL_TASK_QUEUE", "universal-import-reference")
 	t.Setenv("N8N_UNIVERSAL_IMPORT_BASE_URL", "https://n8n.example.com/webhook/")
 	t.Setenv("N8N_UNIVERSAL_IMPORT_AUTH_HEADER", "Authorization")
-	t.Setenv("N8N_UNIVERSAL_IMPORT_AUTH_VALUE", "Bearer test-token")
 }
 
 func TestLoadConfigSucceedsWithAllRequiredVars(t *testing.T) {
@@ -38,6 +37,9 @@ func TestLoadConfigSucceedsWithAllRequiredVars(t *testing.T) {
 	}
 	if cfg.N8NBaseURL != "https://n8n.example.com/webhook" {
 		t.Errorf("N8NBaseURL = %q, want trailing slash trimmed", cfg.N8NBaseURL)
+	}
+	if cfg.N8NAuthValueFile != defaultN8NAuthValueFile {
+		t.Errorf("N8NAuthValueFile = %q, want default %q", cfg.N8NAuthValueFile, defaultN8NAuthValueFile)
 	}
 	if cfg.StarterAddr != defaultStarterAddr {
 		t.Errorf("StarterAddr = %q, want default %q", cfg.StarterAddr, defaultStarterAddr)
@@ -59,11 +61,22 @@ func TestLoadConfigCollectsEveryMissingVar(t *testing.T) {
 	}
 	for _, name := range []string{
 		"TEMPORAL_HOST_PORT", "TEMPORAL_NAMESPACE", "TEMPORAL_TASK_QUEUE",
-		"N8N_UNIVERSAL_IMPORT_BASE_URL", "N8N_UNIVERSAL_IMPORT_AUTH_HEADER", "N8N_UNIVERSAL_IMPORT_AUTH_VALUE",
+		"N8N_UNIVERSAL_IMPORT_BASE_URL", "N8N_UNIVERSAL_IMPORT_AUTH_HEADER",
 	} {
 		if !strings.Contains(err.Error(), name) {
 			t.Errorf("LoadConfig() error %q does not mention missing var %q", err.Error(), name)
 		}
+	}
+}
+
+func TestLoadConfigRejectsRelativeAuthValueFile(t *testing.T) {
+	clearConfigEnv(t)
+	setRequiredConfigEnv(t)
+	t.Setenv("N8N_UNIVERSAL_IMPORT_AUTH_VALUE_FILE", "relative/auth-value")
+
+	_, err := LoadConfig()
+	if err == nil || !strings.Contains(err.Error(), "N8N_UNIVERSAL_IMPORT_AUTH_VALUE_FILE") {
+		t.Fatalf("LoadConfig() error = %v, want absolute auth file rejection", err)
 	}
 }
 

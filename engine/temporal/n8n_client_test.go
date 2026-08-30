@@ -1,9 +1,12 @@
 package temporal
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -12,14 +15,30 @@ import (
 	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
 )
 
-func testConfig(baseURL string) Config {
+func testConfig(t *testing.T, baseURL string) Config {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "n8n-auth-value")
+	if err := os.WriteFile(path, []byte("Bearer test-token\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	return Config{
 		N8NBaseURL:         baseURL,
 		N8NAuthHeader:      "Authorization",
-		N8NAuthValue:       "Bearer test-token",
+		N8NAuthValueFile:   path,
 		SelectHTTPTimeout:  2 * time.Second,
 		ExecuteHTTPTimeout: 2 * time.Second,
 	}
+}
+
+func testFileConfig(t *testing.T, baseURL, value string) (Config, string) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "n8n-auth-value")
+	if err := os.WriteFile(path, []byte(value), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg := testConfig(t, baseURL)
+	cfg.N8NAuthValueFile = path
+	return cfg, path
 }
 
 func selectRequest() uiw.StageRequest {
@@ -65,7 +84,7 @@ func TestCallStageSelectParserSuccess(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewN8NClient(testConfig(server.URL))
+	client, err := NewN8NClient(testConfig(t, server.URL))
 	if err != nil {
 		t.Fatalf("NewN8NClient() error = %v", err)
 	}
@@ -96,6 +115,110 @@ func TestCallStageSelectParserSuccess(t *testing.T) {
 	}
 }
 
+func TestCallStageRereadsRotatedAuthValueFile(t *testing.T) {
+	var gotAuth []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = append(gotAuth, r.Header.Get("Authorization"))
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"stage": "select_parser_activity", "status": "success",
+			"ref": "selection-ref", "receipt_ref": "selection-receipt",
+		})
+	}))
+	defer server.Close()
+
+	cfg, path := testFileConfig(t, server.URL, "Bearer first-token\r\n")
+	client, err := NewN8NClient(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.CallStage(t.Context(), stagegraph.SelectParser, selectRequest()); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("Bearer rotated-token\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.CallStage(t.Context(), stagegraph.SelectParser, selectRequest()); err != nil {
+		t.Fatal(err)
+	}
+	if len(gotAuth) != 2 || gotAuth[0] != "Bearer first-token" || gotAuth[1] != "Bearer rotated-token" {
+		t.Fatalf("Authorization headers = %q, want original then rotated value", gotAuth)
+	}
+}
+
+func TestCallStageFailsClosedWhenAuthValueFileIsMissing(t *testing.T) {
+	called := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	}))
+	defer server.Close()
+	cfg := testConfig(t, server.URL)
+	cfg.N8NAuthValueFile = filepath.Join(t.TempDir(), "missing")
+	client, err := NewN8NClient(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = client.CallStage(t.Context(), stagegraph.SelectParser, selectRequest())
+	if err == nil || !strings.Contains(err.Error(), "unavailable or invalid") {
+		t.Fatalf("CallStage() error = %v, want generic auth-file error", err)
+	}
+	if called {
+		t.Fatal("n8n webhook was called without a readable auth value")
+	}
+}
+
+func TestCallStageRejectsMalformedAuthValueWithoutLeakingIt(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("n8n webhook should not be called with malformed auth")
+	}))
+	defer server.Close()
+	const secret = "Bearer secret-value"
+	cfg, path := testFileConfig(t, server.URL, secret+"\nembedded")
+	client, err := NewN8NClient(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = client.CallStage(t.Context(), stagegraph.SelectParser, selectRequest())
+	if err == nil || !strings.Contains(err.Error(), "unavailable or invalid") {
+		t.Fatalf("CallStage() error = %v, want malformed auth rejection", err)
+	}
+	if strings.Contains(err.Error(), secret) || strings.Contains(err.Error(), path) {
+		t.Fatalf("CallStage() error leaked auth material or its path: %q", err)
+	}
+}
+
+func TestReadN8NAuthValueRejectsInvalidFiles(t *testing.T) {
+	for name, value := range map[string][]byte{
+		"empty":        {},
+		"invalid utf8": {0xff},
+		"oversized":    bytes.Repeat([]byte("x"), maxN8NAuthValueBytes+3),
+	} {
+		t.Run(name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "auth")
+			if err := os.WriteFile(path, value, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := ReadRuntimeSecretFile(path, maxN8NAuthValueBytes); err == nil {
+				t.Fatal("ReadRuntimeSecretFile() error = nil, want invalid-file rejection")
+			}
+		})
+	}
+	if _, err := ReadRuntimeSecretFile(t.TempDir(), maxN8NAuthValueBytes); err == nil {
+		t.Fatal("ReadRuntimeSecretFile() accepted a directory")
+	}
+	target := filepath.Join(t.TempDir(), "target")
+	if err := os.WriteFile(target, []byte("Bearer target"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(target, link); err != nil {
+		t.Skipf("symlink creation unavailable: %v", err)
+	}
+	if _, err := ReadRuntimeSecretFile(link, maxN8NAuthValueBytes); err == nil {
+		t.Fatal("ReadRuntimeSecretFile() accepted a symlink")
+	}
+}
+
 func TestCallStageExecuteParserSuccess(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/universal-import/execute-parser-activity" {
@@ -109,7 +232,7 @@ func TestCallStageExecuteParserSuccess(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewN8NClient(testConfig(server.URL))
+	client, err := NewN8NClient(testConfig(t, server.URL))
 	if err != nil {
 		t.Fatalf("NewN8NClient() error = %v", err)
 	}
@@ -128,7 +251,7 @@ func TestCallStageRejectsMissingRequiredRefs(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewN8NClient(testConfig(server.URL))
+	client, err := NewN8NClient(testConfig(t, server.URL))
 	if err != nil {
 		t.Fatalf("NewN8NClient() error = %v", err)
 	}
@@ -147,7 +270,7 @@ func TestCallStageFailsClosedOnNon2xx(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewN8NClient(testConfig(server.URL))
+	client, err := NewN8NClient(testConfig(t, server.URL))
 	if err != nil {
 		t.Fatalf("NewN8NClient() error = %v", err)
 	}
@@ -170,7 +293,7 @@ func TestCallStageFailsClosedOnMismatchedStage(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewN8NClient(testConfig(server.URL))
+	client, err := NewN8NClient(testConfig(t, server.URL))
 	if err != nil {
 		t.Fatalf("NewN8NClient() error = %v", err)
 	}
@@ -189,7 +312,7 @@ func TestCallStageFailsClosedOnEmptyRefs(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewN8NClient(testConfig(server.URL))
+	client, err := NewN8NClient(testConfig(t, server.URL))
 	if err != nil {
 		t.Fatalf("NewN8NClient() error = %v", err)
 	}
@@ -199,7 +322,7 @@ func TestCallStageFailsClosedOnEmptyRefs(t *testing.T) {
 }
 
 func TestCallStageFailsClosedOnUnroutableStage(t *testing.T) {
-	client, err := NewN8NClient(testConfig("https://n8n.example.invalid"))
+	client, err := NewN8NClient(testConfig(t, "https://n8n.example.invalid"))
 	if err != nil {
 		t.Fatalf("NewN8NClient() error = %v", err)
 	}
@@ -209,7 +332,7 @@ func TestCallStageFailsClosedOnUnroutableStage(t *testing.T) {
 }
 
 func TestNewN8NClientRequiresBaseURLAndAuth(t *testing.T) {
-	if _, err := NewN8NClient(Config{N8NAuthHeader: "Authorization", N8NAuthValue: "Bearer x"}); err == nil {
+	if _, err := NewN8NClient(Config{N8NAuthHeader: "Authorization", N8NAuthValueFile: filepath.Join(t.TempDir(), "auth")}); err == nil {
 		t.Error("NewN8NClient() error = nil, want error for missing base URL")
 	}
 	if _, err := NewN8NClient(Config{N8NBaseURL: "https://n8n.example.com"}); err == nil {

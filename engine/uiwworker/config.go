@@ -22,6 +22,7 @@ type Config struct {
 	TemporalHostPort  string
 	TemporalNamespace string
 	TemporalTaskQueue string
+	DatabaseURLFile   string
 	DatabaseURL       string
 
 	SourceObjectDir      string
@@ -32,7 +33,7 @@ type Config struct {
 
 	N8NBaseURL         string
 	N8NAuthHeader      string
-	N8NAuthValue       string
+	N8NAuthValueFile   string
 	SelectHTTPTimeout  time.Duration
 	ExecuteHTTPTimeout time.Duration
 }
@@ -54,7 +55,6 @@ func LoadConfig() (Config, error) {
 		TemporalHostPort:     require("TEMPORAL_HOST_PORT"),
 		TemporalNamespace:    require("TEMPORAL_NAMESPACE"),
 		TemporalTaskQueue:    require("TEMPORAL_TASK_QUEUE"),
-		DatabaseURL:          firstEnvironment("PLATFORM_DATABASE_URL", "DATABASE_URL"),
 		SourceObjectDir:      require("SOURCE_OBJECT_DIR"),
 		ParserBundleDir:      require("PARSER_BUNDLE_DIR"),
 		NormalizedBundleDir:  require("NORMALIZED_BUNDLE_DIR"),
@@ -62,12 +62,26 @@ func LoadConfig() (Config, error) {
 		PlatformToolsBaseURL: strings.TrimRight(require("PLATFORM_TOOLS_BASE_URL"), "/"),
 		N8NBaseURL:           strings.TrimRight(require("N8N_UNIVERSAL_IMPORT_BASE_URL"), "/"),
 		N8NAuthHeader:        require("N8N_UNIVERSAL_IMPORT_AUTH_HEADER"),
-		N8NAuthValue:         require("N8N_UNIVERSAL_IMPORT_AUTH_VALUE"),
+		N8NAuthValueFile:     firstEnvironment("N8N_UNIVERSAL_IMPORT_AUTH_VALUE_FILE"),
 		SelectHTTPTimeout:    35 * time.Second,
 		ExecuteHTTPTimeout:   31 * time.Minute,
 	}
-	if cfg.DatabaseURL == "" {
-		problems = append(problems, "PLATFORM_DATABASE_URL or DATABASE_URL is required")
+	cfg.DatabaseURLFile = firstEnvironment("PLATFORM_DATABASE_URL_FILE")
+	if cfg.DatabaseURLFile == "" {
+		cfg.DatabaseURLFile = "/run/secrets/platform-database-url"
+	}
+	if !absoluteRuntimePath(cfg.DatabaseURLFile) {
+		problems = append(problems, "PLATFORM_DATABASE_URL_FILE must be an absolute path")
+	} else if value, err := platformtemporal.ReadRuntimeSecretFile(cfg.DatabaseURLFile, 16<<10); err != nil {
+		problems = append(problems, "PLATFORM_DATABASE_URL_FILE is unavailable or invalid")
+	} else {
+		cfg.DatabaseURL = value
+	}
+	if cfg.N8NAuthValueFile == "" {
+		cfg.N8NAuthValueFile = "/run/secrets/n8n-universal-import-auth"
+	}
+	if !absoluteRuntimePath(cfg.N8NAuthValueFile) {
+		problems = append(problems, "N8N_UNIVERSAL_IMPORT_AUTH_VALUE_FILE must be an absolute path")
 	}
 	if cfg.TemporalTaskQueue == legacyEvidenceTaskQueue {
 		problems = append(problems, "TEMPORAL_TASK_QUEUE must be dedicated to universal import and cannot be evidence-pipeline")
@@ -86,6 +100,10 @@ func LoadConfig() (Config, error) {
 		return Config{}, fmt.Errorf("uiw worker: invalid configuration: %s", strings.Join(problems, "; "))
 	}
 	return cfg, nil
+}
+
+func absoluteRuntimePath(path string) bool {
+	return filepath.IsAbs(path) || strings.HasPrefix(path, "/")
 }
 
 func firstEnvironment(names ...string) string {
@@ -119,7 +137,7 @@ func (c Config) temporalConfig() platformtemporal.Config {
 		TemporalTaskQueue:  c.TemporalTaskQueue,
 		N8NBaseURL:         c.N8NBaseURL,
 		N8NAuthHeader:      c.N8NAuthHeader,
-		N8NAuthValue:       c.N8NAuthValue,
+		N8NAuthValueFile:   c.N8NAuthValueFile,
 		SelectHTTPTimeout:  c.SelectHTTPTimeout,
 		ExecuteHTTPTimeout: c.ExecuteHTTPTimeout,
 	}

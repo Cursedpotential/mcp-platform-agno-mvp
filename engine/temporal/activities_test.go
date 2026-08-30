@@ -18,7 +18,7 @@ import (
 // a bare context.Background().
 func activityEnv(t *testing.T, server *httptest.Server) (*testsuite.TestActivityEnvironment, N8NActivities) {
 	t.Helper()
-	client, err := NewN8NClient(testConfig(server.URL))
+	client, err := NewN8NClient(testConfig(t, server.URL))
 	if err != nil {
 		t.Fatalf("NewN8NClient() error = %v", err)
 	}

@@ -4,6 +4,7 @@
 # The upload ingress and worker share this host-backed source-object root.
 # Prepare it with ownership 10001:10001 and mode 0750 before deployment.
 # Byline: Codex · GPT-5.6-Sol · 2026-08-30 (durable preview and source-context API)
+# Byline: Codex · GPT-5.6-Terra · 2026-08-30 (rotatable n8n runtime-file auth)
 
 services:
   universal-import-starter:
@@ -17,7 +18,7 @@ services:
     # direct-peer authorization check.
     network_mode: host
     environment:
-      PLATFORM_DATABASE_URL: ${PLATFORM_DATABASE_URL:?set}
+      PLATFORM_DATABASE_URL_FILE: /run/secrets/platform-database-url
       TEMPORAL_HOST_PORT: ${TEMPORAL_HOST_PORT:?set}
       TEMPORAL_NAMESPACE: ${TEMPORAL_NAMESPACE:-default}
       TEMPORAL_TASK_QUEUE: ${TEMPORAL_TASK_QUEUE:-universal-import-v1}
@@ -27,10 +28,12 @@ services:
       UNIVERSAL_IMPORT_UPLOAD_MAX_BYTES: ${UNIVERSAL_IMPORT_UPLOAD_MAX_BYTES:?set}
       N8N_UNIVERSAL_IMPORT_BASE_URL: ${N8N_UNIVERSAL_IMPORT_BASE_URL:?set}
       N8N_UNIVERSAL_IMPORT_AUTH_HEADER: ${N8N_UNIVERSAL_IMPORT_AUTH_HEADER:?set}
-      N8N_UNIVERSAL_IMPORT_AUTH_VALUE: ${N8N_UNIVERSAL_IMPORT_AUTH_VALUE:?set}
+      N8N_UNIVERSAL_IMPORT_AUTH_VALUE_FILE: /run/secrets/n8n-universal-import-auth
       UIW_PREVIEW_CURSOR_KEY_FILE: /run/secrets/uiw-preview-cursor-key
       UIW_SERVICE_TOKEN_FILE: /run/secrets/uiw-service-token
     volumes:
       - /data/agno/volumes/universal-import/source-objects:/data/uiw/source-objects
       - /data/agno/secrets/uiw/preview-cursor-key:/run/secrets/uiw-preview-cursor-key:ro
       - /data/agno/secrets/uiw/service-token:/run/secrets/uiw-service-token:ro
+      - /data/agno/secrets/n8n/universal-import-auth:/run/secrets/n8n-universal-import-auth:ro
+      - /data/agno/secrets/platform/database-url:/run/secrets/platform-database-url:ro

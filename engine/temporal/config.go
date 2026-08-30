@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -27,12 +28,11 @@ type Config struct {
 	// The two stage paths are appended to it verbatim (no trailing slash
 	// assumed either way).
 	N8NBaseURL string
-	// N8NAuthHeader/N8NAuthValue are the header name/value this package sends
-	// on every call to the n8n webhooks, matching the headerAuth credential
-	// the two existing n8n workflows now require on their Webhook trigger
-	// nodes (docker/n8n/workflows/universal-import/README.md).
-	N8NAuthHeader string
-	N8NAuthValue  string
+	// N8NAuthHeader is the non-secret header name sent to n8n. The value is
+	// re-read from N8NAuthValueFile for every outbound request so credential
+	// rotation does not require a process restart or redeploy.
+	N8NAuthHeader    string
+	N8NAuthValueFile string
 
 	// StarterAddr is the HTTP listen address for the starter service n8n's
 	// start/decision/preview workflows call.
@@ -50,6 +50,7 @@ const (
 	defaultSelectHTTPTimeout  = 35 * time.Second
 	defaultExecuteHTTPTimeout = 31 * time.Minute
 	defaultStarterAddr        = ":8091"
+	defaultN8NAuthValueFile   = "/run/secrets/n8n-universal-import-auth"
 )
 
 // LoadConfig reads every required environment variable, trims it, and
@@ -72,7 +73,13 @@ func LoadConfig() (Config, error) {
 		TemporalTaskQueue: require("TEMPORAL_TASK_QUEUE"),
 		N8NBaseURL:        strings.TrimRight(require("N8N_UNIVERSAL_IMPORT_BASE_URL"), "/"),
 		N8NAuthHeader:     require("N8N_UNIVERSAL_IMPORT_AUTH_HEADER"),
-		N8NAuthValue:      require("N8N_UNIVERSAL_IMPORT_AUTH_VALUE"),
+	}
+	cfg.N8NAuthValueFile = strings.TrimSpace(os.Getenv("N8N_UNIVERSAL_IMPORT_AUTH_VALUE_FILE"))
+	if cfg.N8NAuthValueFile == "" {
+		cfg.N8NAuthValueFile = defaultN8NAuthValueFile
+	}
+	if !isAbsoluteRuntimePath(cfg.N8NAuthValueFile) {
+		problems = append(problems, "N8N_UNIVERSAL_IMPORT_AUTH_VALUE_FILE must be an absolute path")
 	}
 
 	cfg.StarterAddr = strings.TrimSpace(os.Getenv("REFERENCE_STARTER_ADDR"))
@@ -94,6 +101,10 @@ func LoadConfig() (Config, error) {
 		return Config{}, fmt.Errorf("temporal: invalid configuration: %s", strings.Join(problems, "; "))
 	}
 	return cfg, nil
+}
+
+func isAbsoluteRuntimePath(path string) bool {
+	return filepath.IsAbs(path) || strings.HasPrefix(path, "/")
 }
 
 func optionalDuration(name string, fallback time.Duration) (time.Duration, error) {
