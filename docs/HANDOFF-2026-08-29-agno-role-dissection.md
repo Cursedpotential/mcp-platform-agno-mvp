@@ -3,13 +3,13 @@
 > _Byline: Claude · Opus 5 · 2026-08-29, from an owner directive._
 > _Ruling reconciliation: Codex · GPT-5.6-Sol · 2026-08-29._
 
-STATUS: IMPLEMENTING — runtime/data dissection and owner rulings are complete; the production-host
-and direct-caller cutover is implemented locally. Temporal workflow and Agno Knowledge/provider
-replacement remain active follow-on slices.
-BUILD_STATUS: LOCAL CUTOVER VERIFIED / RELEASE HOLD — plain FastAPI, runtime-file auth, private
-deployment naming, Workbench callers, LibreChat/ContextForge publication config, OpenCode ops, and
-matter preflight are implemented and focused-test proven. Nothing in this implementation block is
-claimed deployed or live until the Coolify resources build the current SHA and live probes pass.
+STATUS: IMPLEMENTING — production-host, direct-caller, runtime-auth, Workbench object-store, and
+stable private-surface slices are live. Temporal workflow and Agno Knowledge/provider replacement
+remain active follow-on slices.
+BUILD_STATUS: LIVE CUTOVER VERIFIED / BOUNDED RELEASE HOLDS — plain FastAPI, runtime-file auth,
+private deployment naming, Workbench callers and fixed R2 source/staging buckets are deployed and
+live-proven. LibreChat/hosted-Portkey MCP publication, native evidence activation prerequisites,
+and later Agno workflow/Knowledge replacement remain explicitly held below.
 
 ## Implementation receipt — production-host slice (2026-08-29)
 
@@ -62,21 +62,48 @@ Verified locally:
 
 Release holds:
 
-1. Repoint the branch-scoped LibreChat Coolify resource from `infra/librechat` to `main` and
-   `deploy/librechat.yaml`, with exact watch paths and required Portkey MCP runtime values.
-2. Deploy the exec and Workbench resources from the cutover SHA; prove `/health`, authenticated
-   Platform calls, Workbench promote/search, and ContextForge MCP initialize/tools-list live.
+1. LibreChat now tracks `main` and `deploy/librechat.yaml`, but activation remains held until the
+   hosted/hybrid Portkey `platform-tools` MCP publication and MCP-Invoke-only key exist.
+2. Native evidence search remains held behind D-104/D-066: `EvidenceChunkV1`, alias, backfill,
+   canary receipt, and owner activation are absent. Keep `NATIVE_EVIDENCE_ENABLED=false`.
 3. Do not quarantine the historical AgentOS modules or legacy `deploy/compose.yaml` until
    zero-caller, retained-state, rollback, and live-parity proof are complete.
 4. Continue the ordered replacement of `server/evidence/workflows.py` and Agno-owned
    Knowledge/provider/vector/session code; this host slice deliberately does not pretend those
    later changes are complete.
 
-Live cutover update (2026-08-30): commit `7440772` deployed successfully to `exec-tier` and
-`knowledge-workbench`; Platform `/health`, the stable Tailscale Workbench `/health`, `/`, and
-`/evidence/preview` all returned HTTP 200. The first live evidence-search probe correctly exposed
-the missing operator capability wiring instead of bypassing it. The runtime-file correction is
-implemented and locally test-proven; final redeploy/search proof remains the active gate.
+Live cutover update (2026-08-30): commits `7440772`, `e08c0a8`, `43675cb`, and `a6f9286` deployed
+successfully to the applicable `exec-tier` and `knowledge-workbench` resources. Platform `/health`,
+the stable Tailscale Workbench `/health`, `/`, `/evidence/preview`, and fixed source browser all
+returned HTTP 200. Platform owner and evidence-operator bearer files are live runtime mounts with
+the old secret env records absent from both containers. Native evidence search reaches the
+Platform boundary but remains intentionally unavailable while D-104/D-066 prerequisites are
+unmet; do not enable `NATIVE_EVIDENCE_ENABLED` merely to turn that 404 into a response.
+
+### Live Workbench R2/source/upload receipt — 2026-08-30
+
+_Byline: Codex · GPT-5.6-Sol · 2026-08-30._
+
+- Commit `a6f9286` fixes one runtime JSON credential for two non-selectable buckets:
+  read-only `casebible-sorted` source browsing and `nexus` Workbench staging. Object-store endpoint,
+  bucket, and credential environment settings were removed from the Workbench contract.
+- The malformed empty host directory at `/data/agno/secrets/casebible-r2.json` was moved intact to
+  `/data/agno/to_be_deleted/platform-secret-paths-20260830T0855Z/`; only the owner deletes it. The
+  existing live R2 credential was preserved without printing or rotating it in a regular `0400`
+  runtime JSON file at the mounted path.
+- Coolify deployment `se4ozjscbq6665pois690exn` finished from exact commit `a6f9286`. The stricter
+  Docker healthcheck now parses `/health` and rejects `status=degraded`; the live container reports
+  `healthy` and the stable service returns `{"status":"ok","lancedb":true,"object_store":true}`.
+- `GET https://workbench.tilapia-skilift.ts.net/api/uiw/sources?page_size=5` returned HTTP 200,
+  `source=casebible-sorted`, real objects, delimiter pagination, and an opaque continuation token.
+- A real Markdown upload through the same UI route (`POST /api/uiw/upload`) returned HTTP 201 with
+  acquisition SHA-256 `ea9f93939589dcad8631d5b0b26b9ca9a1ef654660eafee1136f68a9cf6ac820`.
+- A real JSON staging upload through `POST /api/upload` returned HTTP 200 with key
+  `workbench/staging/49d046ac1257d3334a1c2af8eefa19429ff1f9c9da5a9471da6298fff135cb9f/package.json`;
+  the running container then verified that exact object exists in fixed bucket `nexus`.
+- Verification: fixed object-store/source tests **5 passed**; root deployment contracts **14
+  passed**; the full Workbench API suite is **228 passed / 1 pre-existing structure failure** for
+  the already-known 301-line `app/service/uiw.py` and 315-line `app/types/case_management.py`.
 
 LibreChat MCP activation remains held at the approved gateway boundary. The live ContextForge
 `platform_tools` virtual server passed read-only initialize and tools/list proof with 14 tools, but
