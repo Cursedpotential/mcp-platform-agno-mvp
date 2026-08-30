@@ -41,9 +41,9 @@ class Settings(BaseSettings):
     casebible_r2_config_path: str = "/run/secrets/casebible-r2.json"
     # Direct-tailnet UIW starter boundary; blank values fail closed in the adapter.
     uiw_starter_url: str = ""
-    # Separate operator capability. Only the Workbench receives it; bounded
-    # agent tasks must use their Temporal-provided walk context.
-    evidence_operator_security_key: str = ""
+    # Separate runtime-read operator capability. Only the Workbench receives
+    # the mounted file; bounded agent tasks use Temporal-provided walk context.
+    evidence_operator_bearer_secret_file: str = "/run/secrets/evidence-operator-security-key"
 
     # --- MCP tool servers (Tool Explorer) ---
     # ContextForge is the authored registry; Portkey is the downstream audited

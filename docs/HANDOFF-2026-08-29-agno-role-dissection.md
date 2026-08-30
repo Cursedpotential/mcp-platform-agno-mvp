@@ -45,6 +45,10 @@ Implemented locally:
   surrounding file whitespace normalized, and an allowlisted token alphabet. A newline written by
   an ordinary secret-file provisioning command cannot authenticate one side while disabling the
   other.
+- Live Workbench evidence-search proof exposed the remaining operator capability as an unset
+  environment secret. It now follows the same runtime-file pattern on both services through the
+  distinct `/run/secrets/evidence-operator-security-key` mount; it remains separate from the
+  Platform owner bearer and is read again for every search request.
 
 Verified locally:
 
@@ -67,6 +71,12 @@ Release holds:
 4. Continue the ordered replacement of `server/evidence/workflows.py` and Agno-owned
    Knowledge/provider/vector/session code; this host slice deliberately does not pretend those
    later changes are complete.
+
+Live cutover update (2026-08-30): commit `7440772` deployed successfully to `exec-tier` and
+`knowledge-workbench`; Platform `/health`, the stable Tailscale Workbench `/health`, `/`, and
+`/evidence/preview` all returned HTTP 200. The first live evidence-search probe correctly exposed
+the missing operator capability wiring instead of bypassing it. The runtime-file correction is
+implemented and locally test-proven; final redeploy/search proof remains the active gate.
 
 ## Owner rulings after the dissection — current authority
 

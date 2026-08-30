@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.config import settings
+from app.repo.platform_api_auth import PlatformAPIAuthError, evidence_operator_bearer_headers
 from app.repo.spine_client import SpineError, spine_json
 
 __all__ = ["SpineError", "get_content", "list_contents", "search"]
@@ -56,8 +56,10 @@ def _search_lane(
             f"semantic search for lane '{lane}' is disabled until its framework-neutral projection is available",
             503,
         )
-    if not settings.evidence_operator_security_key:
-        raise SpineError("owner evidence search capability is not configured", 503)
+    try:
+        headers = evidence_operator_bearer_headers()
+    except PlatformAPIAuthError as error:
+        raise SpineError(str(error), 503) from None
     body: dict[str, Any] = {
         "query": query,
         "case_id": case_id,
@@ -69,7 +71,7 @@ def _search_lane(
     response = spine_json(
         "POST",
         "/v1/operator/evidence/search",
-        headers={"Authorization": f"Bearer {settings.evidence_operator_security_key}"},
+        headers=headers,
         json=body,
     )
     for hit in response.get("data") or []:

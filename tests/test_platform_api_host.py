@@ -83,6 +83,15 @@ def _configure_owner_bearer(monkeypatch, tmp_path: Path, credential: str = "owne
     return bearer_file
 
 
+def _configure_operator_bearer(monkeypatch, tmp_path: Path, credential: str = "operator-test-key") -> Path:
+    from server.api import platform_auth
+
+    bearer_file = tmp_path / "evidence-operator-security-key"
+    bearer_file.write_text(credential, encoding="utf-8")
+    monkeypatch.setattr(platform_auth, "_EVIDENCE_OPERATOR_BEARER_FILE", bearer_file)
+    return bearer_file
+
+
 def test_composition_root_has_no_agentos_or_agno_import() -> None:
     tree = ast.parse(_MAIN.read_text(encoding="utf-8"))
     imported = {alias.name for node in ast.walk(tree) if isinstance(node, ast.Import) for alias in node.names} | {
@@ -176,7 +185,7 @@ def test_composed_agent_search_preserves_signed_walk_authorization(monkeypatch, 
 
 def test_composed_operator_search_preserves_distinct_operator_authorization(monkeypatch, tmp_path: Path) -> None:
     _configure_owner_bearer(monkeypatch, tmp_path)
-    monkeypatch.setenv("EVIDENCE_OPERATOR_SECURITY_KEY", "operator-test-key")
+    _configure_operator_bearer(monkeypatch, tmp_path)
     monkeypatch.delenv("PLATFORM_API_TAILNET_AUTH_BYPASS_ENABLED", raising=False)
     client = _composed_search_client(monkeypatch)
 

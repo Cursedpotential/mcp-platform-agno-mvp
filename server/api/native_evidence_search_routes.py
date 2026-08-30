@@ -75,8 +75,10 @@ def _bounded_horizon(requested: datetime | None, *, now: datetime | None = None)
     return min(requested.astimezone(timezone.utc), current)
 
 
-def _authenticate_bearer(request: Request, env_name: str) -> None:
-    expected = getenv(env_name, "")
+def _authenticate_operator_bearer(request: Request) -> None:
+    from server.api.platform_auth import read_evidence_operator_bearer
+
+    expected = read_evidence_operator_bearer()
     if not expected:
         raise HTTPException(status_code=503, detail="evidence search authorization is not configured")
     scheme, separator, credential = request.headers.get("authorization", "").partition(" ")
@@ -343,7 +345,7 @@ def register_native_evidence_search_routes(
 
     @app.post("/v1/operator/evidence/search")
     async def search_operator_evidence(request: Request, body: OperatorEvidenceSearchRequest) -> dict[str, Any]:
-        _authenticate_bearer(request, "EVIDENCE_OPERATOR_SECURITY_KEY")
+        _authenticate_operator_bearer(request)
         try:
             query = body.query.strip()
             case_id = body.case_id.strip()

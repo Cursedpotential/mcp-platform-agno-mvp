@@ -42,10 +42,12 @@ def test_exec_manifest_requires_native_activation_inputs_and_blue_ports() -> Non
         "NATIVE_EVIDENCE_ENABLED": "${NATIVE_EVIDENCE_ENABLED:?",
         "WEAVIATE_HTTP_HOST": "${WEAVIATE_HTTP_HOST:?",
         "WALK_PASS_SIGNING_KEY": "${WALK_PASS_SIGNING_KEY:?",
-        "EVIDENCE_OPERATOR_SECURITY_KEY": "${EVIDENCE_OPERATOR_SECURITY_KEY:?",
     }
     for key, interpolation in required_inputs.items():
         assert f"{key}: {interpolation}" in manifest
 
     assert "WEAVIATE_HTTP_PORT: ${WEAVIATE_HTTP_PORT:-8082}" in manifest
     assert "WEAVIATE_GRPC_PORT: ${WEAVIATE_GRPC_PORT:-50052}" in manifest
+    assert "EVIDENCE_OPERATOR_SECURITY_KEY:" not in manifest
+    assert "target: /run/secrets/evidence-operator-security-key" in manifest
+    assert "source: /data/agno/secrets/platform/evidence-operator-security-key" in manifest

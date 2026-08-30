@@ -60,6 +60,14 @@ def _client(executor, resolver=_ignorant_context) -> TestClient:
     return TestClient(app)
 
 
+def _configure_operator_bearer(monkeypatch, tmp_path, credential: str) -> None:
+    from server.api import platform_auth
+
+    secret = tmp_path / "evidence-operator-security-key"
+    secret.write_text(credential, encoding="utf-8")
+    monkeypatch.setattr(platform_auth, "_EVIDENCE_OPERATOR_BEARER_FILE", secret)
+
+
 def test_agent_endpoint_uses_only_ledger_resolved_authority(monkeypatch) -> None:
     monkeypatch.setenv("WALK_PASS_SIGNING_KEY", "test-walk-signing-key")
     captured = {}
@@ -165,8 +173,8 @@ def test_shared_os_bearer_cannot_select_a_hindsight_pass(monkeypatch) -> None:
     assert response.status_code == 401
 
 
-def test_operator_endpoint_is_distinct_bounded_and_never_hindsight(monkeypatch) -> None:
-    monkeypatch.setenv("EVIDENCE_OPERATOR_SECURITY_KEY", "test-operator-key")
+def test_operator_endpoint_is_distinct_bounded_and_never_hindsight(monkeypatch, tmp_path) -> None:
+    _configure_operator_bearer(monkeypatch, tmp_path, "test-operator-key")
     captured = {}
 
     async def executor(query, **kwargs):
@@ -184,9 +192,9 @@ def test_operator_endpoint_is_distinct_bounded_and_never_hindsight(monkeypatch) 
     assert captured["horizon"] <= datetime.now(timezone.utc)
 
 
-def test_operator_endpoint_requires_distinct_owner_credential(monkeypatch) -> None:
+def test_operator_endpoint_requires_distinct_owner_credential(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("OS_SECURITY_KEY", "shared-os-key")
-    monkeypatch.setenv("EVIDENCE_OPERATOR_SECURITY_KEY", "owner-only-key")
+    _configure_operator_bearer(monkeypatch, tmp_path, "owner-only-key")
 
     async def executor(*args, **kwargs):  # pragma: no cover - auth stops first
         raise AssertionError("executor must not run")
@@ -199,7 +207,7 @@ def test_operator_endpoint_requires_distinct_owner_credential(monkeypatch) -> No
     assert response.status_code == 401
 
 
-def test_default_executor_constructs_pinned_embedder_and_native_store_without_live_io(monkeypatch) -> None:
+def test_default_executor_constructs_pinned_embedder_and_native_store_without_live_io(monkeypatch, tmp_path) -> None:
     """Regression: the non-injected production path imports and constructs."""
 
     import openai
@@ -209,7 +217,7 @@ def test_default_executor_constructs_pinned_embedder_and_native_store_without_li
     import server.evidence.retrieval as retrieval
     from server.core.evidence_vector_store import EVIDENCE_EMBED_DIM, EVIDENCE_EMBED_MODEL
 
-    monkeypatch.setenv("EVIDENCE_OPERATOR_SECURITY_KEY", "test-operator-key")
+    _configure_operator_bearer(monkeypatch, tmp_path, "test-operator-key")
     monkeypatch.setenv("NVIDIA_API_KEY", "not-a-live-key")
     seen = {}
 

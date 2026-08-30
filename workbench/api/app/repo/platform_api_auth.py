@@ -23,11 +23,9 @@ class PlatformAPIAuthError(RuntimeError):
     """Fail-closed credential error with no secret-bearing detail."""
 
 
-def platform_api_bearer_headers() -> dict[str, str]:
-    """Read and validate the Platform API bearer for one request."""
-
+def _bearer_headers(path_value: str) -> dict[str, str]:
     try:
-        raw = Path(settings.platform_api_bearer_secret_file).read_bytes()
+        raw = Path(path_value).read_bytes()
     except OSError:
         raise PlatformAPIAuthError(_SAFE_ERROR) from None
 
@@ -40,3 +38,15 @@ def platform_api_bearer_headers() -> dict[str, str]:
     if _BEARER_TOKEN.fullmatch(token) is None:
         raise PlatformAPIAuthError(_SAFE_ERROR)
     return {"Authorization": f"Bearer {token}"}
+
+
+def platform_api_bearer_headers() -> dict[str, str]:
+    """Read and validate the Platform API bearer for one request."""
+
+    return _bearer_headers(settings.platform_api_bearer_secret_file)
+
+
+def evidence_operator_bearer_headers() -> dict[str, str]:
+    """Read the distinct owner-search capability for one request."""
+
+    return _bearer_headers(settings.evidence_operator_bearer_secret_file)

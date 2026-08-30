@@ -15,15 +15,14 @@ import re
 from fastapi import HTTPException, Request
 
 _PLATFORM_API_BEARER_FILE = Path("/run/secrets/platform-api-bearer")
+_EVIDENCE_OPERATOR_BEARER_FILE = Path("/run/secrets/evidence-operator-security-key")
 _BEARER_TOKEN = re.compile(r"[A-Za-z0-9\-._~+/]+={0,}")
 _MAX_TOKEN_BYTES = 4096
 
 
-def read_platform_api_bearer() -> str | None:
-    """Return the current mounted bearer, or ``None`` when unavailable."""
-
+def _read_bearer_file(path: Path) -> str | None:
     try:
-        raw = _PLATFORM_API_BEARER_FILE.read_bytes()
+        raw = path.read_bytes()
     except OSError:
         return None
     if not raw or len(raw) > _MAX_TOKEN_BYTES:
@@ -35,6 +34,18 @@ def read_platform_api_bearer() -> str | None:
     if _BEARER_TOKEN.fullmatch(credential) is None:
         return None
     return credential
+
+
+def read_platform_api_bearer() -> str | None:
+    """Return the current mounted Platform API bearer, if valid."""
+
+    return _read_bearer_file(_PLATFORM_API_BEARER_FILE)
+
+
+def read_evidence_operator_bearer() -> str | None:
+    """Return the distinct owner-search capability, if valid."""
+
+    return _read_bearer_file(_EVIDENCE_OPERATOR_BEARER_FILE)
 
 
 def require_platform_owner(request: Request) -> None:

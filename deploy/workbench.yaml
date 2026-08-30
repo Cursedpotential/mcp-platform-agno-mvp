@@ -68,8 +68,8 @@ services:
       # Direct-tailnet Universal Import Workflow boundary on ovh-files.
       UIW_STARTER_URL: ${UIW_STARTER_URL:-http://100.91.190.107:8091}
       # Distinct owner-only capability for bounded exploratory evidence search.
-      # It must not be issued to agents; their route is walk/checkpoint-bound.
-      EVIDENCE_OPERATOR_SECURITY_KEY: ${EVIDENCE_OPERATOR_SECURITY_KEY:-}
+      # It is runtime-read from the mount below and never issued to agents.
+      EVIDENCE_OPERATOR_BEARER_SECRET_FILE: /run/secrets/evidence-operator-security-key
       # --- MCP tool servers (Tool Explorer, C1 console) ---
       # Normal MCP traffic uses the Portkey-published ContextForge doors and
       # their own scoped credentials. The Platform API bearer is not an MCP
@@ -123,6 +123,7 @@ services:
       # Runtime-read bearer rotation takes effect on the next request without
       # rebuilding, restarting, or redeploying Workbench.
       - /data/agno/secrets/platform/api-bearer:/run/secrets/platform-api-bearer:ro
+      - /data/agno/secrets/platform/evidence-operator-security-key:/run/secrets/evidence-operator-security-key:ro
       - /data/agno/secrets/casebible-r2.json:/run/secrets/casebible-r2.json:ro
     ports:
       # Private door: Tailscale Serve owns the stable HTTPS identity and

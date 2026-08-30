@@ -54,6 +54,7 @@
 #   sudo install -d -m 0700 -o root -g root /data/agno/volumes/ingest-staging
 #   sudo install -d -m 0700 -o root -g root /data/agno/secrets/platform
 #   sudo install -m 0400 -o root -g root /path/to/api-bearer /data/agno/secrets/platform/api-bearer
+#   sudo install -m 0400 -o root -g root /path/to/operator-key /data/agno/secrets/platform/evidence-operator-security-key
 #   sudo chown -R 1000:1000 /data/agno/volumes/agent_workspace  # shared sandbox<->desktop
 #   sudo chown -R 1000:1000 /data/agno/volumes/contextforge     # ContextForge SQLite db + state
 # (r2-nexus stays a named volume — it uses the rclone driver, not a bind.)
@@ -98,6 +99,12 @@ services:
       - type: bind
         source: /data/agno/secrets/platform/api-bearer
         target: /run/secrets/platform-api-bearer
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /data/agno/secrets/platform/evidence-operator-security-key
+        target: /run/secrets/evidence-operator-security-key
         read_only: true
         bind:
           create_host_path: false
@@ -157,7 +164,6 @@ services:
       WEAVIATE_HTTP_PORT: ${WEAVIATE_HTTP_PORT:-8082}
       WEAVIATE_GRPC_PORT: ${WEAVIATE_GRPC_PORT:-50052}
       WALK_PASS_SIGNING_KEY: ${WALK_PASS_SIGNING_KEY:?set WALK_PASS_SIGNING_KEY in Coolify app env}
-      EVIDENCE_OPERATOR_SECURITY_KEY: ${EVIDENCE_OPERATOR_SECURITY_KEY:?set EVIDENCE_OPERATOR_SECURITY_KEY in Coolify app env}
       # R2 blob landing zone (ADR-0007) — S3-compatible reads via boto3/agno.
       R2_BUCKET_NAME: ${R2_BUCKET_NAME:-}
       R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}

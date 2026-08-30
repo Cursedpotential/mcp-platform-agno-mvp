@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import pytest
 
+from app.repo import platform_api_auth
 from app.service import knowledge
 
 
@@ -23,9 +24,11 @@ def test_search_non_evidence_lane_fails_closed_without_retired_call(monkeypatch)
     assert error.value.status_code == 503
 
 
-def test_search_evidence_uses_native_horizon_route_without_caller_tiers(monkeypatch):
+def test_search_evidence_uses_native_horizon_route_without_caller_tiers(monkeypatch, tmp_path):
     captured = {}
-    monkeypatch.setattr(knowledge.settings, "evidence_operator_security_key", "owner-search-key")
+    secret = tmp_path / "evidence-operator-security-key"
+    secret.write_text("owner-search-key\n", encoding="utf-8")
+    monkeypatch.setattr(platform_api_auth.settings, "evidence_operator_bearer_secret_file", str(secret))
 
     def fake_spine_json(method, path, **kwargs):
         captured.update(method=method, path=path, kwargs=kwargs)
