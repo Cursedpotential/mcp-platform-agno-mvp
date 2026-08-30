@@ -20,7 +20,6 @@ from app.types.case_management import (
     EvidenceReviewCreate,
     EvidenceReviewList,
     EvidenceReviewResult,
-    ConversationContext,
     KnowledgeSourceRef,
     KnowledgeSourceResolution,
     Matter,
@@ -29,6 +28,7 @@ from app.types.case_management import (
     MatterList,
     OriginalSourceContent,
 )
+from app.types.conversation_context import ConversationContext
 from app.types.evidence_detail import CourtReadiness, EvidenceDetail
 
 router = APIRouter(prefix="/api", tags=["matters"])
