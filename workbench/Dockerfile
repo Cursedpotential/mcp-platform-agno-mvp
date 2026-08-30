@@ -5,7 +5,7 @@
 # Byline: Claude Code · Fable 5 · 2026-07-19
 
 # ---- Stage 1: web build -----------------------------------------------------
-FROM node:20-alpine AS webbuild
+FROM node:22-alpine AS webbuild
 WORKDIR /web
 # package.json + package-lock.json first for layer caching; npm ci installs
 # exactly what's locked (deterministic) instead of npm install's unconstrained

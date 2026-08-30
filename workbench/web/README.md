@@ -40,6 +40,9 @@ local state; durable API receipts remain authoritative.
 
 ## Local browser development
 
+Use Node.js 22.13 or newer; the Vite and AI SDK dependency graph is intentionally built on the
+same supported Node major used by the production image.
+
 ```powershell
 npm ci
 npm run dev
