@@ -2,7 +2,7 @@
 
 > _Byline: Codex · GPT-5.6-Sol · 2026-08-30._
 
-STATUS: LOCAL FOUNDATION IMPLEMENTED / NOT DEPLOYED
+STATUS: FOUNDATION IMPLEMENTED / DEPLOYED / LIVE ROUTES VERIFIED
 
 ## Owner direction captured
 
@@ -75,6 +75,22 @@ The three smoke failures are outside this refactor's files:
 These failures were recorded, not repaired, because neither the affected tests nor their production
 components belong to this Storybook/surface-boundary slice.
 
+## Production deployment receipt
+
+- Implementation commit: `2952250dfe8eab94a2fa861658302236ac452e5e`.
+- Coolify application: `knowledge-workbench` (`xjbuo6drbwjfby75lalk8bk7`).
+- Coolify deployment: `vis21loq504r6spk6krpwyg9`, terminal status `finished`.
+- The production image built the Next.js application successfully and generated all 17 static
+  routes before Coolify replaced the prior container.
+- Stable Tailscale Service live proof after replacement:
+  - `GET https://workbench.tilapia-skilift.ts.net/health` returned HTTP `200` and JSON.
+  - `GET https://workbench.tilapia-skilift.ts.net/` returned HTTP `200` and the Platform HTML title.
+  - `GET https://workbench.tilapia-skilift.ts.net/evidence/preview` returned HTTP `200` and the
+    Platform HTML title.
+
+This proves deployment and live reachability of the current Workbench build. Storybook remains a
+development workshop built and verified separately; it was not added as a public production route.
+
 ## Still open
 
 - Integrate the other agent's Glide sorter without duplicating its component or query contract.
@@ -86,4 +102,3 @@ components belong to this Storybook/surface-boundary slice.
   PostgreSQL round-trip gates pass.
 - TanStack Query/Router/Form adoption and removal of the static Next shell are separate follow-on
   slices, not implied complete by this Storybook foundation.
-- Commit, push, Coolify deployment, and live Workbench proof have not occurred for this slice.
