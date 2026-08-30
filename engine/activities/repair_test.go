@@ -26,10 +26,15 @@ func (c *repairClientStub) Run(_ context.Context, id string, payload map[string]
 type repairStoreStub struct {
 	decision               RepairDecisionRecord
 	assessment, resolution RepairPersistenceResult
+	persisted              RepairPersistenceResult
+	persistedFound         bool
 }
 
 func (s *repairStoreStub) ResolveOriginalPath(context.Context, uiw.Ref, uiw.Ref) (string, error) {
 	return "/r2/source.pdf", nil
+}
+func (s *repairStoreStub) LoadPersistedRepairAssessment(context.Context, RepairAssessmentSpec) (RepairPersistenceResult, bool, error) {
+	return s.persisted, s.persistedFound, nil
 }
 func (s *repairStoreStub) PersistRepairAssessment(context.Context, RepairAssessmentSpec) (RepairPersistenceResult, error) {
 	return s.assessment, nil
@@ -75,6 +80,26 @@ func TestAssessSourceRepairRequiresReviewWhenDetectorFlagsRepair(t *testing.T) {
 	}
 	if result.Status != uiw.StatusSuccess {
 		t.Fatalf("review assessment status=%q", result.Status)
+	}
+}
+
+func TestAssessSourceRepairRetryKeepsPersistedReviewRequirement(t *testing.T) {
+	// A tool would now say clean, but the store already has an assessment that
+	// requires review. The retry must return that durable result without calling
+	// either nondeterministic external capability again.
+	client := &repairClientStub{result: json.RawMessage(`{"needs_repair":false}`)}
+	store := &repairStoreStub{persistedFound: true, persisted: RepairPersistenceResult{
+		ResultRef: "persisted-assessment", ReceiptRef: "persisted-receipt", ReviewRequired: true,
+	}}
+	result, err := (RepairActivities{Client: client, Store: store}).AssessSourceRepair(t.Context(), repairRequest(map[string]uiw.Ref{"original": "original"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != uiw.StatusSuccess || result.Ref != "persisted-assessment" || result.ReceiptRef != "persisted-receipt" {
+		t.Fatalf("retry replaced the durable review assessment: %+v", result)
+	}
+	if len(client.calls) != 0 {
+		t.Fatalf("retry reran external repair tools after durable persistence: %v", client.calls)
 	}
 }
 

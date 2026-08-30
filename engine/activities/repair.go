@@ -63,6 +63,7 @@ type RepairPersistenceResult struct {
 // approval revalidation, and the exact activity receipt/idempotency boundary.
 type RepairActivityStore interface {
 	ResolveOriginalPath(context.Context, uiw.Ref, uiw.Ref) (string, error)
+	LoadPersistedRepairAssessment(context.Context, RepairAssessmentSpec) (RepairPersistenceResult, bool, error)
 	PersistRepairAssessment(context.Context, RepairAssessmentSpec) (RepairPersistenceResult, error)
 	LoadApprovedRepairDecision(context.Context, uiw.Ref, uiw.Ref, uiw.Ref) (RepairDecisionRecord, error)
 	PersistRepairResolution(context.Context, RepairResolutionSpec) (RepairPersistenceResult, error)
@@ -104,6 +105,17 @@ func (a RepairActivities) AssessSourceRepair(ctx context.Context, req uiw.StageR
 	if err != nil {
 		return uiw.StageResult{}, err
 	}
+	idempotencyKey := fmt.Sprintf("repair-assessment:%s:%s:%s", req.RequestID, req.SourceVersionRef, original)
+	prior, found, err := a.Store.LoadPersistedRepairAssessment(ctx, RepairAssessmentSpec{
+		RequestID: req.RequestID, DeclaredFormat: req.DeclaredFormat,
+		SourceVersionRef: req.SourceVersionRef, OriginalRef: original, IdempotencyKey: idempotencyKey,
+	})
+	if err != nil {
+		return uiw.StageResult{}, fmt.Errorf("load persisted repair assessment: %w", err)
+	}
+	if found {
+		return repairAssessmentResult(prior)
+	}
 	path, err := a.Store.ResolveOriginalPath(ctx, req.SourceVersionRef, original)
 	if err != nil {
 		return uiw.StageResult{}, fmt.Errorf("resolve retained original for repair assessment: %w", err)
@@ -119,21 +131,17 @@ func (a RepairActivities) AssessSourceRepair(ctx context.Context, req uiw.StageR
 	if err != nil {
 		return uiw.StageResult{}, fmt.Errorf("run repair preview: %w", err)
 	}
-	reviewRequired := repairReviewRequired(detection, preview)
+	reviewRequired := RepairReviewRequired(detection, preview)
 	result, err := a.Store.PersistRepairAssessment(ctx, RepairAssessmentSpec{
 		RequestID: req.RequestID, DeclaredFormat: req.DeclaredFormat,
 		SourceVersionRef: req.SourceVersionRef, OriginalRef: original,
-		Attempt: a.attempt(ctx), IdempotencyKey: fmt.Sprintf("repair-assessment:%s:%s:%s", req.RequestID, req.SourceVersionRef, original),
+		Attempt: a.attempt(ctx), IdempotencyKey: idempotencyKey,
 		Detection: append(json.RawMessage(nil), detection...), Preview: append(json.RawMessage(nil), preview...), ReviewRequired: reviewRequired,
 	})
 	if err != nil {
 		return uiw.StageResult{}, fmt.Errorf("persist repair assessment: %w", err)
 	}
-	status := uiw.StatusSuccess
-	if !result.ReviewRequired {
-		status = uiw.StatusNotApplicable
-	}
-	return repairResult(stagegraph.AssessSourceRepair, result, status)
+	return repairAssessmentResult(result)
 }
 
 func (a RepairActivities) ResolveSourceRepair(ctx context.Context, req uiw.StageRequest) (uiw.StageResult, error) {
@@ -223,6 +231,14 @@ func repairSuccess(stage stagegraph.StageID, result RepairPersistenceResult) (ui
 	return repairResult(stage, result, uiw.StatusSuccess)
 }
 
+func repairAssessmentResult(result RepairPersistenceResult) (uiw.StageResult, error) {
+	status := uiw.StatusSuccess
+	if !result.ReviewRequired {
+		status = uiw.StatusNotApplicable
+	}
+	return repairResult(stagegraph.AssessSourceRepair, result, status)
+}
+
 func repairResult(stage stagegraph.StageID, result RepairPersistenceResult, status uiw.Status) (uiw.StageResult, error) {
 	if result.ResultRef == "" || result.ReceiptRef == "" {
 		return uiw.StageResult{}, errors.New("repair persistence returned incomplete compact references")
@@ -230,7 +246,11 @@ func repairResult(stage stagegraph.StageID, result RepairPersistenceResult, stat
 	return uiw.StageResult{Stage: stage, Status: status, Ref: result.ResultRef, ReceiptRef: result.ReceiptRef}, nil
 }
 
-func repairReviewRequired(values ...json.RawMessage) bool {
+// RepairReviewRequired derives the fail-closed human-review requirement from
+// detector output. The PostgreSQL store deliberately reuses this function
+// when an Activity retry encounters an already-persisted assessment so the
+// durable assessment, rather than a fresh tool response, remains authoritative.
+func RepairReviewRequired(values ...json.RawMessage) bool {
 	explicitClean := false
 	for _, raw := range values {
 		var object map[string]any

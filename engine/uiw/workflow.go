@@ -16,6 +16,8 @@ const (
 	previewRepairVersion            = workflow.Version(1)
 	integratedPreviewChangeID       = "uiw-integrated-repair-preview-v1"
 	integratedPreviewVersion        = workflow.Version(1)
+	durableReviewWaitChangeID       = "uiw-durable-extended-review-wait-v1"
+	durableReviewWaitVersion        = workflow.Version(1)
 	legacyHashSourceActivity        = "hash_source_activity"
 	legacyHashRawRecordsActivity    = "hash_raw_records_activity"
 	legacyHashRawGenerationActivity = "hash_raw_generation_activity"
@@ -56,6 +58,7 @@ func UniversalImportWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowRe
 	r := &run{requestID: in.RequestID, matterID: in.MatterID, courtCaseID: in.CourtCaseID}
 	fingerprint := fingerprintVocabularyFor(ctx)
 	integratedPreview := workflow.GetVersion(ctx, integratedPreviewChangeID, workflow.DefaultVersion, integratedPreviewVersion)
+	durableReviewWait := workflow.GetVersion(ctx, durableReviewWaitChangeID, workflow.DefaultVersion, durableReviewWaitVersion)
 
 	// Stage 1: register_source_activity — the root. It creates the
 	// identity/idempotency coordinate every later stage keys off.
@@ -103,7 +106,7 @@ func UniversalImportWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowRe
 			refs["auto_clean_assessment"] = repairAssessmentRef
 		} else {
 			preview.Phase = PhaseAwaitingRepairDecision
-			repairDecision, waitErr := awaitRepairDecision(ctx, &preview)
+			repairDecision, waitErr := awaitRepairDecision(ctx, &preview, durableReviewWait)
 			if waitErr != nil {
 				return r.result(""), waitErr
 			}
@@ -155,7 +158,7 @@ func UniversalImportWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowRe
 		if err := workflow.SetQueryHandler(ctx, PreviewQueryName, func() (PreviewState, error) { return preview, nil }); err != nil {
 			return r.result(""), fmt.Errorf("uiw: register legacy preview query handler: %w", err)
 		}
-		if err := awaitLegacyPreviewDecision(ctx, &preview, &activeSelectionRef, &activeParserOptionsRef); err != nil {
+		if err := awaitLegacyPreviewDecision(ctx, &preview, &activeSelectionRef, &activeParserOptionsRef, durableReviewWait); err != nil {
 			return r.result(""), err
 		}
 	}
@@ -328,7 +331,7 @@ func UniversalImportWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowRe
 		preview.Phase, preview.PreviewHandle = PhaseAwaitingDecision, previewHandle
 		preview.SelectRef, preview.ParserOptionsRef = activeSelectionRef, activeParserOptionsRef
 		preview.Reason = ""
-		if err := awaitPreviewDecision(ctx, &preview); err != nil {
+		if err := awaitPreviewDecision(ctx, &preview, durableReviewWait); err != nil {
 			return r.result(""), err
 		}
 	}
@@ -354,23 +357,16 @@ func UniversalImportWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowRe
 	return r.result(publicationRef), nil
 }
 
-func awaitRepairDecision(ctx workflow.Context, state *PreviewState) (RepairDecision, error) {
+func awaitRepairDecision(ctx workflow.Context, state *PreviewState, waitVersion workflow.Version) (RepairDecision, error) {
 	var decision RepairDecision
-	var decided bool
-	timerCtx, cancelTimer := workflow.WithCancel(ctx)
-	selector := workflow.NewSelector(ctx)
-	timer := workflow.NewTimer(timerCtx, previewDecisionTimeout)
-	selector.AddReceive(workflow.GetSignalChannel(ctx, RepairDecisionSignalName), func(channel workflow.ReceiveChannel, more bool) {
-		channel.Receive(ctx, &decision)
-		decided = true
-	})
-	selector.AddFuture(timer, func(f workflow.Future) { _ = f.Get(timerCtx, nil) })
-	selector.Select(ctx)
+	decided, err := awaitReviewSignal(ctx, workflow.GetSignalChannel(ctx, RepairDecisionSignalName), &decision, waitVersion)
+	if err != nil {
+		return RepairDecision{}, fmt.Errorf("uiw: await repair decision: %w", err)
+	}
 	if !decided {
 		state.Phase, state.Reason = PhaseTimedOut, "repair decision timed out"
 		return RepairDecision{}, errors.New("uiw: repair decision timed out")
 	}
-	cancelTimer()
 	if decision.DecisionRef == "" {
 		state.Phase, state.Reason = PhaseRejected, "repair decision reference is required"
 		return RepairDecision{}, errors.New("uiw: repair decision reference is required")
@@ -378,25 +374,18 @@ func awaitRepairDecision(ctx workflow.Context, state *PreviewState) (RepairDecis
 	return decision, nil
 }
 
-func awaitPreviewDecision(ctx workflow.Context, state *PreviewState) error {
+func awaitPreviewDecision(ctx workflow.Context, state *PreviewState, waitVersion workflow.Version) error {
 	signalChannel := workflow.GetSignalChannel(ctx, PreviewDecisionSignalName)
 	for {
 		var decision PreviewDecision
-		var decided bool
-		timerCtx, cancelTimer := workflow.WithCancel(ctx)
-		selector := workflow.NewSelector(ctx)
-		timer := workflow.NewTimer(timerCtx, previewDecisionTimeout)
-		selector.AddReceive(signalChannel, func(channel workflow.ReceiveChannel, more bool) {
-			channel.Receive(ctx, &decision)
-			decided = true
-		})
-		selector.AddFuture(timer, func(f workflow.Future) { _ = f.Get(timerCtx, nil) })
-		selector.Select(ctx)
+		decided, err := awaitReviewSignal(ctx, signalChannel, &decision, waitVersion)
+		if err != nil {
+			return fmt.Errorf("uiw: await preview decision: %w", err)
+		}
 		if !decided {
 			state.Phase, state.Reason = PhaseTimedOut, "preview decision timed out"
 			return errors.New("uiw: preview decision timed out")
 		}
-		cancelTimer()
 		if !decision.Approved {
 			state.Phase, state.Reason = PhaseRejected, decision.Reason
 			continue
@@ -409,27 +398,20 @@ func awaitPreviewDecision(ctx workflow.Context, state *PreviewState) error {
 // awaitLegacyPreviewDecision preserves command ordering and repaired-reference
 // behavior for histories started before the normalized preview projection was
 // introduced. New runs never take this branch.
-func awaitLegacyPreviewDecision(ctx workflow.Context, state *PreviewState, selection, options *Ref) error {
+func awaitLegacyPreviewDecision(ctx workflow.Context, state *PreviewState, selection, options *Ref, waitVersion workflow.Version) error {
 	repairVersion := workflow.GetVersion(ctx, previewRepairChangeID, workflow.DefaultVersion, previewRepairVersion)
 	signalChannel := workflow.GetSignalChannel(ctx, PreviewDecisionSignalName)
 	wasRejected, repaired := false, false
 	for {
 		var decision PreviewDecision
-		var decided bool
-		timerCtx, cancelTimer := workflow.WithCancel(ctx)
-		selector := workflow.NewSelector(ctx)
-		timer := workflow.NewTimer(timerCtx, previewDecisionTimeout)
-		selector.AddReceive(signalChannel, func(channel workflow.ReceiveChannel, more bool) {
-			channel.Receive(ctx, &decision)
-			decided = true
-		})
-		selector.AddFuture(timer, func(f workflow.Future) { _ = f.Get(timerCtx, nil) })
-		selector.Select(ctx)
+		decided, err := awaitReviewSignal(ctx, signalChannel, &decision, waitVersion)
+		if err != nil {
+			return fmt.Errorf("uiw: await legacy preview decision: %w", err)
+		}
 		if !decided {
 			state.Phase, state.Reason = PhaseTimedOut, "preview decision timed out"
 			return errors.New("uiw: preview decision timed out")
 		}
-		cancelTimer()
 		if repairVersion != workflow.DefaultVersion {
 			if decision.RepairedSelectionRef != "" {
 				*selection, state.SelectRef, repaired = decision.RepairedSelectionRef, decision.RepairedSelectionRef, true
@@ -449,6 +431,37 @@ func awaitLegacyPreviewDecision(ctx workflow.Context, state *PreviewState, selec
 		state.Phase, state.Reason = PhaseApproved, ""
 		return nil
 	}
+}
+
+// awaitReviewSignal preserves the old 24-hour timer only while replaying a
+// history that recorded the pre-change branch. New executions wait durably
+// for a Signal with no application-level terminal deadline. The caller's
+// Temporal WorkflowExecutionTimeout and explicit cancel/terminate controls
+// remain the configurable operational bound, so a healthy human-review wait
+// does not turn into a terminal failure merely because a day elapsed.
+func awaitReviewSignal(ctx workflow.Context, signal workflow.ReceiveChannel, value any, waitVersion workflow.Version) (bool, error) {
+	if waitVersion != workflow.DefaultVersion {
+		if err := workflow.Await(ctx, func() bool { return signal.Len() > 0 }); err != nil {
+			return false, err
+		}
+		signal.Receive(ctx, value)
+		return true, nil
+	}
+
+	decided := false
+	timerCtx, cancelTimer := workflow.WithCancel(ctx)
+	selector := workflow.NewSelector(ctx)
+	timer := workflow.NewTimer(timerCtx, previewDecisionTimeout)
+	selector.AddReceive(signal, func(channel workflow.ReceiveChannel, more bool) {
+		channel.Receive(ctx, value)
+		decided = true
+	})
+	selector.AddFuture(timer, func(f workflow.Future) { _ = f.Get(timerCtx, nil) })
+	selector.Select(ctx)
+	if decided {
+		cancelTimer()
+	}
+	return decided, nil
 }
 
 // run accumulates the ordered stage receipts and the running

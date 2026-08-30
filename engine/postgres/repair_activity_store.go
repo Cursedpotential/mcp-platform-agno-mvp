@@ -115,6 +115,22 @@ func (s *RepairActivityStore) PersistRepairAssessment(ctx context.Context, spec 
 	return s.persistAssessment(ctx, spec)
 }
 
+func (s *RepairActivityStore) LoadPersistedRepairAssessment(ctx context.Context, spec activities.RepairAssessmentSpec) (activities.RepairPersistenceResult, bool, error) {
+	sourceID, sourceErr := uuid.Parse(string(spec.SourceVersionRef))
+	_, originalErr := uuid.Parse(string(spec.OriginalRef))
+	if sourceErr != nil || originalErr != nil || strings.TrimSpace(spec.IdempotencyKey) == "" || strings.TrimSpace(spec.DeclaredFormat) == "" {
+		return activities.RepairPersistenceResult{}, false, errors.New("load repair assessment requires valid identity references")
+	}
+	row := s.db.QueryRow(ctx, `SELECT receipt.id,receipt.result_ref,assessment.id,assessment.source_version_id,
+		assessment.original_object_id,assessment.declared_format,assessment.detection,assessment.preview
+		FROM context.activity_execution execution
+		JOIN context.activity_receipt receipt ON receipt.activity_execution_id=execution.id
+		JOIN context.repair_assessment assessment ON assessment.activity_receipt_id=receipt.id
+		WHERE execution.source_version_id=$1 AND execution.activity_name=$2 AND execution.idempotency_key=$3
+		AND receipt.status='success' ORDER BY receipt.attempt LIMIT 1`, sourceID, string(stagegraph.AssessSourceRepair), spec.IdempotencyKey)
+	return scanPriorRepairAssessment(row, spec)
+}
+
 func (s *RepairActivityStore) persistAssessment(ctx context.Context, spec activities.RepairAssessmentSpec) (activities.RepairPersistenceResult, error) {
 	sourceID, err := uuid.Parse(string(spec.SourceVersionRef))
 	if err != nil {
@@ -140,14 +156,13 @@ func (s *RepairActivityStore) persistAssessment(ctx context.Context, spec activi
 	if err != nil {
 		return activities.RepairPersistenceResult{}, err
 	}
-	if prior, ok, err := repairPrior(ctx, tx, executionID); err != nil {
+	if prior, ok, err := repairAssessmentPrior(ctx, tx, executionID, spec); err != nil {
 		return activities.RepairPersistenceResult{}, err
 	} else if ok {
 		if err = tx.Commit(ctx); err != nil {
 			return activities.RepairPersistenceResult{}, err
 		}
 		rollback = false
-		prior.ReviewRequired = spec.ReviewRequired
 		return prior, nil
 	}
 	assessmentID, receiptID := uuid.New(), uuid.New()
@@ -164,6 +179,59 @@ func (s *RepairActivityStore) persistAssessment(ctx context.Context, spec activi
 	}
 	rollback = false
 	return activities.RepairPersistenceResult{ResultRef: uiw.Ref(assessmentID.String()), ReceiptRef: uiw.Ref(receiptID.String()), ReviewRequired: spec.ReviewRequired}, nil
+}
+
+func repairAssessmentPrior(ctx context.Context, tx pgx.Tx, executionID uuid.UUID, spec activities.RepairAssessmentSpec) (activities.RepairPersistenceResult, bool, error) {
+	row := tx.QueryRow(ctx, `SELECT receipt.id,receipt.result_ref,assessment.id,assessment.source_version_id,
+		assessment.original_object_id,assessment.declared_format,assessment.detection,assessment.preview
+		FROM context.activity_receipt receipt
+		JOIN context.repair_assessment assessment ON assessment.activity_receipt_id=receipt.id
+		WHERE receipt.activity_execution_id=$1 AND receipt.status='success'
+		ORDER BY receipt.attempt LIMIT 1`, executionID)
+	return scanPriorRepairAssessment(row, spec)
+}
+
+func scanPriorRepairAssessment(row pgx.Row, spec activities.RepairAssessmentSpec) (activities.RepairPersistenceResult, bool, error) {
+	var receiptID, assessmentID, sourceID, originalID uuid.UUID
+	var resultRef, detection, preview []byte
+	var declaredFormat string
+	err := row.Scan(
+		&receiptID, &resultRef, &assessmentID, &sourceID, &originalID, &declaredFormat, &detection, &preview,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return activities.RepairPersistenceResult{}, false, nil
+	}
+	if err != nil {
+		return activities.RepairPersistenceResult{}, false, err
+	}
+	stored, err := validatePriorRepairAssessment(spec, assessmentID, sourceID, originalID, declaredFormat, resultRef, detection, preview)
+	if err != nil {
+		return activities.RepairPersistenceResult{}, false, err
+	}
+	stored.ReceiptRef = uiw.Ref(receiptID.String())
+	return stored, true, nil
+}
+
+func validatePriorRepairAssessment(spec activities.RepairAssessmentSpec, assessmentID, sourceID, originalID uuid.UUID, declaredFormat string, resultRef, detection, preview []byte) (activities.RepairPersistenceResult, error) {
+	expectedSource, sourceErr := uuid.Parse(string(spec.SourceVersionRef))
+	expectedOriginal, originalErr := uuid.Parse(string(spec.OriginalRef))
+	if sourceErr != nil || originalErr != nil || sourceID != expectedSource || originalID != expectedOriginal || declaredFormat != spec.DeclaredFormat {
+		return activities.RepairPersistenceResult{}, errors.New("stored repair assessment identity conflicts with retry")
+	}
+	var receiptResult struct {
+		RefKind string `json:"ref_kind"`
+		RefID   string `json:"ref_id"`
+	}
+	if json.Unmarshal(resultRef, &receiptResult) != nil || receiptResult.RefKind != "repair_assessment" || receiptResult.RefID != assessmentID.String() {
+		return activities.RepairPersistenceResult{}, errors.New("stored repair assessment receipt is invalid")
+	}
+	// Fresh output from a raced retry is deliberately discarded here. The
+	// append-only assessment selected by the idempotency coordinate is the only
+	// authoritative content and review requirement.
+	return activities.RepairPersistenceResult{
+		ResultRef:      uiw.Ref(assessmentID.String()),
+		ReviewRequired: activities.RepairReviewRequired(json.RawMessage(detection), json.RawMessage(preview)),
+	}, nil
 }
 
 func (s *RepairActivityStore) PersistAutomaticRepairResolution(ctx context.Context, spec activities.RepairResolutionSpec) (activities.RepairPersistenceResult, error) {

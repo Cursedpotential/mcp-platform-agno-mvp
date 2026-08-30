@@ -428,13 +428,14 @@ func TestCleanRepairAssessmentAutoResolvesWithoutHumanRepairSignal(t *testing.T)
 	}
 }
 
-// TestPreviewHoldTimesOutWithoutDecision proves an undecided hold fails the
-// run closed once previewDecisionTimeout elapses after the normalized preview
-// is projected, without ever sealing or publishing the generation.
-func TestPreviewHoldTimesOutWithoutDecision(t *testing.T) {
+// TestLegacyPreviewHoldReplaysOriginalTimeout proves histories that already
+// recorded the pre-change branch retain their original timer command and
+// terminal behavior. New executions take the durable signal-wait branch.
+func TestLegacyPreviewHoldReplaysOriginalTimeout(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
 	env.RegisterWorkflow(UniversalImportWorkflow)
+	env.OnGetVersion(durableReviewWaitChangeID, workflow.DefaultVersion, durableReviewWaitVersion).Return(workflow.DefaultVersion)
 	mockAllStagesSucceed(env)
 	order := newOrderRecorder(env)
 	env.RegisterDelayedCallback(func() {
@@ -458,6 +459,33 @@ func TestPreviewHoldTimesOutWithoutDecision(t *testing.T) {
 	}
 	if order.contains(string(stagegraph.SealGeneration)) || order.contains(string(stagegraph.PublishGeneration)) {
 		t.Error("seal/publish ran despite an undecided, timed-out preview hold")
+	}
+}
+
+// TestDurableReviewSignalsResumeAfterMultipleDays proves both human gates
+// remain healthy beyond the former 24-hour deadline. The test environment
+// time-skips across two multi-day waits; both late Signals resume the same
+// workflow execution and it reaches publication without rerunning a stage.
+func TestDurableReviewSignalsResumeAfterMultipleDays(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	env.RegisterWorkflow(UniversalImportWorkflow)
+	mockAllStagesSucceed(env)
+	order := newOrderRecorder(env)
+	env.RegisterDelayedCallback(func() {
+		env.SignalWorkflow(RepairDecisionSignalName, RepairDecision{DecisionRef: "late-repair-decision-ref"})
+	}, 48*time.Hour)
+	env.RegisterDelayedCallback(func() {
+		env.SignalWorkflow(PreviewDecisionSignalName, PreviewDecision{Approved: true, Decider: "late-review-operator"})
+	}, 96*time.Hour)
+
+	env.ExecuteWorkflow(UniversalImportWorkflow, testInput())
+
+	if err := env.GetWorkflowError(); err != nil {
+		t.Fatalf("late durable review signals did not resume the workflow: %v", err)
+	}
+	if !order.contains(string(stagegraph.SealGeneration)) || !order.contains(string(stagegraph.PublishGeneration)) {
+		t.Fatalf("workflow did not publish after late durable decisions: %v", order.snapshot())
 	}
 }
 
