@@ -1,6 +1,7 @@
 // Byline: Codex · GPT-5 · 2026-08-15 (case-scoped Knowledge MVP)
 // Byline: Codex · GPT-5 · 2026-08-16 (canonical source/chunk inspector)
 // Byline: Codex · GPT-5 · 2026-08-18 (authored/derived source catalog labels)
+// Byline: Codex · GPT-5.6-Sol · 2026-08-29 (native evidence-only semantic search)
 "use client";
 
 import { FormEvent, useState } from "react";
@@ -45,6 +46,7 @@ import type {
 
 const PAGE_SIZE = 20;
 const LANES = ["platform", "legal", "personal_history", "context", "evidence"] as const;
+const EVIDENCE_SEARCH_LANE = "evidence" as const;
 const GRAPHITI_GROUP = "platform";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SHA256_PATTERN = /^[0-9a-f]{64}$/i;
@@ -117,7 +119,7 @@ function sourceRefForHit(
 export function KnowledgeBrowser({ matterContext }: KnowledgeBrowserProps = {}) {
   const [view, setView] = useState<View>("search");
   const [caseId, setCaseId] = useState("primary");
-  const [lane, setLane] = useState(matterContext ? "evidence" : "");
+  const [catalogLane, setCatalogLane] = useState("");
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [searchHits, setSearchHits] = useState<KnowledgeSearchHit[]>([]);
@@ -144,7 +146,7 @@ export function KnowledgeBrowser({ matterContext }: KnowledgeBrowserProps = {}) 
       toast.error("Case ID is required");
       return;
     }
-    if (!lane) {
+    if (!catalogLane) {
       toast.error("Select a knowledge lane before loading sources");
       return;
     }
@@ -154,7 +156,7 @@ export function KnowledgeBrowser({ matterContext }: KnowledgeBrowserProps = {}) 
     try {
       const response = await listKnowledgeContents({
         caseId: selectedCase,
-        lane,
+        lane: catalogLane,
         limit: PAGE_SIZE,
         offset: targetOffset,
       });
@@ -199,7 +201,7 @@ export function KnowledgeBrowser({ matterContext }: KnowledgeBrowserProps = {}) 
       toast.error("Case ID is required");
       return;
     }
-    const requestedScope = { partitionKey: activePartition.trim(), lane };
+    const requestedScope = { partitionKey: activePartition.trim(), lane: EVIDENCE_SEARCH_LANE };
     setSearchHits([]);
     setSearchCount(null);
     setSearchScope(null);
@@ -207,7 +209,7 @@ export function KnowledgeBrowser({ matterContext }: KnowledgeBrowserProps = {}) 
     try {
       const response = await searchKnowledge(query.trim(), {
         caseId: requestedScope.partitionKey,
-        lane: requestedScope.lane || undefined,
+        lane: requestedScope.lane,
         limit: 20,
       });
       setSearchHits(response.data ?? []);
@@ -314,7 +316,7 @@ export function KnowledgeBrowser({ matterContext }: KnowledgeBrowserProps = {}) 
             <CardDescription>
               {matterContext
                 ? "Projection results are prefiltered to this Matter's explicit Knowledge partition before vector ranking. PostgreSQL remains canonical and evidence promotion remains custody-gated."
-                : "This is supplemental vector recall, not the authored store. Results are prefiltered by case before ranking; choose a lane to narrow the projection."}
+                : "This is supplemental evidence-vector recall, not the authored store. Results are prefiltered by case before ranking; other lanes remain available in the canonical source browser."}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
@@ -335,12 +337,11 @@ export function KnowledgeBrowser({ matterContext }: KnowledgeBrowserProps = {}) 
                 <Label htmlFor="knowledge-lane">Knowledge lane</Label>
                 <select
                   id="knowledge-lane"
-                  className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
-                  value={lane}
-                  onChange={(e) => setLane(e.target.value)}
+                  className="h-9 w-full rounded-md border border-input bg-muted px-3 text-sm"
+                  value={EVIDENCE_SEARCH_LANE}
+                  disabled
                 >
-                  <option value="">All allowed lanes</option>
-                  {LANES.map((item) => <option key={item} value={item}>{item}</option>)}
+                  <option value={EVIDENCE_SEARCH_LANE}>evidence (native)</option>
                 </select>
               </div>
               <div className="space-y-1">
@@ -367,7 +368,7 @@ export function KnowledgeBrowser({ matterContext }: KnowledgeBrowserProps = {}) 
               <div className="space-y-3">
                 <p className="text-xs text-muted-foreground">
                   {searchCount} result{searchCount === 1 ? "" : "s"}
-                  {searchScope && ` · scope ${searchScope.partitionKey} / ${searchScope.lane || "all allowed lanes"}`}
+                  {searchScope && ` · scope ${searchScope.partitionKey} / ${searchScope.lane}`}
                 </p>
                 {searchHits.map((hit, index) => {
                   const source = searchScope
@@ -445,9 +446,9 @@ export function KnowledgeBrowser({ matterContext }: KnowledgeBrowserProps = {}) 
                   id="sources-lane"
                   required
                   className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
-                  value={lane}
+                  value={catalogLane}
                   onChange={(event) => {
-                    setLane(event.target.value);
+                    setCatalogLane(event.target.value);
                     setContents([]);
                     setContentTotal(0);
                     setContentDetail(null);
@@ -460,7 +461,7 @@ export function KnowledgeBrowser({ matterContext }: KnowledgeBrowserProps = {}) 
                   ))}
                 </select>
               </div>
-              <Button type="submit" disabled={loading || !lane}>
+              <Button type="submit" disabled={loading || !catalogLane}>
                 {loading ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Database aria-hidden="true" />}
                 Load sources
               </Button>

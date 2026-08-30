@@ -13,6 +13,22 @@
 > `personal_history`, and `tuned=True` treats only `context` as the transcript lane.
 > _Byline: Codex · GPT-5 · 2026-08-13._
 
+## 2026-08-29 — AgentOS retirement implementation lane
+
+_Owner: Codex · GPT-5.6-Sol. Source: `docs/HANDOFF-2026-08-29-agno-role-dissection.md`._
+
+- **Locally implemented:** plain FastAPI host, zero-Agno startup import, runtime-file Platform API
+  bearer, private `platform-api` service naming, Workbench caller/search/repair cutover,
+  LibreChat tracked ContextForge/Portkey config, OpenCode ops, and activation preflight.
+- **Release HOLD:** exec/Workbench/LibreChat are not live-proven on the cutover SHA. LibreChat is
+  still branch-scoped and must be repointed from `infra/librechat` before a main-branch push can
+  deploy its new image/config.
+- **Protected concurrent files:** `example.env`,
+  `docs/design/CLAIM-AND-ASSERTION-CANDIDATES-2026-08-29.md`, and
+  `sql/0052_claim_and_assertion_candidates.sql` are outside this lane.
+- **Next ordered slice after the host release is integrated:** replace Agno evidence workflows with
+  Temporal-owned execution, then remove Agno Knowledge/provider/vector/session ownership.
+
 ## Lanes & ownership (as of 2026-07-08)
 
 ### LANE A — "Restructure" (this file created by Lane A)

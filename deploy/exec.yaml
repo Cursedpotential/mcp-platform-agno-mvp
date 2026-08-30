@@ -1,12 +1,15 @@
 # =============================================================================
 # Byline: Claude Code · Kimi K3 (drift-fix) · 2026-08-12 — Milvus env block
 #         annotated superseded/down (ADR-0040, D-042, data-vector off since 2026-08-10).
-# Byline: Codex · GPT-5 · 2026-08-13 — restore the live AgentOS Traefik
-#         route lost during compose consolidation; auth remains OS_SECURITY_KEY.
+# Byline: Codex · GPT-5 · 2026-08-13 — restore the former public API route.
 # Byline: Codex · GPT-5 · 2026-08-18 — native-evidence blue/green activation
 #         inputs; secrets remain Coolify-managed and are never committed.
 # Byline: Codex · GPT-5.6 · 2026-08-29 — persistent, fail-closed upload
 #         staging for restart-safe framework-neutral ingest recovery.
+# Byline: Codex · GPT-5.6-Sol · 2026-08-29 — retire legacy application hosting/MCP and
+#         expose the framework-neutral platform API on the tailnet only.
+# Byline: Codex · GPT-5.6-Sol · 2026-08-29 — runtime-read Platform API bearer;
+#         file rotation no longer requires an application redeploy.
 # =============================================================================
 # EXEC TIER (RUMP) — deploy on OVH-1 ("ovh1-agno"; tailnet 100.72.169.40, salem
 # private 10.1.1.122, public 40.160.5.19), the execution + surfaces box.
@@ -21,9 +24,8 @@
 # Coolify app (ee2vevjrutfzxlytlu081frh) already served chat.mitechconsult.com
 # and was functionally redundant with this bundle's tailnet-only copy.
 #
-# This file now holds ONLY agentos-api + agentos-mcp — legitimately coupled
-# (same image, one build) and left together per owner's explicit call.
-# They reach contextforge/platform-tools over the shared external `agno`
+# This file now holds ONLY the framework-neutral platform API.
+# It reaches contextforge/platform-tools over the shared external `agno`
 # docker network (same docker-DNS names as before the split: `contextforge`,
 # `platform-tools` — CF_GATEWAY_URL / SBV_BASE_URL values are UNCHANGED).
 # =============================================================================
@@ -50,6 +52,8 @@
 # root, so the staging directory is deliberately root-only):
 #   sudo mkdir -p /data/agno/volumes/{sbv_data,agent_workspace,kasm_profile,contextforge}
 #   sudo install -d -m 0700 -o root -g root /data/agno/volumes/ingest-staging
+#   sudo install -d -m 0700 -o root -g root /data/agno/secrets/platform
+#   sudo install -m 0400 -o root -g root /path/to/api-bearer /data/agno/secrets/platform/api-bearer
 #   sudo chown -R 1000:1000 /data/agno/volumes/agent_workspace  # shared sandbox<->desktop
 #   sudo chown -R 1000:1000 /data/agno/volumes/contextforge     # ContextForge SQLite db + state
 # (r2-nexus stays a named volume — it uses the rclone driver, not a bind.)
@@ -59,18 +63,18 @@
 # =============================================================================
 
 services:
-  agentos-api:
+  platform-api:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: agentos-api
-    image: ${IMAGE_NAME:-agentos}:${IMAGE_TAG:-latest}
+    container_name: platform-api
+    image: ${IMAGE_NAME:-platform-api}:${IMAGE_TAG:-latest}
     # Prod: run the baked image (no live .:/app source mount). Redeploy to ship
-    # code changes. NO --reload (breaks the MCP lifespan under AgentOS).
+    # code changes. Production never uses --reload.
     command: uvicorn server.api.main:app --host 0.0.0.0 --port 8000
     restart: unless-stopped
     ports:
-      - "${BIND_IP:-127.0.0.1}:8000:8000"   # main API/MCP surface — proxy-ready below
+      - "${BIND_IP:-127.0.0.1}:8000:8000"   # private platform API surface
     volumes:
       # R2 bucket "nexus" via rclone docker volume plugin — stack-wide blob store.
       - r2-nexus:/r2
@@ -88,6 +92,15 @@ services:
         target: /data/ingest-staging
         bind:
           create_host_path: false
+      # Runtime-read owner credential. The application reads this file on
+      # every request, so an atomic host-file replacement rotates the bearer
+      # without changing configuration or redeploying the container.
+      - type: bind
+        source: /data/agno/secrets/platform/api-bearer
+        target: /run/secrets/platform-api-bearer
+        read_only: true
+        bind:
+          create_host_path: false
     env_file:
       - path: .env
         required: false
@@ -95,7 +108,6 @@ services:
       RUNTIME_ENV: ${RUNTIME_ENV:-dev}
       AGNO_DEBUG: "True"
       WAIT_FOR_DB: "True"
-      AGENTOS_URL: http://127.0.0.1:8000
       # Durable source bytes used by restart recovery. This is intentionally a
       # literal mounted path: no container-local /tmp or env fallback is valid
       # in the production manifest.
@@ -146,12 +158,6 @@ services:
       WEAVIATE_GRPC_PORT: ${WEAVIATE_GRPC_PORT:-50052}
       WALK_PASS_SIGNING_KEY: ${WALK_PASS_SIGNING_KEY:?set WALK_PASS_SIGNING_KEY in Coolify app env}
       EVIDENCE_OPERATOR_SECURITY_KEY: ${EVIDENCE_OPERATOR_SECURITY_KEY:?set EVIDENCE_OPERATOR_SECURITY_KEY in Coolify app env}
-      # Temporary owner-testing bootstrap. Disabled by default. When enabled,
-      # the API accepts X-Real-IP only from the exact Traefik socket peer and
-      # only for configured subnets inside Tailscale CGNAT (100.64.0.0/10).
-      AGENTOS_TAILNET_AUTH_BYPASS_ENABLED: ${AGENTOS_TAILNET_AUTH_BYPASS_ENABLED:-false}
-      AGENTOS_TAILNET_AUTH_TRUSTED_PROXY_CIDRS: ${TRAEFIK_PROXY_CIDR:-}
-      AGENTOS_TAILNET_AUTH_ALLOWED_CIDRS: ${AGENTOS_TAILNET_AUTH_ALLOWED_CIDRS:-100.64.0.0/10}
       # R2 blob landing zone (ADR-0007) — S3-compatible reads via boto3/agno.
       R2_BUCKET_NAME: ${R2_BUCKET_NAME:-}
       R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
@@ -170,38 +176,16 @@ services:
       # tests/test_sbv_demotion.py pins that this var gates nothing. Setting it in
       # any env is now a no-op and safe to delete from the Coolify app env too.
       SBV_SERVICE_PASS: ${SBV_SERVICE_PASS:?set SBV_SERVICE_PASS in Coolify app env}
-    # No depends_on agentos-db — it's on another box. WAIT_FOR_DB handles startup.
-    # Public AgentOS surface. Authentication is enforced by AgentOS's
-    # OS_SECURITY_KEY bearer middleware; Traefik terminates TLS and routes only.
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=rz41wqhpjfh1rj796ixvjhfs
-      - traefik.http.routers.agentos-api.rule=Host(`agentos.mitechconsult.com`)
-      - traefik.http.routers.agentos-api.entryPoints=https
-      - traefik.http.routers.agentos-api.tls=true
-      - traefik.http.routers.agentos-api.tls.certresolver=letsencrypt
-      - traefik.http.routers.agentos-api.service=agentos-api
-      - traefik.http.services.agentos-api.loadbalancer.server.port=8000
+    # No depends_on the database service — it is hosted on another box.
+    # No public Traefik router is attached. Workbench and private callers reach
+    # this port through the tailnet/private service network while the OIDC
+    # rollout is completed.
     networks:
-      - agentos
       - agno   # cross-app docker-DNS to contextforge / platform-tools (2026-07-19 split)
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
-  # ---------------------------------------------------------------------------
-  # agentos-mcp RETIRED 2026-07-23 (owner decision). It existed only to work
-  # around agno's mounted /mcp sub-app not surviving uvicorn (StreamableHTTP
-  # session-manager task group didn't init when mounted) — fixed upstream in
-  # agno 2.8.0 (verified: agentos-api's mounted :8000/mcp now does a clean
-  # initialize + tools/list round-trip). The workaround (server/api/mcp_main.py,
-  # kept and marked DEPRECATED, not deleted) and this service block are no
-  # longer needed; all MCP traffic now goes to agentos-api's mounted /mcp on
-  # :8000. See docs/adr/ and C:\Users\matts\OneDrive\AI Space\agno-upgrade-result.md
-  # ("agentos-mcp retirement" section) for the full verification trail.
-  # ---------------------------------------------------------------------------
-
 networks:
-  agentos:
   agno:
     external: true   # shared cross-app network on OVH-1 (created 2026-07-19 split)
 
@@ -225,4 +209,4 @@ volumes:
 
 # Byline: Claude Code · Opus 4.8 · 2026-06-14
 # Byline: Claude Code · Fable 5 · 2026-07-07 (contextforge 0.8.0 -> v1.0.4: image bump + CSRF_ENABLED=false + PASSWORD_CHANGE_ENFORCEMENT_ENABLED=false)
-# Byline: Claude Code · Sonnet · 2026-07-19 (exec-tier split: slimmed to agentos-api + agentos-mcp rump, joined shared `agno` network; owner order "separate anything that can be separated")
+# Byline: Claude Code · Sonnet · 2026-07-19 (historical exec-tier split; joined shared `agno` network)

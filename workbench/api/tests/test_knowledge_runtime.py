@@ -1,6 +1,7 @@
 # Byline: Codex · GPT-5 · 2026-08-15 (Knowledge runtime boundary coverage)
 # Byline: Codex · GPT-5 · 2026-08-16 (canonical item detail boundary coverage)
 # Byline: Codex · GPT-5 · 2026-08-18 (native evidence horizon proxy coverage)
+# Byline: Codex · GPT-5.6-Sol · 2026-08-29 (retired search failure boundary)
 """HTTP contract tests for bounded Knowledge and Graphiti query parameters."""
 
 from __future__ import annotations
@@ -55,6 +56,20 @@ def test_search_parses_and_forwards_horizon(monkeypatch):
 
     assert response.status_code == 200
     assert captured["horizon"] == "2025-06-01T12:30:00+00:00"
+
+
+def test_non_evidence_search_surfaces_framework_neutral_unavailability(monkeypatch):
+    def fail_closed(*args, **kwargs):
+        raise runtime.SpineError("semantic search for lane 'legal' is disabled", 503)
+
+    monkeypatch.setattr(runtime.knowledge_service, "search", fail_closed)
+    response = _client().get(
+        "/api/knowledge/search",
+        params={"q": "custody", "case_id": "primary", "lane": "legal"},
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "semantic search for lane 'legal' is disabled"
 
 
 def test_contents_requires_case_and_lane():

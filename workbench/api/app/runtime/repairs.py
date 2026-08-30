@@ -1,5 +1,5 @@
 # Byline: Codex · GPT-5 · 2026-08-03
-"""Workbench repair discovery, manual execution, automatic assessment, and agent review."""
+"""Workbench repair controls and the fail-closed bounded-agent boundary."""
 
 from __future__ import annotations
 

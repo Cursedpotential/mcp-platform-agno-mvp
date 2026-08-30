@@ -13,16 +13,12 @@
 # LibreChat interpolates ${PORTKEY_CHAT_CONFIG} from container env into the
 # header at request time (config file itself stays secret-free).
 #
-# Agents: mcpServers.agentos in librechat.yaml points at the AgentOS MCP door
-# (tailnet ~~http://100.72.169.40:8001/mcp~~ → **http://100.72.169.40:8000/mcp**
-# with an `Authorization: Bearer` header) so any chat model can invoke platform
-# agents/workflows as tools. The standalone agentos-mcp service on :8001 was
-# retired in agno 2.8; the door is now mounted on the api. This header comment
-# had drifted — docker/librechat/librechat.yaml itself was already correct.
+# MCP tools are published from ContextForge through Portkey. The tracked,
+# secret-free docker/librechat/librechat.yaml is baked into the derived image,
+# so a Git-backed Coolify deploy cannot keep running a stale host-staged copy.
 #
 # HOST-PREP (once, before first deploy):
-#   mkdir -p /data/agno/volumes/librechat/{config,images,uploads,logs}
-#   # stage docker/librechat/librechat.yaml -> /data/agno/volumes/librechat/config/librechat.yaml
+#   mkdir -p /data/agno/volumes/librechat/{images,uploads,logs}
 #   docker network inspect agno >/dev/null 2>&1 || docker network create agno
 #
 # Coolify gotcha: env values are baked at deploy — set ALL envs before first
@@ -31,13 +27,17 @@
 # =============================================================================
 # Byline: Claude Code · Fable 5 · 2026-07-20
 # Byline: Claude Code · Opus 5 · 2026-08-05 (digest pin + stale-comment corrections)
+# Byline: Codex · GPT-5.6-Sol · 2026-08-29 (tracked ContextForge/Portkey MCP config)
 
 services:
   librechat:
     # Pinned by DIGEST, not `:latest` — this is production, and a redeploy on a
     # floating tag silently swaps the version. This digest IS the image running
     # since 2026-07-29; the app reports version v0.8.7. Bump deliberately.
-    image: ghcr.io/danny-avila/librechat@sha256:c5db3331b845e1f289f8d04c0c77936c4bbe372f76730a804abc1c37e44d23a9
+    build:
+      context: .
+      dockerfile: docker/librechat/Dockerfile
+    image: platform-librechat:latest
     container_name: librechat
     restart: unless-stopped
     ports:
@@ -54,6 +54,9 @@ services:
       CREDS_IV: ${CREDS_IV}
       # --- Portkey chat lane (materialized chat.json, single line) ---
       PORTKEY_CHAT_CONFIG: ${PORTKEY_CHAT_CONFIG}
+      # --- ContextForge MCP published through Portkey ---
+      PORTKEY_PLATFORM_TOOLS_MCP_URL: ${PORTKEY_PLATFORM_TOOLS_MCP_URL:?set the Portkey-published ContextForge endpoint}
+      PORTKEY_MCP_API_KEY: ${PORTKEY_MCP_API_KEY:?set the scoped Portkey MCP credential}
       # --- minimal profile ---
       SEARCH: "false"
       ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-true}
@@ -61,7 +64,6 @@ services:
       NO_INDEX: "true"
     volumes:
       # Bind mounts only — owner backs up host dirs (no named volumes).
-      - /data/agno/volumes/librechat/config/librechat.yaml:/app/librechat.yaml:ro
       - /data/agno/volumes/librechat/images:/app/client/public/images
       - /data/agno/volumes/librechat/uploads:/app/uploads
       - /data/agno/volumes/librechat/logs:/app/api/logs

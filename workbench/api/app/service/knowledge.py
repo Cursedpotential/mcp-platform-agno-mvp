@@ -4,15 +4,17 @@
 # Byline: Codex · GPT-5 · 2026-08-18 (projection context overlay; records/chunks remain split)
 # Byline: Codex · GPT-5 · 2026-08-18 (native horizon-prefiltered evidence search cutover)
 # Byline: Codex · GPT-5 · 2026-08-18 (owner-only operator/agent-pass boundary)
+# Byline: Codex · GPT-5.6-Sol · 2026-08-29 (retired AgentOS search fails closed)
 """Spine-mediated knowledge search plus canonical source inspection.
 
-Evidence search uses the owner-only native, horizon-prefiltered route; other
-lanes retain Agno compatibility while their native stores are built.
+Evidence search uses the owner-only native, horizon-prefiltered route.
+Semantic search for other lanes remains unavailable until a framework-neutral
+projection contract exists; this adapter fails closed instead of calling the
+retired AgentOS ``/knowledge/search`` endpoint.
 """
 
 from __future__ import annotations
 
-from hashlib import sha256
 from typing import Any
 
 from app.config import settings
@@ -23,28 +25,8 @@ __all__ = ["SpineError", "get_content", "list_contents", "search"]
 _DEFAULT_CONTENT_LIMIT = 20
 _MAX_SEARCH_RESULTS = 100
 _MAX_CONTENT_ITEMS = 500
-_DB_ID = "agentos-db"
-
-# Mirrors the registered names/tables in server/api/main.py. This is an
-# anti-corruption adapter for Agno's generated knowledge IDs, not a public
-# platform contract. Contract tests below pin it so registry drift fails
-# visibly instead of producing ambiguous multi-base 400s in production.
-_KNOWLEDGE_TABLES: dict[str, str] = {
-    "platform": "platform_knowledge_contents",
-    "legal": "legal_knowledge_contents",
-    "evidence": "evidence_knowledge_contents",
-    "personal_history": "personal_history_knowledge_contents",
-    "context": "platform_context_contents",
-}
-
-
-def _knowledge_id(lane: str) -> str:
-    try:
-        table = _KNOWLEDGE_TABLES[lane]
-    except KeyError as exc:
-        raise ValueError(f"unsupported knowledge lane: {lane}") from exc
-    digest = sha256(f"{_DB_ID}:{table}:{lane}".encode()).hexdigest()
-    return f"{digest[:8]}-{digest[8:12]}-{digest[12:16]}-{digest[16:20]}-{digest[20:32]}"
+_KNOWLEDGE_LANES = frozenset({"platform", "legal", "evidence", "personal_history", "context"})
+_NATIVE_SEARCH_LANES = frozenset({"evidence"})
 
 
 def _positive_limit(limit: int | None, *, default: int, maximum: int) -> int:
@@ -69,38 +51,27 @@ def _search_lane(
     limit: int,
     horizon: str | None,
 ) -> dict:
-    if lane == "evidence":
-        if not settings.evidence_operator_security_key:
-            raise SpineError("owner evidence search capability is not configured", 503)
-        body: dict[str, Any] = {
-            "query": query,
-            "case_id": case_id,
-            "limit": limit,
-            "mode": "hybrid",
-        }
-        if horizon is not None:
-            body["horizon"] = horizon
-        response = spine_json(
-            "POST",
-            "/v1/operator/evidence/search",
-            headers={"Authorization": f"Bearer {settings.evidence_operator_security_key}"},
-            json=body,
+    if lane not in _NATIVE_SEARCH_LANES:
+        raise SpineError(
+            f"semantic search for lane '{lane}' is disabled until its framework-neutral projection is available",
+            503,
         )
-        for hit in response.get("data") or []:
-            metadata = dict(hit.get("meta_data") or {})
-            metadata.setdefault("knowledge_lane", lane)
-            hit["meta_data"] = metadata
-        return response
-
-    body = {
+    if not settings.evidence_operator_security_key:
+        raise SpineError("owner evidence search capability is not configured", 503)
+    body: dict[str, Any] = {
         "query": query,
-        "knowledge_id": _knowledge_id(lane),
-        "max_results": limit,
-        # Dict filters are applied by Agno's Weaviate adapter before ranking.
-        # Never use FilterExpr here: that adapter silently drops FilterExpr lists.
-        "filters": {"case_id": case_id},
+        "case_id": case_id,
+        "limit": limit,
+        "mode": "hybrid",
     }
-    response = spine_json("POST", "/knowledge/search", json=body)
+    if horizon is not None:
+        body["horizon"] = horizon
+    response = spine_json(
+        "POST",
+        "/v1/operator/evidence/search",
+        headers={"Authorization": f"Bearer {settings.evidence_operator_security_key}"},
+        json=body,
+    )
     for hit in response.get("data") or []:
         metadata = dict(hit.get("meta_data") or {})
         metadata.setdefault("knowledge_lane", lane)
@@ -120,9 +91,16 @@ def search(
     normalized_query = _require_text(query, "query")
     normalized_case = _require_text(case_id, "case_id")
     effective_limit = _positive_limit(limit, default=20, maximum=_MAX_SEARCH_RESULTS)
-    lanes = [lane] if lane else list(_KNOWLEDGE_TABLES)
-    if lane and lane not in _KNOWLEDGE_TABLES:
+    if lane and lane not in _KNOWLEDGE_LANES:
         raise ValueError(f"unsupported knowledge lane: {lane}")
+
+    if lane is None:
+        raise SpineError(
+            "cross-lane semantic search is disabled until every requested lane has a framework-neutral projection; "
+            "select the evidence lane to use native horizon-safe search",
+            503,
+        )
+    lanes = [lane]
 
     responses = [
         _search_lane(
@@ -161,7 +139,7 @@ def list_contents(
 ) -> dict:
     """Return a case/lane-scoped catalog from the neutral canonical read API."""
     normalized_case = _require_text(case_id, "case_id")
-    if lane not in _KNOWLEDGE_TABLES:
+    if lane not in _KNOWLEDGE_LANES:
         raise ValueError(f"unsupported knowledge lane: {lane}")
     effective_limit = _positive_limit(limit, default=_DEFAULT_CONTENT_LIMIT, maximum=100)
     effective_offset = 0 if offset is None else offset

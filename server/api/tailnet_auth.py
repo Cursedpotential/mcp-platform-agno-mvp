@@ -18,7 +18,7 @@ from os import getenv
 
 from fastapi import HTTPException, Request
 
-_TAILSCALE_CGNAT = ipaddress.ip_network("100.64.0.0/10")
+_TAILSCALE_CGNAT: ipaddress.IPv4Network = ipaddress.IPv4Network("100.64.0.0/10")
 _TRUE_VALUES = frozenset({"1", "true", "yes", "on"})
 _LOGGER = logging.getLogger("platform.auth.tailnet_testing")
 

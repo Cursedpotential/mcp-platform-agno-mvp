@@ -1,9 +1,9 @@
 # Byline: Claude Code · Sonnet (agent) · 2026-07-21 (C2.7: detect_type_with_evidence added)
 """Detect whether a staged upload is a generic doc or a chat export.
 
-Chat exports take a different promote path (POST /v1/evidence/import) than
-plain docs (POST /knowledge/content) — see service/promote.py. New in the
-workbench; no donor equivalent (the donor kit had no chat-export concept).
+AI-chat exports are denied promotion by D-082. Generic documents enter the
+framework-neutral ``/v1/ingest`` context path — see service/promote.py. New in
+the workbench; no donor equivalent (the donor kit had no chat-export concept).
 """
 
 from __future__ import annotations

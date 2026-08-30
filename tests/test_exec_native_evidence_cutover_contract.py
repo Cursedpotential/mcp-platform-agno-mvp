@@ -1,11 +1,11 @@
-"""Production composition contracts for native-only evidence cutover.
+"""Production composition contracts for the native evidence cutover.
 
 Byline: Codex · GPT-5 · 2026-08-18
+Byline amendment: Codex · GPT-5.6-Sol · 2026-08-29 (plain Platform API host)
 """
 
 from __future__ import annotations
 
-import ast
 from pathlib import Path
 
 
@@ -14,32 +14,19 @@ MAIN = ROOT / "server" / "api" / "main.py"
 EXEC_MANIFEST = ROOT / "deploy" / "exec.yaml"
 
 
-def _knowledge_bases() -> dict[str, str]:
-    tree = ast.parse(MAIN.read_text(encoding="utf-8"))
-    for node in tree.body:
-        if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
-            if node.target.id == "_KNOWLEDGE_BASES":
-                return ast.literal_eval(node.value)
-    raise AssertionError("_KNOWLEDGE_BASES assignment not found")
+def test_platform_host_constructs_no_agno_knowledge_bases() -> None:
+    """The production host has no framework-owned selectable Knowledge surface."""
+    source = MAIN.read_text(encoding="utf-8")
 
-
-def test_agentos_compatibility_bases_exclude_evidence() -> None:
-    """Evidence has no legacy selectable base or fallback collection."""
-    bases = _knowledge_bases()
-
-    assert bases == {
-        "legal": "legal_knowledge",
-        "personal_history": "personal_history_knowledge",
-        "context": "platform_context",
-    }
-    assert "evidence_knowledge" not in MAIN.read_text(encoding="utf-8")
+    for retired_symbol in ("_KNOWLEDGE_BASES", "KnowledgeHandle", "create_knowledge", "evidence_knowledge"):
+        assert retired_symbol not in source
 
 
 def test_native_routes_are_registered_only_behind_the_activation_gate() -> None:
     """Disabled native evidence exposes no search route and no legacy substitute."""
     source = MAIN.read_text(encoding="utf-8")
-    gate = "if _native_evidence_runtime is not None:"
-    registration = "register_native_evidence_search_routes(app, native_runtime=_native_evidence_runtime)"
+    gate = "if native_runtime is not None:"
+    registration = "register_native_evidence_search_routes(app, native_runtime=native_runtime)"
 
     gate_at = source.index(gate, source.index("register_ingest_routes(app, native_projector)"))
     registration_at = source.index(registration)

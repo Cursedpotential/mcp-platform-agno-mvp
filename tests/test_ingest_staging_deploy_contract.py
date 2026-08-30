@@ -22,14 +22,14 @@ HOST_STAGING_ROOT = "/data/agno/volumes/ingest-staging"
 CONTAINER_STAGING_ROOT = "/data/ingest-staging"
 
 
-def _agentos_api() -> dict:
-    return yaml.safe_load(DEPLOY_TEXT)["services"]["agentos-api"]
+def _platform_api() -> dict:
+    return yaml.safe_load(DEPLOY_TEXT)["services"]["platform-api"]
 
 
 def _staging_mount() -> dict:
     matches = [
         mount
-        for mount in _agentos_api()["volumes"]
+        for mount in _platform_api()["volumes"]
         if isinstance(mount, dict) and mount.get("target") == CONTAINER_STAGING_ROOT
     ]
     assert len(matches) == 1
@@ -37,7 +37,7 @@ def _staging_mount() -> dict:
 
 
 def test_production_api_uses_literal_persistent_staging_root() -> None:
-    environment = _agentos_api()["environment"]
+    environment = _platform_api()["environment"]
     staging_root = environment["INGEST_STAGING_ROOT"]
 
     assert staging_root == CONTAINER_STAGING_ROOT
@@ -56,7 +56,7 @@ def test_staging_is_a_fail_closed_protected_host_bind() -> None:
 
 
 def test_upload_staging_does_not_reuse_the_operator_drop_directory() -> None:
-    volumes = _agentos_api()["volumes"]
+    volumes = _platform_api()["volumes"]
 
     assert "/srv/ingest:/data/ingest" in volumes
     assert _staging_mount()["source"] != "/srv/ingest"
@@ -80,7 +80,7 @@ def test_actual_coolify_app_and_stale_watch_path_are_named_as_release_gates() ->
 
 
 def test_staging_contract_contains_no_secret_or_password_setting() -> None:
-    environment = _agentos_api()["environment"]
+    environment = _platform_api()["environment"]
     staging_keys = {key for key in environment if "STAGING" in key or "INGEST_STAGING" in key}
 
     assert staging_keys == {"INGEST_STAGING_ROOT"}

@@ -1,14 +1,15 @@
 # Byline: Claude Code · Sonnet (agent) · 2026-07-19
 # Byline: Claude Code · Sonnet 5 · 2026-08-26 (D-082 permanent AI-chat evidence fence, GAP-032/WP-C01)
 # Byline: Codex · GPT-5 · 2026-08-29 (runtime-read Platform API bearer file)
+# Byline: Codex · GPT-5.6-Sol · 2026-08-29 (framework-neutral ingest cutover)
 """Promote a staged file through the EXISTING platform ingestion API.
 
 New in the workbench (no donor equivalent — the donor kit chunked/embedded
 in-process instead of promoting through a separate spine). Two paths, keyed
 off `detected_type`:
 
-- "doc" -> POST {PLATFORM_API_URL}/knowledge/content, then poll
-  GET /knowledge/content/{content_id}/status until completed/failed.
+- "doc" -> POST {PLATFORM_API_URL}/v1/ingest, then poll the durable
+  PostgreSQL receipt at GET /v1/runs/{run_id} until completed/failed.
 - "chat_export" -> DENIED, locally, before any network call. D-082
   (docs/DECISION_LOG.md, owner-ruled 2026-08-26) permanently forbids
   promoting AI-chat exports to evidence custody; GAP-032/WP-C01. This used to
@@ -17,15 +18,15 @@ off `detected_type`:
   depth, server/api/evidence_routes.py), but there is no legitimate outcome
   left to wait on a round trip for.
 
-The "doc" spine endpoint may not be deployed yet (P3 work) — a 404 is handled
-as a clear "not deployed yet" failure, not a crash. This module never touches
-Milvus/Postgres/LanceDB-chunks directly; it only calls the spine's own HTTP
-API and records the spine's response verbatim in `promote_result`.
+This module never touches PostgreSQL, object-store projections, or chunks
+directly; it calls the framework-neutral ingest boundary and records the
+durable receipt identity in `promote_result`.
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 
@@ -60,74 +61,107 @@ def _auth_headers() -> dict[str, str]:
 
 
 async def _load_file_bytes(record: dict) -> tuple[bytes, str]:
-    """Return (bytes, filename) for the original upload.
+    """Return the exact original upload bytes and filename.
 
-    Prefers the object-store copy (the true original bytes); falls back to
-    the stored text extract if the object-store fetch fails for any reason.
-    boto3 has no native async client, so the blocking call is offloaded to a
-    worker thread instead of stalling the event loop.
+    The staged text is a derivative and cannot stand in for the original while
+    retaining the original source identity/hash. Object-store failure therefore
+    fails closed before any ingest request. boto3 has no native async client,
+    so the blocking call is offloaded to a worker thread.
     """
     name = record["name"]
     try:
         return await asyncio.to_thread(get_object, record["r2_key"]), name
-    except Exception:
-        logger.warning(
-            "Object store fetch failed for r2_key=%s, falling back to stored text",
-            record.get("r2_key"),
-            exc_info=True,
-        )
-        return (record.get("text") or "").encode("utf-8"), name
+    except Exception as error:
+        logger.warning("Original object-store fetch failed for r2_key=%s", record.get("r2_key"), exc_info=True)
+        raise PromoteError(f"original source bytes are unavailable: {error}", 503) from error
 
 
 async def _promote_doc(record: dict, client: httpx.AsyncClient) -> dict:
     file_bytes, filename = await _load_file_bytes(record)
     meta = record.get("meta") or {}
+    source_identity = dict(meta)
+    # Staged-file identity is derived from the original bytes at upload time.
+    # User-editable classification metadata must never override provenance.
+    source_identity.update(
+        original_name=filename,
+        source="workbench",
+        staged_id=record["id"],
+        sha256=record["id"],
+    )
     form = {
-        "domain": meta.get("domain", ""),
-        "category": meta.get("category", ""),
-        "sha256": record["id"],
-        "source": "workbench",
+        # All generic documents enter canonical context. Classification and
+        # evidentiary promotion remain separate governed decisions.
+        "lane": "context",
+        "matter_id": str(meta.get("matter_id") or meta.get("case_id") or "primary"),
+        "engine": "auto",
+        "allow_fallback": "true",
+        "custody_tier": "light",
+        "source_identity": json.dumps(source_identity),
     }
     response = await client.post(
-        f"{settings.platform_api_url}/knowledge/content",
+        f"{settings.platform_api_url}/v1/ingest",
         files={"file": (filename, file_bytes, record.get("mime") or "application/octet-stream")},
         data=form,
         headers=_auth_headers(),
     )
     if response.status_code == 404:
-        return {"status": "failed", "error": "spine endpoint not deployed yet"}
+        return {"status": "failed", "error": "framework-neutral ingest endpoint is unavailable"}
     response.raise_for_status()
     body = response.json()
-    content_id = body.get("content_id") or body.get("id")
-    if not content_id:
-        return {"status": "failed", "error": "no content_id in spine response", "response": body}
+    run_id = body.get("run_id")
+    if not run_id:
+        return {"status": "failed", "error": "no run_id in ingest response", "response": body}
 
     deadline = time.monotonic() + _POLL_TIMEOUT_S
     while time.monotonic() < deadline:
-        status_resp = await client.get(
-            f"{settings.platform_api_url}/knowledge/content/{content_id}/status",
-            headers=_auth_headers(),
-        )
-        if status_resp.status_code == 404:
+        try:
+            status_resp = await client.get(
+                f"{settings.platform_api_url}/v1/runs/{run_id}",
+                headers=_auth_headers(),
+            )
+            status_resp.raise_for_status()
+            status_body = status_resp.json()
+        except (httpx.HTTPError, ValueError):
+            # Submission was durably accepted. A transient inability to read
+            # its receipt cannot turn that accepted run into a terminal local
+            # failure or discard the reconciliation identity.
             return {
-                "status": "failed",
-                "content_id": content_id,
-                "error": "spine status endpoint not deployed yet",
+                "status": "promoting",
+                "run_id": run_id,
+                "pending": True,
+                "detail": "durable ingest was accepted; receipt polling is temporarily unavailable",
             }
-        status_resp.raise_for_status()
-        status_body = status_resp.json()
         state = status_body.get("status")
         if state == "completed":
-            return {"status": "promoted", "content_id": content_id}
+            artifact_id = status_body.get("artifact_id")
+            if not artifact_id:
+                return {
+                    "status": "failed",
+                    "run_id": run_id,
+                    "error": "completed ingest receipt has no artifact_id",
+                }
+            return {
+                "status": "promoted",
+                "run_id": run_id,
+                # Retain content_id as a temporary Workbench response alias;
+                # its value is now the canonical artifact identity.
+                "content_id": artifact_id,
+                "artifact_id": artifact_id,
+            }
         if state == "failed":
             return {
                 "status": "failed",
-                "content_id": content_id,
-                "error": status_body.get("error", "processing failed"),
+                "run_id": run_id,
+                "error": status_body.get("error") or "framework-neutral ingest failed",
             }
         await asyncio.sleep(_POLL_INTERVAL_S)
 
-    return {"status": "failed", "content_id": content_id, "error": "promote timed out waiting for spine"}
+    return {
+        "status": "promoting",
+        "run_id": run_id,
+        "pending": True,
+        "detail": "durable ingest continues; polling window elapsed before a terminal receipt",
+    }
 
 
 # D-082 permanent AI-chat evidence fence (GAP-032/WP-C01, owner-ruled
@@ -168,6 +202,9 @@ async def promote(file_id: str) -> dict:
     except httpx.HTTPError as e:
         result = {"status": "failed", "error": f"spine request failed: {e}"}
         logger.warning("Promote failed for %s: %s", file_id, e)
+    except PromoteError as e:
+        result = {"status": "failed", "error": e.detail}
+        logger.warning("Promote could not start for %s: %s", file_id, e.detail)
 
     updated = staging.update_status(file_id, result["status"], promote_result=result)
     # Mirror the error at the top level too — the workbench/web frontend's

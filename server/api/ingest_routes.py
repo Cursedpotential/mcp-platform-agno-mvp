@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import secrets
 from os import getenv
 from pathlib import Path
 from typing import Any
@@ -17,6 +16,7 @@ from uuid import uuid4
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import ValidationError
 
+from server.api.platform_auth import require_platform_owner
 from server.api.uploads import safe_upload_name
 from server.contracts.ingest import IngestLane, IngestRequest
 from server.ingest.service import IngestError, PostgresReceiptJournal, ingest_file
@@ -26,18 +26,7 @@ _INGEST_TASKS: set[asyncio.Task[None]] = set()
 
 
 def _authorize(request: Request) -> None:
-    expected = getenv("OS_SECURITY_KEY", "")
-    if not expected:
-        raise HTTPException(503, "ingest authorization is not configured")
-    scheme, separator, credential = request.headers.get("authorization", "").partition(" ")
-    valid = bool(
-        separator
-        and scheme.lower() == "bearer"
-        and credential
-        and secrets.compare_digest(credential.encode("utf-8"), expected.encode("utf-8"))
-    )
-    if not valid:
-        raise HTTPException(401, "authentication required", headers={"WWW-Authenticate": "Bearer"})
+    require_platform_owner(request)
 
 
 def _staging_root() -> Path:

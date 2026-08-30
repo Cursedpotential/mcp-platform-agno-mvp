@@ -25,7 +25,7 @@ class AutoRepairRequest(BaseModel):
 
 
 class RepairAgentRunRequest(BaseModel):
-    """Ask a live AgentOS agent/team to review a repair assessment."""
+    """Compatibility shape for the disabled bounded-agent review boundary."""
 
     participant_type: Literal["agent", "team"]
     participant_id: str

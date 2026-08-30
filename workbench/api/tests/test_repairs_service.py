@@ -15,17 +15,24 @@ def _mcp(value):
 
 
 def test_lists_only_repair_cards(monkeypatch):
-    monkeypatch.setattr(
-        repairs,
-        "call_tool",
-        lambda server, name, arguments: _mcp(
+    servers: list[str] = []
+
+    def fake_call(server, name, arguments):
+        servers.append(server)
+        return _mcp(
             [
                 {"id": "repair.detect", "execution_policy": "manual_or_auto"},
                 {"id": "parse.csv"},
             ]
-        ),
+        )
+
+    monkeypatch.setattr(
+        repairs,
+        "call_tool",
+        fake_call,
     )
     assert repairs.list_repair_tools() == [{"id": "repair.detect", "execution_policy": "manual_or_auto"}]
+    assert servers == ["platform-tools"]
 
 
 def test_manual_only_tool_requires_approval(monkeypatch):

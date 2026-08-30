@@ -1,6 +1,7 @@
 """Workbench run-event HTTP surface tests.
 
 Byline: Codex · GPT-5 · 2026-08-27
+Byline: Codex · GPT-5.6 · 2026-08-29 (trusted-proxy authentication contract)
 """
 
 from __future__ import annotations
@@ -82,12 +83,21 @@ def test_real_app_registers_route_behind_workbench_auth(monkeypatch) -> None:
         return stream()
 
     monkeypatch.setattr(runtime, "open_run_event_stream", fake_open)
-    monkeypatch.setattr(auth.settings, "workbench_api_key", "workbench-test-key")
-    client = TestClient(workbench_app)
+    monkeypatch.setattr(auth.settings, "trusted_auth_proxy_cidrs", "10.0.0.0/8")
+    monkeypatch.setattr(auth.settings, "tailnet_auth_bypass_enabled", False)
+    client = TestClient(workbench_app, client=("10.1.2.3", 50000))
     path = f"/api/runs/{RUN_ID}/events?follow=false"
 
-    assert client.get(path).status_code == 401
-    response = client.get(path, headers={"Authorization": "Bearer workbench-test-key"})
+    denied = client.get(path)
+    assert denied.status_code == 403
+    assert denied.json() == {"detail": "Missing or invalid Authentik identity"}
+    response = client.get(
+        path,
+        headers={
+            "X-authentik-uid": "user-123",
+            "X-authentik-username": "owner@example.test",
+        },
+    )
 
     assert response.status_code == 200
     assert response.text == ": keep-alive\n\n"

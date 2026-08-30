@@ -1,6 +1,7 @@
 """Release gates for live model discovery and the Workbench catalog contract.
 
 Byline: Codex · GPT-5 · 2026-08-16
+Byline: Codex · GPT-5.6 · 2026-08-29 (trusted-proxy authentication contract)
 """
 
 from __future__ import annotations
@@ -140,10 +141,14 @@ def test_both_catalog_routes_share_the_api_contract(monkeypatch) -> None:
         observed_refresh.append(refresh)
         return response
 
-    monkeypatch.setattr(auth.settings, "workbench_api_key", "test-secret")
+    monkeypatch.setattr(auth.settings, "trusted_auth_proxy_cidrs", "10.0.0.0/8")
+    monkeypatch.setattr(auth.settings, "tailnet_auth_bypass_enabled", False)
     monkeypatch.setattr(model_catalog.model_catalog_service, "list", list_catalog)
-    client = TestClient(app)
-    headers = {"Authorization": "Bearer test-secret"}
+    client = TestClient(app, client=("10.1.2.3", 50000))
+    headers = {
+        "X-authentik-uid": "user-123",
+        "X-authentik-username": "owner@example.test",
+    }
 
     classification = client.get("/api/classification/providers?refresh=true", headers=headers)
     comparison = client.get("/api/comparison/providers", headers=headers)

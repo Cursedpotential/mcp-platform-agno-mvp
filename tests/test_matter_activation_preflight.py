@@ -1,6 +1,7 @@
 """Tests for the read-only Matter activation preflight.
 
-Byline: Codex · GPT-5 · 2026-08-15; native Weaviate amendment 2026-08-18
+Byline: Codex · GPT-5 · 2026-08-15; native Weaviate amendment 2026-08-18;
+Platform API bearer-file cutover 2026-08-29
 """
 
 from __future__ import annotations
@@ -101,7 +102,8 @@ def test_static_scope_does_not_invoke_database_credentials_or_services(monkeypat
             database_dsn_env="MATTER_PREFLIGHT_DATABASE_URL",
             expected_migrations=None,
             workbench_url="https://workbench.invalid",
-            spine_url="https://spine.invalid",
+            platform_api_url="https://platform-api.invalid",
+            platform_api_bearer_file="/run/secrets/platform-api-bearer",
             weaviate_url="https://weaviate.invalid",
         )
     )
@@ -110,15 +112,18 @@ def test_static_scope_does_not_invoke_database_credentials_or_services(monkeypat
     assert exit_code == 0
 
 
-def test_credentials_require_long_distinct_inbound_and_spine_keys() -> None:
-    good = preflight.credential_checks({"WORKBENCH_API_KEY": "w" * 32, "AGENTOS_API_TOKEN": "spine-secret"})
+def test_credentials_require_runtime_platform_api_bearer_file(tmp_path) -> None:
+    bearer_file = tmp_path / "platform-api-bearer"
+    bearer_file.write_text("platform-secret", encoding="utf-8")
+    good = preflight.credential_checks(bearer_file)
     assert all(check.status == "PASS" for check in good)
 
-    missing = preflight.credential_checks({})
+    missing = preflight.credential_checks(tmp_path / "missing")
     assert all(check.status == "FAIL" for check in missing)
 
-    reused = preflight.credential_checks({"WORKBENCH_API_KEY": "x" * 32, "AGENTOS_API_TOKEN": "x" * 32})
-    assert next(check for check in reused if check.check_id == "credential.separation").status == "FAIL"
+    bearer_file.write_text("secret-with-newline\n", encoding="utf-8")
+    invalid = preflight.credential_checks(bearer_file)
+    assert all(check.status == "FAIL" for check in invalid)
 
 
 def test_database_snapshot_requires_uniform_migration_state() -> None:
@@ -143,7 +148,43 @@ def test_database_snapshot_fails_wrong_engine_or_extensions() -> None:
     assert next(check for check in checks if check.check_id == "database.extensions").status == "FAIL"
 
 
-def test_service_checks_cover_matter_knowledge_graphiti_and_weaviate(monkeypatch) -> None:
+def test_service_checks_cover_matter_knowledge_platform_and_weaviate(monkeypatch, tmp_path) -> None:
+    calls = []
+    bearer_file = tmp_path / "platform-api-bearer"
+    bearer_file.write_text("platform-key", encoding="utf-8")
+
+    def fake_probe(check_id, base_url, path, token=None):
+        calls.append((check_id, base_url, path, token))
+        return preflight.Check(check_id, "PASS", "fixture")
+
+    monkeypatch.setattr(preflight, "_probe", fake_probe)
+    args = SimpleNamespace(
+        workbench_url="https://workbench.invalid",
+        platform_api_url="https://platform-api.invalid",
+        platform_api_bearer_file=str(bearer_file),
+        weaviate_url="https://weaviate.invalid",
+    )
+    checks = preflight.service_checks(args)
+
+    assert all(check.status == "PASS" for check in checks)
+    assert [call[0] for call in calls] == [
+        "service.workbench_health",
+        "service.workbench_matter",
+        "service.workbench_knowledge_prefilter",
+        "service.platform_api_matter",
+        "service.weaviate",
+    ]
+    assert "case_id=primary&lane=evidence" in calls[2][2]
+    assert calls[1][3] is None
+    assert calls[3][3] == "platform-key"
+
+    bearer_file.write_text("rotated-platform-key", encoding="utf-8")
+    calls.clear()
+    preflight.service_checks(args)
+    assert calls[3][3] == "rotated-platform-key"
+
+
+def test_service_checks_fail_closed_without_platform_bearer(monkeypatch, tmp_path) -> None:
     calls = []
 
     def fake_probe(check_id, base_url, path, token=None):
@@ -153,34 +194,22 @@ def test_service_checks_cover_matter_knowledge_graphiti_and_weaviate(monkeypatch
     monkeypatch.setattr(preflight, "_probe", fake_probe)
     args = SimpleNamespace(
         workbench_url="https://workbench.invalid",
-        spine_url="https://spine.invalid",
+        platform_api_url="https://platform-api.invalid",
+        platform_api_bearer_file=str(tmp_path / "missing"),
         weaviate_url="https://weaviate.invalid",
     )
-    checks = preflight.service_checks(
-        args,
-        {"WORKBENCH_API_KEY": "workbench-key", "AGENTOS_API_TOKEN": "spine-key"},
-    )
 
-    assert all(check.status == "PASS" for check in checks)
-    assert [call[0] for call in calls] == [
-        "service.workbench_health",
-        "service.workbench_matter",
-        "service.workbench_knowledge_prefilter",
-        "service.workbench_graphiti_namespace",
-        "service.spine_matter",
-        "service.weaviate",
-    ]
-    assert "case_id=primary&lane=evidence" in calls[2][2]
-    assert "group_id=platform" in calls[3][2]
-    assert calls[1][3] == "workbench-key"
-    assert calls[4][3] == "spine-key"
+    checks = preflight.service_checks(args)
+
+    assert next(check for check in checks if check.check_id == "service.platform_api_matter").status == "FAIL"
+    assert not any(call[0] == "service.platform_api_matter" for call in calls)
 
 
 def test_database_and_activation_scopes_default_to_honest_migration_states(monkeypatch) -> None:
     monkeypatch.setenv("MATTER_PREFLIGHT_DATABASE_URL", "fixture-dsn")
     monkeypatch.setattr(preflight, "static_checks", lambda: [])
     monkeypatch.setattr(preflight, "git_checks", lambda: [])
-    monkeypatch.setattr(preflight, "credential_checks", lambda: [])
+    monkeypatch.setattr(preflight, "credential_checks", lambda bearer_file: [])
     monkeypatch.setattr(preflight, "service_checks", lambda args: [])
 
     database_args = SimpleNamespace(
@@ -188,7 +217,8 @@ def test_database_and_activation_scopes_default_to_honest_migration_states(monke
         database_dsn_env="MATTER_PREFLIGHT_DATABASE_URL",
         expected_migrations=None,
         workbench_url="",
-        spine_url="",
+        platform_api_url="",
+        platform_api_bearer_file="/run/secrets/platform-api-bearer",
         weaviate_url="",
     )
     monkeypatch.setattr(preflight, "database_snapshot", lambda dsn: _snapshot(present=False))
@@ -201,7 +231,8 @@ def test_database_and_activation_scopes_default_to_honest_migration_states(monke
         database_dsn_env="MATTER_PREFLIGHT_DATABASE_URL",
         expected_migrations=None,
         workbench_url="https://workbench.invalid",
-        spine_url="https://spine.invalid",
+        platform_api_url="https://platform-api.invalid",
+        platform_api_bearer_file="/run/secrets/platform-api-bearer",
         weaviate_url="https://weaviate.invalid",
     )
     monkeypatch.setattr(preflight, "database_snapshot", lambda dsn: _snapshot(present=True))
@@ -214,5 +245,5 @@ def test_static_cli_report_contains_no_secret_values(capsys) -> None:
     exit_code = preflight.main(["--scope", "static", "--json"])
     report = capsys.readouterr().out
     assert exit_code in {0, 2}  # the test itself makes git dirty before commit
-    assert "WORKBENCH_API_KEY" not in report
     assert "AGENTOS_API_TOKEN" not in report
+    assert "platform-secret" not in report

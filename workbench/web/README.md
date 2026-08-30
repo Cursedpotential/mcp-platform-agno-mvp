@@ -65,16 +65,9 @@ GAP-032/D-082). It has been removed from `package.json`/`package-lock.json`/`nex
 - **Acceptance and rollback gates** — what proves a host-shell integration actually works
   (a real consumer, not speculative scaffolding) before it merges, and how to roll it back cleanly
   if it doesn't.
-- **Retirement of legacy `agentos-api`/Agno naming** — separately from the composition question,
-  the platform is moving away from Agno as its product vocabulary; `agentos-api`/"Agno" identifiers
-  (service names, DNS, environment variables like `AGENTOS_API_URL`/`AGENTOS_API_TOKEN`, API
-  clients, Coolify app/resource names, documentation, and any residual Agno framework
-  dependencies) are legacy and must be renamed only through a **separate, coordinated
-  service/DNS/env/client/Coolify/framework migration and inventory** — not invented or executed
-  as part of this or any other bounded fix. Do not rename live infrastructure opportunistically;
-  do not invent a replacement product name. Use the existing `agentos-api`/Agno identifiers only
-  when an exact current deployment/API target must be named (as this document and
-  `deploy/workbench.yaml` still do, deliberately, until that migration exists).
+- **AgentOS retirement boundary** — the Workbench calls the framework-neutral Platform API through
+  `PLATFORM_API_URL`; it does not call generic AgentOS agents, teams, workflows, sessions, or MCP.
+  Tool discovery uses the ContextForge-authored, Portkey-published `platform-tools` surface.
 
 ## Current product surfaces — held, not deployed
 

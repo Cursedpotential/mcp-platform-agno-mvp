@@ -195,21 +195,8 @@ export interface RepairToolCard {
   side_effect: string;
 }
 
-export interface RepairParticipant {
-  type: "agent" | "team";
-  id: string;
-  name: string;
-  role: string;
-  recommended: boolean;
-  is_factory: boolean;
-}
-
 export async function listRepairTools() {
   return apiFetch<RepairToolCard[]>("/api/repairs/tools");
-}
-
-export async function listRepairParticipants() {
-  return apiFetch<RepairParticipant[]>("/api/repairs/participants");
 }
 
 export async function runAutomaticRepairAssessment(path: string, format?: string) {
@@ -229,27 +216,6 @@ export async function executeRepairTool(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ tool_id: toolId, payload, approved }),
-  });
-}
-
-export async function runRepairAgentReview(params: {
-  participant: RepairParticipant;
-  path: string;
-  task: string;
-  assessment?: Record<string, unknown>;
-  sessionId?: string;
-}) {
-  return apiFetch<Record<string, unknown>>("/api/repairs/agent-review", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      participant_type: params.participant.type,
-      participant_id: params.participant.id,
-      path: params.path,
-      task: params.task,
-      assessment: params.assessment ?? null,
-      session_id: params.sessionId ?? null,
-    }),
   });
 }
 

@@ -1,6 +1,7 @@
 """Fail-closed, read-only activation preflight for the Matter MVP.
 
-Byline: Codex · GPT-5 · 2026-08-15; native Weaviate amendment 2026-08-18
+Byline: Codex · GPT-5 · 2026-08-15; native Weaviate amendment 2026-08-18;
+Platform API bearer-file cutover 2026-08-29
 
 The command never applies migrations, writes database rows, deploys services, or
 prints secret values. Static mode verifies the release contract in the checkout.
@@ -34,6 +35,9 @@ NATIVE_EVIDENCE_COLLECTION_VERSION = 1
 NATIVE_EVIDENCE_COLLECTION = "EvidenceChunkV1"
 NATIVE_EVIDENCE_ALIAS = "EvidenceChunks"
 MIN_WEAVIATE_SERVER_VERSION = (1, 26, 0)
+DEFAULT_PLATFORM_API_BEARER_FILE = Path("/run/secrets/platform-api-bearer")
+_BEARER_TOKEN = re.compile(r"[A-Za-z0-9\-._~+/]+={0,}")
+_MAX_BEARER_BYTES = 4096
 REQUIRED_NATIVE_PROPERTIES = {
     "chunk_id": ("uuid", False),
     "artifact_id": ("uuid", False),
@@ -192,21 +196,28 @@ def static_checks(root: Path = PROJECT_ROOT) -> list[Check]:
 
     deploy = (root / "deploy" / "workbench.yaml").read_text(encoding="utf-8")
     auth = (root / "workbench" / "api" / "app" / "runtime" / "auth.py").read_text(encoding="utf-8")
+    platform_bearer_mount = "/data/agno/secrets/platform/api-bearer:/run/secrets/platform-api-bearer:ro"
     checks.extend(
         [
             _check(
-                "workbench.deploy_auth_env",
-                "WORKBENCH_API_KEY: ${WORKBENCH_API_KEY:-}" in deploy,
-                "Workbench deployment passes the mandatory inbound key",
-                "Workbench deployment does not expose WORKBENCH_API_KEY",
+                "workbench.platform_api_runtime_auth",
+                "PLATFORM_API_URL: ${PLATFORM_API_URL:-http://platform-api:8000}" in deploy
+                and "PLATFORM_API_BEARER_SECRET_FILE: /run/secrets/platform-api-bearer" in deploy
+                and platform_bearer_mount in deploy
+                and "AGENTOS_API_TOKEN" not in deploy
+                and "AGENTOS_API_URL" not in deploy
+                and "PLATFORM_API_BEARER:" not in deploy,
+                "Workbench uses the private Platform API and a read-only runtime bearer file",
+                "Workbench Platform API URL/bearer mount is missing or a retired/environment secret contract remains",
             ),
             _check(
-                "workbench.fail_closed_auth",
+                "workbench.inbound_auth_boundary",
                 'request.url.path == "/health"' in auth
-                and "if not expected_key:" in auth
-                and "status_code=503" in auth,
-                "Only exact /health bypasses fail-closed Workbench auth",
-                "Workbench authentication no longer visibly fails closed",
+                and "trusted_auth_proxy_cidrs_parsed" in auth
+                and "_AUTHENTIK_UID_HEADER" in auth
+                and "status_code=403" in auth,
+                "Workbench inbound auth keeps exact /health plus trusted-proxy identity enforcement",
+                "Workbench inbound authentication no longer visibly enforces its trusted-proxy identity boundary",
             ),
         ]
     )
@@ -227,28 +238,30 @@ def static_checks(root: Path = PROJECT_ROOT) -> list[Check]:
     return checks
 
 
-def credential_checks(environment: dict[str, str] | None = None) -> list[Check]:
-    environment = environment or dict(os.environ)
-    workbench_key = environment.get("WORKBENCH_API_KEY", "")
-    spine_key = environment.get("AGENTOS_API_TOKEN", "")
+def read_platform_api_bearer(path: str | Path) -> str | None:
+    """Read and validate the mounted bearer without retaining or reporting it."""
+
+    try:
+        raw = Path(path).read_bytes()
+    except OSError:
+        return None
+    if not raw or len(raw) > _MAX_BEARER_BYTES or b"\n" in raw or b"\r" in raw:
+        return None
+    try:
+        token = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+    return token if _BEARER_TOKEN.fullmatch(token) else None
+
+
+def credential_checks(bearer_file: str | Path) -> list[Check]:
+    bearer = read_platform_api_bearer(bearer_file)
     return [
         _check(
-            "credential.workbench",
-            len(workbench_key) >= 32,
-            "WORKBENCH_API_KEY is provisioned with at least 32 characters",
-            "WORKBENCH_API_KEY is missing or shorter than 32 characters",
-        ),
-        _check(
-            "credential.spine",
-            bool(spine_key.strip()),
-            "AGENTOS_API_TOKEN is provisioned",
-            "AGENTOS_API_TOKEN is missing",
-        ),
-        _check(
-            "credential.separation",
-            bool(workbench_key and spine_key and workbench_key != spine_key),
-            "Inbound Workbench and outbound spine credentials are distinct",
-            "Workbench and spine credentials are missing or not separated",
+            "credential.platform_api_bearer_file",
+            bearer is not None,
+            "Platform API runtime bearer file is provisioned and valid",
+            "Platform API runtime bearer file is absent or invalid",
         ),
     ]
 
@@ -344,37 +357,40 @@ def _probe(check_id: str, base_url: str, path: str, token: str | None = None) ->
     return _check(check_id, 200 <= status < 300, f"Service probe returned {status}", f"Service probe returned {status}")
 
 
-def service_checks(args: argparse.Namespace, environment: dict[str, str] | None = None) -> list[Check]:
-    environment = environment or dict(os.environ)
-    workbench_key = environment.get("WORKBENCH_API_KEY")
-    return [
+def service_checks(args: argparse.Namespace) -> list[Check]:
+    bearer = read_platform_api_bearer(args.platform_api_bearer_file)
+    checks = [
         _probe("service.workbench_health", args.workbench_url, "/health"),
         _probe(
             "service.workbench_matter",
             args.workbench_url,
             "/api/matters?limit=1&offset=0",
-            workbench_key,
         ),
         _probe(
             "service.workbench_knowledge_prefilter",
             args.workbench_url,
             "/api/knowledge/search?q=activation-preflight&case_id=primary&lane=evidence&limit=1",
-            workbench_key,
         ),
-        _probe(
-            "service.workbench_graphiti_namespace",
-            args.workbench_url,
-            "/api/graphiti/search?q=activation-preflight&kind=facts&group_id=platform&limit=1",
-            workbench_key,
-        ),
-        _probe(
-            "service.spine_matter",
-            args.spine_url,
-            "/v1/matters?limit=1&offset=0",
-            environment.get("AGENTOS_API_TOKEN"),
-        ),
-        _probe("service.weaviate", args.weaviate_url, "/v1/.well-known/ready"),
     ]
+    if bearer is None:
+        checks.append(
+            Check(
+                "service.platform_api_matter",
+                "FAIL",
+                "Platform API probe blocked because the runtime bearer file is absent or invalid",
+            )
+        )
+    else:
+        checks.append(
+            _probe(
+                "service.platform_api_matter",
+                args.platform_api_url,
+                "/v1/matters?limit=1&offset=0",
+                bearer,
+            )
+        )
+    checks.append(_probe("service.weaviate", args.weaviate_url, "/v1/.well-known/ready"))
+    return checks
 
 
 def git_checks(root: Path = PROJECT_ROOT) -> list[Check]:
@@ -407,7 +423,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--database-dsn-env", default="MATTER_PREFLIGHT_DATABASE_URL")
     parser.add_argument("--expected-migrations", choices=("absent", "present"))
     parser.add_argument("--workbench-url", default=os.environ.get("WORKBENCH_URL", ""))
-    parser.add_argument("--spine-url", default=os.environ.get("AGENTOS_API_URL", ""))
+    parser.add_argument("--platform-api-url", default=os.environ.get("PLATFORM_API_URL", ""))
+    parser.add_argument(
+        "--platform-api-bearer-file",
+        default=os.environ.get("PLATFORM_API_BEARER_SECRET_FILE", str(DEFAULT_PLATFORM_API_BEARER_FILE)),
+    )
     parser.add_argument("--weaviate-url", default=os.environ.get("WEAVIATE_URL", ""))
     parser.add_argument("--json", action="store_true", dest="as_json")
     return parser.parse_args(argv)
@@ -430,11 +450,11 @@ def run(args: argparse.Namespace) -> tuple[list[Check], int]:
             checks.append(_blocked("database.connection", f"Environment {args.database_dsn_env} is not set"))
 
     if args.scope == "activation":
-        checks.extend(credential_checks())
-        if args.workbench_url and args.spine_url and args.weaviate_url:
+        checks.extend(credential_checks(args.platform_api_bearer_file))
+        if args.workbench_url and args.platform_api_url and args.weaviate_url:
             checks.extend(service_checks(args))
         else:
-            checks.append(_blocked("service.probes", "Workbench, spine, and Weaviate URLs are required"))
+            checks.append(_blocked("service.probes", "Workbench, Platform API, and Weaviate URLs are required"))
 
     exit_code = 0 if all(check.status == "PASS" for check in checks) else 2
     return checks, exit_code

@@ -1,5 +1,6 @@
 # Byline: Codex · GPT-5 · 2026-08-03
-"""Policy-aware access to the registered repair suite through AgentOS MCP.
+# Byline: Codex · GPT-5.6 · 2026-08-29 (ContextForge publication cutover)
+"""Policy-aware access to the ContextForge-published repair suite.
 
 The Workbench never imports the repair implementation.  It calls the same
 progressive-disclosure gateway agents use, so manual and automatic operation
@@ -15,7 +16,7 @@ from uuid import uuid4
 
 from app.service.tools import ToolsError, call_tool
 
-_SERVER = "agentos"
+_SERVER = "platform-tools"
 _MANUAL_ONLY = "manual_approval_required"
 
 
@@ -75,7 +76,7 @@ def describe_repair_tool(tool_id: str) -> dict[str, Any]:
 
 
 def execute_manual(tool_id: str, payload: dict[str, Any], approved: bool) -> dict[str, Any]:
-    """Execute through AgentOS's authenticated operator-only repair door."""
+    """Execute through the authenticated ContextForge-published repair door."""
     contract = describe_repair_tool(tool_id)
     policy = contract.get("execution_policy", "manual_or_auto")
     if policy == _MANUAL_ONLY and not approved:

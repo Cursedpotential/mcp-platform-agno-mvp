@@ -50,7 +50,7 @@ present and enforces this boundary. SDK-facing clients remain under `app/repo/`.
 
 - `POST /api/upload` — stream-hash + stage a file (dedupes by sha256)
 - `GET /api/files`, `GET /api/files/{id}`, `PATCH /api/files/{id}` — list/detail/edit staged files
-- `POST /api/promote/{id}`, `POST /api/promote-all` — legacy direct-to-`/knowledge` promote path (superseded in the UI by Runs, kept as a backend endpoint)
+- `POST /api/promote/{id}`, `POST /api/promote-all` — framework-neutral document ingest through `/v1/ingest`, tracked by the durable `/v1/runs/{run_id}` receipt; AI-chat exports remain denied by D-082
 - `POST /api/runs` (json `{staged_id, workflow, domain, mode, source_meta}` or multipart `file`), `GET /api/runs`, `GET /api/runs/{id}` — proxy to the spine's `/v1/runs` pipeline (custody → parse → store → knowledge)
 - `POST /api/runs/{id}/continue`, `POST /api/runs/{id}/abort`, `POST /api/runs/{id}/retry` — C2 supervised-gate controls
 - `POST /api/runs/parse-dryrun` (json `{sha256}` or multipart `file`) — C3 dry-run parse (which parser would claim this file), no run created
@@ -61,11 +61,10 @@ present and enforces this boundary. SDK-facing clients remain under `app/repo/`.
   name; the label is stale, not a live Milvus read.
 - `POST /api/verify/{sha256}` — C3 active hash verification (re-fetch + recompute, walks the H1/H2/H3 custody chain for full-tier runs)
 - `POST /api/flags`, `GET /api/flags`, `PATCH /api/flags/{id}` — C3 corroboration flags ("needs corroborating evidence")
-- `GET /api/knowledge/search` — locally verified case-prefiltered Weaviate knowledge search;
-  the endpoint defaults `case_id` to `primary`, the service always sends a non-empty case
-  prefilter, and optional lane/domain filtering uses a Weaviate-compatible dictionary
-  prefilter.
-- `GET /api/knowledge/contents` — locally verified proxy to AgentOS's paginated knowledge-content catalog.
+- `GET /api/knowledge/search` — evidence-only owner search through the native,
+  horizon-prefiltered route. Non-evidence and cross-lane semantic search fail closed until
+  their framework-neutral projections exist.
+- `GET /api/knowledge/contents` — locally verified proxy to the Platform API's paginated knowledge-content catalog.
 - `GET /api/graphiti/search`, `GET /api/graphiti/episodes` — locally verified, read-only
   Graphiti memory inspection; a Graphiti group is a namespace, not an authorization boundary.
 - `GET|POST /api/matters`, `GET /api/matters/{id}`, and
@@ -95,8 +94,8 @@ continues to work.
 API clients send `Authorization: Bearer <WORKBENCH_API_KEY>`. Browsers can use
 HTTP Basic authentication with username `owner` and the same key as the
 password. Successful requests expose the authenticated `owner` principal in
-the request scope; the Workbench's outbound `AGENTOS_API_TOKEN` remains a
-separate credential and must never be used as the inbound Workbench key.
+the request scope; the Workbench's outbound Platform API bearer remains a
+separate runtime-read credential and must never be used as the inbound Workbench key.
 
 ## Origin
 

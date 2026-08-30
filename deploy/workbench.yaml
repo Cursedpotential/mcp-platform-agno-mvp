@@ -2,6 +2,7 @@
 # Byline: Codex · GPT-5 · 2026-08-28 (unified UIW production surface)
 # Byline: Codex · GPT-5 · 2026-08-29 (Authentik-only Traefik ingress boundary)
 # Byline: Codex · GPT-5 · 2026-08-29 (private movable Tailscale Service ingress)
+# Byline: Codex · GPT-5.6-Sol · 2026-08-29 (private Platform API service-DNS cutover)
 # =============================================================================
 # KNOWLEDGE WORKBENCH — deploy as its OWN Coolify app on OVH-1 ("ovh-app",
 # tailnet 100.72.169.40). Single-service app per the one-concern-per-app rule
@@ -56,7 +57,10 @@ services:
       TAILNET_AUTH_BYPASS_ENABLED: ${WORKBENCH_TAILNET_AUTH_BYPASS_ENABLED:-true}
       TAILNET_AUTH_BYPASS_CIDRS: ${WORKBENCH_TAILNET_AUTH_BYPASS_CIDRS:-100.64.0.0/10}
       TRUSTED_TAILSCALE_SERVE_PROXY_CIDRS: ${WORKBENCH_TAILSCALE_SERVE_PROXY_CIDRS:-127.0.0.1/32,172.17.0.1/32}
-      PLATFORM_API_URL: ${PLATFORM_API_URL:-http://100.72.169.40:8000}
+      # Same-host service traffic stays on the shared private Coolify network.
+      # PLATFORM_API_URL remains overridable for a future cross-host Tailscale
+      # Service cutover without changing Workbench application code.
+      PLATFORM_API_URL: ${PLATFORM_API_URL:-http://platform-api:8000}
       # The Platform API currently uses the backend runtime's native bearer contract. The secret is
       # read fresh from the read-only mount below for every upstream request;
       # only this non-secret path is configurable.
@@ -76,11 +80,9 @@ services:
       # also just this repo's existing Coolify convention anyway (env
       # values are rendered as literals at deploy — see the file header) —
       # to override, edit this value directly in the Coolify env editor.
-      # agentos url uses :8000/mcp (agentos-api's mounted MCP surface) — the
-      # standalone agentos-mcp service (:8001) was retired 2026-07-23, its
-      # mounted-/mcp bug fixed upstream in agno 2.8.0.
-      # Activation value contains Portkey MCP endpoints published from
-      # ContextForge virtual servers and gateway:"portkey" on every entry.
+      # Activation contains only Portkey-published ContextForge virtual-server
+      # endpoints with gateway:"portkey" on every entry. The Platform API has
+      # no MCP surface.
       # Empty is fail-closed. Direct doors require the explicit diagnostic flag.
       MCP_SERVERS: ${MCP_SERVERS:-[]}
       MCP_DIRECT_BYPASS_ALLOWED: ${MCP_DIRECT_BYPASS_ALLOWED:-false}

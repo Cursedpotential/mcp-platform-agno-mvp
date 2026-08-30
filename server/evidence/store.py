@@ -257,6 +257,7 @@ def store_records(
     message_corpus: str | None = None,
     source_principal: str | None = None,
     caller_owns_conversation: bool = False,
+    retry: bool = True,
 ) -> int:
     """Batch-insert canonical records into working.normalized_record.
 
@@ -269,10 +270,10 @@ def store_records(
     failure never risks a partial/duplicate insert — the prior attempt's
     transaction was already rolled back by the failure.
 
-    NOTE: When called from Temporal activities, retry should be disabled
-    (retry=False) because Temporal's activity RetryPolicy is the single
-    retry budget owner. The internal _retry_sync would create a multiplicative
-    retry (Temporal 4x × store 4x = 16x).
+    Temporal activities must pass `retry=False` because Temporal's activity
+    RetryPolicy is the single retry budget owner. The default remains `True`
+    for direct callers so the established C2.6 bounded-retry contract is
+    preserved without creating multiplicative Temporal retries.
     """
     projection_request = None
     classified = records
@@ -313,7 +314,7 @@ def store_records(
         case_id=case_id,
         domain=domain,
         projection_request=projection_request,
-        retry=False,  # Temporal activity RetryPolicy owns the retry budget
+        retry=retry,
     )
 
 

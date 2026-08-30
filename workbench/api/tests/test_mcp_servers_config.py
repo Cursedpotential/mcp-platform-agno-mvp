@@ -33,9 +33,9 @@ def test_portkey_token_env_resolves_from_process_env(monkeypatch):
 
 
 def test_direct_server_is_rejected_without_explicit_diagnostic_bypass():
-    direct = json.dumps([{"key": "agentos", "url": "http://agentos/mcp"}])
+    direct = json.dumps([{"key": "contextforge", "url": "http://contextforge/mcp"}])
     assert Settings(mcp_servers=direct).mcp_servers_parsed == []
-    assert Settings(mcp_servers=direct, mcp_direct_bypass_allowed=True).mcp_servers_parsed[0]["key"] == "agentos"
+    assert Settings(mcp_servers=direct, mcp_direct_bypass_allowed=True).mcp_servers_parsed[0]["key"] == "contextforge"
 
 
 def test_literal_token_wins_over_token_env(monkeypatch):

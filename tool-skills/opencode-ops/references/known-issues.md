@@ -3,6 +3,12 @@
 > _Byline: Claude Code · Sonnet · 2026-07-20 (agno 2.8 MCP door migration added 2026-07-23)_ — all verified live against the tailnet deployment
 > on 2026-07-20. Re-verify before assuming these are still true if it's been a while.
 
+> **CURRENT AUTHORITY — 2026-08-29, Codex · GPT-5.6-Sol:** AgentOS, its `/info`,
+> `/knowledge/search`, `/agents`, `/teams`, and `/mcp` surfaces are retired. The `oc` CLI now calls
+> the framework-neutral Platform API with a runtime-file bearer and ContextForge as its only MCP
+> catalog. Sections 3–5 and 7 below are preserved as historical incident evidence only; do not
+> follow their endpoints or credential instructions.
+
 ## 1. Provider endpoints leak API keys in plaintext
 
 **FIX WIRED 2026-07-21, DEPLOY PENDING** (console/c2.5-copilot branch): `opencode serve` speaks
@@ -80,7 +86,7 @@ route through a LiteLLM gateway. Worth checking the opencode container's own log
 `oc run` documents this cleanly (`FAIL: HTTP 500: {...}` + session/model echoed) rather than hanging
 or crashing — that's the acceptance bar the CLI was built to hit, not a claim that prompting works.
 
-## 3. `/v1/runs` (spine run ledger) is not deployed yet
+## 3. HISTORICAL — pre-cutover AgentOS run-ledger mismatch
 
 `GET /v1/runs` on agentos-api (`:8000`) 404s. `GET /info` reports `workflow_count: 0` — no
 workflows are registered on this AgentOS build (`agno_version: 2.6.13`, `agent_count: 6`,
@@ -99,7 +105,7 @@ per-type shape. When the spine ledger ships, `oc runs` should start working with
 Also note: `/v1/evidence/import` and `/v1/knowledge/reindex` DO exist today under the `/v1/` prefix
 — so `/v1/` isn't wholesale unbuilt, just the runs ledger specifically.
 
-## 4. `/agents` and `/teams` list return 500
+## 4. HISTORICAL — retired `/agents` and `/teams` faults
 
 `GET /agents` and `GET /teams` on agentos-api both return `Internal Server Error` (plain text, not
 JSON) even though `GET /info` reports non-zero `agent_count`/`team_count`. `GET /health` and
@@ -107,7 +113,7 @@ JSON) even though `GET /info` reports non-zero `agent_count`/`team_count`. `GET 
 sessions which reference agent/team ids) or `agentos:run_agent`/`run_team` directly if the id is
 already known from other context (e.g. Coolify env, AGENTOS docs).
 
-## 5. ContextForge `/mcp` gateway is stateless; agentos MCP is session-scoped
+## 5. HISTORICAL — former AgentOS MCP comparison
 
 Verified live: a bare `tools/list` POST against `http://100.72.169.40:4444/mcp` with **no prior
 `initialize` call at all** returns 200 with the full 69-tool catalog — no `Mcp-Session-Id` header
@@ -128,7 +134,7 @@ underscore-style names like `run_agent`; `contextforge` → `:4444/mcp` with the
 hyphenated names like `agno-platform-run-agent`). Always `oc tools list --server X` first to get the
 exact literal name before `oc tools call X:<name>`.
 
-## 7. agno 2.8 MCP door migration (2026-07-23): agentos-mcp :8001 RETIRED
+## 7. HISTORICAL — 2026-07-23 AgentOS MCP migration (surface now fully retired)
 
 The standalone `agentos-mcp` container/port (`:8001`) that used to be the only way to reach
 AgentOS's tools over MCP is gone as of the agno 2.6.13 → 2.8.0 upgrade. AgentOS now mounts its own

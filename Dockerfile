@@ -1,5 +1,5 @@
 # ===========================================================================
-# AgentOS Template
+# Platform API runtime
 # ===========================================================================
 
 FROM agnohq/python:3.12
@@ -18,7 +18,6 @@ WORKDIR /app
 ENV PYTHONPATH=/app
 COPY requirements.txt ./
 RUN uv pip sync requirements.txt --system
-RUN uv pip install --system fastmcp  # fastmcp: required by AgentOS enable_mcp_server=True
 # pymilvus REMOVED 2026-08-09 (D-042): owner ruled the Milvus->Weaviate cutover verified
 # (ADR-0040), and its transitive grpcio pin was what made requirements.txt unsatisfiable.
 # Legacy Milvus paths (server/analysis/milvus_forensic.py, vendored semantica milvus_store)
@@ -32,6 +31,6 @@ RUN chmod +x /app/scripts/entrypoint.sh
 ENTRYPOINT ["/app/scripts/entrypoint.sh"]
 
 # ---------------------------------------------------------------------------
-# Default command (overridden by compose for dev)
+# Default production API command
 # ---------------------------------------------------------------------------
 CMD ["uvicorn", "server.api.main:app", "--host", "0.0.0.0", "--port", "8000"]

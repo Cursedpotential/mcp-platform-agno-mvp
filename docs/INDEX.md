@@ -3,6 +3,7 @@
 > _Byline: Codex · GPT-5 · 2026-08-15 · updated 2026-08-18 (Codex · GPT-5)._
 > _2026-08-27 amendment: Codex · GPT-5 — added the static API-to-Workbench coverage census._
 > _2026-08-29 amendment: Codex · GPT-5 — recorded accepted ADR-0061 Workbench/SBV composition._
+> _2026-08-29 amendment: Codex · GPT-5.6-Sol — indexed the AgentOS retirement cutover handoff._
 > _2026-08-27 amendment: Codex · GPT-5 — corrected the live `platform` baseline and indexed
 > D-093 Slice 1 plus the durable run-event implementation status._
 > _2026-08-27 amendment: Codex · GPT-5 — added the open-source live observability shortlist._
@@ -28,6 +29,7 @@ deployed.
 | Independent verification of the above | [OWNER-REVIEW-2026-08-18-verified-todo-audit.md](OWNER-REVIEW-2026-08-18-verified-todo-audit.md) | Confirms/contradicts MASTER-TODO against live code+DB; lists gaps and owner-blocked items |
 | Evidence Desk handoff | [HANDOFF-2026-08-18-evidence-operations-desk-mvp.md](HANDOFF-2026-08-18-evidence-operations-desk-mvp.md) | Immediate production MVP |
 | Derived-document ingest wiring | [HANDOFF-2026-08-29-derived-document-ingest-wiring.md](HANDOFF-2026-08-29-derived-document-ingest-wiring.md) | AI work products (chronologies/strategy/guides) → context → timeline/vectors/graphs; WP-1..WP-11 |
+| AgentOS retirement and Agno bounded role | [HANDOFF-2026-08-29-agno-role-dissection.md](HANDOFF-2026-08-29-agno-role-dissection.md) | Current cutover status, owner rulings, local verification, and live release holds |
 | Repository placement | [REPO_STRUCTURE.md](REPO_STRUCTURE.md) | Structural index |
 | Live multi-lane log | [COORDINATION.md](COORDINATION.md) | Append-only coordination history |
 | Pending historical review | [awaiting-verification/README.md](awaiting-verification/README.md) | Moved records; all claims UNVERIFIED |
@@ -38,12 +40,14 @@ deployed.
 
 ## Current truth in one paragraph
 
-Agno 2.8.7/AgentOS is the **current runtime adapter**, while framework-neutral contracts and
-the custom Workbench are the **accepted target**. Knowledge is ingested once without horizon
+AgentOS is retired from the production API target; the plain FastAPI host and direct-caller cutover
+are implemented locally and held for live Coolify proof. Agno 2.8.7 remains only as a disabled,
+bounded atomic-agent library dependency while Temporal task contracts are built. Knowledge is ingested once without horizon
 restriction; agents later receive immutable, filtered horizon experiences. Semantica is a VIP
 service whose findings may be governed candidates. PostgreSQL is authoritative; Graphiti is a
-run-scoped belief projection. Portkey remains preferred routing, OpenCode adds persistent
-workspace/provider flexibility, and AG2 remains a candidate coordination adapter. Go routing is
+retired adapter, while SurrealDB is the governed manually promoted temporal/walk projection.
+Portkey remains preferred routing, OpenCode adds persistent
+workspace/provider flexibility. Go routing is
 decoder-coverage based at every file size.
 
 ADR-0056–0058 add a governed Surreal analytical/walk-memory target, claim-centered evidence

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
 oc — OpenCode-ops CLI. First-class control surface for the platform's headless
-OpenCode server plus the surrounding control plane it sits inside: agentos-api
-(bearer REST), agentos-mcp (streamable-HTTP JSON-RPC), and the ContextForge
-federated tool catalog (streamable-HTTP JSON-RPC, bearer). stdlib-only
+OpenCode server plus the surrounding control plane it sits inside: the plain
+Platform API (runtime-file bearer REST) and the ContextForge federated tool
+catalog (streamable-HTTP JSON-RPC, bearer). stdlib-only
 (urllib, json, argparse) -- no third-party deps, modeled on the `grc` CLI
 (graphiti-client skill) sibling pattern.
 
@@ -15,19 +15,19 @@ Never prints a full secret/token/provider-API-key -- only lengths/prefixes
 when diagnosing. See `oc doctor`.
 
 # Byline: Claude Code · Sonnet · 2026-07-20 (agno 2.8 MCP door migration :8001->:8000 + bearer, 2026-07-23)
+# Byline amendment: Codex · GPT-5.6-Sol · 2026-08-29 (plain Platform API cutover)
 """
+
 from __future__ import annotations
 
 import argparse
 import base64
 import json
 import os
-import re
 import sys
 import time
 import urllib.error
 import urllib.request
-from datetime import datetime, timezone
 
 # ---------------------------------------------------------------------------
 # Config (env-driven; every value below has a sane default for the platform)
@@ -57,21 +57,10 @@ OC_SERVER_PASSWORD = os.environ.get("OC_SERVER_PASSWORD")
 # behavior (shared default scope unless --directory is passed explicitly).
 OC_WORKSPACE = os.environ.get("OC_WORKSPACE")
 
-# agno 2.8 door migration (2026-07-23): agentos-mcp :8001 is RETIRED. The MCP
-# door is now mounted straight on agentos-api's own port -- streamable-HTTP,
-# REQUIRES Authorization: Bearer <OS_SECURITY_KEY> (verified live: initialize
-# ok, tools/list = 8 v2 tools: get_agentos_config, run_agent, run_team,
-# run_workflow, continue_run, cancel_run, get_sessions, get_session_runs).
-# _mcp_client("agentos") below attaches the same OS_SECURITY_KEY bearer
-# get_os_security_key() already parses for the REST agentos-api lane.
-AGENTOS_URL = os.environ.get("OC_AGENTOS_URL", "http://100.72.169.40:8000").rstrip("/")
-# agentos-mcp standalone service (:8001) retired 2026-07-23 — agno 2.8.0 fixed
-# the mounted-/mcp bug it worked around, so agentos-api's own :8000/mcp is now
-# the canonical MCP surface.
-AGENTOS_MCP_URL = os.environ.get("OC_AGENTOS_MCP_URL", "http://100.72.169.40:8000/mcp")
+PLATFORM_API_URL = os.environ.get("PLATFORM_API_URL", "http://100.72.169.40:8000").rstrip("/")
 CONTEXTFORGE_MCP_URL = os.environ.get("OC_CONTEXTFORGE_MCP_URL", "http://100.72.169.40:4444/mcp")
 
-INFRA_SECRETS_FILE = os.environ.get("OC_INFRA_SECRETS_FILE", r"C:/Users/matts/.secrets/infra-access.md")
+PLATFORM_API_BEARER_SECRET_FILE = os.environ.get("PLATFORM_API_BEARER_SECRET_FILE", "/run/secrets/platform-api-bearer")
 CONTEXTFORGE_ENV_FILE = os.environ.get("OC_CONTEXTFORGE_ENV_FILE", r"C:/Users/matts/.secrets/contextforge.env")
 
 PROTOCOL_VERSION = "2024-11-05"
@@ -107,20 +96,19 @@ def _load_env_file(path: str) -> dict:
     return out
 
 
-def get_os_security_key() -> str | None:
-    """Parse OS_SECURITY_KEY (bearer) out of infra-access.md. Tolerant regex —
-    matches the "**OS_SECURITY_KEY (bearer):** `<hex>`" line shape but doesn't
-    hard-require exact markdown formatting. Env override: OC_OS_SECURITY_KEY."""
-    override = os.environ.get("OC_OS_SECURITY_KEY")
-    if override:
-        return override
+def get_platform_api_bearer() -> str | None:
+    """Read the rotatable Platform API bearer from its runtime secret file.
+
+    The file is read on every operation so credential rotation takes effect
+    without restarting this CLI. Environment-variable bearer values are not
+    accepted.
+    """
     try:
-        with open(INFRA_SECRETS_FILE, encoding="utf-8") as f:
-            content = f.read()
-    except FileNotFoundError:
+        with open(PLATFORM_API_BEARER_SECRET_FILE, encoding="utf-8") as f:
+            credential = f.read().strip()
+    except (OSError, UnicodeError):
         return None
-    m = re.search(r"OS_SECURITY_KEY[^`\n]*`([0-9a-fA-F]{16,})`", content)
-    return m.group(1) if m else None
+    return credential or None
 
 
 def get_cf_token() -> str | None:
@@ -158,13 +146,16 @@ def http_request(
     url: str,
     bearer: str | None = None,
     json_body=None,
+    raw_body: bytes | None = None,
     timeout: float = DEFAULT_TIMEOUT,
     extra_headers: dict | None = None,
 ) -> tuple[int, dict, str]:
     headers = {"Accept": "application/json"}
     if extra_headers:
         headers.update(extra_headers)
-    data = None
+    if json_body is not None and raw_body is not None:
+        raise ValueError("json_body and raw_body are mutually exclusive")
+    data = raw_body
     if json_body is not None:
         data = json.dumps(json_body).encode("utf-8")
         headers["Content-Type"] = "application/json"
@@ -193,8 +184,38 @@ def http_json(method: str, url: str, **kw):
     return status, body
 
 
+def _multipart_upload(fields: dict[str, str | None], filename: str, content: bytes) -> tuple[bytes, str]:
+    """Encode the Platform API's multipart run-start contract."""
+
+    boundary = f"oc-{time.time_ns():x}"
+    chunks: list[bytes] = []
+    for name, value in fields.items():
+        if value is None:
+            continue
+        chunks.extend(
+            (
+                f"--{boundary}\r\n".encode(),
+                f'Content-Disposition: form-data; name="{name}"\r\n\r\n'.encode(),
+                str(value).encode("utf-8"),
+                b"\r\n",
+            )
+        )
+    safe_filename = os.path.basename(filename).replace('"', "")
+    chunks.extend(
+        (
+            f"--{boundary}\r\n".encode(),
+            f'Content-Disposition: form-data; name="file"; filename="{safe_filename}"\r\n'.encode(),
+            b"Content-Type: application/octet-stream\r\n\r\n",
+            content,
+            b"\r\n",
+            f"--{boundary}--\r\n".encode(),
+        )
+    )
+    return b"".join(chunks), f"multipart/form-data; boundary={boundary}"
+
+
 # ---------------------------------------------------------------------------
-# MCP streamable-HTTP client (shared by agentos-mcp + contextforge)
+# MCP streamable-HTTP client (ContextForge)
 # ---------------------------------------------------------------------------
 
 
@@ -203,8 +224,8 @@ class McpClient:
     initialize -> (optional) Mcp-Session-Id header capture -> notifications/
     initialized -> tools/list / tools/call. Tolerates stateless gateways
     (ContextForge answers tools/call with no session id at all — verified
-    live 2026-07-20) as well as stateful ones (agentos-mcp issues a session id
-    on initialize). Responses may be plain JSON or SSE-framed."""
+    live 2026-07-20) as well as stateful endpoints. Responses may be plain
+    JSON or SSE-framed."""
 
     def __init__(self, url: str, bearer: str | None = None, timeout: float = DEFAULT_TIMEOUT):
         self.url = url
@@ -239,7 +260,7 @@ class McpClient:
     def _parse_sse_or_json(raw: str) -> dict:
         for line in raw.splitlines():
             if line.startswith("data:"):
-                return json.loads(line[len("data:"):].strip())
+                return json.loads(line[len("data:") :].strip())
         if not raw.strip():
             return {}
         return json.loads(raw)
@@ -320,18 +341,12 @@ class McpClient:
 
 
 def _mcp_client(server: str) -> McpClient:
-    if server == "agentos":
-        # agno 2.8: the mounted /mcp door requires the same OS_SECURITY_KEY
-        # bearer as every other gated route on agentos-api (see the
-        # AGENTOS_MCP_URL comment above) -- unlike the old agentos-mcp :8001
-        # door, which was unauthenticated.
-        return McpClient(AGENTOS_MCP_URL, bearer=get_os_security_key())
     if server == "contextforge":
         token = get_cf_token()
         if not token:
             raise OcError(f"CF_MCP_CLIENT_TOKEN not found ({CONTEXTFORGE_ENV_FILE} / OC_CF_MCP_CLIENT_TOKEN)")
         return McpClient(CONTEXTFORGE_MCP_URL, bearer=token)
-    raise OcError(f"unknown MCP server {server!r} (expected: agentos, contextforge)")
+    raise OcError(f"unknown MCP server {server!r} (expected: contextforge)")
 
 
 # ---------------------------------------------------------------------------
@@ -386,53 +401,49 @@ def cmd_doctor(args) -> int:
     # 2. OpenCode providers
     try:
         status, doc = http_json(
-            "GET", f"{OC_SERVER}/provider", bearer=OC_TOKEN, timeout=args.timeout, extra_headers=_opencode_auth_headers()
+            "GET",
+            f"{OC_SERVER}/provider",
+            bearer=OC_TOKEN,
+            timeout=args.timeout,
+            extra_headers=_opencode_auth_headers(),
         )
         connected = doc.get("connected", []) if isinstance(doc, dict) else []
         total = len(doc.get("all", [])) if isinstance(doc, dict) else 0
-        row("opencode: GET /provider", status == 200, f"HTTP {status}, {len(connected)} connected / {total} known: {', '.join(connected)}")
+        row(
+            "opencode: GET /provider",
+            status == 200,
+            f"HTTP {status}, {len(connected)} connected / {total} known: {', '.join(connected)}",
+        )
     except OcError as e:
         row("opencode: GET /provider", False, str(e)[:200])
 
-    # 3. agentos-api health (unauth)
+    # 3. Platform API health (unauthenticated by contract)
     try:
-        status, doc = http_json("GET", f"{AGENTOS_URL}/health", timeout=args.timeout)
-        row("agentos-api: GET /health", status == 200 and doc.get("status") == "ok", f"HTTP {status} {doc}")
+        status, doc = http_json("GET", f"{PLATFORM_API_URL}/health", timeout=args.timeout)
+        row("platform-api: GET /health", status == 200 and doc.get("status") == "ok", f"HTTP {status} {doc}")
     except OcError as e:
-        row("agentos-api: GET /health", False, str(e)[:200])
+        row("platform-api: GET /health", False, str(e)[:200])
 
-    # 4. agentos-api bearer-gated route
-    key = get_os_security_key()
+    # 4. Platform API runtime-file bearer boundary on a supported read route
+    key = get_platform_api_bearer()
     if not key:
-        row("agentos-api: GET /info (bearer)", False, f"OS_SECURITY_KEY not found in {INFRA_SECRETS_FILE}")
+        row(
+            "platform-api: GET /v1/runs (bearer)",
+            False,
+            f"runtime bearer not found in {PLATFORM_API_BEARER_SECRET_FILE}",
+        )
     else:
         try:
-            status, doc = http_json("GET", f"{AGENTOS_URL}/info", bearer=key, timeout=args.timeout)
+            status, doc = http_json("GET", f"{PLATFORM_API_URL}/v1/runs?limit=1", bearer=key, timeout=args.timeout)
             row(
-                "agentos-api: GET /info (bearer)",
+                "platform-api: GET /v1/runs (bearer)",
                 status == 200,
-                f"HTTP {status}, agno={doc.get('agno_version')}, agents={doc.get('agent_count')}, teams={doc.get('team_count')}, workflows={doc.get('workflow_count')} [key {_secret_hint(key)}]",
+                f"HTTP {status}, runs={len(doc) if isinstance(doc, list) else '?'} [key {_secret_hint(key)}]",
             )
         except OcError as e:
-            row("agentos-api: GET /info (bearer)", False, str(e)[:200])
+            row("platform-api: GET /v1/runs (bearer)", False, str(e)[:200])
 
-    # 5. agentos-mcp (agno 2.8: bearer-gated, same OS_SECURITY_KEY as /info)
-    mcp_key = get_os_security_key()
-    try:
-        client = McpClient(AGENTOS_MCP_URL, bearer=mcp_key, timeout=args.timeout)
-        t0 = time.time()
-        client.initialize()
-        tools = client.list_tools()
-        ms = (time.time() - t0) * 1000
-        row(
-            "agentos-mcp: initialize + tools/list",
-            len(tools) > 0,
-            f"{AGENTOS_MCP_URL} -> {len(tools)} tools ({ms:.0f}ms) [key {_secret_hint(mcp_key)}]",
-        )
-    except OcError as e:
-        row("agentos-mcp: initialize + tools/list", False, str(e)[:200])
-
-    # 6. contextforge-mcp (bearer)
+    # 5. ContextForge MCP (bearer)
     cf_token = get_cf_token()
     if not cf_token:
         row("contextforge-mcp: tools/list (bearer)", False, f"CF_MCP_CLIENT_TOKEN not found in {CONTEXTFORGE_ENV_FILE}")
@@ -514,7 +525,9 @@ def cmd_models(args) -> int:
     if args.json:
         out = []
         for p in providers:
-            out.append({"id": p.get("id"), "connected": p.get("id") in connected, "models": list(p.get("models", {}).keys())})
+            out.append(
+                {"id": p.get("id"), "connected": p.get("id") in connected, "models": list(p.get("models", {}).keys())}
+            )
         _print_json(out)
         return 0
     for p in providers:
@@ -546,7 +559,10 @@ def cmd_sessions(args) -> int:
             return 1
         try:
             status, doc = http_json(
-                "GET", f"{OC_SERVER}/session/{args.id}", bearer=OC_TOKEN, timeout=args.timeout,
+                "GET",
+                f"{OC_SERVER}/session/{args.id}",
+                bearer=OC_TOKEN,
+                timeout=args.timeout,
                 extra_headers=_opencode_auth_headers(),
             )
         except OcError as e:
@@ -569,7 +585,10 @@ def cmd_sessions(args) -> int:
     # default: list
     try:
         status, doc = http_json(
-            "GET", f"{OC_SERVER}/session", bearer=OC_TOKEN, timeout=args.timeout,
+            "GET",
+            f"{OC_SERVER}/session",
+            bearer=OC_TOKEN,
+            timeout=args.timeout,
             extra_headers=_opencode_auth_headers(),
         )
     except OcError as e:
@@ -586,7 +605,9 @@ def cmd_sessions(args) -> int:
         print("(no sessions)")
         return 0
     for s in items[: args.limit]:
-        print(f"- {s.get('id')}  {s.get('title', '')!r}  dir={s.get('directory')}  updated={s.get('time', {}).get('updated')}")
+        print(
+            f"- {s.get('id')}  {s.get('title', '')!r}  dir={s.get('directory')}  updated={s.get('time', {}).get('updated')}"
+        )
     return 0
 
 
@@ -634,7 +655,9 @@ def cmd_run(args) -> int:
             return 1
         picked = _pick_default_model(doc)
         if not picked:
-            print("FAIL: no connected provider to pick a default model from; pass --model provider/model", file=sys.stderr)
+            print(
+                "FAIL: no connected provider to pick a default model from; pass --model provider/model", file=sys.stderr
+            )
             return 1
         provider_id, model_id = picked
 
@@ -644,7 +667,11 @@ def cmd_run(args) -> int:
         try:
             qs = f"?directory={urllib.request.quote(directory)}" if directory else ""
             status, doc = http_json(
-                "POST", f"{OC_SERVER}/session{qs}", bearer=OC_TOKEN, json_body={}, timeout=timeout,
+                "POST",
+                f"{OC_SERVER}/session{qs}",
+                bearer=OC_TOKEN,
+                json_body={},
+                timeout=timeout,
                 extra_headers=_opencode_auth_headers(),
             )
         except OcError as e:
@@ -665,7 +692,11 @@ def cmd_run(args) -> int:
     try:
         qs = f"?directory={urllib.request.quote(directory)}" if directory else ""
         status, doc = http_json(
-            "POST", f"{OC_SERVER}/session/{session_id}/message{qs}", bearer=OC_TOKEN, json_body=body, timeout=timeout,
+            "POST",
+            f"{OC_SERVER}/session/{session_id}/message{qs}",
+            bearer=OC_TOKEN,
+            json_body=body,
+            timeout=timeout,
             extra_headers=_opencode_auth_headers(),
         )
     except OcError as e:
@@ -698,47 +729,54 @@ def cmd_run(args) -> int:
 
 
 # ---------------------------------------------------------------------------
-# Subcommands — runs (agentos-api spine run ledger)
+# Subcommands — runs (Platform API spine run ledger)
 # ---------------------------------------------------------------------------
 
 
 def cmd_runs(args) -> int:
-    key = get_os_security_key()
+    key = get_platform_api_bearer()
     if not key:
-        print(f"FAIL: OS_SECURITY_KEY not found in {INFRA_SECRETS_FILE}", file=sys.stderr)
+        print(f"FAIL: runtime bearer not found in {PLATFORM_API_BEARER_SECRET_FILE}", file=sys.stderr)
         return 1
 
     if args.action == "get":
         if not args.id:
             print("FAIL: `oc runs get <run_id>` needs a run id", file=sys.stderr)
             return 1
-        url = f"{AGENTOS_URL}/v1/runs/{args.id}"
+        url = f"{PLATFORM_API_URL}/v1/runs/{args.id}"
         status, doc = http_json("GET", url, bearer=key, timeout=args.timeout)
     elif args.action == "start":
         if not args.file:
             print("FAIL: `oc runs start <file> --workflow X --domain Y` needs a file", file=sys.stderr)
             return 1
         try:
-            with open(args.file, encoding="utf-8") as f:
+            with open(args.file, "rb") as f:
                 content = f.read()
         except OSError as e:
             print(f"FAIL: cannot read {args.file}: {e}", file=sys.stderr)
             return 1
-        body = {"workflow": args.workflow, "domain": args.domain, "input": content, "source_path": args.file}
-        status, doc = http_json("POST", f"{AGENTOS_URL}/v1/runs", bearer=key, json_body=body, timeout=args.timeout)
+        body, content_type = _multipart_upload(
+            {"workflow": args.workflow, "domain": args.domain},
+            args.file,
+            content,
+        )
+        status, _headers, raw = http_request(
+            "POST",
+            f"{PLATFORM_API_URL}/v1/runs",
+            bearer=key,
+            raw_body=body,
+            timeout=args.timeout,
+            extra_headers={"Content-Type": content_type},
+        )
+        try:
+            doc = json.loads(raw) if raw.strip() else {}
+        except json.JSONDecodeError:
+            doc = {"_raw": raw}
     else:  # list
-        status, doc = http_json("GET", f"{AGENTOS_URL}/v1/runs", bearer=key, timeout=args.timeout)
+        status, doc = http_json("GET", f"{PLATFORM_API_URL}/v1/runs", bearer=key, timeout=args.timeout)
 
     if status == 404:
-        # Spec'd contract (POST/GET /v1/runs) is not deployed on this build
-        # yet (verified live 2026-07-20 — AgentOS currently only exposes
-        # per-type run ledgers: /workflows/{id}/runs, /agents/{id}/runs,
-        # /teams/{id}/runs; workflow_count=0 on this instance). Clean,
-        # documented, non-crashing 404 — this is the expected state until a
-        # parallel build lands the unified spine ledger.
-        print("runs API not deployed on this AgentOS build yet (HTTP 404 on /v1/runs).")
-        print("Current live shape instead nests runs per resource type: /agents/{id}/runs,")
-        print("/workflows/{id}/runs, /teams/{id}/runs (see `oc doctor` / SKILL.md notes).")
+        print("Platform run ledger is unavailable (HTTP 404 on /v1/runs).", file=sys.stderr)
         return 1
 
     if args.json:
@@ -770,7 +808,9 @@ def cmd_runs(args) -> int:
 def cmd_tools(args) -> int:
     if args.action == "call":
         if not args.target or ":" not in args.target:
-            print("FAIL: `oc tools call <server>:<tool> --args '<json>'` — server must be agentos or contextforge", file=sys.stderr)
+            print(
+                "FAIL: `oc tools call <server>:<tool> --args '<json>'` — server must be contextforge", file=sys.stderr
+            )
             return 1
         server, tool_name = args.target.split(":", 1)
         try:
@@ -788,7 +828,7 @@ def cmd_tools(args) -> int:
         return 0
 
     # default: list
-    servers = [args.server] if args.server else ["agentos", "contextforge"]
+    servers = [args.server] if args.server else ["contextforge"]
     exit_code = 0
     for server in servers:
         print(f"=== {server} ===")
@@ -809,38 +849,20 @@ def cmd_tools(args) -> int:
 
 
 # ---------------------------------------------------------------------------
-# Subcommands — ksearch (agentos knowledge search)
+# Subcommands — retired generic knowledge search compatibility command
 # ---------------------------------------------------------------------------
 
 
 def cmd_ksearch(args) -> int:
-    key = get_os_security_key()
-    if not key:
-        print(f"FAIL: OS_SECURITY_KEY not found in {INFRA_SECRETS_FILE}", file=sys.stderr)
-        return 1
-    body = {"query": args.query, "limit": args.limit}
-    try:
-        status, doc = http_json("POST", f"{AGENTOS_URL}/knowledge/search", bearer=key, json_body=body, timeout=args.timeout)
-    except OcError as e:
-        print(f"FAIL: {e}", file=sys.stderr)
-        return 1
+    message = (
+        "generic knowledge search is retired and no framework-neutral replacement contract exists; "
+        "use the separately authorized bounded evidence-search workflow when evidence search is intended"
+    )
     if args.json:
-        _print_json(doc)
-        return 0 if status < 400 else 1
-    if status >= 400:
-        print(f"FAIL: HTTP {status}: {_truncate(doc, 300)}", file=sys.stderr)
-        return 1
-    items = doc.get("data", []) if isinstance(doc, dict) else []
-    meta = doc.get("meta", {}) if isinstance(doc, dict) else {}
-    if not items:
-        note = ""
-        if meta.get("total_count", 0) == 0:
-            note = " (empty result — collection may be gated/unindexed, not necessarily an error)"
-        print(f"(no results for {args.query!r}{note})")
-        return 0
-    for hit in items:
-        print(f"- {_truncate(hit.get('content', hit), 160)}")
-    return 0
+        _print_json({"error": "unsupported_operation", "detail": message})
+    else:
+        print(f"FAIL: {message}", file=sys.stderr)
+    return 1
 
 
 # ---------------------------------------------------------------------------
@@ -851,15 +873,17 @@ def cmd_ksearch(args) -> int:
 def build_parser() -> argparse.ArgumentParser:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--json", action="store_true", help="raw JSON output")
-    common.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT, help=f"request timeout in seconds (default {DEFAULT_TIMEOUT})")
+    common.add_argument(
+        "--timeout", type=float, default=DEFAULT_TIMEOUT, help=f"request timeout in seconds (default {DEFAULT_TIMEOUT})"
+    )
 
     p = argparse.ArgumentParser(
         prog="oc",
-        description="OpenCode-ops CLI — headless OpenCode server + agentos-api + agentos-mcp + ContextForge, one control surface.",
+        description="OpenCode-ops CLI — headless OpenCode server + Platform API + ContextForge, one control surface.",
     )
     sub = p.add_subparsers(dest="command", required=True)
 
-    sp = sub.add_parser("doctor", help="probe all endpoints (opencode, agentos-api, both MCP doors)", parents=[common])
+    sp = sub.add_parser("doctor", help="probe OpenCode, Platform API, and ContextForge", parents=[common])
     sp.set_defaults(func=cmd_doctor)
 
     sp = sub.add_parser("providers", help="list OpenCode providers (connected + known)", parents=[common])
@@ -879,26 +903,40 @@ def build_parser() -> argparse.ArgumentParser:
 
     sp = sub.add_parser("run", help="create/reuse a session, send a prompt, print the final text", parents=[common])
     sp.add_argument("prompt")
-    sp.add_argument("--model", default=None, help="provider/model, e.g. groq/llama-3.1-8b-instant (default: first connected provider's default)")
+    sp.add_argument(
+        "--model",
+        default=None,
+        help="provider/model, e.g. groq/llama-3.1-8b-instant (default: first connected provider's default)",
+    )
     sp.add_argument("--session", default=None, help="reuse this session id instead of creating one")
-    sp.add_argument("--directory", default=None, help="isolate the session under this directory (avoids the shared 'global' project context)")
+    sp.add_argument(
+        "--directory",
+        default=None,
+        help="isolate the session under this directory (avoids the shared 'global' project context)",
+    )
     sp.set_defaults(func=cmd_run)
 
-    sp = sub.add_parser("runs", help="agentos-api run ledger: list | get <run_id> | start <file> --workflow X --domain Y", parents=[common])
+    sp = sub.add_parser(
+        "runs",
+        help="Platform API run ledger: list | get <run_id> | start <file> --workflow X --domain Y",
+        parents=[common],
+    )
     sp.add_argument("action", nargs="?", choices=["list", "get", "start"], default="list")
     sp.add_argument("target", nargs="?", default=None, help="run_id (get) or input file (start)")
     sp.add_argument("--workflow", default=None, choices=["chat-transcript", "sms-xml"], help="workflow slug (start)")
     sp.add_argument("--domain", default=None, help="domain tag (start)")
     sp.set_defaults(func=_dispatch_runs)
 
-    sp = sub.add_parser("tools", help="MCP tool catalogs: list | call <server>:<tool> --args '<json>'", parents=[common])
+    sp = sub.add_parser(
+        "tools", help="MCP tool catalogs: list | call <server>:<tool> --args '<json>'", parents=[common]
+    )
     sp.add_argument("action", nargs="?", choices=["list", "call"], default="list")
     sp.add_argument("target", nargs="?", default=None, help="server:tool for call")
-    sp.add_argument("--server", choices=["agentos", "contextforge"], default=None, help="restrict `list` to one server")
+    sp.add_argument("--server", choices=["contextforge"], default=None, help="restrict `list` to one server")
     sp.add_argument("--args", default=None, help="JSON arguments object for call")
     sp.set_defaults(func=_dispatch_tools)
 
-    sp = sub.add_parser("ksearch", help="POST /knowledge/search on agentos-api", parents=[common])
+    sp = sub.add_parser("ksearch", help="retired generic search command (fails closed)", parents=[common])
     sp.add_argument("query")
     sp.add_argument("--limit", type=int, default=10)
     sp.set_defaults(func=cmd_ksearch)

@@ -2,6 +2,7 @@
 # Byline: Codex · GPT-5 · 2026-08-16 (neutral canonical catalog/detail coverage)
 # Byline: Codex · GPT-5 · 2026-08-18 (projection overlay and split chunk coverage)
 # Byline: Codex · GPT-5 · 2026-08-18 (native evidence search routing coverage)
+# Byline: Codex · GPT-5.6-Sol · 2026-08-29 (retired AgentOS search fails closed)
 """Unit coverage for the Workbench Knowledge anti-corruption adapter."""
 
 from __future__ import annotations
@@ -11,36 +12,15 @@ import pytest
 from app.service import knowledge
 
 
-def test_knowledge_ids_match_registered_agentos_bases():
-    assert knowledge._knowledge_id("platform") == "3dd8cc92-f149-25b9-f150-fb9c934c9010"
-    assert knowledge._knowledge_id("legal") == "6efddf6c-a228-38fc-7d85-88fbce105752"
-    assert knowledge._knowledge_id("evidence") == "3c4a8296-e60f-3374-38b8-e6e93ffb874e"
-    assert knowledge._knowledge_id("personal_history") == "932491b5-6999-97e7-01a2-af2d17b61308"
-    assert knowledge._knowledge_id("context") == "19c578b1-53e6-f6cd-0315-4954635d26fc"
+def test_search_non_evidence_lane_fails_closed_without_retired_call(monkeypatch):
+    def must_not_call(*args, **kwargs):
+        raise AssertionError("retired AgentOS knowledge endpoint must not be called")
 
+    monkeypatch.setattr(knowledge, "spine_json", must_not_call)
 
-def test_search_one_lane_uses_knowledge_id_and_case_prefilter(monkeypatch):
-    captured = {}
-
-    def fake_spine_json(method, path, **kwargs):
-        captured.update(method=method, path=path, kwargs=kwargs)
-        return {
-            "data": [{"id": "h1", "content": "x", "reranking_score": 0.7}],
-            "meta": {"total_count": 1},
-        }
-
-    monkeypatch.setattr(knowledge, "spine_json", fake_spine_json)
-    result = knowledge.search("custody chain", case_id="matter-2", lane="legal", limit=5)
-
-    assert captured["method"] == "POST"
-    assert captured["path"] == "/knowledge/search"
-    assert captured["kwargs"]["json"] == {
-        "query": "custody chain",
-        "knowledge_id": knowledge._knowledge_id("legal"),
-        "max_results": 5,
-        "filters": {"case_id": "matter-2"},
-    }
-    assert result["data"][0]["meta_data"]["knowledge_lane"] == "legal"
+    with pytest.raises(knowledge.SpineError, match="framework-neutral projection") as error:
+        knowledge.search("custody chain", case_id="matter-2", lane="legal", limit=5)
+    assert error.value.status_code == 503
 
 
 def test_search_evidence_uses_native_horizon_route_without_caller_tiers(monkeypatch):
@@ -81,31 +61,15 @@ def test_search_evidence_uses_native_horizon_route_without_caller_tiers(monkeypa
     assert result["data"][0]["meta_data"]["knowledge_lane"] == "evidence"
 
 
-def test_search_all_lanes_merges_after_each_case_prefilter(monkeypatch):
-    calls = []
-    monkeypatch.setattr(knowledge.settings, "evidence_operator_security_key", "owner-search-key")
+def test_search_without_lane_fails_closed_instead_of_returning_partial_results(monkeypatch):
+    def must_not_call(*args, **kwargs):
+        raise AssertionError("no projection should be queried for an unavailable cross-lane request")
 
-    def fake_spine_json(method, path, **kwargs):
-        body = kwargs["json"]
-        calls.append(body)
-        score = len(calls) / 10
-        return {
-            "data": [{"id": f"h{len(calls)}", "content": "x", "reranking_score": score}],
-            "meta": {"total_count": 1},
-        }
+    monkeypatch.setattr(knowledge, "spine_json", must_not_call)
 
-    monkeypatch.setattr(knowledge, "spine_json", fake_spine_json)
-    result = knowledge.search("what happened", case_id="primary", limit=3)
-
-    assert len(calls) == len(knowledge._KNOWLEDGE_TABLES)
-    agno_calls = [call for call in calls if "knowledge_id" in call]
-    native_calls = [call for call in calls if "knowledge_id" not in call]
-    assert len(agno_calls) == len(knowledge._KNOWLEDGE_TABLES) - 1
-    assert all(call["filters"] == {"case_id": "primary"} for call in agno_calls)
-    assert len({call["knowledge_id"] for call in agno_calls}) == len(agno_calls)
-    assert native_calls == [{"query": "what happened", "case_id": "primary", "limit": 3, "mode": "hybrid"}]
-    assert [hit["reranking_score"] for hit in result["data"]] == [0.5, 0.4, 0.3]
-    assert result["meta"]["total_count"] == 5
+    with pytest.raises(knowledge.SpineError, match="cross-lane semantic search") as error:
+        knowledge.search("what happened", case_id="primary", limit=3)
+    assert error.value.status_code == 503
 
 
 @pytest.mark.parametrize(

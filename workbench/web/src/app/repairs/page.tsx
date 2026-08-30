@@ -13,19 +13,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   executeRepairTool,
-  listRepairParticipants,
   listRepairTools,
-  runRepairAgentReview,
   runAutomaticRepairAssessment,
-  type RepairParticipant,
   type RepairToolCard,
 } from "@/lib/api-client";
 
 export default function RepairsPage() {
   const [tools, setTools] = useState<RepairToolCard[]>([]);
-  const [participants, setParticipants] = useState<RepairParticipant[]>([]);
-  const [participantId, setParticipantId] = useState("");
-  const [agentTask, setAgentTask] = useState("Review this source and recommend the safest processing path.");
   const [selected, setSelected] = useState<string>("");
   const [path, setPath] = useState("");
   const [payloadText, setPayloadText] = useState('{\n  "path": ""\n}');
@@ -45,14 +39,11 @@ export default function RepairsPage() {
 
   useEffect(() => {
     let active = true;
-    Promise.all([listRepairTools(), listRepairParticipants()])
-      .then(([cards, roster]) => {
+    listRepairTools()
+      .then((cards) => {
         if (!active) return;
         setTools(cards);
         setSelected((current) => current || cards[0]?.id || "");
-        setParticipants(roster);
-        const preferred = roster.find((item) => item.id === "ingestion-orchestrator") ?? roster.find((item) => item.recommended) ?? roster[0];
-        setParticipantId((current) => current || (preferred ? `${preferred.type}:${preferred.id}` : ""));
       })
       .catch((error) => {
         if (active) toast.error(error instanceof Error ? error.message : "Could not load repair tools");
@@ -61,7 +52,6 @@ export default function RepairsPage() {
   }, []);
 
   const selectedTool = tools.find((tool) => tool.id === selected);
-  const selectedParticipant = participants.find((item) => `${item.type}:${item.id}` === participantId || item.id === participantId);
 
   const assess = async () => {
     if (!path.trim()) return toast.error("Enter a server-visible evidence path");
@@ -82,23 +72,6 @@ export default function RepairsPage() {
       toast.success(`${selected} completed`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Repair call failed");
-    } finally { setBusy(false); }
-  };
-
-  const askAgent = async () => {
-    if (!path.trim()) return toast.error("Enter a server-visible evidence path");
-    if (!selectedParticipant) return toast.error("Select a live Platform participant");
-    setBusy(true);
-    try {
-      setResult(await runRepairAgentReview({
-        participant: selectedParticipant,
-        path: path.trim(),
-        task: agentTask,
-        assessment: result && typeof result === "object" ? result as Record<string, unknown> : undefined,
-      }));
-      toast.success(`${selectedParticipant.name} completed its review`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Agent review failed");
     } finally { setBusy(false); }
   };
 
@@ -124,16 +97,13 @@ export default function RepairsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Bot className="h-5 w-5" />Agent-assisted processing</CardTitle>
-          <CardDescription>Live Platform agents and teams can inspect, compare, and propose actions. Writes remain operator-approved.</CardDescription>
+          <CardTitle className="flex items-center gap-2"><Bot className="h-5 w-5" />Bounded agent review</CardTitle>
+          <CardDescription>
+            Unavailable until a governed Temporal repair-review task is explicitly activated. No generic agents or teams are exposed.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-[minmax(220px,0.7fr)_minmax(0,1.3fr)_auto]">
-          <select value={participantId} onChange={(event) => setParticipantId(event.target.value)} className="h-9 rounded-md border bg-background px-3 text-sm">
-            {participants.map((participant) => <option key={`${participant.type}:${participant.id}`} value={`${participant.type}:${participant.id}`}>{participant.recommended ? "★ " : ""}{participant.name} ({participant.type})</option>)}
-          </select>
-          <Input value={agentTask} onChange={(event) => setAgentTask(event.target.value)} aria-label="Agent review task" />
-          <Button onClick={askAgent} disabled={busy || !selectedParticipant}><Bot />Ask agent</Button>
-          {selectedParticipant && <p className="text-xs text-muted-foreground md:col-span-3">{selectedParticipant.role || "No role description returned by the Platform."}</p>}
+        <CardContent>
+          <Badge variant="secondary">Disabled pending Temporal task contract</Badge>
         </CardContent>
       </Card>
 

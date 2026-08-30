@@ -3,10 +3,70 @@
 > _Byline: Claude · Opus 5 · 2026-08-29, from an owner directive._
 > _Ruling reconciliation: Codex · GPT-5.6-Sol · 2026-08-29._
 
-STATUS: ANALYZED — runtime/data dissection complete; owner rulings recorded below; implementation
-not started.
-BUILD_STATUS: NOT STARTED — this packet now authorizes an ordered replacement plan, but no source,
-database, deployment, or live-service change has been made from it.
+STATUS: IMPLEMENTING — runtime/data dissection and owner rulings are complete; the production-host
+and direct-caller cutover is implemented locally. Temporal workflow and Agno Knowledge/provider
+replacement remain active follow-on slices.
+BUILD_STATUS: LOCAL CUTOVER VERIFIED / RELEASE HOLD — plain FastAPI, runtime-file auth, private
+deployment naming, Workbench callers, LibreChat/ContextForge publication config, OpenCode ops, and
+matter preflight are implemented and focused-test proven. Nothing in this implementation block is
+claimed deployed or live until the Coolify resources build the current SHA and live probes pass.
+
+## Implementation receipt — production-host slice (2026-08-29)
+
+_Byline: Codex · GPT-5.6-Sol · 2026-08-29._
+
+Implemented locally:
+
+- `server.api.main` is a plain FastAPI composition root. A fresh-process import loads **zero Agno
+  modules**; AgentOS routes, registry, generic agents/teams/workflows, scheduler, tracing, model
+  picker, Knowledge construction, and `/mcp` are absent.
+- Ordinary Platform API routes use one runtime-mounted bearer file, read again on every request.
+  Missing/empty/unreadable state fails closed; rotation needs no rebuild or redeploy. Exact signed
+  walk and owner-evidence routes retain their distinct local credentials.
+- The exec service is named `platform-api`, has no public Traefik router, and is reached privately
+  by Workbench as `http://platform-api:8000` on the shared Coolify network.
+- Workbench document promotion uses `/v1/ingest` plus the durable `/v1/runs/{run_id}` receipt. It
+  never substitutes extracted text for unavailable original bytes, never lets editable metadata
+  override original SHA/name provenance, and keeps timed-out or temporarily unavailable receipt
+  polling in `promoting` state with the accepted `run_id` intact. Only a durable terminal receipt
+  may mark the staged item promoted or failed.
+- Workbench semantic search is evidence-only. Unsupported cross-lane/non-evidence search fails
+  closed in the API and is not offered by the UI; canonical catalog browsing remains multi-lane.
+- Workbench repair review no longer discovers or invokes generic AgentOS agents/teams. It stays
+  disabled until a bounded Temporal task contract exists. Repair tools publish through
+  ContextForge/Portkey.
+- LibreChat now bakes its tracked, secret-free MCP configuration into a digest-pinned derived
+  image and requires the Portkey-published ContextForge URL/credential at deployment. The former
+  host-staged config cannot silently drift.
+- OpenCode ops and the Matter activation preflight use the Platform API/runtime-file bearer and
+  ContextForge. Retired `/info`, `/knowledge/search`, AgentOS MCP, `AGENTOS_API_URL`, and
+  `AGENTOS_API_TOKEN` runtime paths are gone.
+- Platform API and Workbench now apply the same bearer-file byte contract: UTF-8, bounded length,
+  surrounding file whitespace normalized, and an allowlisted token alphabet. A newline written by
+  an ordinary secret-file provisioning command cannot authenticate one side while disabling the
+  other.
+
+Verified locally:
+
+- Expanded Platform host/auth/deployment/ingest/resilience suite: **296 passed**.
+- Matter-preflight plus OpenCode-ops cutover: **17 passed**.
+- Workbench cutover tests and production Next.js build pass; 17 static routes generated. The full
+  Workbench API run is **224 passed / 1 pre-existing structure failure** because clean-tree
+  `app/service/uiw.py` (301 lines) and `app/types/case_management.py` (315 lines) exceed its
+  300-line policy; neither file belongs to this cutover slice.
+- `ruff`, focused `mypy`, requirements regeneration, and `git diff --check` pass for the slice.
+
+Release holds:
+
+1. Repoint the branch-scoped LibreChat Coolify resource from `infra/librechat` to `main` and
+   `deploy/librechat.yaml`, with exact watch paths and required Portkey MCP runtime values.
+2. Deploy the exec and Workbench resources from the cutover SHA; prove `/health`, authenticated
+   Platform calls, Workbench promote/search, and ContextForge MCP initialize/tools-list live.
+3. Do not quarantine the historical AgentOS modules or legacy `deploy/compose.yaml` until
+   zero-caller, retained-state, rollback, and live-parity proof are complete.
+4. Continue the ordered replacement of `server/evidence/workflows.py` and Agno-owned
+   Knowledge/provider/vector/session code; this host slice deliberately does not pretend those
+   later changes are complete.
 
 ## Owner rulings after the dissection — current authority
 

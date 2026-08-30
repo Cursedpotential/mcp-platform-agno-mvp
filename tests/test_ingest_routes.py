@@ -12,8 +12,9 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+import pytest
 
-from server.api import ingest_routes
+from server.api import ingest_routes, platform_auth
 from server.contracts.ingest import IngestLane, IngestReceipt, IngestRequest, ProjectionResult
 
 
@@ -39,10 +40,17 @@ def _receipt(request: IngestRequest) -> IngestReceipt:
     )
 
 
+@pytest.fixture(autouse=True)
+def _platform_bearer(tmp_path, monkeypatch) -> Path:
+    bearer = tmp_path / "platform-api-bearer"
+    bearer.write_text("test-ingest-key", encoding="utf-8")
+    monkeypatch.setattr(platform_auth, "_PLATFORM_API_BEARER_FILE", bearer)
+    return bearer
+
+
 def test_upload_route_stages_safely_and_returns_compatible_receipt(tmp_path, monkeypatch) -> None:
     seen: list[IngestRequest] = []
     monkeypatch.setenv("INGEST_STAGING_ROOT", str(tmp_path))
-    monkeypatch.setenv("OS_SECURITY_KEY", "test-ingest-key")
 
     async def fake_submit(request: IngestRequest):
         seen.append(request)
@@ -73,7 +81,6 @@ def test_upload_route_stages_safely_and_returns_compatible_receipt(tmp_path, mon
 
 def test_upload_route_rejects_non_object_source_identity(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("INGEST_STAGING_ROOT", str(tmp_path))
-    monkeypatch.setenv("OS_SECURITY_KEY", "test-ingest-key")
     app = FastAPI()
     ingest_routes.register_ingest_routes(app)
     response = TestClient(app).post(
@@ -88,7 +95,6 @@ def test_upload_route_rejects_non_object_source_identity(tmp_path, monkeypatch) 
 def test_upload_route_accepts_typed_third_party_acquisition(tmp_path, monkeypatch) -> None:
     seen: list[IngestRequest] = []
     monkeypatch.setenv("INGEST_STAGING_ROOT", str(tmp_path))
-    monkeypatch.setenv("OS_SECURITY_KEY", "test-ingest-key")
 
     async def fake_submit(request: IngestRequest):
         seen.append(request)
@@ -118,7 +124,6 @@ def test_upload_route_accepts_typed_third_party_acquisition(tmp_path, monkeypatc
 
 def test_upload_route_rejects_direct_non_context_lane(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("INGEST_STAGING_ROOT", str(tmp_path))
-    monkeypatch.setenv("OS_SECURITY_KEY", "test-ingest-key")
     app = FastAPI()
     ingest_routes.register_ingest_routes(app)
     response = TestClient(app).post(
@@ -133,7 +138,6 @@ def test_upload_route_rejects_direct_non_context_lane(tmp_path, monkeypatch) -> 
 
 def test_first_party_upload_requires_explicit_authenticated_ownership(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("INGEST_STAGING_ROOT", str(tmp_path))
-    monkeypatch.setenv("OS_SECURITY_KEY", "test-ingest-key")
     app = FastAPI()
     ingest_routes.register_ingest_routes(app)
     response = TestClient(app).post(
@@ -147,7 +151,6 @@ def test_first_party_upload_requires_explicit_authenticated_ownership(tmp_path, 
 
 
 def test_ingest_and_knowledge_routes_fail_closed_without_bearer(monkeypatch) -> None:
-    monkeypatch.setenv("OS_SECURITY_KEY", "test-ingest-key")
     app = FastAPI()
     ingest_routes.register_ingest_routes(app)
     client = TestClient(app)
@@ -155,8 +158,8 @@ def test_ingest_and_knowledge_routes_fail_closed_without_bearer(monkeypatch) -> 
     assert client.get("/v1/knowledge/items").status_code == 401
 
 
-def test_ingest_routes_fail_closed_when_key_is_unconfigured(monkeypatch) -> None:
-    monkeypatch.delenv("OS_SECURITY_KEY", raising=False)
+def test_ingest_routes_fail_closed_when_key_is_unconfigured(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(platform_auth, "_PLATFORM_API_BEARER_FILE", tmp_path / "missing-bearer")
     app = FastAPI()
     ingest_routes.register_ingest_routes(app)
     response = TestClient(app).get("/v1/knowledge/items", headers={"Authorization": "Bearer anything"})

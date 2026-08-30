@@ -1,29 +1,21 @@
 # Byline: Codex · GPT-5 · 2026-08-13 (reproducible CI toolchain and optional-import typing)
 # Byline: Codex · GPT-5 · 2026-08-16 (D-046 torch-free Chonkie production runtime)
 [project]
-name = "agent-platform"
+name = "platform-api"
 version = "1.0.0"
-description = "Agent platform with Postgres and AgentOS."
+description = "Framework-neutral platform API with bounded Agno atomic-agent adapters."
 requires-python = ">=3.12,<4"
 readme = "README.md"
 license-files = ["LICENSE"]
-authors = [{ name = "Agno", email = "hello@agno.com" }]
+authors = [{ name = "Platform contributors" }]
 
 dependencies = [
-  "agno[os,slack]",
+  # Bounded atomic-agent adapter only. AgentOS and provider/chat surfaces are
+  # intentionally not installed as extras.
+  "agno",
   "surrealdb>=1.0.4,<2",
   "fastapi[standard]",
   "mcp",
-  # fastmcp is required by agno's AgentOS.get_app() whenever mcp_server=True
-  # (server/api/main.py), but NOTHING declares it — not agno[os], not mcp. In
-  # the live image `pip show fastmcp` reports an EMPTY Required-by. It got in
-  # once and was never captured, and because deploys run
-  # `uv pip sync requirements.txt --system` (which removes anything unlisted),
-  # the next clean rebuild would have swept it out and crash-looped the API on
-  # ImportError: 'fastmcp' not installed. Declaring it here is the real fix:
-  # a linux-target recompile still does NOT pick it up (verified 2026-08-02),
-  # so a requirements.txt pin alone would be lost on the next regeneration.
-  "fastmcp>=3,<4",
   "openai",
   # agno 2.8.0 stopped bundling per-provider model SDKs as transitive deps
   # (they were transitive under 2.6.13, satisfied implicitly). server/core/

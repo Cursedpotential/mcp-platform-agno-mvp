@@ -32,7 +32,7 @@ class Settings(BaseSettings):
 
     # --- Existing platform ingestion API (the promote target + the run spine) ---
     platform_api_url: str = "http://100.72.169.40:8000"
-    # Non-secret location only. The OS_SECURITY_KEY bearer itself is read
+    # Non-secret location only. The Platform API bearer itself is read
     # from this mounted file for every outbound Platform API request so rotation
     # does not require a Workbench restart or redeployment.
     platform_api_bearer_secret_file: str = "/run/secrets/platform-api-bearer"
@@ -41,14 +41,14 @@ class Settings(BaseSettings):
     casebible_r2_config_path: str = "/run/secrets/casebible-r2.json"
     # Direct-tailnet UIW starter boundary; blank values fail closed in the adapter.
     uiw_starter_url: str = ""
-    # Separate from the shared AgentOS service bearer. Only the operator
-    # Workbench receives this capability; agent calls must use walk context.
+    # Separate operator capability. Only the Workbench receives it; bounded
+    # agent tasks must use their Temporal-provided walk context.
     evidence_operator_security_key: str = ""
 
     # --- MCP tool servers (Tool Explorer) ---
     # ContextForge is the authored registry; Portkey is the downstream audited
     # gateway. Default empty is intentional: an unprovisioned chain exposes no
-    # tools instead of falling back to a direct AgentOS/ContextForge door. Each
+    # tools instead of falling back to a direct ContextForge door. Each
     # entry may carry its own literal "token" (bearer), or a "token_env" —
     # the NAME of an env var holding the bearer, resolved at read time via
     # mcp_servers_parsed (never baked into the JSON literal itself, so the

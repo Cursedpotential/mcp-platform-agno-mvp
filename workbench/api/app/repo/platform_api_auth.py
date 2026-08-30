@@ -1,7 +1,7 @@
 """Runtime Platform API bearer loading for Workbench-to-platform requests.
 
 The secret is intentionally absent from process environment and application
-settings. Every call reads the mounted file again, allowing OS_SECURITY_KEY
+settings. Every call reads the mounted file again, allowing Platform API bearer
 rotation without rebuilding, redeploying, or restarting the Workbench.
 
 Byline: Codex · GPT-5 · 2026-08-29
@@ -31,10 +31,10 @@ def platform_api_bearer_headers() -> dict[str, str]:
     except OSError:
         raise PlatformAPIAuthError(_SAFE_ERROR) from None
 
-    if not raw or len(raw) > _MAX_TOKEN_BYTES or b"\n" in raw or b"\r" in raw:
+    if not raw or len(raw) > _MAX_TOKEN_BYTES:
         raise PlatformAPIAuthError(_SAFE_ERROR)
     try:
-        token = raw.decode("utf-8")
+        token = raw.decode("utf-8").strip()
     except UnicodeDecodeError:
         raise PlatformAPIAuthError(_SAFE_ERROR) from None
     if _BEARER_TOKEN.fullmatch(token) is None:

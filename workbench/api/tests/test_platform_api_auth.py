@@ -28,7 +28,7 @@ def test_bearer_is_read_fresh_for_every_request(monkeypatch, tmp_path) -> None:
 
 @pytest.mark.parametrize(
     "raw",
-    [b"", b"key\n", b"key\r\n", b"key with spaces", b"Bearer key", b"bad:key", b"\xff"],
+    [b"", b"key with spaces", b"Bearer key", b"bad:key", b"\xff"],
 )
 def test_invalid_secret_fails_closed_without_echoing_content(monkeypatch, tmp_path, raw: bytes) -> None:
     secret = tmp_path / "os-security-key"
@@ -40,6 +40,15 @@ def test_invalid_secret_fails_closed_without_echoing_content(monkeypatch, tmp_pa
 
     assert str(caught.value) == "Platform API bearer secret is unavailable or invalid"
     assert repr(raw) not in str(caught.value)
+
+
+@pytest.mark.parametrize("raw", [b"key\n", b"key\r\n", b"  key\t"])
+def test_surrounding_file_whitespace_is_normalized(monkeypatch, tmp_path, raw: bytes) -> None:
+    secret = tmp_path / "platform-api-bearer"
+    secret.write_bytes(raw)
+    _use_secret(monkeypatch, secret)
+
+    assert platform_api_auth.platform_api_bearer_headers() == {"Authorization": "Bearer key"}
 
 
 def test_missing_secret_fails_closed_without_exposing_path(monkeypatch, tmp_path) -> None:
