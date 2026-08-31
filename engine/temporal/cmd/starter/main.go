@@ -69,6 +69,9 @@ func run() error {
 	if err := pool.Ping(context.Background()); err != nil {
 		return errors.New("connect platform preview database: unavailable")
 	}
+	if err := platformpostgres.ProbeUIWSchema(context.Background(), pool); err != nil {
+		return err
+	}
 
 	starter, err := platformtemporal.NewWorkflowStarter(c, cfg.TemporalTaskQueue)
 	if err != nil {

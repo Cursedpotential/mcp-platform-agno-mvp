@@ -1,0 +1,47 @@
+{
+  "source": {
+    "migration_uri": "sql/0030_matter_case_foundation.sql",
+    "migration_sha256": "b19959119c0f040adcdc442aa7772503fd2d1439a90b1565eaa6c17e0883eb70",
+    "git_commit": "97f48b172b1d31aa5a0005b45170d72af1299773",
+    "payload_schema_version": "0030-platform-registry-handoff-v1",
+    "payload_byte_length": 1075,
+    "canonical_payload_sha256": "8e0a8e2d86027add31f9470976d1378e039d6efb5312ecae4cfec0ebd10690e6",
+    "api_payload_sha256": "cd370f6c9c00e620f39f283e2d0d7d1a83a463b14097b99537b886d438618a6d",
+    "observed_at": "2026-08-31T00:10:03.2081986Z"
+  },
+  "matter": {
+    "id": "01a03136-c5cc-71c7-ac77-5c00a29a2ea8",
+    "title": "Primary matter",
+    "description": "Neutral bootstrap matter for the existing primary Knowledge partition.",
+    "status": "active",
+    "created_by": "migration-0030",
+    "created_at": "2026-08-24T00:41:08.271945Z",
+    "updated_at": "2026-08-24T00:41:08.271945Z"
+  },
+  "court_case": {
+    "id": "01a03136-c5cc-76f9-98df-702058d423d9",
+    "matter_id": "01a03136-c5cc-71c7-ac77-5c00a29a2ea8",
+    "caption": "Primary proceeding",
+    "docket_number": null,
+    "court_name": null,
+    "jurisdiction": null,
+    "case_type": null,
+    "status": "pre_filing",
+    "filed_on": null,
+    "closed_on": null,
+    "is_primary": true,
+    "created_by": "migration-0030",
+    "created_at": "2026-08-24T00:41:08.271945Z",
+    "updated_at": "2026-08-24T00:41:08.271945Z"
+  },
+  "partition": {
+    "partition_key": "primary",
+    "matter_id": "01a03136-c5cc-71c7-ac77-5c00a29a2ea8",
+    "default_court_case_id": "01a03136-c5cc-76f9-98df-702058d423d9",
+    "created_by": "migration-0030",
+    "created_at": "2026-08-24T00:41:08.271945Z"
+  },
+  "approved_by": "owner",
+  "approved_on": "2026-08-23",
+  "imported_by": "codex-gpt-5.6-sol"
+}

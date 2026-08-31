@@ -83,7 +83,7 @@ func Run(ctx context.Context, cfg Config) error {
 	if err := pool.Ping(ctx); err != nil {
 		return errors.New("uiw worker: connect to platform database: unavailable")
 	}
-	if err := ProbeSchema(ctx, pool); err != nil {
+	if err := platformpostgres.ProbeUIWSchema(ctx, pool); err != nil {
 		return err
 	}
 
@@ -215,48 +215,3 @@ func prepareSharedPaths(cfg Config) error {
 func stringsTrim(value string) string {
 	return strings.TrimSpace(value)
 }
-
-// ProbeSchema is the startup admission gate. It verifies the fresh platform
-// database, active migration ledger, all required context tables, runtime role
-// membership, and absence of elevated role attributes before the queue is
-// polled.
-func ProbeSchema(ctx context.Context, pool *pgxpool.Pool) error {
-	var database, currentUser string
-	var ledgerCount, relationCount int
-	var roleSafe bool
-	err := pool.QueryRow(ctx, `
-		SELECT current_database(), current_user,
-		       (SELECT count(*) FROM public.schema_version WHERE migration_id = ANY($2::text[]) AND status = 'active'),
-		       (SELECT count(*) FROM information_schema.tables WHERE table_schema = 'context' AND table_name = ANY($1::text[])),
-		       COALESCE((SELECT rolcanlogin AND NOT (rolsuper OR rolcreatedb OR rolcreaterole OR rolreplication OR rolbypassrls)
-		                 AND pg_has_role('platform_runtime', 'context_import_writer', 'MEMBER')
-		                 FROM pg_roles WHERE rolname = 'platform_runtime'), false)`, requiredContextTables, requiredMigrations).Scan(
-		&database, &currentUser, &ledgerCount, &relationCount, &roleSafe,
-	)
-	if err != nil {
-		return errors.New("uiw worker: verify platform schema: unavailable")
-	}
-	if database != "platform" {
-		return fmt.Errorf("uiw worker: refusing database %q; platform is required", database)
-	}
-	if currentUser != "platform_runtime" {
-		return fmt.Errorf("uiw worker: refusing database role %q; platform_runtime is required", currentUser)
-	}
-	if ledgerCount != len(requiredMigrations) || relationCount != len(requiredContextTables) || !roleSafe {
-		return fmt.Errorf("uiw worker: platform schema admission failed: ledger=%d context_tables=%d/%d runtime_role_safe=%t", ledgerCount, relationCount, len(requiredContextTables), roleSafe)
-	}
-	return nil
-}
-
-var requiredContextTables = []string{
-	"activity_execution", "activity_receipt", "hash_batch", "hash_batch_member",
-	"hash_manifest", "hash_manifest_member", "hash_receipt", "normalization_lineage",
-	"normalized_generation", "normalized_generation_publication", "normalized_record_identity",
-	"raw_format_registry", "raw_generation", "raw_record_identity", "reconciliation_receipt",
-	"retained_object", "source", "source_metadata", "source_version", "source_version_object",
-	"uiw_preview_binding", "uiw_preview_snapshot", "uiw_preview_receipt", "uiw_preview_participant",
-	"uiw_preview_message", "uiw_preview_attachment", "uiw_preview_event", "uiw_preview_decision",
-	"repair_assessment", "repair_decision", "repair_resolution",
-}
-
-var requiredMigrations = []string{"0036", "0050", "0051"}
