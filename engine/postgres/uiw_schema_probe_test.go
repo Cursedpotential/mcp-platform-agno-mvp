@@ -16,6 +16,16 @@ func (db probeDB) QueryRow(context.Context, string, ...any) pgx.Row {
 	return db.row
 }
 
+type capturingProbeDB struct {
+	query string
+	row   probeRow
+}
+
+func (db *capturingProbeDB) QueryRow(_ context.Context, query string, _ ...any) pgx.Row {
+	db.query = query
+	return db.row
+}
+
 type probeRow struct {
 	database, user, owner                                                 string
 	ledger, tables, columns                                               int
@@ -45,6 +55,16 @@ func admittedProbeRow() probeRow {
 func TestProbeUIWSchemaAdmitsExactPlatformContract(t *testing.T) {
 	if err := ProbeUIWSchema(context.Background(), probeDB{row: admittedProbeRow()}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestProbeUIWSchemaCastsCatalogNamesBeforeTextArrayComparison(t *testing.T) {
+	db := &capturingProbeDB{row: admittedProbeRow()}
+	if err := ProbeUIWSchema(context.Background(), db); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(db.query, "a.attname::text") != 3 || strings.Contains(db.query, "ARRAY(SELECT a.attname FROM") {
+		t.Fatal("catalog attribute arrays must be text[] before comparison with the required text[] contract")
 	}
 }
 

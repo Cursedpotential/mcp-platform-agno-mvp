@@ -91,9 +91,9 @@ func ProbeUIWSchema(ctx context.Context, db SchemaProbeDB) error {
 		           WHERE c.conrelid=required.relation_name::regclass
 		             AND c.confrelid=required.referenced_name::regclass AND c.contype='f'
 		             AND c.conname=required.constraint_name AND c.convalidated AND c.confdeltype='r'
-		             AND ARRAY(SELECT a.attname FROM unnest(c.conkey) WITH ORDINALITY k(attnum,ord)
+		             AND ARRAY(SELECT a.attname::text FROM unnest(c.conkey) WITH ORDINALITY k(attnum,ord)
 		                       JOIN pg_attribute a ON a.attrelid=c.conrelid AND a.attnum=k.attnum ORDER BY k.ord)=required.columns
-		             AND ARRAY(SELECT a.attname FROM unnest(c.confkey) WITH ORDINALITY k(attnum,ord)
+		             AND ARRAY(SELECT a.attname::text FROM unnest(c.confkey) WITH ORDINALITY k(attnum,ord)
 		                       JOIN pg_attribute a ON a.attrelid=c.confrelid AND a.attnum=k.attnum ORDER BY k.ord)=required.referenced_columns))
 		         AND EXISTS (SELECT 1 FROM pg_constraint c
 		           WHERE c.conrelid='context.source_version'::regclass
@@ -104,7 +104,7 @@ func ProbeUIWSchema(ctx context.Context, db SchemaProbeDB) error {
 		         AND EXISTS (SELECT 1 FROM pg_constraint c
 		           WHERE c.conrelid='context.uiw_source_context_revision'::regclass
 		             AND c.conname='uiw_source_context_scope_key' AND c.contype='u' AND c.convalidated
-		             AND ARRAY(SELECT a.attname FROM unnest(c.conkey) WITH ORDINALITY k(attnum,ord)
+		             AND ARRAY(SELECT a.attname::text FROM unnest(c.conkey) WITH ORDINALITY k(attnum,ord)
 		                       JOIN pg_attribute a ON a.attrelid=c.conrelid AND a.attnum=k.attnum ORDER BY k.ord)
 		                 =ARRAY['source_context_ref','matter_id','court_case_id'])),
 		       (SELECT count(*)=4 FROM pg_constraint WHERE convalidated AND conname=ANY(ARRAY[
