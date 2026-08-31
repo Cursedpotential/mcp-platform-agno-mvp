@@ -103,9 +103,17 @@ No item is classified DONE+LIVE VERIFIED from the evidence inspected here.
   **no producer**; `server/timeline/` is CLI-only with **zero production callers**.
 - Preferred tools are already vendored — Semantica `StructuralChunker` (a **chunk-stage** tool,
   not a parser) and its `parse/` modules (owner: "if one of the bundled semantica tools will work,
-  we can call on those"). Docling and the OCR tier are declared but **installed in no deploy
-  image**. Note the stage split: these files are already text, so they need **no parse step** —
-  the section-structure requirement is a chunk-stage concern.
+  we can call on those"). **Current-tree correction (2026-08-30):** the OCR Python dependencies,
+  Tesseract, and Poppler are now baked into `platform-tools`; Docling remains declared but excluded
+  from that image. Note the stage split: files that are already text need **no parse step** — the
+  section-structure requirement is a chunk-stage concern.
+- [ ] **Finish and prove the OCR/document-extraction surface (added 2026-08-30).** Add contract
+  tests that execute the OCR capability through `platform-tools` REST and its ContextForge MCP
+  publication (inventory **and invocation**, not documentation-only claims). Then prove the ingest
+  path consumes addressable structural output — stable page/block IDs, reading order, coordinates,
+  and source ranges — rather than flattening it to text before semantic chunking/tagging. Record an
+  explicit Docling install-or-defer decision after the same corpus bake-off; do not treat its
+  declaration in `pyproject.toml` as runtime availability.
 - **HARD CONSTRAINT (owner 2026-08-29):** Semantica may be called **atomically as a tool** for
   document parse/chunk. Content may **NOT** flow through the **Semantica extraction lane** until
   change detection is ordered — Semantica is downstream of context creation and triggered by

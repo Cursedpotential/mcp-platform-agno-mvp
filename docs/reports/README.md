@@ -50,6 +50,8 @@ so the report and a hand-written query cannot disagree.
 
 ## Semantic skill inventory
 
+> _Byline: Codex · GPT-5 · 2026-08-30_
+
 `scripts/semantic_skill_catalog.py` inventories the current Codex plugin cache plus
 the shared `.agents/skills` and `.codex/skills` roots. It records complete bundle
 hashes, support-file counts, relative-reference failures, provenance, enabled state,
@@ -57,17 +59,30 @@ duplicates, and one primary semantic family. Generated CSV/JSON/HTML stays ignor
 with the other machine-local reports.
 
 ```powershell
-# Refresh reports only.
+# Refresh reports after the 2026-08-29 reversible cutover.
+$q = 'C:\Users\matts\to_be_deleted\semantic-skills-cutover-20260829-2300'
 uv run python scripts/semantic_skill_catalog.py `
+  --standalone-root C:\Users\matts\.agents\skills `
+  --standalone-root C:\Users\matts\.codex\skills `
+  --standalone-root "$q\agents-skills" `
+  --standalone-root "$q\codex-skills" `
   --output-root docs/reports
 
 # Validate the current source census without writing reports.
 uv run python scripts/semantic_skill_catalog.py `
+  --standalone-root C:\Users\matts\.agents\skills `
+  --standalone-root C:\Users\matts\.codex\skills `
+  --standalone-root "$q\agents-skills" `
+  --standalone-root "$q\codex-skills" `
   --output-root docs/reports `
   --validate-only
 
 # First-time build of the local semantic-router marketplace.
 uv run python scripts/semantic_skill_catalog.py `
+  --standalone-root C:\Users\matts\.agents\skills `
+  --standalone-root C:\Users\matts\.codex\skills `
+  --standalone-root "$q\agents-skills" `
+  --standalone-root "$q\codex-skills" `
   --output-root docs/reports `
   --marketplace-root C:\Users\matts\.codex\plugins\sources\semantic-skills-local
 ```
@@ -75,6 +90,7 @@ uv run python scripts/semantic_skill_catalog.py `
 The marketplace has one hot `semantic-skill-router` and 21 warm domain plugins.
 Only the router should be enabled by default. Domain plugins are deliberate load
 boundaries, not a reason to advertise the entire underlying library at startup.
-Source skills remain untouched until a separately verified cutover; any future
-retirement move must preserve whole bundles and go only to a dated `to_be_deleted`
-snapshot with a restore map.
+The verified cutover moved 578 complete standalone bundles into the dated snapshot
+shown above and wrote `restore-map.json`. Five hard-path-sensitive bundles and the
+`.system` skills remain hot. Nothing was deleted; the user is the only person who
+may delete anything from `to_be_deleted`.
