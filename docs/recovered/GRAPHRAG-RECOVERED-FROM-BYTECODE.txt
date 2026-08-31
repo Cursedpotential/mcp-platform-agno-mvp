@@ -1,0 +1,219 @@
+
+======================================================================
+## graphrag_comparison_activities.cpython-313.pyc
+======================================================================
+
+GraphRagLane
+LaneReceiptInputV1
+LaneReceiptStatus
+LaneReceiptV1
+GraphRagEvaluationRepository)
+GraphRagComparisonActivityInput
+GraphRagLaneActivityResult
+#GraphRagComparisonJoinActivityInput
+sat_temporalr$
+$GraphRagComparisonJoinActivityResult
+semantica_receipt_id
+sat_temporal_receipt_id
+#server.analysis.graphrag_repositoryr
+extract_semantica_comparison
+,server.analysis.semantica_comparison_adapterr
+&graphrag_semantica_extraction_activityr
+extract_sat_temporalr
+&server.analysis.sat_temporal_extractorr
+)graphrag_sat_temporal_extraction_activityr
+z&Iterator[GraphRagEvaluationRepository])
+z1tuple[ExtractionSnapshotV1, LaneReceiptV1 | None])
+"server.analysis.graphrag_contractsr
+
+======================================================================
+## graphrag_comparison_workflow.cpython-313.pyc
+======================================================================
+
+GraphRagComparisonActivityInput
+#GraphRagComparisonJoinActivityInput
+$GraphRagComparisonJoinActivityResult
+GraphRagLaneActivityResultz
+!GraphRagExtractionComparisonInput
+"GraphRagExtractionComparisonOutput
+sat_temporalr
+$GraphRagExtractionComparisonWorkflow)
+&graphrag_semantica_extraction_activity)
+)graphrag_sat_temporal_extraction_activity
+(GraphRagExtractionComparisonWorkflow.run:
+
+======================================================================
+## graphrag_contracts.cpython-313.pyc
+======================================================================
+
+GraphRagLane
+sat_temporal
+LaneReceiptStatus
+LaneResultInputV1
+LaneReceiptInputV1
+LaneReceiptV1
+semantica_receipt_id
+sat_temporal_receipt_id
+
+======================================================================
+## graphrag_repository.cpython-313.pyc
+======================================================================
+
+GraphRagLane
+LaneReceiptInputV1
+LaneReceiptStatus
+LaneReceiptV1
+LaneResultInputV1
+GraphRagEvaluationRepository
+%GraphRagEvaluationRepository.__init__;
+INSERT INTO analysis.graphrag_comparison_run (
+                    query_reference, correlation_id, requested_mode, case_compatibility_reference,
+                    horizon_at, created_by
+                ) VALUES (
+                    :query_reference, :correlation_id, :requested_mode, :case_compatibility_reference,
+                    :horizon_at, :created_by
+                )
+                RETURNING id, query_reference, correlation_id, requested_mode,
+                    case_compatibility_reference, horizon_at, created_by, created_at
+                )
+2GraphRagEvaluationRepository.create_comparison_run>
+INSERT INTO analysis.graphrag_eligibility_manifest (
+                    run_id, pg_generation_reference, source_availability_policy_version,
+                    disclosure_policy_version, authorization_policy_version, issuer
+                ) VALUES (
+                    :run_id, :pg_generation_reference, :source_availability_policy_version,
+                    :disclosure_policy_version, :authorization_policy_version, :issuer
+                ) RETURNING id
+                )
+INSERT INTO analysis.graphrag_eligibility_manifest_member (
+                        manifest_id, ordinal, source_version_id, normalized_record_id, text_unit_id,
+                        source_sha256, normalized_record_digest, source_available_from, disclosure_tier, authority_class,
+                        projection_version, source_provenance_ref
+                    ) VALUES (
+                        :manifest_id, :ordinal, :source_version_id, :normalized_record_id, :text_unit_id,
+                        :source_sha256, :normalized_record_digest, :source_available_from, :disclosure_tier, :authority_class,
+                        :projection_version, CAST(:source_provenance_ref AS jsonb)
+                    )
+,GraphRagEvaluationRepository.create_manifestp
+z=Seal an exact membership set and return its canonical digest.z;SELECT * FROM analysis.seal_graphrag_manifest(:manifest_id)rL
+*GraphRagEvaluationRepository.seal_manifest
+SELECT id, run_id, schema_version, pg_generation_reference,
+                    source_availability_policy_version, disclosure_policy_version,
+                    authorization_policy_version, issuer, membership_digest,
+                    member_count, sealed_at, created_at
+                FROM analysis.graphrag_eligibility_manifest
+                WHERE id = :manifest_id AND status = 'sealed'
+                rL
+SELECT ordinal, source_version_id, normalized_record_id, text_unit_id,
+                    source_sha256, normalized_record_digest, source_available_from, disclosure_tier, authority_class,
+                    projection_version, source_provenance_ref
+                FROM analysis.graphrag_eligibility_manifest_member
+                WHERE manifest_id = :manifest_id
+                ORDER BY ordinal
+                r<
+)GraphRagEvaluationRepository.get_manifest
+SELECT member.ordinal, member.source_version_id, member.normalized_record_id,
+                    member.text_unit_id, member.source_sha256, member.normalized_record_digest,
+                    member.source_available_from, member.disclosure_tier, member.authority_class,
+                    member.projection_version, member.source_provenance_ref, record.canonical_bytes,
+                    receipt.digest AS receipt_digest
+                FROM analysis.graphrag_eligibility_manifest_member AS member
+                JOIN context.normalized_record_identity AS record
+                  ON record.id = member.normalized_record_id
+                JOIN context.hash_receipt AS receipt
+                  ON receipt.normalized_record_id = record.id
+                 AND receipt.hash_kind = 'normalized_record_digest'
+                WHERE member.manifest_id = :manifest_id
+                ORDER BY member.ordinal
+                rL
+4GraphRagEvaluationRepository.get_extraction_snapshot
+INSERT INTO analysis.graphrag_lane_result (
+                    run_id, lane_id, manifest_id, manifest_digest, projection_version,
+                    status, trace_ref, warning_refs, error_ref
+                ) VALUES (
+                    :run_id, :lane_id, :manifest_id, :manifest_digest, :projection_version,
+                    :status, CAST(:trace_ref AS jsonb), CAST(:warning_refs AS jsonb),
+                    CAST(:error_ref AS jsonb)
+                )
+                ON CONFLICT (run_id, lane_id) DO NOTHING
+                RETURNING id, manifest_id, manifest_digest, projection_version,
+                    status, trace_ref, warning_refs, error_ref
+                a"
+SELECT id, manifest_id, manifest_digest, projection_version,
+                        status, trace_ref, warning_refs, error_ref
+                    FROM analysis.graphrag_lane_result
+                    WHERE run_id = :run_id AND lane_id = :lane_id
+                    rL
+/GraphRagEvaluationRepository.record_lane_resultS
+SELECT id, manifest_id, status, lane_result_id, outcome_ref, error_ref,
+                    completed_at, created_at
+                FROM analysis.graphrag_lane_receipt
+                WHERE run_id = :run_id AND lane_id = :lane_id AND stage_id = :stage_id
+                  AND stage_version = :stage_version AND manifest_digest = :manifest_digest
+                )
+.GraphRagEvaluationRepository.find_lane_receipt
+INSERT INTO analysis.graphrag_lane_candidate (
+                        lane_result_id, ordinal, source_version_id, normalized_record_id, text_unit_id,
+                        source_sha256, normalized_record_digest, source_available_from, disclosure_tier, authority_class,
+                        projection_version, candidate_type, candidate_ref, trace_ref
+                    ) VALUES (
+                        :lane_result_id, :ordinal, :source_version_id, :normalized_record_id, :text_unit_id,
+                        :source_sha256, :normalized_record_digest, :source_available_from, :disclosure_tier, :authority_class,
+                        :projection_version, :candidate_type, CAST(:candidate_ref AS jsonb),
+                        CAST(:trace_ref AS jsonb)
+                    )
+                    )
+3GraphRagEvaluationRepository.record_lane_candidates
+INSERT INTO analysis.graphrag_lane_receipt (
+                    run_id, lane_id, stage_id, stage_version, manifest_id, manifest_digest,
+                    status, lane_result_id, outcome_ref, error_ref, completed_at
+                ) VALUES (
+                    :run_id, :lane_id, :stage_id, :stage_version, :manifest_id, :manifest_digest,
+                    :status, :lane_result_id, CAST(:outcome_ref AS jsonb), CAST(:error_ref AS jsonb), :completed_at
+                )
+                ON CONFLICT (run_id, lane_id, stage_id, stage_version, manifest_digest) DO NOTHING
+                RETURNING id, created_at
+                ap
+SELECT id, status, lane_result_id, outcome_ref, error_ref, completed_at, created_at
+                    FROM analysis.graphrag_lane_receipt
+                    WHERE run_id = :run_id AND lane_id = :lane_id AND stage_id = :stage_id
+                      AND stage_version = :stage_version AND manifest_digest = :manifest_digest
+                    r
+0GraphRagEvaluationRepository.record_lane_receipt
+SELECT analysis.record_graphrag_comparison_join(
+                    :run_id, :stage_id, :stage_version, :manifest_id, :manifest_digest,
+                    :semantica_receipt_id, :sat_temporal_receipt_id
+                )
+                )
+semantica_receipt_id
+sat_temporal_receipt_id)
+(GraphRagEvaluationRepository.record_join6
+SELECT id, semantica_receipt_id, sat_temporal_receipt_id
+                FROM analysis.graphrag_comparison_join
+                WHERE run_id = :run_id AND stage_id = :stage_id AND stage_version = :stage_version
+                  AND manifest_id = :manifest_id AND manifest_digest = :manifest_digest
+                r
+SELECT lane_id, id, status, manifest_id, manifest_digest
+                FROM analysis.graphrag_lane_receipt
+                WHERE run_id = :run_id AND stage_id = :stage_id AND stage_version = :stage_version
+                  AND lane_id IN ('semantica', 'sat_temporal')
+                >
+>GraphRagEvaluationRepository.get_join_state.<locals>.<genexpr>
+sat_temporal)
++GraphRagEvaluationRepository.get_join_stateW
+LaneReceiptV1 | None)
+"server.analysis.graphrag_contractsr
+
+======================================================================
+## semantica_comparison_adapter.cpython-313.pyc
+======================================================================
+
+GraphRagLane
+LaneReceiptStatus
+qE:\AI_Workspace\Projects\the-platform-workspace\Agno-MCP-Platform\server\analysis\semantica_comparison_adapter.py
+z
+semantica:r
+extract_semantica_comparisonr
+"server.analysis.graphrag_contractsr
+#server.analysis.semantica_contractsr
+server.analysis.semantica_workerr
