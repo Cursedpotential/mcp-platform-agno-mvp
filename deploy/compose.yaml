@@ -28,7 +28,7 @@ services:
     environment:
       POSTGRES_USER: ${DB_USER:-ai}
       POSTGRES_PASSWORD: ${DB_PASS:-ai}
-      POSTGRES_DB: ${DB_DATABASE:-ai}
+      POSTGRES_DB: ${DB_DATABASE:-platform}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-ai}"]
       interval: 5s

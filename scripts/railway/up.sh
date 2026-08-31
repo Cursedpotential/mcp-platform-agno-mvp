@@ -99,7 +99,7 @@ echo ""
 railway add -s pgvector -i agnohq/pgvector:18 \
     -v "POSTGRES_USER=${DB_USER:-ai}" \
     -v "POSTGRES_PASSWORD=${DB_PASS:-ai}" \
-    -v "POSTGRES_DB=${DB_DATABASE:-ai}"
+    -v "POSTGRES_DB=${DB_DATABASE:-platform}"
 
 echo ""
 echo -e "${BOLD}Adding database volume...${NC}"
