@@ -14,7 +14,7 @@ import yaml
 
 
 ROOT = Path(__file__).resolve().parents[1]
-API_ROOT = ROOT / "workbench" / "api"
+API_ROOT = ROOT / "modules" / "workbench" / "api"
 TARGET = ROOT / "docs" / "schemas" / "platform-intake-job-contract-v1.openapi.yaml"
 SELECTED_PATHS = (
     "/api/uiw/source-inspection",

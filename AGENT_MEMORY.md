@@ -50,17 +50,18 @@ This file is a router, not an encyclopedia. Read only the branches relevant to t
 |---|---|
 | `docs/**` | `docs/AGENT_MEMORY.md` |
 | `server/**` | `server/AGENT_MEMORY.md` plus the closest nested memory |
-| `engine/**` | `engine/AGENT_MEMORY.md` |
-| `contracts/**` | `contracts/AGENT_MEMORY.md` |
+| `modules/engine/**` (was root `engine/`, moved 2026-09-01) | `modules/engine/AGENT_MEMORY.md` |
+| `server/contracts/**` | `server/contracts/AGENTS.md` (root `contracts/` removed 2026-09-01) |
 | `sql/**` | `sql/AGENT_MEMORY.md` |
 | `deploy/**` | `deploy/AGENT_MEMORY.md` |
-| `docker/**` | `docker/AGENT_MEMORY.md`; for n8n also `docker/n8n/AGENT_MEMORY.md` |
-| `workbench/**` | `workbench/AGENT_MEMORY.md` plus the closest nested memory |
-| `timesketch-fork/**` | `timesketch-fork/AGENT_MEMORY.md` |
+| `deploy/docker/**` (was root `docker/`, moved 2026-09-01) | `deploy/docker/AGENT_MEMORY.md`; for n8n also `deploy/docker/n8n/AGENT_MEMORY.md` |
+| `modules/workbench/**` (was root `workbench/`, moved 2026-09-01) | `modules/workbench/AGENT_MEMORY.md` plus the closest nested memory |
 | `tests/**` | `tests/AGENT_MEMORY.md` |
 | `knowledge/**` | `knowledge/AGENT_MEMORY.md` |
-| `vendored/**`, `server/vendored/**` | `vendored/AGENT_MEMORY.md` |
-| `llm_probe/**`, `llm_probe_ui/**` | `llm_probe/AGENT_MEMORY.md` or `llm_probe_ui/AGENT_MEMORY.md` |
+| `server/vendored/**` | `server/vendored/` project READMEs (modules/vendored dissolved 2026-09-01; sbv now `modules/forks/sbv`, own repo, its memory file at `modules/forks/AGENT_MEMORY.md`) |
+
+Removed from the tree 2026-09-01 (owner restructure; rows retired): root
+`timesketch-fork/` (now a workspace sibling), `llm_probe/`, `llm_probe_ui/`.
 
 Format and precedence: `docs/agent-memory/README.md`.
 

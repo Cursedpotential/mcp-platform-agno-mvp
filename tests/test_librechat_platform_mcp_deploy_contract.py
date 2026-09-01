@@ -9,8 +9,8 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 DEPLOY = ROOT / "deploy" / "librechat.yaml"
-DOCKERFILE = ROOT / "docker" / "librechat" / "Dockerfile"
-CONFIG = ROOT / "docker" / "librechat" / "librechat.yaml"
+DOCKERFILE = ROOT / "deploy" / "docker" / "librechat" / "Dockerfile"
+CONFIG = ROOT / "deploy" / "docker" / "librechat" / "librechat.yaml"
 
 
 def test_librechat_bakes_the_tracked_mcp_config() -> None:

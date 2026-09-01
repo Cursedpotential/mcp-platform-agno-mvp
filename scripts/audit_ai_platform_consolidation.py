@@ -44,7 +44,10 @@ RELEVANT_ROLES = (
     "timeline_projector",
     "timeline_reader",
 )
-CALLER_ROOTS = ("server", "engine", "workbench", "deploy", "docker", "scripts", ".github")
+# 2026-09-01 owner restructure: engine/workbench moved under modules/, docker/
+# under deploy/ (deploy already covers it). modules/vendored stays excluded via
+# IGNORED_CALLER_PARTS ("vendored").
+CALLER_ROOTS = ("server", "modules", "deploy", "scripts", ".github")
 CALLER_SUFFIXES = {
     ".cfg",
     ".conf",

@@ -25,8 +25,8 @@ def test_new_compose_is_isolated_and_legacy_compose_is_not_reused() -> None:
 
 
 def test_workbench_incorporates_surrealdb_studio_without_credentials() -> None:
-    page = (ROOT / "workbench/web/src/app/surreal/page.tsx").read_text(encoding="utf-8")
-    sidebar = (ROOT / "workbench/web/src/components/layout/app-sidebar.tsx").read_text(encoding="utf-8")
+    page = (ROOT / "modules/workbench/web/src/app/surreal/page.tsx").read_text(encoding="utf-8")
+    sidebar = (ROOT / "modules/workbench/web/src/components/layout/app-sidebar.tsx").read_text(encoding="utf-8")
     assert "SurrealDB Studio" in page
     assert "https://studio.surrealdb.com" in page
     assert "projection, not authority" in page.lower()
@@ -36,7 +36,7 @@ def test_workbench_incorporates_surrealdb_studio_without_credentials() -> None:
 
 
 def test_runner_wires_resume_rewalk_and_restore_parity_without_legacy_target() -> None:
-    runner = (ROOT / "docker/surreal-phase1-runner/src/horizon_surreal_phase1/runner.py").read_text(encoding="utf-8")
+    runner = (ROOT / "deploy/docker/surreal-phase1-runner/src/horizon_surreal_phase1/runner.py").read_text(encoding="utf-8")
     assert "walk_checkpoint" in runner
     assert "revision=REVISION_1" in runner
     assert "revision=REVISION_2" in runner

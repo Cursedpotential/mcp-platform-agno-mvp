@@ -131,6 +131,7 @@ was verified 2026-08-09 (D-042); Milvus `data-vector` stays deliberately down.
 |---|---|---|
 | `server/` | The whole backend (`server.*` imports), dependency direction | `server/AGENTS.md` |
 | `server/contracts/` | Import-light `NormalizedRecord`/`RecordType` contract | `server/contracts/AGENTS.md` |
+| `modules/contracts/` | **Future home** of cross-language contract schemas (JSON/YAML consumed by Go + Python + n8n). Owner ruling 2026-09-01: the old root `contracts/` (a never-populated placeholder) was removed; recreate HERE — not `docs/` (machine-consumed artifacts drift as docs), not hidden `.contracts/` (boundary definitions must stay reviewable) — only when H-02 lands the first real schema files, so the directory is born with content. | — |
 | `server/evidence/` | The evidence spine: custody, store, workflows, cli | `server/evidence/AGENTS.md` |
 | `server/tools/` | Cross-domain parser/extractor/gateway registry | `server/tools/AGENTS.md` |
 | `server/agents/` | Agent/team constructors, providers, `@tool` wrappers | `server/agents/AGENTS.md` |
@@ -138,10 +139,16 @@ was verified 2026-08-09 (D-042); Milvus `data-vector` stays deliberately down.
 | `server/api/`, `server/core/`, `server/analysis/`, `server/ingest/` | Entrypoint/config, DB session/model factory, behavioral analysis, ingest application service | see `server/AGENTS.md` |
 | `server/case_management/`, `server/observability/`, `server/temporal/` | Case views/workflows, audit/telemetry, and Temporal integration | see `server/AGENTS.md` |
 | `server/vendored/` | Third-party Python projects (chatminer, semantica) — not ours to lint | — |
-| `vendored/` | Third-party **non-Python** projects we do actively develop — currently `vendored/sbv` (Go). Distinct from `server/vendored/`; both are real. | `vendored/sbv/DEVELOPMENT.md` |
-| `workbench/` | Operator Workbench — `workbench/api` (FastAPI) + `workbench/web` (Next.js) | — |
+| `modules/engine/` | The Go engine (own `go.mod`; UIW custody writer, parsers, chunkers, stagegraph) — **moved from root `engine/` in the 2026-09-01 owner restructure** | — |
+| `modules/vendored/` | **DISSOLVED 2026-09-01** — emptied when `sbv` moved to `modules/forks/sbv`. Third-party Python remains at `server/vendored/`. | — |
+| `modules/workbench/` | Operator Workbench — `api` (FastAPI) + `web`. Moved from root `workbench/` 2026-09-01. | — |
+| `modules/forks/` | **Nested independent repos, gitignored** — our forks of upstream projects, one repo each. Currently: `timesketch` (fork of google/timesketch) and `sbv` (fork of danzek's SMS-B&R parser; canonical remote `Cursedpotential/sbv-forensic`, whose CI builds the image the platform-tools Dockerfile consumes **by digest** — the platform build does NOT need this checkout). Add an `upstream` remote per fork for rebasing. Owner ruling 2026-09-01. | each fork's own README |
+| `modules/custom/` | **One nested independent repo, gitignored** — owner-authored standalone modules versioned together (`llm_probe`, `llm_probe_ui`, `tool-skills`). | — |
+| `modules/Legal-Workspace/` | **Nested independent product repo, gitignored** — placed beside the Workbench per owner ruling 2026-09-01 ("legal workbench should live next to workbench"). Still consumes `LegalSourcePackage` read-only; never a second writable evidence store. A full merge into the Workbench repo is an OPEN decision, not done. | its own `AGENTS.md` |
+| `modules/traceIQ/` | **Nested independent product repo, gitignored** (contains its own nested `traceiq-rebuild` repo). | its own `AGENTS.md` |
+| `modules/apps/` | Owner's transient staging area during reorganizations — gitignored, contents move on; never reference it in code or docs | — |
 | `sql/` | Numbered PostgreSQL migrations (`NNNN_name.sql`, never edit an applied one) | — |
-| `docker/` | One folder per service image (`docker/tools/`, `docker/gateway/`, `docker/postgres/`, ...) | — |
+| `deploy/docker/` | One folder per service image (`tools/`, `gateway/`, `postgres/`, ...) — moved from root `docker/` 2026-09-01; compose files in `deploy/` now resolve their `./docker/...` build contexts correctly per the compose spec | — |
 | `docs/` | Canon, ADRs, decision log, plans, wiki | `docs/PROJECT_CANON.md` |
 | `tests/` | The pytest suite | — |
 | `scripts/` | format/validate/ingest/entrypoint | — |
@@ -167,7 +174,8 @@ Coolify deployment and live VPS proof.
 | Test (default, unit) | `uv run pytest -q` |
 | Test (one file) | `uv run pytest -q tests/test_<name>.py` |
 | Integration tests (live services) — **REQUIRED before any "done"** | `uv run pytest -m integration` |
-| Go build/test (`vendored/sbv`) | `go build -tags fts5 ./...` / `go test -tags fts5 ./...` |
+| Go build/test (engine) | from `modules/engine/`: `go build ./...` / `go vet ./...` / `go test ./...` |
+| Go build/test (`modules/forks/sbv`) | from that dir: `go build -tags fts5 ./...` / `go test -tags fts5 ./...` (own repo; its GitHub CI is authoritative) |
 
 ⚠ The `fts5` build tag is **mandatory** for `vendored/sbv`. A plain `go test ./...`
 fails every DB-backed test with `no such module: fts5` — that is a missing build

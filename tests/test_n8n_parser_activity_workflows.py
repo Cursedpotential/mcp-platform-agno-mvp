@@ -18,10 +18,10 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_SPECS = {
-    ROOT / "docker/n8n/workflows/universal-import/wf-select-parser-activity.json": "select_parser_activity",
-    ROOT / "docker/n8n/workflows/universal-import/wf-execute-parser-activity.json": "execute_parser_activity",
+    ROOT / "deploy/docker/n8n/workflows/universal-import/wf-select-parser-activity.json": "select_parser_activity",
+    ROOT / "deploy/docker/n8n/workflows/universal-import/wf-execute-parser-activity.json": "execute_parser_activity",
 }
-ALL_UIW_WORKFLOWS = tuple(sorted((ROOT / "docker/n8n/workflows/universal-import").glob("wf-*.json")))
+ALL_UIW_WORKFLOWS = tuple(sorted((ROOT / "deploy/docker/n8n/workflows/universal-import").glob("wf-*.json")))
 
 REQUEST_FIELDS = {"request_id", "source_version_ref", "declared_format", "refs"}
 RESULT_FIELDS = {"stage", "status", "ref", "receipt_ref"}

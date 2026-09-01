@@ -172,3 +172,11 @@ workbench/design-mockups/**/node_modules/
 
 # generated test results (owner consolidation 2026-09-01: tests + results share one parent)
 tests/_reports/
+
+# nested independent repos (owner restructure 2026-09-01) - each has its own .git;
+# the platform repo never tracks them (ignored-independent-child pattern, no gitlinks)
+modules/forks/
+modules/custom/
+modules/Legal-Workspace/
+modules/traceIQ/
+modules/apps/

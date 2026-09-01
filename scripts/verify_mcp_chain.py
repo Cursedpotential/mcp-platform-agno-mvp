@@ -26,7 +26,7 @@ from server.tools.gateway.mcp_chain import (  # noqa: E402
     validate_endpoints,
 )
 
-_DEFAULT_MANIFEST = _REPO_ROOT / "docker/gateway/mcp/publications.json"
+_DEFAULT_MANIFEST = _REPO_ROOT / "deploy/docker/gateway/mcp/publications.json"
 
 
 def _required_env(name: str) -> str:

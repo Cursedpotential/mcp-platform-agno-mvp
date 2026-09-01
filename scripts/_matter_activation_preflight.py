@@ -195,7 +195,7 @@ def static_checks(root: Path = PROJECT_ROOT) -> list[Check]:
     )
 
     deploy = (root / "deploy" / "workbench.yaml").read_text(encoding="utf-8")
-    auth = (root / "workbench" / "api" / "app" / "runtime" / "auth.py").read_text(encoding="utf-8")
+    auth = (root / "modules" / "workbench" / "api" / "app" / "runtime" / "auth.py").read_text(encoding="utf-8")
     platform_bearer_mount = "/data/agno/secrets/platform/api-bearer:/run/secrets/platform-api-bearer:ro"
     checks.extend(
         [
@@ -222,7 +222,7 @@ def static_checks(root: Path = PROJECT_ROOT) -> list[Check]:
         ]
     )
 
-    dockerfile = (root / "docker" / "postgres" / "Dockerfile").read_text(encoding="utf-8")
+    dockerfile = (root / "deploy" / "docker" / "postgres" / "Dockerfile").read_text(encoding="utf-8")
     baseline = (root / "sql" / "bootstrap" / "schema_baseline.sql").read_text(encoding="utf-8")
     image_contract = all(
         marker in dockerfile for marker in ("pgduckdb/pgduckdb:18", "postgresql-18-postgis-3", "postgresql-18-pgvector")

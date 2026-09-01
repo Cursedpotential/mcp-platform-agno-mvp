@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 MIGRATION_0036 = ROOT / "sql" / "0036_context_import_foundation.sql"
 MIGRATION_0042 = ROOT / "sql" / "0042_context_hash_bytea_slice.sql"
-HASH_REPOSITORY = ROOT / "engine" / "postgres" / "hash_repository.go"
+HASH_REPOSITORY = ROOT / "modules" / "engine" / "postgres" / "hash_repository.go"
 VALIDATE_0042 = ROOT / "scripts" / "validate_0042_live.py"
 APPLY_0042 = ROOT / "scripts" / "apply_0042_live.py"
 

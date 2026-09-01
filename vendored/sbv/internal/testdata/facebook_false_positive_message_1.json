@@ -1,7 +1,0 @@
-{
-  "participants": [{"name": "Not a Messenger export"}],
-  "messages": [
-    {"payload": "arbitrary structured data"}
-  ],
-  "title": "Unrelated application data"
-}

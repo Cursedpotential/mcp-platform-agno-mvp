@@ -28,8 +28,8 @@ REPAIR_FORMATS = {"xml", "html", "json", "ndjson", "csv", "pdf", "image"}
 
 def test_sbv_image_is_immutable_and_state_uses_the_mounted_path() -> None:
     """SBV releases and SQLite state must survive a container replacement."""
-    dockerfile = (ROOT / "docker" / "tools" / "Dockerfile").read_text(encoding="utf-8")
-    supervisor = (ROOT / "docker" / "tools" / "supervisord.conf").read_text(encoding="utf-8")
+    dockerfile = (ROOT / "deploy" / "docker" / "tools" / "Dockerfile").read_text(encoding="utf-8")
+    supervisor = (ROOT / "deploy" / "docker" / "tools" / "supervisord.conf").read_text(encoding="utf-8")
     deployment = (ROOT / "deploy" / "platform-tools.yaml").read_text(encoding="utf-8")
 
     assert "FROM ghcr.io/cursedpotential/sbv-forensic@sha256:" in dockerfile
@@ -38,7 +38,7 @@ def test_sbv_image_is_immutable_and_state_uses_the_mounted_path() -> None:
 
 
 def test_platform_tools_image_pins_every_repair_runtime_dependency() -> None:
-    dockerfile = (ROOT / "docker" / "tools" / "Dockerfile").read_text(encoding="utf-8")
+    dockerfile = (ROOT / "deploy" / "docker" / "tools" / "Dockerfile").read_text(encoding="utf-8")
     requirements = (ROOT / "requirements.txt").read_text(encoding="utf-8")
 
     for package, version in REPAIR_PYTHON_PINS.items():
@@ -55,7 +55,7 @@ def test_platform_tools_image_pins_every_repair_runtime_dependency() -> None:
 
 
 def test_platform_tools_build_fails_when_a_repair_engine_is_unavailable() -> None:
-    dockerfile = (ROOT / "docker" / "tools" / "Dockerfile").read_text(encoding="utf-8")
+    dockerfile = (ROOT / "deploy" / "docker" / "tools" / "Dockerfile").read_text(encoding="utf-8")
 
     assert "from server.tools.repair.engines import manifest" in dockerfile
     assert "assert not missing" in dockerfile

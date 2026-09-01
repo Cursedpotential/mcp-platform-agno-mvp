@@ -20,7 +20,7 @@ from server.tools.gateway.mcp_chain import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
-MANIFEST = ROOT / "docker/gateway/mcp/publications.json"
+MANIFEST = ROOT / "deploy/docker/gateway/mcp/publications.json"
 
 
 def _tool(name: str, *, description: str = "tool") -> dict:

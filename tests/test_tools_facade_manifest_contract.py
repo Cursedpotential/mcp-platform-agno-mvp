@@ -10,7 +10,7 @@ from dataclasses import FrozenInstanceError
 import pytest
 from fastapi.testclient import TestClient
 
-from docker.tools.tools import facade
+from deploy.docker.tools.tools import facade
 from server.tools import registry as registry_module
 from server.tools.registry import FunctionTool, ToolRegistry, register
 

@@ -86,7 +86,7 @@ def test_retired_root_compose_watch_path_flagged() -> None:
 
 
 def test_missing_watch_coverage_of_own_manifest() -> None:
-    app = make_app(watch_paths="docker/app/**")  # never mentions deploy/app.yaml
+    app = make_app(watch_paths="deploy/docker/app/**")  # never mentions deploy/app.yaml
     resolver = FakeResolver({"main": SHA_A}, {("main", "deploy/app.yaml"): True})
     result = check_app(app, finished(SHA_A), resolver, THIS_REPO_DEFAULT)
     assert result["drift"] is True

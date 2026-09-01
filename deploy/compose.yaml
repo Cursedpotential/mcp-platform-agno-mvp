@@ -113,9 +113,12 @@ services:
   # ---------------------------------------------------------------------------
   platform-tools:
     build:
-      # Context is the REPO ROOT (not ./docker/tools): SBV is now built from
-      # source at vendored/sbv/ which lives outside ./docker/tools. The
-      # Dockerfile's COPYs are repo-root-relative (vendored/sbv/, docker/tools/).
+      # Context "." = the deploy/ directory (compose-spec: relative to this
+      # file). The Dockerfile's COPYs (docker/tools/...) resolve against it.
+      # SBV is NOT built from source here - the Dockerfile lifts the binary
+      # from the digest-pinned ghcr.io/cursedpotential/sbv-forensic CI image;
+      # the sbv working checkout now lives at modules/forks/sbv (own repo,
+      # gitignored). Comment corrected 2026-09-01 (owner restructure).
       context: .
       dockerfile: docker/tools/Dockerfile
     image: agno-platform-tools:latest

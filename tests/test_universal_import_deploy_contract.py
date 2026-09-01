@@ -106,9 +106,9 @@ def test_starter_and_parser_mount_only_their_required_shared_storage() -> None:
 
 
 def test_dockerfiles_build_the_intended_commands_and_health_surfaces() -> None:
-    parser = (ROOT / "docker/parser-activity-runtime/Dockerfile").read_text(encoding="utf-8")
-    worker = (ROOT / "docker/universal-import-worker/Dockerfile").read_text(encoding="utf-8")
-    starter = (ROOT / "docker/universal-import-starter/Dockerfile").read_text(encoding="utf-8")
+    parser = (ROOT / "deploy/docker/parser-activity-runtime/Dockerfile").read_text(encoding="utf-8")
+    worker = (ROOT / "deploy/docker/universal-import-worker/Dockerfile").read_text(encoding="utf-8")
+    starter = (ROOT / "deploy/docker/universal-import-starter/Dockerfile").read_text(encoding="utf-8")
 
     assert "./cmd/parser-activity-runtime" in parser
     assert "./cmd/universal-import-worker" in worker
@@ -120,7 +120,7 @@ def test_dockerfiles_build_the_intended_commands_and_health_surfaces() -> None:
 
 def test_existing_python_worker_is_not_referenced_or_replaced() -> None:
     combined = "\n".join(path.read_text(encoding="utf-8") for path in (PARSER_DEPLOY, WORKER_DEPLOY, STARTER_DEPLOY))
-    assert "docker/temporal-worker" not in combined
+    assert "deploy/docker/temporal-worker" not in combined
     assert "server.temporal.worker" not in combined
 def test_r2_is_api_access_via_runtime_json_secret_not_a_bucket_mount() -> None:
     worker = _compose(WORKER_DEPLOY)["services"]["universal-import-worker"]

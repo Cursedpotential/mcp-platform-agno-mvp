@@ -122,7 +122,7 @@ line-length = 120
 # docs/ holds vendored third-party code (cookbook notebooks); server/vendored/
 # holds vendored third-party projects (chatminer, semantica) — not ours to
 # format or lint.
-exclude = [".venv*", "docs", "server/vendored"]
+exclude = [".venv*", "docs", "server/vendored", "modules/engine", "modules/forks", "modules/custom", "modules/Legal-Workspace", "modules/traceIQ", "modules/apps"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401", "F403"]
@@ -132,7 +132,7 @@ check_untyped_defs = true
 no_implicit_optional = true
 warn_unused_configs = true
 plugins = ["pydantic.mypy"]
-exclude = [".venv*", "docs", "docker", "server/vendored"]
+exclude = [".venv*", "docs", "deploy/docker", "server/vendored", "modules/engine", "modules/forks", "modules/custom", "modules/Legal-Workspace", "modules/traceIQ", "modules/apps"]
 # scripts/ holds standalone scripts with no __init__.py; without this mypy maps
 # e.g. ingest_knowledge.py to both "ingest_knowledge" and "scripts.ingest_knowledge"
 # and errors with "Source file found twice under different module names".
@@ -196,7 +196,7 @@ testpaths = ["tests"]
 # default — run it opt-in, explicitly, after installing its extras:
 #   uv pip install -e "server/vendored/semantica[dev]"
 #   uv run pytest server/vendored/semantica/tests
-norecursedirs = ["docs", ".venv*", "server/tools", "server/vendored"]
+norecursedirs = ["docs", ".venv*", "server/tools", "server/vendored", "modules/engine", "modules/forks", "modules/custom", "modules/Legal-Workspace", "modules/traceIQ", "modules/apps"]
 # Integration tests are opt-in: run them with `pytest -m integration`.
 addopts = "-m 'not integration' -p server.observability.pytest_reporter"
 markers = [

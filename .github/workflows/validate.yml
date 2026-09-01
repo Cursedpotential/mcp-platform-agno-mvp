@@ -58,7 +58,11 @@ jobs:
         run: uv run pytest -q
 
   go:
-    name: Go engine + vendored/sbv
+    # sbv steps removed 2026-09-01: sbv moved to modules/forks/sbv, a nested
+    # independent repo gitignored by this one (canonical remote
+    # Cursedpotential/sbv-forensic, whose own CI builds the image the
+    # platform-tools Dockerfile consumes by digest). Its Go CI lives there.
+    name: Go engine
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -69,24 +73,16 @@ jobs:
           go-version: "1.25.7"
 
       - name: engine - go build
-        working-directory: engine
+        working-directory: modules/engine
         run: go build ./...
 
       - name: engine - go vet
-        working-directory: engine
+        working-directory: modules/engine
         run: go vet ./...
 
       - name: engine - go test
-        working-directory: engine
+        working-directory: modules/engine
         run: go test ./...
-
-      - name: vendored/sbv - go build (fts5)
-        working-directory: vendored/sbv
-        run: go build -tags fts5 ./...
-
-      - name: vendored/sbv - go test (fts5)
-        working-directory: vendored/sbv
-        run: go test -tags fts5 ./...
 
   integration:
     name: Mandatory live integration suite (GAP-021)
