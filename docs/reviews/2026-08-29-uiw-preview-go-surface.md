@@ -17,7 +17,7 @@ STATUS: LOCAL CONTRACT + DURABLE PG18 STORE + STARTER MOUNT IMPLEMENTED; DEPLOYM
 - A decision cannot be submitted before a validated projection exists. The projection validator
   requires at least one normalized message, all six completed receipts, resolvable participants,
   and source locators for every message and attachment. Approval after rejection fails closed
-  until the workflow exposes a changed selection or parser-options registry.
+  until the workflow exposes a changed selection or parser-options reference.
 - Added a narrow `PreviewStore` contract and deterministic `MemoryPreviewStore` test double. The
   in-memory store is expressly not a deployment store.
 - Extended starter route composition so an injected preview handler owns the new `/previews/*`
@@ -48,7 +48,7 @@ STATUS: LOCAL CONTRACT + DURABLE PG18 STORE + STARTER MOUNT IMPLEMENTED; DEPLOYM
 - Made UIW/Workbench the sole source-repair decision authority. The opaque-handle repair endpoint
   derives the actor only from Traefik/Authentik response headers, requires a bounded idempotency
   key, persists the exact append-only 0051 decision through `RepairActivityStore`, and only then
-  signals Temporal with its compact decision registry. The older workflow-id repair signal route
+  signals Temporal with its compact decision reference. The older workflow-id repair signal route
   is no longer mounted, so n8n cannot author or inject repair decisions.
 
 ## Remaining production boundary

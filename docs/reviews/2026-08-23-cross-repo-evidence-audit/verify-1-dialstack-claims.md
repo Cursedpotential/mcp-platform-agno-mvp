@@ -13,7 +13,7 @@ E:/AI_Workspace/Projects/the-platform-workspace/dev-resources/Archives/dial-stac
 (documented in `AGENTS.md` line 82 as "older SUBSET of those servers (history/diff only)" under the
 canonical `MCP_PLATFORM/` tree). It is a full git-tracked project tree — `server/`, `server/mcp/plugins/`,
 `server/mcp/storage/`, `mcp-servers/{js,py,ts}-mcp-server/`, `migrations/`, `docs/architecture/`, etc. —
-not a doc-only registry. Most of the 13 claims below check out against real files. Two claims
+not a doc-only reference. Most of the 13 claims below check out against real files. Two claims
 (#8 systemRouter tiers, #11 Tether location) contain material inaccuracies even though the underlying
 artifacts are real.
 

@@ -6,6 +6,9 @@
 # actually executed. See
 # docs/reviews/2026-08-25-schema-audit/GAP-021-IMPLEMENTATION-STATUS.md for
 # the required repository secrets and the tests this job depends on.)
+# Byline: Claude Code · Sonnet 5 · 2026-09-01 (H-02a — add the `go` job:
+# build/vet/test the engine/ module, plus vendored/sbv with the mandatory
+# -tags fts5 per AGENTS.md. Independent of the Python jobs above.)
 name: Validate
 
 on:
@@ -53,6 +56,37 @@ jobs:
 
       - name: Unit tests
         run: uv run pytest -q
+
+  go:
+    name: Go engine + vendored/sbv
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.7"
+
+      - name: engine - go build
+        working-directory: engine
+        run: go build ./...
+
+      - name: engine - go vet
+        working-directory: engine
+        run: go vet ./...
+
+      - name: engine - go test
+        working-directory: engine
+        run: go test ./...
+
+      - name: vendored/sbv - go build (fts5)
+        working-directory: vendored/sbv
+        run: go build -tags fts5 ./...
+
+      - name: vendored/sbv - go test (fts5)
+        working-directory: vendored/sbv
+        run: go test -tags fts5 ./...
 
   integration:
     name: Mandatory live integration suite (GAP-021)

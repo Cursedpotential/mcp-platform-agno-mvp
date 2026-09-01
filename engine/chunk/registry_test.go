@@ -38,7 +38,7 @@ func TestRegistrySelectsCoverageQualityThenIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	selection, err := reference.Select(SignatureStrategyMemo)
+	selection, err := registry.Select(SignatureStrategyMemo)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,19 +56,19 @@ func TestRegistryCapabilitySnapshotIsImmutable(t *testing.T) {
 	adapter.capability.ChunkerID = "mutated"
 	adapter.capability.Signatures[0] = SignatureChronology
 	adapter.capability.SignatureQuality[SignatureStrategyMemo] = parser.QualityExperimental
-	selection, err := reference.Select(SignatureStrategyMemo)
+	selection, err := registry.Select(SignatureStrategyMemo)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if selection.ChunkerID != "stable" || selection.Quality != parser.QualityPrimary {
 		t.Fatalf("registered snapshot mutated: %#v", selection)
 	}
-	capability, err := reference.SelectCapability(SignatureStrategyMemo)
+	capability, err := registry.SelectCapability(SignatureStrategyMemo)
 	if err != nil {
 		t.Fatal(err)
 	}
 	capability.Signatures[0] = SignatureChronology
-	again, err := reference.SelectCapability(SignatureStrategyMemo)
+	again, err := registry.SelectCapability(SignatureStrategyMemo)
 	if err != nil || again.Signatures[0] != SignatureStrategyMemo {
 		t.Fatalf("returned snapshot aliases registry: %#v, %v", again, err)
 	}
@@ -80,12 +80,12 @@ func TestRegistryExecuteSelectedReplaysExactIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	selection, err := reference.Select(SignatureChronology)
+	selection, err := registry.Select(SignatureChronology)
 	if err != nil {
 		t.Fatal(err)
 	}
 	source := []byte("intro\n\n> * **2020** event\n")
-	result, err := reference.ExecuteSelected(context.Background(), source, selection)
+	result, err := registry.ExecuteSelected(context.Background(), source, selection)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +93,7 @@ func TestRegistryExecuteSelectedReplaysExactIdentity(t *testing.T) {
 		t.Fatalf("completeness proof not surfaced: %#v", result)
 	}
 	selection.ChunkerVersion = "stale"
-	if _, err := reference.ExecuteSelected(context.Background(), source, selection); err == nil {
+	if _, err := registry.ExecuteSelected(context.Background(), source, selection); err == nil {
 		t.Fatal("stale selection identity was silently substituted")
 	}
 }
@@ -104,9 +104,9 @@ func TestRegistryRejectsQualityDriftAndFalseCompleteness(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	selection, _ := reference.Select(SignatureStrategyMemo)
+	selection, _ := registry.Select(SignatureStrategyMemo)
 	selection.Quality = parser.QualityFallback
-	if _, err := reference.ExecuteSelected(context.Background(), []byte("text"), selection); err == nil {
+	if _, err := registry.ExecuteSelected(context.Background(), []byte("text"), selection); err == nil {
 		t.Fatal("quality drift was accepted")
 	}
 
@@ -140,7 +140,7 @@ func TestRegistryRejectsDuplicateAndUncoveredCapabilities(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := reference.Select(SignatureChronology); err == nil {
+	if _, err := registry.Select(SignatureChronology); err == nil {
 		t.Fatal("uncovered signature selected")
 	}
 }

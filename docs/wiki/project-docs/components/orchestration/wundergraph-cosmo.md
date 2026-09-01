@@ -33,7 +33,7 @@ official_downloads:
 
 - [Integration](wundergraph-cosmo/INTEGRATION.md)
 
-Use the integration page as the main detailed registry.
+Use the integration page as the main detailed reference.
 
 ## Current Status
 

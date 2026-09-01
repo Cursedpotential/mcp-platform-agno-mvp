@@ -57,7 +57,7 @@ func TestRegistryMapsOnlySafeWorkbenchDeclaredFormats(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, format := range []parser.FormatID{formatWorkbenchSMSExportXML, formatLegacySMSXML} {
-		selected, err := reference.Select(format)
+		selected, err := registry.Select(format)
 		if err != nil {
 			t.Fatalf("select safe SMS alias %q: %v", format, err)
 		}
@@ -66,7 +66,7 @@ func TestRegistryMapsOnlySafeWorkbenchDeclaredFormats(t *testing.T) {
 		}
 	}
 	for _, format := range []parser.FormatID{"markdown", "message_export_json", "docx", "html"} {
-		if _, err := reference.Select(format); err == nil || !strings.Contains(err.Error(), "no parser adapter declares format") {
+		if _, err := registry.Select(format); err == nil || !strings.Contains(err.Error(), "no parser adapter declares format") {
 			t.Fatalf("ambiguous/unsupported Workbench format %q did not fail closed: %v", format, err)
 		}
 	}

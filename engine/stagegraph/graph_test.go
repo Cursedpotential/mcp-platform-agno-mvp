@@ -7,8 +7,8 @@ import (
 
 // requiredStages is the exact stage list mandated by the Lane C0 spec,
 // independent of the registry's own declaration, so a regression that
-// silently renames or drops a stage in reference.go still fails a test that
-// does not import reference.go's own constant list for its expectations.
+// silently renames or drops a stage in registry.go still fails a test that
+// does not import registry.go's own constant list for its expectations.
 var requiredStages = map[StageID]bool{
 	RegisterSource:                 true,
 	RetainOriginal:                 true,
