@@ -70,8 +70,35 @@ self-reported completion counts.
 
 ## Open questions for the owner
 
-1. Which directories did you move, and to where? Is `workbench/timesketch-fork/`
-   the intended destination (it is still inside the repo tree)?
-2. Were the deletions of root `.gitattributes` and
-   `.github/workflows/validate.yml` intentional, or swept up in the move?
-3. Green light to dispatch T-0 → H-02a → H-08a and Wave 1?
+1. ~~Which directories did you move?~~ RESOLVED — recorded in T-0 (`82258c6`);
+   timesketch-fork relocated fully out to `../timesketch-fork` (owner-ruled).
+2. ~~.gitattributes / validate.yml deletions?~~ RESOLVED — accidental; restored.
+3. ~~Green light?~~ GIVEN — full sequence.
+
+## Execution status (2026-09-01, end of first session)
+
+| Item | Status |
+|---|---|
+| T-0 owner-move commit | **DONE** `82258c6` |
+| H-02a restore compilation | **DONE** `9da8815` — plus a second wave of the same sweep damage found in **Python** (registry→reference at usage sites, 12 files incl. `server/tools/registry.py`) and fixed; go build/vet/test green; pytest collection restored |
+| H-08a decide 0062 | **DONE — APPLIED.** `registry` schema live (8 ID-card tables), ledger row recorded. Pre-apply amendment: `entity_mention` no-op line removed (lives in `working`; pg_duckdb's `duckdb_alter_table_trigger` errors on IF-EXISTS no-ops). 122 code refs requalified (12 files); 4 stale test expectations fixed; `_matter_validate_0030` static checks pinned to the frozen file's `analysis.*` text |
+| H-08a drift sweep | **DONE** — baseline regenerated from live (twice); DuckDB `read_text` anti-join + ccc semantic net. Found+fixed: `working.validate_message_projection` still queried `working.person` (SET SCHEMA never rewrites function bodies) → **migration 0065 applied**. Deferred to H-04: `working.enqueue_evidence_vector_projection` targets the dropped `normalized_record_chunk` |
+| H-00 residual (baseline ledger row) | **DONE** — annotated in ledger: applied bytes match NO committed baseline version; historical-unreproducible |
+| H-09 doc hygiene | **DONE** `4cbdce4` — FUCKED.MD out, 75-file awaiting-verification inventory persisted |
+| H-11 Surreal design doc | **DONE** `6e6d1c8` |
+| Test/results consolidation (owner ruling) | **DONE** — reports now `tests/_reports/` (gitignored); CONVENTIONS/ADR-0054/AGENTS.md amended |
+| H-08, H-02, H-06, H-10-residual, H-01, H-04, H-05, H-07, H-03 | **PENDING** — per wave plan above |
+
+## New findings logged for later waves
+
+- **27 pre-existing pytest failures** in files untouched today (deploy/cutover
+  contract tests drifted during the AgentOS retirement rework: ingest_port ×14,
+  opencode_ops ×6, deploy contracts, db_url, surreal_phase1, uiw webhooks,
+  format_engine_override teardown flake). H-02 must not gate on these initially.
+- **sql/0045 merge-conflict casualty**: only `.broken-historical`/`.incoming-conflict`
+  variants ever existed (now moved out with `to_be_deleted/`); ledger has no 0045
+  row; `tests/test_0048_...py` now module-skips with this reason. Needs an owner
+  ruling: restore a canonical 0045 or renumber the supersession chain.
+- `scripts/_matter_validate_0030.py` had pre-existing drift unrelated to 0062
+  (0030's frozen text creates `analysis.*`; the validator asserted `reference.*`).
+  Static checks now pinned to the frozen text.
