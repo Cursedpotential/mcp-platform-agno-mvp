@@ -1,5 +1,5 @@
 -- schema_baseline_20260830.sql
--- Generated 2026-09-01T03:30:36.938622+00:00 from the live `platform`
+-- Generated 2026-09-01T03:36:41.517986+00:00 from the live `platform`
 -- database using PostgreSQL's own DDL serializers (pg_get_constraintdef,
 -- pg_get_indexdef, pg_get_viewdef, pg_get_functiondef).
 --
@@ -2105,15 +2105,6 @@ CREATE TABLE IF NOT EXISTS ops.audit_ledger (
   entry_hash text NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS ops.geocode_audit (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  request_id uuid,
-  action text NOT NULL,
-  actor_kind text,
-  detail jsonb DEFAULT '{}'::jsonb NOT NULL,
-  occurred_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS ops.migration_ledger (
   migration_id text NOT NULL,
   filename text NOT NULL,
@@ -2872,16 +2863,6 @@ CREATE TABLE IF NOT EXISTS reference.format_resolver (
   used_count integer DEFAULT 0 NOT NULL,
   review_status review_state DEFAULT 'unreviewed'::review_state NOT NULL,
   created_by text,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS reference.geofence (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  name text NOT NULL,
-  geog geography(Polygon,4326) NOT NULL,
-  purpose text,
-  data_tier evidence_tier DEFAULT 'analytical'::evidence_tier NOT NULL,
-  provenance_id uuid,
   created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
@@ -3776,57 +3757,6 @@ CREATE TABLE IF NOT EXISTS working.first_party_context_thread_version (
   created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS working.geocode_request (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  query text NOT NULL,
-  geog ai.geo_point,
-  status text DEFAULT 'pending'::text NOT NULL,
-  data_tier evidence_tier DEFAULT 'extracted'::evidence_tier NOT NULL,
-  provenance_id uuid,
-  requested_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.geocode_resolution (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  request_id uuid NOT NULL,
-  location_id uuid,
-  preferred_provider geocode_provider,
-  chosen_result_id uuid,
-  distance_m numeric(12,2),
-  disagreement_flag boolean DEFAULT false NOT NULL,
-  tie_break_reason text,
-  data_tier evidence_tier DEFAULT 'extracted'::evidence_tier NOT NULL,
-  provenance_id uuid,
-  resolved_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.geocode_result (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  request_id uuid NOT NULL,
-  provider geocode_provider NOT NULL,
-  place_id text,
-  address text,
-  geog ai.geo_point,
-  confidence ai.confidence,
-  bounds jsonb,
-  raw_json jsonb DEFAULT '{}'::jsonb NOT NULL,
-  data_tier evidence_tier DEFAULT 'extracted'::evidence_tier NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.gps_track (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  device_id uuid,
-  source_id uuid,
-  geog geography(LineString,4326) NOT NULL,
-  started_at timestamp with time zone,
-  ended_at timestamp with time zone,
-  point_count integer,
-  data_tier evidence_tier DEFAULT 'extracted'::evidence_tier NOT NULL,
-  provenance_id uuid,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS working.handle (
   id uuid NOT NULL,
   platform text NOT NULL,
@@ -3834,19 +3764,6 @@ CREATE TABLE IF NOT EXISTS working.handle (
   owner_entity_id uuid,
   is_blocked boolean DEFAULT false NOT NULL,
   validity tstzrange DEFAULT tstzrange(now(), NULL::timestamp with time zone) NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.home_base (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  entity_id uuid,
-  location_id uuid,
-  spatial_confidence ai.confidence,
-  typical_schedule jsonb DEFAULT '{}'::jsonb NOT NULL,
-  requires_human_review boolean DEFAULT false NOT NULL,
-  review_status review_state DEFAULT 'unreviewed'::review_state NOT NULL,
-  data_tier evidence_tier DEFAULT 'inferred'::evidence_tier NOT NULL,
-  provenance_id uuid,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS working.message (
@@ -4061,23 +3978,6 @@ CREATE TABLE IF NOT EXISTS working.source_provenance (
   created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS working.stay_point (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  track_id uuid,
-  location_id uuid,
-  device_id uuid,
-  geog ai.geo_point NOT NULL,
-  arrived_at timestamp with time zone,
-  departed_at timestamp with time zone,
-  dwell_s bigint,
-  spatial_confidence ai.confidence,
-  requires_human_review boolean DEFAULT false NOT NULL,
-  review_status review_state DEFAULT 'unreviewed'::review_state NOT NULL,
-  data_tier evidence_tier DEFAULT 'inferred'::evidence_tier NOT NULL,
-  provenance_id uuid,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS working.temporal_anchor (
   anchor_id uuid DEFAULT uuidv7() NOT NULL,
   anchor_key citext,
@@ -4237,13 +4137,6 @@ CREATE TABLE IF NOT EXISTS working.third_party_message_participant (
   deriver_version text NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS working.vehicle (
-  id uuid NOT NULL,
-  plate citext,
-  make_model text,
-  owner_entity_id uuid
-);
-
 CREATE TABLE IF NOT EXISTS working.walk_checkpoint (
   id uuid DEFAULT uuidv7() NOT NULL,
   walk_run_id uuid NOT NULL,
@@ -4318,20 +4211,6 @@ CREATE TABLE IF NOT EXISTS working.walk_step_retrieval (
   score real,
   was_used boolean DEFAULT false NOT NULL,
   created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.waypoint_device_split (
-  split_id uuid DEFAULT uuidv7() NOT NULL,
-  raw_path_id uuid NOT NULL,
-  device_index integer NOT NULL,
-  split_from_activity uuid,
-  threshold_meters numeric DEFAULT 100 NOT NULL,
-  certainty precision_class DEFAULT 'inferred'::precision_class NOT NULL,
-  confidence ai.confidence,
-  requires_human_review boolean DEFAULT false NOT NULL,
-  ingest_run_id uuid,
-  author text NOT NULL,
-  asserted_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 -- ============ primary keys / unique / check ============
@@ -4873,7 +4752,6 @@ ALTER TABLE evidence.source ADD CONSTRAINT source_sha256_uniq UNIQUE (sha256);
 ALTER TABLE evidence.source ADD CONSTRAINT source_source_type_check CHECK ((source_type = ANY (ARRAY['device_dump'::text, 'chat_export'::text, 'screenshot'::text, 'call_log'::text, 'pdf'::text, 'media'::text, 'takeout'::text, 'social_export'::text, 'document'::text, 'other'::text])));
 ALTER TABLE ops.audit_ledger ADD CONSTRAINT audit_ledger_action_type_check CHECK ((action_type = ANY (ARRAY['decision'::text, 'write'::text, 'read'::text, 'tool_call'::text, 'approval'::text, 'derivation'::text])));
 ALTER TABLE ops.audit_ledger ADD CONSTRAINT audit_ledger_pkey PRIMARY KEY (id);
-ALTER TABLE ops.geocode_audit ADD CONSTRAINT geocode_audit_pkey PRIMARY KEY (id);
 ALTER TABLE ops.migration_ledger ADD CONSTRAINT migration_ledger_ddl_sha256_check CHECK ((octet_length(ddl_sha256) = 32));
 ALTER TABLE ops.migration_ledger ADD CONSTRAINT migration_ledger_pkey PRIMARY KEY (migration_id);
 ALTER TABLE ops.processing_run ADD CONSTRAINT processing_run_pkey PRIMARY KEY (run_id);
@@ -4988,8 +4866,6 @@ ALTER TABLE reference.entity_alias ADD CONSTRAINT entity_alias_alias_kind_check 
 ALTER TABLE reference.entity_alias ADD CONSTRAINT entity_alias_pkey PRIMARY KEY (id);
 ALTER TABLE reference.format_resolver ADD CONSTRAINT format_resolver_pkey PRIMARY KEY (id);
 ALTER TABLE reference.format_resolver ADD CONSTRAINT format_resolver_source_signature_target_schema_key UNIQUE (source_signature, target_schema);
-ALTER TABLE reference.geofence ADD CONSTRAINT geofence_data_tier_check CHECK ((data_tier = 'analytical'::evidence_tier));
-ALTER TABLE reference.geofence ADD CONSTRAINT geofence_pkey PRIMARY KEY (id);
 ALTER TABLE reference.id_xref ADD CONSTRAINT id_xref_pkey PRIMARY KEY (id);
 ALTER TABLE reference.id_xref ADD CONSTRAINT uq_xref_pair UNIQUE (system_a, native_id_a, system_b, native_id_b);
 ALTER TABLE reference.knowledge_tag ADD CONSTRAINT knowledge_tag_label_check CHECK ((length(label) > 0));
@@ -5281,17 +5157,7 @@ ALTER TABLE working.first_party_context_thread_version ADD CONSTRAINT first_part
 ALTER TABLE working.first_party_context_thread_version ADD CONSTRAINT first_party_context_thread_version_pkey PRIMARY KEY (id);
 ALTER TABLE working.first_party_context_thread_version ADD CONSTRAINT first_party_context_thread_version_review_state_check CHECK ((review_state = ANY (ARRAY['proposed'::text, 'approved'::text, 'rejected'::text, 'superseded'::text])));
 ALTER TABLE working.first_party_context_thread_version ADD CONSTRAINT first_party_context_thread_version_version_ordinal_check CHECK ((version_ordinal > 0));
-ALTER TABLE working.geocode_request ADD CONSTRAINT geocode_request_data_tier_check CHECK ((data_tier = 'extracted'::evidence_tier));
-ALTER TABLE working.geocode_request ADD CONSTRAINT geocode_request_pkey PRIMARY KEY (id);
-ALTER TABLE working.geocode_resolution ADD CONSTRAINT geocode_resolution_data_tier_check CHECK ((data_tier = 'extracted'::evidence_tier));
-ALTER TABLE working.geocode_resolution ADD CONSTRAINT geocode_resolution_pkey PRIMARY KEY (id);
-ALTER TABLE working.geocode_result ADD CONSTRAINT geocode_result_data_tier_check CHECK ((data_tier = 'extracted'::evidence_tier));
-ALTER TABLE working.geocode_result ADD CONSTRAINT geocode_result_pkey PRIMARY KEY (id);
-ALTER TABLE working.gps_track ADD CONSTRAINT gps_track_data_tier_check CHECK ((data_tier = 'extracted'::evidence_tier));
-ALTER TABLE working.gps_track ADD CONSTRAINT gps_track_pkey PRIMARY KEY (id);
 ALTER TABLE working.handle ADD CONSTRAINT handle_pkey PRIMARY KEY (id);
-ALTER TABLE working.home_base ADD CONSTRAINT home_base_data_tier_check CHECK ((data_tier = 'inferred'::evidence_tier));
-ALTER TABLE working.home_base ADD CONSTRAINT home_base_pkey PRIMARY KEY (id);
 ALTER TABLE working.message ADD CONSTRAINT message_content_sha256_check CHECK (((content_sha256 IS NULL) OR (octet_length(content_sha256) = 32)));
 ALTER TABLE working.message ADD CONSTRAINT message_direction_check CHECK ((direction = ANY (ARRAY['inbound'::text, 'outbound'::text, 'unknown'::text])));
 ALTER TABLE working.message ADD CONSTRAINT message_pkey PRIMARY KEY (id);
@@ -5349,8 +5215,6 @@ ALTER TABLE working.source_provenance ADD CONSTRAINT source_provenance_realized_
 ALTER TABLE working.source_provenance ADD CONSTRAINT source_provenance_realized_at_state_check CHECK ((realized_at_state = ANY (ARRAY['unset'::text, 'proposed'::text, 'confirmed'::text, 'corrected'::text])));
 ALTER TABLE working.source_provenance ADD CONSTRAINT source_provenance_realized_state_agrees CHECK (((realized_at IS NULL) = (realized_at_state = 'unset'::text)));
 ALTER TABLE working.source_provenance ADD CONSTRAINT source_provenance_revision_check CHECK ((revision > 0));
-ALTER TABLE working.stay_point ADD CONSTRAINT stay_point_data_tier_check CHECK ((data_tier = 'inferred'::evidence_tier));
-ALTER TABLE working.stay_point ADD CONSTRAINT stay_point_pkey PRIMARY KEY (id);
 ALTER TABLE working.temporal_anchor ADD CONSTRAINT anchor_ordering CHECK ((valid_earliest <= valid_latest));
 ALTER TABLE working.temporal_anchor ADD CONSTRAINT temporal_anchor_anchor_key_key UNIQUE (anchor_key);
 ALTER TABLE working.temporal_anchor ADD CONSTRAINT temporal_anchor_pkey PRIMARY KEY (anchor_id);
@@ -5426,7 +5290,6 @@ ALTER TABLE working.third_party_message_participant ADD CONSTRAINT third_party_m
 ALTER TABLE working.third_party_message_participant ADD CONSTRAINT third_party_message_participant_participant_raw_check CHECK ((length(participant_raw) > 0));
 ALTER TABLE working.third_party_message_participant ADD CONSTRAINT third_party_message_participant_pkey PRIMARY KEY (id);
 ALTER TABLE working.third_party_message_participant ADD CONSTRAINT third_party_message_participant_role_check CHECK ((role = ANY (ARRAY['from'::text, 'to'::text, 'cc'::text, 'bcc'::text, 'group'::text])));
-ALTER TABLE working.vehicle ADD CONSTRAINT vehicle_pkey PRIMARY KEY (id);
 ALTER TABLE working.walk_checkpoint ADD CONSTRAINT walk_checkpoint_base_version_check CHECK ((length(base_version) > 0));
 ALTER TABLE working.walk_checkpoint ADD CONSTRAINT walk_checkpoint_belief_state_check CHECK ((jsonb_typeof(belief_state) = 'object'::text));
 ALTER TABLE working.walk_checkpoint ADD CONSTRAINT walk_checkpoint_chain_hash_check CHECK ((length(chain_hash) = 64));
@@ -5456,7 +5319,6 @@ ALTER TABLE working.walk_step_realization_retrieval ADD CONSTRAINT walk_step_rea
 ALTER TABLE working.walk_step_retrieval ADD CONSTRAINT walk_step_retrieval_pkey PRIMARY KEY (id);
 ALTER TABLE working.walk_step_retrieval ADD CONSTRAINT walk_step_retrieval_store_check CHECK ((store = ANY (ARRAY['postgres'::text, 'weaviate'::text, 'graphiti'::text, 'neo4j'::text, 'other'::text])));
 ALTER TABLE working.walk_step_retrieval ADD CONSTRAINT walk_step_retrieval_walk_step_id_record_id_store_key UNIQUE (walk_step_id, record_id, store);
-ALTER TABLE working.waypoint_device_split ADD CONSTRAINT waypoint_device_split_pkey PRIMARY KEY (split_id);
 
 -- ============ foreign keys (after all tables exist) ============
 ALTER TABLE ai.agno_component_configs ADD CONSTRAINT agno_component_configs_component_id_fkey FOREIGN KEY (component_id) REFERENCES agno_components(component_id);
@@ -5698,7 +5560,6 @@ ALTER TABLE evidence.evidence_item ADD CONSTRAINT evidence_item_supersedes_item_
 ALTER TABLE evidence.ingest_run ADD CONSTRAINT ingest_run_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
 ALTER TABLE evidence.source ADD CONSTRAINT source_acquisition_id_fkey FOREIGN KEY (acquisition_id) REFERENCES evidence.acquisition(id);
 ALTER TABLE evidence.source ADD CONSTRAINT source_supersedes_source_id_fkey FOREIGN KEY (supersedes_source_id) REFERENCES evidence.source(id);
-ALTER TABLE ops.geocode_audit ADD CONSTRAINT geocode_audit_request_id_fkey FOREIGN KEY (request_id) REFERENCES working.geocode_request(id);
 ALTER TABLE ops.processing_run ADD CONSTRAINT processing_run_classification_version_id_fkey FOREIGN KEY (classification_version_id) REFERENCES classification_version(classification_version_id);
 ALTER TABLE ops.processing_run ADD CONSTRAINT processing_run_model_version_id_fkey FOREIGN KEY (model_version_id) REFERENCES model_version(model_version_id);
 ALTER TABLE ops.processing_run ADD CONSTRAINT processing_run_ontology_version_id_fkey FOREIGN KEY (ontology_version_id) REFERENCES ontology_version(ontology_version_id);
@@ -5768,7 +5629,6 @@ ALTER TABLE reference.device ADD CONSTRAINT device_id_fkey FOREIGN KEY (id) REFE
 ALTER TABLE reference.device ADD CONSTRAINT device_owner_entity_id_fkey FOREIGN KEY (owner_entity_id) REFERENCES reference.entity(id);
 ALTER TABLE reference.entity ADD CONSTRAINT entity_merged_into_id_fkey FOREIGN KEY (merged_into_id) REFERENCES reference.entity(id);
 ALTER TABLE reference.entity_alias ADD CONSTRAINT entity_alias_entity_id_fkey FOREIGN KEY (entity_id) REFERENCES reference.entity(id) ON DELETE CASCADE;
-ALTER TABLE reference.geofence ADD CONSTRAINT geofence_provenance_id_fkey FOREIGN KEY (provenance_id) REFERENCES ops.processing_run(run_id);
 ALTER TABLE reference.id_xref ADD CONSTRAINT id_xref_canonical_entity_id_fkey FOREIGN KEY (canonical_entity_id) REFERENCES reference.entity(id);
 ALTER TABLE reference.knowledge_tag ADD CONSTRAINT knowledge_tag_parent_tag_id_fkey FOREIGN KEY (parent_tag_id) REFERENCES reference.knowledge_tag(id);
 ALTER TABLE reference.legal_issue_factor ADD CONSTRAINT legal_issue_factor_factor_fkey FOREIGN KEY (factor) REFERENCES reference.custody_factor(factor);
@@ -5856,20 +5716,8 @@ ALTER TABLE working.first_party_context_thread_source ADD CONSTRAINT first_party
 ALTER TABLE working.first_party_context_thread_source ADD CONSTRAINT first_party_context_thread_source_supersedes_id_fkey FOREIGN KEY (supersedes_id) REFERENCES working.first_party_context_thread_source(id) ON DELETE RESTRICT;
 ALTER TABLE working.first_party_context_thread_version ADD CONSTRAINT first_party_context_thread_version_context_thread_id_fkey FOREIGN KEY (context_thread_id) REFERENCES working.first_party_context_thread(context_thread_id) ON DELETE RESTRICT;
 ALTER TABLE working.first_party_context_thread_version ADD CONSTRAINT first_party_context_thread_version_supersedes_id_fkey FOREIGN KEY (supersedes_id) REFERENCES working.first_party_context_thread_version(id) ON DELETE RESTRICT;
-ALTER TABLE working.geocode_request ADD CONSTRAINT geocode_request_provenance_id_fkey FOREIGN KEY (provenance_id) REFERENCES ops.processing_run(run_id);
-ALTER TABLE working.geocode_resolution ADD CONSTRAINT geocode_resolution_chosen_result_id_fkey FOREIGN KEY (chosen_result_id) REFERENCES working.geocode_result(id);
-ALTER TABLE working.geocode_resolution ADD CONSTRAINT geocode_resolution_location_id_fkey FOREIGN KEY (location_id) REFERENCES reference.location(id);
-ALTER TABLE working.geocode_resolution ADD CONSTRAINT geocode_resolution_provenance_id_fkey FOREIGN KEY (provenance_id) REFERENCES ops.processing_run(run_id);
-ALTER TABLE working.geocode_resolution ADD CONSTRAINT geocode_resolution_request_id_fkey FOREIGN KEY (request_id) REFERENCES working.geocode_request(id);
-ALTER TABLE working.geocode_result ADD CONSTRAINT geocode_result_request_id_fkey FOREIGN KEY (request_id) REFERENCES working.geocode_request(id);
-ALTER TABLE working.gps_track ADD CONSTRAINT gps_track_device_id_fkey FOREIGN KEY (device_id) REFERENCES reference.device(id);
-ALTER TABLE working.gps_track ADD CONSTRAINT gps_track_provenance_id_fkey FOREIGN KEY (provenance_id) REFERENCES ops.processing_run(run_id);
-ALTER TABLE working.gps_track ADD CONSTRAINT gps_track_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
 ALTER TABLE working.handle ADD CONSTRAINT handle_id_fkey FOREIGN KEY (id) REFERENCES reference.entity(id) ON DELETE CASCADE;
 ALTER TABLE working.handle ADD CONSTRAINT handle_owner_entity_id_fkey FOREIGN KEY (owner_entity_id) REFERENCES reference.entity(id);
-ALTER TABLE working.home_base ADD CONSTRAINT home_base_entity_id_fkey FOREIGN KEY (entity_id) REFERENCES reference.entity(id);
-ALTER TABLE working.home_base ADD CONSTRAINT home_base_location_id_fkey FOREIGN KEY (location_id) REFERENCES reference.location(id);
-ALTER TABLE working.home_base ADD CONSTRAINT home_base_provenance_id_fkey FOREIGN KEY (provenance_id) REFERENCES ops.processing_run(run_id);
 ALTER TABLE working.message ADD CONSTRAINT fk_msg_screenshot FOREIGN KEY (screenshot_attachment_id) REFERENCES working.attachment(id);
 ALTER TABLE working.message ADD CONSTRAINT message_derived_from_record_id_fkey FOREIGN KEY (derived_from_record_id) REFERENCES working.normalized_record(id);
 ALTER TABLE working.message ADD CONSTRAINT message_id_fkey FOREIGN KEY (id) REFERENCES working.normalized_record(id) ON DELETE CASCADE;
@@ -5890,10 +5738,6 @@ ALTER TABLE working.realization_event ADD CONSTRAINT realization_event_trigger_r
 ALTER TABLE working.realization_event_record ADD CONSTRAINT realization_event_record_normalized_record_id_fkey FOREIGN KEY (normalized_record_id) REFERENCES working.normalized_record(id) ON DELETE RESTRICT;
 ALTER TABLE working.realization_event_record ADD CONSTRAINT realization_event_record_realization_event_id_fkey FOREIGN KEY (realization_event_id) REFERENCES working.realization_event(id) ON DELETE CASCADE;
 ALTER TABLE working.record_visible_from ADD CONSTRAINT record_visible_from_record_id_fkey FOREIGN KEY (record_id) REFERENCES working.normalized_record(id) ON DELETE CASCADE;
-ALTER TABLE working.stay_point ADD CONSTRAINT stay_point_device_id_fkey FOREIGN KEY (device_id) REFERENCES reference.device(id);
-ALTER TABLE working.stay_point ADD CONSTRAINT stay_point_location_id_fkey FOREIGN KEY (location_id) REFERENCES reference.location(id);
-ALTER TABLE working.stay_point ADD CONSTRAINT stay_point_provenance_id_fkey FOREIGN KEY (provenance_id) REFERENCES ops.processing_run(run_id);
-ALTER TABLE working.stay_point ADD CONSTRAINT stay_point_track_id_fkey FOREIGN KEY (track_id) REFERENCES working.gps_track(id);
 ALTER TABLE working.temporal_anchor ADD CONSTRAINT temporal_anchor_event_id_fkey FOREIGN KEY (event_id) REFERENCES analysis.timeline_event(event_id);
 ALTER TABLE working.third_party_context_thread ADD CONSTRAINT third_party_context_thread_court_case_id_matter_id_fkey FOREIGN KEY (court_case_id, matter_id) REFERENCES reference.court_case(id, matter_id) ON DELETE RESTRICT;
 ALTER TABLE working.third_party_context_thread_message ADD CONSTRAINT third_party_context_thread_me_thread_version_id_context_th_fkey FOREIGN KEY (thread_version_id, context_thread_id) REFERENCES working.third_party_context_thread_version(id, context_thread_id) ON DELETE RESTRICT;
@@ -5919,8 +5763,6 @@ ALTER TABLE working.third_party_message ADD CONSTRAINT third_party_message_route
 ALTER TABLE working.third_party_message ADD CONSTRAINT third_party_message_sender_entity_id_fkey FOREIGN KEY (sender_entity_id) REFERENCES reference.entity(id) ON DELETE RESTRICT;
 ALTER TABLE working.third_party_message_participant ADD CONSTRAINT third_party_message_participant_entity_id_fkey FOREIGN KEY (entity_id) REFERENCES reference.entity(id) ON DELETE RESTRICT;
 ALTER TABLE working.third_party_message_participant ADD CONSTRAINT third_party_message_participant_message_id_fkey FOREIGN KEY (message_id) REFERENCES working.third_party_message(id) ON DELETE CASCADE;
-ALTER TABLE working.vehicle ADD CONSTRAINT vehicle_id_fkey FOREIGN KEY (id) REFERENCES reference.entity(id) ON DELETE CASCADE;
-ALTER TABLE working.vehicle ADD CONSTRAINT vehicle_owner_entity_id_fkey FOREIGN KEY (owner_entity_id) REFERENCES reference.entity(id);
 ALTER TABLE working.walk_checkpoint ADD CONSTRAINT walk_checkpoint_walk_run_id_fkey FOREIGN KEY (walk_run_id) REFERENCES working.walk_run(id) ON DELETE CASCADE;
 ALTER TABLE working.walk_run ADD CONSTRAINT walk_run_resume_checkpoint_fk FOREIGN KEY (resume_from_checkpoint_id, id) REFERENCES working.walk_checkpoint(id, walk_run_id) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
 ALTER TABLE working.walk_run ADD CONSTRAINT walk_run_rewalk_of_id_fkey FOREIGN KEY (rewalk_of_id) REFERENCES working.walk_run(id) ON DELETE RESTRICT;
@@ -5930,9 +5772,6 @@ ALTER TABLE working.walk_step_realization_retrieval ADD CONSTRAINT walk_step_rea
 ALTER TABLE working.walk_step_realization_retrieval ADD CONSTRAINT walk_step_realization_retrieval_walk_step_id_fkey FOREIGN KEY (walk_step_id) REFERENCES working.walk_step(id) ON DELETE CASCADE;
 ALTER TABLE working.walk_step_retrieval ADD CONSTRAINT walk_step_retrieval_record_id_fkey FOREIGN KEY (record_id) REFERENCES working.normalized_record(id) ON DELETE RESTRICT;
 ALTER TABLE working.walk_step_retrieval ADD CONSTRAINT walk_step_retrieval_walk_step_id_fkey FOREIGN KEY (walk_step_id) REFERENCES working.walk_step(id) ON DELETE CASCADE;
-ALTER TABLE working.waypoint_device_split ADD CONSTRAINT waypoint_device_split_ingest_run_id_fkey FOREIGN KEY (ingest_run_id) REFERENCES ops.processing_run(run_id);
-ALTER TABLE working.waypoint_device_split ADD CONSTRAINT waypoint_device_split_raw_path_id_fkey FOREIGN KEY (raw_path_id) REFERENCES raw.raw_path(id);
-ALTER TABLE working.waypoint_device_split ADD CONSTRAINT waypoint_device_split_split_from_activity_fkey FOREIGN KEY (split_from_activity) REFERENCES raw.raw_activity(id);
 
 -- ============ indexes ============
 CREATE INDEX IF NOT EXISTS candidate_entity_attrs_gin ON working.candidate_entity USING gin (attrs);
@@ -6140,14 +5979,10 @@ CREATE INDEX IF NOT EXISTS idx_filenode_source ON raw.file_node USING btree (sou
 CREATE INDEX IF NOT EXISTS idx_finding_mcl ON analysis.finding USING gin (mcl_factors);
 CREATE INDEX IF NOT EXISTS idx_finding_review ON analysis.finding USING btree (review_status);
 CREATE INDEX IF NOT EXISTS idx_finding_type ON analysis.finding USING btree (finding_type);
-CREATE INDEX IF NOT EXISTS idx_geocode_audit_req ON ops.geocode_audit USING btree (request_id, occurred_at);
-CREATE INDEX IF NOT EXISTS idx_geocode_result_req ON working.geocode_result USING btree (request_id);
-CREATE INDEX IF NOT EXISTS idx_geofence_geog ON reference.geofence USING gist (geog);
 CREATE INDEX IF NOT EXISTS idx_gps_point_devtime ON raw.gps_point USING btree (device_id, captured_at);
 CREATE INDEX IF NOT EXISTS idx_gps_point_geog ON raw.gps_point USING gist (geog);
 CREATE INDEX IF NOT EXISTS idx_gps_point_raw ON raw.gps_point USING gin (raw_data);
 CREATE INDEX IF NOT EXISTS idx_gps_point_seq ON raw.gps_point USING btree (source_id, point_sequence);
-CREATE INDEX IF NOT EXISTS idx_gps_track_geog ON working.gps_track USING gist (geog);
 CREATE INDEX IF NOT EXISTS idx_handle_owner ON working.handle USING btree (owner_entity_id);
 CREATE INDEX IF NOT EXISTS idx_handle_trgm ON working.handle USING gin (((handle)::text) gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_ingest_run_open ON evidence.ingest_run USING btree (status) WHERE (status = ANY (ARRAY['running'::text, 'failed'::text, 'rolled_back'::text]));
@@ -6256,7 +6091,6 @@ CREATE INDEX IF NOT EXISTS idx_source_filename_trgm ON evidence.source USING gin
 CREATE INDEX IF NOT EXISTS idx_source_orig_meta ON evidence.source USING gin (original_metadata);
 CREATE INDEX IF NOT EXISTS idx_source_platform ON evidence.source USING btree (source_platform, source_type);
 CREATE INDEX IF NOT EXISTS idx_source_supersedes ON evidence.source USING btree (supersedes_source_id);
-CREATE INDEX IF NOT EXISTS idx_stay_point_geog ON working.stay_point USING gist (geog);
 CREATE INDEX IF NOT EXISTS idx_ta_current ON analysis.time_assertion USING btree (event_id) WHERE upper_inf(sys_period);
 CREATE INDEX IF NOT EXISTS idx_task_case_status ON analysis.evidence_task USING btree (case_id, status);
 CREATE INDEX IF NOT EXISTS idx_taskevent_task ON analysis.task_event USING btree (task_id, ts DESC);
@@ -6270,7 +6104,6 @@ CREATE INDEX IF NOT EXISTS idx_walk_run_case_status ON working.walk_run USING bt
 CREATE INDEX IF NOT EXISTS idx_walk_step_record ON working.walk_step USING btree (record_id) WHERE (record_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_walk_step_retrieval_record ON working.walk_step_retrieval USING btree (record_id);
 CREATE INDEX IF NOT EXISTS idx_walk_step_run_step ON working.walk_step USING btree (walk_run_id, step_no);
-CREATE INDEX IF NOT EXISTS idx_wds_path ON working.waypoint_device_split USING btree (raw_path_id);
 CREATE INDEX IF NOT EXISTS idx_workflow_run_gate_state ON analysis.workflow_run USING btree (gate_state) WHERE (gate_state IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_workflow_run_gate_state ON ops.workflow_run USING btree (gate_state) WHERE (gate_state IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_workflow_run_parent ON analysis.workflow_run USING btree (parent_run_id) WHERE (parent_run_id IS NOT NULL);

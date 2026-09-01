@@ -74,3 +74,17 @@ watches:
   - docs/DECISION_LOG.md
   - docs/MEMORY_ARCHITECTURE.md
 -->
+
+## Geo lane is PARKED (D-121, 2026-08-31) — note for every future session
+The location/GPS lane (stay_point, gps_track, geocode_*, home_base,
+waypoint_device_split, vehicle, geofence, geocode_audit) is REAL, owner-ruled,
+and deliberately OUT of the live database until ingest is proven on lesser
+data. Complete one-file restore: `sql/parked/geo_lane_parked_20260831.sql`
+(restore-proven against a clean target). Do NOT recreate these ad hoc; do NOT
+treat their absence as a gap. Owner: "why am I gonna bring in the key to the
+application I've been working on even longer than this, just to have it
+fucked up too."
+
+## Git on this repo: Desktop Commander ONLY
+Sandbox cannot unlink .git locks or push (no credentials). Write a .ps1 to
+C:\Temp, run via DC start_process. Proven 2026-08-31 (commit 15a1d87).
