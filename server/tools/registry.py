@@ -264,7 +264,7 @@ def register(
 
     def _wrap(fn: Callable[[dict[str, Any]], dict[str, Any]]) -> Callable:
         normalized_formats, normalized_quality = _normalize_declarations(formats, quality)
-        reference.register(
+        registry.register(
             FunctionTool(
                 id=id,
                 capability=capability,
@@ -317,7 +317,7 @@ def load_builtin_tools() -> int:
     """
     global _BUILTINS_LOADED
     if _BUILTINS_LOADED:
-        return len(reference.all())
+        return len(registry.all())
     import importlib
     import pkgutil
 
@@ -337,7 +337,7 @@ def load_builtin_tools() -> int:
             continue
         importlib.import_module(mod.name)
     _BUILTINS_LOADED = True
-    return len(reference.all())
+    return len(registry.all())
 
 
 _BUILTINS_LOADED = False

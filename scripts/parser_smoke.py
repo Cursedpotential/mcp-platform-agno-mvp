@@ -101,7 +101,7 @@ def main() -> None:
         print(f"  size: {path.stat().st_size / 1024:,.1f} KiB")
 
         try:
-            tool = reference.get(spec["tool"])
+            tool = registry.get(spec["tool"])
         except Exception as e:
             print(f"  SKIP - no such tool: {e}")
             skipped += 1

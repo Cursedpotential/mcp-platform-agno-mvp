@@ -92,7 +92,7 @@ def _parse_via_registry(
     preferred_tool_id: str | None = None,
 ) -> tuple[list[NormalizedRecord], str, list[dict[str, Any]]]:
     load_builtin_tools()
-    candidates = reference.resolve(
+    candidates = registry.resolve(
         "parse.transcript",
         media_hint=path.name.lower(),
         size_bytes=path.stat().st_size,
@@ -120,9 +120,9 @@ def _parse_via_pinned_tool(
 ) -> tuple[list[NormalizedRecord], str, list[dict[str, Any]]]:
     load_builtin_tools()
     try:
-        tool = reference.get(tool_id)
+        tool = registry.get(tool_id)
     except KeyError:
-        known = sorted(tool.id for tool in reference.all() if tool.capability == "parse.transcript")
+        known = sorted(tool.id for tool in registry.all() if tool.capability == "parse.transcript")
         raise ValueError(f"unknown python parser {tool_id!r}; registered parse.transcript tools: {known}") from None
     if tool.capability != "parse.transcript":
         raise ValueError(f"tool {tool_id!r} is not a parse.transcript tool")

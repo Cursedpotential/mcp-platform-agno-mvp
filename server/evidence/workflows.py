@@ -646,7 +646,7 @@ def build_chat_transcript_workflow(
 
     def parse_step(step_input: StepInput) -> StepOutput:
         p = Path(ctx["path"])
-        candidates = reference.resolve("parse.transcript", media_hint=p.name.lower(), size_bytes=p.stat().st_size)
+        candidates = registry.resolve("parse.transcript", media_hint=p.name.lower(), size_bytes=p.stat().st_size)
         if not candidates:
             return StepOutput(content=f"parse: NO tool accepts {p.name}", success=False, stop=True)
         last_err: Exception | None = None
@@ -756,7 +756,7 @@ def build_sms_xml_workflow(
 
     def parse_step(step_input: StepInput) -> StepOutput:
         p = Path(ctx["path"])
-        candidates = reference.resolve("parse.sms-xml", media_hint=p.name.lower(), size_bytes=p.stat().st_size)
+        candidates = registry.resolve("parse.sms-xml", media_hint=p.name.lower(), size_bytes=p.stat().st_size)
         if not candidates:
             return StepOutput(content=f"parse: NO tool accepts {p.name}", success=False, stop=True)
         primary = candidates[0]

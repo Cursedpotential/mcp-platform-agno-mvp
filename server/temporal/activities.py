@@ -220,7 +220,7 @@ def parse_activity(params: ParseParams) -> ParseResult:
 
     load_builtin_tools()
     p = Path(params.path)
-    candidates = reference.resolve(
+    candidates = registry.resolve(
         "parse.transcript",
         media_hint=p.name.lower(),
         size_bytes=p.stat().st_size,

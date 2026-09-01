@@ -193,7 +193,7 @@ def missing_for(fmt: str) -> tuple[str, ...]:
 
 
 def manifest() -> list[dict[str, Any]]:
-    """Human/agent-readable capability table — mirrors reference.manifest()."""
+    """Human/agent-readable capability table — mirrors registry.manifest()."""
     return [
         {
             "engine": e.name,
