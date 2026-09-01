@@ -1,5 +1,5 @@
 -- schema_baseline_20260830.sql
--- Generated 2026-09-01T03:20:33.664835+00:00 from the live `platform`
+-- Generated 2026-09-01T03:30:36.938622+00:00 from the live `platform`
 -- database using PostgreSQL's own DDL serializers (pg_get_constraintdef,
 -- pg_get_indexdef, pg_get_viewdef, pg_get_functiondef).
 --
