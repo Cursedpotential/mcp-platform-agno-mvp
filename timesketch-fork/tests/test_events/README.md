@@ -1,1 +1,0 @@
-Files in this folder are supposed for testing various Sigma rules (and maybe other analyzers)
