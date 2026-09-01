@@ -36,7 +36,9 @@ def test_workbench_incorporates_surrealdb_studio_without_credentials() -> None:
 
 
 def test_runner_wires_resume_rewalk_and_restore_parity_without_legacy_target() -> None:
-    runner = (ROOT / "deploy/docker/surreal-phase1-runner/src/horizon_surreal_phase1/runner.py").read_text(encoding="utf-8")
+    runner = (ROOT / "deploy/docker/surreal-phase1-runner/src/horizon_surreal_phase1/runner.py").read_text(
+        encoding="utf-8"
+    )
     assert "walk_checkpoint" in runner
     assert "revision=REVISION_1" in runner
     assert "revision=REVISION_2" in runner

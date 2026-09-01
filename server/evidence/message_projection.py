@@ -440,7 +440,9 @@ def approve_third_party_conversation(
         )
         if conversation is None:
             raise ValueError("third-party conversation does not exist")
-        owners = conn.execute(text("SELECT id FROM registry.person WHERE role_in_case='user' FOR SHARE")).scalars().all()
+        owners = (
+            conn.execute(text("SELECT id FROM registry.person WHERE role_in_case='user' FOR SHARE")).scalars().all()
+        )
         if len(owners) != 1:
             raise ValueError("exactly one configured case owner is required before approval")
         party_rows = [

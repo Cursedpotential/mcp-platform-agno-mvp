@@ -1,0 +1,3 @@
+[submodule "modules/forks/sbv"]
+	path = modules/forks/sbv
+	url = https://github.com/Cursedpotential/sbv-forensic

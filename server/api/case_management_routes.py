@@ -207,6 +207,7 @@ def register_case_management_routes(app: FastAPI) -> None:
                 after=after,
             )
         )
+
     @app.get(
         "/v1/case-management/capabilities",
         response_model=CaseManagementCapabilities,

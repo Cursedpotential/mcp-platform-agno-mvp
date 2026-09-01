@@ -175,7 +175,7 @@ tests/_reports/
 
 # nested independent repos (owner restructure 2026-09-01) - each has its own .git;
 # the platform repo never tracks them (ignored-independent-child pattern, no gitlinks)
-modules/forks/
+modules/forks/timesketch/
 modules/custom/
 modules/Legal-Workspace/
 modules/traceIQ/

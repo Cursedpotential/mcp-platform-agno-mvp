@@ -122,6 +122,8 @@ def test_existing_python_worker_is_not_referenced_or_replaced() -> None:
     combined = "\n".join(path.read_text(encoding="utf-8") for path in (PARSER_DEPLOY, WORKER_DEPLOY, STARTER_DEPLOY))
     assert "deploy/docker/temporal-worker" not in combined
     assert "server.temporal.worker" not in combined
+
+
 def test_r2_is_api_access_via_runtime_json_secret_not_a_bucket_mount() -> None:
     worker = _compose(WORKER_DEPLOY)["services"]["universal-import-worker"]
     assert worker["environment"]["CASEBIBLE_R2_CONFIG_PATH"] == "/run/secrets/casebible-r2.json"
