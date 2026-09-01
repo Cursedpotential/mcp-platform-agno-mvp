@@ -89,6 +89,14 @@ self-reported completion counts.
 | Test/results consolidation (owner ruling) | **DONE** — reports now `tests/_reports/` (gitignored); CONVENTIONS/ADR-0054/AGENTS.md amended |
 | H-08, H-02, H-06, H-10-residual, H-01, H-04, H-05, H-07, H-03 | **PENDING** — per wave plan above |
 
+## Owner ruling for H-02 (2026-09-01)
+
+Cross-language contract schemas will live at **`modules/contracts/`** (beside
+engine/workbench — the shared boundary between the grouped modules). Not
+`docs/`, not hidden `.contracts/`. The removed root `contracts/` placeholder is
+not resurrected; H-02 creates `modules/contracts/` when the first real schema
+files land. Recorded in AGENTS.md layout table.
+
 ## New findings logged for later waves
 
 - **27 pre-existing pytest failures** in files untouched today (deploy/cutover
