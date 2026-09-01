@@ -180,6 +180,29 @@ smoke check only.
 
 All Python is `uv`-managed — never invoke a bare `python`/`pip`/`pytest`.
 
+### Test layout (owner consolidation ruling, 2026-09-01)
+
+`tests/` holds the pytest suite (source, tracked). Generated pytest durable
+reports write to **`tests/_reports/`** (gitignored) — test source and test
+results share one parent. `build/` is packaging output only and holds no test
+artifacts. Configured in `server/observability/pytest_reporter.py`; recorded in
+`docs/CONVENTIONS.md` and ADR-0054 (amended).
+
+### Scan & discovery tooling (owner directives, 2026-09-01)
+
+- **DuckDB** (`duckdb` CLI, v1.5+ local) is the preferred engine for bulk
+  scans: file sweeps via `read_text()` globs + `regexp_extract_all`, schema
+  drift anti-joins against live `information_schema`, CSV/JSON crunching.
+  Prefer it over hand-rolled Python iteration for set-shaped scans.
+- **CocoIndex Code (`ccc`)** semantic index is maintained up to date on this
+  repo — use it for repository-wide discovery, blast-radius analysis, and as a
+  second net after mechanical grep sweeps (catches string-built SQL and
+  f-string qualifications grep misses). Private dev assistance only — never
+  cite it in product architecture or plans.
+- **Git:** sessions with real shell access run git directly. Desktop Commander
+  is only for sandboxed Local-Agent-Mode sessions that cannot unlink `.git`
+  locks or push (see `AGENT_MEMORY.md`).
+
 ## Agent Topology
 
 ```

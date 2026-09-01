@@ -169,3 +169,6 @@ to_be_deleted/
 # stray build/agent artifacts (2026-08-29 cleanup)
 workbench/design-mockups/**/node_modules/
 .cnf/
+
+# generated test results (owner consolidation 2026-09-01: tests + results share one parent)
+tests/_reports/

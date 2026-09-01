@@ -47,7 +47,9 @@ hash-chained `ops.audit_ledger`. The missing design was how they relate.
    requires `LANGFUSE_ENABLED=true` plus credentials. Self-hosting is preferred
    for case-bearing traces. No trace backend is evidence custody or audit truth.
 7. **Pytest uses the same reporting shape.** Every invocation writes ignored
-   JSON and self-contained interactive HTML under `build/test-reports/`, with
+   JSON and self-contained interactive HTML under `build/test-reports/`
+   (**amended 2026-09-01, owner consolidation ruling: now `tests/_reports/`** —
+   test source and generated results share one parent; still gitignored), with
    named pass/skip/fail rows, collection failures/skips, reasons, remediation,
    and source links. Uniquely named files preserve each invocation while
    `latest.json` and `latest.html` remain convenience copies.

@@ -52,7 +52,7 @@ def test_default_outputs_are_unique_and_refresh_latest(monkeypatch, tmp_path):
         pytest_reporter.pytest_sessionstart(session)
         pytest_reporter.pytest_sessionfinish(session, exitstatus=0)
 
-        report_dir = tmp_path / "build" / "test-reports"
+        report_dir = tmp_path / "tests" / "_reports"
         archives = list(report_dir.glob("pytest-*.json"))
         assert len(archives) == 1
         assert archives[0].with_suffix(".html").is_file()

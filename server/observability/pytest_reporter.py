@@ -1,6 +1,6 @@
 """Mandatory JSON + interactive HTML reports for every first-party pytest run.
 
-Generated reports live under ignored ``build/test-reports``. They enumerate
+Generated reports live under ignored ``tests/_reports``. They enumerate
 every test outcome and every skip reason; aggregate counts are never the only
 record of what happened.
 
@@ -184,7 +184,7 @@ th,td{{border-bottom:1px solid #273449;padding:9px;text-align:left;vertical-alig
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     global _written_paths
     report = _build_report(exitstatus)
-    archive_dir = Path("build/test-reports")
+    archive_dir = Path("tests/_reports")
     archive_json = archive_dir / f"pytest-{_run_id}.json"
     archive_html = archive_dir / f"pytest-{_run_id}.html"
     requested_json = session.config.getoption("--run-report-json")
@@ -205,7 +205,7 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
 
 
 def pytest_terminal_summary(terminalreporter: Any) -> None:
-    paths = _written_paths or (Path("build/test-reports/latest.json"), Path("build/test-reports/latest.html"))
+    paths = _written_paths or (Path("tests/_reports/latest.json"), Path("tests/_reports/latest.html"))
     terminalreporter.write_sep(
         "=",
         f"durable reports: {paths[0]} | {paths[1]} (latest.* refreshed)",

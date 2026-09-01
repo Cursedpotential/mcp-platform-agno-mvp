@@ -144,7 +144,10 @@ def run(payload: dict) -> dict:
 
 - **`tests/`** = the pytest suite (code correctness). **`evals/`** = the standalone LLM-eval
   harness (`python -m evals`; model/prompt quality — NOT pytest). **`build/`** = generated
-  outputs ONLY (gitignored); today that means `build/test-reports/` (pytest durable reports).
+  packaging outputs ONLY (gitignored). ~~today that means `build/test-reports/` (pytest
+  durable reports)~~ **Amended 2026-09-01 (owner consolidation ruling):** pytest durable
+  reports now live at **`tests/_reports/`** (gitignored) so test source and test results
+  share one parent; `build/` no longer holds test reports.
   Point-in-time attestation/inventory snapshots do NOT live in build/ — they were moved to
   `_stale/build-snapshots-20260824/` (never-delete).
 - Root loose files quarantined to `_stale/root-tidy-20260824/` (scratch inspect script, an

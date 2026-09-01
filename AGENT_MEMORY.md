@@ -85,6 +85,8 @@ treat their absence as a gap. Owner: "why am I gonna bring in the key to the
 application I've been working on even longer than this, just to have it
 fucked up too."
 
-## Git on this repo: Desktop Commander ONLY
-Sandbox cannot unlink .git locks or push (no credentials). Write a .ps1 to
-C:\Temp, run via DC start_process. Proven 2026-08-31 (commit 15a1d87).
+## Git on this repo
+~~Desktop Commander ONLY~~ **Corrected 2026-09-01 (owner):** sessions with real
+shell access (Claude Code desktop) run git directly. The DC-only rule applied
+only to sandboxed Local-Agent-Mode sessions that could not unlink .git locks or
+push (proven 2026-08-31, commit 15a1d87). Use DC only from such a sandbox.
