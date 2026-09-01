@@ -62,7 +62,7 @@ def run_repository_validation(*, dsn: str, target: str) -> None:
 
     with engine.connect() as connection:
         before = connection.execute(
-            text("SELECT to_regclass('reference.matter'), to_regclass('ops.audit_ledger')")
+            text("SELECT to_regclass('registry.matter'), to_regclass('ops.audit_ledger')")
         ).one()
         assert before == (None, None), "target must be a clean disposable database"
         connection.rollback()
@@ -283,7 +283,7 @@ def run_repository_validation(*, dsn: str, target: str) -> None:
             repository._engine = previous_engine
             outer.rollback()
 
-        after = connection.execute(text("SELECT to_regclass('reference.matter'), to_regclass('ops.audit_ledger')")).one()
+        after = connection.execute(text("SELECT to_regclass('registry.matter'), to_regclass('ops.audit_ledger')")).one()
         assert after == before
     engine.dispose()
 

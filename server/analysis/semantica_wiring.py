@@ -16,7 +16,7 @@ they are not passed to ``server.analysis.semantica_worker``.
     approval. Graphiti owns `memory`. The extraction worker writes neither.
   * Seed-first    → before Semantica extracts, we SEED it from Postgres: the
     behavioral ontology (reference.behavior_category / detection_pattern) and any
-    resolved reference.entity rows. Semantica extends the seeded ontology rather
+    resolved registry.entity rows. Semantica extends the seeded ontology rather
     than inventing a parallel one.
 
 NET-NEW VALUE Semantica adds (why wire it at all): cross-source CONFLICT
@@ -124,7 +124,7 @@ def seed_config() -> dict[str, Any]:
             "reference.detection_pattern",  # 512 patterns
             "reference.pattern_lexicon",  # 51 terms (sealed stay REDACTED until out-of-band loader)
         ],
-        "entity_tables": ["reference.entity", "reference.entity_alias"],
+        "entity_tables": ["registry.entity", "registry.entity_alias"],
         "seal_policy": "skip_sealed_lexicon",  # never pull REDACTED placeholders into the graph
         "extend_not_replace": True,
     }

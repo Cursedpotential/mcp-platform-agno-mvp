@@ -32,7 +32,11 @@ ALTER TABLE IF EXISTS reference.device       SET SCHEMA registry;
 ALTER TABLE IF EXISTS reference.person       SET SCHEMA registry;
 ALTER TABLE IF EXISTS reference.entity       SET SCHEMA registry;
 ALTER TABLE IF EXISTS reference.entity_alias SET SCHEMA registry;
-ALTER TABLE IF EXISTS reference.entity_mention SET SCHEMA registry;
+-- entity_mention line removed 2026-09-01 (pre-apply amendment): the table
+-- lives in working, not reference, so this was a no-op — and pg_duckdb's
+-- duckdb_alter_table_trigger (ddl_command_end) errors on IF-EXISTS no-ops
+-- (UndefinedTable on the skipped relation). Mentions are occurrences, not
+-- ID cards; working is the correct home.
 ALTER TABLE IF EXISTS reference.location     SET SCHEMA registry;
 ALTER TABLE IF EXISTS reference.id_xref      SET SCHEMA registry;
 ALTER TABLE IF EXISTS reference.court_case   SET SCHEMA registry;

@@ -521,7 +521,7 @@ def test_create_matter_atomically_creates_default_case_and_partition(
 
     assert result.partition_keys == ["new-partition"]
     court_insert = engine.calls[1]
-    assert "INSERT INTO analysis.court_case" in court_insert[0]
+    assert "INSERT INTO registry.court_case" in court_insert[0]
     assert court_insert[1]["caption"] == "New matter"
     bridge_insert = engine.calls[2]
     assert bridge_insert[1]["default_case_id"] == CASE_ID

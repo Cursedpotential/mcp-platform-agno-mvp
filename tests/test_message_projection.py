@@ -298,7 +298,7 @@ class _ApprovalConnection:
                     }
                 ]
             )
-        if "FROM working.person" in rendered:
+        if "FROM registry.person" in rendered:
             return _ApprovalResult(values=["owner-id"])
         if "FROM working.third_party_message tm" in rendered:
             return _ApprovalResult(
@@ -321,7 +321,7 @@ class _ApprovalConnection:
                     },
                 ]
             )
-        if "FROM working.entity" in rendered:
+        if "FROM registry.entity" in rendered:
             return _ApprovalResult(values=["alex-id", "jordan-id"])
         if "SELECT count(*)" in rendered:
             return _ApprovalResult(scalar=1)

@@ -38,9 +38,12 @@ def validate_static(sql: str | None = None) -> list[str]:
 
     required = {
         "held/unapplied banner": "held for owner" in normalized and "not applied" in normalized,
-        "matter table": "create table reference.matter (" in normalized,
-        "court case table": "create table reference.court_case (" in normalized,
-        "partition bridge": "create table reference.matter_knowledge_partition (" in normalized,
+        # Static checks assert the FROZEN 0030 text, which creates analysis.*
+        # (the tables were moved to registry later, by 0057/0062 — live probes
+        # below use registry.*; the immutable migration file keeps analysis.*).
+        "matter table": "create table analysis.matter (" in normalized,
+        "court case table": "create table analysis.court_case (" in normalized,
+        "partition bridge": "create table analysis.matter_knowledge_partition (" in normalized,
         "primary seed": "select 'primary', matter_id, id, 'migration-0030'" in normalized,
         "evidence matter column": "add column matter_id uuid" in normalized,
         "evidence court case column": "add column court_case_id uuid" in normalized,
@@ -138,7 +141,7 @@ def validate_promotion_contract(cursor: psycopg.Cursor[Any], marker: str) -> Non
     normalized_record_id = cursor.fetchone()[0]
     cursor.execute(
         "SELECT matter_id, default_court_case_id "
-        "FROM reference.matter_knowledge_partition WHERE partition_key = 'primary'"
+        "FROM analysis.matter_knowledge_partition WHERE partition_key = 'primary'"
     )
     matter_id, court_case_id = cursor.fetchone()
     cursor.execute(
@@ -302,11 +305,11 @@ def validate_promotion_contract(cursor: psycopg.Cursor[Any], marker: str) -> Non
     )
 
     cursor.execute(
-        "INSERT INTO reference.matter (title, created_by) VALUES ('Isolation probe', 'matter-validator') RETURNING id"
+        "INSERT INTO registry.matter (title, created_by) VALUES ('Isolation probe', 'matter-validator') RETURNING id"
     )
     foreign_matter_id = cursor.fetchone()[0]
     cursor.execute(
-        "INSERT INTO reference.court_case "
+        "INSERT INTO registry.court_case "
         "(matter_id, caption, is_primary, created_by) "
         "VALUES (%s, 'Isolation proceeding', true, 'matter-validator') RETURNING id",
         (foreign_matter_id,),
@@ -355,9 +358,9 @@ def validate_database(*, dsn: str, target: str) -> None:
         assert connection.autocommit is False
         with connection.cursor() as cursor:
             cursor.execute(
-                "SELECT to_regclass('reference.matter'), "
-                "to_regclass('reference.court_case'), "
-                "to_regclass('reference.matter_knowledge_partition'), "
+                "SELECT to_regclass('registry.matter'), "
+                "to_regclass('registry.court_case'), "
+                "to_regclass('analysis.matter_knowledge_partition'), "
                 "to_regclass('analysis.knowledge_evidence_promotion')"
             )
             before_relations = cursor.fetchone()
@@ -368,19 +371,19 @@ def validate_database(*, dsn: str, target: str) -> None:
             with connection.cursor() as cursor:
                 cursor.execute(sql)
                 cursor.execute(
-                    "SELECT to_regclass('reference.matter'), "
-                    "to_regclass('reference.court_case'), "
-                    "to_regclass('reference.matter_knowledge_partition'), "
+                    "SELECT to_regclass('registry.matter'), "
+                    "to_regclass('registry.court_case'), "
+                    "to_regclass('analysis.matter_knowledge_partition'), "
                     "to_regclass('analysis.knowledge_evidence_promotion')"
                 )
                 assert cursor.fetchone() == (
-                    "reference.matter",
-                    "reference.court_case",
-                    "reference.matter_knowledge_partition",
+                    "registry.matter",
+                    "registry.court_case",
+                    "analysis.matter_knowledge_partition",
                     "analysis.knowledge_evidence_promotion",
                 )
                 cursor.execute(
-                    "SELECT count(*) FROM reference.matter_knowledge_partition WHERE partition_key = 'primary'"
+                    "SELECT count(*) FROM analysis.matter_knowledge_partition WHERE partition_key = 'primary'"
                 )
                 assert cursor.fetchone() == (1,)
                 cursor.execute(
@@ -399,9 +402,9 @@ def validate_database(*, dsn: str, target: str) -> None:
             connection.rollback()
         with connection.cursor() as cursor:
             cursor.execute(
-                "SELECT to_regclass('reference.matter'), "
-                "to_regclass('reference.court_case'), "
-                "to_regclass('reference.matter_knowledge_partition'), "
+                "SELECT to_regclass('registry.matter'), "
+                "to_regclass('registry.court_case'), "
+                "to_regclass('analysis.matter_knowledge_partition'), "
                 "to_regclass('analysis.knowledge_evidence_promotion')"
             )
             assert cursor.fetchone() == before_relations

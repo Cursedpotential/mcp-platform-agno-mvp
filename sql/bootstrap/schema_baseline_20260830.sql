@@ -1,5 +1,5 @@
 -- schema_baseline_20260830.sql
--- Generated 2026-09-01T03:36:41.517986+00:00 from the live `platform`
+-- Generated 2026-09-01T11:44:55.893671+00:00 from the live `platform`
 -- database using PostgreSQL's own DDL serializers (pg_get_constraintdef,
 -- pg_get_indexdef, pg_get_viewdef, pg_get_functiondef).
 --
@@ -32,6 +32,7 @@ CREATE SCHEMA IF NOT EXISTS ops;
 CREATE SCHEMA IF NOT EXISTS public;
 CREATE SCHEMA IF NOT EXISTS raw;
 CREATE SCHEMA IF NOT EXISTS reference;
+CREATE SCHEMA IF NOT EXISTS registry;
 CREATE SCHEMA IF NOT EXISTS timeline;
 CREATE SCHEMA IF NOT EXISTS working;
 
@@ -2743,24 +2744,6 @@ CREATE TABLE IF NOT EXISTS reference.claim_type (
   created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS reference.court_case (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  matter_id uuid NOT NULL,
-  caption text NOT NULL,
-  docket_number text,
-  court_name text,
-  jurisdiction text,
-  case_type text,
-  status text DEFAULT 'pre_filing'::text NOT NULL,
-  filed_on date,
-  closed_on date,
-  is_primary boolean DEFAULT false NOT NULL,
-  created_by text NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL,
-  updated_at timestamp with time zone DEFAULT now() NOT NULL,
-  verification_state text DEFAULT 'proposed'::text NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS reference.custody_factor (
   factor ai.mcl_factor NOT NULL,
   code_display text NOT NULL,
@@ -2807,51 +2790,6 @@ CREATE TABLE IF NOT EXISTS reference.detection_pattern_set (
   provenance_id uuid
 );
 
-CREATE TABLE IF NOT EXISTS reference.device (
-  id uuid NOT NULL,
-  make_model text,
-  os text,
-  imei_or_serial citext,
-  owner_entity_id uuid,
-  device_label text,
-  acquired_note text,
-  verification_state text DEFAULT 'proposed'::text NOT NULL,
-  identification_confidence ai.confidence,
-  identification_signal text
-);
-
-CREATE TABLE IF NOT EXISTS reference.entity (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  entity_type ai.entity_type NOT NULL,
-  display_name citext,
-  canonical_name citext,
-  normalized_name citext,
-  sensitivity_tier sensitivity_tier,
-  is_party boolean DEFAULT false NOT NULL,
-  data_tier evidence_tier DEFAULT 'inferred'::evidence_tier NOT NULL,
-  evidence_confidence ai.confidence,
-  provenance ai.source_ref[] DEFAULT '{}'::ai.source_ref[] NOT NULL,
-  requires_human_review boolean DEFAULT false NOT NULL,
-  review_status review_state DEFAULT 'unreviewed'::review_state NOT NULL,
-  safe_for_legal_use boolean DEFAULT false NOT NULL,
-  merged_into_id uuid,
-  first_seen_at timestamp with time zone,
-  last_seen_at timestamp with time zone,
-  sys_period tstzrange DEFAULT tstzrange(now(), NULL::timestamp with time zone) NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS reference.entity_alias (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  entity_id uuid NOT NULL,
-  alias_text citext NOT NULL,
-  alias_kind text,
-  confidence ai.confidence,
-  alias_dmeta text GENERATED ALWAYS AS (dmetaphone((alias_text)::text)) STORED,
-  provenance ai.source_ref[] DEFAULT '{}'::ai.source_ref[] NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS reference.format_resolver (
   id uuid DEFAULT uuidv7() NOT NULL,
   source_signature text NOT NULL,
@@ -2863,21 +2801,6 @@ CREATE TABLE IF NOT EXISTS reference.format_resolver (
   used_count integer DEFAULT 0 NOT NULL,
   review_status review_state DEFAULT 'unreviewed'::review_state NOT NULL,
   created_by text,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS reference.id_xref (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  canonical_entity_id uuid,
-  system_a ai.source_system NOT NULL,
-  native_id_a text NOT NULL,
-  system_b ai.source_system NOT NULL,
-  native_id_b text NOT NULL,
-  match_method ai.match_method NOT NULL,
-  confidence ai.confidence,
-  source ai.source_ref,
-  is_current boolean DEFAULT true NOT NULL,
-  sys_period tstzrange DEFAULT tstzrange(now(), NULL::timestamp with time zone) NOT NULL,
   created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
@@ -2926,35 +2849,6 @@ CREATE TABLE IF NOT EXISTS reference.lexicon_sync (
   created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS reference.location (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  name text,
-  geog ai.geo_point NOT NULL,
-  geohash9 text GENERATED ALWAYS AS (st_geohash((geog)::geometry, 9)) STORED,
-  address text,
-  place_type text,
-  is_fuzzed boolean DEFAULT false NOT NULL,
-  sensitivity_tier sensitivity_tier DEFAULT 'restricted'::sensitivity_tier NOT NULL,
-  spatial_confidence ai.confidence,
-  data_tier evidence_tier DEFAULT 'extracted'::evidence_tier NOT NULL,
-  provenance_id uuid,
-  created_at timestamp with time zone DEFAULT now() NOT NULL,
-  verification_state text DEFAULT 'proposed'::text NOT NULL,
-  identification_confidence ai.confidence,
-  identification_signal text
-);
-
-CREATE TABLE IF NOT EXISTS reference.matter (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  title text NOT NULL,
-  description text,
-  status text DEFAULT 'active'::text NOT NULL,
-  created_by text NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL,
-  updated_at timestamp with time zone DEFAULT now() NOT NULL,
-  verification_state text DEFAULT 'proposed'::text NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS reference.pattern_lexicon (
   id uuid DEFAULT uuidv7() NOT NULL,
   pattern_set_id uuid NOT NULL,
@@ -2972,20 +2866,6 @@ CREATE TABLE IF NOT EXISTS reference.pattern_lexicon (
   valid_from timestamp with time zone DEFAULT now() NOT NULL,
   valid_to timestamp with time zone,
   created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS reference.person (
-  id uuid NOT NULL,
-  relationship_type text,
-  connection_to text,
-  role_in_case text,
-  gender text,
-  is_minor boolean DEFAULT false NOT NULL,
-  is_flagged boolean DEFAULT false NOT NULL,
-  notes text,
-  verification_state text DEFAULT 'proposed'::text NOT NULL,
-  identification_confidence ai.confidence,
-  identification_signal text
 );
 
 CREATE TABLE IF NOT EXISTS reference.relative_rule (
@@ -3018,6 +2898,127 @@ CREATE TABLE IF NOT EXISTS reference.topic_code (
   is_case_specific boolean DEFAULT false NOT NULL,
   is_active boolean DEFAULT true NOT NULL,
   created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS registry.court_case (
+  id uuid DEFAULT uuidv7() NOT NULL,
+  matter_id uuid NOT NULL,
+  caption text NOT NULL,
+  docket_number text,
+  court_name text,
+  jurisdiction text,
+  case_type text,
+  status text DEFAULT 'pre_filing'::text NOT NULL,
+  filed_on date,
+  closed_on date,
+  is_primary boolean DEFAULT false NOT NULL,
+  created_by text NOT NULL,
+  created_at timestamp with time zone DEFAULT now() NOT NULL,
+  updated_at timestamp with time zone DEFAULT now() NOT NULL,
+  verification_state text DEFAULT 'proposed'::text NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS registry.device (
+  id uuid NOT NULL,
+  make_model text,
+  os text,
+  imei_or_serial citext,
+  owner_entity_id uuid,
+  device_label text,
+  acquired_note text,
+  verification_state text DEFAULT 'proposed'::text NOT NULL,
+  identification_confidence ai.confidence,
+  identification_signal text
+);
+
+CREATE TABLE IF NOT EXISTS registry.entity (
+  id uuid DEFAULT uuidv7() NOT NULL,
+  entity_type ai.entity_type NOT NULL,
+  display_name citext,
+  canonical_name citext,
+  normalized_name citext,
+  sensitivity_tier sensitivity_tier,
+  is_party boolean DEFAULT false NOT NULL,
+  data_tier evidence_tier DEFAULT 'inferred'::evidence_tier NOT NULL,
+  evidence_confidence ai.confidence,
+  provenance ai.source_ref[] DEFAULT '{}'::ai.source_ref[] NOT NULL,
+  requires_human_review boolean DEFAULT false NOT NULL,
+  review_status review_state DEFAULT 'unreviewed'::review_state NOT NULL,
+  safe_for_legal_use boolean DEFAULT false NOT NULL,
+  merged_into_id uuid,
+  first_seen_at timestamp with time zone,
+  last_seen_at timestamp with time zone,
+  sys_period tstzrange DEFAULT tstzrange(now(), NULL::timestamp with time zone) NOT NULL,
+  created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS registry.entity_alias (
+  id uuid DEFAULT uuidv7() NOT NULL,
+  entity_id uuid NOT NULL,
+  alias_text citext NOT NULL,
+  alias_kind text,
+  confidence ai.confidence,
+  alias_dmeta text GENERATED ALWAYS AS (dmetaphone((alias_text)::text)) STORED,
+  provenance ai.source_ref[] DEFAULT '{}'::ai.source_ref[] NOT NULL,
+  created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS registry.id_xref (
+  id uuid DEFAULT uuidv7() NOT NULL,
+  canonical_entity_id uuid,
+  system_a ai.source_system NOT NULL,
+  native_id_a text NOT NULL,
+  system_b ai.source_system NOT NULL,
+  native_id_b text NOT NULL,
+  match_method ai.match_method NOT NULL,
+  confidence ai.confidence,
+  source ai.source_ref,
+  is_current boolean DEFAULT true NOT NULL,
+  sys_period tstzrange DEFAULT tstzrange(now(), NULL::timestamp with time zone) NOT NULL,
+  created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS registry.location (
+  id uuid DEFAULT uuidv7() NOT NULL,
+  name text,
+  geog ai.geo_point NOT NULL,
+  geohash9 text GENERATED ALWAYS AS (st_geohash((geog)::geometry, 9)) STORED,
+  address text,
+  place_type text,
+  is_fuzzed boolean DEFAULT false NOT NULL,
+  sensitivity_tier sensitivity_tier DEFAULT 'restricted'::sensitivity_tier NOT NULL,
+  spatial_confidence ai.confidence,
+  data_tier evidence_tier DEFAULT 'extracted'::evidence_tier NOT NULL,
+  provenance_id uuid,
+  created_at timestamp with time zone DEFAULT now() NOT NULL,
+  verification_state text DEFAULT 'proposed'::text NOT NULL,
+  identification_confidence ai.confidence,
+  identification_signal text
+);
+
+CREATE TABLE IF NOT EXISTS registry.matter (
+  id uuid DEFAULT uuidv7() NOT NULL,
+  title text NOT NULL,
+  description text,
+  status text DEFAULT 'active'::text NOT NULL,
+  created_by text NOT NULL,
+  created_at timestamp with time zone DEFAULT now() NOT NULL,
+  updated_at timestamp with time zone DEFAULT now() NOT NULL,
+  verification_state text DEFAULT 'proposed'::text NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS registry.person (
+  id uuid NOT NULL,
+  relationship_type text,
+  connection_to text,
+  role_in_case text,
+  gender text,
+  is_minor boolean DEFAULT false NOT NULL,
+  is_flagged boolean DEFAULT false NOT NULL,
+  notes text,
+  verification_state text DEFAULT 'proposed'::text NOT NULL,
+  identification_confidence ai.confidence,
+  identification_signal text
 );
 
 CREATE TABLE IF NOT EXISTS timeline.event_candidate (
@@ -4844,13 +4845,6 @@ ALTER TABLE reference.claim_type ADD CONSTRAINT claim_type_description_check CHE
 ALTER TABLE reference.claim_type ADD CONSTRAINT claim_type_label_check CHECK ((length(btrim(label)) > 0));
 ALTER TABLE reference.claim_type ADD CONSTRAINT claim_type_pkey PRIMARY KEY (slug);
 ALTER TABLE reference.claim_type ADD CONSTRAINT claim_type_slug_check CHECK (((slug = lower(slug)) AND (slug ~ '^[a-z0-9]+(?:_[a-z0-9]+)*$'::text)));
-ALTER TABLE reference.court_case ADD CONSTRAINT court_case_caption_check CHECK ((length(btrim(caption)) > 0));
-ALTER TABLE reference.court_case ADD CONSTRAINT court_case_created_by_check CHECK ((length(btrim(created_by)) > 0));
-ALTER TABLE reference.court_case ADD CONSTRAINT court_case_dates_ck CHECK (((closed_on IS NULL) OR (filed_on IS NULL) OR (closed_on >= filed_on)));
-ALTER TABLE reference.court_case ADD CONSTRAINT court_case_id_matter_key UNIQUE (id, matter_id);
-ALTER TABLE reference.court_case ADD CONSTRAINT court_case_pkey PRIMARY KEY (id);
-ALTER TABLE reference.court_case ADD CONSTRAINT court_case_status_check CHECK ((status = ANY (ARRAY['pre_filing'::text, 'active'::text, 'stayed'::text, 'closed'::text, 'appealed'::text, 'archived'::text])));
-ALTER TABLE reference.court_case ADD CONSTRAINT court_case_verification_state_check CHECK ((verification_state = ANY (ARRAY['proposed'::text, 'confirmed'::text, 'disputed'::text])));
 ALTER TABLE reference.custody_factor ADD CONSTRAINT custody_factor_pkey PRIMARY KEY (factor);
 ALTER TABLE reference.detection_pattern ADD CONSTRAINT detection_pattern_pattern_set_id_category_id_match_type_pat_key UNIQUE (pattern_set_id, category_id, match_type, pattern);
 ALTER TABLE reference.detection_pattern ADD CONSTRAINT detection_pattern_pkey PRIMARY KEY (id);
@@ -4858,16 +4852,8 @@ ALTER TABLE reference.detection_pattern ADD CONSTRAINT detection_pattern_score_c
 ALTER TABLE reference.detection_pattern ADD CONSTRAINT detection_pattern_sev_chk CHECK (((severity >= 0) AND (severity <= 10)));
 ALTER TABLE reference.detection_pattern_set ADD CONSTRAINT detection_pattern_set_name_version_key UNIQUE (name, version);
 ALTER TABLE reference.detection_pattern_set ADD CONSTRAINT detection_pattern_set_pkey PRIMARY KEY (id);
-ALTER TABLE reference.device ADD CONSTRAINT device_pkey PRIMARY KEY (id);
-ALTER TABLE reference.device ADD CONSTRAINT device_verification_state_check CHECK ((verification_state = ANY (ARRAY['proposed'::text, 'confirmed'::text, 'disputed'::text])));
-ALTER TABLE reference.entity ADD CONSTRAINT entity_not_self_merge CHECK ((merged_into_id IS DISTINCT FROM id));
-ALTER TABLE reference.entity ADD CONSTRAINT entity_pkey PRIMARY KEY (id);
-ALTER TABLE reference.entity_alias ADD CONSTRAINT entity_alias_alias_kind_check CHECK ((alias_kind = ANY (ARRAY['nickname'::text, 'legal'::text, 'maiden'::text, 'handle'::text, 'misspelling'::text, 'phonetic'::text, 'initials'::text, 'other'::text])));
-ALTER TABLE reference.entity_alias ADD CONSTRAINT entity_alias_pkey PRIMARY KEY (id);
 ALTER TABLE reference.format_resolver ADD CONSTRAINT format_resolver_pkey PRIMARY KEY (id);
 ALTER TABLE reference.format_resolver ADD CONSTRAINT format_resolver_source_signature_target_schema_key UNIQUE (source_signature, target_schema);
-ALTER TABLE reference.id_xref ADD CONSTRAINT id_xref_pkey PRIMARY KEY (id);
-ALTER TABLE reference.id_xref ADD CONSTRAINT uq_xref_pair UNIQUE (system_a, native_id_a, system_b, native_id_b);
 ALTER TABLE reference.knowledge_tag ADD CONSTRAINT knowledge_tag_label_check CHECK ((length(label) > 0));
 ALTER TABLE reference.knowledge_tag ADD CONSTRAINT knowledge_tag_pkey PRIMARY KEY (id);
 ALTER TABLE reference.knowledge_tag ADD CONSTRAINT knowledge_tag_slug_check CHECK (((slug = lower(slug)) AND (slug ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'::text)));
@@ -4879,23 +4865,38 @@ ALTER TABLE reference.legal_issue_factor ADD CONSTRAINT legal_issue_factor_pkey 
 ALTER TABLE reference.lexicon_sync ADD CONSTRAINT lexicon_sync_level_check CHECK (((level IS NULL) OR (level = ANY (ARRAY['conservative'::text, 'inclusive'::text]))));
 ALTER TABLE reference.lexicon_sync ADD CONSTRAINT lexicon_sync_pkey PRIMARY KEY (id);
 ALTER TABLE reference.lexicon_sync ADD CONSTRAINT lexicon_sync_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'syncing'::text, 'success'::text, 'error'::text])));
-ALTER TABLE reference.location ADD CONSTRAINT location_data_tier_check CHECK ((data_tier = ANY (ARRAY['extracted'::evidence_tier, 'inferred'::evidence_tier, 'analytical'::evidence_tier])));
-ALTER TABLE reference.location ADD CONSTRAINT location_pkey PRIMARY KEY (id);
-ALTER TABLE reference.location ADD CONSTRAINT location_verification_state_check CHECK ((verification_state = ANY (ARRAY['proposed'::text, 'confirmed'::text, 'disputed'::text])));
-ALTER TABLE reference.matter ADD CONSTRAINT matter_created_by_check CHECK ((length(btrim(created_by)) > 0));
-ALTER TABLE reference.matter ADD CONSTRAINT matter_pkey PRIMARY KEY (id);
-ALTER TABLE reference.matter ADD CONSTRAINT matter_status_check CHECK ((status = ANY (ARRAY['active'::text, 'closed'::text, 'archived'::text])));
-ALTER TABLE reference.matter ADD CONSTRAINT matter_title_check CHECK ((length(btrim(title)) > 0));
-ALTER TABLE reference.matter ADD CONSTRAINT matter_verification_state_check CHECK ((verification_state = ANY (ARRAY['proposed'::text, 'confirmed'::text, 'disputed'::text])));
 ALTER TABLE reference.pattern_lexicon ADD CONSTRAINT pattern_lexicon_pkey PRIMARY KEY (id);
 ALTER TABLE reference.pattern_lexicon ADD CONSTRAINT pattern_lexicon_sev_chk CHECK (((severity >= 0) AND (severity <= 10)));
-ALTER TABLE reference.person ADD CONSTRAINT person_connection_to_check CHECK ((connection_to = ANY (ARRAY['petitioner'::text, 'respondent'::text, 'child'::text, 'mutual'::text, 'third_party'::text, 'unknown'::text])));
-ALTER TABLE reference.person ADD CONSTRAINT person_pkey PRIMARY KEY (id);
-ALTER TABLE reference.person ADD CONSTRAINT person_role_in_case_check CHECK ((role_in_case = ANY (ARRAY['user'::text, 'partner'::text, 'child'::text, 'witness'::text, 'evaluator'::text, 'attorney'::text, 'third_party'::text, 'neutral'::text, 'unknown'::text])));
-ALTER TABLE reference.person ADD CONSTRAINT person_verification_state_check CHECK ((verification_state = ANY (ARRAY['proposed'::text, 'confirmed'::text, 'disputed'::text])));
 ALTER TABLE reference.relative_rule ADD CONSTRAINT relative_rule_pkey PRIMARY KEY (rule_id);
 ALTER TABLE reference.score_band_config ADD CONSTRAINT score_band_config_pkey PRIMARY KEY (config_version);
 ALTER TABLE reference.topic_code ADD CONSTRAINT topic_code_pkey PRIMARY KEY (code);
+ALTER TABLE registry.court_case ADD CONSTRAINT court_case_caption_check CHECK ((length(btrim(caption)) > 0));
+ALTER TABLE registry.court_case ADD CONSTRAINT court_case_created_by_check CHECK ((length(btrim(created_by)) > 0));
+ALTER TABLE registry.court_case ADD CONSTRAINT court_case_dates_ck CHECK (((closed_on IS NULL) OR (filed_on IS NULL) OR (closed_on >= filed_on)));
+ALTER TABLE registry.court_case ADD CONSTRAINT court_case_id_matter_key UNIQUE (id, matter_id);
+ALTER TABLE registry.court_case ADD CONSTRAINT court_case_pkey PRIMARY KEY (id);
+ALTER TABLE registry.court_case ADD CONSTRAINT court_case_status_check CHECK ((status = ANY (ARRAY['pre_filing'::text, 'active'::text, 'stayed'::text, 'closed'::text, 'appealed'::text, 'archived'::text])));
+ALTER TABLE registry.court_case ADD CONSTRAINT court_case_verification_state_check CHECK ((verification_state = ANY (ARRAY['proposed'::text, 'confirmed'::text, 'disputed'::text])));
+ALTER TABLE registry.device ADD CONSTRAINT device_pkey PRIMARY KEY (id);
+ALTER TABLE registry.device ADD CONSTRAINT device_verification_state_check CHECK ((verification_state = ANY (ARRAY['proposed'::text, 'confirmed'::text, 'disputed'::text])));
+ALTER TABLE registry.entity ADD CONSTRAINT entity_not_self_merge CHECK ((merged_into_id IS DISTINCT FROM id));
+ALTER TABLE registry.entity ADD CONSTRAINT entity_pkey PRIMARY KEY (id);
+ALTER TABLE registry.entity_alias ADD CONSTRAINT entity_alias_alias_kind_check CHECK ((alias_kind = ANY (ARRAY['nickname'::text, 'legal'::text, 'maiden'::text, 'handle'::text, 'misspelling'::text, 'phonetic'::text, 'initials'::text, 'other'::text])));
+ALTER TABLE registry.entity_alias ADD CONSTRAINT entity_alias_pkey PRIMARY KEY (id);
+ALTER TABLE registry.id_xref ADD CONSTRAINT id_xref_pkey PRIMARY KEY (id);
+ALTER TABLE registry.id_xref ADD CONSTRAINT uq_xref_pair UNIQUE (system_a, native_id_a, system_b, native_id_b);
+ALTER TABLE registry.location ADD CONSTRAINT location_data_tier_check CHECK ((data_tier = ANY (ARRAY['extracted'::evidence_tier, 'inferred'::evidence_tier, 'analytical'::evidence_tier])));
+ALTER TABLE registry.location ADD CONSTRAINT location_pkey PRIMARY KEY (id);
+ALTER TABLE registry.location ADD CONSTRAINT location_verification_state_check CHECK ((verification_state = ANY (ARRAY['proposed'::text, 'confirmed'::text, 'disputed'::text])));
+ALTER TABLE registry.matter ADD CONSTRAINT matter_created_by_check CHECK ((length(btrim(created_by)) > 0));
+ALTER TABLE registry.matter ADD CONSTRAINT matter_pkey PRIMARY KEY (id);
+ALTER TABLE registry.matter ADD CONSTRAINT matter_status_check CHECK ((status = ANY (ARRAY['active'::text, 'closed'::text, 'archived'::text])));
+ALTER TABLE registry.matter ADD CONSTRAINT matter_title_check CHECK ((length(btrim(title)) > 0));
+ALTER TABLE registry.matter ADD CONSTRAINT matter_verification_state_check CHECK ((verification_state = ANY (ARRAY['proposed'::text, 'confirmed'::text, 'disputed'::text])));
+ALTER TABLE registry.person ADD CONSTRAINT person_connection_to_check CHECK ((connection_to = ANY (ARRAY['petitioner'::text, 'respondent'::text, 'child'::text, 'mutual'::text, 'third_party'::text, 'unknown'::text])));
+ALTER TABLE registry.person ADD CONSTRAINT person_pkey PRIMARY KEY (id);
+ALTER TABLE registry.person ADD CONSTRAINT person_role_in_case_check CHECK ((role_in_case = ANY (ARRAY['user'::text, 'partner'::text, 'child'::text, 'witness'::text, 'evaluator'::text, 'attorney'::text, 'third_party'::text, 'neutral'::text, 'unknown'::text])));
+ALTER TABLE registry.person ADD CONSTRAINT person_verification_state_check CHECK ((verification_state = ANY (ARRAY['proposed'::text, 'confirmed'::text, 'disputed'::text])));
 ALTER TABLE timeline.event_candidate ADD CONSTRAINT event_candidate_pkey PRIMARY KEY (id);
 ALTER TABLE timeline.event_candidate ADD CONSTRAINT event_candidate_source_identity_uq UNIQUE (source_system, source_record_id, source_record_version);
 ALTER TABLE timeline.event_candidate ADD CONSTRAINT event_candidate_temporal_confidence_check CHECK (((temporal_confidence IS NULL) OR ((temporal_confidence >= (0)::double precision) AND (temporal_confidence <= (1)::double precision))));
@@ -5326,9 +5327,9 @@ ALTER TABLE ai.agno_component_links ADD CONSTRAINT agno_component_links_child_co
 ALTER TABLE ai.agno_component_links ADD CONSTRAINT agno_component_links_parent_component_id_parent_version_fkey FOREIGN KEY (parent_component_id, parent_version) REFERENCES agno_component_configs(component_id, version);
 ALTER TABLE ai.agno_schedule_runs ADD CONSTRAINT agno_schedule_runs_schedule_id_fkey FOREIGN KEY (schedule_id) REFERENCES agno_schedules(id) ON DELETE CASCADE;
 ALTER TABLE ai.agno_spans ADD CONSTRAINT agno_spans_trace_id_fkey FOREIGN KEY (trace_id) REFERENCES agno_traces(trace_id);
-ALTER TABLE analysis.case_registry_import_receipt ADD CONSTRAINT case_registry_import_case_scope_fk FOREIGN KEY (court_case_id, matter_id) REFERENCES reference.court_case(id, matter_id) ON DELETE RESTRICT;
+ALTER TABLE analysis.case_registry_import_receipt ADD CONSTRAINT case_registry_import_case_scope_fk FOREIGN KEY (court_case_id, matter_id) REFERENCES registry.court_case(id, matter_id) ON DELETE RESTRICT;
 ALTER TABLE analysis.case_registry_import_receipt ADD CONSTRAINT case_registry_import_partition_scope_fk FOREIGN KEY (partition_key, matter_id) REFERENCES analysis.matter_knowledge_partition(partition_key, matter_id) ON DELETE RESTRICT;
-ALTER TABLE analysis.case_registry_import_receipt ADD CONSTRAINT case_registry_import_receipt_matter_id_fkey FOREIGN KEY (matter_id) REFERENCES reference.matter(id) ON DELETE RESTRICT;
+ALTER TABLE analysis.case_registry_import_receipt ADD CONSTRAINT case_registry_import_receipt_matter_id_fkey FOREIGN KEY (matter_id) REFERENCES registry.matter(id) ON DELETE RESTRICT;
 ALTER TABLE analysis.claim_assertion ADD CONSTRAINT claim_assertion_supersedes_id_fkey FOREIGN KEY (supersedes_id) REFERENCES analysis.claim_assertion(id) ON DELETE RESTRICT;
 ALTER TABLE analysis.claim_assertion_member ADD CONSTRAINT claim_assertion_member_assertion_id_fkey FOREIGN KEY (assertion_id) REFERENCES analysis.claim_assertion(id) ON DELETE CASCADE;
 ALTER TABLE analysis.claim_assertion_member ADD CONSTRAINT claim_assertion_member_claim_candidate_id_fkey FOREIGN KEY (claim_candidate_id) REFERENCES working.claim_candidate(id) ON DELETE RESTRICT;
@@ -5340,7 +5341,7 @@ ALTER TABLE analysis.completion_evidence ADD CONSTRAINT completion_evidence_sour
 ALTER TABLE analysis.completion_evidence ADD CONSTRAINT completion_evidence_task_id_fkey FOREIGN KEY (task_id) REFERENCES analysis.evidence_task(id);
 ALTER TABLE analysis.content_chunk_classification_decision ADD CONSTRAINT content_chunk_classification_decision_chunk_id_fkey FOREIGN KEY (chunk_id) REFERENCES working.content_chunk(id) ON DELETE RESTRICT;
 ALTER TABLE analysis.content_chunk_classification_decision ADD CONSTRAINT content_chunk_classification_decision_supersedes_id_fkey FOREIGN KEY (supersedes_id) REFERENCES analysis.content_chunk_classification_decision(id) ON DELETE RESTRICT;
-ALTER TABLE analysis.discovery_request ADD CONSTRAINT discovery_request_target_person_id_fkey FOREIGN KEY (target_person_id) REFERENCES reference.person(id);
+ALTER TABLE analysis.discovery_request ADD CONSTRAINT discovery_request_target_person_id_fkey FOREIGN KEY (target_person_id) REFERENCES registry.person(id);
 ALTER TABLE analysis.discovery_request ADD CONSTRAINT discovery_request_task_id_fkey FOREIGN KEY (task_id) REFERENCES analysis.evidence_task(id);
 ALTER TABLE analysis.discovery_request_revision ADD CONSTRAINT discovery_request_revision_request_id_fkey FOREIGN KEY (request_id) REFERENCES analysis.discovery_request(id);
 ALTER TABLE analysis.evidence_task ADD CONSTRAINT evidence_task_finding_id_fkey FOREIGN KEY (finding_id) REFERENCES analysis.finding(id);
@@ -5368,7 +5369,7 @@ ALTER TABLE analysis.graphrag_lane_receipt ADD CONSTRAINT graphrag_lane_receipt_
 ALTER TABLE analysis.graphrag_lane_receipt ADD CONSTRAINT graphrag_lane_receipt_run_id_fkey FOREIGN KEY (run_id) REFERENCES analysis.graphrag_comparison_run(id) ON DELETE CASCADE;
 ALTER TABLE analysis.graphrag_lane_result ADD CONSTRAINT graphrag_lane_result_manifest_id_fkey FOREIGN KEY (manifest_id) REFERENCES analysis.graphrag_eligibility_manifest(id) ON DELETE CASCADE;
 ALTER TABLE analysis.graphrag_lane_result ADD CONSTRAINT graphrag_lane_result_run_id_fkey FOREIGN KEY (run_id) REFERENCES analysis.graphrag_comparison_run(id) ON DELETE CASCADE;
-ALTER TABLE analysis.knowledge_evidence_promotion ADD CONSTRAINT knowledge_evidence_promotion_case_fkey FOREIGN KEY (court_case_id, matter_id) REFERENCES reference.court_case(id, matter_id) ON DELETE RESTRICT;
+ALTER TABLE analysis.knowledge_evidence_promotion ADD CONSTRAINT knowledge_evidence_promotion_case_fkey FOREIGN KEY (court_case_id, matter_id) REFERENCES registry.court_case(id, matter_id) ON DELETE RESTRICT;
 ALTER TABLE analysis.knowledge_evidence_promotion ADD CONSTRAINT knowledge_evidence_promotion_file_node_fkey FOREIGN KEY (file_node_id) REFERENCES raw.file_node(id) ON DELETE RESTRICT;
 ALTER TABLE analysis.knowledge_evidence_promotion ADD CONSTRAINT knowledge_evidence_promotion_hash_fkey FOREIGN KEY (evidence_hash_id) REFERENCES evidence.evidence_hash(id) ON DELETE RESTRICT;
 ALTER TABLE analysis.knowledge_evidence_promotion ADD CONSTRAINT knowledge_evidence_promotion_item_scope_fkey FOREIGN KEY (evidence_item_id, matter_id, court_case_id) REFERENCES evidence.evidence_item(id, matter_id, court_case_id) ON DELETE RESTRICT;
@@ -5376,13 +5377,13 @@ ALTER TABLE analysis.knowledge_evidence_promotion ADD CONSTRAINT knowledge_evide
 ALTER TABLE analysis.knowledge_evidence_promotion ADD CONSTRAINT knowledge_evidence_promotion_record_fkey FOREIGN KEY (normalized_record_id) REFERENCES working.normalized_record(id) ON DELETE RESTRICT;
 ALTER TABLE analysis.knowledge_evidence_promotion ADD CONSTRAINT knowledge_evidence_promotion_run_fkey FOREIGN KEY (source_run_id) REFERENCES ops.processing_run(run_id) ON DELETE RESTRICT;
 ALTER TABLE analysis.knowledge_evidence_promotion ADD CONSTRAINT knowledge_evidence_promotion_source_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id) ON DELETE RESTRICT;
-ALTER TABLE analysis.location_assertion ADD CONSTRAINT location_assertion_location_id_fkey FOREIGN KEY (location_id) REFERENCES reference.location(id);
+ALTER TABLE analysis.location_assertion ADD CONSTRAINT location_assertion_location_id_fkey FOREIGN KEY (location_id) REFERENCES registry.location(id);
 ALTER TABLE analysis.location_assertion ADD CONSTRAINT location_assertion_provenance_id_fkey FOREIGN KEY (provenance_id) REFERENCES ops.processing_run(run_id);
 ALTER TABLE analysis.location_contradiction ADD CONSTRAINT location_contradiction_claimed_assertion_id_fkey FOREIGN KEY (claimed_assertion_id) REFERENCES analysis.location_assertion(id);
 ALTER TABLE analysis.location_contradiction ADD CONSTRAINT location_contradiction_observed_assertion_id_fkey FOREIGN KEY (observed_assertion_id) REFERENCES analysis.location_assertion(id);
 ALTER TABLE analysis.location_contradiction ADD CONSTRAINT location_contradiction_provenance_id_fkey FOREIGN KEY (provenance_id) REFERENCES ops.processing_run(run_id);
-ALTER TABLE analysis.matter_knowledge_partition ADD CONSTRAINT matter_knowledge_partition_default_case_fkey FOREIGN KEY (default_court_case_id, matter_id) REFERENCES reference.court_case(id, matter_id) ON DELETE RESTRICT;
-ALTER TABLE analysis.matter_knowledge_partition ADD CONSTRAINT matter_knowledge_partition_matter_fkey FOREIGN KEY (matter_id) REFERENCES reference.matter(id) ON DELETE RESTRICT;
+ALTER TABLE analysis.matter_knowledge_partition ADD CONSTRAINT matter_knowledge_partition_default_case_fkey FOREIGN KEY (default_court_case_id, matter_id) REFERENCES registry.court_case(id, matter_id) ON DELETE RESTRICT;
+ALTER TABLE analysis.matter_knowledge_partition ADD CONSTRAINT matter_knowledge_partition_matter_fkey FOREIGN KEY (matter_id) REFERENCES registry.matter(id) ON DELETE RESTRICT;
 ALTER TABLE analysis.pattern_finding ADD CONSTRAINT pattern_finding_category_id_fkey FOREIGN KEY (category_id) REFERENCES reference.behavior_category(category_id);
 ALTER TABLE analysis.pattern_finding ADD CONSTRAINT pattern_finding_finding_id_fkey FOREIGN KEY (finding_id) REFERENCES analysis.finding(id);
 ALTER TABLE analysis.pattern_finding ADD CONSTRAINT pattern_finding_pattern_id_fkey FOREIGN KEY (pattern_id) REFERENCES reference.detection_pattern(id);
@@ -5406,7 +5407,7 @@ ALTER TABLE analysis.task_event ADD CONSTRAINT task_event_task_id_fkey FOREIGN K
 ALTER TABLE analysis.task_legal_link ADD CONSTRAINT task_legal_link_factor_fkey FOREIGN KEY (factor) REFERENCES reference.custody_factor(factor);
 ALTER TABLE analysis.task_legal_link ADD CONSTRAINT task_legal_link_legal_issue_id_fkey FOREIGN KEY (legal_issue_id) REFERENCES reference.legal_issue(id);
 ALTER TABLE analysis.task_legal_link ADD CONSTRAINT task_legal_link_task_id_fkey FOREIGN KEY (task_id) REFERENCES analysis.evidence_task(id);
-ALTER TABLE analysis.task_person ADD CONSTRAINT task_person_person_id_fkey FOREIGN KEY (person_id) REFERENCES reference.person(id);
+ALTER TABLE analysis.task_person ADD CONSTRAINT task_person_person_id_fkey FOREIGN KEY (person_id) REFERENCES registry.person(id);
 ALTER TABLE analysis.task_person ADD CONSTRAINT task_person_task_id_fkey FOREIGN KEY (task_id) REFERENCES analysis.evidence_task(id);
 ALTER TABLE analysis.task_revision ADD CONSTRAINT task_revision_task_id_fkey FOREIGN KEY (task_id) REFERENCES analysis.evidence_task(id);
 ALTER TABLE analysis.time_assertion ADD CONSTRAINT time_assertion_discovery_source_fkey FOREIGN KEY (discovery_source) REFERENCES evidence.evidence_hash(id);
@@ -5414,7 +5415,7 @@ ALTER TABLE analysis.time_assertion ADD CONSTRAINT time_assertion_event_id_fkey 
 ALTER TABLE analysis.time_assertion ADD CONSTRAINT time_assertion_ingest_run_id_fkey FOREIGN KEY (ingest_run_id) REFERENCES ops.processing_run(run_id);
 ALTER TABLE analysis.time_assertion ADD CONSTRAINT time_assertion_superseded_by_fkey FOREIGN KEY (superseded_by) REFERENCES analysis.time_assertion(assertion_id);
 ALTER TABLE analysis.timeline_event ADD CONSTRAINT timeline_event_ingest_run_id_fkey FOREIGN KEY (ingest_run_id) REFERENCES ops.processing_run(run_id);
-ALTER TABLE analysis.timeline_event ADD CONSTRAINT timeline_event_location_id_fkey FOREIGN KEY (location_id) REFERENCES reference.location(id);
+ALTER TABLE analysis.timeline_event ADD CONSTRAINT timeline_event_location_id_fkey FOREIGN KEY (location_id) REFERENCES registry.location(id);
 ALTER TABLE analysis.timeline_event ADD CONSTRAINT timeline_event_primary_record_id_fkey FOREIGN KEY (primary_record_id) REFERENCES working.normalized_record(id);
 ALTER TABLE analysis.timeline_event ADD CONSTRAINT timeline_event_source_artifact_id_fkey FOREIGN KEY (source_artifact_id) REFERENCES evidence.evidence_hash(id);
 ALTER TABLE analysis.workflow_run ADD CONSTRAINT workflow_run_parent_run_id_fkey FOREIGN KEY (parent_run_id) REFERENCES analysis.workflow_run(run_id);
@@ -5510,7 +5511,7 @@ ALTER TABLE context.source_object_range_locator ADD CONSTRAINT source_object_ran
 ALTER TABLE context.source_object_range_locator ADD CONSTRAINT source_object_range_locator_source_version_id_source_objec_fkey FOREIGN KEY (source_version_id, source_object_id) REFERENCES context.source_version_object(source_version_id, object_id) ON DELETE RESTRICT;
 ALTER TABLE context.source_range_locator ADD CONSTRAINT source_range_locator_source_version_id_fkey FOREIGN KEY (source_version_id) REFERENCES context.source_version(id) ON DELETE RESTRICT;
 ALTER TABLE context.source_range_locator ADD CONSTRAINT source_range_locator_verification_activity_receipt_id_fkey FOREIGN KEY (verification_activity_receipt_id) REFERENCES context.activity_receipt(id) ON DELETE RESTRICT;
-ALTER TABLE context.source_version ADD CONSTRAINT source_version_court_case_scope_fk FOREIGN KEY (court_case_id, matter_id) REFERENCES reference.court_case(id, matter_id) ON DELETE RESTRICT;
+ALTER TABLE context.source_version ADD CONSTRAINT source_version_court_case_scope_fk FOREIGN KEY (court_case_id, matter_id) REFERENCES registry.court_case(id, matter_id) ON DELETE RESTRICT;
 ALTER TABLE context.source_version ADD CONSTRAINT source_version_original_object_id_fkey FOREIGN KEY (original_object_id) REFERENCES context.retained_object(id) ON DELETE RESTRICT;
 ALTER TABLE context.source_version ADD CONSTRAINT source_version_original_object_membership_fk FOREIGN KEY (id, original_object_id) REFERENCES context.source_version_object(source_version_id, object_id) DEFERRABLE INITIALLY DEFERRED;
 ALTER TABLE context.source_version ADD CONSTRAINT source_version_source_context_ref_fkey FOREIGN KEY (source_context_ref) REFERENCES context.uiw_source_context_revision(source_context_ref) ON DELETE RESTRICT;
@@ -5537,10 +5538,10 @@ ALTER TABLE context.uiw_preview_snapshot ADD CONSTRAINT uiw_preview_snapshot_nor
 ALTER TABLE context.uiw_preview_snapshot ADD CONSTRAINT uiw_preview_snapshot_preview_handle_fkey FOREIGN KEY (preview_handle) REFERENCES context.uiw_preview_binding(preview_handle) ON DELETE RESTRICT;
 ALTER TABLE context.uiw_preview_snapshot ADD CONSTRAINT uiw_preview_snapshot_raw_generation_id_fkey FOREIGN KEY (raw_generation_id) REFERENCES context.raw_generation(id) ON DELETE RESTRICT;
 ALTER TABLE context.uiw_preview_snapshot ADD CONSTRAINT uiw_preview_snapshot_source_version_id_fkey FOREIGN KEY (source_version_id) REFERENCES context.source_version(id) ON DELETE RESTRICT;
-ALTER TABLE context.uiw_source_context_revision ADD CONSTRAINT uiw_source_context_court_case_scope_fk FOREIGN KEY (court_case_id, matter_id) REFERENCES reference.court_case(id, matter_id) ON DELETE RESTRICT NOT VALID;
-ALTER TABLE context.uiw_source_context_revision ADD CONSTRAINT uiw_source_context_matter_fk FOREIGN KEY (matter_id) REFERENCES reference.matter(id) ON DELETE RESTRICT NOT VALID;
+ALTER TABLE context.uiw_source_context_revision ADD CONSTRAINT uiw_source_context_court_case_scope_fk FOREIGN KEY (court_case_id, matter_id) REFERENCES registry.court_case(id, matter_id) ON DELETE RESTRICT NOT VALID;
+ALTER TABLE context.uiw_source_context_revision ADD CONSTRAINT uiw_source_context_matter_fk FOREIGN KEY (matter_id) REFERENCES registry.matter(id) ON DELETE RESTRICT NOT VALID;
 ALTER TABLE context.uiw_source_context_revision ADD CONSTRAINT uiw_source_context_revision_supersedes_ref_fkey FOREIGN KEY (supersedes_ref) REFERENCES context.uiw_source_context_revision(source_context_ref) ON DELETE RESTRICT;
-ALTER TABLE evidence.acquisition ADD CONSTRAINT acquisition_device_id_fkey FOREIGN KEY (device_id) REFERENCES reference.device(id);
+ALTER TABLE evidence.acquisition ADD CONSTRAINT acquisition_device_id_fkey FOREIGN KEY (device_id) REFERENCES registry.device(id);
 ALTER TABLE evidence.acquisition ADD CONSTRAINT acquisition_supersedes_id_fkey FOREIGN KEY (supersedes_id) REFERENCES evidence.acquisition(id);
 ALTER TABLE evidence.artifact_metadata ADD CONSTRAINT artifact_metadata_acquisition_id_fkey FOREIGN KEY (acquisition_id) REFERENCES evidence.acquisition(id);
 ALTER TABLE evidence.artifact_metadata ADD CONSTRAINT artifact_metadata_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
@@ -5549,10 +5550,10 @@ ALTER TABLE evidence.custody_event ADD CONSTRAINT custody_event_file_node_id_fke
 ALTER TABLE evidence.custody_event ADD CONSTRAINT custody_event_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
 ALTER TABLE evidence.evidence_hash ADD CONSTRAINT evidence_hash_file_node_id_fkey FOREIGN KEY (file_node_id) REFERENCES raw.file_node(id);
 ALTER TABLE evidence.evidence_hash ADD CONSTRAINT evidence_hash_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
-ALTER TABLE evidence.evidence_item ADD CONSTRAINT evidence_item_court_case_matter_fkey FOREIGN KEY (court_case_id, matter_id) REFERENCES reference.court_case(id, matter_id) ON DELETE RESTRICT;
+ALTER TABLE evidence.evidence_item ADD CONSTRAINT evidence_item_court_case_matter_fkey FOREIGN KEY (court_case_id, matter_id) REFERENCES registry.court_case(id, matter_id) ON DELETE RESTRICT;
 ALTER TABLE evidence.evidence_item ADD CONSTRAINT evidence_item_evidence_hash_id_fkey FOREIGN KEY (evidence_hash_id) REFERENCES evidence.evidence_hash(id);
 ALTER TABLE evidence.evidence_item ADD CONSTRAINT evidence_item_file_node_id_fkey FOREIGN KEY (file_node_id) REFERENCES raw.file_node(id);
-ALTER TABLE evidence.evidence_item ADD CONSTRAINT evidence_item_matter_fkey FOREIGN KEY (matter_id) REFERENCES reference.matter(id) ON DELETE RESTRICT;
+ALTER TABLE evidence.evidence_item ADD CONSTRAINT evidence_item_matter_fkey FOREIGN KEY (matter_id) REFERENCES registry.matter(id) ON DELETE RESTRICT;
 ALTER TABLE evidence.evidence_item ADD CONSTRAINT evidence_item_normalized_record_id_fkey FOREIGN KEY (normalized_record_id) REFERENCES working.normalized_record(id);
 ALTER TABLE evidence.evidence_item ADD CONSTRAINT evidence_item_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
 ALTER TABLE evidence.evidence_item ADD CONSTRAINT evidence_item_source_run_id_fkey FOREIGN KEY (source_run_id) REFERENCES ops.processing_run(run_id);
@@ -5591,27 +5592,27 @@ ALTER TABLE raw.gps_point ADD CONSTRAINT gps_point_source_id_fkey FOREIGN KEY (s
 ALTER TABLE raw.raw_activity ADD CONSTRAINT raw_activity_file_node_id_fkey FOREIGN KEY (file_node_id) REFERENCES raw.file_node(id);
 ALTER TABLE raw.raw_activity ADD CONSTRAINT raw_activity_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
 ALTER TABLE raw.raw_ai_chat ADD CONSTRAINT raw_ai_chat_acquisition_id_fkey FOREIGN KEY (acquisition_id) REFERENCES evidence.acquisition(id);
-ALTER TABLE raw.raw_ai_chat ADD CONSTRAINT raw_ai_chat_device_id_fkey FOREIGN KEY (device_id) REFERENCES reference.device(id);
+ALTER TABLE raw.raw_ai_chat ADD CONSTRAINT raw_ai_chat_device_id_fkey FOREIGN KEY (device_id) REFERENCES registry.device(id);
 ALTER TABLE raw.raw_ai_chat ADD CONSTRAINT raw_ai_chat_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
 ALTER TABLE raw.raw_csv ADD CONSTRAINT raw_csv_acquisition_id_fkey FOREIGN KEY (acquisition_id) REFERENCES evidence.acquisition(id);
-ALTER TABLE raw.raw_csv ADD CONSTRAINT raw_csv_device_id_fkey FOREIGN KEY (device_id) REFERENCES reference.device(id);
+ALTER TABLE raw.raw_csv ADD CONSTRAINT raw_csv_device_id_fkey FOREIGN KEY (device_id) REFERENCES registry.device(id);
 ALTER TABLE raw.raw_csv ADD CONSTRAINT raw_csv_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
 ALTER TABLE raw.raw_facebook ADD CONSTRAINT raw_facebook_acquisition_id_fkey FOREIGN KEY (acquisition_id) REFERENCES evidence.acquisition(id);
-ALTER TABLE raw.raw_facebook ADD CONSTRAINT raw_facebook_device_id_fkey FOREIGN KEY (device_id) REFERENCES reference.device(id);
+ALTER TABLE raw.raw_facebook ADD CONSTRAINT raw_facebook_device_id_fkey FOREIGN KEY (device_id) REFERENCES registry.device(id);
 ALTER TABLE raw.raw_facebook ADD CONSTRAINT raw_facebook_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
 ALTER TABLE raw.raw_imessage ADD CONSTRAINT raw_imessage_acquisition_id_fkey FOREIGN KEY (acquisition_id) REFERENCES evidence.acquisition(id);
-ALTER TABLE raw.raw_imessage ADD CONSTRAINT raw_imessage_device_id_fkey FOREIGN KEY (device_id) REFERENCES reference.device(id);
+ALTER TABLE raw.raw_imessage ADD CONSTRAINT raw_imessage_device_id_fkey FOREIGN KEY (device_id) REFERENCES registry.device(id);
 ALTER TABLE raw.raw_imessage ADD CONSTRAINT raw_imessage_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
 ALTER TABLE raw.raw_path ADD CONSTRAINT raw_path_aligned_activity_id_fkey FOREIGN KEY (aligned_activity_id) REFERENCES raw.raw_activity(id);
 ALTER TABLE raw.raw_path ADD CONSTRAINT raw_path_file_node_id_fkey FOREIGN KEY (file_node_id) REFERENCES raw.file_node(id);
 ALTER TABLE raw.raw_path ADD CONSTRAINT raw_path_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES raw.raw_path(id);
 ALTER TABLE raw.raw_path ADD CONSTRAINT raw_path_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
 ALTER TABLE raw.raw_phone ADD CONSTRAINT raw_phone_acquisition_id_fkey FOREIGN KEY (acquisition_id) REFERENCES evidence.acquisition(id);
-ALTER TABLE raw.raw_phone ADD CONSTRAINT raw_phone_device_id_fkey FOREIGN KEY (device_id) REFERENCES reference.device(id);
+ALTER TABLE raw.raw_phone ADD CONSTRAINT raw_phone_device_id_fkey FOREIGN KEY (device_id) REFERENCES registry.device(id);
 ALTER TABLE raw.raw_phone ADD CONSTRAINT raw_phone_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
 ALTER TABLE raw.raw_rejected ADD CONSTRAINT raw_rejected_ingest_run_id_fkey FOREIGN KEY (ingest_run_id) REFERENCES evidence.ingest_run(id) ON DELETE RESTRICT;
 ALTER TABLE raw.raw_sms ADD CONSTRAINT raw_sms_acquisition_id_fkey FOREIGN KEY (acquisition_id) REFERENCES evidence.acquisition(id);
-ALTER TABLE raw.raw_sms ADD CONSTRAINT raw_sms_device_id_fkey FOREIGN KEY (device_id) REFERENCES reference.device(id);
+ALTER TABLE raw.raw_sms ADD CONSTRAINT raw_sms_device_id_fkey FOREIGN KEY (device_id) REFERENCES registry.device(id);
 ALTER TABLE raw.raw_sms ADD CONSTRAINT raw_sms_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
 ALTER TABLE raw.raw_trip ADD CONSTRAINT raw_trip_file_node_id_fkey FOREIGN KEY (file_node_id) REFERENCES raw.file_node(id);
 ALTER TABLE raw.raw_trip ADD CONSTRAINT raw_trip_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES raw.raw_trip(id);
@@ -5621,22 +5622,22 @@ ALTER TABLE raw.raw_visit ADD CONSTRAINT raw_visit_parent_id_fkey FOREIGN KEY (p
 ALTER TABLE raw.raw_visit ADD CONSTRAINT raw_visit_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
 ALTER TABLE reference.behavior_category_mcl ADD CONSTRAINT behavior_category_mcl_category_id_fkey FOREIGN KEY (category_id) REFERENCES reference.behavior_category(category_id);
 ALTER TABLE reference.claim_type ADD CONSTRAINT claim_type_parent_slug_fkey FOREIGN KEY (parent_slug) REFERENCES reference.claim_type(slug) ON DELETE RESTRICT;
-ALTER TABLE reference.court_case ADD CONSTRAINT court_case_matter_fkey FOREIGN KEY (matter_id) REFERENCES reference.matter(id) ON DELETE RESTRICT;
 ALTER TABLE reference.detection_pattern ADD CONSTRAINT detection_pattern_category_id_fkey FOREIGN KEY (category_id) REFERENCES reference.behavior_category(category_id);
 ALTER TABLE reference.detection_pattern ADD CONSTRAINT detection_pattern_pattern_set_id_fkey FOREIGN KEY (pattern_set_id) REFERENCES reference.detection_pattern_set(id);
 ALTER TABLE reference.detection_pattern_set ADD CONSTRAINT detection_pattern_set_provenance_id_fkey FOREIGN KEY (provenance_id) REFERENCES ops.processing_run(run_id);
-ALTER TABLE reference.device ADD CONSTRAINT device_id_fkey FOREIGN KEY (id) REFERENCES reference.entity(id) ON DELETE CASCADE;
-ALTER TABLE reference.device ADD CONSTRAINT device_owner_entity_id_fkey FOREIGN KEY (owner_entity_id) REFERENCES reference.entity(id);
-ALTER TABLE reference.entity ADD CONSTRAINT entity_merged_into_id_fkey FOREIGN KEY (merged_into_id) REFERENCES reference.entity(id);
-ALTER TABLE reference.entity_alias ADD CONSTRAINT entity_alias_entity_id_fkey FOREIGN KEY (entity_id) REFERENCES reference.entity(id) ON DELETE CASCADE;
-ALTER TABLE reference.id_xref ADD CONSTRAINT id_xref_canonical_entity_id_fkey FOREIGN KEY (canonical_entity_id) REFERENCES reference.entity(id);
 ALTER TABLE reference.knowledge_tag ADD CONSTRAINT knowledge_tag_parent_tag_id_fkey FOREIGN KEY (parent_tag_id) REFERENCES reference.knowledge_tag(id);
 ALTER TABLE reference.legal_issue_factor ADD CONSTRAINT legal_issue_factor_factor_fkey FOREIGN KEY (factor) REFERENCES reference.custody_factor(factor);
 ALTER TABLE reference.legal_issue_factor ADD CONSTRAINT legal_issue_factor_legal_issue_id_fkey FOREIGN KEY (legal_issue_id) REFERENCES reference.legal_issue(id);
 ALTER TABLE reference.lexicon_sync ADD CONSTRAINT lexicon_sync_pattern_set_id_fkey FOREIGN KEY (pattern_set_id) REFERENCES reference.detection_pattern_set(id);
-ALTER TABLE reference.location ADD CONSTRAINT location_provenance_id_fkey FOREIGN KEY (provenance_id) REFERENCES ops.processing_run(run_id);
 ALTER TABLE reference.pattern_lexicon ADD CONSTRAINT pattern_lexicon_pattern_set_id_fkey FOREIGN KEY (pattern_set_id) REFERENCES reference.detection_pattern_set(id);
-ALTER TABLE reference.person ADD CONSTRAINT person_id_fkey FOREIGN KEY (id) REFERENCES reference.entity(id) ON DELETE CASCADE;
+ALTER TABLE registry.court_case ADD CONSTRAINT court_case_matter_fkey FOREIGN KEY (matter_id) REFERENCES registry.matter(id) ON DELETE RESTRICT;
+ALTER TABLE registry.device ADD CONSTRAINT device_id_fkey FOREIGN KEY (id) REFERENCES registry.entity(id) ON DELETE CASCADE;
+ALTER TABLE registry.device ADD CONSTRAINT device_owner_entity_id_fkey FOREIGN KEY (owner_entity_id) REFERENCES registry.entity(id);
+ALTER TABLE registry.entity ADD CONSTRAINT entity_merged_into_id_fkey FOREIGN KEY (merged_into_id) REFERENCES registry.entity(id);
+ALTER TABLE registry.entity_alias ADD CONSTRAINT entity_alias_entity_id_fkey FOREIGN KEY (entity_id) REFERENCES registry.entity(id) ON DELETE CASCADE;
+ALTER TABLE registry.id_xref ADD CONSTRAINT id_xref_canonical_entity_id_fkey FOREIGN KEY (canonical_entity_id) REFERENCES registry.entity(id);
+ALTER TABLE registry.location ADD CONSTRAINT location_provenance_id_fkey FOREIGN KEY (provenance_id) REFERENCES ops.processing_run(run_id);
+ALTER TABLE registry.person ADD CONSTRAINT person_id_fkey FOREIGN KEY (id) REFERENCES registry.entity(id) ON DELETE CASCADE;
 ALTER TABLE timeline.event_candidate_relative_time_anchor ADD CONSTRAINT event_candidate_relative_time_anchor_anchor_id_fkey FOREIGN KEY (anchor_id) REFERENCES context.relative_time_anchor(id) ON DELETE RESTRICT;
 ALTER TABLE timeline.event_candidate_relative_time_anchor ADD CONSTRAINT event_candidate_relative_time_anchor_event_candidate_id_fkey FOREIGN KEY (event_candidate_id) REFERENCES timeline.event_candidate(id) ON DELETE RESTRICT;
 ALTER TABLE timeline.event_candidate_source_range ADD CONSTRAINT event_candidate_source_range_event_candidate_id_fkey FOREIGN KEY (event_candidate_id) REFERENCES timeline.event_candidate(id) ON DELETE RESTRICT;
@@ -5653,8 +5654,8 @@ ALTER TABLE timeline.timeline_projection_member ADD CONSTRAINT timeline_projecti
 ALTER TABLE timeline.timeline_projection_receipt ADD CONSTRAINT timeline_projection_receipt_generation_id_fkey FOREIGN KEY (generation_id) REFERENCES timeline.timeline_projection_generation(id);
 ALTER TABLE timeline.timeline_projection_receipt ADD CONSTRAINT timeline_projection_receipt_member_id_fkey FOREIGN KEY (member_id) REFERENCES timeline.timeline_projection_member(id);
 ALTER TABLE timeline.timeline_projection_receipt ADD CONSTRAINT timeline_projection_receipt_previous_receipt_id_fkey FOREIGN KEY (previous_receipt_id) REFERENCES timeline.timeline_projection_receipt(id);
-ALTER TABLE working.account ADD CONSTRAINT account_id_fkey FOREIGN KEY (id) REFERENCES reference.entity(id) ON DELETE CASCADE;
-ALTER TABLE working.account ADD CONSTRAINT account_owner_entity_id_fkey FOREIGN KEY (owner_entity_id) REFERENCES reference.entity(id);
+ALTER TABLE working.account ADD CONSTRAINT account_id_fkey FOREIGN KEY (id) REFERENCES registry.entity(id) ON DELETE CASCADE;
+ALTER TABLE working.account ADD CONSTRAINT account_owner_entity_id_fkey FOREIGN KEY (owner_entity_id) REFERENCES registry.entity(id);
 ALTER TABLE working.artifact_registry ADD CONSTRAINT artifact_registry_parent_artifact_id_fkey FOREIGN KEY (parent_artifact_id) REFERENCES working.artifact_registry(artifact_id);
 ALTER TABLE working.artifact_registry ADD CONSTRAINT artifact_registry_producing_run_fkey FOREIGN KEY (producing_run) REFERENCES ops.processing_run(run_id);
 ALTER TABLE working.artifact_registry ADD CONSTRAINT artifact_registry_superseded_by_fkey FOREIGN KEY (superseded_by) REFERENCES working.artifact_registry(artifact_id);
@@ -5696,28 +5697,28 @@ ALTER TABLE working.context_asset_derivation ADD CONSTRAINT context_asset_deriva
 ALTER TABLE working.context_asset_derivation ADD CONSTRAINT context_asset_derivation_parent_asset_id_fkey FOREIGN KEY (parent_asset_id) REFERENCES working.context_asset(id) ON DELETE CASCADE;
 ALTER TABLE working.context_asset_message ADD CONSTRAINT context_asset_message_asset_id_fkey FOREIGN KEY (asset_id) REFERENCES working.context_asset(id) ON DELETE CASCADE;
 ALTER TABLE working.context_asset_message ADD CONSTRAINT context_asset_message_message_id_fkey FOREIGN KEY (message_id) REFERENCES working.chat_message(id) ON DELETE CASCADE;
-ALTER TABLE working.email ADD CONSTRAINT email_id_fkey FOREIGN KEY (id) REFERENCES reference.entity(id) ON DELETE CASCADE;
-ALTER TABLE working.email ADD CONSTRAINT email_owner_entity_id_fkey FOREIGN KEY (owner_entity_id) REFERENCES reference.entity(id);
-ALTER TABLE working.entity_resolution ADD CONSTRAINT entity_resolution_canonical_entity_id_fkey FOREIGN KEY (canonical_entity_id) REFERENCES reference.entity(id);
+ALTER TABLE working.email ADD CONSTRAINT email_id_fkey FOREIGN KEY (id) REFERENCES registry.entity(id) ON DELETE CASCADE;
+ALTER TABLE working.email ADD CONSTRAINT email_owner_entity_id_fkey FOREIGN KEY (owner_entity_id) REFERENCES registry.entity(id);
+ALTER TABLE working.entity_resolution ADD CONSTRAINT entity_resolution_canonical_entity_id_fkey FOREIGN KEY (canonical_entity_id) REFERENCES registry.entity(id);
 ALTER TABLE working.entity_resolution ADD CONSTRAINT entity_resolution_mention_id_fkey FOREIGN KEY (mention_id) REFERENCES working.entity_mention(id);
 ALTER TABLE working.event_source_record ADD CONSTRAINT event_source_record_event_id_fkey FOREIGN KEY (event_id) REFERENCES analysis.timeline_event(event_id) ON DELETE CASCADE;
 ALTER TABLE working.event_source_record ADD CONSTRAINT event_source_record_record_id_fkey FOREIGN KEY (record_id) REFERENCES working.normalized_record(id);
 ALTER TABLE working.event_source_record ADD CONSTRAINT event_source_record_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
 ALTER TABLE working.extraction_window ADD CONSTRAINT extraction_window_chat_conversation_id_fkey FOREIGN KEY (chat_conversation_id) REFERENCES working.chat_conversation(id) ON DELETE RESTRICT;
 ALTER TABLE working.extraction_window ADD CONSTRAINT extraction_window_extraction_run_id_fkey FOREIGN KEY (extraction_run_id) REFERENCES working.extraction_run(id) ON DELETE CASCADE;
-ALTER TABLE working.first_party_context_thread ADD CONSTRAINT first_party_context_thread_court_case_id_matter_id_fkey FOREIGN KEY (court_case_id, matter_id) REFERENCES reference.court_case(id, matter_id) ON DELETE RESTRICT;
-ALTER TABLE working.first_party_context_thread ADD CONSTRAINT first_party_context_thread_owner_person_id_fkey FOREIGN KEY (owner_person_id) REFERENCES reference.person(id) ON DELETE RESTRICT;
+ALTER TABLE working.first_party_context_thread ADD CONSTRAINT first_party_context_thread_court_case_id_matter_id_fkey FOREIGN KEY (court_case_id, matter_id) REFERENCES registry.court_case(id, matter_id) ON DELETE RESTRICT;
+ALTER TABLE working.first_party_context_thread ADD CONSTRAINT first_party_context_thread_owner_person_id_fkey FOREIGN KEY (owner_person_id) REFERENCES registry.person(id) ON DELETE RESTRICT;
 ALTER TABLE working.first_party_context_thread_message ADD CONSTRAINT first_party_context_thread_me_thread_version_id_context_th_fkey FOREIGN KEY (thread_version_id, context_thread_id) REFERENCES working.first_party_context_thread_version(id, context_thread_id) ON DELETE RESTRICT;
 ALTER TABLE working.first_party_context_thread_message ADD CONSTRAINT first_party_context_thread_message_message_id_fkey FOREIGN KEY (message_id) REFERENCES working.message(id) ON DELETE RESTRICT;
 ALTER TABLE working.first_party_context_thread_source ADD CONSTRAINT first_party_context_thread_so_thread_version_id_context_th_fkey FOREIGN KEY (thread_version_id, context_thread_id) REFERENCES working.first_party_context_thread_version(id, context_thread_id) ON DELETE RESTRICT;
-ALTER TABLE working.first_party_context_thread_source ADD CONSTRAINT first_party_context_thread_source_originating_device_id_fkey FOREIGN KEY (originating_device_id) REFERENCES reference.device(id) ON DELETE RESTRICT;
-ALTER TABLE working.first_party_context_thread_source ADD CONSTRAINT first_party_context_thread_source_perspective_person_id_fkey FOREIGN KEY (perspective_person_id) REFERENCES reference.person(id) ON DELETE RESTRICT;
+ALTER TABLE working.first_party_context_thread_source ADD CONSTRAINT first_party_context_thread_source_originating_device_id_fkey FOREIGN KEY (originating_device_id) REFERENCES registry.device(id) ON DELETE RESTRICT;
+ALTER TABLE working.first_party_context_thread_source ADD CONSTRAINT first_party_context_thread_source_perspective_person_id_fkey FOREIGN KEY (perspective_person_id) REFERENCES registry.person(id) ON DELETE RESTRICT;
 ALTER TABLE working.first_party_context_thread_source ADD CONSTRAINT first_party_context_thread_source_source_version_id_fkey FOREIGN KEY (source_version_id) REFERENCES context.source_version(id) ON DELETE RESTRICT;
 ALTER TABLE working.first_party_context_thread_source ADD CONSTRAINT first_party_context_thread_source_supersedes_id_fkey FOREIGN KEY (supersedes_id) REFERENCES working.first_party_context_thread_source(id) ON DELETE RESTRICT;
 ALTER TABLE working.first_party_context_thread_version ADD CONSTRAINT first_party_context_thread_version_context_thread_id_fkey FOREIGN KEY (context_thread_id) REFERENCES working.first_party_context_thread(context_thread_id) ON DELETE RESTRICT;
 ALTER TABLE working.first_party_context_thread_version ADD CONSTRAINT first_party_context_thread_version_supersedes_id_fkey FOREIGN KEY (supersedes_id) REFERENCES working.first_party_context_thread_version(id) ON DELETE RESTRICT;
-ALTER TABLE working.handle ADD CONSTRAINT handle_id_fkey FOREIGN KEY (id) REFERENCES reference.entity(id) ON DELETE CASCADE;
-ALTER TABLE working.handle ADD CONSTRAINT handle_owner_entity_id_fkey FOREIGN KEY (owner_entity_id) REFERENCES reference.entity(id);
+ALTER TABLE working.handle ADD CONSTRAINT handle_id_fkey FOREIGN KEY (id) REFERENCES registry.entity(id) ON DELETE CASCADE;
+ALTER TABLE working.handle ADD CONSTRAINT handle_owner_entity_id_fkey FOREIGN KEY (owner_entity_id) REFERENCES registry.entity(id);
 ALTER TABLE working.message ADD CONSTRAINT fk_msg_screenshot FOREIGN KEY (screenshot_attachment_id) REFERENCES working.attachment(id);
 ALTER TABLE working.message ADD CONSTRAINT message_derived_from_record_id_fkey FOREIGN KEY (derived_from_record_id) REFERENCES working.normalized_record(id);
 ALTER TABLE working.message ADD CONSTRAINT message_id_fkey FOREIGN KEY (id) REFERENCES working.normalized_record(id) ON DELETE CASCADE;
@@ -5728,18 +5729,18 @@ ALTER TABLE working.message_participant ADD CONSTRAINT message_participant_messa
 ALTER TABLE working.message_projection_route ADD CONSTRAINT message_projection_route_normalized_record_id_fkey FOREIGN KEY (normalized_record_id) REFERENCES working.normalized_record(id) ON DELETE CASCADE;
 ALTER TABLE working.normalized_record ADD CONSTRAINT normalized_record_acquisition_id_fkey FOREIGN KEY (acquisition_id) REFERENCES evidence.acquisition(id);
 ALTER TABLE working.normalized_record ADD CONSTRAINT normalized_record_artifact_id_fkey FOREIGN KEY (artifact_id) REFERENCES evidence.evidence_hash(id);
-ALTER TABLE working.normalized_record ADD CONSTRAINT normalized_record_device_id_fkey FOREIGN KEY (device_id) REFERENCES reference.device(id);
+ALTER TABLE working.normalized_record ADD CONSTRAINT normalized_record_device_id_fkey FOREIGN KEY (device_id) REFERENCES registry.device(id);
 ALTER TABLE working.normalized_record ADD CONSTRAINT normalized_record_provenance_id_fkey FOREIGN KEY (provenance_id) REFERENCES ops.processing_run(run_id);
-ALTER TABLE working.normalized_record ADD CONSTRAINT normalized_record_sender_entity_id_fkey FOREIGN KEY (sender_entity_id) REFERENCES reference.entity(id);
-ALTER TABLE working.organization ADD CONSTRAINT organization_id_fkey FOREIGN KEY (id) REFERENCES reference.entity(id) ON DELETE CASCADE;
-ALTER TABLE working.phone ADD CONSTRAINT phone_id_fkey FOREIGN KEY (id) REFERENCES reference.entity(id) ON DELETE CASCADE;
-ALTER TABLE working.phone ADD CONSTRAINT phone_owner_entity_id_fkey FOREIGN KEY (owner_entity_id) REFERENCES reference.entity(id);
+ALTER TABLE working.normalized_record ADD CONSTRAINT normalized_record_sender_entity_id_fkey FOREIGN KEY (sender_entity_id) REFERENCES registry.entity(id);
+ALTER TABLE working.organization ADD CONSTRAINT organization_id_fkey FOREIGN KEY (id) REFERENCES registry.entity(id) ON DELETE CASCADE;
+ALTER TABLE working.phone ADD CONSTRAINT phone_id_fkey FOREIGN KEY (id) REFERENCES registry.entity(id) ON DELETE CASCADE;
+ALTER TABLE working.phone ADD CONSTRAINT phone_owner_entity_id_fkey FOREIGN KEY (owner_entity_id) REFERENCES registry.entity(id);
 ALTER TABLE working.realization_event ADD CONSTRAINT realization_event_trigger_record_id_fkey FOREIGN KEY (trigger_record_id) REFERENCES working.normalized_record(id) ON DELETE RESTRICT;
 ALTER TABLE working.realization_event_record ADD CONSTRAINT realization_event_record_normalized_record_id_fkey FOREIGN KEY (normalized_record_id) REFERENCES working.normalized_record(id) ON DELETE RESTRICT;
 ALTER TABLE working.realization_event_record ADD CONSTRAINT realization_event_record_realization_event_id_fkey FOREIGN KEY (realization_event_id) REFERENCES working.realization_event(id) ON DELETE CASCADE;
 ALTER TABLE working.record_visible_from ADD CONSTRAINT record_visible_from_record_id_fkey FOREIGN KEY (record_id) REFERENCES working.normalized_record(id) ON DELETE CASCADE;
 ALTER TABLE working.temporal_anchor ADD CONSTRAINT temporal_anchor_event_id_fkey FOREIGN KEY (event_id) REFERENCES analysis.timeline_event(event_id);
-ALTER TABLE working.third_party_context_thread ADD CONSTRAINT third_party_context_thread_court_case_id_matter_id_fkey FOREIGN KEY (court_case_id, matter_id) REFERENCES reference.court_case(id, matter_id) ON DELETE RESTRICT;
+ALTER TABLE working.third_party_context_thread ADD CONSTRAINT third_party_context_thread_court_case_id_matter_id_fkey FOREIGN KEY (court_case_id, matter_id) REFERENCES registry.court_case(id, matter_id) ON DELETE RESTRICT;
 ALTER TABLE working.third_party_context_thread_message ADD CONSTRAINT third_party_context_thread_me_thread_version_id_context_th_fkey FOREIGN KEY (thread_version_id, context_thread_id) REFERENCES working.third_party_context_thread_version(id, context_thread_id) ON DELETE RESTRICT;
 ALTER TABLE working.third_party_context_thread_message ADD CONSTRAINT third_party_context_thread_mes_conversation_acquisition_id_fkey FOREIGN KEY (conversation_acquisition_id) REFERENCES working.third_party_conversation_acquisition(id) ON DELETE RESTRICT;
 ALTER TABLE working.third_party_context_thread_message ADD CONSTRAINT third_party_context_thread_message_message_id_fkey FOREIGN KEY (message_id) REFERENCES working.third_party_message(id) ON DELETE RESTRICT;
@@ -5747,8 +5748,8 @@ ALTER TABLE working.third_party_context_thread_source ADD CONSTRAINT third_party
 ALTER TABLE working.third_party_context_thread_source ADD CONSTRAINT third_party_context_thread_so_thread_version_id_context_th_fkey FOREIGN KEY (thread_version_id, context_thread_id) REFERENCES working.third_party_context_thread_version(id, context_thread_id) ON DELETE RESTRICT;
 ALTER TABLE working.third_party_context_thread_source ADD CONSTRAINT third_party_context_thread_sou_conversation_acquisition_id_fkey FOREIGN KEY (conversation_acquisition_id) REFERENCES working.third_party_conversation_acquisition(id) ON DELETE RESTRICT;
 ALTER TABLE working.third_party_context_thread_source ADD CONSTRAINT third_party_context_thread_sou_represented_conversation_id_fkey FOREIGN KEY (represented_conversation_id) REFERENCES working.third_party_conversation(id) ON DELETE RESTRICT;
-ALTER TABLE working.third_party_context_thread_source ADD CONSTRAINT third_party_context_thread_source_originating_device_id_fkey FOREIGN KEY (originating_device_id) REFERENCES reference.device(id) ON DELETE RESTRICT;
-ALTER TABLE working.third_party_context_thread_source ADD CONSTRAINT third_party_context_thread_source_perspective_entity_id_fkey FOREIGN KEY (perspective_entity_id) REFERENCES reference.entity(id) ON DELETE RESTRICT;
+ALTER TABLE working.third_party_context_thread_source ADD CONSTRAINT third_party_context_thread_source_originating_device_id_fkey FOREIGN KEY (originating_device_id) REFERENCES registry.device(id) ON DELETE RESTRICT;
+ALTER TABLE working.third_party_context_thread_source ADD CONSTRAINT third_party_context_thread_source_perspective_entity_id_fkey FOREIGN KEY (perspective_entity_id) REFERENCES registry.entity(id) ON DELETE RESTRICT;
 ALTER TABLE working.third_party_context_thread_source ADD CONSTRAINT third_party_context_thread_source_source_version_id_fkey FOREIGN KEY (source_version_id) REFERENCES context.source_version(id) ON DELETE RESTRICT;
 ALTER TABLE working.third_party_context_thread_source ADD CONSTRAINT third_party_context_thread_source_supersedes_id_fkey FOREIGN KEY (supersedes_id) REFERENCES working.third_party_context_thread_source(id) ON DELETE RESTRICT;
 ALTER TABLE working.third_party_context_thread_version ADD CONSTRAINT third_party_context_thread_version_context_thread_id_fkey FOREIGN KEY (context_thread_id) REFERENCES working.third_party_context_thread(context_thread_id) ON DELETE RESTRICT;
@@ -5760,8 +5761,8 @@ ALTER TABLE working.third_party_conversation_acquisition ADD CONSTRAINT third_pa
 ALTER TABLE working.third_party_message ADD CONSTRAINT third_party_message_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES working.third_party_conversation(id) ON DELETE CASCADE;
 ALTER TABLE working.third_party_message ADD CONSTRAINT third_party_message_normalized_record_id_fkey FOREIGN KEY (normalized_record_id) REFERENCES working.normalized_record(id) ON DELETE RESTRICT;
 ALTER TABLE working.third_party_message ADD CONSTRAINT third_party_message_route_fk FOREIGN KEY (normalized_record_id, projection_kind) REFERENCES working.message_projection_route(normalized_record_id, projection_kind) DEFERRABLE INITIALLY DEFERRED;
-ALTER TABLE working.third_party_message ADD CONSTRAINT third_party_message_sender_entity_id_fkey FOREIGN KEY (sender_entity_id) REFERENCES reference.entity(id) ON DELETE RESTRICT;
-ALTER TABLE working.third_party_message_participant ADD CONSTRAINT third_party_message_participant_entity_id_fkey FOREIGN KEY (entity_id) REFERENCES reference.entity(id) ON DELETE RESTRICT;
+ALTER TABLE working.third_party_message ADD CONSTRAINT third_party_message_sender_entity_id_fkey FOREIGN KEY (sender_entity_id) REFERENCES registry.entity(id) ON DELETE RESTRICT;
+ALTER TABLE working.third_party_message_participant ADD CONSTRAINT third_party_message_participant_entity_id_fkey FOREIGN KEY (entity_id) REFERENCES registry.entity(id) ON DELETE RESTRICT;
 ALTER TABLE working.third_party_message_participant ADD CONSTRAINT third_party_message_participant_message_id_fkey FOREIGN KEY (message_id) REFERENCES working.third_party_message(id) ON DELETE CASCADE;
 ALTER TABLE working.walk_checkpoint ADD CONSTRAINT walk_checkpoint_walk_run_id_fkey FOREIGN KEY (walk_run_id) REFERENCES working.walk_run(id) ON DELETE CASCADE;
 ALTER TABLE working.walk_run ADD CONSTRAINT walk_run_resume_checkpoint_fk FOREIGN KEY (resume_from_checkpoint_id, id) REFERENCES working.walk_checkpoint(id, walk_run_id) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
@@ -5825,7 +5826,7 @@ CREATE INDEX IF NOT EXISTS content_chunk_hash_lookup_idx ON working.content_chun
 CREATE INDEX IF NOT EXISTS content_chunk_projection_pending_idx ON working.content_chunk_projection USING btree (sink, created_at) WHERE (status = 'pending'::text);
 CREATE INDEX IF NOT EXISTS content_chunk_source_span_generation_idx ON working.content_chunk_source_span USING btree (generation_id, member_ordinal);
 CREATE INDEX IF NOT EXISTS content_chunk_source_span_subject_idx ON working.content_chunk_source_span USING btree (source_version_id, member_ordinal);
-CREATE INDEX IF NOT EXISTS court_case_matter_status_idx ON reference.court_case USING btree (matter_id, status);
+CREATE INDEX IF NOT EXISTS court_case_matter_status_idx ON registry.court_case USING btree (matter_id, status);
 CREATE INDEX IF NOT EXISTS event_candidate_source_range_source_idx ON timeline.event_candidate_source_range USING btree (source_version_id, event_candidate_id);
 CREATE INDEX IF NOT EXISTS evidence_item_matter_case_review_idx ON evidence.evidence_item USING btree (matter_id, court_case_id, review_status) WHERE (matter_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS evidence_vector_projection_job_drain_idx ON working.evidence_vector_projection_job USING btree (status, next_attempt_at, created_at);
@@ -5908,9 +5909,9 @@ CREATE INDEX IF NOT EXISTS idx_agno_traces_status ON ai.agno_traces USING btree 
 CREATE INDEX IF NOT EXISTS idx_agno_traces_team_id ON ai.agno_traces USING btree (team_id);
 CREATE INDEX IF NOT EXISTS idx_agno_traces_user_id ON ai.agno_traces USING btree (user_id);
 CREATE INDEX IF NOT EXISTS idx_agno_traces_workflow_id ON ai.agno_traces USING btree (workflow_id);
-CREATE INDEX IF NOT EXISTS idx_alias_dmeta ON reference.entity_alias USING btree (alias_dmeta);
-CREATE INDEX IF NOT EXISTS idx_alias_entity ON reference.entity_alias USING btree (entity_id);
-CREATE INDEX IF NOT EXISTS idx_alias_trgm ON reference.entity_alias USING gin (((alias_text)::text) gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_alias_dmeta ON registry.entity_alias USING btree (alias_dmeta);
+CREATE INDEX IF NOT EXISTS idx_alias_entity ON registry.entity_alias USING btree (entity_id);
+CREATE INDEX IF NOT EXISTS idx_alias_trgm ON registry.entity_alias USING gin (((alias_text)::text) gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_anchor_range ON working.temporal_anchor USING gist (valid_range);
 CREATE INDEX IF NOT EXISTS idx_art_evid_gin ON working.artifact_registry USING gin (related_source_evidence);
 CREATE INDEX IF NOT EXISTS idx_art_kind_status ON working.artifact_registry USING btree (artifact_kind, status);
@@ -5949,10 +5950,10 @@ CREATE INDEX IF NOT EXISTS idx_detection_pattern_kw ON reference.detection_patte
 CREATE INDEX IF NOT EXISTS idx_detection_pattern_trgm ON reference.detection_pattern USING gin (pattern gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_discreq_task ON analysis.discovery_request USING btree (task_id, status);
 CREATE INDEX IF NOT EXISTS idx_email_owner ON working.email USING btree (owner_entity_id);
-CREATE INDEX IF NOT EXISTS idx_entity_dispname_trgm ON reference.entity USING gin (((display_name)::text) gin_trgm_ops);
-CREATE INDEX IF NOT EXISTS idx_entity_live ON reference.entity USING btree (id) WHERE (merged_into_id IS NULL);
-CREATE INDEX IF NOT EXISTS idx_entity_normname_trgm ON reference.entity USING gin (((normalized_name)::text) gin_trgm_ops);
-CREATE INDEX IF NOT EXISTS idx_entity_type ON reference.entity USING btree (entity_type);
+CREATE INDEX IF NOT EXISTS idx_entity_dispname_trgm ON registry.entity USING gin (((display_name)::text) gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_entity_live ON registry.entity USING btree (id) WHERE (merged_into_id IS NULL);
+CREATE INDEX IF NOT EXISTS idx_entity_normname_trgm ON registry.entity USING gin (((normalized_name)::text) gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_entity_type ON registry.entity USING btree (entity_type);
 CREATE INDEX IF NOT EXISTS idx_esr_attestation ON working.event_source_record USING btree (record_id) WHERE (event_id IS NULL);
 CREATE INDEX IF NOT EXISTS idx_esr_disagree ON working.event_source_record USING btree (record_id) WHERE (agrees IS FALSE);
 CREATE INDEX IF NOT EXISTS idx_esr_rawref ON working.event_source_record USING btree (raw_ref);
@@ -5994,8 +5995,8 @@ CREATE INDEX IF NOT EXISTS idx_legaltl_case ON analysis.legal_timeline_event USI
 CREATE INDEX IF NOT EXISTS idx_legaltl_fact ON analysis.legal_timeline_event USING gin (mcl_factors);
 CREATE INDEX IF NOT EXISTS idx_locassert_geog ON analysis.location_assertion USING gist (geog);
 CREATE INDEX IF NOT EXISTS idx_locassert_subject ON analysis.location_assertion USING btree (subject_type, subject_id);
-CREATE INDEX IF NOT EXISTS idx_location_geog ON reference.location USING gist (geog);
-CREATE INDEX IF NOT EXISTS idx_location_name_trgm ON reference.location USING gin (name gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_location_geog ON registry.location USING gist (geog);
+CREATE INDEX IF NOT EXISTS idx_location_name_trgm ON registry.location USING gin (name gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_mem_fts ON public.memory_items USING gin (fts);
 CREATE INDEX IF NOT EXISTS idx_mem_title_trgm ON public.memory_items USING gin (title gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_mem_type_status ON public.memory_items USING btree (memory_type, status);
@@ -6114,8 +6115,8 @@ CREATE INDEX IF NOT EXISTS idx_workflow_run_stage_run ON ops.workflow_run_stage 
 CREATE INDEX IF NOT EXISTS idx_workflow_run_status ON analysis.workflow_run USING btree (status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_workflow_run_status ON ops.workflow_run USING btree (status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_workflow_run_trace_id ON ops.workflow_run USING btree (trace_id) WHERE (trace_id IS NOT NULL);
-CREATE INDEX IF NOT EXISTS idx_xref_b ON reference.id_xref USING btree (system_b, native_id_b);
-CREATE INDEX IF NOT EXISTS idx_xref_entity ON reference.id_xref USING btree (canonical_entity_id);
+CREATE INDEX IF NOT EXISTS idx_xref_b ON registry.id_xref USING btree (system_b, native_id_b);
+CREATE INDEX IF NOT EXISTS idx_xref_entity ON registry.id_xref USING btree (canonical_entity_id);
 CREATE INDEX IF NOT EXISTS knowledge_evidence_promotion_case_time_idx ON analysis.knowledge_evidence_promotion USING btree (court_case_id, promoted_at DESC);
 CREATE INDEX IF NOT EXISTS knowledge_evidence_promotion_matter_time_idx ON analysis.knowledge_evidence_promotion USING btree (matter_id, promoted_at DESC);
 CREATE INDEX IF NOT EXISTS knowledge_evidence_promotion_record_idx ON analysis.knowledge_evidence_promotion USING btree (normalized_record_id);
@@ -6164,8 +6165,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS candidate_event_dedup_idx ON working.candidate
 CREATE UNIQUE INDEX IF NOT EXISTS candidate_fact_dedup_idx ON working.candidate_fact USING btree (source_raw_table, source_raw_id, content_sha256);
 CREATE UNIQUE INDEX IF NOT EXISTS claim_candidate_run_span_key ON working.claim_candidate USING btree (extraction_run_id, chat_message_id, content_sha256);
 CREATE UNIQUE INDEX IF NOT EXISTS content_chunk_one_initial_context_uq ON analysis.content_chunk_classification_decision USING btree (chunk_id) WHERE (decision_kind = 'initial_context'::text);
-CREATE UNIQUE INDEX IF NOT EXISTS court_case_docket_per_matter_idx ON reference.court_case USING btree (matter_id, lower(docket_number)) WHERE (docket_number IS NOT NULL);
-CREATE UNIQUE INDEX IF NOT EXISTS court_case_one_primary_per_matter_idx ON reference.court_case USING btree (matter_id) WHERE is_primary;
+CREATE UNIQUE INDEX IF NOT EXISTS court_case_docket_per_matter_idx ON registry.court_case USING btree (matter_id, lower(docket_number)) WHERE (docket_number IS NOT NULL);
+CREATE UNIQUE INDEX IF NOT EXISTS court_case_one_primary_per_matter_idx ON registry.court_case USING btree (matter_id) WHERE is_primary;
 CREATE UNIQUE INDEX IF NOT EXISTS hash_manifest_member_normalized_record_uq ON context.hash_manifest_member USING btree (hash_manifest_id, normalized_record_id) WHERE (normalized_record_id IS NOT NULL);
 CREATE UNIQUE INDEX IF NOT EXISTS hash_manifest_member_raw_record_uq ON context.hash_manifest_member USING btree (hash_manifest_id, raw_record_id) WHERE (raw_record_id IS NOT NULL);
 CREATE UNIQUE INDEX IF NOT EXISTS hash_manifest_normalized_generation_kind_uq ON context.hash_manifest USING btree (normalized_generation_id, hash_kind) WHERE (normalized_generation_id IS NOT NULL);
@@ -6177,7 +6178,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS hash_receipt_normalized_generation_manifest_uq
 CREATE UNIQUE INDEX IF NOT EXISTS hash_receipt_normalized_record_uq ON context.hash_receipt USING btree (normalized_record_id) WHERE (hash_kind = 'normalized_record_digest'::text);
 CREATE UNIQUE INDEX IF NOT EXISTS message_one_per_spine_uq ON working.message USING btree (derived_from_record_id) WHERE (derived_from_record_id IS NOT NULL);
 CREATE UNIQUE INDEX IF NOT EXISTS normalized_record_source_key_uq ON working.normalized_record USING btree (artifact_id, source, source_record_key) WHERE (source_record_key IS NOT NULL);
-CREATE UNIQUE INDEX IF NOT EXISTS person_single_user_role_uq ON reference.person USING btree (role_in_case) WHERE (role_in_case = 'user'::text);
+CREATE UNIQUE INDEX IF NOT EXISTS person_single_user_role_uq ON registry.person USING btree (role_in_case) WHERE (role_in_case = 'user'::text);
 CREATE UNIQUE INDEX IF NOT EXISTS promotion_live_idx ON working.promotion USING btree (candidate_kind, candidate_id, lane, target_system) WHERE (revoked_at IS NULL);
 CREATE UNIQUE INDEX IF NOT EXISTS source_provenance_revision_idx ON working.source_provenance USING btree (source_raw_table, source_raw_id, revision);
 CREATE UNIQUE INDEX IF NOT EXISTS source_version_object_one_original_uq ON context.source_version_object USING btree (source_version_id) WHERE (object_role = 'original'::text);
@@ -6187,10 +6188,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS timeline_member_candidate_uq ON timeline.timel
 CREATE UNIQUE INDEX IF NOT EXISTS timeline_member_governed_uq ON timeline.timeline_member USING btree (collection_id, governed_source_schema, governed_source_table, governed_source_pk) WHERE (governed_source_schema IS NOT NULL);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_chunkclass_batch_item ON analysis.chunk_classification USING btree (run_key, batch_index, record_ref, classifier_version);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_chunkclass_decision_id ON analysis.chunk_classification USING btree (decision_id) WHERE (decision_id IS NOT NULL);
-CREATE UNIQUE INDEX IF NOT EXISTS uq_device_label ON reference.device USING btree (device_label) WHERE (device_label IS NOT NULL);
-CREATE UNIQUE INDEX IF NOT EXISTS uq_entity_norm ON reference.entity USING btree (entity_type, normalized_name) WHERE ((normalized_name IS NOT NULL) AND (merged_into_id IS NULL));
+CREATE UNIQUE INDEX IF NOT EXISTS uq_device_label ON registry.device USING btree (device_label) WHERE (device_label IS NOT NULL);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_entity_norm ON registry.entity USING btree (entity_type, normalized_name) WHERE ((normalized_name IS NOT NULL) AND (merged_into_id IS NULL));
 CREATE UNIQUE INDEX IF NOT EXISTS uq_esr_record ON working.event_source_record USING btree (event_id, record_id) WHERE (record_id IS NOT NULL);
-CREATE UNIQUE INDEX IF NOT EXISTS uq_location_dedup ON reference.location USING btree (geohash9, COALESCE(name, ''::text));
+CREATE UNIQUE INDEX IF NOT EXISTS uq_location_dedup ON registry.location USING btree (geohash9, COALESCE(name, ''::text));
 CREATE UNIQUE INDEX IF NOT EXISTS uq_raw_ai_chat_dedupe ON raw.raw_ai_chat USING btree (device_id, medium, content_hash) NULLS NOT DISTINCT;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_raw_csv_dedupe ON raw.raw_csv USING btree (device_id, medium, content_hash) NULLS NOT DISTINCT;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_raw_facebook_dedupe ON raw.raw_facebook USING btree (device_id, medium, content_hash) NULLS NOT DISTINCT;
@@ -7298,7 +7299,7 @@ BEGIN
   END IF;
   IF EXISTS (SELECT 1 FROM working.message_projection_route
              WHERE decision_state='approved' AND projection_kind='acquired_third_party') THEN
-    SELECT count(*) INTO owner_count FROM working.person WHERE role_in_case='user';
+    SELECT count(*) INTO owner_count FROM registry.person WHERE role_in_case='user';
     IF owner_count<>1 THEN RAISE EXCEPTION 'OWNER_IDENTITY_NOT_CONFIGURED'; END IF;
   END IF;
   IF EXISTS (
@@ -7324,7 +7325,7 @@ BEGIN
         OR NOT EXISTS (SELECT 1 FROM working.third_party_message_participant p
                        WHERE p.message_id=tm.id AND p.role='from' AND p.entity_id=tm.sender_entity_id)
         OR EXISTS (SELECT 1 FROM working.third_party_message_participant p
-                   JOIN working.person wp ON wp.id=p.entity_id
+                   JOIN registry.person wp ON wp.id=p.entity_id
                    WHERE p.message_id=tm.id AND wp.role_in_case='user')
         OR NOT EXISTS (SELECT 1 FROM working.third_party_conversation_acquisition ca
                        JOIN evidence.acquisition a ON a.id=ca.acquisition_id
@@ -9340,7 +9341,7 @@ BEGIN
   END IF;
   IF EXISTS (SELECT 1 FROM working.message_projection_route
              WHERE decision_state='approved' AND projection_kind='acquired_third_party') THEN
-    SELECT count(*) INTO owner_count FROM working.person WHERE role_in_case='user';
+    SELECT count(*) INTO owner_count FROM registry.person WHERE role_in_case='user';
     IF owner_count<>1 THEN RAISE EXCEPTION 'OWNER_IDENTITY_NOT_CONFIGURED'; END IF;
   END IF;
   IF EXISTS (
@@ -9366,7 +9367,7 @@ BEGIN
         OR NOT EXISTS (SELECT 1 FROM working.third_party_message_participant p
                        WHERE p.message_id=tm.id AND p.role='from' AND p.entity_id=tm.sender_entity_id)
         OR EXISTS (SELECT 1 FROM working.third_party_message_participant p
-                   JOIN working.person wp ON wp.id=p.entity_id
+                   JOIN registry.person wp ON wp.id=p.entity_id
                    WHERE p.message_id=tm.id AND wp.role_in_case='user')
         OR NOT EXISTS (SELECT 1 FROM working.third_party_conversation_acquisition ca
                        JOIN evidence.acquisition a ON a.id=ca.acquisition_id
@@ -10329,12 +10330,12 @@ COMMENT ON TABLE raw.raw_imessage IS 'RAW per-source layer for imessage. The ONL
 COMMENT ON TABLE raw.raw_phone IS 'RAW per-source layer for phone. The ONLY insert target for this format. Verbatim and never edited; spine and projection are derived from it. Dedup on (device, medium, content) only - a screenshot of the same message is a separate attestation, not a duplicate.';
 COMMENT ON TABLE raw.raw_rejected IS 'Every record a parser refused, stored verbatim with the reason. A dropped record is an absence and cannot be queried after the fact - it must be written at the moment of refusal. dedup_duplicate_in_source rows are the losing side of a raw dedup collapse and are how "raw < parsed" is PROVEN rather than assumed.';
 COMMENT ON TABLE raw.raw_sms IS 'RAW per-source layer for sms. The ONLY insert target for this format. Verbatim and never edited; spine and projection are derived from it. Dedup on (device, medium, content) only - a screenshot of the same message is a separate attestation, not a duplicate.';
-COMMENT ON TABLE reference.court_case IS 'Identity registry: legal cases. Moved from analysis (0057) — a case is the coordinate system analysis happens IN, not a conclusion produced by it.';
-COMMENT ON TABLE reference.device IS 'Identity registry: physical devices evidence was acquired from. Moved from working (0057) — a purge of working must never delete the registry of phones the evidence came from.';
 COMMENT ON TABLE reference.format_resolver IS 'AI-assisted field-mapping registry for unknown message-export formats. mappings[].method records HOW each field was resolved (exact/fuzzy/content/ai) — court-defensibility: a human can see which columns were deterministic vs model-inferred. Seed dict + cascade ported from schema_resolver.py.';
 COMMENT ON TABLE reference.lexicon_sync IS 'External lexicon import provenance. HurtLex pinned v1.2 (valeriobasile/hurtlex); level conservative|inclusive; isCustom terms protected on resync (enforced in importer, not here).';
-COMMENT ON TABLE reference.matter IS 'Identity registry: matters. Moved from analysis (0057), same reasoning as court_case.';
 COMMENT ON TABLE reference.topic_code IS 'Human-readable conversation topic codes (6-char). Seed = topic_detector.py TOPIC_MAPPING.';
+COMMENT ON TABLE registry.court_case IS 'Identity registry: legal cases. Moved from analysis (0057) — a case is the coordinate system analysis happens IN, not a conclusion produced by it.';
+COMMENT ON TABLE registry.device IS 'Identity registry: physical devices evidence was acquired from. Moved from working (0057) — a purge of working must never delete the registry of phones the evidence came from.';
+COMMENT ON TABLE registry.matter IS 'Identity registry: matters. Moved from analysis (0057), same reasoning as court_case.';
 COMMENT ON TABLE timeline.event_candidate IS 'Any-context event proposal (ADR-0060). CANDIDATE authority only -- D-082: an AI-chat-derived row is a lead, never evidence. A correction is a NEW row (new extraction_run_id), never an edit to this one -- see the append-only trigger below.';
 COMMENT ON TABLE timeline.event_candidate_relative_time_anchor IS 'Typed append-only relative-time link for event-candidate temporal roles. Corrections are new anchor versions/links, never JSON authority.';
 COMMENT ON TABLE timeline.event_candidate_source_range IS 'Independent event-extraction provenance over the same immutable source_version/range primitive; it never carves content out of or depends on chunks.';

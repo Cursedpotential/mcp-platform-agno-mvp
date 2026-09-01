@@ -7,6 +7,8 @@
 -- RESTORE: run this one file. Two-phase: tables first, then constraints
 -- and indexes, so intra-lane FKs resolve regardless of order.
 -- Generated 2026-09-01T03:34:47.199843+00:00 from live platform.
+-- Amended 2026-09-01: FK targets requalified reference.* -> registry.* after migration 0062
+-- (D-120 registry split); restore-proof of 2026-08-31 predates the move.
 SET client_min_messages = warning;
 
 -- ===== phase 1: tables =====
@@ -150,26 +152,26 @@ ALTER TABLE working.geocode_result ADD CONSTRAINT geocode_result_data_tier_check
 ALTER TABLE working.home_base ADD CONSTRAINT home_base_data_tier_check CHECK ((data_tier = 'inferred'::evidence_tier));
 ALTER TABLE reference.geofence ADD CONSTRAINT geofence_data_tier_check CHECK ((data_tier = 'analytical'::evidence_tier));
 ALTER TABLE working.stay_point ADD CONSTRAINT stay_point_track_id_fkey FOREIGN KEY (track_id) REFERENCES working.gps_track(id);
-ALTER TABLE working.stay_point ADD CONSTRAINT stay_point_device_id_fkey FOREIGN KEY (device_id) REFERENCES reference.device(id);
-ALTER TABLE working.stay_point ADD CONSTRAINT stay_point_location_id_fkey FOREIGN KEY (location_id) REFERENCES reference.location(id);
+ALTER TABLE working.stay_point ADD CONSTRAINT stay_point_device_id_fkey FOREIGN KEY (device_id) REFERENCES registry.device(id);
+ALTER TABLE working.stay_point ADD CONSTRAINT stay_point_location_id_fkey FOREIGN KEY (location_id) REFERENCES registry.location(id);
 ALTER TABLE working.stay_point ADD CONSTRAINT stay_point_provenance_id_fkey FOREIGN KEY (provenance_id) REFERENCES ops.processing_run(run_id);
 ALTER TABLE working.gps_track ADD CONSTRAINT gps_track_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
-ALTER TABLE working.gps_track ADD CONSTRAINT gps_track_device_id_fkey FOREIGN KEY (device_id) REFERENCES reference.device(id);
+ALTER TABLE working.gps_track ADD CONSTRAINT gps_track_device_id_fkey FOREIGN KEY (device_id) REFERENCES registry.device(id);
 ALTER TABLE working.gps_track ADD CONSTRAINT gps_track_provenance_id_fkey FOREIGN KEY (provenance_id) REFERENCES ops.processing_run(run_id);
 ALTER TABLE working.geocode_request ADD CONSTRAINT geocode_request_provenance_id_fkey FOREIGN KEY (provenance_id) REFERENCES ops.processing_run(run_id);
-ALTER TABLE working.geocode_resolution ADD CONSTRAINT geocode_resolution_location_id_fkey FOREIGN KEY (location_id) REFERENCES reference.location(id);
+ALTER TABLE working.geocode_resolution ADD CONSTRAINT geocode_resolution_location_id_fkey FOREIGN KEY (location_id) REFERENCES registry.location(id);
 ALTER TABLE working.geocode_resolution ADD CONSTRAINT geocode_resolution_chosen_result_id_fkey FOREIGN KEY (chosen_result_id) REFERENCES working.geocode_result(id);
 ALTER TABLE working.geocode_resolution ADD CONSTRAINT geocode_resolution_provenance_id_fkey FOREIGN KEY (provenance_id) REFERENCES ops.processing_run(run_id);
 ALTER TABLE working.geocode_resolution ADD CONSTRAINT geocode_resolution_request_id_fkey FOREIGN KEY (request_id) REFERENCES working.geocode_request(id);
 ALTER TABLE working.geocode_result ADD CONSTRAINT geocode_result_request_id_fkey FOREIGN KEY (request_id) REFERENCES working.geocode_request(id);
-ALTER TABLE working.home_base ADD CONSTRAINT home_base_entity_id_fkey FOREIGN KEY (entity_id) REFERENCES reference.entity(id);
+ALTER TABLE working.home_base ADD CONSTRAINT home_base_entity_id_fkey FOREIGN KEY (entity_id) REFERENCES registry.entity(id);
 ALTER TABLE working.home_base ADD CONSTRAINT home_base_provenance_id_fkey FOREIGN KEY (provenance_id) REFERENCES ops.processing_run(run_id);
-ALTER TABLE working.home_base ADD CONSTRAINT home_base_location_id_fkey FOREIGN KEY (location_id) REFERENCES reference.location(id);
+ALTER TABLE working.home_base ADD CONSTRAINT home_base_location_id_fkey FOREIGN KEY (location_id) REFERENCES registry.location(id);
 ALTER TABLE working.waypoint_device_split ADD CONSTRAINT waypoint_device_split_ingest_run_id_fkey FOREIGN KEY (ingest_run_id) REFERENCES ops.processing_run(run_id);
 ALTER TABLE working.waypoint_device_split ADD CONSTRAINT waypoint_device_split_raw_path_id_fkey FOREIGN KEY (raw_path_id) REFERENCES raw.raw_path(id);
 ALTER TABLE working.waypoint_device_split ADD CONSTRAINT waypoint_device_split_split_from_activity_fkey FOREIGN KEY (split_from_activity) REFERENCES raw.raw_activity(id);
-ALTER TABLE working.vehicle ADD CONSTRAINT vehicle_id_fkey FOREIGN KEY (id) REFERENCES reference.entity(id) ON DELETE CASCADE;
-ALTER TABLE working.vehicle ADD CONSTRAINT vehicle_owner_entity_id_fkey FOREIGN KEY (owner_entity_id) REFERENCES reference.entity(id);
+ALTER TABLE working.vehicle ADD CONSTRAINT vehicle_id_fkey FOREIGN KEY (id) REFERENCES registry.entity(id) ON DELETE CASCADE;
+ALTER TABLE working.vehicle ADD CONSTRAINT vehicle_owner_entity_id_fkey FOREIGN KEY (owner_entity_id) REFERENCES registry.entity(id);
 ALTER TABLE reference.geofence ADD CONSTRAINT geofence_provenance_id_fkey FOREIGN KEY (provenance_id) REFERENCES ops.processing_run(run_id);
 ALTER TABLE ops.geocode_audit ADD CONSTRAINT geocode_audit_request_id_fkey FOREIGN KEY (request_id) REFERENCES working.geocode_request(id);
 
