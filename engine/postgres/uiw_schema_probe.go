@@ -19,7 +19,7 @@ var requiredUIWMigrations = []string{
 }
 
 var requiredUIWTables = []string{
-	"analysis.matter", "analysis.court_case", "analysis.matter_knowledge_partition", "analysis.case_registry_import_receipt",
+	"reference.matter", "reference.court_case", "reference.matter_knowledge_partition", "analysis.case_registry_import_receipt",
 	"context.activity_execution", "context.activity_receipt", "context.hash_batch",
 	"context.hash_batch_member", "context.hash_manifest", "context.hash_manifest_member",
 	"context.hash_receipt", "context.normalization_lineage", "context.normalized_generation",
@@ -80,11 +80,11 @@ func ProbeUIWSchema(ctx context.Context, db SchemaProbeDB) error {
 		         WHERE format('%s.%s.%s',table_schema,table_name,column_name)=ANY($3::text[])),
 		       (NOT EXISTS (
 		         SELECT 1 FROM (VALUES
-		           ('context.source_version','source_version_matter_fk','analysis.matter',ARRAY['matter_id'],ARRAY['id']),
-		           ('context.source_version','source_version_court_case_scope_fk','analysis.court_case',ARRAY['court_case_id','matter_id'],ARRAY['id','matter_id']),
+		           ('context.source_version','source_version_matter_fk','reference.matter',ARRAY['matter_id'],ARRAY['id']),
+		           ('context.source_version','source_version_court_case_scope_fk','reference.court_case',ARRAY['court_case_id','matter_id'],ARRAY['id','matter_id']),
 		           ('context.source_version','source_version_source_context_scope_fk','context.uiw_source_context_revision',ARRAY['source_context_ref','matter_id','court_case_id'],ARRAY['source_context_ref','matter_id','court_case_id']),
-		           ('context.uiw_source_context_revision','uiw_source_context_matter_fk','analysis.matter',ARRAY['matter_id'],ARRAY['id']),
-		           ('context.uiw_source_context_revision','uiw_source_context_court_case_scope_fk','analysis.court_case',ARRAY['court_case_id','matter_id'],ARRAY['id','matter_id'])
+		           ('context.uiw_source_context_revision','uiw_source_context_matter_fk','reference.matter',ARRAY['matter_id'],ARRAY['id']),
+		           ('context.uiw_source_context_revision','uiw_source_context_court_case_scope_fk','reference.court_case',ARRAY['court_case_id','matter_id'],ARRAY['id','matter_id'])
 		         ) AS required(relation_name,constraint_name,referenced_name,columns,referenced_columns)
 		         WHERE NOT EXISTS (
 		           SELECT 1 FROM pg_constraint c
@@ -115,24 +115,24 @@ func ProbeUIWSchema(ctx context.Context, db SchemaProbeDB) error {
 		         FROM pg_roles WHERE rolname='platform_runtime'),false),
 		       has_schema_privilege('platform_runtime','analysis','USAGE')
 		         AND NOT has_schema_privilege('platform_runtime','analysis','CREATE')
-		         AND has_table_privilege('platform_runtime','analysis.matter','SELECT')
-		         AND has_table_privilege('platform_runtime','analysis.court_case','SELECT')
-		         AND has_table_privilege('platform_runtime','analysis.matter_knowledge_partition','SELECT')
+		         AND has_table_privilege('platform_runtime','reference.matter','SELECT')
+		         AND has_table_privilege('platform_runtime','reference.court_case','SELECT')
+		         AND has_table_privilege('platform_runtime','reference.matter_knowledge_partition','SELECT')
 		         AND has_table_privilege('platform_runtime','analysis.case_registry_import_receipt','SELECT')
-		         AND NOT has_table_privilege('platform_runtime','analysis.matter','INSERT')
-		         AND NOT has_table_privilege('platform_runtime','analysis.matter','UPDATE')
-		         AND NOT has_table_privilege('platform_runtime','analysis.matter','DELETE')
+		         AND NOT has_table_privilege('platform_runtime','reference.matter','INSERT')
+		         AND NOT has_table_privilege('platform_runtime','reference.matter','UPDATE')
+		         AND NOT has_table_privilege('platform_runtime','reference.matter','DELETE')
 		         AND NOT has_table_privilege('platform_runtime','public.schema_version','INSERT')
 		         AND (NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='agno_app') OR NOT (
-		           has_table_privilege('agno_app','analysis.matter','INSERT')
-		           OR has_table_privilege('agno_app','analysis.matter','UPDATE')
-		           OR has_table_privilege('agno_app','analysis.matter','DELETE')
-		           OR has_table_privilege('agno_app','analysis.court_case','INSERT')
-		           OR has_table_privilege('agno_app','analysis.court_case','UPDATE')
-		           OR has_table_privilege('agno_app','analysis.court_case','DELETE')
-		           OR has_table_privilege('agno_app','analysis.matter_knowledge_partition','INSERT')
-		           OR has_table_privilege('agno_app','analysis.matter_knowledge_partition','UPDATE')
-		           OR has_table_privilege('agno_app','analysis.matter_knowledge_partition','DELETE'))),
+		           has_table_privilege('agno_app','reference.matter','INSERT')
+		           OR has_table_privilege('agno_app','reference.matter','UPDATE')
+		           OR has_table_privilege('agno_app','reference.matter','DELETE')
+		           OR has_table_privilege('agno_app','reference.court_case','INSERT')
+		           OR has_table_privilege('agno_app','reference.court_case','UPDATE')
+		           OR has_table_privilege('agno_app','reference.court_case','DELETE')
+		           OR has_table_privilege('agno_app','reference.matter_knowledge_partition','INSERT')
+		           OR has_table_privilege('agno_app','reference.matter_knowledge_partition','UPDATE')
+		           OR has_table_privilege('agno_app','reference.matter_knowledge_partition','DELETE'))),
 		       (SELECT count(*)=1 AND count(*) FILTER (WHERE matter_id=$4::uuid AND court_case_id=$5::uuid
 		          AND source_migration_uri=$6 AND encode(source_migration_sha256,'hex')=$7
 		          AND source_git_commit=$8 AND payload_schema_version=$9 AND payload_byte_length=1075

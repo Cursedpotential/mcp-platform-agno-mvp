@@ -379,7 +379,7 @@ def extract_asset_text(asset_id: str, *, engine: Any | None = None) -> dict[str,
         )
     asset_path = Path(row["r2_bucket"]) / row["r2_key"]
     load_builtin_tools()
-    tools = registry.resolve("extract.text", media_hint=row["member_path"], size_bytes=row["byte_size"] or 0)
+    tools = reference.resolve("extract.text", media_hint=row["member_path"], size_bytes=row["byte_size"] or 0)
     tools = sorted(
         tools,
         key=lambda candidate: (

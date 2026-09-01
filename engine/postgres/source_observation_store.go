@@ -66,7 +66,7 @@ func NewSourceObservationRepository(db DB, manifests InventoryManifestWriterFact
 // PersistSourceMetadata creates one immutable receipt and source-level rows.
 // The receipt is written before source_metadata rows so the 0036 trigger can
 // enforce the exact same-source Activity boundary. An empty row set records a
-// durable not_applicable receipt and no result reference.
+// durable not_applicable receipt and no result registry.
 func (r *SourceObservationRepository) PersistSourceMetadata(ctx context.Context, spec activities.MetadataPersistenceSpec) (activities.MetadataPersistenceResult, error) {
 	if err := validateMetadataPersistenceSpec(spec); err != nil {
 		return activities.MetadataPersistenceResult{}, err

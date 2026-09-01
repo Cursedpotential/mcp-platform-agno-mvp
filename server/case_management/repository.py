@@ -103,9 +103,9 @@ def get_case_management_capabilities() -> dict[str, object]:
         registry_available = bool(
             conn.execute(
                 text(
-                    "SELECT to_regclass('analysis.matter') IS NOT NULL "
-                    "AND to_regclass('analysis.court_case') IS NOT NULL "
-                    "AND to_regclass('analysis.matter_knowledge_partition') IS NOT NULL"
+                    "SELECT to_regclass('reference.matter') IS NOT NULL "
+                    "AND to_regclass('reference.court_case') IS NOT NULL "
+                    "AND to_regclass('reference.matter_knowledge_partition') IS NOT NULL"
                 )
             ).scalar()
         )
@@ -518,14 +518,14 @@ _MATTER_SELECT = """
 SELECT m.id, m.title, m.description, m.status, m.created_at, m.updated_at,
        COALESCE(array_agg(mp.partition_key ORDER BY mp.partition_key)
          FILTER (WHERE mp.partition_key IS NOT NULL), ARRAY[]::text[]) AS partition_keys
-FROM analysis.matter m
-LEFT JOIN analysis.matter_knowledge_partition mp ON mp.matter_id = m.id
+FROM reference.matter m
+LEFT JOIN reference.matter_knowledge_partition mp ON mp.matter_id = m.id
 """
 
 
 def list_matters(*, limit: int, offset: int) -> MatterList:
     with _get_engine().connect() as conn:
-        total = int(conn.execute(text("SELECT count(*) FROM analysis.matter")).scalar() or 0)
+        total = int(conn.execute(text("SELECT count(*) FROM reference.matter")).scalar() or 0)
         rows = (
             conn.execute(
                 text(_MATTER_SELECT + " GROUP BY m.id ORDER BY m.updated_at DESC, m.id LIMIT :limit OFFSET :offset"),
@@ -543,7 +543,7 @@ def create_matter(body: MatterCreate) -> Matter:
             row = (
                 conn.execute(
                     text(
-                        "INSERT INTO analysis.matter (title, description, created_by) "
+                        "INSERT INTO reference.matter (title, description, created_by) "
                         "VALUES (:title, :description, :created_by) "
                         "RETURNING id, title, description, status, created_at, updated_at"
                     ),
@@ -556,7 +556,7 @@ def create_matter(body: MatterCreate) -> Matter:
             partition_key = body.partition_key or str(matter_id)
             default_case_id = conn.execute(
                 text(
-                    "INSERT INTO analysis.court_case "
+                    "INSERT INTO reference.court_case "
                     "(matter_id, caption, status, is_primary, created_by) "
                     "VALUES (:matter_id, :caption, 'pre_filing', true, :created_by) "
                     "RETURNING id"
@@ -565,7 +565,7 @@ def create_matter(body: MatterCreate) -> Matter:
             ).scalar_one()
             conn.execute(
                 text(
-                    "INSERT INTO analysis.matter_knowledge_partition "
+                    "INSERT INTO reference.matter_knowledge_partition "
                     "(partition_key, matter_id, default_court_case_id, created_by) "
                     "VALUES (:partition_key, :matter_id, :default_case_id, :created_by)"
                 ),
@@ -595,7 +595,7 @@ def get_matter(matter_id: UUID) -> MatterDetail:
                 text(
                     "SELECT id, matter_id, caption, docket_number, court_name, jurisdiction, case_type, "
                     "status, filed_on, closed_on, is_primary, created_at, updated_at "
-                    "FROM analysis.court_case WHERE matter_id = :matter_id "
+                    "FROM reference.court_case WHERE matter_id = :matter_id "
                     "ORDER BY is_primary DESC, created_at, id"
                 ),
                 {"matter_id": matter_id},
@@ -610,26 +610,26 @@ def get_matter(matter_id: UUID) -> MatterDetail:
 def create_court_case(matter_id: UUID, body: CourtCaseCreate) -> CourtCase:
     try:
         with _get_engine().begin() as conn:
-            if not conn.execute(text("SELECT 1 FROM analysis.matter WHERE id = :id"), {"id": matter_id}).first():
+            if not conn.execute(text("SELECT 1 FROM reference.matter WHERE id = :id"), {"id": matter_id}).first():
                 raise CaseRepositoryError("matter not found", 404)
 
             has_case = bool(
                 conn.execute(
-                    text("SELECT 1 FROM analysis.court_case WHERE matter_id = :matter_id LIMIT 1"),
+                    text("SELECT 1 FROM reference.court_case WHERE matter_id = :matter_id LIMIT 1"),
                     {"matter_id": matter_id},
                 ).first()
             )
             is_primary = body.is_primary or not has_case
             if is_primary:
                 conn.execute(
-                    text("UPDATE analysis.court_case SET is_primary = false WHERE matter_id = :matter_id"),
+                    text("UPDATE reference.court_case SET is_primary = false WHERE matter_id = :matter_id"),
                     {"matter_id": matter_id},
                 )
             values = body.model_dump(exclude={"is_primary"})
             row = (
                 conn.execute(
                     text(
-                        "INSERT INTO analysis.court_case "
+                        "INSERT INTO reference.court_case "
                         "(matter_id, caption, docket_number, court_name, jurisdiction, case_type, status, "
                         " filed_on, closed_on, is_primary, created_by) "
                         "VALUES (:matter_id, :caption, :docket_number, :court_name, :jurisdiction, :case_type, "
@@ -645,7 +645,7 @@ def create_court_case(matter_id: UUID, body: CourtCaseCreate) -> CourtCase:
             if is_primary:
                 conn.execute(
                     text(
-                        "UPDATE analysis.matter_knowledge_partition SET default_court_case_id = :case_id "
+                        "UPDATE reference.matter_knowledge_partition SET default_court_case_id = :case_id "
                         "WHERE matter_id = :matter_id"
                     ),
                     {"case_id": row["id"], "matter_id": matter_id},
@@ -656,11 +656,11 @@ def create_court_case(matter_id: UUID, body: CourtCaseCreate) -> CourtCase:
 
 
 def _require_partition(conn: Any, matter_id: UUID, partition_key: str) -> None:
-    if not conn.execute(text("SELECT 1 FROM analysis.matter WHERE id = :id"), {"id": matter_id}).first():
+    if not conn.execute(text("SELECT 1 FROM reference.matter WHERE id = :id"), {"id": matter_id}).first():
         raise CaseRepositoryError("matter not found", 404)
     matched = conn.execute(
         text(
-            "SELECT 1 FROM analysis.matter_knowledge_partition "
+            "SELECT 1 FROM reference.matter_knowledge_partition "
             "WHERE matter_id = :matter_id AND partition_key = :partition_key"
         ),
         {"matter_id": matter_id, "partition_key": partition_key},
@@ -721,7 +721,7 @@ def _resolve_selected_source(conn: Any, matter_id: UUID, body: EvidenceItemCreat
     if source.lane != "evidence":
         raise CaseRepositoryError("only custody-backed evidence-lane knowledge can be promoted", 422)
     case_owner = conn.execute(
-        text("SELECT 1 FROM analysis.court_case WHERE id = :case_id AND matter_id = :matter_id"),
+        text("SELECT 1 FROM reference.court_case WHERE id = :case_id AND matter_id = :matter_id"),
         {"case_id": body.court_case_id, "matter_id": matter_id},
     ).first()
     if not case_owner:
@@ -1096,7 +1096,7 @@ def list_evidence_items(
     offset: int,
 ) -> EvidenceItemList:
     with _get_engine().connect() as conn:
-        if not conn.execute(text("SELECT 1 FROM analysis.matter WHERE id = :id"), {"id": matter_id}).first():
+        if not conn.execute(text("SELECT 1 FROM reference.matter WHERE id = :id"), {"id": matter_id}).first():
             raise CaseRepositoryError("matter not found", 404)
         where = "ei.matter_id = :matter_id"
         params: dict[str, Any] = {"matter_id": matter_id, "limit": limit, "offset": offset}

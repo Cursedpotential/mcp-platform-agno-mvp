@@ -771,7 +771,7 @@ func emptyIfNil(discrepancies []map[string]any) []map[string]any {
 
 // OpenNormalizedGenerationRecords streams every normalized_record_identity
 // row's canonical_bytes, in ordinal order, for the generation named by the
-// manifest-digest hash-receipt reference. It never computes or returns a
+// manifest-digest hash-receipt registry. It never computes or returns a
 // digest itself — verify_normalized_generation_activity independently
 // rehashes each member.
 func (r *NormalizedPipelineRepository) OpenNormalizedGenerationRecords(ctx context.Context, manifestDigestRef uiw.Ref) (activities.ByteMemberStream, error) {

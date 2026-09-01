@@ -86,7 +86,7 @@ func UniversalImportWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowRe
 	if integratedPreview != workflow.DefaultVersion {
 		// Repair assessment is produced before the repair gate, so the human is
 		// deciding against durable data that already exists. The signal contains
-		// only the persisted actor-bound decision reference.
+		// only the persisted actor-bound decision registry.
 		repairAssessmentRef, err := r.exec(ctx, stagegraph.AssessSourceRepair, in.DeclaredFormat, map[string]Ref{
 			"original": originalRef,
 		})

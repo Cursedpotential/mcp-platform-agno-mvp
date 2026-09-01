@@ -59,11 +59,11 @@ LIVE_LEDGER_FILES: Final[tuple[tuple[str, Path], ...]] = tuple(
 )
 
 SCOPE_FKS: Final[tuple[tuple[str, str, str, tuple[str, ...], tuple[str, ...]], ...]] = (
-    ("context.source_version", "source_version_matter_fk", "analysis.matter", ("matter_id",), ("id",)),
+    ("context.source_version", "source_version_matter_fk", "reference.matter", ("matter_id",), ("id",)),
     (
         "context.source_version",
         "source_version_court_case_scope_fk",
-        "analysis.court_case",
+        "reference.court_case",
         ("court_case_id", "matter_id"),
         ("id", "matter_id"),
     ),
@@ -77,14 +77,14 @@ SCOPE_FKS: Final[tuple[tuple[str, str, str, tuple[str, ...], tuple[str, ...]], .
     (
         "context.uiw_source_context_revision",
         "uiw_source_context_matter_fk",
-        "analysis.matter",
+        "reference.matter",
         ("matter_id",),
         ("id",),
     ),
     (
         "context.uiw_source_context_revision",
         "uiw_source_context_court_case_scope_fk",
-        "analysis.court_case",
+        "reference.court_case",
         ("court_case_id", "matter_id"),
         ("id", "matter_id"),
     ),
@@ -278,21 +278,21 @@ def assert_schema(cursor: psycopg.Cursor[object]) -> None:
     cursor.execute(
         """SELECT has_schema_privilege('platform_runtime','analysis','USAGE'),
                   has_schema_privilege('platform_runtime','analysis','CREATE'),
-                  has_table_privilege('platform_runtime','analysis.matter','SELECT'),
-                  has_table_privilege('platform_runtime','analysis.matter','INSERT'),
-                  has_table_privilege('platform_runtime','analysis.matter','UPDATE'),
-                  has_table_privilege('platform_runtime','analysis.matter','DELETE'),
+                  has_table_privilege('platform_runtime','reference.matter','SELECT'),
+                  has_table_privilege('platform_runtime','reference.matter','INSERT'),
+                  has_table_privilege('platform_runtime','reference.matter','UPDATE'),
+                  has_table_privilege('platform_runtime','reference.matter','DELETE'),
                   has_table_privilege('platform_runtime','public.schema_version','INSERT'),
                   CASE WHEN EXISTS (SELECT 1 FROM pg_roles WHERE rolname='agno_app')
-                       THEN has_table_privilege('agno_app','analysis.matter','INSERT')
-                         OR has_table_privilege('agno_app','analysis.matter','UPDATE')
-                         OR has_table_privilege('agno_app','analysis.matter','DELETE')
-                         OR has_table_privilege('agno_app','analysis.court_case','INSERT')
-                         OR has_table_privilege('agno_app','analysis.court_case','UPDATE')
-                         OR has_table_privilege('agno_app','analysis.court_case','DELETE')
-                         OR has_table_privilege('agno_app','analysis.matter_knowledge_partition','INSERT')
-                         OR has_table_privilege('agno_app','analysis.matter_knowledge_partition','UPDATE')
-                         OR has_table_privilege('agno_app','analysis.matter_knowledge_partition','DELETE')
+                       THEN has_table_privilege('agno_app','reference.matter','INSERT')
+                         OR has_table_privilege('agno_app','reference.matter','UPDATE')
+                         OR has_table_privilege('agno_app','reference.matter','DELETE')
+                         OR has_table_privilege('agno_app','reference.court_case','INSERT')
+                         OR has_table_privilege('agno_app','reference.court_case','UPDATE')
+                         OR has_table_privilege('agno_app','reference.court_case','DELETE')
+                         OR has_table_privilege('agno_app','reference.matter_knowledge_partition','INSERT')
+                         OR has_table_privilege('agno_app','reference.matter_knowledge_partition','UPDATE')
+                         OR has_table_privilege('agno_app','reference.matter_knowledge_partition','DELETE')
                        ELSE false END"""
     )
     usage, create, select, insert, update, delete, ledger_insert, agno_mutation = cursor.fetchone() or (False,) * 8
@@ -470,14 +470,14 @@ def import_registry(cursor: psycopg.Cursor[object], manifest: dict[str, object],
             raise RuntimeError("existing registry import receipt conflicts with the manifest")
         return "NO-OP"
     cursor.execute(
-        "SELECT (SELECT count(*) FROM analysis.matter),(SELECT count(*) FROM analysis.court_case),(SELECT count(*) FROM analysis.matter_knowledge_partition),(SELECT count(*) FROM analysis.case_registry_import_receipt)"
+        "SELECT (SELECT count(*) FROM reference.matter),(SELECT count(*) FROM reference.court_case),(SELECT count(*) FROM reference.matter_knowledge_partition),(SELECT count(*) FROM analysis.case_registry_import_receipt)"
     )
     counts = tuple(cursor.fetchone() or ())
     if counts not in {(0, 0, 0, 0), (1, 1, 1, 0)}:
         raise RuntimeError("registry has mismatched/additional or partially receipted rows")
     if counts == (0, 0, 0, 0):
         cursor.execute(
-            """INSERT INTO analysis.matter(id,title,description,status,created_by,created_at,updated_at)
+            """INSERT INTO reference.matter(id,title,description,status,created_by,created_at,updated_at)
                VALUES(%s,%s,%s,%s,%s,%s,%s)""",
             tuple(
                 matter[key]
@@ -485,7 +485,7 @@ def import_registry(cursor: psycopg.Cursor[object], manifest: dict[str, object],
             ),
         )
         cursor.execute(
-            """INSERT INTO analysis.court_case(id,matter_id,caption,docket_number,court_name,jurisdiction,case_type,status,filed_on,closed_on,is_primary,created_by,created_at,updated_at)
+            """INSERT INTO reference.court_case(id,matter_id,caption,docket_number,court_name,jurisdiction,case_type,status,filed_on,closed_on,is_primary,created_by,created_at,updated_at)
                VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
             tuple(
                 court_case[key]
@@ -508,7 +508,7 @@ def import_registry(cursor: psycopg.Cursor[object], manifest: dict[str, object],
             ),
         )
         cursor.execute(
-            """INSERT INTO analysis.matter_knowledge_partition(partition_key,matter_id,default_court_case_id,created_by,created_at)
+            """INSERT INTO reference.matter_knowledge_partition(partition_key,matter_id,default_court_case_id,created_by,created_at)
                VALUES(%s,%s,%s,%s,%s)""",
             tuple(
                 partition[key]
@@ -518,7 +518,7 @@ def import_registry(cursor: psycopg.Cursor[object], manifest: dict[str, object],
     else:
         cursor.execute(
             """SELECT id::text,title,description,status,created_by,created_at,updated_at
-               FROM analysis.matter"""
+               FROM reference.matter"""
         )
         actual_matter = tuple(cursor.fetchone() or ())
         expected_matter = (
@@ -532,7 +532,7 @@ def import_registry(cursor: psycopg.Cursor[object], manifest: dict[str, object],
         )
         cursor.execute(
             """SELECT id::text,matter_id::text,caption,docket_number,court_name,jurisdiction,case_type,status,
-                      filed_on,closed_on,is_primary,created_by,created_at,updated_at FROM analysis.court_case"""
+                      filed_on,closed_on,is_primary,created_by,created_at,updated_at FROM reference.court_case"""
         )
         actual_case = tuple(cursor.fetchone() or ())
         expected_case = (
@@ -553,7 +553,7 @@ def import_registry(cursor: psycopg.Cursor[object], manifest: dict[str, object],
         )
         cursor.execute(
             """SELECT partition_key,matter_id::text,default_court_case_id::text,created_by,created_at
-               FROM analysis.matter_knowledge_partition"""
+               FROM reference.matter_knowledge_partition"""
         )
         actual_partition = tuple(cursor.fetchone() or ())
         expected_partition = (
@@ -615,18 +615,18 @@ def assert_cross_matter_rejected(cursor: psycopg.Cursor[object]) -> None:
         cursor.execute("SAVEPOINT runtime_write_probe")
         cursor.execute("SET LOCAL ROLE platform_runtime")
         try:
-            cursor.execute("INSERT INTO analysis.matter(title,created_by) VALUES('forbidden','0054-validator')")
+            cursor.execute("INSERT INTO reference.matter(title,created_by) VALUES('forbidden','0054-validator')")
         except psycopg.errors.InsufficientPrivilege:
             cursor.execute("ROLLBACK TO SAVEPOINT runtime_write_probe")
         else:
             raise RuntimeError("platform_runtime unexpectedly wrote to the case registry")
         cursor.execute("SET LOCAL ROLE platform_admin")
-        cursor.execute("INSERT INTO analysis.matter(title,created_by) VALUES('probe-a','0054-validator') RETURNING id")
+        cursor.execute("INSERT INTO reference.matter(title,created_by) VALUES('probe-a','0054-validator') RETURNING id")
         matter_a = cursor.fetchone()[0]
-        cursor.execute("INSERT INTO analysis.matter(title,created_by) VALUES('probe-b','0054-validator') RETURNING id")
+        cursor.execute("INSERT INTO reference.matter(title,created_by) VALUES('probe-b','0054-validator') RETURNING id")
         matter_b = cursor.fetchone()[0]
         cursor.execute(
-            """INSERT INTO analysis.court_case(matter_id,caption,is_primary,created_by)
+            """INSERT INTO reference.court_case(matter_id,caption,is_primary,created_by)
                VALUES(%s,'probe case',true,'0054-validator') RETURNING id""",
             (matter_a,),
         )
@@ -634,7 +634,7 @@ def assert_cross_matter_rejected(cursor: psycopg.Cursor[object]) -> None:
         cursor.execute("SAVEPOINT cross_scope")
         try:
             cursor.execute(
-                """INSERT INTO analysis.matter_knowledge_partition
+                """INSERT INTO reference.matter_knowledge_partition
                    (partition_key,matter_id,default_court_case_id,created_by)
                    VALUES('invalid-cross-scope',%s,%s,'0054-validator')""",
                 (matter_b, case_a),

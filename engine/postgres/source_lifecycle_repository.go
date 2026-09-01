@@ -25,7 +25,7 @@ import (
 const lifecycleCleanupTimeout = 5 * time.Second
 
 // ImmutableAcquisition is the already-resolved immutable object metadata for
-// an acquisition reference. ContentSHA256 is supplied by the acquisition
+// an acquisition registry. ContentSHA256 is supplied by the acquisition
 // boundary; this lifecycle Activity intentionally never computes it. Inline
 // bytes are permitted only for storage_class=inline and are copied into the
 // retained-object row.

@@ -8,7 +8,7 @@ Error convention (OQ-8): these wrappers do NOT catch exceptions raised by the
 underlying meta-ops (``KeyError`` for an unknown ``tool_id``, ``ValueError``
 for a bad ref, whatever the atomic parser itself raises on a bad payload,
 etc.) — same "raise, don't swallow" convention already used one layer down
-(``server/tools/registry.py``'s ``ToolRegistry.get``/``FunctionTool.run`` and
+(``server/tools/reference.py``'s ``ToolRegistry.get``/``FunctionTool.run`` and
 ``toolfinder.py``'s ``describe_tool``/``execute_tool``, which the docstrings
 there document as raising rather than returning an error shape). agno's own
 ``Function.execute()`` (``agno/tools/function.py``) already catches any

@@ -774,7 +774,7 @@ def _register_parse_dryrun_route(app: FastAPI) -> None:
         blob_root()/blob_key path custody.py wrote it). Exactly one of the
         two must be given.
 
-        Runs `server.tools.registry.resolve(capability, ...)`'s candidate
+        Runs `server.tools.reference.resolve(capability, ...)`'s candidate
         chain the SAME way server/evidence/workflows.py's `parse_step` does
         (this turned out to be directly reusable with zero detachment
         hacks — parse_step's only real dependency beyond the registry is
@@ -827,7 +827,7 @@ def _register_parse_dryrun_route(app: FastAPI) -> None:
             from server.tools.registry import load_builtin_tools, registry
 
             load_builtin_tools()
-            candidates = registry.resolve(capability, media_hint=name.lower(), size_bytes=p.stat().st_size)
+            candidates = reference.resolve(capability, media_hint=name.lower(), size_bytes=p.stat().st_size)
 
             attempts: list[dict[str, Any]] = []
             winning_parser_id: str | None = None

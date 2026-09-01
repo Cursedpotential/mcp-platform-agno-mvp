@@ -4,7 +4,7 @@ Byline: Claude Code . Opus 5 (1M) . 2026-08-02
 
 WHY EVERY THIRD-PARTY IMPORT IN THIS PACKAGE IS FUNCTION-LOCAL
 -------------------------------------------------------------
-`registry.load_builtin_tools()` walks `server/tools/` RECURSIVELY and imports
+`reference.load_builtin_tools()` walks `server/tools/` RECURSIVELY and imports
 every module whose final path segment does not start with `_`. That walk also
 runs inside the dep-light `docker/tools` facade container, which volume-mounts
 the whole `server/` tree but installs almost none of its dependencies.
@@ -193,7 +193,7 @@ def missing_for(fmt: str) -> tuple[str, ...]:
 
 
 def manifest() -> list[dict[str, Any]]:
-    """Human/agent-readable capability table — mirrors registry.manifest()."""
+    """Human/agent-readable capability table — mirrors reference.manifest()."""
     return [
         {
             "engine": e.name,

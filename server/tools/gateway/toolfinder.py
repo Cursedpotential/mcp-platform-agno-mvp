@@ -45,7 +45,7 @@ def get_tool_categories() -> list[dict[str, Any]]:
     """Every capability with its tool count — the entry point of disclosure."""
     _ensure_loaded()
     counts: dict[str, int] = {}
-    for t in registry.all():
+    for t in reference.all():
         counts[t.capability] = counts.get(t.capability, 0) + 1
     return [{"category": cap, "tool_count": n} for cap, n in sorted(counts.items())]
 
@@ -53,7 +53,7 @@ def get_tool_categories() -> list[dict[str, Any]]:
 def search_tools(query: str = "", category: str | None = None, limit: int = 20) -> list[dict[str, Any]]:
     """Compact tool cards matching `query`, optionally within one category."""
     _ensure_loaded()
-    tools = [t for t in registry.all() if category is None or t.capability == category]
+    tools = [t for t in reference.all() if category is None or t.capability == category]
     if not query:
         return [_card(t) for t in tools[:limit]]
 
@@ -73,7 +73,7 @@ def search_tools(query: str = "", category: str | None = None, limit: int = 20) 
 def describe_tool(tool_id: str) -> dict[str, Any]:
     """Full contract for one tool — loaded on demand, never in bulk."""
     _ensure_loaded()
-    t = registry.get(tool_id)  # raises KeyError for unknown ids
+    t = reference.get(tool_id)  # raises KeyError for unknown ids
     return {
         **_card(t),
         "provenance": getattr(t, "provenance", ""),
@@ -82,7 +82,7 @@ def describe_tool(tool_id: str) -> dict[str, Any]:
         "payload_contract": {"input": "dict (parsers: {'path': <file path>})", "output": "dict"},
         # same-capability mates regardless of accept-hints (resolve() would
         # filter on a media hint we don't have here)
-        "substitution_candidates": [c.id for c in registry.all() if c.capability == t.capability and c.id != t.id],
+        "substitution_candidates": [c.id for c in reference.all() if c.capability == t.capability and c.id != t.id],
     }
 
 
@@ -97,7 +97,7 @@ def execute_tool(
     """Invoke a tool. Small results return inline; large ones return a REF
     envelope (retrieve with get_ref) so callers never swallow a 50 MB parse."""
     _ensure_loaded()
-    tool = registry.get(tool_id)
+    tool = reference.get(tool_id)
     store = store or ContentStore()
     operation_id = str(payload.get("_operation_id") or uuid4())
     execution_mode = str(payload.get("_execution_mode") or "unspecified")

@@ -2,7 +2,7 @@
 
 Byline: Claude Code . Opus 5 (1M) . 2026-08-02
 
-This module is imported by `registry.load_builtin_tools()`'s recursive walk and
+This module is imported by `reference.load_builtin_tools()`'s recursive walk and
 is reachable from the dep-light `docker/tools` facade, so it must never import
 lxml / ijson / clevercsv / bs4. Those live behind function-local imports in
 `engines.py`.

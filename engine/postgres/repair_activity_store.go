@@ -285,7 +285,7 @@ func (s *RepairActivityStore) LoadApprovedRepairDecision(ctx context.Context, so
 }
 
 // PersistRepairDecision gives Workbench/UIW one transactionally idempotent
-// write seam. n8n and Temporal receive only its returned decision reference.
+// write seam. n8n and Temporal receive only its returned decision registry.
 func (s *RepairActivityStore) PersistRepairDecision(ctx context.Context, spec uiw.RepairDecisionSpec) (uiw.Ref, error) {
 	sourceID, err := uuid.Parse(string(spec.SourceVersionRef))
 	if err != nil {

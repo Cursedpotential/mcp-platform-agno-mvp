@@ -31,7 +31,7 @@ client with no horizon binding is a bypass of the platform's core invariant.
 5. **Errors are actionable:** every error names the failing precondition and the next step
    (the `SBVError` style is the house standard).
 6. **Horizon binding (the load-bearing rule):** evidence-reading MCP tools resolve their
-   HorizonContext SERVER-SIDE from a `pass_id`/context reference. They NEVER accept a raw
+   HorizonContext SERVER-SIDE from a `pass_id`/context registry. They NEVER accept a raw
    client-supplied horizon timestamp — an agent that can pass its own horizon has no horizon.
    Hindsight access is an explicit server-side grant bound to the credential, never a parameter.
    Fail-closed: unresolvable context → zero rows + an explicit error, and the attempt is written

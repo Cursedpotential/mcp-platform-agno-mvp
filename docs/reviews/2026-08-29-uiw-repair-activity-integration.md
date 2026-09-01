@@ -9,7 +9,7 @@ engine now models repair as two explicit pre-parser Temporal stages:
 
 1. `assess_source_repair_activity` calls the existing `repair.detect` and `repair.preview` tool IDs,
    persists the bounded output outside Temporal, and returns only assessment/receipt references.
-2. Temporal waits on `repair_decision`. The signal carries only a durable decision reference.
+2. Temporal waits on `repair_decision`. The signal carries only a durable decision registry.
    `resolve_source_repair_activity` reloads and revalidates the exact actor-bound approval, either
    preserves the original or calls one of the two allowed derived-write tools, and returns the
    active-original/receipt references consumed by parser execution.
@@ -49,7 +49,7 @@ on ovh-files while platform-tools is on OVH-1, both sides use the same R2-backed
 Workbench/UIW remains the single human-decision authority. The PostgreSQL store exposes
 `PersistRepairDecision` so that lane can atomically bind the assessment, actor, approval, exact
 tool payload, and idempotency key before signaling Temporal with only the returned decision
-reference. There is deliberately no second repair-decision HTTP endpoint: n8n may host pluggable
+registry. There is deliberately no second repair-decision HTTP endpoint: n8n may host pluggable
 HITL interactions, but it does not own or independently persist canonical workflow state.
 
 ## Verification and honest boundary

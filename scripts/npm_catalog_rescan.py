@@ -20,7 +20,7 @@ def fetch_all() -> dict[str, dict]:
     for query in ("keywords:n8n-community-node-package", "n8n-nodes-"):
         offset = 0
         while True:
-            url = ("https://registry.npmjs.org/-/v1/search?text="
+            url = ("https://reference.npmjs.org/-/v1/search?text="
                    + urllib.parse.quote(query) + f"&size=250&from={offset}")
             with urllib.request.urlopen(url, timeout=60) as r:
                 data = json.load(r)

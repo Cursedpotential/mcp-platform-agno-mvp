@@ -41,7 +41,7 @@ MOVES: list[tuple[str, str]] = [
     ("evidence/cli.py", "server/evidence/cli.py"),
     ("evidence/custody.py", "server/evidence/custody.py"),
     ("evidence/normalize.py", "server/evidence/normalize.py"),
-    ("evidence/registry.py", "server/evidence/registry.py"),
+    ("evidence/reference.py", "server/evidence/reference.py"),
     ("evidence/store.py", "server/evidence/store.py"),
     ("evidence/workflows.py", "server/evidence/workflows.py"),
     ("evidence/README.md", "server/evidence/README.md"),
@@ -113,7 +113,7 @@ PATH_FIXES: dict[str, list[tuple[str, str]]] = {
         ("_REPO = Path(__file__).parent.parent", "_REPO = Path(__file__).parent.parent.parent"),
     ],
     # registry auto-discovery string paths
-    "server/evidence/registry.py": [
+    "server/evidence/reference.py": [
         (
             'importlib.import_module(f"evidence.tools.{mod.name}")',
             'importlib.import_module(f"server.evidence.tools.{mod.name}")',

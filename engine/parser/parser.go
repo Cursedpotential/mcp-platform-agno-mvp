@@ -382,7 +382,7 @@ type BundleAccounting struct {
 
 // BundleSink receives one record at a time. It intentionally has no finalize
 // method, so an adapter cannot commit an incomplete bundle or mint its result
-// reference. Registry owns finalization after it validates accounting.
+// registry. Registry owns finalization after it validates accounting.
 type BundleSink interface {
 	Emit(context.Context, RawRecordEnvelope) error
 }

@@ -112,7 +112,7 @@ func executeAdapter(t *testing.T, adapter testAdapter, writer *testWriter) (Bund
 	if err != nil {
 		t.Fatalf("NewRegistry() error = %v", err)
 	}
-	return registry.Execute(context.Background(), validInput(), writer)
+	return reference.Execute(context.Background(), validInput(), writer)
 }
 
 func TestRegistrySelectsDeclaredCoverageAndQualityDeterministically(t *testing.T) {
@@ -124,7 +124,7 @@ func TestRegistrySelectsDeclaredCoverageAndQualityDeterministically(t *testing.T
 	if err != nil {
 		t.Fatalf("NewRegistry() error = %v", err)
 	}
-	selected, err := registry.Select("sms_xml_backup")
+	selected, err := reference.Select("sms_xml_backup")
 	if err != nil {
 		t.Fatalf("Select() error = %v", err)
 	}
@@ -138,7 +138,7 @@ func TestRegistrySelectsDeclaredCoverageAndQualityDeterministically(t *testing.T
 	if err != nil {
 		t.Fatalf("NewRegistry() lexical tie = %v", err)
 	}
-	selected, err = registry.Select("sms_xml_backup")
+	selected, err = reference.Select("sms_xml_backup")
 	if err != nil {
 		t.Fatalf("Select() lexical tie = %v", err)
 	}
@@ -157,7 +157,7 @@ func TestRegistryNeverRoutesOnInputSize(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRegistry() error = %v", err)
 	}
-	selected, err := registry.Select("sms_xml_backup")
+	selected, err := reference.Select("sms_xml_backup")
 	if err != nil {
 		t.Fatalf("Select() error = %v", err)
 	}
@@ -303,7 +303,7 @@ func TestExecuteRejectsCancellationAndAbortsOpenBundle(t *testing.T) {
 		t.Fatalf("NewRegistry() error = %v", err)
 	}
 	writer := &testWriter{}
-	_, err = registry.Execute(ctx, validInput(), writer)
+	_, err = reference.Execute(ctx, validInput(), writer)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("Execute() error = %v, want context cancellation", err)
 	}
@@ -322,7 +322,7 @@ func TestExecuteAbortsEvenWhenBeginFails(t *testing.T) {
 		t.Fatalf("NewRegistry() error = %v", err)
 	}
 	writer := &testWriter{failure: errors.New("partial allocation failed")}
-	_, err = registry.Execute(context.Background(), validInput(), writer)
+	_, err = reference.Execute(context.Background(), validInput(), writer)
 	if err == nil || !strings.Contains(err.Error(), "begin raw extraction bundle") {
 		t.Fatalf("Execute() error = %v", err)
 	}

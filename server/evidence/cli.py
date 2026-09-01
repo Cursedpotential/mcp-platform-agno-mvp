@@ -65,7 +65,7 @@ def _cmd_tools(_args: argparse.Namespace) -> int:
     from server.tools.registry import load_builtin_tools, registry
 
     load_builtin_tools()
-    print(json.dumps(registry.manifest(), indent=2))
+    print(json.dumps(reference.manifest(), indent=2))
     return 0
 
 

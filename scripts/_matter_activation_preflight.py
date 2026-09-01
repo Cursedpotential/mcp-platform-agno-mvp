@@ -323,7 +323,7 @@ def database_snapshot(dsn: str) -> DatabaseSnapshot:
                             "to_regclass('working.walk_ledger') IS NOT NULL AS m0027, "
                             "position('visible_from' in coalesce(pg_get_viewdef(to_regclass('working.horizon_visible'), true), '')) > 0 AS m0028, "
                             "to_regrole('pass_refresher') IS NOT NULL AND to_regrole('pass_reader') IS NOT NULL AS m0029, "
-                            "to_regclass('analysis.matter') IS NOT NULL AS m0030"
+                            "to_regclass('reference.matter') IS NOT NULL AS m0030"
                         )
                     )
                     .mappings()

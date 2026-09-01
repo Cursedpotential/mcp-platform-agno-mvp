@@ -72,7 +72,7 @@ def list_entities(*, query: str | None, limit: int) -> list[dict[str, Any]]:
             text(
                 "SELECT DISTINCT e.id,e.display_name,e.canonical_name,e.entity_type,e.review_status,e.safe_for_legal_use, "
                 "COALESCE(e.display_name,e.canonical_name,'') AS sort_name "
-                "FROM working.entity e LEFT JOIN working.entity_alias a ON a.entity_id=e.id "
+                "FROM reference.entity e LEFT JOIN reference.entity_alias a ON a.entity_id=e.id "
                 "WHERE e.merged_into_id IS NULL AND "
                 "(:query='' OR COALESCE(e.display_name,e.canonical_name,'') ILIKE :pattern OR a.alias_text ILIKE :pattern) "
                 "ORDER BY sort_name,e.id LIMIT :limit"
@@ -89,7 +89,7 @@ def create_entity(body: EntityCreateRequest) -> dict[str, Any]:
             row = (
                 conn.execute(
                     text(
-                        "INSERT INTO working.entity "
+                        "INSERT INTO reference.entity "
                         "(entity_type,display_name,canonical_name,normalized_name,data_tier,requires_human_review,review_status,safe_for_legal_use) "
                         "VALUES (CAST(:entity_type AS ai.entity_type),:display_name,:display_name,:normalized_name,'inferred',false,'approved',false) "
                         "RETURNING id,display_name,canonical_name,entity_type,review_status,safe_for_legal_use"

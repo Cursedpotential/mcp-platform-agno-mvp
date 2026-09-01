@@ -45,7 +45,7 @@ type Registry struct {
 func NewRegistry(adapters ...Adapter) (*Registry, error) {
 	registry := &Registry{keys: make(map[string]struct{})}
 	for _, adapter := range adapters {
-		if err := registry.Register(adapter); err != nil {
+		if err := reference.Register(adapter); err != nil {
 			return nil, err
 		}
 	}

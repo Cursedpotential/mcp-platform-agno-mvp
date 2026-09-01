@@ -133,7 +133,7 @@ same change. Headline: **27 of 27 apps have at least one actionable finding.**
 
 - **No blind global rule.** The retired-path check only matches a *bare* root filename
   (`compose\.[A-Za-z0-9_.-]+\.yaml` or `docker-compose.yaml` with no `/`), so it cannot mistake a
-  legitimate `deploy/**` glob or a source-tree path for a stale reference.
+  legitimate `deploy/**` glob or a source-tree path for a stale registry.
 - **Skip is never silently treated as pass.** `CheckResult.severity` has three states
   (`actionable`/`info`/`skipped`); `drift` is computed only from `actionable` entries, and every
   `skipped` entry carries its reason in the JSON receipt, so a reviewer can tell "checked and

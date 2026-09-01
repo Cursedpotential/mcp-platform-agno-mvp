@@ -101,7 +101,7 @@ type HashMember struct {
 }
 
 // HashSummary seals a batch. Digest is populated for source and generation-level
-// results; member batches are represented by their durable manifest reference.
+// results; member batches are represented by their durable manifest registry.
 type HashSummary struct {
 	Digest       string
 	Canon        string

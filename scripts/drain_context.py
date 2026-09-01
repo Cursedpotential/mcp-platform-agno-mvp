@@ -56,7 +56,7 @@ def main(argv: list[str] | None = None) -> int:
     from server.tools.registry import load_builtin_tools, registry
 
     load_builtin_tools()
-    tool = registry.get("ingest.context-drain")
+    tool = reference.get("ingest.context-drain")
     result = tool.run({"sink": args.sink, "dry_run": args.dry_run, "max_chars": args.max_chars})
     print(json.dumps(result, indent=2, default=str))
     return 0

@@ -4,7 +4,7 @@
 > **Date:** 2026-06-13
 > _Byline: Claude Code · Opus 4.8 · 2026-06-13_
 > **Decisions locked this session:**
-> 1. **Language strategy** — TS tools run as **MCP services behind Agno**; Agno agents call them as tools. No mass rewrite. (Matches the existing `ts-mcp-server` + `py-mcp-server` design and the spine's polyglot registry.)
+> 1. **Language strategy** — TS tools run as **MCP services behind Agno**; Agno agents call them as tools. No mass rewrite. (Matches the existing `ts-mcp-server` + `py-mcp-server` design and the spine's polyglot reference.)
 > 2. **First target** — this **inventory + merge map**, approved, before any build.
 
 This document inventories the three code corpora that feed the evidence spine, names the *most complete version of each capability*, flags what is **still missing**, and proposes the target architecture + build order.

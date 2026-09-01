@@ -308,7 +308,7 @@ func makeNormalizedBundleReadOnly(path string) error {
 // raw generation's own sealed extraction bundle object, exactly mirroring how
 // filesystemBundleWriter binds a parser bundle to its source's original
 // object. A raw generation without a sealed extraction bundle object fails
-// closed rather than inserting a parentless derived reference.
+// closed rather than inserting a parentless derived registry.
 func (w *filesystemNormalizedBundleWriter) persistObject(ctx context.Context, path string, digest []byte, byteLength int64) (uuid.UUID, error) {
 	tx, err := w.db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {

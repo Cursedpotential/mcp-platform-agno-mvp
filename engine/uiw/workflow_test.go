@@ -68,7 +68,7 @@ func testInput() WorkflowInput {
 
 // stageStub is the golden-path StageResult for id: success, with
 // deterministic, id-derived Ref and ReceiptRef so assertions can trace which
-// stage produced which reference.
+// stage produced which registry.
 func stageStub(id stagegraph.StageID) StageResult {
 	return StageResult{Status: StatusSuccess, Ref: Ref(string(id) + "-ref"), ReceiptRef: Ref(string(id) + "-receipt")}
 }

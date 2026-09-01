@@ -1,5 +1,5 @@
 -- schema_baseline_20260830.sql
--- Generated 2026-08-31T04:13:38.335288+00:00 from the live `platform`
+-- Generated 2026-09-01T03:20:33.664835+00:00 from the live `platform`
 -- database using PostgreSQL's own DDL serializers (pg_get_constraintdef,
 -- pg_get_indexdef, pg_get_viewdef, pg_get_functiondef).
 --
@@ -24,11 +24,13 @@ SET client_min_messages = warning;
 CREATE SCHEMA IF NOT EXISTS ai;
 CREATE SCHEMA IF NOT EXISTS analysis;
 CREATE SCHEMA IF NOT EXISTS archive;
+CREATE SCHEMA IF NOT EXISTS canon;
 CREATE SCHEMA IF NOT EXISTS context;
 CREATE SCHEMA IF NOT EXISTS evidence;
 CREATE SCHEMA IF NOT EXISTS ext;
 CREATE SCHEMA IF NOT EXISTS ops;
 CREATE SCHEMA IF NOT EXISTS public;
+CREATE SCHEMA IF NOT EXISTS raw;
 CREATE SCHEMA IF NOT EXISTS reference;
 CREATE SCHEMA IF NOT EXISTS timeline;
 CREATE SCHEMA IF NOT EXISTS working;
@@ -111,11 +113,6 @@ CREATE SEQUENCE IF NOT EXISTS ops.audit_ledger_id_seq;
 CREATE SEQUENCE IF NOT EXISTS ops.workflow_run_stage_stage_id_seq;
 CREATE SEQUENCE IF NOT EXISTS public.change_log_seq_seq;
 CREATE SEQUENCE IF NOT EXISTS timeline.timeline_projection_generation_sequence_seq;
-CREATE SEQUENCE IF NOT EXISTS working.chat_chunk_event_event_id_seq;
-CREATE SEQUENCE IF NOT EXISTS working.chat_chunk_lane_event_event_id_seq;
-CREATE SEQUENCE IF NOT EXISTS working.chat_conversation_event_event_id_seq;
-CREATE SEQUENCE IF NOT EXISTS working.chat_message_event_event_id_seq;
-CREATE SEQUENCE IF NOT EXISTS working.context_asset_event_event_id_seq;
 CREATE SEQUENCE IF NOT EXISTS working.message_serial_number_seq;
 
 -- ============ tables ============
@@ -527,6 +524,43 @@ CREATE TABLE IF NOT EXISTS analysis.chunk_classification (
   adjudicated_at timestamp with time zone
 );
 
+CREATE TABLE IF NOT EXISTS analysis.claim_assertion (
+  id uuid DEFAULT uuidv7() NOT NULL,
+  assertion_generation smallint NOT NULL,
+  assertion_kind text NOT NULL,
+  statement text NOT NULL,
+  rationale text NOT NULL,
+  asserted_by_kind text NOT NULL,
+  asserted_by text NOT NULL,
+  asserted_at timestamp with time zone DEFAULT now() NOT NULL,
+  salience text,
+  argument_targets text[] DEFAULT '{}'::text[] NOT NULL,
+  owner_disposition text DEFAULT 'unreviewed'::text NOT NULL,
+  disposition_reason text,
+  disposition_at timestamp with time zone,
+  source_ref text,
+  supersedes_id uuid,
+  attrs jsonb DEFAULT '{}'::jsonb NOT NULL,
+  created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS analysis.claim_assertion_member (
+  assertion_id uuid NOT NULL,
+  claim_candidate_id uuid NOT NULL,
+  member_role text DEFAULT 'constituent'::text NOT NULL,
+  member_ordinal integer NOT NULL,
+  note text
+);
+
+CREATE TABLE IF NOT EXISTS analysis.claim_assertion_synthesis_member (
+  synthesis_id uuid NOT NULL,
+  member_assertion_id uuid NOT NULL,
+  member_generation smallint DEFAULT 1 NOT NULL,
+  agreement_state text NOT NULL,
+  divergence_note text,
+  member_ordinal integer NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS analysis.completion_evidence (
   id uuid DEFAULT uuidv7() NOT NULL,
   task_id uuid NOT NULL,
@@ -540,6 +574,23 @@ CREATE TABLE IF NOT EXISTS analysis.completion_evidence (
   recorded_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS analysis.content_chunk_classification_decision (
+  id uuid DEFAULT uuidv7() NOT NULL,
+  chunk_id uuid NOT NULL,
+  decision_version integer NOT NULL,
+  lane text NOT NULL,
+  decision_kind text NOT NULL,
+  review_state text NOT NULL,
+  classifier_id text NOT NULL,
+  classifier_version text NOT NULL,
+  confidence double precision NOT NULL,
+  rationale text,
+  supersedes_id uuid,
+  reviewed_by text,
+  reviewed_at timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS analysis.corroboration_flag (
   flag_id uuid DEFAULT uuidv7() NOT NULL,
   target_kind text NOT NULL,
@@ -551,23 +602,6 @@ CREATE TABLE IF NOT EXISTS analysis.corroboration_flag (
   status text DEFAULT 'open'::text NOT NULL,
   linked_artifacts jsonb DEFAULT '[]'::jsonb NOT NULL,
   notes text,
-  created_at timestamp with time zone DEFAULT now() NOT NULL,
-  updated_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS analysis.court_case (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  matter_id uuid NOT NULL,
-  caption text NOT NULL,
-  docket_number text,
-  court_name text,
-  jurisdiction text,
-  case_type text,
-  status text DEFAULT 'pre_filing'::text NOT NULL,
-  filed_on date,
-  closed_on date,
-  is_primary boolean DEFAULT false NOT NULL,
-  created_by text NOT NULL,
   created_at timestamp with time zone DEFAULT now() NOT NULL,
   updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -593,80 +627,6 @@ CREATE TABLE IF NOT EXISTS analysis.discovery_request_revision (
   snapshot jsonb NOT NULL,
   changed_by text NOT NULL,
   ts timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS analysis.entity_candidate (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  record_id uuid,
-  source_id uuid,
-  evidence_hash_id uuid,
-  entity_text text NOT NULL,
-  entity_type text,
-  normalized_value text,
-  span_start integer,
-  span_end integer,
-  extractor text NOT NULL,
-  extractor_version text,
-  confidence numeric(5,4),
-  coref_chain_id text,
-  relation_predicate text,
-  relation_object text,
-  occurred_at timestamp with time zone,
-  realized_at timestamp with time zone,
-  review_status text DEFAULT 'pending'::text NOT NULL,
-  reviewed_by text,
-  reviewed_at timestamp with time zone,
-  review_note text,
-  consumed_by text[] DEFAULT '{}'::text[] NOT NULL,
-  dedupe_key text GENERATED ALWAYS AS (((((((((COALESCE((record_id)::text, ''::text) || '|'::text) || extractor) || '|'::text) || COALESCE((span_start)::text, ''::text)) || '|'::text) || COALESCE((span_end)::text, ''::text)) || '|'::text) || entity_text)) STORED,
-  extracted_at timestamp with time zone DEFAULT now() NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL,
-  extraction_batch_id uuid
-);
-
-CREATE TABLE IF NOT EXISTS analysis.evidence_item (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  case_id uuid NOT NULL,
-  source_id uuid,
-  file_node_id uuid,
-  normalized_record_id uuid,
-  evidence_hash_id uuid,
-  exhibit_number text,
-  title text NOT NULL,
-  description text,
-  quote text,
-  context text,
-  evidence_type text DEFAULT 'communication'::text NOT NULL,
-  evidence_date timestamp with time zone,
-  evidence_date_end timestamp with time zone,
-  date_precision precision_class DEFAULT 'exact'::precision_class NOT NULL,
-  assertion_type assertion_type DEFAULT 'extracted_fact'::assertion_type NOT NULL,
-  confidence ai.confidence,
-  confidence_tier text DEFAULT 'low'::text NOT NULL,
-  relevance_score ai.confidence,
-  is_hypothesis boolean DEFAULT false NOT NULL,
-  is_exhibit boolean DEFAULT false NOT NULL,
-  is_authenticated boolean DEFAULT false NOT NULL,
-  authentication_method text,
-  chain_of_custody text,
-  sensitivity_tier sensitivity_tier DEFAULT 'restricted'::sensitivity_tier NOT NULL,
-  privacy_sensitivity text DEFAULT 'none'::text NOT NULL,
-  redaction_status text DEFAULT 'none'::text NOT NULL,
-  review_status review_state DEFAULT 'unreviewed'::review_state NOT NULL,
-  reviewed_by text,
-  reviewed_at timestamp with time zone,
-  hitl_required boolean DEFAULT true NOT NULL,
-  safe_for_legal_use boolean DEFAULT false NOT NULL,
-  supersedes_item_id uuid,
-  source_run_id uuid,
-  prompt_version text,
-  ontology_version text,
-  schema_version text,
-  created_by text NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL,
-  metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
-  matter_id uuid,
-  court_case_id uuid
 );
 
 CREATE TABLE IF NOT EXISTS analysis.evidence_task (
@@ -1070,16 +1030,6 @@ CREATE TABLE IF NOT EXISTS analysis.location_contradiction (
   created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS analysis.matter (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  title text NOT NULL,
-  description text,
-  status text DEFAULT 'active'::text NOT NULL,
-  created_by text NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL,
-  updated_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS analysis.matter_knowledge_partition (
   partition_key text NOT NULL,
   matter_id uuid NOT NULL,
@@ -1377,6 +1327,78 @@ CREATE TABLE IF NOT EXISTS analysis.workflow_run_stage (
   output jsonb,
   started_at timestamp with time zone,
   finished_at timestamp with time zone
+);
+
+CREATE TABLE IF NOT EXISTS canon.canonical_table (
+  id uuid DEFAULT uuidv7() NOT NULL,
+  table_schema text NOT NULL,
+  table_name text NOT NULL,
+  default_tier text DEFAULT 'batch_review'::text NOT NULL,
+  current_generation bigint DEFAULT 0 NOT NULL,
+  recompute_targets text[] DEFAULT '{}'::text[] NOT NULL,
+  registered_by text NOT NULL,
+  registered_at timestamp with time zone DEFAULT now() NOT NULL,
+  notes text,
+  auto_confirm_min_confidence ai.confidence
+);
+
+CREATE TABLE IF NOT EXISTS canon.change_application (
+  id uuid DEFAULT uuidv7() NOT NULL,
+  proposal_id uuid NOT NULL,
+  decision_id uuid NOT NULL,
+  prior_values jsonb NOT NULL,
+  applied_patch jsonb NOT NULL,
+  generation_before bigint NOT NULL,
+  generation_after bigint NOT NULL,
+  applied_at timestamp with time zone DEFAULT now() NOT NULL,
+  error text
+);
+
+CREATE TABLE IF NOT EXISTS canon.change_decision (
+  id uuid DEFAULT uuidv7() NOT NULL,
+  proposal_id uuid NOT NULL,
+  decided_by text NOT NULL,
+  decision text NOT NULL,
+  batch_id uuid,
+  note text,
+  decided_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS canon.change_proposal (
+  id uuid DEFAULT uuidv7() NOT NULL,
+  canonical_table_id uuid NOT NULL,
+  target_pk jsonb NOT NULL,
+  proposal_kind text NOT NULL,
+  patch jsonb NOT NULL,
+  rationale text,
+  origin_surface text NOT NULL,
+  origin_ref jsonb DEFAULT '{}'::jsonb NOT NULL,
+  proposed_by text NOT NULL,
+  source_generation bigint NOT NULL,
+  tier text NOT NULL,
+  status text DEFAULT 'proposed'::text NOT NULL,
+  created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS canon.change_tier (
+  tier text NOT NULL,
+  description text NOT NULL,
+  auto_applies boolean DEFAULT false NOT NULL,
+  sort_order integer DEFAULT 0 NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS canon.recompute_queue (
+  id uuid DEFAULT uuidv7() NOT NULL,
+  application_id uuid NOT NULL,
+  canonical_table_id uuid NOT NULL,
+  target_pk jsonb NOT NULL,
+  recompute_target text NOT NULL,
+  status text DEFAULT 'pending'::text NOT NULL,
+  claimed_by text,
+  claimed_at timestamp with time zone,
+  finished_at timestamp with time zone,
+  error text,
+  created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS context.activity_execution (
@@ -1959,38 +1981,49 @@ CREATE TABLE IF NOT EXISTS evidence.evidence_hash (
   computed_by text
 );
 
-CREATE TABLE IF NOT EXISTS evidence.file_node (
+CREATE TABLE IF NOT EXISTS evidence.evidence_item (
   id uuid DEFAULT uuidv7() NOT NULL,
-  source_id uuid NOT NULL,
-  parent_node_id uuid,
-  node_kind text NOT NULL,
-  node_path ltree,
-  ordinal integer,
-  sha256 bytea,
-  byte_span_start bigint,
-  byte_span_end bigint,
-  locator jsonb DEFAULT '{}'::jsonb NOT NULL,
-  mime_type text,
-  extraction_confidence ai.confidence,
-  attrs jsonb DEFAULT '{}'::jsonb NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS evidence.gps_point (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  source_id uuid NOT NULL,
+  case_id uuid NOT NULL,
+  source_id uuid,
   file_node_id uuid,
-  device_id uuid,
-  geog ai.geo_point NOT NULL,
-  captured_at timestamp with time zone,
-  captured_raw text,
-  ts_precision precision_class DEFAULT 'exact'::precision_class NOT NULL,
-  accuracy_m numeric(8,2),
-  point_sequence bigint,
-  ingest_run_id uuid,
-  raw_data jsonb DEFAULT '{}'::jsonb NOT NULL,
-  data_tier evidence_tier DEFAULT 'raw'::evidence_tier NOT NULL,
-  ingested_at timestamp with time zone DEFAULT now() NOT NULL
+  normalized_record_id uuid,
+  evidence_hash_id uuid,
+  exhibit_number text,
+  title text NOT NULL,
+  description text,
+  quote text,
+  context text,
+  evidence_type text DEFAULT 'communication'::text NOT NULL,
+  evidence_date timestamp with time zone,
+  evidence_date_end timestamp with time zone,
+  date_precision precision_class DEFAULT 'exact'::precision_class NOT NULL,
+  assertion_type assertion_type DEFAULT 'extracted_fact'::assertion_type NOT NULL,
+  confidence ai.confidence,
+  confidence_tier text DEFAULT 'low'::text NOT NULL,
+  relevance_score ai.confidence,
+  is_hypothesis boolean DEFAULT false NOT NULL,
+  is_exhibit boolean DEFAULT false NOT NULL,
+  is_authenticated boolean DEFAULT false NOT NULL,
+  authentication_method text,
+  chain_of_custody text,
+  sensitivity_tier sensitivity_tier DEFAULT 'restricted'::sensitivity_tier NOT NULL,
+  privacy_sensitivity text DEFAULT 'none'::text NOT NULL,
+  redaction_status text DEFAULT 'none'::text NOT NULL,
+  review_status review_state DEFAULT 'unreviewed'::review_state NOT NULL,
+  reviewed_by text,
+  reviewed_at timestamp with time zone,
+  hitl_required boolean DEFAULT true NOT NULL,
+  safe_for_legal_use boolean DEFAULT false NOT NULL,
+  supersedes_item_id uuid,
+  source_run_id uuid,
+  prompt_version text,
+  ontology_version text,
+  schema_version text,
+  created_by text NOT NULL,
+  created_at timestamp with time zone DEFAULT now() NOT NULL,
+  metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+  matter_id uuid,
+  court_case_id uuid
 );
 
 CREATE TABLE IF NOT EXISTS evidence.ingest_run (
@@ -2016,228 +2049,6 @@ CREATE TABLE IF NOT EXISTS evidence.ingest_run (
   count_spine bigint,
   count_attestations bigint,
   notes jsonb DEFAULT '{}'::jsonb NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS evidence.raw_activity (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  source_id uuid NOT NULL,
-  file_node_id uuid,
-  event_serial bigint,
-  start_raw text,
-  end_raw text,
-  start_utc timestamp with time zone,
-  end_utc timestamp with time zone,
-  tz_offset_min integer,
-  duration_s bigint,
-  activity_type text,
-  activity_probability ai.confidence,
-  distance_m numeric(12,2),
-  start_geog ai.geo_point,
-  end_geog ai.geo_point,
-  place_id_start text,
-  place_id_end text,
-  parent_id uuid,
-  memory_id uuid,
-  ingest_run_id uuid,
-  raw_data jsonb DEFAULT '{}'::jsonb NOT NULL,
-  data_tier evidence_tier DEFAULT 'raw'::evidence_tier NOT NULL,
-  ingested_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS evidence.raw_ai_chat (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  source_id uuid NOT NULL,
-  device_id uuid,
-  acquisition_id uuid,
-  medium evidence.record_medium DEFAULT 'export'::evidence.record_medium NOT NULL,
-  record_index integer,
-  raw jsonb NOT NULL,
-  raw_text text,
-  content_hash text NOT NULL,
-  content_canon text DEFAULT 'h2-rawelement-v1'::text NOT NULL,
-  parser_version text,
-  superseded_by uuid,
-  supersede_note text,
-  ingest_run_id uuid,
-  deriver_version text,
-  ingested_at timestamp with time zone DEFAULT now() NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS evidence.raw_csv (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  source_id uuid NOT NULL,
-  device_id uuid,
-  acquisition_id uuid,
-  medium evidence.record_medium DEFAULT 'export'::evidence.record_medium NOT NULL,
-  record_index integer,
-  raw jsonb NOT NULL,
-  raw_text text,
-  content_hash text NOT NULL,
-  content_canon text DEFAULT 'h2-rawelement-v1'::text NOT NULL,
-  parser_version text,
-  superseded_by uuid,
-  supersede_note text,
-  ingest_run_id uuid,
-  deriver_version text,
-  ingested_at timestamp with time zone DEFAULT now() NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS evidence.raw_facebook (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  source_id uuid NOT NULL,
-  device_id uuid,
-  acquisition_id uuid,
-  medium evidence.record_medium DEFAULT 'export'::evidence.record_medium NOT NULL,
-  record_index integer,
-  raw jsonb NOT NULL,
-  raw_text text,
-  content_hash text NOT NULL,
-  content_canon text DEFAULT 'h2-rawelement-v1'::text NOT NULL,
-  parser_version text,
-  superseded_by uuid,
-  supersede_note text,
-  ingest_run_id uuid,
-  deriver_version text,
-  ingested_at timestamp with time zone DEFAULT now() NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS evidence.raw_imessage (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  source_id uuid NOT NULL,
-  device_id uuid,
-  acquisition_id uuid,
-  medium evidence.record_medium DEFAULT 'export'::evidence.record_medium NOT NULL,
-  record_index integer,
-  raw jsonb NOT NULL,
-  raw_text text,
-  content_hash text NOT NULL,
-  content_canon text DEFAULT 'h2-rawelement-v1'::text NOT NULL,
-  parser_version text,
-  superseded_by uuid,
-  supersede_note text,
-  ingest_run_id uuid,
-  deriver_version text,
-  ingested_at timestamp with time zone DEFAULT now() NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS evidence.raw_path (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  source_id uuid NOT NULL,
-  file_node_id uuid,
-  path_serial bigint,
-  point_sequence bigint NOT NULL,
-  point_geog ai.geo_point NOT NULL,
-  point_ts_raw text,
-  point_ts_utc timestamp with time zone,
-  tz_offset_min integer,
-  aligned_activity_id uuid,
-  parent_id uuid,
-  ingest_run_id uuid,
-  raw_data jsonb DEFAULT '{}'::jsonb NOT NULL,
-  data_tier evidence_tier DEFAULT 'raw'::evidence_tier NOT NULL,
-  ingested_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS evidence.raw_phone (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  source_id uuid NOT NULL,
-  device_id uuid,
-  acquisition_id uuid,
-  medium evidence.record_medium DEFAULT 'export'::evidence.record_medium NOT NULL,
-  record_index integer,
-  raw jsonb NOT NULL,
-  raw_text text,
-  content_hash text NOT NULL,
-  content_canon text DEFAULT 'h2-rawelement-v1'::text NOT NULL,
-  parser_version text,
-  superseded_by uuid,
-  supersede_note text,
-  ingest_run_id uuid,
-  deriver_version text,
-  ingested_at timestamp with time zone DEFAULT now() NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS evidence.raw_rejected (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  ingest_run_id uuid NOT NULL,
-  source_sha256 bytea NOT NULL,
-  record_index bigint,
-  element_tag text,
-  reason text NOT NULL,
-  reason_detail text,
-  content_hash text,
-  raw jsonb NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS evidence.raw_sms (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  source_id uuid NOT NULL,
-  device_id uuid,
-  acquisition_id uuid,
-  medium evidence.record_medium DEFAULT 'export'::evidence.record_medium NOT NULL,
-  record_index integer,
-  raw jsonb NOT NULL,
-  raw_text text,
-  content_hash text NOT NULL,
-  content_canon text DEFAULT 'h2-rawelement-v1'::text NOT NULL,
-  parser_version text,
-  superseded_by uuid,
-  supersede_note text,
-  ingest_run_id uuid,
-  deriver_version text,
-  ingested_at timestamp with time zone DEFAULT now() NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS evidence.raw_trip (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  source_id uuid NOT NULL,
-  file_node_id uuid,
-  event_serial bigint,
-  start_raw text,
-  end_raw text,
-  start_utc timestamp with time zone,
-  end_utc timestamp with time zone,
-  tz_offset_min integer,
-  duration_s bigint,
-  distance_from_origin_km numeric(12,3),
-  destination_place_ids text[],
-  parent_id uuid,
-  ingest_run_id uuid,
-  raw_data jsonb DEFAULT '{}'::jsonb NOT NULL,
-  data_tier evidence_tier DEFAULT 'raw'::evidence_tier NOT NULL,
-  ingested_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS evidence.raw_visit (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  source_id uuid NOT NULL,
-  file_node_id uuid,
-  event_serial bigint,
-  hierarchy_level integer,
-  start_raw text,
-  end_raw text,
-  start_utc timestamp with time zone,
-  end_utc timestamp with time zone,
-  tz_offset_min integer,
-  duration_s bigint,
-  detection_probability ai.confidence,
-  semantic_type text,
-  semantic_probability ai.confidence,
-  place_id text,
-  geog ai.geo_point,
-  parent_id uuid,
-  memory_id uuid,
-  ingest_run_id uuid,
-  raw_data jsonb DEFAULT '{}'::jsonb NOT NULL,
-  data_tier evidence_tier DEFAULT 'raw'::evidence_tier NOT NULL,
-  ingested_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS evidence.source (
@@ -2420,19 +2231,6 @@ CREATE TABLE IF NOT EXISTS ops.workflow_run_stage (
   outcome_reason_detail text
 );
 
-CREATE TABLE IF NOT EXISTS public.agent_run (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  agent_name text NOT NULL,
-  run_type text NOT NULL,
-  status text NOT NULL,
-  user_prompt text NOT NULL,
-  summarized_plan text,
-  approval_required boolean DEFAULT true NOT NULL,
-  started_at timestamp with time zone DEFAULT now() NOT NULL,
-  completed_at timestamp with time zone,
-  error_message text
-);
-
 CREATE TABLE IF NOT EXISTS public.app_setting (
   key text NOT NULL,
   value jsonb NOT NULL,
@@ -2440,21 +2238,6 @@ CREATE TABLE IF NOT EXISTS public.app_setting (
   description text,
   updated_by text,
   updated_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS public.approval_request (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  agent_run_id uuid,
-  run_id uuid,
-  paused_tool text,
-  requested_action text NOT NULL,
-  requested_by_agent text NOT NULL,
-  risk_level text NOT NULL,
-  approval_status text DEFAULT 'pending'::text NOT NULL,
-  requested_at timestamp with time zone DEFAULT now() NOT NULL,
-  decided_at timestamp with time zone,
-  decided_by text,
-  decision_notes text
 );
 
 CREATE TABLE IF NOT EXISTS public.canon_registry (
@@ -2603,50 +2386,6 @@ CREATE TABLE IF NOT EXISTS public.open_questions (
   raised_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS public.platform_consolidation_checkpoint (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  plan_id uuid NOT NULL,
-  source_database text DEFAULT 'ai'::text NOT NULL,
-  target_database text DEFAULT 'platform'::text NOT NULL,
-  phase_key text NOT NULL,
-  relation_key text DEFAULT '__phase__'::text NOT NULL,
-  attempt_key text NOT NULL,
-  required_proof_kind text NOT NULL,
-  checkpoint_status text NOT NULL,
-  source_snapshot_id text NOT NULL,
-  target_snapshot_id text NOT NULL,
-  source_snapshot_sha256 bytea NOT NULL,
-  target_snapshot_sha256 bytea NOT NULL,
-  manifest_sha256 bytea NOT NULL,
-  repository_revision text NOT NULL,
-  source_snapshot_observed_at timestamp with time zone NOT NULL,
-  target_snapshot_observed_at timestamp with time zone NOT NULL,
-  fence_attestation_id text,
-  fence_attestation_sha256 bytea,
-  fence_established_at timestamp with time zone,
-  fence_valid_until timestamp with time zone,
-  source_row_count bigint,
-  target_row_count bigint,
-  copy_order integer,
-  dependency_keys text[] DEFAULT '{}'::text[] NOT NULL,
-  proof_ref text NOT NULL,
-  verified_receipt_id uuid,
-  recorded_by text NOT NULL,
-  recorded_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS public.platform_consolidation_proof_receipt (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  checkpoint_id uuid NOT NULL,
-  supersedes_receipt_id uuid,
-  proof_kind text NOT NULL,
-  result text NOT NULL,
-  proof_sha256 bytea NOT NULL,
-  details jsonb NOT NULL,
-  observed_by text NOT NULL,
-  observed_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS public.platform_consolidation_receipt_claim (
   receipt_id uuid NOT NULL,
   claim_kind text NOT NULL,
@@ -2725,6 +2464,262 @@ CREATE TABLE IF NOT EXISTS public.transcript_insight (
   mined_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS raw.file_node (
+  id uuid DEFAULT uuidv7() NOT NULL,
+  source_id uuid NOT NULL,
+  parent_node_id uuid,
+  node_kind text NOT NULL,
+  node_path ltree,
+  ordinal integer,
+  sha256 bytea,
+  byte_span_start bigint,
+  byte_span_end bigint,
+  locator jsonb DEFAULT '{}'::jsonb NOT NULL,
+  mime_type text,
+  extraction_confidence ai.confidence,
+  attrs jsonb DEFAULT '{}'::jsonb NOT NULL,
+  created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS raw.gps_point (
+  id uuid DEFAULT uuidv7() NOT NULL,
+  source_id uuid NOT NULL,
+  file_node_id uuid,
+  device_id uuid,
+  geog ai.geo_point NOT NULL,
+  captured_at timestamp with time zone,
+  captured_raw text,
+  ts_precision precision_class DEFAULT 'exact'::precision_class NOT NULL,
+  accuracy_m numeric(8,2),
+  point_sequence bigint,
+  ingest_run_id uuid,
+  raw_data jsonb DEFAULT '{}'::jsonb NOT NULL,
+  data_tier evidence_tier DEFAULT 'raw'::evidence_tier NOT NULL,
+  ingested_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS raw.raw_activity (
+  id uuid DEFAULT uuidv7() NOT NULL,
+  source_id uuid NOT NULL,
+  file_node_id uuid,
+  event_serial bigint,
+  start_raw text,
+  end_raw text,
+  start_utc timestamp with time zone,
+  end_utc timestamp with time zone,
+  tz_offset_min integer,
+  duration_s bigint,
+  activity_type text,
+  activity_probability ai.confidence,
+  distance_m numeric(12,2),
+  start_geog ai.geo_point,
+  end_geog ai.geo_point,
+  place_id_start text,
+  place_id_end text,
+  parent_id uuid,
+  memory_id uuid,
+  ingest_run_id uuid,
+  raw_data jsonb DEFAULT '{}'::jsonb NOT NULL,
+  data_tier evidence_tier DEFAULT 'raw'::evidence_tier NOT NULL,
+  ingested_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS raw.raw_ai_chat (
+  id uuid DEFAULT uuidv7() NOT NULL,
+  source_id uuid NOT NULL,
+  device_id uuid,
+  acquisition_id uuid,
+  medium evidence.record_medium DEFAULT 'export'::evidence.record_medium NOT NULL,
+  record_index integer,
+  raw jsonb NOT NULL,
+  raw_text text,
+  content_hash text NOT NULL,
+  content_canon text DEFAULT 'h2-rawelement-v1'::text NOT NULL,
+  parser_version text,
+  superseded_by uuid,
+  supersede_note text,
+  ingest_run_id uuid,
+  deriver_version text,
+  ingested_at timestamp with time zone DEFAULT now() NOT NULL,
+  created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS raw.raw_csv (
+  id uuid DEFAULT uuidv7() NOT NULL,
+  source_id uuid NOT NULL,
+  device_id uuid,
+  acquisition_id uuid,
+  medium evidence.record_medium DEFAULT 'export'::evidence.record_medium NOT NULL,
+  record_index integer,
+  raw jsonb NOT NULL,
+  raw_text text,
+  content_hash text NOT NULL,
+  content_canon text DEFAULT 'h2-rawelement-v1'::text NOT NULL,
+  parser_version text,
+  superseded_by uuid,
+  supersede_note text,
+  ingest_run_id uuid,
+  deriver_version text,
+  ingested_at timestamp with time zone DEFAULT now() NOT NULL,
+  created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS raw.raw_facebook (
+  id uuid DEFAULT uuidv7() NOT NULL,
+  source_id uuid NOT NULL,
+  device_id uuid,
+  acquisition_id uuid,
+  medium evidence.record_medium DEFAULT 'export'::evidence.record_medium NOT NULL,
+  record_index integer,
+  raw jsonb NOT NULL,
+  raw_text text,
+  content_hash text NOT NULL,
+  content_canon text DEFAULT 'h2-rawelement-v1'::text NOT NULL,
+  parser_version text,
+  superseded_by uuid,
+  supersede_note text,
+  ingest_run_id uuid,
+  deriver_version text,
+  ingested_at timestamp with time zone DEFAULT now() NOT NULL,
+  created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS raw.raw_imessage (
+  id uuid DEFAULT uuidv7() NOT NULL,
+  source_id uuid NOT NULL,
+  device_id uuid,
+  acquisition_id uuid,
+  medium evidence.record_medium DEFAULT 'export'::evidence.record_medium NOT NULL,
+  record_index integer,
+  raw jsonb NOT NULL,
+  raw_text text,
+  content_hash text NOT NULL,
+  content_canon text DEFAULT 'h2-rawelement-v1'::text NOT NULL,
+  parser_version text,
+  superseded_by uuid,
+  supersede_note text,
+  ingest_run_id uuid,
+  deriver_version text,
+  ingested_at timestamp with time zone DEFAULT now() NOT NULL,
+  created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS raw.raw_path (
+  id uuid DEFAULT uuidv7() NOT NULL,
+  source_id uuid NOT NULL,
+  file_node_id uuid,
+  path_serial bigint,
+  point_sequence bigint NOT NULL,
+  point_geog ai.geo_point NOT NULL,
+  point_ts_raw text,
+  point_ts_utc timestamp with time zone,
+  tz_offset_min integer,
+  aligned_activity_id uuid,
+  parent_id uuid,
+  ingest_run_id uuid,
+  raw_data jsonb DEFAULT '{}'::jsonb NOT NULL,
+  data_tier evidence_tier DEFAULT 'raw'::evidence_tier NOT NULL,
+  ingested_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS raw.raw_phone (
+  id uuid DEFAULT uuidv7() NOT NULL,
+  source_id uuid NOT NULL,
+  device_id uuid,
+  acquisition_id uuid,
+  medium evidence.record_medium DEFAULT 'export'::evidence.record_medium NOT NULL,
+  record_index integer,
+  raw jsonb NOT NULL,
+  raw_text text,
+  content_hash text NOT NULL,
+  content_canon text DEFAULT 'h2-rawelement-v1'::text NOT NULL,
+  parser_version text,
+  superseded_by uuid,
+  supersede_note text,
+  ingest_run_id uuid,
+  deriver_version text,
+  ingested_at timestamp with time zone DEFAULT now() NOT NULL,
+  created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS raw.raw_rejected (
+  id uuid DEFAULT uuidv7() NOT NULL,
+  ingest_run_id uuid NOT NULL,
+  source_sha256 bytea NOT NULL,
+  record_index bigint,
+  element_tag text,
+  reason text NOT NULL,
+  reason_detail text,
+  content_hash text,
+  raw jsonb NOT NULL,
+  created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS raw.raw_sms (
+  id uuid DEFAULT uuidv7() NOT NULL,
+  source_id uuid NOT NULL,
+  device_id uuid,
+  acquisition_id uuid,
+  medium evidence.record_medium DEFAULT 'export'::evidence.record_medium NOT NULL,
+  record_index integer,
+  raw jsonb NOT NULL,
+  raw_text text,
+  content_hash text NOT NULL,
+  content_canon text DEFAULT 'h2-rawelement-v1'::text NOT NULL,
+  parser_version text,
+  superseded_by uuid,
+  supersede_note text,
+  ingest_run_id uuid,
+  deriver_version text,
+  ingested_at timestamp with time zone DEFAULT now() NOT NULL,
+  created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS raw.raw_trip (
+  id uuid DEFAULT uuidv7() NOT NULL,
+  source_id uuid NOT NULL,
+  file_node_id uuid,
+  event_serial bigint,
+  start_raw text,
+  end_raw text,
+  start_utc timestamp with time zone,
+  end_utc timestamp with time zone,
+  tz_offset_min integer,
+  duration_s bigint,
+  distance_from_origin_km numeric(12,3),
+  destination_place_ids text[],
+  parent_id uuid,
+  ingest_run_id uuid,
+  raw_data jsonb DEFAULT '{}'::jsonb NOT NULL,
+  data_tier evidence_tier DEFAULT 'raw'::evidence_tier NOT NULL,
+  ingested_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS raw.raw_visit (
+  id uuid DEFAULT uuidv7() NOT NULL,
+  source_id uuid NOT NULL,
+  file_node_id uuid,
+  event_serial bigint,
+  hierarchy_level integer,
+  start_raw text,
+  end_raw text,
+  start_utc timestamp with time zone,
+  end_utc timestamp with time zone,
+  tz_offset_min integer,
+  duration_s bigint,
+  detection_probability ai.confidence,
+  semantic_type text,
+  semantic_probability ai.confidence,
+  place_id text,
+  geog ai.geo_point,
+  parent_id uuid,
+  memory_id uuid,
+  ingest_run_id uuid,
+  raw_data jsonb DEFAULT '{}'::jsonb NOT NULL,
+  data_tier evidence_tier DEFAULT 'raw'::evidence_tier NOT NULL,
+  ingested_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS reference.behavior_category (
   category_id citext NOT NULL,
   label text NOT NULL,
@@ -2755,6 +2750,24 @@ CREATE TABLE IF NOT EXISTS reference.claim_type (
   parent_slug text,
   retired_at timestamp with time zone,
   created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS reference.court_case (
+  id uuid DEFAULT uuidv7() NOT NULL,
+  matter_id uuid NOT NULL,
+  caption text NOT NULL,
+  docket_number text,
+  court_name text,
+  jurisdiction text,
+  case_type text,
+  status text DEFAULT 'pre_filing'::text NOT NULL,
+  filed_on date,
+  closed_on date,
+  is_primary boolean DEFAULT false NOT NULL,
+  created_by text NOT NULL,
+  created_at timestamp with time zone DEFAULT now() NOT NULL,
+  updated_at timestamp with time zone DEFAULT now() NOT NULL,
+  verification_state text DEFAULT 'proposed'::text NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS reference.custody_factor (
@@ -2803,6 +2816,51 @@ CREATE TABLE IF NOT EXISTS reference.detection_pattern_set (
   provenance_id uuid
 );
 
+CREATE TABLE IF NOT EXISTS reference.device (
+  id uuid NOT NULL,
+  make_model text,
+  os text,
+  imei_or_serial citext,
+  owner_entity_id uuid,
+  device_label text,
+  acquired_note text,
+  verification_state text DEFAULT 'proposed'::text NOT NULL,
+  identification_confidence ai.confidence,
+  identification_signal text
+);
+
+CREATE TABLE IF NOT EXISTS reference.entity (
+  id uuid DEFAULT uuidv7() NOT NULL,
+  entity_type ai.entity_type NOT NULL,
+  display_name citext,
+  canonical_name citext,
+  normalized_name citext,
+  sensitivity_tier sensitivity_tier,
+  is_party boolean DEFAULT false NOT NULL,
+  data_tier evidence_tier DEFAULT 'inferred'::evidence_tier NOT NULL,
+  evidence_confidence ai.confidence,
+  provenance ai.source_ref[] DEFAULT '{}'::ai.source_ref[] NOT NULL,
+  requires_human_review boolean DEFAULT false NOT NULL,
+  review_status review_state DEFAULT 'unreviewed'::review_state NOT NULL,
+  safe_for_legal_use boolean DEFAULT false NOT NULL,
+  merged_into_id uuid,
+  first_seen_at timestamp with time zone,
+  last_seen_at timestamp with time zone,
+  sys_period tstzrange DEFAULT tstzrange(now(), NULL::timestamp with time zone) NOT NULL,
+  created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS reference.entity_alias (
+  id uuid DEFAULT uuidv7() NOT NULL,
+  entity_id uuid NOT NULL,
+  alias_text citext NOT NULL,
+  alias_kind text,
+  confidence ai.confidence,
+  alias_dmeta text GENERATED ALWAYS AS (dmetaphone((alias_text)::text)) STORED,
+  provenance ai.source_ref[] DEFAULT '{}'::ai.source_ref[] NOT NULL,
+  created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS reference.format_resolver (
   id uuid DEFAULT uuidv7() NOT NULL,
   source_signature text NOT NULL,
@@ -2824,6 +2882,21 @@ CREATE TABLE IF NOT EXISTS reference.geofence (
   purpose text,
   data_tier evidence_tier DEFAULT 'analytical'::evidence_tier NOT NULL,
   provenance_id uuid,
+  created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS reference.id_xref (
+  id uuid DEFAULT uuidv7() NOT NULL,
+  canonical_entity_id uuid,
+  system_a ai.source_system NOT NULL,
+  native_id_a text NOT NULL,
+  system_b ai.source_system NOT NULL,
+  native_id_b text NOT NULL,
+  match_method ai.match_method NOT NULL,
+  confidence ai.confidence,
+  source ai.source_ref,
+  is_current boolean DEFAULT true NOT NULL,
+  sys_period tstzrange DEFAULT tstzrange(now(), NULL::timestamp with time zone) NOT NULL,
   created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
@@ -2872,6 +2945,35 @@ CREATE TABLE IF NOT EXISTS reference.lexicon_sync (
   created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS reference.location (
+  id uuid DEFAULT uuidv7() NOT NULL,
+  name text,
+  geog ai.geo_point NOT NULL,
+  geohash9 text GENERATED ALWAYS AS (st_geohash((geog)::geometry, 9)) STORED,
+  address text,
+  place_type text,
+  is_fuzzed boolean DEFAULT false NOT NULL,
+  sensitivity_tier sensitivity_tier DEFAULT 'restricted'::sensitivity_tier NOT NULL,
+  spatial_confidence ai.confidence,
+  data_tier evidence_tier DEFAULT 'extracted'::evidence_tier NOT NULL,
+  provenance_id uuid,
+  created_at timestamp with time zone DEFAULT now() NOT NULL,
+  verification_state text DEFAULT 'proposed'::text NOT NULL,
+  identification_confidence ai.confidence,
+  identification_signal text
+);
+
+CREATE TABLE IF NOT EXISTS reference.matter (
+  id uuid DEFAULT uuidv7() NOT NULL,
+  title text NOT NULL,
+  description text,
+  status text DEFAULT 'active'::text NOT NULL,
+  created_by text NOT NULL,
+  created_at timestamp with time zone DEFAULT now() NOT NULL,
+  updated_at timestamp with time zone DEFAULT now() NOT NULL,
+  verification_state text DEFAULT 'proposed'::text NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS reference.pattern_lexicon (
   id uuid DEFAULT uuidv7() NOT NULL,
   pattern_set_id uuid NOT NULL,
@@ -2889,6 +2991,20 @@ CREATE TABLE IF NOT EXISTS reference.pattern_lexicon (
   valid_from timestamp with time zone DEFAULT now() NOT NULL,
   valid_to timestamp with time zone,
   created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS reference.person (
+  id uuid NOT NULL,
+  relationship_type text,
+  connection_to text,
+  role_in_case text,
+  gender text,
+  is_minor boolean DEFAULT false NOT NULL,
+  is_flagged boolean DEFAULT false NOT NULL,
+  notes text,
+  verification_state text DEFAULT 'proposed'::text NOT NULL,
+  identification_confidence ai.confidence,
+  identification_signal text
 );
 
 CREATE TABLE IF NOT EXISTS reference.relative_rule (
@@ -3125,24 +3241,6 @@ CREATE TABLE IF NOT EXISTS working.attachment (
   created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS working.block_status (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  target_kind text NOT NULL,
-  target_id uuid NOT NULL,
-  blocker_entity_id uuid,
-  device_id uuid,
-  status text DEFAULT 'unknown'::text NOT NULL,
-  confidence numeric(5,4),
-  effective_from timestamp with time zone NOT NULL,
-  effective_to timestamp with time zone,
-  basis text,
-  inference_signals jsonb,
-  evidence_ref uuid,
-  asserted_by text DEFAULT 'human'::text NOT NULL,
-  notes text,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS working.call_log (
   id uuid NOT NULL,
   source_artifact_id uuid NOT NULL,
@@ -3246,98 +3344,6 @@ CREATE TABLE IF NOT EXISTS working.candidate_fact (
   graph_lane analysis.graph_lane
 );
 
-CREATE TABLE IF NOT EXISTS working.chat_cdc_cursor (
-  sink_id text NOT NULL,
-  source_event_table text NOT NULL,
-  last_event_id bigint DEFAULT 0 NOT NULL,
-  updated_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.chat_chunk (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  conversation_id uuid NOT NULL,
-  chunk_index integer NOT NULL,
-  content text NOT NULL,
-  content_hash text NOT NULL,
-  chunker_id text NOT NULL,
-  chunker_version text,
-  token_count integer,
-  char_start integer,
-  char_end integer,
-  created_at timestamp with time zone DEFAULT now() NOT NULL,
-  attrs jsonb DEFAULT '{}'::jsonb NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.chat_chunk_embedding (
-  chunk_id uuid NOT NULL,
-  embedder_id text NOT NULL,
-  content_hash text NOT NULL,
-  embedding vector NOT NULL,
-  embedding_dimension integer NOT NULL,
-  vector_ref text,
-  embedded_at timestamp with time zone,
-  attrs jsonb DEFAULT '{}'::jsonb NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.chat_chunk_event (
-  event_id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
-  operation text NOT NULL,
-  row_data jsonb NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.chat_chunk_lane (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  chunk_id uuid NOT NULL,
-  lane text NOT NULL,
-  confidence double precision NOT NULL,
-  classifier_id text NOT NULL,
-  classifier_version text,
-  review_status text NOT NULL,
-  rationale text,
-  reviewed_by text,
-  reviewed_at timestamp with time zone,
-  created_at timestamp with time zone DEFAULT now() NOT NULL,
-  attrs jsonb DEFAULT '{}'::jsonb NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.chat_chunk_lane_event (
-  event_id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
-  operation text NOT NULL,
-  row_data jsonb NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.chat_chunk_message (
-  chunk_id uuid NOT NULL,
-  message_id uuid NOT NULL,
-  ordinal integer NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.chat_chunk_projection (
-  chunk_id uuid NOT NULL,
-  lane text NOT NULL,
-  sink text NOT NULL,
-  embedder_id text,
-  projection_ref text,
-  projected_at timestamp with time zone,
-  last_error text,
-  attempts integer DEFAULT 0 NOT NULL,
-  attrs jsonb DEFAULT '{}'::jsonb NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.chat_chunk_tag (
-  chunk_id uuid NOT NULL,
-  tag_id uuid NOT NULL,
-  applied_by text NOT NULL,
-  confidence double precision,
-  review_status text DEFAULT 'suggested'::text NOT NULL,
-  applied_at timestamp with time zone DEFAULT now() NOT NULL,
-  reviewed_by text,
-  reviewed_at timestamp with time zone,
-  attrs jsonb DEFAULT '{}'::jsonb NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS working.chat_conversation (
   id uuid DEFAULT uuidv7() NOT NULL,
   source text NOT NULL,
@@ -3347,13 +3353,6 @@ CREATE TABLE IF NOT EXISTS working.chat_conversation (
   created_at timestamp with time zone,
   ingested_at timestamp with time zone DEFAULT now() NOT NULL,
   attrs jsonb DEFAULT '{}'::jsonb NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.chat_conversation_event (
-  event_id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
-  operation text NOT NULL,
-  row_data jsonb NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS working.chat_message (
@@ -3368,65 +3367,6 @@ CREATE TABLE IF NOT EXISTS working.chat_message (
   attrs jsonb DEFAULT '{}'::jsonb NOT NULL,
   content_hash text NOT NULL,
   created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.chat_message_event (
-  event_id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
-  operation text NOT NULL,
-  row_data jsonb NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.chat_projection_dead_letter (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  sink_id text NOT NULL,
-  source_event_table text NOT NULL,
-  source_event_id bigint NOT NULL,
-  row_data jsonb NOT NULL,
-  error_class text NOT NULL,
-  error_message text NOT NULL,
-  attempts integer NOT NULL,
-  failed_at timestamp with time zone DEFAULT now() NOT NULL,
-  replay_requested_at timestamp with time zone,
-  resolved_at timestamp with time zone,
-  resolution_note text
-);
-
-CREATE TABLE IF NOT EXISTS working.claim_assertion (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  assertion_generation smallint NOT NULL,
-  assertion_kind text NOT NULL,
-  statement text NOT NULL,
-  rationale text NOT NULL,
-  asserted_by_kind text NOT NULL,
-  asserted_by text NOT NULL,
-  asserted_at timestamp with time zone DEFAULT now() NOT NULL,
-  salience text,
-  argument_targets text[] DEFAULT '{}'::text[] NOT NULL,
-  owner_disposition text DEFAULT 'unreviewed'::text NOT NULL,
-  disposition_reason text,
-  disposition_at timestamp with time zone,
-  source_ref text,
-  supersedes_id uuid,
-  attrs jsonb DEFAULT '{}'::jsonb NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.claim_assertion_member (
-  assertion_id uuid NOT NULL,
-  claim_candidate_id uuid NOT NULL,
-  member_role text DEFAULT 'constituent'::text NOT NULL,
-  member_ordinal integer NOT NULL,
-  note text
-);
-
-CREATE TABLE IF NOT EXISTS working.claim_assertion_synthesis_member (
-  synthesis_id uuid NOT NULL,
-  member_assertion_id uuid NOT NULL,
-  member_generation smallint DEFAULT 1 NOT NULL,
-  agreement_state text NOT NULL,
-  divergence_note text,
-  member_ordinal integer NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS working.claim_candidate (
@@ -3502,23 +3442,6 @@ CREATE TABLE IF NOT EXISTS working.content_chunk (
   created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS working.content_chunk_classification_decision (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  chunk_id uuid NOT NULL,
-  decision_version integer NOT NULL,
-  lane text NOT NULL,
-  decision_kind text NOT NULL,
-  review_state text NOT NULL,
-  classifier_id text NOT NULL,
-  classifier_version text NOT NULL,
-  confidence double precision NOT NULL,
-  rationale text,
-  supersedes_id uuid,
-  reviewed_by text,
-  reviewed_at timestamp with time zone,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS working.content_chunk_generation (
   id uuid DEFAULT uuidv7() NOT NULL,
   source_version_id uuid NOT NULL,
@@ -3549,6 +3472,20 @@ CREATE TABLE IF NOT EXISTS working.content_chunk_generation (
   sealed_by text,
   aborted_at timestamp with time zone,
   abort_reason text
+);
+
+CREATE TABLE IF NOT EXISTS working.content_chunk_projection (
+  id uuid DEFAULT uuidv7() NOT NULL,
+  chunk_id uuid NOT NULL,
+  sink text NOT NULL,
+  embedder_id text,
+  projection_ref text,
+  source_generation bigint,
+  status text DEFAULT 'pending'::text NOT NULL,
+  attempts integer DEFAULT 0 NOT NULL,
+  last_error text,
+  projected_at timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS working.content_chunk_reassembly_receipt (
@@ -3627,32 +3564,11 @@ CREATE TABLE IF NOT EXISTS working.context_asset_derivation (
   attrs jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS working.context_asset_event (
-  event_id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
-  operation text NOT NULL,
-  row_data jsonb NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS working.context_asset_message (
   asset_id uuid NOT NULL,
   message_id uuid NOT NULL,
   relationship text DEFAULT 'referenced'::text NOT NULL,
   linked_at timestamp with time zone DEFAULT now() NOT NULL,
-  attrs jsonb DEFAULT '{}'::jsonb NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.context_asset_projection (
-  asset_id uuid NOT NULL,
-  representation text NOT NULL,
-  lane text NOT NULL,
-  embedder_id text NOT NULL,
-  embedding_dimension integer NOT NULL,
-  sink text DEFAULT 'weaviate'::text NOT NULL,
-  projection_ref text,
-  projected_at timestamp with time zone,
-  last_error text,
-  attempts integer DEFAULT 0 NOT NULL,
   attrs jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
@@ -3675,278 +3591,11 @@ CREATE TABLE IF NOT EXISTS working.context_record (
   graphiti_synced_at timestamp with time zone
 );
 
-CREATE TABLE IF NOT EXISTS working.context_review_case (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  case_key uuid DEFAULT uuidv7() NOT NULL,
-  case_version integer NOT NULL,
-  conflict_kind text NOT NULL,
-  status text DEFAULT 'queued'::text NOT NULL,
-  priority text DEFAULT 'normal'::text NOT NULL,
-  summary text NOT NULL,
-  opened_by text NOT NULL,
-  provenance_digest bytea NOT NULL,
-  supersedes_case_id uuid,
-  supersedes_case_version integer,
-  resolution_decision_id uuid,
-  resolution_decision_version integer,
-  presentation_payload jsonb DEFAULT '{}'::jsonb NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.context_review_decision (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  review_case_id uuid NOT NULL,
-  decision_version integer NOT NULL,
-  decision_action text NOT NULL,
-  status text NOT NULL,
-  reviewer_id text NOT NULL,
-  rationale text NOT NULL,
-  provenance_digest bytea NOT NULL,
-  decision_activity_receipt_id uuid,
-  supersedes_decision_id uuid,
-  supersedes_decision_version integer,
-  decided_at timestamp with time zone NOT NULL,
-  presentation_payload jsonb DEFAULT '{}'::jsonb NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.context_review_decision_evidence_hash (
-  decision_id uuid NOT NULL,
-  evidence_hash_id uuid NOT NULL,
-  basis_role text NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.context_review_decision_source_range (
-  decision_id uuid NOT NULL,
-  source_version_id uuid NOT NULL,
-  source_range_locator_id uuid NOT NULL,
-  basis_role text NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.context_review_decision_source_version (
-  decision_id uuid NOT NULL,
-  source_version_id uuid NOT NULL,
-  basis_role text NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.context_review_dispatch_attempt (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  review_workflow_id uuid NOT NULL,
-  dispatch_attempt integer NOT NULL,
-  dispatch_idempotency_key text NOT NULL,
-  n8n_workflow_ref text NOT NULL,
-  review_service_ref text NOT NULL,
-  request_digest bytea NOT NULL,
-  dispatch_receipt_digest bytea,
-  status text NOT NULL,
-  started_at timestamp with time zone NOT NULL,
-  completed_at timestamp with time zone,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.context_review_first_party_thread_message (
-  review_case_id uuid NOT NULL,
-  thread_version_id uuid NOT NULL,
-  message_id uuid NOT NULL,
-  subject_role text NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.context_review_first_party_thread_source (
-  review_case_id uuid NOT NULL,
-  thread_source_id uuid NOT NULL,
-  subject_role text NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.context_review_first_party_thread_version (
-  review_case_id uuid NOT NULL,
-  thread_version_id uuid NOT NULL,
-  subject_role text NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.context_review_relative_time_anchor (
-  review_case_id uuid NOT NULL,
-  anchor_id uuid NOT NULL,
-  subject_role text NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.context_review_signal_receipt (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  review_workflow_id uuid NOT NULL,
-  review_case_id uuid NOT NULL,
-  decision_id uuid NOT NULL,
-  signal_id text NOT NULL,
-  signal_idempotency_key text NOT NULL,
-  signal_kind text NOT NULL,
-  signal_digest bytea NOT NULL,
-  validation_status text NOT NULL,
-  persisted_decision_version integer NOT NULL,
-  received_at timestamp with time zone NOT NULL,
-  persisted_at timestamp with time zone,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.context_review_temporal_run_state (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  review_workflow_id uuid NOT NULL,
-  temporal_run_id text NOT NULL,
-  state_version integer NOT NULL,
-  workflow_state text NOT NULL,
-  state_digest bytea NOT NULL,
-  trace_ref text,
-  supersedes_state_id uuid,
-  observed_at timestamp with time zone NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.context_review_temporal_workflow (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  review_case_id uuid NOT NULL,
-  expected_case_version integer NOT NULL,
-  temporal_workflow_id text NOT NULL,
-  workflow_idempotency_key text NOT NULL,
-  reminder_policy_ref text NOT NULL,
-  escalation_policy_ref text NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.context_review_terminal_reconciliation (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  review_workflow_id uuid NOT NULL,
-  review_case_id uuid NOT NULL,
-  final_decision_id uuid,
-  expected_case_version integer NOT NULL,
-  expected_decision_version integer,
-  terminal_status text NOT NULL,
-  reconciliation_status text NOT NULL,
-  reconciliation_digest bytea NOT NULL,
-  downstream_projection_receipt_ref text,
-  reconciled_at timestamp with time zone NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.context_review_third_party_thread_message (
-  review_case_id uuid NOT NULL,
-  thread_version_id uuid NOT NULL,
-  message_id uuid NOT NULL,
-  subject_role text NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.context_review_third_party_thread_source (
-  review_case_id uuid NOT NULL,
-  thread_source_id uuid NOT NULL,
-  subject_role text NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.context_review_third_party_thread_version (
-  review_case_id uuid NOT NULL,
-  thread_version_id uuid NOT NULL,
-  subject_role text NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.context_review_timeline_event_candidate (
-  review_case_id uuid NOT NULL,
-  event_candidate_id uuid NOT NULL,
-  subject_role text NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.conversation (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  source_artifact_id uuid NOT NULL,
-  platform text NOT NULL,
-  external_thread_key text,
-  title text,
-  participants jsonb DEFAULT '[]'::jsonb NOT NULL,
-  participant_count integer,
-  primary_participant text,
-  primary_participant_e164 text,
-  is_group boolean DEFAULT false NOT NULL,
-  started_at timestamp with time zone,
-  ended_at timestamp with time zone,
-  message_count integer DEFAULT 0 NOT NULL,
-  is_evidence boolean DEFAULT false NOT NULL,
-  exhibit_number text,
-  relevance ai.confidence,
-  behavior_summary jsonb DEFAULT '{}'::jsonb NOT NULL,
-  data_tier evidence_tier DEFAULT 'extracted'::evidence_tier NOT NULL,
-  review_status review_state DEFAULT 'unreviewed'::review_state NOT NULL,
-  platform_attrs jsonb DEFAULT '{}'::jsonb NOT NULL,
-  raw_data jsonb,
-  provenance_id uuid,
-  created_at timestamp with time zone DEFAULT now() NOT NULL,
-  cluster_code text,
-  cluster_reason text
-);
-
-CREATE TABLE IF NOT EXISTS working.device (
-  id uuid NOT NULL,
-  make_model text,
-  os text,
-  imei_or_serial citext,
-  owner_entity_id uuid,
-  device_label text,
-  acquired_note text
-);
-
-CREATE TABLE IF NOT EXISTS working.device_ownership (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  device_id uuid NOT NULL,
-  owner_entity_id uuid NOT NULL,
-  effective_from timestamp with time zone NOT NULL,
-  effective_to timestamp with time zone,
-  asserted_by text DEFAULT 'human'::text NOT NULL,
-  basis text,
-  notes text,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS working.email (
   id uuid NOT NULL,
   address citext,
   owner_entity_id uuid,
   validity tstzrange DEFAULT tstzrange(now(), NULL::timestamp with time zone) NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.entity (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  entity_type ai.entity_type NOT NULL,
-  display_name citext,
-  canonical_name citext,
-  normalized_name citext,
-  sensitivity_tier sensitivity_tier,
-  is_party boolean DEFAULT false NOT NULL,
-  data_tier evidence_tier DEFAULT 'inferred'::evidence_tier NOT NULL,
-  evidence_confidence ai.confidence,
-  provenance ai.source_ref[] DEFAULT '{}'::ai.source_ref[] NOT NULL,
-  requires_human_review boolean DEFAULT false NOT NULL,
-  review_status review_state DEFAULT 'unreviewed'::review_state NOT NULL,
-  safe_for_legal_use boolean DEFAULT false NOT NULL,
-  merged_into_id uuid,
-  first_seen_at timestamp with time zone,
-  last_seen_at timestamp with time zone,
-  sys_period tstzrange DEFAULT tstzrange(now(), NULL::timestamp with time zone) NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.entity_alias (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  entity_id uuid NOT NULL,
-  alias_text citext NOT NULL,
-  alias_kind text,
-  confidence ai.confidence,
-  alias_dmeta text GENERATED ALWAYS AS (dmetaphone((alias_text)::text)) STORED,
-  provenance ai.source_ref[] DEFAULT '{}'::ai.source_ref[] NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS working.entity_mention (
@@ -3965,23 +3614,6 @@ CREATE TABLE IF NOT EXISTS working.entity_mention (
   data_tier evidence_tier DEFAULT 'extracted'::evidence_tier NOT NULL,
   provenance ai.source_ref[] DEFAULT '{}'::ai.source_ref[] NOT NULL,
   created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.entity_merge_event (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  op text NOT NULL,
-  surviving_entity_id uuid NOT NULL,
-  merged_entity_id uuid NOT NULL,
-  actor_id uuid,
-  actor_kind text,
-  rationale text,
-  reversible_to uuid,
-  requires_human_review boolean DEFAULT true NOT NULL,
-  review_status review_state DEFAULT 'unreviewed'::review_state NOT NULL,
-  reviewed_by text,
-  reviewed_at timestamp with time zone,
-  provenance ai.source_ref[] DEFAULT '{}'::ai.source_ref[] NOT NULL,
-  occurred_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS working.entity_resolution (
@@ -4003,20 +3635,6 @@ CREATE TABLE IF NOT EXISTS working.entity_resolution (
   provenance ai.source_ref[] DEFAULT '{}'::ai.source_ref[] NOT NULL,
   sys_period tstzrange DEFAULT tstzrange(now(), NULL::timestamp with time zone) NOT NULL,
   created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.event_ordering (
-  ordering_id uuid DEFAULT uuidv7() NOT NULL,
-  before_event uuid NOT NULL,
-  after_event uuid NOT NULL,
-  relation temporal_relation DEFAULT 'preceded'::temporal_relation NOT NULL,
-  basis text NOT NULL,
-  confidence ai.confidence,
-  requires_human_review boolean DEFAULT false NOT NULL,
-  derived_from uuid[] DEFAULT '{}'::uuid[] NOT NULL,
-  author text NOT NULL,
-  asserted_at timestamp with time zone DEFAULT now() NOT NULL,
-  retracted_at timestamp with time zone
 );
 
 CREATE TABLE IF NOT EXISTS working.event_source_record (
@@ -4098,34 +3716,6 @@ CREATE TABLE IF NOT EXISTS working.first_party_context_thread_message (
   source_available_from timestamp with time zone,
   required_for_horizon boolean DEFAULT true NOT NULL,
   membership_confidence double precision NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.first_party_context_thread_realization_assertion (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  thread_version_id uuid NOT NULL,
-  realization_event_id uuid NOT NULL,
-  assertion_version integer NOT NULL,
-  required_source_available_from timestamp with time zone,
-  review_state text NOT NULL,
-  supersedes_id uuid,
-  rationale text NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.first_party_context_thread_realization_message (
-  realization_assertion_id uuid NOT NULL,
-  thread_version_id uuid NOT NULL,
-  message_id uuid NOT NULL,
-  required_for_realization boolean DEFAULT true NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.first_party_context_thread_realization_source (
-  realization_assertion_id uuid NOT NULL,
-  thread_version_id uuid NOT NULL,
-  thread_source_id uuid NOT NULL,
-  required_for_realization boolean DEFAULT true NOT NULL,
   created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
@@ -4259,119 +3849,6 @@ CREATE TABLE IF NOT EXISTS working.home_base (
   created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS working.id_xref (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  canonical_entity_id uuid,
-  system_a ai.source_system NOT NULL,
-  native_id_a text NOT NULL,
-  system_b ai.source_system NOT NULL,
-  native_id_b text NOT NULL,
-  match_method ai.match_method NOT NULL,
-  confidence ai.confidence,
-  source ai.source_ref,
-  is_current boolean DEFAULT true NOT NULL,
-  sys_period tstzrange DEFAULT tstzrange(now(), NULL::timestamp with time zone) NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.investigation_event (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  title text NOT NULL,
-  summary text NOT NULL,
-  concern_type text NOT NULL,
-  priority text DEFAULT 'normal'::text NOT NULL,
-  occurred_at timestamp with time zone,
-  validity tstzrange,
-  evidence_status text DEFAULT 'needed'::text NOT NULL,
-  disposition text DEFAULT 'open'::text NOT NULL,
-  temporal_status text DEFAULT 'unknown'::text NOT NULL,
-  rationale text NOT NULL,
-  created_by text NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL,
-  promoted_timeline_event_id uuid,
-  promoted_by text,
-  promoted_at timestamp with time zone,
-  attrs jsonb DEFAULT '{}'::jsonb NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.investigation_event_evidence_link (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  investigation_event_id uuid NOT NULL,
-  evidence_hash_id uuid NOT NULL,
-  relationship text NOT NULL,
-  note text,
-  linked_by text NOT NULL,
-  linked_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.investigation_event_evidence_need (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  investigation_event_id uuid NOT NULL,
-  description text NOT NULL,
-  evidence_kind text,
-  status text DEFAULT 'needed'::text NOT NULL,
-  decided_by text NOT NULL,
-  decided_at timestamp with time zone DEFAULT now() NOT NULL,
-  attrs jsonb DEFAULT '{}'::jsonb NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.investigation_event_source (
-  investigation_event_id uuid NOT NULL,
-  source_kind text NOT NULL,
-  source_ref text NOT NULL,
-  relationship text DEFAULT 'origin'::text NOT NULL,
-  note text,
-  linked_by text NOT NULL,
-  linked_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.investigation_event_tag (
-  investigation_event_id uuid NOT NULL,
-  tag_id uuid NOT NULL,
-  applied_by text NOT NULL,
-  applied_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.legacy_chat_chunk_content_chunk_map (
-  legacy_chat_chunk_id uuid NOT NULL,
-  content_chunk_id uuid NOT NULL,
-  backfill_receipt_id uuid NOT NULL,
-  mapped_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.legacy_normalized_chunk_content_chunk_map (
-  legacy_normalized_chunk_id uuid NOT NULL,
-  content_chunk_id uuid NOT NULL,
-  backfill_receipt_id uuid NOT NULL,
-  mapped_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.lineage_edge (
-  edge_id uuid DEFAULT uuidv7() NOT NULL,
-  child_artifact uuid NOT NULL,
-  parent_artifact uuid,
-  parent_source uuid,
-  producing_run uuid,
-  role text NOT NULL,
-  note text,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.location (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  name text,
-  geog ai.geo_point NOT NULL,
-  geohash9 text GENERATED ALWAYS AS (st_geohash((geog)::geometry, 9)) STORED,
-  address text,
-  place_type text,
-  is_fuzzed boolean DEFAULT false NOT NULL,
-  sensitivity_tier sensitivity_tier DEFAULT 'restricted'::sensitivity_tier NOT NULL,
-  spatial_confidence ai.confidence,
-  data_tier evidence_tier DEFAULT 'extracted'::evidence_tier NOT NULL,
-  provenance_id uuid,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS working.message (
   id uuid NOT NULL,
   conversation_id uuid NOT NULL,
@@ -4501,37 +3978,11 @@ CREATE TABLE IF NOT EXISTS working.normalized_record (
   message_corpus text
 );
 
-CREATE TABLE IF NOT EXISTS working.normalized_record_chunk (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  normalized_record_id uuid NOT NULL,
-  chunker_id text NOT NULL,
-  chunk_index integer NOT NULL,
-  content text NOT NULL,
-  content_sha256 bytea NOT NULL,
-  source_content_sha256 bytea NOT NULL,
-  char_start integer,
-  char_end integer,
-  token_count integer,
-  attrs jsonb DEFAULT '{}'::jsonb NOT NULL,
-  derived_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS working.organization (
   id uuid NOT NULL,
   org_type text,
   legal_name citext,
   jurisdiction text
-);
-
-CREATE TABLE IF NOT EXISTS working.person (
-  id uuid NOT NULL,
-  relationship_type text,
-  connection_to text,
-  role_in_case text,
-  gender text,
-  is_minor boolean DEFAULT false NOT NULL,
-  is_flagged boolean DEFAULT false NOT NULL,
-  notes text
 );
 
 CREATE TABLE IF NOT EXISTS working.phone (
@@ -4584,18 +4035,6 @@ CREATE TABLE IF NOT EXISTS working.record_visible_from (
   base_version text NOT NULL,
   source_clock_hash text NOT NULL,
   refreshed_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.review_decision (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  candidate_kind text NOT NULL,
-  candidate_id uuid NOT NULL,
-  decision text NOT NULL,
-  reviewer text NOT NULL,
-  rationale text,
-  decided_at timestamp with time zone DEFAULT now() NOT NULL,
-  prior_state text NOT NULL,
-  attrs jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS working.source_provenance (
@@ -4675,34 +4114,6 @@ CREATE TABLE IF NOT EXISTS working.third_party_context_thread_message (
   source_available_from timestamp with time zone,
   required_for_horizon boolean DEFAULT true NOT NULL,
   membership_confidence double precision NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.third_party_context_thread_realization_assertion (
-  id uuid DEFAULT uuidv7() NOT NULL,
-  thread_version_id uuid NOT NULL,
-  realization_event_id uuid NOT NULL,
-  assertion_version integer NOT NULL,
-  required_source_available_from timestamp with time zone,
-  review_state text NOT NULL,
-  supersedes_id uuid,
-  rationale text NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.third_party_context_thread_realization_message (
-  realization_assertion_id uuid NOT NULL,
-  thread_version_id uuid NOT NULL,
-  message_id uuid NOT NULL,
-  required_for_realization boolean DEFAULT true NOT NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS working.third_party_context_thread_realization_source (
-  realization_assertion_id uuid NOT NULL,
-  thread_version_id uuid NOT NULL,
-  thread_source_id uuid NOT NULL,
-  required_for_realization boolean DEFAULT true NOT NULL,
   created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
@@ -4967,37 +4378,54 @@ ALTER TABLE analysis.chunk_classification ADD CONSTRAINT chunk_classification_pk
 ALTER TABLE analysis.chunk_classification ADD CONSTRAINT chunk_classification_severity_check CHECK (((severity IS NULL) OR ((severity >= 0) AND (severity <= 10))));
 ALTER TABLE analysis.chunk_classification ADD CONSTRAINT chunkclass_adjudication_fields_complete CHECK ((((decision_id IS NULL) AND (actor IS NULL) AND (decision IS NULL) AND (reason IS NULL) AND (source IS NULL) AND (adjudicated_at IS NULL)) OR ((decision_id IS NOT NULL) AND (actor IS NOT NULL) AND (decision IS NOT NULL) AND (reason IS NOT NULL) AND (source IS NOT NULL) AND (adjudicated_at IS NOT NULL))));
 ALTER TABLE analysis.chunk_classification ADD CONSTRAINT chunkclass_decision_valid CHECK (((decision IS NULL) OR (decision = ANY (ARRAY['approve'::text, 'correct'::text]))));
+ALTER TABLE analysis.claim_assertion ADD CONSTRAINT claim_assertion_asserted_by_check CHECK ((length(btrim(asserted_by)) > 0));
+ALTER TABLE analysis.claim_assertion ADD CONSTRAINT claim_assertion_asserted_by_kind_check CHECK ((asserted_by_kind = ANY (ARRAY['owner'::text, 'model'::text])));
+ALTER TABLE analysis.claim_assertion ADD CONSTRAINT claim_assertion_assertion_generation_check CHECK ((assertion_generation = ANY (ARRAY[1, 2])));
+ALTER TABLE analysis.claim_assertion ADD CONSTRAINT claim_assertion_assertion_kind_check CHECK ((assertion_kind = ANY (ARRAY['connection'::text, 'significance'::text, 'decision'::text, 'exposure'::text, 'gap'::text, 'correction'::text])));
+ALTER TABLE analysis.claim_assertion ADD CONSTRAINT claim_assertion_attrs_check CHECK ((jsonb_typeof(attrs) = 'object'::text));
+ALTER TABLE analysis.claim_assertion ADD CONSTRAINT claim_assertion_disposition_dated CHECK (((owner_disposition = 'unreviewed'::text) OR (disposition_at IS NOT NULL)));
+ALTER TABLE analysis.claim_assertion ADD CONSTRAINT claim_assertion_id_assertion_generation_key UNIQUE (id, assertion_generation);
+ALTER TABLE analysis.claim_assertion ADD CONSTRAINT claim_assertion_no_self_supersede CHECK ((supersedes_id IS DISTINCT FROM id));
+ALTER TABLE analysis.claim_assertion ADD CONSTRAINT claim_assertion_owner_disposition_check CHECK ((owner_disposition = ANY (ARRAY['unreviewed'::text, 'accepted'::text, 'rejected'::text, 'parked'::text, 'superseded'::text])));
+ALTER TABLE analysis.claim_assertion ADD CONSTRAINT claim_assertion_parked_has_reason CHECK (((owner_disposition <> 'parked'::text) OR (disposition_reason IS NOT NULL)));
+ALTER TABLE analysis.claim_assertion ADD CONSTRAINT claim_assertion_pkey PRIMARY KEY (id);
+ALTER TABLE analysis.claim_assertion ADD CONSTRAINT claim_assertion_rationale_check CHECK ((length(btrim(rationale)) > 0));
+ALTER TABLE analysis.claim_assertion ADD CONSTRAINT claim_assertion_salience_check CHECK (((salience IS NULL) OR (salience = ANY (ARRAY['hot'::text, 'good'::text, 'warm'::text]))));
+ALTER TABLE analysis.claim_assertion ADD CONSTRAINT claim_assertion_statement_check CHECK ((length(btrim(statement)) > 0));
+ALTER TABLE analysis.claim_assertion_member ADD CONSTRAINT claim_assertion_member_assertion_id_member_ordinal_key UNIQUE (assertion_id, member_ordinal);
+ALTER TABLE analysis.claim_assertion_member ADD CONSTRAINT claim_assertion_member_member_ordinal_check CHECK ((member_ordinal >= 0));
+ALTER TABLE analysis.claim_assertion_member ADD CONSTRAINT claim_assertion_member_member_role_check CHECK ((member_role = ANY (ARRAY['constituent'::text, 'supports'::text, 'contradicts'::text, 'context'::text])));
+ALTER TABLE analysis.claim_assertion_member ADD CONSTRAINT claim_assertion_member_pkey PRIMARY KEY (assertion_id, claim_candidate_id);
+ALTER TABLE analysis.claim_assertion_synthesis_member ADD CONSTRAINT claim_assertion_synthesis_membe_synthesis_id_member_ordinal_key UNIQUE (synthesis_id, member_ordinal);
+ALTER TABLE analysis.claim_assertion_synthesis_member ADD CONSTRAINT claim_assertion_synthesis_member_agreement_state_check CHECK ((agreement_state = ANY (ARRAY['concurs'::text, 'diverges'::text, 'extends'::text])));
+ALTER TABLE analysis.claim_assertion_synthesis_member ADD CONSTRAINT claim_assertion_synthesis_member_member_generation_check CHECK ((member_generation = 1));
+ALTER TABLE analysis.claim_assertion_synthesis_member ADD CONSTRAINT claim_assertion_synthesis_member_member_ordinal_check CHECK ((member_ordinal >= 0));
+ALTER TABLE analysis.claim_assertion_synthesis_member ADD CONSTRAINT claim_assertion_synthesis_member_pkey PRIMARY KEY (synthesis_id, member_assertion_id);
+ALTER TABLE analysis.claim_assertion_synthesis_member ADD CONSTRAINT synthesis_divergence_is_explained CHECK (((agreement_state <> 'diverges'::text) OR (divergence_note IS NOT NULL)));
+ALTER TABLE analysis.claim_assertion_synthesis_member ADD CONSTRAINT synthesis_member_not_self CHECK ((synthesis_id <> member_assertion_id));
 ALTER TABLE analysis.completion_evidence ADD CONSTRAINT completion_evidence_outcome_check CHECK ((outcome = ANY (ARRAY['satisfied'::text, 'unmet'::text, 'overcome'::text, 'partial'::text])));
 ALTER TABLE analysis.completion_evidence ADD CONSTRAINT completion_evidence_pkey PRIMARY KEY (id);
 ALTER TABLE analysis.completion_evidence ADD CONSTRAINT completion_sha_len CHECK (((sha256 IS NULL) OR (octet_length(sha256) = 32)));
+ALTER TABLE analysis.content_chunk_classification_decision ADD CONSTRAINT content_chunk_classification_deci_chunk_id_decision_version_key UNIQUE (chunk_id, decision_version);
+ALTER TABLE analysis.content_chunk_classification_decision ADD CONSTRAINT content_chunk_classification_decision_check CHECK (((decision_kind <> 'initial_context'::text) OR ((lane = 'context'::text) AND (review_state = 'system_initial'::text))));
+ALTER TABLE analysis.content_chunk_classification_decision ADD CONSTRAINT content_chunk_classification_decision_check1 CHECK ((((reviewed_by IS NULL) AND (reviewed_at IS NULL)) OR ((reviewed_by IS NOT NULL) AND (reviewed_at IS NOT NULL))));
+ALTER TABLE analysis.content_chunk_classification_decision ADD CONSTRAINT content_chunk_classification_decision_check2 CHECK (((review_state <> ALL (ARRAY['human_approved'::text, 'human_rejected'::text])) OR (reviewed_at IS NOT NULL)));
+ALTER TABLE analysis.content_chunk_classification_decision ADD CONSTRAINT content_chunk_classification_decision_classifier_id_check CHECK ((length(btrim(classifier_id)) > 0));
+ALTER TABLE analysis.content_chunk_classification_decision ADD CONSTRAINT content_chunk_classification_decision_classifier_version_check CHECK ((length(btrim(classifier_version)) > 0));
+ALTER TABLE analysis.content_chunk_classification_decision ADD CONSTRAINT content_chunk_classification_decision_confidence_check CHECK (((confidence >= (0)::double precision) AND (confidence <= (1)::double precision)));
+ALTER TABLE analysis.content_chunk_classification_decision ADD CONSTRAINT content_chunk_classification_decision_decision_kind_check CHECK ((decision_kind = ANY (ARRAY['initial_context'::text, 'reviewed_assignment'::text, 'supersession'::text])));
+ALTER TABLE analysis.content_chunk_classification_decision ADD CONSTRAINT content_chunk_classification_decision_decision_version_check CHECK ((decision_version > 0));
+ALTER TABLE analysis.content_chunk_classification_decision ADD CONSTRAINT content_chunk_classification_decision_lane_check CHECK ((lane = ANY (ARRAY['context'::text, 'legal'::text, 'personal_history'::text])));
+ALTER TABLE analysis.content_chunk_classification_decision ADD CONSTRAINT content_chunk_classification_decision_pkey PRIMARY KEY (id);
+ALTER TABLE analysis.content_chunk_classification_decision ADD CONSTRAINT content_chunk_classification_decision_review_state_check CHECK ((review_state = ANY (ARRAY['system_initial'::text, 'pending'::text, 'human_approved'::text, 'human_rejected'::text, 'superseded'::text])));
 ALTER TABLE analysis.corroboration_flag ADD CONSTRAINT corroboration_flag_pkey PRIMARY KEY (flag_id);
 ALTER TABLE analysis.corroboration_flag ADD CONSTRAINT corroboration_flag_status_check CHECK ((status = ANY (ARRAY['open'::text, 'partial'::text, 'corroborated'::text, 'unobtainable'::text])));
 ALTER TABLE analysis.corroboration_flag ADD CONSTRAINT corroboration_flag_target_kind_check CHECK ((target_kind = ANY (ARRAY['record'::text, 'knowledge'::text, 'run'::text])));
-ALTER TABLE analysis.court_case ADD CONSTRAINT court_case_caption_check CHECK ((length(btrim(caption)) > 0));
-ALTER TABLE analysis.court_case ADD CONSTRAINT court_case_created_by_check CHECK ((length(btrim(created_by)) > 0));
-ALTER TABLE analysis.court_case ADD CONSTRAINT court_case_dates_ck CHECK (((closed_on IS NULL) OR (filed_on IS NULL) OR (closed_on >= filed_on)));
-ALTER TABLE analysis.court_case ADD CONSTRAINT court_case_id_matter_key UNIQUE (id, matter_id);
-ALTER TABLE analysis.court_case ADD CONSTRAINT court_case_pkey PRIMARY KEY (id);
-ALTER TABLE analysis.court_case ADD CONSTRAINT court_case_status_check CHECK ((status = ANY (ARRAY['pre_filing'::text, 'active'::text, 'stayed'::text, 'closed'::text, 'appealed'::text, 'archived'::text])));
 ALTER TABLE analysis.discovery_request ADD CONSTRAINT discovery_request_hitl_status_check CHECK ((hitl_status = ANY (ARRAY['pending'::text, 'approved'::text, 'declined'::text])));
 ALTER TABLE analysis.discovery_request ADD CONSTRAINT discovery_request_instrument_type_check CHECK ((instrument_type = ANY (ARRAY['subpoena'::text, 'subpoena_duces_tecum'::text, 'rfa'::text, 'rfp'::text, 'rog'::text, 'witness_question'::text, 'deposition_topic'::text, 'self_collection'::text, 'records_request'::text, 'preservation_letter'::text])));
 ALTER TABLE analysis.discovery_request ADD CONSTRAINT discovery_request_pkey PRIMARY KEY (id);
 ALTER TABLE analysis.discovery_request ADD CONSTRAINT discovery_request_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'approved'::text, 'served'::text, 'responded'::text, 'withdrawn'::text])));
 ALTER TABLE analysis.discovery_request_revision ADD CONSTRAINT discovery_request_revision_pkey PRIMARY KEY (revision_id);
-ALTER TABLE analysis.entity_candidate ADD CONSTRAINT entity_candidate_confidence_check1 CHECK (((confidence IS NULL) OR ((confidence >= (0)::numeric) AND (confidence <= (1)::numeric))));
-ALTER TABLE analysis.entity_candidate ADD CONSTRAINT entity_candidate_pkey1 PRIMARY KEY (id);
-ALTER TABLE analysis.entity_candidate ADD CONSTRAINT entity_candidate_review_status_check1 CHECK ((review_status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text, 'needs_info'::text])));
-ALTER TABLE analysis.evidence_item ADD CONSTRAINT evidence_item_authentication_method_check CHECK (((authentication_method IS NULL) OR (authentication_method = ANY (ARRAY['witness_with_knowledge'::text, 'distinctive_characteristics'::text, 'process_or_system'::text, 'public_record'::text, 'hash_chain_of_custody'::text, 'self_authenticating'::text, 'stipulation'::text]))));
-ALTER TABLE analysis.evidence_item ADD CONSTRAINT evidence_item_case_id_exhibit_number_key UNIQUE (case_id, exhibit_number);
-ALTER TABLE analysis.evidence_item ADD CONSTRAINT evidence_item_case_management_scope_ck CHECK (((matter_id IS NULL) = (court_case_id IS NULL)));
-ALTER TABLE analysis.evidence_item ADD CONSTRAINT evidence_item_case_management_scope_key UNIQUE (id, matter_id, court_case_id);
-ALTER TABLE analysis.evidence_item ADD CONSTRAINT evidence_item_conf_tier_ck CHECK (((confidence_tier <> 'high'::text) OR (confidence IS NULL) OR ((confidence)::numeric >= 0.60)));
-ALTER TABLE analysis.evidence_item ADD CONSTRAINT evidence_item_confidence_tier_check CHECK ((confidence_tier = ANY (ARRAY['high'::text, 'medium'::text, 'low'::text])));
-ALTER TABLE analysis.evidence_item ADD CONSTRAINT evidence_item_evidence_type_check CHECK ((evidence_type = ANY (ARRAY['communication'::text, 'document'::text, 'photo'::text, 'record'::text, 'media'::text, 'screenshot'::text, 'transcript'::text, 'metadata'::text, 'other'::text])));
-ALTER TABLE analysis.evidence_item ADD CONSTRAINT evidence_item_pkey PRIMARY KEY (id);
-ALTER TABLE analysis.evidence_item ADD CONSTRAINT evidence_item_privacy_sensitivity_check CHECK ((privacy_sensitivity = ANY (ARRAY['none'::text, 'pii'::text, 'minor'::text, 'sensitive_pii'::text])));
-ALTER TABLE analysis.evidence_item ADD CONSTRAINT evidence_item_redaction_status_check CHECK ((redaction_status = ANY (ARRAY['none'::text, 'required'::text, 'applied'::text])));
-ALTER TABLE analysis.evidence_item ADD CONSTRAINT evidence_item_safe_ck CHECK (((safe_for_legal_use = false) OR ((review_status = 'approved'::review_state) AND (is_authenticated = true) AND (is_hypothesis = false) AND (redaction_status <> 'required'::text))));
 ALTER TABLE analysis.evidence_task ADD CONSTRAINT evidence_task_confidence_tier_check CHECK ((confidence_tier = ANY (ARRAY['high'::text, 'medium'::text, 'low'::text])));
 ALTER TABLE analysis.evidence_task ADD CONSTRAINT evidence_task_evidence_need_kind_check CHECK ((evidence_need_kind = ANY (ARRAY['corroboration'::text, 'original_source'::text, 'authentication'::text, 'metadata'::text, 'completeness'::text, 'chain_of_custody'::text, 'rebuttal'::text, 'foundation'::text, 'impeachment'::text])));
 ALTER TABLE analysis.evidence_task ADD CONSTRAINT evidence_task_hitl_status_check CHECK ((hitl_status = ANY (ARRAY['pending'::text, 'approved'::text, 'declined'::text])));
@@ -5069,10 +4497,6 @@ ALTER TABLE analysis.location_contradiction ADD CONSTRAINT chk_loc_contra_distin
 ALTER TABLE analysis.location_contradiction ADD CONSTRAINT location_contradiction_data_tier_check CHECK ((data_tier = 'analytical'::evidence_tier));
 ALTER TABLE analysis.location_contradiction ADD CONSTRAINT location_contradiction_pkey PRIMARY KEY (id);
 ALTER TABLE analysis.location_contradiction ADD CONSTRAINT loccontra_legal_gate CHECK (((safe_for_legal_use = false) OR (review_status = 'approved'::review_state)));
-ALTER TABLE analysis.matter ADD CONSTRAINT matter_created_by_check CHECK ((length(btrim(created_by)) > 0));
-ALTER TABLE analysis.matter ADD CONSTRAINT matter_pkey PRIMARY KEY (id);
-ALTER TABLE analysis.matter ADD CONSTRAINT matter_status_check CHECK ((status = ANY (ARRAY['active'::text, 'closed'::text, 'archived'::text])));
-ALTER TABLE analysis.matter ADD CONSTRAINT matter_title_check CHECK ((length(btrim(title)) > 0));
 ALTER TABLE analysis.matter_knowledge_partition ADD CONSTRAINT matter_knowledge_partition_created_by_check CHECK ((length(btrim(created_by)) > 0));
 ALTER TABLE analysis.matter_knowledge_partition ADD CONSTRAINT matter_knowledge_partition_partition_key_check CHECK ((length(btrim(partition_key)) > 0));
 ALTER TABLE analysis.matter_knowledge_partition ADD CONSTRAINT matter_knowledge_partition_pkey PRIMARY KEY (partition_key);
@@ -5122,6 +4546,19 @@ ALTER TABLE analysis.workflow_run ADD CONSTRAINT workflow_run_status_check CHECK
 ALTER TABLE analysis.workflow_run_stage ADD CONSTRAINT workflow_run_stage_pkey PRIMARY KEY (stage_id);
 ALTER TABLE analysis.workflow_run_stage ADD CONSTRAINT workflow_run_stage_run_id_seq_key UNIQUE (run_id, seq);
 ALTER TABLE analysis.workflow_run_stage ADD CONSTRAINT workflow_run_stage_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'running'::text, 'success'::text, 'failed'::text, 'skipped'::text])));
+ALTER TABLE canon.canonical_table ADD CONSTRAINT canonical_table_pkey PRIMARY KEY (id);
+ALTER TABLE canon.canonical_table ADD CONSTRAINT canonical_table_table_schema_table_name_key UNIQUE (table_schema, table_name);
+ALTER TABLE canon.change_application ADD CONSTRAINT change_application_pkey PRIMARY KEY (id);
+ALTER TABLE canon.change_application ADD CONSTRAINT change_application_proposal_id_key UNIQUE (proposal_id);
+ALTER TABLE canon.change_decision ADD CONSTRAINT change_decision_decision_check CHECK ((decision = ANY (ARRAY['approve'::text, 'reject'::text, 'requeue'::text])));
+ALTER TABLE canon.change_decision ADD CONSTRAINT change_decision_pkey PRIMARY KEY (id);
+ALTER TABLE canon.change_proposal ADD CONSTRAINT change_proposal_origin_surface_check CHECK ((origin_surface = ANY (ARRAY['extractor'::text, 'workbench'::text, 'graph_reconciliation'::text, 'agent'::text, 'human'::text])));
+ALTER TABLE canon.change_proposal ADD CONSTRAINT change_proposal_pkey PRIMARY KEY (id);
+ALTER TABLE canon.change_proposal ADD CONSTRAINT change_proposal_proposal_kind_check CHECK ((proposal_kind = ANY (ARRAY['correct'::text, 'adopt_candidate'::text, 'promote'::text, 'merge'::text, 'retire'::text, 'create'::text])));
+ALTER TABLE canon.change_proposal ADD CONSTRAINT change_proposal_status_check CHECK ((status = ANY (ARRAY['proposed'::text, 'approved'::text, 'rejected'::text, 'stale_requeued'::text, 'applied'::text, 'failed'::text])));
+ALTER TABLE canon.change_tier ADD CONSTRAINT change_tier_pkey PRIMARY KEY (tier);
+ALTER TABLE canon.recompute_queue ADD CONSTRAINT recompute_queue_pkey PRIMARY KEY (id);
+ALTER TABLE canon.recompute_queue ADD CONSTRAINT recompute_queue_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'claimed'::text, 'done'::text, 'failed'::text, 'skipped'::text])));
 ALTER TABLE context.activity_execution ADD CONSTRAINT activity_execution_activity_name_check CHECK ((length(btrim(activity_name)) > 0));
 ALTER TABLE context.activity_execution ADD CONSTRAINT activity_execution_id_source_version_id_key UNIQUE (id, source_version_id);
 ALTER TABLE context.activity_execution ADD CONSTRAINT activity_execution_idempotency_key_check CHECK ((length(btrim(idempotency_key)) > 0));
@@ -5406,32 +4843,21 @@ ALTER TABLE evidence.evidence_hash ADD CONSTRAINT evidence_hash_check CHECK (((a
 ALTER TABLE evidence.evidence_hash ADD CONSTRAINT evidence_hash_level_check CHECK ((level = ANY (ARRAY['H1'::text, 'H2'::text, 'H3'::text])));
 ALTER TABLE evidence.evidence_hash ADD CONSTRAINT evidence_hash_pkey PRIMARY KEY (id);
 ALTER TABLE evidence.evidence_hash ADD CONSTRAINT evidence_hash_subject_ck CHECK (((level = 'H3'::text) OR (source_id IS NOT NULL) OR (file_node_id IS NOT NULL))) NOT VALID;
-ALTER TABLE evidence.file_node ADD CONSTRAINT file_node_node_kind_check CHECK ((node_kind = ANY (ARRAY['file'::text, 'archive_member'::text, 'page'::text, 'frame'::text, 'region'::text, 'screenshot'::text, 'ocr_block'::text, 'attachment'::text, 'message_unit'::text, 'event_unit'::text])));
-ALTER TABLE evidence.file_node ADD CONSTRAINT file_node_pkey PRIMARY KEY (id);
-ALTER TABLE evidence.file_node ADD CONSTRAINT file_node_sha_len CHECK (((sha256 IS NULL) OR (octet_length(sha256) = 32)));
-ALTER TABLE evidence.gps_point ADD CONSTRAINT gps_point_data_tier_check CHECK ((data_tier = 'raw'::evidence_tier));
-ALTER TABLE evidence.gps_point ADD CONSTRAINT gps_point_pkey PRIMARY KEY (id);
+ALTER TABLE evidence.evidence_item ADD CONSTRAINT evidence_item_authentication_method_check CHECK (((authentication_method IS NULL) OR (authentication_method = ANY (ARRAY['witness_with_knowledge'::text, 'distinctive_characteristics'::text, 'process_or_system'::text, 'public_record'::text, 'hash_chain_of_custody'::text, 'self_authenticating'::text, 'stipulation'::text]))));
+ALTER TABLE evidence.evidence_item ADD CONSTRAINT evidence_item_case_id_exhibit_number_key UNIQUE (case_id, exhibit_number);
+ALTER TABLE evidence.evidence_item ADD CONSTRAINT evidence_item_case_management_scope_ck CHECK (((matter_id IS NULL) = (court_case_id IS NULL)));
+ALTER TABLE evidence.evidence_item ADD CONSTRAINT evidence_item_case_management_scope_key UNIQUE (id, matter_id, court_case_id);
+ALTER TABLE evidence.evidence_item ADD CONSTRAINT evidence_item_conf_tier_ck CHECK (((confidence_tier <> 'high'::text) OR (confidence IS NULL) OR ((confidence)::numeric >= 0.60)));
+ALTER TABLE evidence.evidence_item ADD CONSTRAINT evidence_item_confidence_tier_check CHECK ((confidence_tier = ANY (ARRAY['high'::text, 'medium'::text, 'low'::text])));
+ALTER TABLE evidence.evidence_item ADD CONSTRAINT evidence_item_evidence_type_check CHECK ((evidence_type = ANY (ARRAY['communication'::text, 'document'::text, 'photo'::text, 'record'::text, 'media'::text, 'screenshot'::text, 'transcript'::text, 'metadata'::text, 'other'::text])));
+ALTER TABLE evidence.evidence_item ADD CONSTRAINT evidence_item_pkey PRIMARY KEY (id);
+ALTER TABLE evidence.evidence_item ADD CONSTRAINT evidence_item_privacy_sensitivity_check CHECK ((privacy_sensitivity = ANY (ARRAY['none'::text, 'pii'::text, 'minor'::text, 'sensitive_pii'::text])));
+ALTER TABLE evidence.evidence_item ADD CONSTRAINT evidence_item_redaction_status_check CHECK ((redaction_status = ANY (ARRAY['none'::text, 'required'::text, 'applied'::text])));
+ALTER TABLE evidence.evidence_item ADD CONSTRAINT evidence_item_safe_ck CHECK (((safe_for_legal_use = false) OR ((review_status = 'approved'::review_state) AND (is_authenticated = true) AND (is_hypothesis = false) AND (redaction_status <> 'required'::text))));
 ALTER TABLE evidence.ingest_run ADD CONSTRAINT ingest_run_notes_check CHECK ((jsonb_typeof(notes) = 'object'::text));
 ALTER TABLE evidence.ingest_run ADD CONSTRAINT ingest_run_pkey PRIMARY KEY (id);
 ALTER TABLE evidence.ingest_run ADD CONSTRAINT ingest_run_source_sha256_check CHECK ((octet_length(source_sha256) = 32));
 ALTER TABLE evidence.ingest_run ADD CONSTRAINT ingest_run_status_check CHECK ((status = ANY (ARRAY['running'::text, 'committed'::text, 'rolled_back'::text, 'failed'::text])));
-ALTER TABLE evidence.raw_activity ADD CONSTRAINT raw_activity_data_tier_check CHECK ((data_tier = 'raw'::evidence_tier));
-ALTER TABLE evidence.raw_activity ADD CONSTRAINT raw_activity_pkey PRIMARY KEY (id);
-ALTER TABLE evidence.raw_ai_chat ADD CONSTRAINT raw_ai_chat_pkey PRIMARY KEY (id);
-ALTER TABLE evidence.raw_csv ADD CONSTRAINT raw_csv_pkey PRIMARY KEY (id);
-ALTER TABLE evidence.raw_facebook ADD CONSTRAINT raw_facebook_pkey PRIMARY KEY (id);
-ALTER TABLE evidence.raw_imessage ADD CONSTRAINT raw_imessage_pkey PRIMARY KEY (id);
-ALTER TABLE evidence.raw_path ADD CONSTRAINT raw_path_data_tier_check CHECK ((data_tier = 'raw'::evidence_tier));
-ALTER TABLE evidence.raw_path ADD CONSTRAINT raw_path_pkey PRIMARY KEY (id);
-ALTER TABLE evidence.raw_phone ADD CONSTRAINT raw_phone_pkey PRIMARY KEY (id);
-ALTER TABLE evidence.raw_rejected ADD CONSTRAINT raw_rejected_pkey PRIMARY KEY (id);
-ALTER TABLE evidence.raw_rejected ADD CONSTRAINT raw_rejected_reason_check CHECK ((reason = ANY (ARRAY['no_timestamp_no_counterparty'::text, 'dedup_duplicate_in_source'::text, 'parser_returned_none'::text, 'unmapped_element'::text, 'malformed'::text, 'operator_excluded'::text])));
-ALTER TABLE evidence.raw_rejected ADD CONSTRAINT raw_rejected_source_sha256_check CHECK ((octet_length(source_sha256) = 32));
-ALTER TABLE evidence.raw_sms ADD CONSTRAINT raw_sms_pkey PRIMARY KEY (id);
-ALTER TABLE evidence.raw_trip ADD CONSTRAINT raw_trip_data_tier_check CHECK ((data_tier = 'raw'::evidence_tier));
-ALTER TABLE evidence.raw_trip ADD CONSTRAINT raw_trip_pkey PRIMARY KEY (id);
-ALTER TABLE evidence.raw_visit ADD CONSTRAINT raw_visit_data_tier_check CHECK ((data_tier = 'raw'::evidence_tier));
-ALTER TABLE evidence.raw_visit ADD CONSTRAINT raw_visit_pkey PRIMARY KEY (id);
 ALTER TABLE evidence.source ADD CONSTRAINT source_acquisition_method_check CHECK (((acquisition_method IS NULL) OR (acquisition_method = ANY (ARRAY['forensic_image'::text, 'manual_export'::text, 'cloud_pull'::text, 'photograph'::text, 'scan'::text, 'backup'::text]))));
 ALTER TABLE evidence.source ADD CONSTRAINT source_custody_status_check CHECK ((custody_status = ANY (ARRAY['collected'::text, 'sealed'::text, 'in_processing'::text, 'verified'::text, 'disputed'::text, 'released'::text])));
 ALTER TABLE evidence.source ADD CONSTRAINT source_export_status_check CHECK ((export_status = ANY (ARRAY['not_exported'::text, 'in_package'::text, 'exported'::text, 'withdrawn'::text])));
@@ -5471,13 +4897,7 @@ ALTER TABLE ops.workflow_run_stage ADD CONSTRAINT workflow_run_stage_pkey PRIMAR
 ALTER TABLE ops.workflow_run_stage ADD CONSTRAINT workflow_run_stage_run_id_seq_key UNIQUE (run_id, seq);
 ALTER TABLE ops.workflow_run_stage ADD CONSTRAINT workflow_run_stage_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'running'::text, 'success'::text, 'failed'::text, 'skipped'::text])));
 ALTER TABLE ops.workflow_run_stage ADD CONSTRAINT workflow_run_stage_terminal_reason CHECK ((((status = ANY (ARRAY['pending'::text, 'running'::text])) AND (outcome_reason_code IS NULL)) OR ((status = ANY (ARRAY['success'::text, 'failed'::text, 'skipped'::text])) AND (outcome_reason_code IS NOT NULL))));
-ALTER TABLE public.agent_run ADD CONSTRAINT agent_run_pkey PRIMARY KEY (id);
-ALTER TABLE public.agent_run ADD CONSTRAINT agent_run_run_type_check CHECK ((run_type = ANY (ARRAY['platform'::text, 'builder'::text])));
-ALTER TABLE public.agent_run ADD CONSTRAINT agent_run_status_check CHECK ((status = ANY (ARRAY['queued'::text, 'running'::text, 'awaiting_approval'::text, 'completed'::text, 'failed'::text, 'cancelled'::text])));
 ALTER TABLE public.app_setting ADD CONSTRAINT app_setting_pkey PRIMARY KEY (key);
-ALTER TABLE public.approval_request ADD CONSTRAINT approval_request_approval_status_check CHECK ((approval_status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text, 'expired'::text])));
-ALTER TABLE public.approval_request ADD CONSTRAINT approval_request_pkey PRIMARY KEY (id);
-ALTER TABLE public.approval_request ADD CONSTRAINT approval_request_risk_level_check CHECK ((risk_level = ANY (ARRAY['low'::text, 'medium'::text, 'high'::text, 'critical'::text])));
 ALTER TABLE public.canon_registry ADD CONSTRAINT canon_registry_canon_name_key UNIQUE (canon_name);
 ALTER TABLE public.canon_registry ADD CONSTRAINT canon_registry_pkey PRIMARY KEY (id);
 ALTER TABLE public.canon_registry ADD CONSTRAINT canon_registry_status_check CHECK ((status = ANY (ARRAY['active'::text, 'superseded'::text, 'lost'::text])));
@@ -5505,38 +4925,6 @@ ALTER TABLE public.ontology_version ADD CONSTRAINT ontology_version_version_labe
 ALTER TABLE public.open_questions ADD CONSTRAINT open_questions_category_check CHECK ((category = ANY (ARRAY['data_gap'::text, 'schema'::text, 'ontology'::text, 'legal_relevance'::text, 'corroboration_needed'::text, 'privacy'::text, 'technical'::text])));
 ALTER TABLE public.open_questions ADD CONSTRAINT open_questions_pkey PRIMARY KEY (question_id);
 ALTER TABLE public.open_questions ADD CONSTRAINT open_questions_status_check CHECK ((status = ANY (ARRAY['open'::text, 'investigating'::text, 'answered'::text, 'wont_fix'::text, 'superseded'::text])));
-ALTER TABLE public.platform_consolidation_checkpoint ADD CONSTRAINT platform_consolidation_checkp_plan_id_phase_key_relation_ke_key UNIQUE (plan_id, phase_key, relation_key, attempt_key);
-ALTER TABLE public.platform_consolidation_checkpoint ADD CONSTRAINT platform_consolidation_checkpoin_fence_attestation_sha256_check CHECK (((fence_attestation_sha256 IS NULL) OR (octet_length(fence_attestation_sha256) = 32)));
-ALTER TABLE public.platform_consolidation_checkpoint ADD CONSTRAINT platform_consolidation_checkpoint_attempt_key_check CHECK ((length(btrim(attempt_key)) > 0));
-ALTER TABLE public.platform_consolidation_checkpoint ADD CONSTRAINT platform_consolidation_checkpoint_check CHECK (((required_proof_kind <> 'row_parity'::text) OR (checkpoint_status <> 'verified'::text) OR ((source_row_count IS NOT NULL) AND (target_row_count IS NOT NULL) AND (source_row_count = target_row_count))));
-ALTER TABLE public.platform_consolidation_checkpoint ADD CONSTRAINT platform_consolidation_checkpoint_check1 CHECK (((checkpoint_status = 'verified'::text) = (verified_receipt_id IS NOT NULL)));
-ALTER TABLE public.platform_consolidation_checkpoint ADD CONSTRAINT platform_consolidation_checkpoint_check2 CHECK (((checkpoint_status <> 'verified'::text) OR (required_proof_kind <> ALL (ARRAY['caller_inventory'::text, 'zero_active_sessions'::text])) OR ((fence_attestation_id IS NOT NULL) AND (length(btrim(fence_attestation_id)) > 0) AND (fence_attestation_sha256 IS NOT NULL) AND (fence_established_at IS NOT NULL) AND (fence_valid_until IS NOT NULL) AND (fence_established_at <= source_snapshot_observed_at) AND (fence_established_at <= target_snapshot_observed_at) AND (fence_valid_until >= source_snapshot_observed_at) AND (fence_valid_until >= target_snapshot_observed_at))));
-ALTER TABLE public.platform_consolidation_checkpoint ADD CONSTRAINT platform_consolidation_checkpoint_checkpoint_status_check CHECK ((checkpoint_status = ANY (ARRAY['planned'::text, 'verified'::text, 'blocked'::text, 'failed'::text])));
-ALTER TABLE public.platform_consolidation_checkpoint ADD CONSTRAINT platform_consolidation_checkpoint_copy_order_check CHECK (((copy_order IS NULL) OR (copy_order > 0)));
-ALTER TABLE public.platform_consolidation_checkpoint ADD CONSTRAINT platform_consolidation_checkpoint_manifest_sha256_check CHECK ((octet_length(manifest_sha256) = 32));
-ALTER TABLE public.platform_consolidation_checkpoint ADD CONSTRAINT platform_consolidation_checkpoint_phase_key_check CHECK ((length(btrim(phase_key)) > 0));
-ALTER TABLE public.platform_consolidation_checkpoint ADD CONSTRAINT platform_consolidation_checkpoint_pkey PRIMARY KEY (id);
-ALTER TABLE public.platform_consolidation_checkpoint ADD CONSTRAINT platform_consolidation_checkpoint_proof_ref_check CHECK ((length(btrim(proof_ref)) > 0));
-ALTER TABLE public.platform_consolidation_checkpoint ADD CONSTRAINT platform_consolidation_checkpoint_recorded_by_check CHECK ((length(btrim(recorded_by)) > 0));
-ALTER TABLE public.platform_consolidation_checkpoint ADD CONSTRAINT platform_consolidation_checkpoint_relation_key_check CHECK ((length(btrim(relation_key)) > 0));
-ALTER TABLE public.platform_consolidation_checkpoint ADD CONSTRAINT platform_consolidation_checkpoint_repository_revision_check CHECK ((length(btrim(repository_revision)) > 0));
-ALTER TABLE public.platform_consolidation_checkpoint ADD CONSTRAINT platform_consolidation_checkpoint_required_proof_kind_check CHECK ((required_proof_kind = ANY (ARRAY['inventory'::text, 'row_parity'::text, 'foreign_key_integrity'::text, 'role_inventory'::text, 'extension_inventory'::text, 'caller_inventory'::text, 'zero_active_sessions'::text, 'custody_integrity'::text, 'source_clock_integrity'::text, 'projection_integrity'::text])));
-ALTER TABLE public.platform_consolidation_checkpoint ADD CONSTRAINT platform_consolidation_checkpoint_source_database_check CHECK ((source_database = 'ai'::text));
-ALTER TABLE public.platform_consolidation_checkpoint ADD CONSTRAINT platform_consolidation_checkpoint_source_row_count_check CHECK (((source_row_count IS NULL) OR (source_row_count >= 0)));
-ALTER TABLE public.platform_consolidation_checkpoint ADD CONSTRAINT platform_consolidation_checkpoint_source_snapshot_id_check CHECK ((length(btrim(source_snapshot_id)) > 0));
-ALTER TABLE public.platform_consolidation_checkpoint ADD CONSTRAINT platform_consolidation_checkpoint_source_snapshot_sha256_check CHECK ((octet_length(source_snapshot_sha256) = 32));
-ALTER TABLE public.platform_consolidation_checkpoint ADD CONSTRAINT platform_consolidation_checkpoint_target_database_check CHECK ((target_database = 'platform'::text));
-ALTER TABLE public.platform_consolidation_checkpoint ADD CONSTRAINT platform_consolidation_checkpoint_target_row_count_check CHECK (((target_row_count IS NULL) OR (target_row_count >= 0)));
-ALTER TABLE public.platform_consolidation_checkpoint ADD CONSTRAINT platform_consolidation_checkpoint_target_snapshot_id_check CHECK ((length(btrim(target_snapshot_id)) > 0));
-ALTER TABLE public.platform_consolidation_checkpoint ADD CONSTRAINT platform_consolidation_checkpoint_target_snapshot_sha256_check CHECK ((octet_length(target_snapshot_sha256) = 32));
-ALTER TABLE public.platform_consolidation_proof_receipt ADD CONSTRAINT platform_consolidation_proof__checkpoint_id_proof_kind_proo_key UNIQUE (checkpoint_id, proof_kind, proof_sha256);
-ALTER TABLE public.platform_consolidation_proof_receipt ADD CONSTRAINT platform_consolidation_proof_receipt_details_check CHECK (((jsonb_typeof(details) = 'object'::text) AND (details <> '{}'::jsonb)));
-ALTER TABLE public.platform_consolidation_proof_receipt ADD CONSTRAINT platform_consolidation_proof_receipt_observed_by_check CHECK ((length(btrim(observed_by)) > 0));
-ALTER TABLE public.platform_consolidation_proof_receipt ADD CONSTRAINT platform_consolidation_proof_receipt_pkey PRIMARY KEY (id);
-ALTER TABLE public.platform_consolidation_proof_receipt ADD CONSTRAINT platform_consolidation_proof_receipt_proof_kind_check CHECK ((proof_kind = ANY (ARRAY['inventory'::text, 'row_parity'::text, 'foreign_key_integrity'::text, 'role_inventory'::text, 'extension_inventory'::text, 'caller_inventory'::text, 'zero_active_sessions'::text, 'custody_integrity'::text, 'source_clock_integrity'::text, 'projection_integrity'::text])));
-ALTER TABLE public.platform_consolidation_proof_receipt ADD CONSTRAINT platform_consolidation_proof_receipt_proof_sha256_check CHECK ((octet_length(proof_sha256) = 32));
-ALTER TABLE public.platform_consolidation_proof_receipt ADD CONSTRAINT platform_consolidation_proof_receipt_result_check CHECK ((result = ANY (ARRAY['pass'::text, 'fail'::text, 'blocked'::text])));
-ALTER TABLE public.platform_consolidation_proof_receipt ADD CONSTRAINT platform_consolidation_proof_receipt_supersedes_receipt_id_key UNIQUE (supersedes_receipt_id);
 ALTER TABLE public.platform_consolidation_receipt_claim ADD CONSTRAINT platform_consolidation_receipt_claim_check CHECK ((((claim_kind = 'verified'::text) AND (checkpoint_id IS NOT NULL) AND (successor_receipt_id IS NULL)) OR ((claim_kind = 'superseded'::text) AND (checkpoint_id IS NULL) AND (successor_receipt_id IS NOT NULL))));
 ALTER TABLE public.platform_consolidation_receipt_claim ADD CONSTRAINT platform_consolidation_receipt_claim_claim_kind_check CHECK ((claim_kind = ANY (ARRAY['verified'::text, 'superseded'::text])));
 ALTER TABLE public.platform_consolidation_receipt_claim ADD CONSTRAINT platform_consolidation_receipt_claim_pkey PRIMARY KEY (receipt_id);
@@ -5549,6 +4937,28 @@ ALTER TABLE public.schema_version ADD CONSTRAINT schema_version_status_check CHE
 ALTER TABLE public.schema_version ADD CONSTRAINT schema_version_version_label_applies_to_key UNIQUE (version_label, applies_to);
 ALTER TABLE public.session_summaries ADD CONSTRAINT session_summaries_pkey PRIMARY KEY (session_id);
 ALTER TABLE public.transcript_insight ADD CONSTRAINT transcript_insight_pkey PRIMARY KEY (id);
+ALTER TABLE raw.file_node ADD CONSTRAINT file_node_node_kind_check CHECK ((node_kind = ANY (ARRAY['file'::text, 'archive_member'::text, 'page'::text, 'frame'::text, 'region'::text, 'screenshot'::text, 'ocr_block'::text, 'attachment'::text, 'message_unit'::text, 'event_unit'::text])));
+ALTER TABLE raw.file_node ADD CONSTRAINT file_node_pkey PRIMARY KEY (id);
+ALTER TABLE raw.file_node ADD CONSTRAINT file_node_sha_len CHECK (((sha256 IS NULL) OR (octet_length(sha256) = 32)));
+ALTER TABLE raw.gps_point ADD CONSTRAINT gps_point_data_tier_check CHECK ((data_tier = 'raw'::evidence_tier));
+ALTER TABLE raw.gps_point ADD CONSTRAINT gps_point_pkey PRIMARY KEY (id);
+ALTER TABLE raw.raw_activity ADD CONSTRAINT raw_activity_data_tier_check CHECK ((data_tier = 'raw'::evidence_tier));
+ALTER TABLE raw.raw_activity ADD CONSTRAINT raw_activity_pkey PRIMARY KEY (id);
+ALTER TABLE raw.raw_ai_chat ADD CONSTRAINT raw_ai_chat_pkey PRIMARY KEY (id);
+ALTER TABLE raw.raw_csv ADD CONSTRAINT raw_csv_pkey PRIMARY KEY (id);
+ALTER TABLE raw.raw_facebook ADD CONSTRAINT raw_facebook_pkey PRIMARY KEY (id);
+ALTER TABLE raw.raw_imessage ADD CONSTRAINT raw_imessage_pkey PRIMARY KEY (id);
+ALTER TABLE raw.raw_path ADD CONSTRAINT raw_path_data_tier_check CHECK ((data_tier = 'raw'::evidence_tier));
+ALTER TABLE raw.raw_path ADD CONSTRAINT raw_path_pkey PRIMARY KEY (id);
+ALTER TABLE raw.raw_phone ADD CONSTRAINT raw_phone_pkey PRIMARY KEY (id);
+ALTER TABLE raw.raw_rejected ADD CONSTRAINT raw_rejected_pkey PRIMARY KEY (id);
+ALTER TABLE raw.raw_rejected ADD CONSTRAINT raw_rejected_reason_check CHECK ((reason = ANY (ARRAY['no_timestamp_no_counterparty'::text, 'dedup_duplicate_in_source'::text, 'parser_returned_none'::text, 'unmapped_element'::text, 'malformed'::text, 'operator_excluded'::text])));
+ALTER TABLE raw.raw_rejected ADD CONSTRAINT raw_rejected_source_sha256_check CHECK ((octet_length(source_sha256) = 32));
+ALTER TABLE raw.raw_sms ADD CONSTRAINT raw_sms_pkey PRIMARY KEY (id);
+ALTER TABLE raw.raw_trip ADD CONSTRAINT raw_trip_data_tier_check CHECK ((data_tier = 'raw'::evidence_tier));
+ALTER TABLE raw.raw_trip ADD CONSTRAINT raw_trip_pkey PRIMARY KEY (id);
+ALTER TABLE raw.raw_visit ADD CONSTRAINT raw_visit_data_tier_check CHECK ((data_tier = 'raw'::evidence_tier));
+ALTER TABLE raw.raw_visit ADD CONSTRAINT raw_visit_pkey PRIMARY KEY (id);
 ALTER TABLE reference.behavior_category ADD CONSTRAINT behavior_category_pkey PRIMARY KEY (category_id);
 ALTER TABLE reference.behavior_category ADD CONSTRAINT behavior_category_sev_chk CHECK (((default_severity >= 0) AND (default_severity <= 10)));
 ALTER TABLE reference.behavior_category_mcl ADD CONSTRAINT behavior_category_mcl_pkey PRIMARY KEY (category_id, factor_code);
@@ -5556,6 +4966,13 @@ ALTER TABLE reference.claim_type ADD CONSTRAINT claim_type_description_check CHE
 ALTER TABLE reference.claim_type ADD CONSTRAINT claim_type_label_check CHECK ((length(btrim(label)) > 0));
 ALTER TABLE reference.claim_type ADD CONSTRAINT claim_type_pkey PRIMARY KEY (slug);
 ALTER TABLE reference.claim_type ADD CONSTRAINT claim_type_slug_check CHECK (((slug = lower(slug)) AND (slug ~ '^[a-z0-9]+(?:_[a-z0-9]+)*$'::text)));
+ALTER TABLE reference.court_case ADD CONSTRAINT court_case_caption_check CHECK ((length(btrim(caption)) > 0));
+ALTER TABLE reference.court_case ADD CONSTRAINT court_case_created_by_check CHECK ((length(btrim(created_by)) > 0));
+ALTER TABLE reference.court_case ADD CONSTRAINT court_case_dates_ck CHECK (((closed_on IS NULL) OR (filed_on IS NULL) OR (closed_on >= filed_on)));
+ALTER TABLE reference.court_case ADD CONSTRAINT court_case_id_matter_key UNIQUE (id, matter_id);
+ALTER TABLE reference.court_case ADD CONSTRAINT court_case_pkey PRIMARY KEY (id);
+ALTER TABLE reference.court_case ADD CONSTRAINT court_case_status_check CHECK ((status = ANY (ARRAY['pre_filing'::text, 'active'::text, 'stayed'::text, 'closed'::text, 'appealed'::text, 'archived'::text])));
+ALTER TABLE reference.court_case ADD CONSTRAINT court_case_verification_state_check CHECK ((verification_state = ANY (ARRAY['proposed'::text, 'confirmed'::text, 'disputed'::text])));
 ALTER TABLE reference.custody_factor ADD CONSTRAINT custody_factor_pkey PRIMARY KEY (factor);
 ALTER TABLE reference.detection_pattern ADD CONSTRAINT detection_pattern_pattern_set_id_category_id_match_type_pat_key UNIQUE (pattern_set_id, category_id, match_type, pattern);
 ALTER TABLE reference.detection_pattern ADD CONSTRAINT detection_pattern_pkey PRIMARY KEY (id);
@@ -5563,10 +4980,18 @@ ALTER TABLE reference.detection_pattern ADD CONSTRAINT detection_pattern_score_c
 ALTER TABLE reference.detection_pattern ADD CONSTRAINT detection_pattern_sev_chk CHECK (((severity >= 0) AND (severity <= 10)));
 ALTER TABLE reference.detection_pattern_set ADD CONSTRAINT detection_pattern_set_name_version_key UNIQUE (name, version);
 ALTER TABLE reference.detection_pattern_set ADD CONSTRAINT detection_pattern_set_pkey PRIMARY KEY (id);
+ALTER TABLE reference.device ADD CONSTRAINT device_pkey PRIMARY KEY (id);
+ALTER TABLE reference.device ADD CONSTRAINT device_verification_state_check CHECK ((verification_state = ANY (ARRAY['proposed'::text, 'confirmed'::text, 'disputed'::text])));
+ALTER TABLE reference.entity ADD CONSTRAINT entity_not_self_merge CHECK ((merged_into_id IS DISTINCT FROM id));
+ALTER TABLE reference.entity ADD CONSTRAINT entity_pkey PRIMARY KEY (id);
+ALTER TABLE reference.entity_alias ADD CONSTRAINT entity_alias_alias_kind_check CHECK ((alias_kind = ANY (ARRAY['nickname'::text, 'legal'::text, 'maiden'::text, 'handle'::text, 'misspelling'::text, 'phonetic'::text, 'initials'::text, 'other'::text])));
+ALTER TABLE reference.entity_alias ADD CONSTRAINT entity_alias_pkey PRIMARY KEY (id);
 ALTER TABLE reference.format_resolver ADD CONSTRAINT format_resolver_pkey PRIMARY KEY (id);
 ALTER TABLE reference.format_resolver ADD CONSTRAINT format_resolver_source_signature_target_schema_key UNIQUE (source_signature, target_schema);
 ALTER TABLE reference.geofence ADD CONSTRAINT geofence_data_tier_check CHECK ((data_tier = 'analytical'::evidence_tier));
 ALTER TABLE reference.geofence ADD CONSTRAINT geofence_pkey PRIMARY KEY (id);
+ALTER TABLE reference.id_xref ADD CONSTRAINT id_xref_pkey PRIMARY KEY (id);
+ALTER TABLE reference.id_xref ADD CONSTRAINT uq_xref_pair UNIQUE (system_a, native_id_a, system_b, native_id_b);
 ALTER TABLE reference.knowledge_tag ADD CONSTRAINT knowledge_tag_label_check CHECK ((length(label) > 0));
 ALTER TABLE reference.knowledge_tag ADD CONSTRAINT knowledge_tag_pkey PRIMARY KEY (id);
 ALTER TABLE reference.knowledge_tag ADD CONSTRAINT knowledge_tag_slug_check CHECK (((slug = lower(slug)) AND (slug ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'::text)));
@@ -5578,8 +5003,20 @@ ALTER TABLE reference.legal_issue_factor ADD CONSTRAINT legal_issue_factor_pkey 
 ALTER TABLE reference.lexicon_sync ADD CONSTRAINT lexicon_sync_level_check CHECK (((level IS NULL) OR (level = ANY (ARRAY['conservative'::text, 'inclusive'::text]))));
 ALTER TABLE reference.lexicon_sync ADD CONSTRAINT lexicon_sync_pkey PRIMARY KEY (id);
 ALTER TABLE reference.lexicon_sync ADD CONSTRAINT lexicon_sync_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'syncing'::text, 'success'::text, 'error'::text])));
+ALTER TABLE reference.location ADD CONSTRAINT location_data_tier_check CHECK ((data_tier = ANY (ARRAY['extracted'::evidence_tier, 'inferred'::evidence_tier, 'analytical'::evidence_tier])));
+ALTER TABLE reference.location ADD CONSTRAINT location_pkey PRIMARY KEY (id);
+ALTER TABLE reference.location ADD CONSTRAINT location_verification_state_check CHECK ((verification_state = ANY (ARRAY['proposed'::text, 'confirmed'::text, 'disputed'::text])));
+ALTER TABLE reference.matter ADD CONSTRAINT matter_created_by_check CHECK ((length(btrim(created_by)) > 0));
+ALTER TABLE reference.matter ADD CONSTRAINT matter_pkey PRIMARY KEY (id);
+ALTER TABLE reference.matter ADD CONSTRAINT matter_status_check CHECK ((status = ANY (ARRAY['active'::text, 'closed'::text, 'archived'::text])));
+ALTER TABLE reference.matter ADD CONSTRAINT matter_title_check CHECK ((length(btrim(title)) > 0));
+ALTER TABLE reference.matter ADD CONSTRAINT matter_verification_state_check CHECK ((verification_state = ANY (ARRAY['proposed'::text, 'confirmed'::text, 'disputed'::text])));
 ALTER TABLE reference.pattern_lexicon ADD CONSTRAINT pattern_lexicon_pkey PRIMARY KEY (id);
 ALTER TABLE reference.pattern_lexicon ADD CONSTRAINT pattern_lexicon_sev_chk CHECK (((severity >= 0) AND (severity <= 10)));
+ALTER TABLE reference.person ADD CONSTRAINT person_connection_to_check CHECK ((connection_to = ANY (ARRAY['petitioner'::text, 'respondent'::text, 'child'::text, 'mutual'::text, 'third_party'::text, 'unknown'::text])));
+ALTER TABLE reference.person ADD CONSTRAINT person_pkey PRIMARY KEY (id);
+ALTER TABLE reference.person ADD CONSTRAINT person_role_in_case_check CHECK ((role_in_case = ANY (ARRAY['user'::text, 'partner'::text, 'child'::text, 'witness'::text, 'evaluator'::text, 'attorney'::text, 'third_party'::text, 'neutral'::text, 'unknown'::text])));
+ALTER TABLE reference.person ADD CONSTRAINT person_verification_state_check CHECK ((verification_state = ANY (ARRAY['proposed'::text, 'confirmed'::text, 'disputed'::text])));
 ALTER TABLE reference.relative_rule ADD CONSTRAINT relative_rule_pkey PRIMARY KEY (rule_id);
 ALTER TABLE reference.score_band_config ADD CONSTRAINT score_band_config_pkey PRIMARY KEY (config_version);
 ALTER TABLE reference.topic_code ADD CONSTRAINT topic_code_pkey PRIMARY KEY (code);
@@ -5620,12 +5057,6 @@ ALTER TABLE working.artifact_registry ADD CONSTRAINT artifact_registry_pkey PRIM
 ALTER TABLE working.artifact_registry ADD CONSTRAINT artifact_registry_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'needs_review'::text, 'active'::text, 'approved'::text, 'promoted'::text, 'rejected'::text, 'superseded'::text, 'archived'::text])));
 ALTER TABLE working.attachment ADD CONSTRAINT attachment_file_sha256_check CHECK (((file_sha256 IS NULL) OR (octet_length(file_sha256) = 32)));
 ALTER TABLE working.attachment ADD CONSTRAINT attachment_pkey PRIMARY KEY (id);
-ALTER TABLE working.block_status ADD CONSTRAINT block_status_confidence_check CHECK (((confidence IS NULL) OR ((confidence >= (0)::numeric) AND (confidence <= (1)::numeric))));
-ALTER TABLE working.block_status ADD CONSTRAINT block_status_pkey PRIMARY KEY (id);
-ALTER TABLE working.block_status ADD CONSTRAINT block_status_range CHECK (((effective_to IS NULL) OR (effective_to > effective_from)));
-ALTER TABLE working.block_status ADD CONSTRAINT block_status_status_check CHECK ((status = ANY (ARRAY['blocked'::text, 'suspected'::text, 'not_blocked'::text, 'unknown'::text])));
-ALTER TABLE working.block_status ADD CONSTRAINT block_status_supported CHECK (((status <> 'suspected'::text) OR (inference_signals IS NOT NULL) OR (basis IS NOT NULL)));
-ALTER TABLE working.block_status ADD CONSTRAINT block_status_target_kind_check CHECK ((target_kind = ANY (ARRAY['phone'::text, 'handle'::text, 'entity'::text])));
 ALTER TABLE working.call_log ADD CONSTRAINT call_log_call_type_check CHECK ((call_type = ANY (ARRAY['incoming'::text, 'outgoing'::text, 'missed'::text, 'rejected'::text, 'blocked_incoming'::text, 'blocked_outgoing'::text, 'voicemail'::text])));
 ALTER TABLE working.call_log ADD CONSTRAINT call_log_direction_check CHECK ((direction = ANY (ARRAY['inbound'::text, 'outbound'::text, 'unknown'::text])));
 ALTER TABLE working.call_log ADD CONSTRAINT call_log_pkey PRIMARY KEY (id);
@@ -5665,56 +5096,9 @@ ALTER TABLE working.candidate_fact ADD CONSTRAINT candidate_fact_promotion_is_co
 ALTER TABLE working.candidate_fact ADD CONSTRAINT candidate_fact_promotion_requires_approval CHECK (((promoted_at IS NULL) OR (review_state = 'approved'::text)));
 ALTER TABLE working.candidate_fact ADD CONSTRAINT candidate_fact_review_state_check CHECK ((review_state = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text, 'needs_info'::text, 'superseded'::text])));
 ALTER TABLE working.candidate_fact ADD CONSTRAINT candidate_fact_statement_check CHECK ((length(statement) > 0));
-ALTER TABLE working.chat_cdc_cursor ADD CONSTRAINT chat_cdc_cursor_last_event_id_check CHECK ((last_event_id >= 0));
-ALTER TABLE working.chat_cdc_cursor ADD CONSTRAINT chat_cdc_cursor_pkey PRIMARY KEY (sink_id, source_event_table);
-ALTER TABLE working.chat_cdc_cursor ADD CONSTRAINT chat_cdc_cursor_source_event_table_check CHECK ((source_event_table = ANY (ARRAY['chat_conversation_event'::text, 'chat_message_event'::text, 'chat_chunk_event'::text, 'chat_chunk_lane_event'::text, 'context_asset_event'::text])));
-ALTER TABLE working.chat_chunk ADD CONSTRAINT chat_chunk_attrs_check CHECK ((jsonb_typeof(attrs) = 'object'::text));
-ALTER TABLE working.chat_chunk ADD CONSTRAINT chat_chunk_char_start_check CHECK (((char_start IS NULL) OR (char_start >= 0)));
-ALTER TABLE working.chat_chunk ADD CONSTRAINT chat_chunk_check CHECK (((char_end IS NULL) OR (char_end >= char_start)));
-ALTER TABLE working.chat_chunk ADD CONSTRAINT chat_chunk_chunk_index_check CHECK ((chunk_index >= 0));
-ALTER TABLE working.chat_chunk ADD CONSTRAINT chat_chunk_content_check CHECK ((length(content) > 0));
-ALTER TABLE working.chat_chunk ADD CONSTRAINT chat_chunk_content_hash_check CHECK ((length(content_hash) = 64));
-ALTER TABLE working.chat_chunk ADD CONSTRAINT chat_chunk_content_hash_key UNIQUE (content_hash);
-ALTER TABLE working.chat_chunk ADD CONSTRAINT chat_chunk_conversation_id_chunk_index_key UNIQUE (conversation_id, chunk_index);
-ALTER TABLE working.chat_chunk ADD CONSTRAINT chat_chunk_pkey PRIMARY KEY (id);
-ALTER TABLE working.chat_chunk ADD CONSTRAINT chat_chunk_token_count_check CHECK (((token_count IS NULL) OR (token_count >= 0)));
-ALTER TABLE working.chat_chunk_embedding ADD CONSTRAINT chat_chunk_embedding_attrs_check CHECK ((jsonb_typeof(attrs) = 'object'::text));
-ALTER TABLE working.chat_chunk_embedding ADD CONSTRAINT chat_chunk_embedding_content_hash_check CHECK ((length(content_hash) = 64));
-ALTER TABLE working.chat_chunk_embedding ADD CONSTRAINT chat_chunk_embedding_content_hash_embedder_id_key UNIQUE (content_hash, embedder_id);
-ALTER TABLE working.chat_chunk_embedding ADD CONSTRAINT chat_chunk_embedding_embedding_dimension_check CHECK ((embedding_dimension > 0));
-ALTER TABLE working.chat_chunk_embedding ADD CONSTRAINT chat_chunk_embedding_pkey PRIMARY KEY (chunk_id, embedder_id);
-ALTER TABLE working.chat_chunk_event ADD CONSTRAINT chat_chunk_event_operation_check CHECK ((operation = ANY (ARRAY['INSERT'::text, 'UPDATE'::text])));
-ALTER TABLE working.chat_chunk_event ADD CONSTRAINT chat_chunk_event_pkey PRIMARY KEY (event_id);
-ALTER TABLE working.chat_chunk_lane ADD CONSTRAINT chat_chunk_lane_attrs_check CHECK ((jsonb_typeof(attrs) = 'object'::text));
-ALTER TABLE working.chat_chunk_lane ADD CONSTRAINT chat_chunk_lane_check CHECK (((reviewed_at IS NULL) = (reviewed_by IS NULL)));
-ALTER TABLE working.chat_chunk_lane ADD CONSTRAINT chat_chunk_lane_check1 CHECK (((review_status <> ALL (ARRAY['human_approved'::text, 'human_corrected'::text])) OR (reviewed_at IS NOT NULL)));
-ALTER TABLE working.chat_chunk_lane ADD CONSTRAINT chat_chunk_lane_chunk_id_lane_key UNIQUE (chunk_id, lane);
-ALTER TABLE working.chat_chunk_lane ADD CONSTRAINT chat_chunk_lane_confidence_check CHECK (((confidence >= (0)::double precision) AND (confidence <= (1)::double precision)));
-ALTER TABLE working.chat_chunk_lane ADD CONSTRAINT chat_chunk_lane_lane_check CHECK ((lane = ANY (ARRAY['platform'::text, 'legal'::text, 'personal_history'::text, 'context'::text])));
-ALTER TABLE working.chat_chunk_lane ADD CONSTRAINT chat_chunk_lane_pkey PRIMARY KEY (id);
-ALTER TABLE working.chat_chunk_lane ADD CONSTRAINT chat_chunk_lane_review_status_check CHECK ((review_status = ANY (ARRAY['auto_accepted'::text, 'pending_review'::text, 'human_approved'::text, 'human_corrected'::text, 'classification_failed'::text])));
-ALTER TABLE working.chat_chunk_lane_event ADD CONSTRAINT chat_chunk_lane_event_operation_check CHECK ((operation = ANY (ARRAY['INSERT'::text, 'UPDATE'::text])));
-ALTER TABLE working.chat_chunk_lane_event ADD CONSTRAINT chat_chunk_lane_event_pkey PRIMARY KEY (event_id);
-ALTER TABLE working.chat_chunk_message ADD CONSTRAINT chat_chunk_message_chunk_id_ordinal_key UNIQUE (chunk_id, ordinal);
-ALTER TABLE working.chat_chunk_message ADD CONSTRAINT chat_chunk_message_ordinal_check CHECK ((ordinal >= 0));
-ALTER TABLE working.chat_chunk_message ADD CONSTRAINT chat_chunk_message_pkey PRIMARY KEY (chunk_id, message_id);
-ALTER TABLE working.chat_chunk_projection ADD CONSTRAINT chat_chunk_projection_attempts_check CHECK ((attempts >= 0));
-ALTER TABLE working.chat_chunk_projection ADD CONSTRAINT chat_chunk_projection_attrs_check CHECK ((jsonb_typeof(attrs) = 'object'::text));
-ALTER TABLE working.chat_chunk_projection ADD CONSTRAINT chat_chunk_projection_check CHECK (((sink <> 'weaviate'::text) OR (embedder_id IS NOT NULL)));
-ALTER TABLE working.chat_chunk_projection ADD CONSTRAINT chat_chunk_projection_lane_check CHECK ((lane = ANY (ARRAY['platform'::text, 'legal'::text, 'personal_history'::text, 'context'::text])));
-ALTER TABLE working.chat_chunk_projection ADD CONSTRAINT chat_chunk_projection_pkey PRIMARY KEY (chunk_id, lane, sink);
-ALTER TABLE working.chat_chunk_projection ADD CONSTRAINT chat_chunk_projection_sink_check CHECK ((sink = ANY (ARRAY['weaviate'::text, 'graphiti'::text, 'semantica'::text, 'sat_temporal'::text, 'surrealdb'::text, 'opensearch'::text])));
-ALTER TABLE working.chat_chunk_tag ADD CONSTRAINT chat_chunk_tag_attrs_check CHECK ((jsonb_typeof(attrs) = 'object'::text));
-ALTER TABLE working.chat_chunk_tag ADD CONSTRAINT chat_chunk_tag_check CHECK (((reviewed_at IS NULL) = (reviewed_by IS NULL)));
-ALTER TABLE working.chat_chunk_tag ADD CONSTRAINT chat_chunk_tag_check1 CHECK (((review_status = 'suggested'::text) OR (reviewed_at IS NOT NULL)));
-ALTER TABLE working.chat_chunk_tag ADD CONSTRAINT chat_chunk_tag_confidence_check CHECK (((confidence IS NULL) OR ((confidence >= (0)::double precision) AND (confidence <= (1)::double precision))));
-ALTER TABLE working.chat_chunk_tag ADD CONSTRAINT chat_chunk_tag_pkey PRIMARY KEY (chunk_id, tag_id);
-ALTER TABLE working.chat_chunk_tag ADD CONSTRAINT chat_chunk_tag_review_status_check CHECK ((review_status = ANY (ARRAY['suggested'::text, 'human_approved'::text, 'human_rejected'::text])));
 ALTER TABLE working.chat_conversation ADD CONSTRAINT chat_conversation_attrs_check CHECK ((jsonb_typeof(attrs) = 'object'::text));
 ALTER TABLE working.chat_conversation ADD CONSTRAINT chat_conversation_pkey PRIMARY KEY (id);
 ALTER TABLE working.chat_conversation ADD CONSTRAINT chat_conversation_source_external_id_key UNIQUE (source, external_id);
-ALTER TABLE working.chat_conversation_event ADD CONSTRAINT chat_conversation_event_operation_check CHECK ((operation = ANY (ARRAY['INSERT'::text, 'UPDATE'::text])));
-ALTER TABLE working.chat_conversation_event ADD CONSTRAINT chat_conversation_event_pkey PRIMARY KEY (event_id);
 ALTER TABLE working.chat_message ADD CONSTRAINT chat_message_attachments_check CHECK ((jsonb_typeof(attachments) = 'array'::text));
 ALTER TABLE working.chat_message ADD CONSTRAINT chat_message_attrs_check CHECK ((jsonb_typeof(attrs) = 'object'::text));
 ALTER TABLE working.chat_message ADD CONSTRAINT chat_message_content_hash_check CHECK ((length(content_hash) = 64));
@@ -5722,38 +5106,6 @@ ALTER TABLE working.chat_message ADD CONSTRAINT chat_message_conversation_id_mes
 ALTER TABLE working.chat_message ADD CONSTRAINT chat_message_message_index_check CHECK ((message_index >= 0));
 ALTER TABLE working.chat_message ADD CONSTRAINT chat_message_pkey PRIMARY KEY (id);
 ALTER TABLE working.chat_message ADD CONSTRAINT chat_message_role_check CHECK ((role = ANY (ARRAY['user'::text, 'assistant'::text, 'system'::text, 'tool'::text, 'unknown'::text])));
-ALTER TABLE working.chat_message_event ADD CONSTRAINT chat_message_event_operation_check CHECK ((operation = ANY (ARRAY['INSERT'::text, 'UPDATE'::text])));
-ALTER TABLE working.chat_message_event ADD CONSTRAINT chat_message_event_pkey PRIMARY KEY (event_id);
-ALTER TABLE working.chat_projection_dead_letter ADD CONSTRAINT chat_projection_dead_letter_attempts_check CHECK ((attempts > 0));
-ALTER TABLE working.chat_projection_dead_letter ADD CONSTRAINT chat_projection_dead_letter_check CHECK (((resolved_at IS NULL) OR (resolved_at >= failed_at)));
-ALTER TABLE working.chat_projection_dead_letter ADD CONSTRAINT chat_projection_dead_letter_pkey PRIMARY KEY (id);
-ALTER TABLE working.chat_projection_dead_letter ADD CONSTRAINT chat_projection_dead_letter_sink_id_source_event_table_sour_key UNIQUE (sink_id, source_event_table, source_event_id);
-ALTER TABLE working.chat_projection_dead_letter ADD CONSTRAINT chat_projection_dead_letter_source_event_id_check CHECK ((source_event_id > 0));
-ALTER TABLE working.claim_assertion ADD CONSTRAINT claim_assertion_asserted_by_check CHECK ((length(btrim(asserted_by)) > 0));
-ALTER TABLE working.claim_assertion ADD CONSTRAINT claim_assertion_asserted_by_kind_check CHECK ((asserted_by_kind = ANY (ARRAY['owner'::text, 'model'::text])));
-ALTER TABLE working.claim_assertion ADD CONSTRAINT claim_assertion_assertion_generation_check CHECK ((assertion_generation = ANY (ARRAY[1, 2])));
-ALTER TABLE working.claim_assertion ADD CONSTRAINT claim_assertion_assertion_kind_check CHECK ((assertion_kind = ANY (ARRAY['connection'::text, 'significance'::text, 'decision'::text, 'exposure'::text, 'gap'::text, 'correction'::text])));
-ALTER TABLE working.claim_assertion ADD CONSTRAINT claim_assertion_attrs_check CHECK ((jsonb_typeof(attrs) = 'object'::text));
-ALTER TABLE working.claim_assertion ADD CONSTRAINT claim_assertion_disposition_dated CHECK (((owner_disposition = 'unreviewed'::text) OR (disposition_at IS NOT NULL)));
-ALTER TABLE working.claim_assertion ADD CONSTRAINT claim_assertion_id_assertion_generation_key UNIQUE (id, assertion_generation);
-ALTER TABLE working.claim_assertion ADD CONSTRAINT claim_assertion_no_self_supersede CHECK ((supersedes_id IS DISTINCT FROM id));
-ALTER TABLE working.claim_assertion ADD CONSTRAINT claim_assertion_owner_disposition_check CHECK ((owner_disposition = ANY (ARRAY['unreviewed'::text, 'accepted'::text, 'rejected'::text, 'parked'::text, 'superseded'::text])));
-ALTER TABLE working.claim_assertion ADD CONSTRAINT claim_assertion_parked_has_reason CHECK (((owner_disposition <> 'parked'::text) OR (disposition_reason IS NOT NULL)));
-ALTER TABLE working.claim_assertion ADD CONSTRAINT claim_assertion_pkey PRIMARY KEY (id);
-ALTER TABLE working.claim_assertion ADD CONSTRAINT claim_assertion_rationale_check CHECK ((length(btrim(rationale)) > 0));
-ALTER TABLE working.claim_assertion ADD CONSTRAINT claim_assertion_salience_check CHECK (((salience IS NULL) OR (salience = ANY (ARRAY['hot'::text, 'good'::text, 'warm'::text]))));
-ALTER TABLE working.claim_assertion ADD CONSTRAINT claim_assertion_statement_check CHECK ((length(btrim(statement)) > 0));
-ALTER TABLE working.claim_assertion_member ADD CONSTRAINT claim_assertion_member_assertion_id_member_ordinal_key UNIQUE (assertion_id, member_ordinal);
-ALTER TABLE working.claim_assertion_member ADD CONSTRAINT claim_assertion_member_member_ordinal_check CHECK ((member_ordinal >= 0));
-ALTER TABLE working.claim_assertion_member ADD CONSTRAINT claim_assertion_member_member_role_check CHECK ((member_role = ANY (ARRAY['constituent'::text, 'supports'::text, 'contradicts'::text, 'context'::text])));
-ALTER TABLE working.claim_assertion_member ADD CONSTRAINT claim_assertion_member_pkey PRIMARY KEY (assertion_id, claim_candidate_id);
-ALTER TABLE working.claim_assertion_synthesis_member ADD CONSTRAINT claim_assertion_synthesis_membe_synthesis_id_member_ordinal_key UNIQUE (synthesis_id, member_ordinal);
-ALTER TABLE working.claim_assertion_synthesis_member ADD CONSTRAINT claim_assertion_synthesis_member_agreement_state_check CHECK ((agreement_state = ANY (ARRAY['concurs'::text, 'diverges'::text, 'extends'::text])));
-ALTER TABLE working.claim_assertion_synthesis_member ADD CONSTRAINT claim_assertion_synthesis_member_member_generation_check CHECK ((member_generation = 1));
-ALTER TABLE working.claim_assertion_synthesis_member ADD CONSTRAINT claim_assertion_synthesis_member_member_ordinal_check CHECK ((member_ordinal >= 0));
-ALTER TABLE working.claim_assertion_synthesis_member ADD CONSTRAINT claim_assertion_synthesis_member_pkey PRIMARY KEY (synthesis_id, member_assertion_id);
-ALTER TABLE working.claim_assertion_synthesis_member ADD CONSTRAINT synthesis_divergence_is_explained CHECK (((agreement_state <> 'diverges'::text) OR (divergence_note IS NOT NULL)));
-ALTER TABLE working.claim_assertion_synthesis_member ADD CONSTRAINT synthesis_member_not_self CHECK ((synthesis_id <> member_assertion_id));
 ALTER TABLE working.claim_candidate ADD CONSTRAINT claim_candidate_assistant_is_proposal CHECK (((speaker_role = 'assistant'::text) = (claim_class = 'AI_PROPOSAL'::text)));
 ALTER TABLE working.claim_candidate ADD CONSTRAINT claim_candidate_attrs_check CHECK ((jsonb_typeof(attrs) = 'object'::text));
 ALTER TABLE working.claim_candidate ADD CONSTRAINT claim_candidate_body_check CHECK ((length(btrim(body)) > 0));
@@ -5792,18 +5144,6 @@ ALTER TABLE working.content_chunk ADD CONSTRAINT content_chunk_generation_id_chu
 ALTER TABLE working.content_chunk ADD CONSTRAINT content_chunk_id_generation_id_source_version_id_key UNIQUE (id, generation_id, source_version_id);
 ALTER TABLE working.content_chunk ADD CONSTRAINT content_chunk_pkey PRIMARY KEY (id);
 ALTER TABLE working.content_chunk ADD CONSTRAINT content_chunk_token_count_check CHECK (((token_count IS NULL) OR (token_count >= 0)));
-ALTER TABLE working.content_chunk_classification_decision ADD CONSTRAINT content_chunk_classification_deci_chunk_id_decision_version_key UNIQUE (chunk_id, decision_version);
-ALTER TABLE working.content_chunk_classification_decision ADD CONSTRAINT content_chunk_classification_decision_check CHECK (((decision_kind <> 'initial_context'::text) OR ((lane = 'context'::text) AND (review_state = 'system_initial'::text))));
-ALTER TABLE working.content_chunk_classification_decision ADD CONSTRAINT content_chunk_classification_decision_check1 CHECK ((((reviewed_by IS NULL) AND (reviewed_at IS NULL)) OR ((reviewed_by IS NOT NULL) AND (reviewed_at IS NOT NULL))));
-ALTER TABLE working.content_chunk_classification_decision ADD CONSTRAINT content_chunk_classification_decision_check2 CHECK (((review_state <> ALL (ARRAY['human_approved'::text, 'human_rejected'::text])) OR (reviewed_at IS NOT NULL)));
-ALTER TABLE working.content_chunk_classification_decision ADD CONSTRAINT content_chunk_classification_decision_classifier_id_check CHECK ((length(btrim(classifier_id)) > 0));
-ALTER TABLE working.content_chunk_classification_decision ADD CONSTRAINT content_chunk_classification_decision_classifier_version_check CHECK ((length(btrim(classifier_version)) > 0));
-ALTER TABLE working.content_chunk_classification_decision ADD CONSTRAINT content_chunk_classification_decision_confidence_check CHECK (((confidence >= (0)::double precision) AND (confidence <= (1)::double precision)));
-ALTER TABLE working.content_chunk_classification_decision ADD CONSTRAINT content_chunk_classification_decision_decision_kind_check CHECK ((decision_kind = ANY (ARRAY['initial_context'::text, 'reviewed_assignment'::text, 'supersession'::text])));
-ALTER TABLE working.content_chunk_classification_decision ADD CONSTRAINT content_chunk_classification_decision_decision_version_check CHECK ((decision_version > 0));
-ALTER TABLE working.content_chunk_classification_decision ADD CONSTRAINT content_chunk_classification_decision_lane_check CHECK ((lane = ANY (ARRAY['context'::text, 'legal'::text, 'personal_history'::text])));
-ALTER TABLE working.content_chunk_classification_decision ADD CONSTRAINT content_chunk_classification_decision_pkey PRIMARY KEY (id);
-ALTER TABLE working.content_chunk_classification_decision ADD CONSTRAINT content_chunk_classification_decision_review_state_check CHECK ((review_state = ANY (ARRAY['system_initial'::text, 'pending'::text, 'human_approved'::text, 'human_rejected'::text, 'superseded'::text])));
 ALTER TABLE working.content_chunk_generation ADD CONSTRAINT content_chunk_generation_check CHECK ((((status = 'open'::text) AND (sealed_at IS NULL) AND (sealed_by IS NULL) AND (aborted_at IS NULL) AND (abort_reason IS NULL) AND (chunk_count IS NULL) AND (member_count IS NULL) AND (manifest_sha256 IS NULL)) OR ((status = 'sealed'::text) AND (sealed_at IS NOT NULL) AND (length(btrim(sealed_by)) > 0) AND (aborted_at IS NULL) AND (abort_reason IS NULL) AND (chunk_count IS NOT NULL) AND (member_count IS NOT NULL) AND (manifest_sha256 IS NOT NULL)) OR ((status = 'aborted'::text) AND (sealed_at IS NULL) AND (sealed_by IS NULL) AND (aborted_at IS NOT NULL) AND (length(btrim(abort_reason)) > 0))));
 ALTER TABLE working.content_chunk_generation ADD CONSTRAINT content_chunk_generation_chunk_count_check CHECK (((chunk_count IS NULL) OR (chunk_count >= 0)));
 ALTER TABLE working.content_chunk_generation ADD CONSTRAINT content_chunk_generation_chunker_id_check CHECK ((length(btrim(chunker_id)) > 0));
@@ -5826,6 +5166,10 @@ ALTER TABLE working.content_chunk_generation ADD CONSTRAINT content_chunk_genera
 ALTER TABLE working.content_chunk_generation ADD CONSTRAINT content_chunk_generation_source_version_id_generation_ordin_key UNIQUE (source_version_id, generation_ordinal);
 ALTER TABLE working.content_chunk_generation ADD CONSTRAINT content_chunk_generation_source_view_check CHECK ((length(btrim(source_view)) > 0));
 ALTER TABLE working.content_chunk_generation ADD CONSTRAINT content_chunk_generation_status_check CHECK ((status = ANY (ARRAY['open'::text, 'sealed'::text, 'aborted'::text])));
+ALTER TABLE working.content_chunk_projection ADD CONSTRAINT content_chunk_projection_chunk_id_sink_key UNIQUE (chunk_id, sink);
+ALTER TABLE working.content_chunk_projection ADD CONSTRAINT content_chunk_projection_pkey PRIMARY KEY (id);
+ALTER TABLE working.content_chunk_projection ADD CONSTRAINT content_chunk_projection_sink_check CHECK ((sink = ANY (ARRAY['weaviate'::text, 'semantica'::text, 'sat_temporal'::text, 'opensearch'::text, 'surrealdb'::text])));
+ALTER TABLE working.content_chunk_projection ADD CONSTRAINT content_chunk_projection_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'projected'::text, 'failed'::text, 'skipped'::text])));
 ALTER TABLE working.content_chunk_reassembly_receipt ADD CONSTRAINT content_chunk_reassembly_receipt_check CHECK ((covered_range_end >= covered_range_start));
 ALTER TABLE working.content_chunk_reassembly_receipt ADD CONSTRAINT content_chunk_reassembly_receipt_check1 CHECK (((verification_result <> 'exact'::text) OR ((source_sha256 = reassembled_sha256) AND (source_byte_length = reassembled_byte_length) AND (covered_range_end = source_byte_length) AND (gap_count = 0) AND (overlap_count = 0))));
 ALTER TABLE working.content_chunk_reassembly_receipt ADD CONSTRAINT content_chunk_reassembly_receipt_chunk_count_check CHECK ((chunk_count >= 0));
@@ -5858,141 +5202,18 @@ ALTER TABLE working.context_asset_derivation ADD CONSTRAINT context_asset_deriva
 ALTER TABLE working.context_asset_derivation ADD CONSTRAINT context_asset_derivation_check CHECK ((parent_asset_id <> child_asset_id));
 ALTER TABLE working.context_asset_derivation ADD CONSTRAINT context_asset_derivation_derivation_type_check CHECK ((derivation_type = ANY (ARRAY['ocr'::text, 'transcript'::text, 'keyframe'::text, 'thumbnail'::text, 'text_extract'::text, 'conversion'::text])));
 ALTER TABLE working.context_asset_derivation ADD CONSTRAINT context_asset_derivation_pkey PRIMARY KEY (parent_asset_id, child_asset_id, derivation_type);
-ALTER TABLE working.context_asset_event ADD CONSTRAINT context_asset_event_operation_check CHECK ((operation = ANY (ARRAY['INSERT'::text, 'UPDATE'::text])));
-ALTER TABLE working.context_asset_event ADD CONSTRAINT context_asset_event_pkey PRIMARY KEY (event_id);
 ALTER TABLE working.context_asset_message ADD CONSTRAINT context_asset_message_attrs_check CHECK ((jsonb_typeof(attrs) = 'object'::text));
 ALTER TABLE working.context_asset_message ADD CONSTRAINT context_asset_message_pkey PRIMARY KEY (asset_id, message_id, relationship);
 ALTER TABLE working.context_asset_message ADD CONSTRAINT context_asset_message_relationship_check CHECK ((relationship = ANY (ARRAY['generated_by'::text, 'attached_to'::text, 'referenced'::text])));
-ALTER TABLE working.context_asset_projection ADD CONSTRAINT context_asset_projection_attempts_check CHECK ((attempts >= 0));
-ALTER TABLE working.context_asset_projection ADD CONSTRAINT context_asset_projection_attrs_check CHECK ((jsonb_typeof(attrs) = 'object'::text));
-ALTER TABLE working.context_asset_projection ADD CONSTRAINT context_asset_projection_embedding_dimension_check CHECK ((embedding_dimension > 0));
-ALTER TABLE working.context_asset_projection ADD CONSTRAINT context_asset_projection_lane_check CHECK ((lane = ANY (ARRAY['platform'::text, 'legal'::text, 'personal_history'::text, 'context'::text])));
-ALTER TABLE working.context_asset_projection ADD CONSTRAINT context_asset_projection_pkey PRIMARY KEY (asset_id, representation, lane, embedder_id);
-ALTER TABLE working.context_asset_projection ADD CONSTRAINT context_asset_projection_representation_check CHECK ((representation = ANY (ARRAY['native'::text, 'extracted_text'::text, 'ocr'::text, 'transcript'::text, 'keyframe'::text])));
-ALTER TABLE working.context_asset_projection ADD CONSTRAINT context_asset_projection_sink_check CHECK ((sink = 'weaviate'::text));
 ALTER TABLE working.context_record ADD CONSTRAINT context_record_lane_check CHECK ((lane = 'context'::text));
 ALTER TABLE working.context_record ADD CONSTRAINT context_record_pkey PRIMARY KEY (id);
 ALTER TABLE working.context_record ADD CONSTRAINT context_record_record_type_check CHECK ((record_type = ANY (ARRAY['message'::text, 'call'::text, 'event'::text, 'media'::text])));
 ALTER TABLE working.context_record ADD CONSTRAINT uq_ctxrec_content_hash UNIQUE (content_hash);
-ALTER TABLE working.context_review_case ADD CONSTRAINT context_review_case_case_key_case_version_key UNIQUE (case_key, case_version);
-ALTER TABLE working.context_review_case ADD CONSTRAINT context_review_case_case_version_check CHECK ((case_version > 0));
-ALTER TABLE working.context_review_case ADD CONSTRAINT context_review_case_check CHECK (((supersedes_case_id IS NULL) = (supersedes_case_version IS NULL)));
-ALTER TABLE working.context_review_case ADD CONSTRAINT context_review_case_check1 CHECK (((resolution_decision_id IS NULL) = (resolution_decision_version IS NULL)));
-ALTER TABLE working.context_review_case ADD CONSTRAINT context_review_case_check2 CHECK ((((case_version = 1) AND (supersedes_case_id IS NULL)) OR ((case_version > 1) AND (supersedes_case_id IS NOT NULL))));
-ALTER TABLE working.context_review_case ADD CONSTRAINT context_review_case_check3 CHECK (((status = 'resolved'::text) = (resolution_decision_id IS NOT NULL)));
-ALTER TABLE working.context_review_case ADD CONSTRAINT context_review_case_conflict_kind_check CHECK ((conflict_kind = ANY (ARRAY['relative_time'::text, 'first_party_thread'::text, 'third_party_thread'::text, 'source_representation_equivalence'::text, 'timeline_event'::text])));
-ALTER TABLE working.context_review_case ADD CONSTRAINT context_review_case_id_case_version_case_key_key UNIQUE (id, case_version, case_key);
-ALTER TABLE working.context_review_case ADD CONSTRAINT context_review_case_id_case_version_key UNIQUE (id, case_version);
-ALTER TABLE working.context_review_case ADD CONSTRAINT context_review_case_opened_by_check CHECK ((length(btrim(opened_by)) > 0));
-ALTER TABLE working.context_review_case ADD CONSTRAINT context_review_case_pkey PRIMARY KEY (id);
-ALTER TABLE working.context_review_case ADD CONSTRAINT context_review_case_presentation_payload_check CHECK ((jsonb_typeof(presentation_payload) = 'object'::text));
-ALTER TABLE working.context_review_case ADD CONSTRAINT context_review_case_priority_check CHECK ((priority = ANY (ARRAY['low'::text, 'normal'::text, 'high'::text, 'critical'::text])));
-ALTER TABLE working.context_review_case ADD CONSTRAINT context_review_case_provenance_digest_check CHECK ((octet_length(provenance_digest) = 32));
-ALTER TABLE working.context_review_case ADD CONSTRAINT context_review_case_status_check CHECK ((status = ANY (ARRAY['queued'::text, 'resolved'::text, 'withdrawn'::text, 'superseded'::text])));
-ALTER TABLE working.context_review_case ADD CONSTRAINT context_review_case_summary_check CHECK ((length(btrim(summary)) > 0));
-ALTER TABLE working.context_review_decision ADD CONSTRAINT context_review_decision_check CHECK (((supersedes_decision_id IS NULL) = (supersedes_decision_version IS NULL)));
-ALTER TABLE working.context_review_decision ADD CONSTRAINT context_review_decision_check1 CHECK (((decision_action = 'supersede_correct'::text) = (supersedes_decision_id IS NOT NULL)));
-ALTER TABLE working.context_review_decision ADD CONSTRAINT context_review_decision_check2 CHECK (((status <> 'final'::text) OR (decision_activity_receipt_id IS NOT NULL)));
-ALTER TABLE working.context_review_decision ADD CONSTRAINT context_review_decision_decision_action_check CHECK ((decision_action = ANY (ARRAY['accept'::text, 'reject'::text, 'coexist'::text, 'supersede_correct'::text, 'needs_more_evidence'::text])));
-ALTER TABLE working.context_review_decision ADD CONSTRAINT context_review_decision_decision_version_check CHECK ((decision_version > 0));
-ALTER TABLE working.context_review_decision ADD CONSTRAINT context_review_decision_id_decision_version_key UNIQUE (id, decision_version);
-ALTER TABLE working.context_review_decision ADD CONSTRAINT context_review_decision_id_review_case_id_key UNIQUE (id, review_case_id);
-ALTER TABLE working.context_review_decision ADD CONSTRAINT context_review_decision_pkey PRIMARY KEY (id);
-ALTER TABLE working.context_review_decision ADD CONSTRAINT context_review_decision_presentation_payload_check CHECK ((jsonb_typeof(presentation_payload) = 'object'::text));
-ALTER TABLE working.context_review_decision ADD CONSTRAINT context_review_decision_provenance_digest_check CHECK ((octet_length(provenance_digest) = 32));
-ALTER TABLE working.context_review_decision ADD CONSTRAINT context_review_decision_rationale_check CHECK ((length(btrim(rationale)) > 0));
-ALTER TABLE working.context_review_decision ADD CONSTRAINT context_review_decision_review_case_id_decision_version_key UNIQUE (review_case_id, decision_version);
-ALTER TABLE working.context_review_decision ADD CONSTRAINT context_review_decision_reviewer_id_check CHECK ((length(btrim(reviewer_id)) > 0));
-ALTER TABLE working.context_review_decision ADD CONSTRAINT context_review_decision_status_check CHECK ((status = ANY (ARRAY['proposed'::text, 'final'::text, 'superseded'::text])));
-ALTER TABLE working.context_review_decision_evidence_hash ADD CONSTRAINT context_review_decision_evidence_hash_basis_role_check CHECK ((basis_role = ANY (ARRAY['supporting'::text, 'contradicting'::text, 'context'::text])));
-ALTER TABLE working.context_review_decision_evidence_hash ADD CONSTRAINT context_review_decision_evidence_hash_pkey PRIMARY KEY (decision_id, evidence_hash_id, basis_role);
-ALTER TABLE working.context_review_decision_source_range ADD CONSTRAINT context_review_decision_source_range_basis_role_check CHECK ((basis_role = ANY (ARRAY['supporting'::text, 'contradicting'::text, 'context'::text])));
-ALTER TABLE working.context_review_decision_source_range ADD CONSTRAINT context_review_decision_source_range_pkey PRIMARY KEY (decision_id, source_range_locator_id, basis_role);
-ALTER TABLE working.context_review_decision_source_version ADD CONSTRAINT context_review_decision_source_version_basis_role_check CHECK ((basis_role = ANY (ARRAY['supporting'::text, 'contradicting'::text, 'context'::text])));
-ALTER TABLE working.context_review_decision_source_version ADD CONSTRAINT context_review_decision_source_version_pkey PRIMARY KEY (decision_id, source_version_id, basis_role);
-ALTER TABLE working.context_review_dispatch_attempt ADD CONSTRAINT context_review_dispatch_attem_review_workflow_id_dispatch_a_key UNIQUE (review_workflow_id, dispatch_attempt);
-ALTER TABLE working.context_review_dispatch_attempt ADD CONSTRAINT context_review_dispatch_attem_review_workflow_id_dispatch_i_key UNIQUE (review_workflow_id, dispatch_idempotency_key);
-ALTER TABLE working.context_review_dispatch_attempt ADD CONSTRAINT context_review_dispatch_attempt_dispatch_attempt_check CHECK ((dispatch_attempt > 0));
-ALTER TABLE working.context_review_dispatch_attempt ADD CONSTRAINT context_review_dispatch_attempt_dispatch_idempotency_key_check CHECK ((length(btrim(dispatch_idempotency_key)) > 0));
-ALTER TABLE working.context_review_dispatch_attempt ADD CONSTRAINT context_review_dispatch_attempt_dispatch_receipt_digest_check CHECK (((dispatch_receipt_digest IS NULL) OR (octet_length(dispatch_receipt_digest) = 32)));
-ALTER TABLE working.context_review_dispatch_attempt ADD CONSTRAINT context_review_dispatch_attempt_n8n_workflow_ref_check CHECK ((length(btrim(n8n_workflow_ref)) > 0));
-ALTER TABLE working.context_review_dispatch_attempt ADD CONSTRAINT context_review_dispatch_attempt_pkey PRIMARY KEY (id);
-ALTER TABLE working.context_review_dispatch_attempt ADD CONSTRAINT context_review_dispatch_attempt_request_digest_check CHECK ((octet_length(request_digest) = 32));
-ALTER TABLE working.context_review_dispatch_attempt ADD CONSTRAINT context_review_dispatch_attempt_review_service_ref_check CHECK ((length(btrim(review_service_ref)) > 0));
-ALTER TABLE working.context_review_dispatch_attempt ADD CONSTRAINT context_review_dispatch_attempt_status_check CHECK ((status = ANY (ARRAY['dispatched'::text, 'acknowledged'::text, 'failed'::text, 'not_applicable'::text])));
-ALTER TABLE working.context_review_first_party_thread_message ADD CONSTRAINT context_review_first_party_thread_message_pkey PRIMARY KEY (review_case_id, thread_version_id, message_id, subject_role);
-ALTER TABLE working.context_review_first_party_thread_message ADD CONSTRAINT context_review_first_party_thread_message_subject_role_check CHECK ((subject_role = ANY (ARRAY['candidate'::text, 'conflicting'::text, 'context'::text])));
-ALTER TABLE working.context_review_first_party_thread_source ADD CONSTRAINT context_review_first_party_thread_source_pkey PRIMARY KEY (review_case_id, thread_source_id, subject_role);
-ALTER TABLE working.context_review_first_party_thread_source ADD CONSTRAINT context_review_first_party_thread_source_subject_role_check CHECK ((subject_role = ANY (ARRAY['candidate'::text, 'conflicting'::text, 'context'::text])));
-ALTER TABLE working.context_review_first_party_thread_version ADD CONSTRAINT context_review_first_party_thread_version_pkey PRIMARY KEY (review_case_id, thread_version_id, subject_role);
-ALTER TABLE working.context_review_first_party_thread_version ADD CONSTRAINT context_review_first_party_thread_version_subject_role_check CHECK ((subject_role = ANY (ARRAY['candidate'::text, 'conflicting'::text, 'context'::text])));
-ALTER TABLE working.context_review_relative_time_anchor ADD CONSTRAINT context_review_relative_time_anchor_pkey PRIMARY KEY (review_case_id, anchor_id, subject_role);
-ALTER TABLE working.context_review_relative_time_anchor ADD CONSTRAINT context_review_relative_time_anchor_subject_role_check CHECK ((subject_role = ANY (ARRAY['candidate'::text, 'conflicting'::text, 'context'::text])));
-ALTER TABLE working.context_review_signal_receipt ADD CONSTRAINT context_review_signal_receipt_check CHECK (((validation_status = 'accepted'::text) = (persisted_at IS NOT NULL)));
-ALTER TABLE working.context_review_signal_receipt ADD CONSTRAINT context_review_signal_receipt_persisted_decision_version_check CHECK ((persisted_decision_version > 0));
-ALTER TABLE working.context_review_signal_receipt ADD CONSTRAINT context_review_signal_receipt_pkey PRIMARY KEY (id);
-ALTER TABLE working.context_review_signal_receipt ADD CONSTRAINT context_review_signal_receipt_review_workflow_id_signal_id_key UNIQUE (review_workflow_id, signal_id);
-ALTER TABLE working.context_review_signal_receipt ADD CONSTRAINT context_review_signal_receipt_review_workflow_id_signal_ide_key UNIQUE (review_workflow_id, signal_idempotency_key);
-ALTER TABLE working.context_review_signal_receipt ADD CONSTRAINT context_review_signal_receipt_signal_digest_check CHECK ((octet_length(signal_digest) = 32));
-ALTER TABLE working.context_review_signal_receipt ADD CONSTRAINT context_review_signal_receipt_signal_id_check CHECK ((length(btrim(signal_id)) > 0));
-ALTER TABLE working.context_review_signal_receipt ADD CONSTRAINT context_review_signal_receipt_signal_idempotency_key_check CHECK ((length(btrim(signal_idempotency_key)) > 0));
-ALTER TABLE working.context_review_signal_receipt ADD CONSTRAINT context_review_signal_receipt_signal_kind_check CHECK ((signal_kind = ANY (ARRAY['decision'::text, 'request_more_evidence'::text, 'cancel'::text])));
-ALTER TABLE working.context_review_signal_receipt ADD CONSTRAINT context_review_signal_receipt_validation_status_check CHECK ((validation_status = ANY (ARRAY['accepted'::text, 'rejected'::text, 'duplicate'::text])));
-ALTER TABLE working.context_review_temporal_run_state ADD CONSTRAINT context_review_temporal_run_s_review_workflow_id_temporal_r_key UNIQUE (review_workflow_id, temporal_run_id, state_version);
-ALTER TABLE working.context_review_temporal_run_state ADD CONSTRAINT context_review_temporal_run_state_id_review_workflow_id_key UNIQUE (id, review_workflow_id);
-ALTER TABLE working.context_review_temporal_run_state ADD CONSTRAINT context_review_temporal_run_state_pkey PRIMARY KEY (id);
-ALTER TABLE working.context_review_temporal_run_state ADD CONSTRAINT context_review_temporal_run_state_state_digest_check CHECK ((octet_length(state_digest) = 32));
-ALTER TABLE working.context_review_temporal_run_state ADD CONSTRAINT context_review_temporal_run_state_state_version_check CHECK ((state_version > 0));
-ALTER TABLE working.context_review_temporal_run_state ADD CONSTRAINT context_review_temporal_run_state_temporal_run_id_check CHECK ((length(btrim(temporal_run_id)) > 0));
-ALTER TABLE working.context_review_temporal_run_state ADD CONSTRAINT context_review_temporal_run_state_workflow_state_check CHECK ((workflow_state = ANY (ARRAY['running'::text, 'waiting_for_human'::text, 'reminder_due'::text, 'escalated'::text, 'continued_as_new'::text, 'terminal'::text])));
-ALTER TABLE working.context_review_temporal_workflow ADD CONSTRAINT context_review_temporal_workflow_escalation_policy_ref_check CHECK ((length(btrim(escalation_policy_ref)) > 0));
-ALTER TABLE working.context_review_temporal_workflow ADD CONSTRAINT context_review_temporal_workflow_expected_case_version_check CHECK ((expected_case_version > 0));
-ALTER TABLE working.context_review_temporal_workflow ADD CONSTRAINT context_review_temporal_workflow_id_review_case_id_key UNIQUE (id, review_case_id);
-ALTER TABLE working.context_review_temporal_workflow ADD CONSTRAINT context_review_temporal_workflow_pkey PRIMARY KEY (id);
-ALTER TABLE working.context_review_temporal_workflow ADD CONSTRAINT context_review_temporal_workflow_reminder_policy_ref_check CHECK ((length(btrim(reminder_policy_ref)) > 0));
-ALTER TABLE working.context_review_temporal_workflow ADD CONSTRAINT context_review_temporal_workflow_review_case_id_key UNIQUE (review_case_id);
-ALTER TABLE working.context_review_temporal_workflow ADD CONSTRAINT context_review_temporal_workflow_temporal_workflow_id_check CHECK ((length(btrim(temporal_workflow_id)) > 0));
-ALTER TABLE working.context_review_temporal_workflow ADD CONSTRAINT context_review_temporal_workflow_temporal_workflow_id_key UNIQUE (temporal_workflow_id);
-ALTER TABLE working.context_review_temporal_workflow ADD CONSTRAINT context_review_temporal_workflow_workflow_idempotency_key_check CHECK ((length(btrim(workflow_idempotency_key)) > 0));
-ALTER TABLE working.context_review_temporal_workflow ADD CONSTRAINT context_review_temporal_workflow_workflow_idempotency_key_key UNIQUE (workflow_idempotency_key);
-ALTER TABLE working.context_review_terminal_reconciliation ADD CONSTRAINT context_review_terminal_reconci_expected_decision_version_check CHECK (((expected_decision_version IS NULL) OR (expected_decision_version > 0)));
-ALTER TABLE working.context_review_terminal_reconciliation ADD CONSTRAINT context_review_terminal_reconciliat_expected_case_version_check CHECK ((expected_case_version > 0));
-ALTER TABLE working.context_review_terminal_reconciliation ADD CONSTRAINT context_review_terminal_reconciliat_reconciliation_digest_check CHECK ((octet_length(reconciliation_digest) = 32));
-ALTER TABLE working.context_review_terminal_reconciliation ADD CONSTRAINT context_review_terminal_reconciliat_reconciliation_status_check CHECK ((reconciliation_status = ANY (ARRAY['matched'::text, 'mismatch'::text, 'incomplete'::text])));
-ALTER TABLE working.context_review_terminal_reconciliation ADD CONSTRAINT context_review_terminal_reconciliation_check CHECK ((((terminal_status = 'completed'::text) AND (final_decision_id IS NOT NULL) AND (expected_decision_version IS NOT NULL)) OR (terminal_status <> 'completed'::text)));
-ALTER TABLE working.context_review_terminal_reconciliation ADD CONSTRAINT context_review_terminal_reconciliation_pkey PRIMARY KEY (id);
-ALTER TABLE working.context_review_terminal_reconciliation ADD CONSTRAINT context_review_terminal_reconciliation_review_workflow_id_key UNIQUE (review_workflow_id);
-ALTER TABLE working.context_review_terminal_reconciliation ADD CONSTRAINT context_review_terminal_reconciliation_terminal_status_check CHECK ((terminal_status = ANY (ARRAY['completed'::text, 'cancelled'::text, 'failed'::text])));
-ALTER TABLE working.context_review_third_party_thread_message ADD CONSTRAINT context_review_third_party_thread_message_pkey PRIMARY KEY (review_case_id, thread_version_id, message_id, subject_role);
-ALTER TABLE working.context_review_third_party_thread_message ADD CONSTRAINT context_review_third_party_thread_message_subject_role_check CHECK ((subject_role = ANY (ARRAY['candidate'::text, 'conflicting'::text, 'context'::text])));
-ALTER TABLE working.context_review_third_party_thread_source ADD CONSTRAINT context_review_third_party_thread_source_pkey PRIMARY KEY (review_case_id, thread_source_id, subject_role);
-ALTER TABLE working.context_review_third_party_thread_source ADD CONSTRAINT context_review_third_party_thread_source_subject_role_check CHECK ((subject_role = ANY (ARRAY['candidate'::text, 'conflicting'::text, 'context'::text])));
-ALTER TABLE working.context_review_third_party_thread_version ADD CONSTRAINT context_review_third_party_thread_version_pkey PRIMARY KEY (review_case_id, thread_version_id, subject_role);
-ALTER TABLE working.context_review_third_party_thread_version ADD CONSTRAINT context_review_third_party_thread_version_subject_role_check CHECK ((subject_role = ANY (ARRAY['candidate'::text, 'conflicting'::text, 'context'::text])));
-ALTER TABLE working.context_review_timeline_event_candidate ADD CONSTRAINT context_review_timeline_event_candidate_pkey PRIMARY KEY (review_case_id, event_candidate_id, subject_role);
-ALTER TABLE working.context_review_timeline_event_candidate ADD CONSTRAINT context_review_timeline_event_candidate_subject_role_check CHECK ((subject_role = ANY (ARRAY['candidate'::text, 'conflicting'::text, 'context'::text])));
-ALTER TABLE working.conversation ADD CONSTRAINT conversation_cluster_reason_check CHECK (((cluster_reason IS NULL) OR (cluster_reason = ANY (ARRAY['time_gap'::text, 'topic_change'::text, 'entity_change'::text, 'first_message'::text]))));
-ALTER TABLE working.conversation ADD CONSTRAINT conversation_pkey PRIMARY KEY (id);
-ALTER TABLE working.conversation ADD CONSTRAINT uq_conversation_thread UNIQUE (platform, external_thread_key);
-ALTER TABLE working.device ADD CONSTRAINT device_pkey PRIMARY KEY (id);
-ALTER TABLE working.device_ownership ADD CONSTRAINT device_ownership_human_only CHECK ((asserted_by = 'human'::text));
-ALTER TABLE working.device_ownership ADD CONSTRAINT device_ownership_pkey PRIMARY KEY (id);
-ALTER TABLE working.device_ownership ADD CONSTRAINT device_ownership_range CHECK (((effective_to IS NULL) OR (effective_to > effective_from)));
 ALTER TABLE working.email ADD CONSTRAINT email_pkey PRIMARY KEY (id);
-ALTER TABLE working.entity ADD CONSTRAINT entity_not_self_merge CHECK ((merged_into_id IS DISTINCT FROM id));
-ALTER TABLE working.entity ADD CONSTRAINT entity_pkey PRIMARY KEY (id);
-ALTER TABLE working.entity_alias ADD CONSTRAINT entity_alias_alias_kind_check CHECK ((alias_kind = ANY (ARRAY['nickname'::text, 'legal'::text, 'maiden'::text, 'handle'::text, 'misspelling'::text, 'phonetic'::text, 'initials'::text, 'other'::text])));
-ALTER TABLE working.entity_alias ADD CONSTRAINT entity_alias_pkey PRIMARY KEY (id);
 ALTER TABLE working.entity_mention ADD CONSTRAINT entity_mention_mention_kind_check CHECK ((mention_kind = ANY (ARRAY['name'::text, 'phone'::text, 'handle'::text, 'email'::text, 'pronoun'::text, 'partial'::text, 'address'::text, 'device'::text, 'other'::text])));
 ALTER TABLE working.entity_mention ADD CONSTRAINT entity_mention_pkey PRIMARY KEY (id);
-ALTER TABLE working.entity_merge_event ADD CONSTRAINT entity_merge_event_actor_kind_check CHECK ((actor_kind = ANY (ARRAY['human'::text, 'service'::text, 'agent'::text])));
-ALTER TABLE working.entity_merge_event ADD CONSTRAINT entity_merge_event_op_check CHECK ((op = ANY (ARRAY['merge'::text, 'split'::text])));
-ALTER TABLE working.entity_merge_event ADD CONSTRAINT entity_merge_event_pkey PRIMARY KEY (id);
-ALTER TABLE working.entity_merge_event ADD CONSTRAINT merge_distinct CHECK ((surviving_entity_id <> merged_entity_id));
 ALTER TABLE working.entity_resolution ADD CONSTRAINT entity_resolution_pkey PRIMARY KEY (id);
 ALTER TABLE working.entity_resolution ADD CONSTRAINT entity_resolution_resolved_by_check CHECK ((resolved_by = ANY (ARRAY['rule'::text, 'model'::text, 'human'::text])));
-ALTER TABLE working.event_ordering ADD CONSTRAINT event_ordering_pkey PRIMARY KEY (ordering_id);
-ALTER TABLE working.event_ordering ADD CONSTRAINT no_self_order CHECK ((before_event <> after_event));
 ALTER TABLE working.event_source_record ADD CONSTRAINT esr_has_source CHECK (((record_id IS NOT NULL) OR (source_id IS NOT NULL) OR (raw_ref IS NOT NULL)));
 ALTER TABLE working.event_source_record ADD CONSTRAINT event_source_record_has_anchor CHECK (((event_id IS NOT NULL) OR (record_id IS NOT NULL)));
 ALTER TABLE working.event_source_record ADD CONSTRAINT event_source_record_pkey PRIMARY KEY (link_id);
@@ -6022,14 +5243,6 @@ ALTER TABLE working.first_party_context_thread_message ADD CONSTRAINT first_part
 ALTER TABLE working.first_party_context_thread_message ADD CONSTRAINT first_party_context_thread_message_membership_confidence_check CHECK (((membership_confidence >= (0)::double precision) AND (membership_confidence <= (1)::double precision)));
 ALTER TABLE working.first_party_context_thread_message ADD CONSTRAINT first_party_context_thread_message_pkey PRIMARY KEY (thread_version_id, message_id);
 ALTER TABLE working.first_party_context_thread_message ADD CONSTRAINT first_party_context_thread_message_thread_ordinal_check CHECK ((thread_ordinal >= 0));
-ALTER TABLE working.first_party_context_thread_realization_assertion ADD CONSTRAINT first_party_context_thread_re_thread_version_id_realization_key UNIQUE (thread_version_id, realization_event_id, assertion_version);
-ALTER TABLE working.first_party_context_thread_realization_assertion ADD CONSTRAINT first_party_context_thread_realization__assertion_version_check CHECK ((assertion_version > 0));
-ALTER TABLE working.first_party_context_thread_realization_assertion ADD CONSTRAINT first_party_context_thread_realization_asser_review_state_check CHECK ((review_state = ANY (ARRAY['proposed'::text, 'approved'::text, 'rejected'::text, 'superseded'::text])));
-ALTER TABLE working.first_party_context_thread_realization_assertion ADD CONSTRAINT first_party_context_thread_realization_assertio_rationale_check CHECK ((length(btrim(rationale)) > 0));
-ALTER TABLE working.first_party_context_thread_realization_assertion ADD CONSTRAINT first_party_context_thread_realization_assertion_pkey PRIMARY KEY (id);
-ALTER TABLE working.first_party_context_thread_realization_assertion ADD CONSTRAINT first_party_context_thread_realization_id_thread_version_id_key UNIQUE (id, thread_version_id);
-ALTER TABLE working.first_party_context_thread_realization_message ADD CONSTRAINT first_party_context_thread_realization_message_pkey PRIMARY KEY (realization_assertion_id, message_id);
-ALTER TABLE working.first_party_context_thread_realization_source ADD CONSTRAINT first_party_context_thread_realization_source_pkey PRIMARY KEY (realization_assertion_id, thread_source_id);
 ALTER TABLE working.first_party_context_thread_source ADD CONSTRAINT first_party_context_thread_so_thread_version_id_source_anch_key UNIQUE (thread_version_id, source_anchor_ordinal);
 ALTER TABLE working.first_party_context_thread_source ADD CONSTRAINT first_party_context_thread_so_thread_version_id_source_vers_key UNIQUE (thread_version_id, source_version_id, assertion_version);
 ALTER TABLE working.first_party_context_thread_source ADD CONSTRAINT first_party_context_thread_sou_metadata_extractor_version_check CHECK ((length(btrim(metadata_extractor_version)) > 0));
@@ -6079,38 +5292,6 @@ ALTER TABLE working.gps_track ADD CONSTRAINT gps_track_pkey PRIMARY KEY (id);
 ALTER TABLE working.handle ADD CONSTRAINT handle_pkey PRIMARY KEY (id);
 ALTER TABLE working.home_base ADD CONSTRAINT home_base_data_tier_check CHECK ((data_tier = 'inferred'::evidence_tier));
 ALTER TABLE working.home_base ADD CONSTRAINT home_base_pkey PRIMARY KEY (id);
-ALTER TABLE working.id_xref ADD CONSTRAINT id_xref_pkey PRIMARY KEY (id);
-ALTER TABLE working.id_xref ADD CONSTRAINT uq_xref_pair UNIQUE (system_a, native_id_a, system_b, native_id_b);
-ALTER TABLE working.investigation_event ADD CONSTRAINT investigation_event_attrs_check CHECK ((jsonb_typeof(attrs) = 'object'::text));
-ALTER TABLE working.investigation_event ADD CONSTRAINT investigation_event_check CHECK ((((promoted_at IS NULL) AND (promoted_by IS NULL) AND (promoted_timeline_event_id IS NULL)) OR ((promoted_at IS NOT NULL) AND (promoted_by IS NOT NULL) AND (promoted_timeline_event_id IS NOT NULL))));
-ALTER TABLE working.investigation_event ADD CONSTRAINT investigation_event_check1 CHECK (((disposition <> 'promoted'::text) OR (promoted_at IS NOT NULL)));
-ALTER TABLE working.investigation_event ADD CONSTRAINT investigation_event_disposition_check CHECK ((disposition = ANY (ARRAY['open'::text, 'promoted'::text, 'unsupported'::text, 'inconclusive'::text, 'withdrawn'::text])));
-ALTER TABLE working.investigation_event ADD CONSTRAINT investigation_event_evidence_status_check CHECK ((evidence_status = ANY (ARRAY['needed'::text, 'searching'::text, 'partial'::text, 'sufficient'::text, 'conflicting'::text])));
-ALTER TABLE working.investigation_event ADD CONSTRAINT investigation_event_pkey PRIMARY KEY (id);
-ALTER TABLE working.investigation_event ADD CONSTRAINT investigation_event_priority_check CHECK ((priority = ANY (ARRAY['low'::text, 'normal'::text, 'high'::text, 'urgent'::text])));
-ALTER TABLE working.investigation_event ADD CONSTRAINT investigation_event_summary_check CHECK ((length(summary) > 0));
-ALTER TABLE working.investigation_event ADD CONSTRAINT investigation_event_temporal_status_check CHECK ((temporal_status = ANY (ARRAY['unknown'::text, 'asserted'::text, 'estimated'::text, 'disputed'::text])));
-ALTER TABLE working.investigation_event ADD CONSTRAINT investigation_event_title_check CHECK ((length(title) > 0));
-ALTER TABLE working.investigation_event_evidence_link ADD CONSTRAINT investigation_event_evidence__investigation_event_id_eviden_key UNIQUE (investigation_event_id, evidence_hash_id, relationship);
-ALTER TABLE working.investigation_event_evidence_link ADD CONSTRAINT investigation_event_evidence_link_pkey PRIMARY KEY (id);
-ALTER TABLE working.investigation_event_evidence_link ADD CONSTRAINT investigation_event_evidence_link_relationship_check CHECK ((relationship = ANY (ARRAY['supports'::text, 'contradicts'::text, 'related'::text])));
-ALTER TABLE working.investigation_event_evidence_need ADD CONSTRAINT investigation_event_evidence_need_attrs_check CHECK ((jsonb_typeof(attrs) = 'object'::text));
-ALTER TABLE working.investigation_event_evidence_need ADD CONSTRAINT investigation_event_evidence_need_description_check CHECK ((length(description) > 0));
-ALTER TABLE working.investigation_event_evidence_need ADD CONSTRAINT investigation_event_evidence_need_pkey PRIMARY KEY (id);
-ALTER TABLE working.investigation_event_evidence_need ADD CONSTRAINT investigation_event_evidence_need_status_check CHECK ((status = ANY (ARRAY['needed'::text, 'searching'::text, 'found'::text, 'unavailable'::text, 'waived'::text])));
-ALTER TABLE working.investigation_event_source ADD CONSTRAINT investigation_event_source_pkey PRIMARY KEY (investigation_event_id, source_kind, source_ref);
-ALTER TABLE working.investigation_event_source ADD CONSTRAINT investigation_event_source_relationship_check CHECK ((relationship = ANY (ARRAY['origin'::text, 'supports'::text, 'contradicts'::text, 'related'::text])));
-ALTER TABLE working.investigation_event_source ADD CONSTRAINT investigation_event_source_source_kind_check CHECK ((source_kind = ANY (ARRAY['chat_chunk'::text, 'event_candidate'::text, 'claim_candidate'::text, 'other'::text])));
-ALTER TABLE working.investigation_event_tag ADD CONSTRAINT investigation_event_tag_pkey PRIMARY KEY (investigation_event_id, tag_id);
-ALTER TABLE working.legacy_chat_chunk_content_chunk_map ADD CONSTRAINT legacy_chat_chunk_content_chunk_map_content_chunk_id_key UNIQUE (content_chunk_id);
-ALTER TABLE working.legacy_chat_chunk_content_chunk_map ADD CONSTRAINT legacy_chat_chunk_content_chunk_map_pkey PRIMARY KEY (legacy_chat_chunk_id);
-ALTER TABLE working.legacy_normalized_chunk_content_chunk_map ADD CONSTRAINT legacy_normalized_chunk_content_chunk_map_content_chunk_id_key UNIQUE (content_chunk_id);
-ALTER TABLE working.legacy_normalized_chunk_content_chunk_map ADD CONSTRAINT legacy_normalized_chunk_content_chunk_map_pkey PRIMARY KEY (legacy_normalized_chunk_id);
-ALTER TABLE working.lineage_edge ADD CONSTRAINT lineage_edge_check CHECK (((parent_artifact IS NOT NULL) OR (parent_source IS NOT NULL)));
-ALTER TABLE working.lineage_edge ADD CONSTRAINT lineage_edge_pkey PRIMARY KEY (edge_id);
-ALTER TABLE working.lineage_edge ADD CONSTRAINT lineage_edge_role_check CHECK ((role = ANY (ARRAY['derived_from'::text, 'supersedes'::text, 'corroborates'::text, 'contradicts'::text])));
-ALTER TABLE working.location ADD CONSTRAINT location_data_tier_check CHECK ((data_tier = ANY (ARRAY['extracted'::evidence_tier, 'inferred'::evidence_tier, 'analytical'::evidence_tier])));
-ALTER TABLE working.location ADD CONSTRAINT location_pkey PRIMARY KEY (id);
 ALTER TABLE working.message ADD CONSTRAINT message_content_sha256_check CHECK (((content_sha256 IS NULL) OR (octet_length(content_sha256) = 32)));
 ALTER TABLE working.message ADD CONSTRAINT message_direction_check CHECK ((direction = ANY (ARRAY['inbound'::text, 'outbound'::text, 'unknown'::text])));
 ALTER TABLE working.message ADD CONSTRAINT message_pkey PRIMARY KEY (id);
@@ -6138,20 +5319,7 @@ ALTER TABLE working.normalized_record ADD CONSTRAINT normalized_record_recipient
 ALTER TABLE working.normalized_record ADD CONSTRAINT normalized_record_record_type_check CHECK ((record_type = ANY (ARRAY['message'::text, 'call'::text, 'event'::text, 'media'::text])));
 ALTER TABLE working.normalized_record ADD CONSTRAINT normalized_record_source_hash_ck CHECK (((source_content_sha256 IS NULL) OR (octet_length(source_content_sha256) = 32)));
 ALTER TABLE working.normalized_record ADD CONSTRAINT normrec_clock_ordering CHECK ((((realized_at IS NULL) OR (occurred_at IS NULL) OR (realized_at >= occurred_at)) AND ((acquired_at IS NULL) OR (occurred_at IS NULL) OR (acquired_at >= occurred_at)))) NOT VALID;
-ALTER TABLE working.normalized_record_chunk ADD CONSTRAINT normalized_record_chunk_attrs_check CHECK ((jsonb_typeof(attrs) = 'object'::text));
-ALTER TABLE working.normalized_record_chunk ADD CONSTRAINT normalized_record_chunk_char_start_check CHECK (((char_start IS NULL) OR (char_start >= 0)));
-ALTER TABLE working.normalized_record_chunk ADD CONSTRAINT normalized_record_chunk_check CHECK (((char_end IS NULL) OR ((char_start IS NOT NULL) AND (char_end >= char_start))));
-ALTER TABLE working.normalized_record_chunk ADD CONSTRAINT normalized_record_chunk_chunk_index_check CHECK ((chunk_index >= 0));
-ALTER TABLE working.normalized_record_chunk ADD CONSTRAINT normalized_record_chunk_chunker_id_check CHECK ((length(chunker_id) > 0));
-ALTER TABLE working.normalized_record_chunk ADD CONSTRAINT normalized_record_chunk_content_sha256_check CHECK ((octet_length(content_sha256) = 32));
-ALTER TABLE working.normalized_record_chunk ADD CONSTRAINT normalized_record_chunk_normalized_record_id_chunker_id_chu_key UNIQUE (normalized_record_id, chunker_id, chunk_index);
-ALTER TABLE working.normalized_record_chunk ADD CONSTRAINT normalized_record_chunk_pkey PRIMARY KEY (id);
-ALTER TABLE working.normalized_record_chunk ADD CONSTRAINT normalized_record_chunk_source_content_sha256_check CHECK ((octet_length(source_content_sha256) = 32));
-ALTER TABLE working.normalized_record_chunk ADD CONSTRAINT normalized_record_chunk_token_count_check CHECK (((token_count IS NULL) OR (token_count >= 0)));
 ALTER TABLE working.organization ADD CONSTRAINT organization_pkey PRIMARY KEY (id);
-ALTER TABLE working.person ADD CONSTRAINT person_connection_to_check CHECK ((connection_to = ANY (ARRAY['petitioner'::text, 'respondent'::text, 'child'::text, 'mutual'::text, 'third_party'::text, 'unknown'::text])));
-ALTER TABLE working.person ADD CONSTRAINT person_pkey PRIMARY KEY (id);
-ALTER TABLE working.person ADD CONSTRAINT person_role_in_case_check CHECK ((role_in_case = ANY (ARRAY['user'::text, 'partner'::text, 'child'::text, 'witness'::text, 'evaluator'::text, 'attorney'::text, 'third_party'::text, 'neutral'::text, 'unknown'::text])));
 ALTER TABLE working.phone ADD CONSTRAINT phone_pkey PRIMARY KEY (id);
 ALTER TABLE working.promotion ADD CONSTRAINT promotion_attrs_check CHECK ((jsonb_typeof(attrs) = 'object'::text));
 ALTER TABLE working.promotion ADD CONSTRAINT promotion_candidate_kind_check CHECK ((candidate_kind = ANY (ARRAY['entity'::text, 'fact'::text, 'event'::text])));
@@ -6172,11 +5340,6 @@ ALTER TABLE working.realization_event_record ADD CONSTRAINT realization_event_re
 ALTER TABLE working.realization_event_record ADD CONSTRAINT realization_event_record_pkey PRIMARY KEY (realization_event_id, normalized_record_id);
 ALTER TABLE working.record_visible_from ADD CONSTRAINT record_visible_from_pkey PRIMARY KEY (record_id);
 ALTER TABLE working.record_visible_from ADD CONSTRAINT record_visible_from_source_clock_hash_check CHECK ((length(source_clock_hash) = 64));
-ALTER TABLE working.review_decision ADD CONSTRAINT review_decision_attrs_check CHECK ((jsonb_typeof(attrs) = 'object'::text));
-ALTER TABLE working.review_decision ADD CONSTRAINT review_decision_candidate_kind_check CHECK ((candidate_kind = ANY (ARRAY['entity'::text, 'fact'::text, 'event'::text])));
-ALTER TABLE working.review_decision ADD CONSTRAINT review_decision_decision_check CHECK ((decision = ANY (ARRAY['approved'::text, 'rejected'::text, 'needs_info'::text, 'superseded'::text])));
-ALTER TABLE working.review_decision ADD CONSTRAINT review_decision_pkey PRIMARY KEY (id);
-ALTER TABLE working.review_decision ADD CONSTRAINT review_decision_reviewer_check CHECK ((length(reviewer) > 0));
 ALTER TABLE working.source_provenance ADD CONSTRAINT source_provenance_acquisition_authority_check CHECK ((acquisition_authority = ANY (ARRAY['device_owner'::text, 'parent_guardian'::text, 'account_holder'::text, 'consent_given'::text, 'court_order'::text, 'unclear'::text])));
 ALTER TABLE working.source_provenance ADD CONSTRAINT source_provenance_acquisition_method_check CHECK ((acquisition_method = ANY (ARRAY['own_device'::text, 'household_device'::text, 'voluntary_third_party'::text, 'legal_process'::text, 'public_source'::text, 'unknown'::text])));
 ALTER TABLE working.source_provenance ADD CONSTRAINT source_provenance_artifact_clock_order CHECK ((((export_created_at IS NULL) OR (acquired_at IS NULL) OR (acquired_at >= export_created_at)) AND ((acquired_at IS NULL) OR (ingested_at IS NULL) OR (ingested_at >= acquired_at))));
@@ -6197,14 +5360,6 @@ ALTER TABLE working.third_party_context_thread_message ADD CONSTRAINT third_part
 ALTER TABLE working.third_party_context_thread_message ADD CONSTRAINT third_party_context_thread_message_membership_confidence_check CHECK (((membership_confidence >= (0)::double precision) AND (membership_confidence <= (1)::double precision)));
 ALTER TABLE working.third_party_context_thread_message ADD CONSTRAINT third_party_context_thread_message_pkey PRIMARY KEY (thread_version_id, message_id);
 ALTER TABLE working.third_party_context_thread_message ADD CONSTRAINT third_party_context_thread_message_thread_ordinal_check CHECK ((thread_ordinal >= 0));
-ALTER TABLE working.third_party_context_thread_realization_assertion ADD CONSTRAINT third_party_context_thread_re_thread_version_id_realization_key UNIQUE (thread_version_id, realization_event_id, assertion_version);
-ALTER TABLE working.third_party_context_thread_realization_assertion ADD CONSTRAINT third_party_context_thread_realization__assertion_version_check CHECK ((assertion_version > 0));
-ALTER TABLE working.third_party_context_thread_realization_assertion ADD CONSTRAINT third_party_context_thread_realization_asser_review_state_check CHECK ((review_state = ANY (ARRAY['proposed'::text, 'approved'::text, 'rejected'::text, 'superseded'::text])));
-ALTER TABLE working.third_party_context_thread_realization_assertion ADD CONSTRAINT third_party_context_thread_realization_assertio_rationale_check CHECK ((length(btrim(rationale)) > 0));
-ALTER TABLE working.third_party_context_thread_realization_assertion ADD CONSTRAINT third_party_context_thread_realization_assertion_pkey PRIMARY KEY (id);
-ALTER TABLE working.third_party_context_thread_realization_assertion ADD CONSTRAINT third_party_context_thread_realization_id_thread_version_id_key UNIQUE (id, thread_version_id);
-ALTER TABLE working.third_party_context_thread_realization_message ADD CONSTRAINT third_party_context_thread_realization_message_pkey PRIMARY KEY (realization_assertion_id, message_id);
-ALTER TABLE working.third_party_context_thread_realization_source ADD CONSTRAINT third_party_context_thread_realization_source_pkey PRIMARY KEY (realization_assertion_id, thread_source_id);
 ALTER TABLE working.third_party_context_thread_source ADD CONSTRAINT third_party_context_thread_so_thread_version_id_source_anch_key UNIQUE (thread_version_id, source_anchor_ordinal);
 ALTER TABLE working.third_party_context_thread_source ADD CONSTRAINT third_party_context_thread_so_thread_version_id_source_vers_key UNIQUE (thread_version_id, source_version_id, assertion_version);
 ALTER TABLE working.third_party_context_thread_source ADD CONSTRAINT third_party_context_thread_sou_metadata_extractor_version_check CHECK ((length(btrim(metadata_extractor_version)) > 0));
@@ -6309,33 +5464,30 @@ ALTER TABLE ai.agno_component_links ADD CONSTRAINT agno_component_links_child_co
 ALTER TABLE ai.agno_component_links ADD CONSTRAINT agno_component_links_parent_component_id_parent_version_fkey FOREIGN KEY (parent_component_id, parent_version) REFERENCES agno_component_configs(component_id, version);
 ALTER TABLE ai.agno_schedule_runs ADD CONSTRAINT agno_schedule_runs_schedule_id_fkey FOREIGN KEY (schedule_id) REFERENCES agno_schedules(id) ON DELETE CASCADE;
 ALTER TABLE ai.agno_spans ADD CONSTRAINT agno_spans_trace_id_fkey FOREIGN KEY (trace_id) REFERENCES agno_traces(trace_id);
-ALTER TABLE analysis.case_registry_import_receipt ADD CONSTRAINT case_registry_import_case_scope_fk FOREIGN KEY (court_case_id, matter_id) REFERENCES analysis.court_case(id, matter_id) ON DELETE RESTRICT;
+ALTER TABLE analysis.case_registry_import_receipt ADD CONSTRAINT case_registry_import_case_scope_fk FOREIGN KEY (court_case_id, matter_id) REFERENCES reference.court_case(id, matter_id) ON DELETE RESTRICT;
 ALTER TABLE analysis.case_registry_import_receipt ADD CONSTRAINT case_registry_import_partition_scope_fk FOREIGN KEY (partition_key, matter_id) REFERENCES analysis.matter_knowledge_partition(partition_key, matter_id) ON DELETE RESTRICT;
-ALTER TABLE analysis.case_registry_import_receipt ADD CONSTRAINT case_registry_import_receipt_matter_id_fkey FOREIGN KEY (matter_id) REFERENCES analysis.matter(id) ON DELETE RESTRICT;
+ALTER TABLE analysis.case_registry_import_receipt ADD CONSTRAINT case_registry_import_receipt_matter_id_fkey FOREIGN KEY (matter_id) REFERENCES reference.matter(id) ON DELETE RESTRICT;
+ALTER TABLE analysis.claim_assertion ADD CONSTRAINT claim_assertion_supersedes_id_fkey FOREIGN KEY (supersedes_id) REFERENCES analysis.claim_assertion(id) ON DELETE RESTRICT;
+ALTER TABLE analysis.claim_assertion_member ADD CONSTRAINT claim_assertion_member_assertion_id_fkey FOREIGN KEY (assertion_id) REFERENCES analysis.claim_assertion(id) ON DELETE CASCADE;
+ALTER TABLE analysis.claim_assertion_member ADD CONSTRAINT claim_assertion_member_claim_candidate_id_fkey FOREIGN KEY (claim_candidate_id) REFERENCES working.claim_candidate(id) ON DELETE RESTRICT;
+ALTER TABLE analysis.claim_assertion_synthesis_member ADD CONSTRAINT claim_assertion_synthesis_member_synthesis_id_fkey FOREIGN KEY (synthesis_id) REFERENCES analysis.claim_assertion(id) ON DELETE CASCADE;
+ALTER TABLE analysis.claim_assertion_synthesis_member ADD CONSTRAINT synthesis_member_is_generation_one FOREIGN KEY (member_assertion_id, member_generation) REFERENCES analysis.claim_assertion(id, assertion_generation) ON DELETE RESTRICT;
 ALTER TABLE analysis.completion_evidence ADD CONSTRAINT completion_evidence_evidence_hash_id_fkey FOREIGN KEY (evidence_hash_id) REFERENCES evidence.evidence_hash(id);
-ALTER TABLE analysis.completion_evidence ADD CONSTRAINT completion_evidence_evidence_item_id_fkey FOREIGN KEY (evidence_item_id) REFERENCES analysis.evidence_item(id);
+ALTER TABLE analysis.completion_evidence ADD CONSTRAINT completion_evidence_evidence_item_id_fkey FOREIGN KEY (evidence_item_id) REFERENCES evidence.evidence_item(id);
 ALTER TABLE analysis.completion_evidence ADD CONSTRAINT completion_evidence_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
 ALTER TABLE analysis.completion_evidence ADD CONSTRAINT completion_evidence_task_id_fkey FOREIGN KEY (task_id) REFERENCES analysis.evidence_task(id);
-ALTER TABLE analysis.court_case ADD CONSTRAINT court_case_matter_fkey FOREIGN KEY (matter_id) REFERENCES analysis.matter(id) ON DELETE RESTRICT;
-ALTER TABLE analysis.discovery_request ADD CONSTRAINT discovery_request_target_person_id_fkey FOREIGN KEY (target_person_id) REFERENCES working.person(id);
+ALTER TABLE analysis.content_chunk_classification_decision ADD CONSTRAINT content_chunk_classification_decision_chunk_id_fkey FOREIGN KEY (chunk_id) REFERENCES working.content_chunk(id) ON DELETE RESTRICT;
+ALTER TABLE analysis.content_chunk_classification_decision ADD CONSTRAINT content_chunk_classification_decision_supersedes_id_fkey FOREIGN KEY (supersedes_id) REFERENCES analysis.content_chunk_classification_decision(id) ON DELETE RESTRICT;
+ALTER TABLE analysis.discovery_request ADD CONSTRAINT discovery_request_target_person_id_fkey FOREIGN KEY (target_person_id) REFERENCES reference.person(id);
 ALTER TABLE analysis.discovery_request ADD CONSTRAINT discovery_request_task_id_fkey FOREIGN KEY (task_id) REFERENCES analysis.evidence_task(id);
 ALTER TABLE analysis.discovery_request_revision ADD CONSTRAINT discovery_request_revision_request_id_fkey FOREIGN KEY (request_id) REFERENCES analysis.discovery_request(id);
-ALTER TABLE analysis.entity_candidate ADD CONSTRAINT entity_candidate_source_id_fkey1 FOREIGN KEY (source_id) REFERENCES evidence.source(id);
-ALTER TABLE analysis.evidence_item ADD CONSTRAINT evidence_item_court_case_matter_fkey FOREIGN KEY (court_case_id, matter_id) REFERENCES analysis.court_case(id, matter_id) ON DELETE RESTRICT;
-ALTER TABLE analysis.evidence_item ADD CONSTRAINT evidence_item_evidence_hash_id_fkey FOREIGN KEY (evidence_hash_id) REFERENCES evidence.evidence_hash(id);
-ALTER TABLE analysis.evidence_item ADD CONSTRAINT evidence_item_file_node_id_fkey FOREIGN KEY (file_node_id) REFERENCES evidence.file_node(id);
-ALTER TABLE analysis.evidence_item ADD CONSTRAINT evidence_item_matter_fkey FOREIGN KEY (matter_id) REFERENCES analysis.matter(id) ON DELETE RESTRICT;
-ALTER TABLE analysis.evidence_item ADD CONSTRAINT evidence_item_normalized_record_id_fkey FOREIGN KEY (normalized_record_id) REFERENCES working.normalized_record(id);
-ALTER TABLE analysis.evidence_item ADD CONSTRAINT evidence_item_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
-ALTER TABLE analysis.evidence_item ADD CONSTRAINT evidence_item_source_run_id_fkey FOREIGN KEY (source_run_id) REFERENCES ops.processing_run(run_id);
-ALTER TABLE analysis.evidence_item ADD CONSTRAINT evidence_item_supersedes_item_id_fkey FOREIGN KEY (supersedes_item_id) REFERENCES analysis.evidence_item(id);
 ALTER TABLE analysis.evidence_task ADD CONSTRAINT evidence_task_finding_id_fkey FOREIGN KEY (finding_id) REFERENCES analysis.finding(id);
 ALTER TABLE analysis.evidence_task ADD CONSTRAINT evidence_task_likely_source_id_fkey FOREIGN KEY (likely_source_id) REFERENCES evidence.source(id);
 ALTER TABLE analysis.evidence_task ADD CONSTRAINT evidence_task_source_run_id_fkey FOREIGN KEY (source_run_id) REFERENCES ops.processing_run(run_id);
 ALTER TABLE analysis.export ADD CONSTRAINT export_export_run_fkey FOREIGN KEY (export_run) REFERENCES ops.processing_run(run_id);
-ALTER TABLE analysis.export_item ADD CONSTRAINT export_item_evidence_item_id_fkey FOREIGN KEY (evidence_item_id) REFERENCES analysis.evidence_item(id);
+ALTER TABLE analysis.export_item ADD CONSTRAINT export_item_evidence_item_id_fkey FOREIGN KEY (evidence_item_id) REFERENCES evidence.evidence_item(id);
 ALTER TABLE analysis.export_item ADD CONSTRAINT export_item_package_id_fkey FOREIGN KEY (package_id) REFERENCES analysis.export_package(id);
-ALTER TABLE analysis.factor_citation ADD CONSTRAINT factor_citation_evidence_item_id_fkey FOREIGN KEY (evidence_item_id) REFERENCES analysis.evidence_item(id);
+ALTER TABLE analysis.factor_citation ADD CONSTRAINT factor_citation_evidence_item_id_fkey FOREIGN KEY (evidence_item_id) REFERENCES evidence.evidence_item(id);
 ALTER TABLE analysis.factor_citation ADD CONSTRAINT factor_citation_factor_fkey FOREIGN KEY (factor) REFERENCES reference.custody_factor(factor);
 ALTER TABLE analysis.factor_citation ADD CONSTRAINT factor_citation_legal_issue_id_fkey FOREIGN KEY (legal_issue_id) REFERENCES reference.legal_issue(id);
 ALTER TABLE analysis.factor_citation ADD CONSTRAINT factor_citation_supersedes_citation_id_fkey FOREIGN KEY (supersedes_citation_id) REFERENCES analysis.factor_citation(id);
@@ -6354,21 +5506,21 @@ ALTER TABLE analysis.graphrag_lane_receipt ADD CONSTRAINT graphrag_lane_receipt_
 ALTER TABLE analysis.graphrag_lane_receipt ADD CONSTRAINT graphrag_lane_receipt_run_id_fkey FOREIGN KEY (run_id) REFERENCES analysis.graphrag_comparison_run(id) ON DELETE CASCADE;
 ALTER TABLE analysis.graphrag_lane_result ADD CONSTRAINT graphrag_lane_result_manifest_id_fkey FOREIGN KEY (manifest_id) REFERENCES analysis.graphrag_eligibility_manifest(id) ON DELETE CASCADE;
 ALTER TABLE analysis.graphrag_lane_result ADD CONSTRAINT graphrag_lane_result_run_id_fkey FOREIGN KEY (run_id) REFERENCES analysis.graphrag_comparison_run(id) ON DELETE CASCADE;
-ALTER TABLE analysis.knowledge_evidence_promotion ADD CONSTRAINT knowledge_evidence_promotion_case_fkey FOREIGN KEY (court_case_id, matter_id) REFERENCES analysis.court_case(id, matter_id) ON DELETE RESTRICT;
-ALTER TABLE analysis.knowledge_evidence_promotion ADD CONSTRAINT knowledge_evidence_promotion_file_node_fkey FOREIGN KEY (file_node_id) REFERENCES evidence.file_node(id) ON DELETE RESTRICT;
+ALTER TABLE analysis.knowledge_evidence_promotion ADD CONSTRAINT knowledge_evidence_promotion_case_fkey FOREIGN KEY (court_case_id, matter_id) REFERENCES reference.court_case(id, matter_id) ON DELETE RESTRICT;
+ALTER TABLE analysis.knowledge_evidence_promotion ADD CONSTRAINT knowledge_evidence_promotion_file_node_fkey FOREIGN KEY (file_node_id) REFERENCES raw.file_node(id) ON DELETE RESTRICT;
 ALTER TABLE analysis.knowledge_evidence_promotion ADD CONSTRAINT knowledge_evidence_promotion_hash_fkey FOREIGN KEY (evidence_hash_id) REFERENCES evidence.evidence_hash(id) ON DELETE RESTRICT;
-ALTER TABLE analysis.knowledge_evidence_promotion ADD CONSTRAINT knowledge_evidence_promotion_item_scope_fkey FOREIGN KEY (evidence_item_id, matter_id, court_case_id) REFERENCES analysis.evidence_item(id, matter_id, court_case_id) ON DELETE RESTRICT;
+ALTER TABLE analysis.knowledge_evidence_promotion ADD CONSTRAINT knowledge_evidence_promotion_item_scope_fkey FOREIGN KEY (evidence_item_id, matter_id, court_case_id) REFERENCES evidence.evidence_item(id, matter_id, court_case_id) ON DELETE RESTRICT;
 ALTER TABLE analysis.knowledge_evidence_promotion ADD CONSTRAINT knowledge_evidence_promotion_partition_fkey FOREIGN KEY (partition_key, matter_id) REFERENCES analysis.matter_knowledge_partition(partition_key, matter_id) ON DELETE RESTRICT;
 ALTER TABLE analysis.knowledge_evidence_promotion ADD CONSTRAINT knowledge_evidence_promotion_record_fkey FOREIGN KEY (normalized_record_id) REFERENCES working.normalized_record(id) ON DELETE RESTRICT;
 ALTER TABLE analysis.knowledge_evidence_promotion ADD CONSTRAINT knowledge_evidence_promotion_run_fkey FOREIGN KEY (source_run_id) REFERENCES ops.processing_run(run_id) ON DELETE RESTRICT;
 ALTER TABLE analysis.knowledge_evidence_promotion ADD CONSTRAINT knowledge_evidence_promotion_source_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id) ON DELETE RESTRICT;
-ALTER TABLE analysis.location_assertion ADD CONSTRAINT location_assertion_location_id_fkey FOREIGN KEY (location_id) REFERENCES working.location(id);
+ALTER TABLE analysis.location_assertion ADD CONSTRAINT location_assertion_location_id_fkey FOREIGN KEY (location_id) REFERENCES reference.location(id);
 ALTER TABLE analysis.location_assertion ADD CONSTRAINT location_assertion_provenance_id_fkey FOREIGN KEY (provenance_id) REFERENCES ops.processing_run(run_id);
 ALTER TABLE analysis.location_contradiction ADD CONSTRAINT location_contradiction_claimed_assertion_id_fkey FOREIGN KEY (claimed_assertion_id) REFERENCES analysis.location_assertion(id);
 ALTER TABLE analysis.location_contradiction ADD CONSTRAINT location_contradiction_observed_assertion_id_fkey FOREIGN KEY (observed_assertion_id) REFERENCES analysis.location_assertion(id);
 ALTER TABLE analysis.location_contradiction ADD CONSTRAINT location_contradiction_provenance_id_fkey FOREIGN KEY (provenance_id) REFERENCES ops.processing_run(run_id);
-ALTER TABLE analysis.matter_knowledge_partition ADD CONSTRAINT matter_knowledge_partition_default_case_fkey FOREIGN KEY (default_court_case_id, matter_id) REFERENCES analysis.court_case(id, matter_id) ON DELETE RESTRICT;
-ALTER TABLE analysis.matter_knowledge_partition ADD CONSTRAINT matter_knowledge_partition_matter_fkey FOREIGN KEY (matter_id) REFERENCES analysis.matter(id) ON DELETE RESTRICT;
+ALTER TABLE analysis.matter_knowledge_partition ADD CONSTRAINT matter_knowledge_partition_default_case_fkey FOREIGN KEY (default_court_case_id, matter_id) REFERENCES reference.court_case(id, matter_id) ON DELETE RESTRICT;
+ALTER TABLE analysis.matter_knowledge_partition ADD CONSTRAINT matter_knowledge_partition_matter_fkey FOREIGN KEY (matter_id) REFERENCES reference.matter(id) ON DELETE RESTRICT;
 ALTER TABLE analysis.pattern_finding ADD CONSTRAINT pattern_finding_category_id_fkey FOREIGN KEY (category_id) REFERENCES reference.behavior_category(category_id);
 ALTER TABLE analysis.pattern_finding ADD CONSTRAINT pattern_finding_finding_id_fkey FOREIGN KEY (finding_id) REFERENCES analysis.finding(id);
 ALTER TABLE analysis.pattern_finding ADD CONSTRAINT pattern_finding_pattern_id_fkey FOREIGN KEY (pattern_id) REFERENCES reference.detection_pattern(id);
@@ -6392,7 +5544,7 @@ ALTER TABLE analysis.task_event ADD CONSTRAINT task_event_task_id_fkey FOREIGN K
 ALTER TABLE analysis.task_legal_link ADD CONSTRAINT task_legal_link_factor_fkey FOREIGN KEY (factor) REFERENCES reference.custody_factor(factor);
 ALTER TABLE analysis.task_legal_link ADD CONSTRAINT task_legal_link_legal_issue_id_fkey FOREIGN KEY (legal_issue_id) REFERENCES reference.legal_issue(id);
 ALTER TABLE analysis.task_legal_link ADD CONSTRAINT task_legal_link_task_id_fkey FOREIGN KEY (task_id) REFERENCES analysis.evidence_task(id);
-ALTER TABLE analysis.task_person ADD CONSTRAINT task_person_person_id_fkey FOREIGN KEY (person_id) REFERENCES working.person(id);
+ALTER TABLE analysis.task_person ADD CONSTRAINT task_person_person_id_fkey FOREIGN KEY (person_id) REFERENCES reference.person(id);
 ALTER TABLE analysis.task_person ADD CONSTRAINT task_person_task_id_fkey FOREIGN KEY (task_id) REFERENCES analysis.evidence_task(id);
 ALTER TABLE analysis.task_revision ADD CONSTRAINT task_revision_task_id_fkey FOREIGN KEY (task_id) REFERENCES analysis.evidence_task(id);
 ALTER TABLE analysis.time_assertion ADD CONSTRAINT time_assertion_discovery_source_fkey FOREIGN KEY (discovery_source) REFERENCES evidence.evidence_hash(id);
@@ -6400,11 +5552,19 @@ ALTER TABLE analysis.time_assertion ADD CONSTRAINT time_assertion_event_id_fkey 
 ALTER TABLE analysis.time_assertion ADD CONSTRAINT time_assertion_ingest_run_id_fkey FOREIGN KEY (ingest_run_id) REFERENCES ops.processing_run(run_id);
 ALTER TABLE analysis.time_assertion ADD CONSTRAINT time_assertion_superseded_by_fkey FOREIGN KEY (superseded_by) REFERENCES analysis.time_assertion(assertion_id);
 ALTER TABLE analysis.timeline_event ADD CONSTRAINT timeline_event_ingest_run_id_fkey FOREIGN KEY (ingest_run_id) REFERENCES ops.processing_run(run_id);
-ALTER TABLE analysis.timeline_event ADD CONSTRAINT timeline_event_location_id_fkey FOREIGN KEY (location_id) REFERENCES working.location(id);
+ALTER TABLE analysis.timeline_event ADD CONSTRAINT timeline_event_location_id_fkey FOREIGN KEY (location_id) REFERENCES reference.location(id);
 ALTER TABLE analysis.timeline_event ADD CONSTRAINT timeline_event_primary_record_id_fkey FOREIGN KEY (primary_record_id) REFERENCES working.normalized_record(id);
 ALTER TABLE analysis.timeline_event ADD CONSTRAINT timeline_event_source_artifact_id_fkey FOREIGN KEY (source_artifact_id) REFERENCES evidence.evidence_hash(id);
 ALTER TABLE analysis.workflow_run ADD CONSTRAINT workflow_run_parent_run_id_fkey FOREIGN KEY (parent_run_id) REFERENCES analysis.workflow_run(run_id);
 ALTER TABLE analysis.workflow_run_stage ADD CONSTRAINT workflow_run_stage_run_id_fkey FOREIGN KEY (run_id) REFERENCES analysis.workflow_run(run_id) ON DELETE CASCADE;
+ALTER TABLE canon.canonical_table ADD CONSTRAINT canonical_table_default_tier_fkey FOREIGN KEY (default_tier) REFERENCES canon.change_tier(tier);
+ALTER TABLE canon.change_application ADD CONSTRAINT change_application_decision_id_fkey FOREIGN KEY (decision_id) REFERENCES canon.change_decision(id);
+ALTER TABLE canon.change_application ADD CONSTRAINT change_application_proposal_id_fkey FOREIGN KEY (proposal_id) REFERENCES canon.change_proposal(id);
+ALTER TABLE canon.change_decision ADD CONSTRAINT change_decision_proposal_id_fkey FOREIGN KEY (proposal_id) REFERENCES canon.change_proposal(id);
+ALTER TABLE canon.change_proposal ADD CONSTRAINT change_proposal_canonical_table_id_fkey FOREIGN KEY (canonical_table_id) REFERENCES canon.canonical_table(id);
+ALTER TABLE canon.change_proposal ADD CONSTRAINT change_proposal_tier_fkey FOREIGN KEY (tier) REFERENCES canon.change_tier(tier);
+ALTER TABLE canon.recompute_queue ADD CONSTRAINT recompute_queue_application_id_fkey FOREIGN KEY (application_id) REFERENCES canon.change_application(id);
+ALTER TABLE canon.recompute_queue ADD CONSTRAINT recompute_queue_canonical_table_id_fkey FOREIGN KEY (canonical_table_id) REFERENCES canon.canonical_table(id);
 ALTER TABLE context.activity_execution ADD CONSTRAINT activity_execution_source_version_id_fkey FOREIGN KEY (source_version_id) REFERENCES context.source_version(id) ON DELETE RESTRICT;
 ALTER TABLE context.activity_receipt ADD CONSTRAINT activity_receipt_activity_execution_id_fkey FOREIGN KEY (activity_execution_id) REFERENCES context.activity_execution(id) ON DELETE RESTRICT;
 ALTER TABLE context.first_party_thread_message_relative_time_anchor ADD CONSTRAINT first_party_thread_message_re_thread_version_id_message_id_fkey FOREIGN KEY (thread_version_id, message_id) REFERENCES working.first_party_context_thread_message(thread_version_id, message_id) ON DELETE RESTRICT;
@@ -6488,7 +5648,7 @@ ALTER TABLE context.source_object_range_locator ADD CONSTRAINT source_object_ran
 ALTER TABLE context.source_object_range_locator ADD CONSTRAINT source_object_range_locator_source_version_id_source_objec_fkey FOREIGN KEY (source_version_id, source_object_id) REFERENCES context.source_version_object(source_version_id, object_id) ON DELETE RESTRICT;
 ALTER TABLE context.source_range_locator ADD CONSTRAINT source_range_locator_source_version_id_fkey FOREIGN KEY (source_version_id) REFERENCES context.source_version(id) ON DELETE RESTRICT;
 ALTER TABLE context.source_range_locator ADD CONSTRAINT source_range_locator_verification_activity_receipt_id_fkey FOREIGN KEY (verification_activity_receipt_id) REFERENCES context.activity_receipt(id) ON DELETE RESTRICT;
-ALTER TABLE context.source_version ADD CONSTRAINT source_version_court_case_scope_fk FOREIGN KEY (court_case_id, matter_id) REFERENCES analysis.court_case(id, matter_id) ON DELETE RESTRICT;
+ALTER TABLE context.source_version ADD CONSTRAINT source_version_court_case_scope_fk FOREIGN KEY (court_case_id, matter_id) REFERENCES reference.court_case(id, matter_id) ON DELETE RESTRICT;
 ALTER TABLE context.source_version ADD CONSTRAINT source_version_original_object_id_fkey FOREIGN KEY (original_object_id) REFERENCES context.retained_object(id) ON DELETE RESTRICT;
 ALTER TABLE context.source_version ADD CONSTRAINT source_version_original_object_membership_fk FOREIGN KEY (id, original_object_id) REFERENCES context.source_version_object(source_version_id, object_id) DEFERRABLE INITIALLY DEFERRED;
 ALTER TABLE context.source_version ADD CONSTRAINT source_version_source_context_ref_fkey FOREIGN KEY (source_context_ref) REFERENCES context.uiw_source_context_revision(source_context_ref) ON DELETE RESTRICT;
@@ -6515,54 +5675,27 @@ ALTER TABLE context.uiw_preview_snapshot ADD CONSTRAINT uiw_preview_snapshot_nor
 ALTER TABLE context.uiw_preview_snapshot ADD CONSTRAINT uiw_preview_snapshot_preview_handle_fkey FOREIGN KEY (preview_handle) REFERENCES context.uiw_preview_binding(preview_handle) ON DELETE RESTRICT;
 ALTER TABLE context.uiw_preview_snapshot ADD CONSTRAINT uiw_preview_snapshot_raw_generation_id_fkey FOREIGN KEY (raw_generation_id) REFERENCES context.raw_generation(id) ON DELETE RESTRICT;
 ALTER TABLE context.uiw_preview_snapshot ADD CONSTRAINT uiw_preview_snapshot_source_version_id_fkey FOREIGN KEY (source_version_id) REFERENCES context.source_version(id) ON DELETE RESTRICT;
-ALTER TABLE context.uiw_source_context_revision ADD CONSTRAINT uiw_source_context_court_case_scope_fk FOREIGN KEY (court_case_id, matter_id) REFERENCES analysis.court_case(id, matter_id) ON DELETE RESTRICT NOT VALID;
-ALTER TABLE context.uiw_source_context_revision ADD CONSTRAINT uiw_source_context_matter_fk FOREIGN KEY (matter_id) REFERENCES analysis.matter(id) ON DELETE RESTRICT NOT VALID;
+ALTER TABLE context.uiw_source_context_revision ADD CONSTRAINT uiw_source_context_court_case_scope_fk FOREIGN KEY (court_case_id, matter_id) REFERENCES reference.court_case(id, matter_id) ON DELETE RESTRICT NOT VALID;
+ALTER TABLE context.uiw_source_context_revision ADD CONSTRAINT uiw_source_context_matter_fk FOREIGN KEY (matter_id) REFERENCES reference.matter(id) ON DELETE RESTRICT NOT VALID;
 ALTER TABLE context.uiw_source_context_revision ADD CONSTRAINT uiw_source_context_revision_supersedes_ref_fkey FOREIGN KEY (supersedes_ref) REFERENCES context.uiw_source_context_revision(source_context_ref) ON DELETE RESTRICT;
-ALTER TABLE evidence.acquisition ADD CONSTRAINT acquisition_device_id_fkey FOREIGN KEY (device_id) REFERENCES working.device(id);
+ALTER TABLE evidence.acquisition ADD CONSTRAINT acquisition_device_id_fkey FOREIGN KEY (device_id) REFERENCES reference.device(id);
 ALTER TABLE evidence.acquisition ADD CONSTRAINT acquisition_supersedes_id_fkey FOREIGN KEY (supersedes_id) REFERENCES evidence.acquisition(id);
 ALTER TABLE evidence.artifact_metadata ADD CONSTRAINT artifact_metadata_acquisition_id_fkey FOREIGN KEY (acquisition_id) REFERENCES evidence.acquisition(id);
 ALTER TABLE evidence.artifact_metadata ADD CONSTRAINT artifact_metadata_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
 ALTER TABLE evidence.custody_event ADD CONSTRAINT custody_event_evidence_hash_id_fkey FOREIGN KEY (evidence_hash_id) REFERENCES evidence.evidence_hash(id);
-ALTER TABLE evidence.custody_event ADD CONSTRAINT custody_event_file_node_id_fkey FOREIGN KEY (file_node_id) REFERENCES evidence.file_node(id);
+ALTER TABLE evidence.custody_event ADD CONSTRAINT custody_event_file_node_id_fkey FOREIGN KEY (file_node_id) REFERENCES raw.file_node(id);
 ALTER TABLE evidence.custody_event ADD CONSTRAINT custody_event_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
-ALTER TABLE evidence.evidence_hash ADD CONSTRAINT evidence_hash_file_node_id_fkey FOREIGN KEY (file_node_id) REFERENCES evidence.file_node(id);
+ALTER TABLE evidence.evidence_hash ADD CONSTRAINT evidence_hash_file_node_id_fkey FOREIGN KEY (file_node_id) REFERENCES raw.file_node(id);
 ALTER TABLE evidence.evidence_hash ADD CONSTRAINT evidence_hash_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
-ALTER TABLE evidence.file_node ADD CONSTRAINT file_node_parent_node_id_fkey FOREIGN KEY (parent_node_id) REFERENCES evidence.file_node(id);
-ALTER TABLE evidence.file_node ADD CONSTRAINT file_node_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
-ALTER TABLE evidence.gps_point ADD CONSTRAINT gps_point_file_node_id_fkey FOREIGN KEY (file_node_id) REFERENCES evidence.file_node(id);
-ALTER TABLE evidence.gps_point ADD CONSTRAINT gps_point_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
+ALTER TABLE evidence.evidence_item ADD CONSTRAINT evidence_item_court_case_matter_fkey FOREIGN KEY (court_case_id, matter_id) REFERENCES reference.court_case(id, matter_id) ON DELETE RESTRICT;
+ALTER TABLE evidence.evidence_item ADD CONSTRAINT evidence_item_evidence_hash_id_fkey FOREIGN KEY (evidence_hash_id) REFERENCES evidence.evidence_hash(id);
+ALTER TABLE evidence.evidence_item ADD CONSTRAINT evidence_item_file_node_id_fkey FOREIGN KEY (file_node_id) REFERENCES raw.file_node(id);
+ALTER TABLE evidence.evidence_item ADD CONSTRAINT evidence_item_matter_fkey FOREIGN KEY (matter_id) REFERENCES reference.matter(id) ON DELETE RESTRICT;
+ALTER TABLE evidence.evidence_item ADD CONSTRAINT evidence_item_normalized_record_id_fkey FOREIGN KEY (normalized_record_id) REFERENCES working.normalized_record(id);
+ALTER TABLE evidence.evidence_item ADD CONSTRAINT evidence_item_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
+ALTER TABLE evidence.evidence_item ADD CONSTRAINT evidence_item_source_run_id_fkey FOREIGN KEY (source_run_id) REFERENCES ops.processing_run(run_id);
+ALTER TABLE evidence.evidence_item ADD CONSTRAINT evidence_item_supersedes_item_id_fkey FOREIGN KEY (supersedes_item_id) REFERENCES evidence.evidence_item(id);
 ALTER TABLE evidence.ingest_run ADD CONSTRAINT ingest_run_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
-ALTER TABLE evidence.raw_activity ADD CONSTRAINT raw_activity_file_node_id_fkey FOREIGN KEY (file_node_id) REFERENCES evidence.file_node(id);
-ALTER TABLE evidence.raw_activity ADD CONSTRAINT raw_activity_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
-ALTER TABLE evidence.raw_ai_chat ADD CONSTRAINT raw_ai_chat_acquisition_id_fkey FOREIGN KEY (acquisition_id) REFERENCES evidence.acquisition(id);
-ALTER TABLE evidence.raw_ai_chat ADD CONSTRAINT raw_ai_chat_device_id_fkey FOREIGN KEY (device_id) REFERENCES working.device(id);
-ALTER TABLE evidence.raw_ai_chat ADD CONSTRAINT raw_ai_chat_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
-ALTER TABLE evidence.raw_csv ADD CONSTRAINT raw_csv_acquisition_id_fkey FOREIGN KEY (acquisition_id) REFERENCES evidence.acquisition(id);
-ALTER TABLE evidence.raw_csv ADD CONSTRAINT raw_csv_device_id_fkey FOREIGN KEY (device_id) REFERENCES working.device(id);
-ALTER TABLE evidence.raw_csv ADD CONSTRAINT raw_csv_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
-ALTER TABLE evidence.raw_facebook ADD CONSTRAINT raw_facebook_acquisition_id_fkey FOREIGN KEY (acquisition_id) REFERENCES evidence.acquisition(id);
-ALTER TABLE evidence.raw_facebook ADD CONSTRAINT raw_facebook_device_id_fkey FOREIGN KEY (device_id) REFERENCES working.device(id);
-ALTER TABLE evidence.raw_facebook ADD CONSTRAINT raw_facebook_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
-ALTER TABLE evidence.raw_imessage ADD CONSTRAINT raw_imessage_acquisition_id_fkey FOREIGN KEY (acquisition_id) REFERENCES evidence.acquisition(id);
-ALTER TABLE evidence.raw_imessage ADD CONSTRAINT raw_imessage_device_id_fkey FOREIGN KEY (device_id) REFERENCES working.device(id);
-ALTER TABLE evidence.raw_imessage ADD CONSTRAINT raw_imessage_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
-ALTER TABLE evidence.raw_path ADD CONSTRAINT raw_path_aligned_activity_id_fkey FOREIGN KEY (aligned_activity_id) REFERENCES evidence.raw_activity(id);
-ALTER TABLE evidence.raw_path ADD CONSTRAINT raw_path_file_node_id_fkey FOREIGN KEY (file_node_id) REFERENCES evidence.file_node(id);
-ALTER TABLE evidence.raw_path ADD CONSTRAINT raw_path_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES evidence.raw_path(id);
-ALTER TABLE evidence.raw_path ADD CONSTRAINT raw_path_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
-ALTER TABLE evidence.raw_phone ADD CONSTRAINT raw_phone_acquisition_id_fkey FOREIGN KEY (acquisition_id) REFERENCES evidence.acquisition(id);
-ALTER TABLE evidence.raw_phone ADD CONSTRAINT raw_phone_device_id_fkey FOREIGN KEY (device_id) REFERENCES working.device(id);
-ALTER TABLE evidence.raw_phone ADD CONSTRAINT raw_phone_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
-ALTER TABLE evidence.raw_rejected ADD CONSTRAINT raw_rejected_ingest_run_id_fkey FOREIGN KEY (ingest_run_id) REFERENCES evidence.ingest_run(id) ON DELETE RESTRICT;
-ALTER TABLE evidence.raw_sms ADD CONSTRAINT raw_sms_acquisition_id_fkey FOREIGN KEY (acquisition_id) REFERENCES evidence.acquisition(id);
-ALTER TABLE evidence.raw_sms ADD CONSTRAINT raw_sms_device_id_fkey FOREIGN KEY (device_id) REFERENCES working.device(id);
-ALTER TABLE evidence.raw_sms ADD CONSTRAINT raw_sms_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
-ALTER TABLE evidence.raw_trip ADD CONSTRAINT raw_trip_file_node_id_fkey FOREIGN KEY (file_node_id) REFERENCES evidence.file_node(id);
-ALTER TABLE evidence.raw_trip ADD CONSTRAINT raw_trip_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES evidence.raw_trip(id);
-ALTER TABLE evidence.raw_trip ADD CONSTRAINT raw_trip_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
-ALTER TABLE evidence.raw_visit ADD CONSTRAINT raw_visit_file_node_id_fkey FOREIGN KEY (file_node_id) REFERENCES evidence.file_node(id);
-ALTER TABLE evidence.raw_visit ADD CONSTRAINT raw_visit_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES evidence.raw_visit(id);
-ALTER TABLE evidence.raw_visit ADD CONSTRAINT raw_visit_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
 ALTER TABLE evidence.source ADD CONSTRAINT source_acquisition_id_fkey FOREIGN KEY (acquisition_id) REFERENCES evidence.acquisition(id);
 ALTER TABLE evidence.source ADD CONSTRAINT source_supersedes_source_id_fkey FOREIGN KEY (supersedes_source_id) REFERENCES evidence.source(id);
 ALTER TABLE ops.geocode_audit ADD CONSTRAINT geocode_audit_request_id_fkey FOREIGN KEY (request_id) REFERENCES working.geocode_request(id);
@@ -6576,7 +5709,6 @@ ALTER TABLE ops.tool_call_ledger ADD CONSTRAINT tool_call_ledger_run_id_fkey FOR
 ALTER TABLE ops.workflow_run ADD CONSTRAINT workflow_run_parent_run_id_fkey FOREIGN KEY (parent_run_id) REFERENCES ops.workflow_run(run_id);
 ALTER TABLE ops.workflow_run_review_action ADD CONSTRAINT workflow_run_review_action_run_id_fkey FOREIGN KEY (run_id) REFERENCES ops.workflow_run(run_id);
 ALTER TABLE ops.workflow_run_stage ADD CONSTRAINT workflow_run_stage_run_id_fkey FOREIGN KEY (run_id) REFERENCES ops.workflow_run(run_id) ON DELETE CASCADE;
-ALTER TABLE public.approval_request ADD CONSTRAINT approval_request_agent_run_id_fkey FOREIGN KEY (agent_run_id) REFERENCES agent_run(id) ON DELETE CASCADE;
 ALTER TABLE public.canon_registry ADD CONSTRAINT canon_registry_superseded_by_fkey FOREIGN KEY (superseded_by) REFERENCES canon_registry(id);
 ALTER TABLE public.change_log ADD CONSTRAINT change_log_related_decision_id_fkey FOREIGN KEY (related_decision_id) REFERENCES decision_log(decision_id);
 ALTER TABLE public.change_log ADD CONSTRAINT change_log_related_run_id_fkey FOREIGN KEY (related_run_id) REFERENCES ops.processing_run(run_id);
@@ -6589,25 +5721,62 @@ ALTER TABLE public.memory_items ADD CONSTRAINT memory_items_related_schema_id_fk
 ALTER TABLE public.memory_items ADD CONSTRAINT memory_items_superseded_by_fkey FOREIGN KEY (superseded_by) REFERENCES memory_items(memory_id);
 ALTER TABLE public.ontology_version ADD CONSTRAINT ontology_version_supersedes_fkey FOREIGN KEY (supersedes) REFERENCES ontology_version(ontology_version_id);
 ALTER TABLE public.open_questions ADD CONSTRAINT open_questions_related_run_id_fkey FOREIGN KEY (related_run_id) REFERENCES ops.processing_run(run_id);
-ALTER TABLE public.platform_consolidation_checkpoint ADD CONSTRAINT platform_consolidation_verified_receipt_fk FOREIGN KEY (verified_receipt_id) REFERENCES platform_consolidation_proof_receipt(id) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
-ALTER TABLE public.platform_consolidation_proof_receipt ADD CONSTRAINT platform_consolidation_proof_receipt_checkpoint_id_fkey FOREIGN KEY (checkpoint_id) REFERENCES platform_consolidation_checkpoint(id) ON DELETE RESTRICT;
-ALTER TABLE public.platform_consolidation_proof_receipt ADD CONSTRAINT platform_consolidation_proof_receipt_supersedes_receipt_id_fkey FOREIGN KEY (supersedes_receipt_id) REFERENCES platform_consolidation_proof_receipt(id) ON DELETE RESTRICT;
-ALTER TABLE public.platform_consolidation_receipt_claim ADD CONSTRAINT platform_consolidation_receipt_claim_checkpoint_id_fkey FOREIGN KEY (checkpoint_id) REFERENCES platform_consolidation_checkpoint(id) ON DELETE RESTRICT;
-ALTER TABLE public.platform_consolidation_receipt_claim ADD CONSTRAINT platform_consolidation_receipt_claim_receipt_id_fkey FOREIGN KEY (receipt_id) REFERENCES platform_consolidation_proof_receipt(id) ON DELETE RESTRICT;
-ALTER TABLE public.platform_consolidation_receipt_claim ADD CONSTRAINT platform_consolidation_receipt_claim_successor_receipt_id_fkey FOREIGN KEY (successor_receipt_id) REFERENCES platform_consolidation_proof_receipt(id) ON DELETE RESTRICT;
 ALTER TABLE public.prompt_registry ADD CONSTRAINT prompt_registry_superseded_by_fkey FOREIGN KEY (superseded_by) REFERENCES prompt_registry(prompt_id);
 ALTER TABLE public.schema_version ADD CONSTRAINT schema_version_supersedes_fkey FOREIGN KEY (supersedes) REFERENCES schema_version(schema_version_id);
+ALTER TABLE raw.file_node ADD CONSTRAINT file_node_parent_node_id_fkey FOREIGN KEY (parent_node_id) REFERENCES raw.file_node(id);
+ALTER TABLE raw.file_node ADD CONSTRAINT file_node_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
+ALTER TABLE raw.gps_point ADD CONSTRAINT gps_point_file_node_id_fkey FOREIGN KEY (file_node_id) REFERENCES raw.file_node(id);
+ALTER TABLE raw.gps_point ADD CONSTRAINT gps_point_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
+ALTER TABLE raw.raw_activity ADD CONSTRAINT raw_activity_file_node_id_fkey FOREIGN KEY (file_node_id) REFERENCES raw.file_node(id);
+ALTER TABLE raw.raw_activity ADD CONSTRAINT raw_activity_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
+ALTER TABLE raw.raw_ai_chat ADD CONSTRAINT raw_ai_chat_acquisition_id_fkey FOREIGN KEY (acquisition_id) REFERENCES evidence.acquisition(id);
+ALTER TABLE raw.raw_ai_chat ADD CONSTRAINT raw_ai_chat_device_id_fkey FOREIGN KEY (device_id) REFERENCES reference.device(id);
+ALTER TABLE raw.raw_ai_chat ADD CONSTRAINT raw_ai_chat_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
+ALTER TABLE raw.raw_csv ADD CONSTRAINT raw_csv_acquisition_id_fkey FOREIGN KEY (acquisition_id) REFERENCES evidence.acquisition(id);
+ALTER TABLE raw.raw_csv ADD CONSTRAINT raw_csv_device_id_fkey FOREIGN KEY (device_id) REFERENCES reference.device(id);
+ALTER TABLE raw.raw_csv ADD CONSTRAINT raw_csv_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
+ALTER TABLE raw.raw_facebook ADD CONSTRAINT raw_facebook_acquisition_id_fkey FOREIGN KEY (acquisition_id) REFERENCES evidence.acquisition(id);
+ALTER TABLE raw.raw_facebook ADD CONSTRAINT raw_facebook_device_id_fkey FOREIGN KEY (device_id) REFERENCES reference.device(id);
+ALTER TABLE raw.raw_facebook ADD CONSTRAINT raw_facebook_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
+ALTER TABLE raw.raw_imessage ADD CONSTRAINT raw_imessage_acquisition_id_fkey FOREIGN KEY (acquisition_id) REFERENCES evidence.acquisition(id);
+ALTER TABLE raw.raw_imessage ADD CONSTRAINT raw_imessage_device_id_fkey FOREIGN KEY (device_id) REFERENCES reference.device(id);
+ALTER TABLE raw.raw_imessage ADD CONSTRAINT raw_imessage_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
+ALTER TABLE raw.raw_path ADD CONSTRAINT raw_path_aligned_activity_id_fkey FOREIGN KEY (aligned_activity_id) REFERENCES raw.raw_activity(id);
+ALTER TABLE raw.raw_path ADD CONSTRAINT raw_path_file_node_id_fkey FOREIGN KEY (file_node_id) REFERENCES raw.file_node(id);
+ALTER TABLE raw.raw_path ADD CONSTRAINT raw_path_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES raw.raw_path(id);
+ALTER TABLE raw.raw_path ADD CONSTRAINT raw_path_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
+ALTER TABLE raw.raw_phone ADD CONSTRAINT raw_phone_acquisition_id_fkey FOREIGN KEY (acquisition_id) REFERENCES evidence.acquisition(id);
+ALTER TABLE raw.raw_phone ADD CONSTRAINT raw_phone_device_id_fkey FOREIGN KEY (device_id) REFERENCES reference.device(id);
+ALTER TABLE raw.raw_phone ADD CONSTRAINT raw_phone_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
+ALTER TABLE raw.raw_rejected ADD CONSTRAINT raw_rejected_ingest_run_id_fkey FOREIGN KEY (ingest_run_id) REFERENCES evidence.ingest_run(id) ON DELETE RESTRICT;
+ALTER TABLE raw.raw_sms ADD CONSTRAINT raw_sms_acquisition_id_fkey FOREIGN KEY (acquisition_id) REFERENCES evidence.acquisition(id);
+ALTER TABLE raw.raw_sms ADD CONSTRAINT raw_sms_device_id_fkey FOREIGN KEY (device_id) REFERENCES reference.device(id);
+ALTER TABLE raw.raw_sms ADD CONSTRAINT raw_sms_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
+ALTER TABLE raw.raw_trip ADD CONSTRAINT raw_trip_file_node_id_fkey FOREIGN KEY (file_node_id) REFERENCES raw.file_node(id);
+ALTER TABLE raw.raw_trip ADD CONSTRAINT raw_trip_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES raw.raw_trip(id);
+ALTER TABLE raw.raw_trip ADD CONSTRAINT raw_trip_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
+ALTER TABLE raw.raw_visit ADD CONSTRAINT raw_visit_file_node_id_fkey FOREIGN KEY (file_node_id) REFERENCES raw.file_node(id);
+ALTER TABLE raw.raw_visit ADD CONSTRAINT raw_visit_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES raw.raw_visit(id);
+ALTER TABLE raw.raw_visit ADD CONSTRAINT raw_visit_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
 ALTER TABLE reference.behavior_category_mcl ADD CONSTRAINT behavior_category_mcl_category_id_fkey FOREIGN KEY (category_id) REFERENCES reference.behavior_category(category_id);
 ALTER TABLE reference.claim_type ADD CONSTRAINT claim_type_parent_slug_fkey FOREIGN KEY (parent_slug) REFERENCES reference.claim_type(slug) ON DELETE RESTRICT;
+ALTER TABLE reference.court_case ADD CONSTRAINT court_case_matter_fkey FOREIGN KEY (matter_id) REFERENCES reference.matter(id) ON DELETE RESTRICT;
 ALTER TABLE reference.detection_pattern ADD CONSTRAINT detection_pattern_category_id_fkey FOREIGN KEY (category_id) REFERENCES reference.behavior_category(category_id);
 ALTER TABLE reference.detection_pattern ADD CONSTRAINT detection_pattern_pattern_set_id_fkey FOREIGN KEY (pattern_set_id) REFERENCES reference.detection_pattern_set(id);
 ALTER TABLE reference.detection_pattern_set ADD CONSTRAINT detection_pattern_set_provenance_id_fkey FOREIGN KEY (provenance_id) REFERENCES ops.processing_run(run_id);
+ALTER TABLE reference.device ADD CONSTRAINT device_id_fkey FOREIGN KEY (id) REFERENCES reference.entity(id) ON DELETE CASCADE;
+ALTER TABLE reference.device ADD CONSTRAINT device_owner_entity_id_fkey FOREIGN KEY (owner_entity_id) REFERENCES reference.entity(id);
+ALTER TABLE reference.entity ADD CONSTRAINT entity_merged_into_id_fkey FOREIGN KEY (merged_into_id) REFERENCES reference.entity(id);
+ALTER TABLE reference.entity_alias ADD CONSTRAINT entity_alias_entity_id_fkey FOREIGN KEY (entity_id) REFERENCES reference.entity(id) ON DELETE CASCADE;
 ALTER TABLE reference.geofence ADD CONSTRAINT geofence_provenance_id_fkey FOREIGN KEY (provenance_id) REFERENCES ops.processing_run(run_id);
+ALTER TABLE reference.id_xref ADD CONSTRAINT id_xref_canonical_entity_id_fkey FOREIGN KEY (canonical_entity_id) REFERENCES reference.entity(id);
 ALTER TABLE reference.knowledge_tag ADD CONSTRAINT knowledge_tag_parent_tag_id_fkey FOREIGN KEY (parent_tag_id) REFERENCES reference.knowledge_tag(id);
 ALTER TABLE reference.legal_issue_factor ADD CONSTRAINT legal_issue_factor_factor_fkey FOREIGN KEY (factor) REFERENCES reference.custody_factor(factor);
 ALTER TABLE reference.legal_issue_factor ADD CONSTRAINT legal_issue_factor_legal_issue_id_fkey FOREIGN KEY (legal_issue_id) REFERENCES reference.legal_issue(id);
 ALTER TABLE reference.lexicon_sync ADD CONSTRAINT lexicon_sync_pattern_set_id_fkey FOREIGN KEY (pattern_set_id) REFERENCES reference.detection_pattern_set(id);
+ALTER TABLE reference.location ADD CONSTRAINT location_provenance_id_fkey FOREIGN KEY (provenance_id) REFERENCES ops.processing_run(run_id);
 ALTER TABLE reference.pattern_lexicon ADD CONSTRAINT pattern_lexicon_pattern_set_id_fkey FOREIGN KEY (pattern_set_id) REFERENCES reference.detection_pattern_set(id);
+ALTER TABLE reference.person ADD CONSTRAINT person_id_fkey FOREIGN KEY (id) REFERENCES reference.entity(id) ON DELETE CASCADE;
 ALTER TABLE timeline.event_candidate_relative_time_anchor ADD CONSTRAINT event_candidate_relative_time_anchor_anchor_id_fkey FOREIGN KEY (anchor_id) REFERENCES context.relative_time_anchor(id) ON DELETE RESTRICT;
 ALTER TABLE timeline.event_candidate_relative_time_anchor ADD CONSTRAINT event_candidate_relative_time_anchor_event_candidate_id_fkey FOREIGN KEY (event_candidate_id) REFERENCES timeline.event_candidate(id) ON DELETE RESTRICT;
 ALTER TABLE timeline.event_candidate_source_range ADD CONSTRAINT event_candidate_source_range_event_candidate_id_fkey FOREIGN KEY (event_candidate_id) REFERENCES timeline.event_candidate(id) ON DELETE RESTRICT;
@@ -6624,17 +5793,14 @@ ALTER TABLE timeline.timeline_projection_member ADD CONSTRAINT timeline_projecti
 ALTER TABLE timeline.timeline_projection_receipt ADD CONSTRAINT timeline_projection_receipt_generation_id_fkey FOREIGN KEY (generation_id) REFERENCES timeline.timeline_projection_generation(id);
 ALTER TABLE timeline.timeline_projection_receipt ADD CONSTRAINT timeline_projection_receipt_member_id_fkey FOREIGN KEY (member_id) REFERENCES timeline.timeline_projection_member(id);
 ALTER TABLE timeline.timeline_projection_receipt ADD CONSTRAINT timeline_projection_receipt_previous_receipt_id_fkey FOREIGN KEY (previous_receipt_id) REFERENCES timeline.timeline_projection_receipt(id);
-ALTER TABLE working.account ADD CONSTRAINT account_id_fkey FOREIGN KEY (id) REFERENCES working.entity(id) ON DELETE CASCADE;
-ALTER TABLE working.account ADD CONSTRAINT account_owner_entity_id_fkey FOREIGN KEY (owner_entity_id) REFERENCES working.entity(id);
+ALTER TABLE working.account ADD CONSTRAINT account_id_fkey FOREIGN KEY (id) REFERENCES reference.entity(id) ON DELETE CASCADE;
+ALTER TABLE working.account ADD CONSTRAINT account_owner_entity_id_fkey FOREIGN KEY (owner_entity_id) REFERENCES reference.entity(id);
 ALTER TABLE working.artifact_registry ADD CONSTRAINT artifact_registry_parent_artifact_id_fkey FOREIGN KEY (parent_artifact_id) REFERENCES working.artifact_registry(artifact_id);
 ALTER TABLE working.artifact_registry ADD CONSTRAINT artifact_registry_producing_run_fkey FOREIGN KEY (producing_run) REFERENCES ops.processing_run(run_id);
 ALTER TABLE working.artifact_registry ADD CONSTRAINT artifact_registry_superseded_by_fkey FOREIGN KEY (superseded_by) REFERENCES working.artifact_registry(artifact_id);
 ALTER TABLE working.attachment ADD CONSTRAINT attachment_message_id_fkey FOREIGN KEY (message_id) REFERENCES working.message(id) ON DELETE CASCADE;
 ALTER TABLE working.attachment ADD CONSTRAINT attachment_provenance_id_fkey FOREIGN KEY (provenance_id) REFERENCES ops.processing_run(run_id);
 ALTER TABLE working.attachment ADD CONSTRAINT attachment_source_artifact_id_fkey FOREIGN KEY (source_artifact_id) REFERENCES evidence.evidence_hash(id);
-ALTER TABLE working.block_status ADD CONSTRAINT block_status_blocker_entity_id_fkey FOREIGN KEY (blocker_entity_id) REFERENCES working.entity(id);
-ALTER TABLE working.block_status ADD CONSTRAINT block_status_device_id_fkey FOREIGN KEY (device_id) REFERENCES working.device(id);
-ALTER TABLE working.call_log ADD CONSTRAINT call_log_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES working.conversation(id);
 ALTER TABLE working.call_log ADD CONSTRAINT call_log_id_fkey FOREIGN KEY (id) REFERENCES working.normalized_record(id) ON DELETE CASCADE;
 ALTER TABLE working.call_log ADD CONSTRAINT call_log_provenance_id_fkey FOREIGN KEY (provenance_id) REFERENCES ops.processing_run(run_id);
 ALTER TABLE working.call_log ADD CONSTRAINT call_log_source_artifact_id_fkey FOREIGN KEY (source_artifact_id) REFERENCES evidence.evidence_hash(id);
@@ -6644,21 +5810,7 @@ ALTER TABLE working.candidate_event ADD CONSTRAINT candidate_event_primary_entit
 ALTER TABLE working.candidate_fact ADD CONSTRAINT candidate_fact_extraction_run_id_fkey FOREIGN KEY (extraction_run_id) REFERENCES working.extraction_run(id) ON DELETE CASCADE;
 ALTER TABLE working.candidate_fact ADD CONSTRAINT candidate_fact_object_entity_id_fkey FOREIGN KEY (object_entity_id) REFERENCES working.candidate_entity(id) ON DELETE SET NULL;
 ALTER TABLE working.candidate_fact ADD CONSTRAINT candidate_fact_subject_entity_id_fkey FOREIGN KEY (subject_entity_id) REFERENCES working.candidate_entity(id) ON DELETE SET NULL;
-ALTER TABLE working.chat_chunk ADD CONSTRAINT chat_chunk_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES working.chat_conversation(id) ON DELETE CASCADE;
-ALTER TABLE working.chat_chunk_embedding ADD CONSTRAINT chat_chunk_embedding_chunk_id_fkey FOREIGN KEY (chunk_id) REFERENCES working.chat_chunk(id) ON DELETE CASCADE;
-ALTER TABLE working.chat_chunk_lane ADD CONSTRAINT chat_chunk_lane_chunk_id_fkey FOREIGN KEY (chunk_id) REFERENCES working.chat_chunk(id) ON DELETE CASCADE;
-ALTER TABLE working.chat_chunk_message ADD CONSTRAINT chat_chunk_message_chunk_id_fkey FOREIGN KEY (chunk_id) REFERENCES working.chat_chunk(id) ON DELETE CASCADE;
-ALTER TABLE working.chat_chunk_message ADD CONSTRAINT chat_chunk_message_message_id_fkey FOREIGN KEY (message_id) REFERENCES working.chat_message(id) ON DELETE RESTRICT;
-ALTER TABLE working.chat_chunk_projection ADD CONSTRAINT chat_chunk_projection_chunk_id_fkey FOREIGN KEY (chunk_id) REFERENCES working.chat_chunk(id) ON DELETE CASCADE;
-ALTER TABLE working.chat_chunk_tag ADD CONSTRAINT chat_chunk_tag_chunk_id_fkey FOREIGN KEY (chunk_id) REFERENCES working.chat_chunk(id) ON DELETE CASCADE;
-ALTER TABLE working.chat_chunk_tag ADD CONSTRAINT chat_chunk_tag_tag_id_fkey FOREIGN KEY (tag_id) REFERENCES reference.knowledge_tag(id) ON DELETE RESTRICT;
 ALTER TABLE working.chat_message ADD CONSTRAINT chat_message_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES working.chat_conversation(id) ON DELETE CASCADE;
-ALTER TABLE working.claim_assertion ADD CONSTRAINT claim_assertion_supersedes_id_fkey FOREIGN KEY (supersedes_id) REFERENCES working.claim_assertion(id) ON DELETE RESTRICT;
-ALTER TABLE working.claim_assertion_member ADD CONSTRAINT claim_assertion_member_assertion_id_fkey FOREIGN KEY (assertion_id) REFERENCES working.claim_assertion(id) ON DELETE CASCADE;
-ALTER TABLE working.claim_assertion_member ADD CONSTRAINT claim_assertion_member_claim_candidate_id_fkey FOREIGN KEY (claim_candidate_id) REFERENCES working.claim_candidate(id) ON DELETE RESTRICT;
-ALTER TABLE working.claim_assertion_synthesis_member ADD CONSTRAINT claim_assertion_synthesis_member_synthesis_id_fkey FOREIGN KEY (synthesis_id) REFERENCES working.claim_assertion(id) ON DELETE CASCADE;
-ALTER TABLE working.claim_assertion_synthesis_member ADD CONSTRAINT synthesis_member_is_generation_one FOREIGN KEY (member_assertion_id, member_generation) REFERENCES working.claim_assertion(id, assertion_generation) ON DELETE RESTRICT;
-ALTER TABLE working.claim_candidate ADD CONSTRAINT claim_candidate_chat_chunk_id_fkey FOREIGN KEY (chat_chunk_id) REFERENCES working.chat_chunk(id) ON DELETE RESTRICT;
 ALTER TABLE working.claim_candidate ADD CONSTRAINT claim_candidate_chat_conversation_id_fkey FOREIGN KEY (chat_conversation_id) REFERENCES working.chat_conversation(id) ON DELETE RESTRICT;
 ALTER TABLE working.claim_candidate ADD CONSTRAINT claim_candidate_chat_message_id_fkey FOREIGN KEY (chat_message_id) REFERENCES working.chat_message(id) ON DELETE RESTRICT;
 ALTER TABLE working.claim_candidate ADD CONSTRAINT claim_candidate_claim_type_slug_fkey FOREIGN KEY (claim_type_slug) REFERENCES reference.claim_type(slug) ON DELETE RESTRICT;
@@ -6670,12 +5822,11 @@ ALTER TABLE working.claim_temporal_edge ADD CONSTRAINT claim_temporal_edge_from_
 ALTER TABLE working.claim_temporal_edge ADD CONSTRAINT claim_temporal_edge_resolved_claim_id_fkey FOREIGN KEY (resolved_claim_id) REFERENCES working.claim_candidate(id) ON DELETE RESTRICT;
 ALTER TABLE working.claim_temporal_edge ADD CONSTRAINT claim_temporal_edge_to_claim_id_fkey FOREIGN KEY (to_claim_id) REFERENCES working.claim_candidate(id) ON DELETE RESTRICT;
 ALTER TABLE working.content_chunk ADD CONSTRAINT content_chunk_generation_id_source_version_id_fkey FOREIGN KEY (generation_id, source_version_id) REFERENCES working.content_chunk_generation(id, source_version_id) ON DELETE RESTRICT;
-ALTER TABLE working.content_chunk_classification_decision ADD CONSTRAINT content_chunk_classification_decision_chunk_id_fkey FOREIGN KEY (chunk_id) REFERENCES working.content_chunk(id) ON DELETE RESTRICT;
-ALTER TABLE working.content_chunk_classification_decision ADD CONSTRAINT content_chunk_classification_decision_supersedes_id_fkey FOREIGN KEY (supersedes_id) REFERENCES working.content_chunk_classification_decision(id) ON DELETE RESTRICT;
 ALTER TABLE working.content_chunk_generation ADD CONSTRAINT content_chunk_generation_activity_execution_id_source_vers_fkey FOREIGN KEY (activity_execution_id, source_version_id) REFERENCES context.activity_execution(id, source_version_id) ON DELETE RESTRICT;
 ALTER TABLE working.content_chunk_generation ADD CONSTRAINT content_chunk_generation_activity_receipt_id_fkey FOREIGN KEY (activity_receipt_id) REFERENCES context.activity_receipt(id) ON DELETE RESTRICT;
 ALTER TABLE working.content_chunk_generation ADD CONSTRAINT content_chunk_generation_normalized_generation_id_source_v_fkey FOREIGN KEY (normalized_generation_id, source_version_id) REFERENCES context.normalized_generation(id, source_version_id) ON DELETE RESTRICT;
 ALTER TABLE working.content_chunk_generation ADD CONSTRAINT content_chunk_generation_source_version_id_fkey FOREIGN KEY (source_version_id) REFERENCES context.source_version(id) ON DELETE RESTRICT;
+ALTER TABLE working.content_chunk_projection ADD CONSTRAINT content_chunk_projection_chunk_id_fkey FOREIGN KEY (chunk_id) REFERENCES working.content_chunk(id) ON DELETE CASCADE;
 ALTER TABLE working.content_chunk_reassembly_receipt ADD CONSTRAINT content_chunk_reassembly_rece_generation_id_source_version_fkey FOREIGN KEY (generation_id, source_version_id) REFERENCES working.content_chunk_generation(id, source_version_id) ON DELETE RESTRICT;
 ALTER TABLE working.content_chunk_reassembly_receipt ADD CONSTRAINT content_chunk_reassembly_receipt_activity_receipt_id_fkey FOREIGN KEY (activity_receipt_id) REFERENCES context.activity_receipt(id) ON DELETE RESTRICT;
 ALTER TABLE working.content_chunk_source_span ADD CONSTRAINT content_chunk_source_span_chunk_id_generation_id_source_ve_fkey FOREIGN KEY (chunk_id, generation_id, source_version_id) REFERENCES working.content_chunk(id, generation_id, source_version_id) ON DELETE RESTRICT;
@@ -6685,119 +5836,41 @@ ALTER TABLE working.context_asset_derivation ADD CONSTRAINT context_asset_deriva
 ALTER TABLE working.context_asset_derivation ADD CONSTRAINT context_asset_derivation_parent_asset_id_fkey FOREIGN KEY (parent_asset_id) REFERENCES working.context_asset(id) ON DELETE CASCADE;
 ALTER TABLE working.context_asset_message ADD CONSTRAINT context_asset_message_asset_id_fkey FOREIGN KEY (asset_id) REFERENCES working.context_asset(id) ON DELETE CASCADE;
 ALTER TABLE working.context_asset_message ADD CONSTRAINT context_asset_message_message_id_fkey FOREIGN KEY (message_id) REFERENCES working.chat_message(id) ON DELETE CASCADE;
-ALTER TABLE working.context_asset_projection ADD CONSTRAINT context_asset_projection_asset_id_fkey FOREIGN KEY (asset_id) REFERENCES working.context_asset(id) ON DELETE CASCADE;
-ALTER TABLE working.context_review_case ADD CONSTRAINT context_review_case_resolution_decision_fk FOREIGN KEY (resolution_decision_id, resolution_decision_version) REFERENCES working.context_review_decision(id, decision_version) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
-ALTER TABLE working.context_review_case ADD CONSTRAINT context_review_case_supersedes_case_id_supersedes_case_ver_fkey FOREIGN KEY (supersedes_case_id, supersedes_case_version, case_key) REFERENCES working.context_review_case(id, case_version, case_key) ON DELETE RESTRICT;
-ALTER TABLE working.context_review_decision ADD CONSTRAINT context_review_decision_decision_activity_receipt_id_fkey FOREIGN KEY (decision_activity_receipt_id) REFERENCES context.activity_receipt(id) ON DELETE RESTRICT;
-ALTER TABLE working.context_review_decision ADD CONSTRAINT context_review_decision_review_case_id_fkey FOREIGN KEY (review_case_id) REFERENCES working.context_review_case(id) ON DELETE RESTRICT;
-ALTER TABLE working.context_review_decision ADD CONSTRAINT context_review_decision_supersedes_decision_id_supersedes__fkey FOREIGN KEY (supersedes_decision_id, supersedes_decision_version) REFERENCES working.context_review_decision(id, decision_version) ON DELETE RESTRICT;
-ALTER TABLE working.context_review_decision_evidence_hash ADD CONSTRAINT context_review_decision_evidence_hash_decision_id_fkey FOREIGN KEY (decision_id) REFERENCES working.context_review_decision(id) ON DELETE RESTRICT;
-ALTER TABLE working.context_review_decision_evidence_hash ADD CONSTRAINT context_review_decision_evidence_hash_evidence_hash_id_fkey FOREIGN KEY (evidence_hash_id) REFERENCES evidence.evidence_hash(id) ON DELETE RESTRICT;
-ALTER TABLE working.context_review_decision_source_range ADD CONSTRAINT context_review_decision_sourc_source_range_locator_id_sour_fkey FOREIGN KEY (source_range_locator_id, source_version_id) REFERENCES context.source_range_locator(id, source_version_id) ON DELETE RESTRICT;
-ALTER TABLE working.context_review_decision_source_range ADD CONSTRAINT context_review_decision_source_range_decision_id_fkey FOREIGN KEY (decision_id) REFERENCES working.context_review_decision(id) ON DELETE RESTRICT;
-ALTER TABLE working.context_review_decision_source_version ADD CONSTRAINT context_review_decision_source_version_decision_id_fkey FOREIGN KEY (decision_id) REFERENCES working.context_review_decision(id) ON DELETE RESTRICT;
-ALTER TABLE working.context_review_decision_source_version ADD CONSTRAINT context_review_decision_source_version_source_version_id_fkey FOREIGN KEY (source_version_id) REFERENCES context.source_version(id) ON DELETE RESTRICT;
-ALTER TABLE working.context_review_dispatch_attempt ADD CONSTRAINT context_review_dispatch_attempt_review_workflow_id_fkey FOREIGN KEY (review_workflow_id) REFERENCES working.context_review_temporal_workflow(id) ON DELETE RESTRICT;
-ALTER TABLE working.context_review_first_party_thread_message ADD CONSTRAINT context_review_first_party_th_thread_version_id_message_id_fkey FOREIGN KEY (thread_version_id, message_id) REFERENCES working.first_party_context_thread_message(thread_version_id, message_id) ON DELETE RESTRICT;
-ALTER TABLE working.context_review_first_party_thread_message ADD CONSTRAINT context_review_first_party_thread_message_review_case_id_fkey FOREIGN KEY (review_case_id) REFERENCES working.context_review_case(id) ON DELETE RESTRICT;
-ALTER TABLE working.context_review_first_party_thread_source ADD CONSTRAINT context_review_first_party_thread_source_review_case_id_fkey FOREIGN KEY (review_case_id) REFERENCES working.context_review_case(id) ON DELETE RESTRICT;
-ALTER TABLE working.context_review_first_party_thread_source ADD CONSTRAINT context_review_first_party_thread_source_thread_source_id_fkey FOREIGN KEY (thread_source_id) REFERENCES working.first_party_context_thread_source(id) ON DELETE RESTRICT;
-ALTER TABLE working.context_review_first_party_thread_version ADD CONSTRAINT context_review_first_party_thread_versio_thread_version_id_fkey FOREIGN KEY (thread_version_id) REFERENCES working.first_party_context_thread_version(id) ON DELETE RESTRICT;
-ALTER TABLE working.context_review_first_party_thread_version ADD CONSTRAINT context_review_first_party_thread_version_review_case_id_fkey FOREIGN KEY (review_case_id) REFERENCES working.context_review_case(id) ON DELETE RESTRICT;
-ALTER TABLE working.context_review_relative_time_anchor ADD CONSTRAINT context_review_relative_time_anchor_anchor_id_fkey FOREIGN KEY (anchor_id) REFERENCES context.relative_time_anchor(id) ON DELETE RESTRICT;
-ALTER TABLE working.context_review_relative_time_anchor ADD CONSTRAINT context_review_relative_time_anchor_review_case_id_fkey FOREIGN KEY (review_case_id) REFERENCES working.context_review_case(id) ON DELETE RESTRICT;
-ALTER TABLE working.context_review_signal_receipt ADD CONSTRAINT context_review_signal_receipt_decision_id_review_case_id_fkey FOREIGN KEY (decision_id, review_case_id) REFERENCES working.context_review_decision(id, review_case_id) ON DELETE RESTRICT;
-ALTER TABLE working.context_review_signal_receipt ADD CONSTRAINT context_review_signal_receipt_review_workflow_id_review_ca_fkey FOREIGN KEY (review_workflow_id, review_case_id) REFERENCES working.context_review_temporal_workflow(id, review_case_id) ON DELETE RESTRICT;
-ALTER TABLE working.context_review_temporal_run_state ADD CONSTRAINT context_review_temporal_run_state_review_workflow_id_fkey FOREIGN KEY (review_workflow_id) REFERENCES working.context_review_temporal_workflow(id) ON DELETE RESTRICT;
-ALTER TABLE working.context_review_temporal_run_state ADD CONSTRAINT context_review_temporal_run_state_supersedes_state_id_fkey FOREIGN KEY (supersedes_state_id) REFERENCES working.context_review_temporal_run_state(id) ON DELETE RESTRICT;
-ALTER TABLE working.context_review_temporal_workflow ADD CONSTRAINT context_review_temporal_workf_review_case_id_expected_case_fkey FOREIGN KEY (review_case_id, expected_case_version) REFERENCES working.context_review_case(id, case_version) ON DELETE RESTRICT;
-ALTER TABLE working.context_review_terminal_reconciliation ADD CONSTRAINT context_review_terminal_recon_final_decision_id_review_cas_fkey FOREIGN KEY (final_decision_id, review_case_id) REFERENCES working.context_review_decision(id, review_case_id) ON DELETE RESTRICT;
-ALTER TABLE working.context_review_terminal_reconciliation ADD CONSTRAINT context_review_terminal_recon_review_case_id_expected_case_fkey FOREIGN KEY (review_case_id, expected_case_version) REFERENCES working.context_review_case(id, case_version) ON DELETE RESTRICT;
-ALTER TABLE working.context_review_terminal_reconciliation ADD CONSTRAINT context_review_terminal_recon_review_workflow_id_review_ca_fkey FOREIGN KEY (review_workflow_id, review_case_id) REFERENCES working.context_review_temporal_workflow(id, review_case_id) ON DELETE RESTRICT;
-ALTER TABLE working.context_review_third_party_thread_message ADD CONSTRAINT context_review_third_party_th_thread_version_id_message_id_fkey FOREIGN KEY (thread_version_id, message_id) REFERENCES working.third_party_context_thread_message(thread_version_id, message_id) ON DELETE RESTRICT;
-ALTER TABLE working.context_review_third_party_thread_message ADD CONSTRAINT context_review_third_party_thread_message_review_case_id_fkey FOREIGN KEY (review_case_id) REFERENCES working.context_review_case(id) ON DELETE RESTRICT;
-ALTER TABLE working.context_review_third_party_thread_source ADD CONSTRAINT context_review_third_party_thread_source_review_case_id_fkey FOREIGN KEY (review_case_id) REFERENCES working.context_review_case(id) ON DELETE RESTRICT;
-ALTER TABLE working.context_review_third_party_thread_source ADD CONSTRAINT context_review_third_party_thread_source_thread_source_id_fkey FOREIGN KEY (thread_source_id) REFERENCES working.third_party_context_thread_source(id) ON DELETE RESTRICT;
-ALTER TABLE working.context_review_third_party_thread_version ADD CONSTRAINT context_review_third_party_thread_versio_thread_version_id_fkey FOREIGN KEY (thread_version_id) REFERENCES working.third_party_context_thread_version(id) ON DELETE RESTRICT;
-ALTER TABLE working.context_review_third_party_thread_version ADD CONSTRAINT context_review_third_party_thread_version_review_case_id_fkey FOREIGN KEY (review_case_id) REFERENCES working.context_review_case(id) ON DELETE RESTRICT;
-ALTER TABLE working.context_review_timeline_event_candidate ADD CONSTRAINT context_review_timeline_event_candidate_event_candidate_id_fkey FOREIGN KEY (event_candidate_id) REFERENCES timeline.event_candidate(id) ON DELETE RESTRICT;
-ALTER TABLE working.context_review_timeline_event_candidate ADD CONSTRAINT context_review_timeline_event_candidate_review_case_id_fkey FOREIGN KEY (review_case_id) REFERENCES working.context_review_case(id) ON DELETE RESTRICT;
-ALTER TABLE working.conversation ADD CONSTRAINT conversation_provenance_id_fkey FOREIGN KEY (provenance_id) REFERENCES ops.processing_run(run_id);
-ALTER TABLE working.conversation ADD CONSTRAINT conversation_source_artifact_id_fkey FOREIGN KEY (source_artifact_id) REFERENCES evidence.evidence_hash(id);
-ALTER TABLE working.device ADD CONSTRAINT device_id_fkey FOREIGN KEY (id) REFERENCES working.entity(id) ON DELETE CASCADE;
-ALTER TABLE working.device ADD CONSTRAINT device_owner_entity_id_fkey FOREIGN KEY (owner_entity_id) REFERENCES working.entity(id);
-ALTER TABLE working.device_ownership ADD CONSTRAINT device_ownership_device_id_fkey FOREIGN KEY (device_id) REFERENCES working.device(id);
-ALTER TABLE working.device_ownership ADD CONSTRAINT device_ownership_owner_entity_id_fkey FOREIGN KEY (owner_entity_id) REFERENCES working.entity(id);
-ALTER TABLE working.email ADD CONSTRAINT email_id_fkey FOREIGN KEY (id) REFERENCES working.entity(id) ON DELETE CASCADE;
-ALTER TABLE working.email ADD CONSTRAINT email_owner_entity_id_fkey FOREIGN KEY (owner_entity_id) REFERENCES working.entity(id);
-ALTER TABLE working.entity ADD CONSTRAINT entity_merged_into_id_fkey FOREIGN KEY (merged_into_id) REFERENCES working.entity(id);
-ALTER TABLE working.entity_alias ADD CONSTRAINT entity_alias_entity_id_fkey FOREIGN KEY (entity_id) REFERENCES working.entity(id) ON DELETE CASCADE;
-ALTER TABLE working.entity_merge_event ADD CONSTRAINT entity_merge_event_merged_entity_id_fkey FOREIGN KEY (merged_entity_id) REFERENCES working.entity(id);
-ALTER TABLE working.entity_merge_event ADD CONSTRAINT entity_merge_event_reversible_to_fkey FOREIGN KEY (reversible_to) REFERENCES working.entity_merge_event(id);
-ALTER TABLE working.entity_merge_event ADD CONSTRAINT entity_merge_event_surviving_entity_id_fkey FOREIGN KEY (surviving_entity_id) REFERENCES working.entity(id);
-ALTER TABLE working.entity_resolution ADD CONSTRAINT entity_resolution_canonical_entity_id_fkey FOREIGN KEY (canonical_entity_id) REFERENCES working.entity(id);
+ALTER TABLE working.email ADD CONSTRAINT email_id_fkey FOREIGN KEY (id) REFERENCES reference.entity(id) ON DELETE CASCADE;
+ALTER TABLE working.email ADD CONSTRAINT email_owner_entity_id_fkey FOREIGN KEY (owner_entity_id) REFERENCES reference.entity(id);
+ALTER TABLE working.entity_resolution ADD CONSTRAINT entity_resolution_canonical_entity_id_fkey FOREIGN KEY (canonical_entity_id) REFERENCES reference.entity(id);
 ALTER TABLE working.entity_resolution ADD CONSTRAINT entity_resolution_mention_id_fkey FOREIGN KEY (mention_id) REFERENCES working.entity_mention(id);
-ALTER TABLE working.event_ordering ADD CONSTRAINT event_ordering_after_event_fkey FOREIGN KEY (after_event) REFERENCES analysis.timeline_event(event_id) ON DELETE CASCADE;
-ALTER TABLE working.event_ordering ADD CONSTRAINT event_ordering_before_event_fkey FOREIGN KEY (before_event) REFERENCES analysis.timeline_event(event_id) ON DELETE CASCADE;
 ALTER TABLE working.event_source_record ADD CONSTRAINT event_source_record_event_id_fkey FOREIGN KEY (event_id) REFERENCES analysis.timeline_event(event_id) ON DELETE CASCADE;
 ALTER TABLE working.event_source_record ADD CONSTRAINT event_source_record_record_id_fkey FOREIGN KEY (record_id) REFERENCES working.normalized_record(id);
 ALTER TABLE working.event_source_record ADD CONSTRAINT event_source_record_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
-ALTER TABLE working.evidence_vector_projection_job ADD CONSTRAINT evidence_vector_projection_job_chunk_id_fkey FOREIGN KEY (chunk_id) REFERENCES working.normalized_record_chunk(id) ON DELETE CASCADE;
 ALTER TABLE working.extraction_window ADD CONSTRAINT extraction_window_chat_conversation_id_fkey FOREIGN KEY (chat_conversation_id) REFERENCES working.chat_conversation(id) ON DELETE RESTRICT;
 ALTER TABLE working.extraction_window ADD CONSTRAINT extraction_window_extraction_run_id_fkey FOREIGN KEY (extraction_run_id) REFERENCES working.extraction_run(id) ON DELETE CASCADE;
-ALTER TABLE working.first_party_context_thread ADD CONSTRAINT first_party_context_thread_court_case_id_matter_id_fkey FOREIGN KEY (court_case_id, matter_id) REFERENCES analysis.court_case(id, matter_id) ON DELETE RESTRICT;
-ALTER TABLE working.first_party_context_thread ADD CONSTRAINT first_party_context_thread_owner_person_id_fkey FOREIGN KEY (owner_person_id) REFERENCES working.person(id) ON DELETE RESTRICT;
+ALTER TABLE working.first_party_context_thread ADD CONSTRAINT first_party_context_thread_court_case_id_matter_id_fkey FOREIGN KEY (court_case_id, matter_id) REFERENCES reference.court_case(id, matter_id) ON DELETE RESTRICT;
+ALTER TABLE working.first_party_context_thread ADD CONSTRAINT first_party_context_thread_owner_person_id_fkey FOREIGN KEY (owner_person_id) REFERENCES reference.person(id) ON DELETE RESTRICT;
 ALTER TABLE working.first_party_context_thread_message ADD CONSTRAINT first_party_context_thread_me_thread_version_id_context_th_fkey FOREIGN KEY (thread_version_id, context_thread_id) REFERENCES working.first_party_context_thread_version(id, context_thread_id) ON DELETE RESTRICT;
 ALTER TABLE working.first_party_context_thread_message ADD CONSTRAINT first_party_context_thread_message_message_id_fkey FOREIGN KEY (message_id) REFERENCES working.message(id) ON DELETE RESTRICT;
-ALTER TABLE working.first_party_context_thread_realization_assertion ADD CONSTRAINT first_party_context_thread_realizatio_realization_event_id_fkey FOREIGN KEY (realization_event_id) REFERENCES working.realization_event(id) ON DELETE RESTRICT;
-ALTER TABLE working.first_party_context_thread_realization_assertion ADD CONSTRAINT first_party_context_thread_realization_a_thread_version_id_fkey FOREIGN KEY (thread_version_id) REFERENCES working.first_party_context_thread_version(id) ON DELETE RESTRICT;
-ALTER TABLE working.first_party_context_thread_realization_assertion ADD CONSTRAINT first_party_context_thread_realization_asser_supersedes_id_fkey FOREIGN KEY (supersedes_id) REFERENCES working.first_party_context_thread_realization_assertion(id) ON DELETE RESTRICT;
-ALTER TABLE working.first_party_context_thread_realization_message ADD CONSTRAINT first_party_context_thread_r_realization_assertion_id_thr_fkey1 FOREIGN KEY (realization_assertion_id, thread_version_id) REFERENCES working.first_party_context_thread_realization_assertion(id, thread_version_id) ON DELETE RESTRICT;
-ALTER TABLE working.first_party_context_thread_realization_message ADD CONSTRAINT first_party_context_thread_re_thread_version_id_message_id_fkey FOREIGN KEY (thread_version_id, message_id) REFERENCES working.first_party_context_thread_message(thread_version_id, message_id) ON DELETE RESTRICT;
-ALTER TABLE working.first_party_context_thread_realization_source ADD CONSTRAINT first_party_context_thread_re_realization_assertion_id_thr_fkey FOREIGN KEY (realization_assertion_id, thread_version_id) REFERENCES working.first_party_context_thread_realization_assertion(id, thread_version_id) ON DELETE RESTRICT;
-ALTER TABLE working.first_party_context_thread_realization_source ADD CONSTRAINT first_party_context_thread_re_thread_source_id_thread_vers_fkey FOREIGN KEY (thread_source_id, thread_version_id) REFERENCES working.first_party_context_thread_source(id, thread_version_id) ON DELETE RESTRICT;
 ALTER TABLE working.first_party_context_thread_source ADD CONSTRAINT first_party_context_thread_so_thread_version_id_context_th_fkey FOREIGN KEY (thread_version_id, context_thread_id) REFERENCES working.first_party_context_thread_version(id, context_thread_id) ON DELETE RESTRICT;
-ALTER TABLE working.first_party_context_thread_source ADD CONSTRAINT first_party_context_thread_source_originating_device_id_fkey FOREIGN KEY (originating_device_id) REFERENCES working.device(id) ON DELETE RESTRICT;
-ALTER TABLE working.first_party_context_thread_source ADD CONSTRAINT first_party_context_thread_source_perspective_person_id_fkey FOREIGN KEY (perspective_person_id) REFERENCES working.person(id) ON DELETE RESTRICT;
+ALTER TABLE working.first_party_context_thread_source ADD CONSTRAINT first_party_context_thread_source_originating_device_id_fkey FOREIGN KEY (originating_device_id) REFERENCES reference.device(id) ON DELETE RESTRICT;
+ALTER TABLE working.first_party_context_thread_source ADD CONSTRAINT first_party_context_thread_source_perspective_person_id_fkey FOREIGN KEY (perspective_person_id) REFERENCES reference.person(id) ON DELETE RESTRICT;
 ALTER TABLE working.first_party_context_thread_source ADD CONSTRAINT first_party_context_thread_source_source_version_id_fkey FOREIGN KEY (source_version_id) REFERENCES context.source_version(id) ON DELETE RESTRICT;
 ALTER TABLE working.first_party_context_thread_source ADD CONSTRAINT first_party_context_thread_source_supersedes_id_fkey FOREIGN KEY (supersedes_id) REFERENCES working.first_party_context_thread_source(id) ON DELETE RESTRICT;
 ALTER TABLE working.first_party_context_thread_version ADD CONSTRAINT first_party_context_thread_version_context_thread_id_fkey FOREIGN KEY (context_thread_id) REFERENCES working.first_party_context_thread(context_thread_id) ON DELETE RESTRICT;
 ALTER TABLE working.first_party_context_thread_version ADD CONSTRAINT first_party_context_thread_version_supersedes_id_fkey FOREIGN KEY (supersedes_id) REFERENCES working.first_party_context_thread_version(id) ON DELETE RESTRICT;
 ALTER TABLE working.geocode_request ADD CONSTRAINT geocode_request_provenance_id_fkey FOREIGN KEY (provenance_id) REFERENCES ops.processing_run(run_id);
 ALTER TABLE working.geocode_resolution ADD CONSTRAINT geocode_resolution_chosen_result_id_fkey FOREIGN KEY (chosen_result_id) REFERENCES working.geocode_result(id);
-ALTER TABLE working.geocode_resolution ADD CONSTRAINT geocode_resolution_location_id_fkey FOREIGN KEY (location_id) REFERENCES working.location(id);
+ALTER TABLE working.geocode_resolution ADD CONSTRAINT geocode_resolution_location_id_fkey FOREIGN KEY (location_id) REFERENCES reference.location(id);
 ALTER TABLE working.geocode_resolution ADD CONSTRAINT geocode_resolution_provenance_id_fkey FOREIGN KEY (provenance_id) REFERENCES ops.processing_run(run_id);
 ALTER TABLE working.geocode_resolution ADD CONSTRAINT geocode_resolution_request_id_fkey FOREIGN KEY (request_id) REFERENCES working.geocode_request(id);
 ALTER TABLE working.geocode_result ADD CONSTRAINT geocode_result_request_id_fkey FOREIGN KEY (request_id) REFERENCES working.geocode_request(id);
-ALTER TABLE working.gps_track ADD CONSTRAINT gps_track_device_id_fkey FOREIGN KEY (device_id) REFERENCES working.device(id);
+ALTER TABLE working.gps_track ADD CONSTRAINT gps_track_device_id_fkey FOREIGN KEY (device_id) REFERENCES reference.device(id);
 ALTER TABLE working.gps_track ADD CONSTRAINT gps_track_provenance_id_fkey FOREIGN KEY (provenance_id) REFERENCES ops.processing_run(run_id);
 ALTER TABLE working.gps_track ADD CONSTRAINT gps_track_source_id_fkey FOREIGN KEY (source_id) REFERENCES evidence.source(id);
-ALTER TABLE working.handle ADD CONSTRAINT handle_id_fkey FOREIGN KEY (id) REFERENCES working.entity(id) ON DELETE CASCADE;
-ALTER TABLE working.handle ADD CONSTRAINT handle_owner_entity_id_fkey FOREIGN KEY (owner_entity_id) REFERENCES working.entity(id);
-ALTER TABLE working.home_base ADD CONSTRAINT home_base_entity_id_fkey FOREIGN KEY (entity_id) REFERENCES working.entity(id);
-ALTER TABLE working.home_base ADD CONSTRAINT home_base_location_id_fkey FOREIGN KEY (location_id) REFERENCES working.location(id);
+ALTER TABLE working.handle ADD CONSTRAINT handle_id_fkey FOREIGN KEY (id) REFERENCES reference.entity(id) ON DELETE CASCADE;
+ALTER TABLE working.handle ADD CONSTRAINT handle_owner_entity_id_fkey FOREIGN KEY (owner_entity_id) REFERENCES reference.entity(id);
+ALTER TABLE working.home_base ADD CONSTRAINT home_base_entity_id_fkey FOREIGN KEY (entity_id) REFERENCES reference.entity(id);
+ALTER TABLE working.home_base ADD CONSTRAINT home_base_location_id_fkey FOREIGN KEY (location_id) REFERENCES reference.location(id);
 ALTER TABLE working.home_base ADD CONSTRAINT home_base_provenance_id_fkey FOREIGN KEY (provenance_id) REFERENCES ops.processing_run(run_id);
-ALTER TABLE working.id_xref ADD CONSTRAINT id_xref_canonical_entity_id_fkey FOREIGN KEY (canonical_entity_id) REFERENCES working.entity(id);
-ALTER TABLE working.investigation_event ADD CONSTRAINT investigation_event_promoted_timeline_event_id_fkey FOREIGN KEY (promoted_timeline_event_id) REFERENCES analysis.timeline_event(event_id);
-ALTER TABLE working.investigation_event_evidence_link ADD CONSTRAINT investigation_event_evidence_link_evidence_hash_id_fkey FOREIGN KEY (evidence_hash_id) REFERENCES evidence.evidence_hash(id) ON DELETE RESTRICT;
-ALTER TABLE working.investigation_event_evidence_link ADD CONSTRAINT investigation_event_evidence_link_investigation_event_id_fkey FOREIGN KEY (investigation_event_id) REFERENCES working.investigation_event(id) ON DELETE CASCADE;
-ALTER TABLE working.investigation_event_evidence_need ADD CONSTRAINT investigation_event_evidence_need_investigation_event_id_fkey FOREIGN KEY (investigation_event_id) REFERENCES working.investigation_event(id) ON DELETE CASCADE;
-ALTER TABLE working.investigation_event_source ADD CONSTRAINT investigation_event_source_investigation_event_id_fkey FOREIGN KEY (investigation_event_id) REFERENCES working.investigation_event(id) ON DELETE CASCADE;
-ALTER TABLE working.investigation_event_tag ADD CONSTRAINT investigation_event_tag_investigation_event_id_fkey FOREIGN KEY (investigation_event_id) REFERENCES working.investigation_event(id) ON DELETE CASCADE;
-ALTER TABLE working.investigation_event_tag ADD CONSTRAINT investigation_event_tag_tag_id_fkey FOREIGN KEY (tag_id) REFERENCES reference.knowledge_tag(id) ON DELETE RESTRICT;
-ALTER TABLE working.legacy_chat_chunk_content_chunk_map ADD CONSTRAINT legacy_chat_chunk_content_chunk_map_backfill_receipt_id_fkey FOREIGN KEY (backfill_receipt_id) REFERENCES context.activity_receipt(id) ON DELETE RESTRICT;
-ALTER TABLE working.legacy_chat_chunk_content_chunk_map ADD CONSTRAINT legacy_chat_chunk_content_chunk_map_content_chunk_id_fkey FOREIGN KEY (content_chunk_id) REFERENCES working.content_chunk(id) ON DELETE RESTRICT;
-ALTER TABLE working.legacy_chat_chunk_content_chunk_map ADD CONSTRAINT legacy_chat_chunk_content_chunk_map_legacy_chat_chunk_id_fkey FOREIGN KEY (legacy_chat_chunk_id) REFERENCES working.chat_chunk(id) ON DELETE RESTRICT;
-ALTER TABLE working.legacy_normalized_chunk_content_chunk_map ADD CONSTRAINT legacy_normalized_chunk_content_chunk__backfill_receipt_id_fkey FOREIGN KEY (backfill_receipt_id) REFERENCES context.activity_receipt(id) ON DELETE RESTRICT;
-ALTER TABLE working.legacy_normalized_chunk_content_chunk_map ADD CONSTRAINT legacy_normalized_chunk_content_chunk_map_content_chunk_id_fkey FOREIGN KEY (content_chunk_id) REFERENCES working.content_chunk(id) ON DELETE RESTRICT;
-ALTER TABLE working.legacy_normalized_chunk_content_chunk_map ADD CONSTRAINT legacy_normalized_chunk_content_legacy_normalized_chunk_id_fkey FOREIGN KEY (legacy_normalized_chunk_id) REFERENCES working.normalized_record_chunk(id) ON DELETE RESTRICT;
-ALTER TABLE working.lineage_edge ADD CONSTRAINT lineage_edge_child_artifact_fkey FOREIGN KEY (child_artifact) REFERENCES working.artifact_registry(artifact_id);
-ALTER TABLE working.lineage_edge ADD CONSTRAINT lineage_edge_parent_artifact_fkey FOREIGN KEY (parent_artifact) REFERENCES working.artifact_registry(artifact_id);
-ALTER TABLE working.lineage_edge ADD CONSTRAINT lineage_edge_parent_source_fkey FOREIGN KEY (parent_source) REFERENCES evidence.evidence_hash(id);
-ALTER TABLE working.lineage_edge ADD CONSTRAINT lineage_edge_producing_run_fkey FOREIGN KEY (producing_run) REFERENCES ops.processing_run(run_id);
-ALTER TABLE working.location ADD CONSTRAINT location_provenance_id_fkey FOREIGN KEY (provenance_id) REFERENCES ops.processing_run(run_id);
 ALTER TABLE working.message ADD CONSTRAINT fk_msg_screenshot FOREIGN KEY (screenshot_attachment_id) REFERENCES working.attachment(id);
-ALTER TABLE working.message ADD CONSTRAINT message_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES working.conversation(id);
 ALTER TABLE working.message ADD CONSTRAINT message_derived_from_record_id_fkey FOREIGN KEY (derived_from_record_id) REFERENCES working.normalized_record(id);
 ALTER TABLE working.message ADD CONSTRAINT message_id_fkey FOREIGN KEY (id) REFERENCES working.normalized_record(id) ON DELETE CASCADE;
 ALTER TABLE working.message ADD CONSTRAINT message_next_message_id_fkey FOREIGN KEY (next_message_id) REFERENCES working.message(id);
@@ -6805,43 +5878,33 @@ ALTER TABLE working.message ADD CONSTRAINT message_prev_message_id_fkey FOREIGN 
 ALTER TABLE working.message ADD CONSTRAINT message_route_fk FOREIGN KEY (derived_from_record_id, projection_kind) REFERENCES working.message_projection_route(normalized_record_id, projection_kind) DEFERRABLE INITIALLY DEFERRED NOT VALID;
 ALTER TABLE working.message_participant ADD CONSTRAINT message_participant_message_id_fkey FOREIGN KEY (message_id) REFERENCES working.message(id) ON DELETE CASCADE;
 ALTER TABLE working.message_projection_route ADD CONSTRAINT message_projection_route_normalized_record_id_fkey FOREIGN KEY (normalized_record_id) REFERENCES working.normalized_record(id) ON DELETE CASCADE;
-ALTER TABLE working.normalized_record ADD CONSTRAINT fk_normrec_conv FOREIGN KEY (conversation_ref) REFERENCES working.conversation(id);
 ALTER TABLE working.normalized_record ADD CONSTRAINT normalized_record_acquisition_id_fkey FOREIGN KEY (acquisition_id) REFERENCES evidence.acquisition(id);
 ALTER TABLE working.normalized_record ADD CONSTRAINT normalized_record_artifact_id_fkey FOREIGN KEY (artifact_id) REFERENCES evidence.evidence_hash(id);
-ALTER TABLE working.normalized_record ADD CONSTRAINT normalized_record_device_id_fkey FOREIGN KEY (device_id) REFERENCES working.device(id);
+ALTER TABLE working.normalized_record ADD CONSTRAINT normalized_record_device_id_fkey FOREIGN KEY (device_id) REFERENCES reference.device(id);
 ALTER TABLE working.normalized_record ADD CONSTRAINT normalized_record_provenance_id_fkey FOREIGN KEY (provenance_id) REFERENCES ops.processing_run(run_id);
-ALTER TABLE working.normalized_record ADD CONSTRAINT normalized_record_sender_entity_id_fkey FOREIGN KEY (sender_entity_id) REFERENCES working.entity(id);
-ALTER TABLE working.normalized_record_chunk ADD CONSTRAINT normalized_record_chunk_normalized_record_id_fkey FOREIGN KEY (normalized_record_id) REFERENCES working.normalized_record(id) ON DELETE CASCADE;
-ALTER TABLE working.organization ADD CONSTRAINT organization_id_fkey FOREIGN KEY (id) REFERENCES working.entity(id) ON DELETE CASCADE;
-ALTER TABLE working.person ADD CONSTRAINT person_id_fkey FOREIGN KEY (id) REFERENCES working.entity(id) ON DELETE CASCADE;
-ALTER TABLE working.phone ADD CONSTRAINT phone_id_fkey FOREIGN KEY (id) REFERENCES working.entity(id) ON DELETE CASCADE;
-ALTER TABLE working.phone ADD CONSTRAINT phone_owner_entity_id_fkey FOREIGN KEY (owner_entity_id) REFERENCES working.entity(id);
+ALTER TABLE working.normalized_record ADD CONSTRAINT normalized_record_sender_entity_id_fkey FOREIGN KEY (sender_entity_id) REFERENCES reference.entity(id);
+ALTER TABLE working.organization ADD CONSTRAINT organization_id_fkey FOREIGN KEY (id) REFERENCES reference.entity(id) ON DELETE CASCADE;
+ALTER TABLE working.phone ADD CONSTRAINT phone_id_fkey FOREIGN KEY (id) REFERENCES reference.entity(id) ON DELETE CASCADE;
+ALTER TABLE working.phone ADD CONSTRAINT phone_owner_entity_id_fkey FOREIGN KEY (owner_entity_id) REFERENCES reference.entity(id);
 ALTER TABLE working.realization_event ADD CONSTRAINT realization_event_trigger_record_id_fkey FOREIGN KEY (trigger_record_id) REFERENCES working.normalized_record(id) ON DELETE RESTRICT;
 ALTER TABLE working.realization_event_record ADD CONSTRAINT realization_event_record_normalized_record_id_fkey FOREIGN KEY (normalized_record_id) REFERENCES working.normalized_record(id) ON DELETE RESTRICT;
 ALTER TABLE working.realization_event_record ADD CONSTRAINT realization_event_record_realization_event_id_fkey FOREIGN KEY (realization_event_id) REFERENCES working.realization_event(id) ON DELETE CASCADE;
 ALTER TABLE working.record_visible_from ADD CONSTRAINT record_visible_from_record_id_fkey FOREIGN KEY (record_id) REFERENCES working.normalized_record(id) ON DELETE CASCADE;
-ALTER TABLE working.stay_point ADD CONSTRAINT stay_point_device_id_fkey FOREIGN KEY (device_id) REFERENCES working.device(id);
-ALTER TABLE working.stay_point ADD CONSTRAINT stay_point_location_id_fkey FOREIGN KEY (location_id) REFERENCES working.location(id);
+ALTER TABLE working.stay_point ADD CONSTRAINT stay_point_device_id_fkey FOREIGN KEY (device_id) REFERENCES reference.device(id);
+ALTER TABLE working.stay_point ADD CONSTRAINT stay_point_location_id_fkey FOREIGN KEY (location_id) REFERENCES reference.location(id);
 ALTER TABLE working.stay_point ADD CONSTRAINT stay_point_provenance_id_fkey FOREIGN KEY (provenance_id) REFERENCES ops.processing_run(run_id);
 ALTER TABLE working.stay_point ADD CONSTRAINT stay_point_track_id_fkey FOREIGN KEY (track_id) REFERENCES working.gps_track(id);
 ALTER TABLE working.temporal_anchor ADD CONSTRAINT temporal_anchor_event_id_fkey FOREIGN KEY (event_id) REFERENCES analysis.timeline_event(event_id);
-ALTER TABLE working.third_party_context_thread ADD CONSTRAINT third_party_context_thread_court_case_id_matter_id_fkey FOREIGN KEY (court_case_id, matter_id) REFERENCES analysis.court_case(id, matter_id) ON DELETE RESTRICT;
+ALTER TABLE working.third_party_context_thread ADD CONSTRAINT third_party_context_thread_court_case_id_matter_id_fkey FOREIGN KEY (court_case_id, matter_id) REFERENCES reference.court_case(id, matter_id) ON DELETE RESTRICT;
 ALTER TABLE working.third_party_context_thread_message ADD CONSTRAINT third_party_context_thread_me_thread_version_id_context_th_fkey FOREIGN KEY (thread_version_id, context_thread_id) REFERENCES working.third_party_context_thread_version(id, context_thread_id) ON DELETE RESTRICT;
 ALTER TABLE working.third_party_context_thread_message ADD CONSTRAINT third_party_context_thread_mes_conversation_acquisition_id_fkey FOREIGN KEY (conversation_acquisition_id) REFERENCES working.third_party_conversation_acquisition(id) ON DELETE RESTRICT;
 ALTER TABLE working.third_party_context_thread_message ADD CONSTRAINT third_party_context_thread_message_message_id_fkey FOREIGN KEY (message_id) REFERENCES working.third_party_message(id) ON DELETE RESTRICT;
-ALTER TABLE working.third_party_context_thread_realization_assertion ADD CONSTRAINT third_party_context_thread_realizatio_realization_event_id_fkey FOREIGN KEY (realization_event_id) REFERENCES working.realization_event(id) ON DELETE RESTRICT;
-ALTER TABLE working.third_party_context_thread_realization_assertion ADD CONSTRAINT third_party_context_thread_realization_a_thread_version_id_fkey FOREIGN KEY (thread_version_id) REFERENCES working.third_party_context_thread_version(id) ON DELETE RESTRICT;
-ALTER TABLE working.third_party_context_thread_realization_assertion ADD CONSTRAINT third_party_context_thread_realization_asser_supersedes_id_fkey FOREIGN KEY (supersedes_id) REFERENCES working.third_party_context_thread_realization_assertion(id) ON DELETE RESTRICT;
-ALTER TABLE working.third_party_context_thread_realization_message ADD CONSTRAINT third_party_context_thread_r_realization_assertion_id_thr_fkey1 FOREIGN KEY (realization_assertion_id, thread_version_id) REFERENCES working.third_party_context_thread_realization_assertion(id, thread_version_id) ON DELETE RESTRICT;
-ALTER TABLE working.third_party_context_thread_realization_message ADD CONSTRAINT third_party_context_thread_re_thread_version_id_message_id_fkey FOREIGN KEY (thread_version_id, message_id) REFERENCES working.third_party_context_thread_message(thread_version_id, message_id) ON DELETE RESTRICT;
-ALTER TABLE working.third_party_context_thread_realization_source ADD CONSTRAINT third_party_context_thread_re_realization_assertion_id_thr_fkey FOREIGN KEY (realization_assertion_id, thread_version_id) REFERENCES working.third_party_context_thread_realization_assertion(id, thread_version_id) ON DELETE RESTRICT;
-ALTER TABLE working.third_party_context_thread_realization_source ADD CONSTRAINT third_party_context_thread_re_thread_source_id_thread_vers_fkey FOREIGN KEY (thread_source_id, thread_version_id) REFERENCES working.third_party_context_thread_source(id, thread_version_id) ON DELETE RESTRICT;
 ALTER TABLE working.third_party_context_thread_source ADD CONSTRAINT third_party_context_thread_so_acquisition_activity_receipt_fkey FOREIGN KEY (acquisition_activity_receipt_id) REFERENCES context.activity_receipt(id) ON DELETE RESTRICT;
 ALTER TABLE working.third_party_context_thread_source ADD CONSTRAINT third_party_context_thread_so_thread_version_id_context_th_fkey FOREIGN KEY (thread_version_id, context_thread_id) REFERENCES working.third_party_context_thread_version(id, context_thread_id) ON DELETE RESTRICT;
 ALTER TABLE working.third_party_context_thread_source ADD CONSTRAINT third_party_context_thread_sou_conversation_acquisition_id_fkey FOREIGN KEY (conversation_acquisition_id) REFERENCES working.third_party_conversation_acquisition(id) ON DELETE RESTRICT;
 ALTER TABLE working.third_party_context_thread_source ADD CONSTRAINT third_party_context_thread_sou_represented_conversation_id_fkey FOREIGN KEY (represented_conversation_id) REFERENCES working.third_party_conversation(id) ON DELETE RESTRICT;
-ALTER TABLE working.third_party_context_thread_source ADD CONSTRAINT third_party_context_thread_source_originating_device_id_fkey FOREIGN KEY (originating_device_id) REFERENCES working.device(id) ON DELETE RESTRICT;
-ALTER TABLE working.third_party_context_thread_source ADD CONSTRAINT third_party_context_thread_source_perspective_entity_id_fkey FOREIGN KEY (perspective_entity_id) REFERENCES working.entity(id) ON DELETE RESTRICT;
+ALTER TABLE working.third_party_context_thread_source ADD CONSTRAINT third_party_context_thread_source_originating_device_id_fkey FOREIGN KEY (originating_device_id) REFERENCES reference.device(id) ON DELETE RESTRICT;
+ALTER TABLE working.third_party_context_thread_source ADD CONSTRAINT third_party_context_thread_source_perspective_entity_id_fkey FOREIGN KEY (perspective_entity_id) REFERENCES reference.entity(id) ON DELETE RESTRICT;
 ALTER TABLE working.third_party_context_thread_source ADD CONSTRAINT third_party_context_thread_source_source_version_id_fkey FOREIGN KEY (source_version_id) REFERENCES context.source_version(id) ON DELETE RESTRICT;
 ALTER TABLE working.third_party_context_thread_source ADD CONSTRAINT third_party_context_thread_source_supersedes_id_fkey FOREIGN KEY (supersedes_id) REFERENCES working.third_party_context_thread_source(id) ON DELETE RESTRICT;
 ALTER TABLE working.third_party_context_thread_version ADD CONSTRAINT third_party_context_thread_version_context_thread_id_fkey FOREIGN KEY (context_thread_id) REFERENCES working.third_party_context_thread(context_thread_id) ON DELETE RESTRICT;
@@ -6853,11 +5916,11 @@ ALTER TABLE working.third_party_conversation_acquisition ADD CONSTRAINT third_pa
 ALTER TABLE working.third_party_message ADD CONSTRAINT third_party_message_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES working.third_party_conversation(id) ON DELETE CASCADE;
 ALTER TABLE working.third_party_message ADD CONSTRAINT third_party_message_normalized_record_id_fkey FOREIGN KEY (normalized_record_id) REFERENCES working.normalized_record(id) ON DELETE RESTRICT;
 ALTER TABLE working.third_party_message ADD CONSTRAINT third_party_message_route_fk FOREIGN KEY (normalized_record_id, projection_kind) REFERENCES working.message_projection_route(normalized_record_id, projection_kind) DEFERRABLE INITIALLY DEFERRED;
-ALTER TABLE working.third_party_message ADD CONSTRAINT third_party_message_sender_entity_id_fkey FOREIGN KEY (sender_entity_id) REFERENCES working.entity(id) ON DELETE RESTRICT;
-ALTER TABLE working.third_party_message_participant ADD CONSTRAINT third_party_message_participant_entity_id_fkey FOREIGN KEY (entity_id) REFERENCES working.entity(id) ON DELETE RESTRICT;
+ALTER TABLE working.third_party_message ADD CONSTRAINT third_party_message_sender_entity_id_fkey FOREIGN KEY (sender_entity_id) REFERENCES reference.entity(id) ON DELETE RESTRICT;
+ALTER TABLE working.third_party_message_participant ADD CONSTRAINT third_party_message_participant_entity_id_fkey FOREIGN KEY (entity_id) REFERENCES reference.entity(id) ON DELETE RESTRICT;
 ALTER TABLE working.third_party_message_participant ADD CONSTRAINT third_party_message_participant_message_id_fkey FOREIGN KEY (message_id) REFERENCES working.third_party_message(id) ON DELETE CASCADE;
-ALTER TABLE working.vehicle ADD CONSTRAINT vehicle_id_fkey FOREIGN KEY (id) REFERENCES working.entity(id) ON DELETE CASCADE;
-ALTER TABLE working.vehicle ADD CONSTRAINT vehicle_owner_entity_id_fkey FOREIGN KEY (owner_entity_id) REFERENCES working.entity(id);
+ALTER TABLE working.vehicle ADD CONSTRAINT vehicle_id_fkey FOREIGN KEY (id) REFERENCES reference.entity(id) ON DELETE CASCADE;
+ALTER TABLE working.vehicle ADD CONSTRAINT vehicle_owner_entity_id_fkey FOREIGN KEY (owner_entity_id) REFERENCES reference.entity(id);
 ALTER TABLE working.walk_checkpoint ADD CONSTRAINT walk_checkpoint_walk_run_id_fkey FOREIGN KEY (walk_run_id) REFERENCES working.walk_run(id) ON DELETE CASCADE;
 ALTER TABLE working.walk_run ADD CONSTRAINT walk_run_resume_checkpoint_fk FOREIGN KEY (resume_from_checkpoint_id, id) REFERENCES working.walk_checkpoint(id, walk_run_id) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
 ALTER TABLE working.walk_run ADD CONSTRAINT walk_run_rewalk_of_id_fkey FOREIGN KEY (rewalk_of_id) REFERENCES working.walk_run(id) ON DELETE RESTRICT;
@@ -6868,8 +5931,8 @@ ALTER TABLE working.walk_step_realization_retrieval ADD CONSTRAINT walk_step_rea
 ALTER TABLE working.walk_step_retrieval ADD CONSTRAINT walk_step_retrieval_record_id_fkey FOREIGN KEY (record_id) REFERENCES working.normalized_record(id) ON DELETE RESTRICT;
 ALTER TABLE working.walk_step_retrieval ADD CONSTRAINT walk_step_retrieval_walk_step_id_fkey FOREIGN KEY (walk_step_id) REFERENCES working.walk_step(id) ON DELETE CASCADE;
 ALTER TABLE working.waypoint_device_split ADD CONSTRAINT waypoint_device_split_ingest_run_id_fkey FOREIGN KEY (ingest_run_id) REFERENCES ops.processing_run(run_id);
-ALTER TABLE working.waypoint_device_split ADD CONSTRAINT waypoint_device_split_raw_path_id_fkey FOREIGN KEY (raw_path_id) REFERENCES evidence.raw_path(id);
-ALTER TABLE working.waypoint_device_split ADD CONSTRAINT waypoint_device_split_split_from_activity_fkey FOREIGN KEY (split_from_activity) REFERENCES evidence.raw_activity(id);
+ALTER TABLE working.waypoint_device_split ADD CONSTRAINT waypoint_device_split_raw_path_id_fkey FOREIGN KEY (raw_path_id) REFERENCES raw.raw_path(id);
+ALTER TABLE working.waypoint_device_split ADD CONSTRAINT waypoint_device_split_split_from_activity_fkey FOREIGN KEY (split_from_activity) REFERENCES raw.raw_activity(id);
 
 -- ============ indexes ============
 CREATE INDEX IF NOT EXISTS candidate_entity_attrs_gin ON working.candidate_entity USING gin (attrs);
@@ -6900,16 +5963,14 @@ CREATE INDEX IF NOT EXISTS candidate_fact_pending_idx ON working.candidate_fact 
 CREATE INDEX IF NOT EXISTS candidate_fact_run_idx ON working.candidate_fact USING btree (extraction_run_id);
 CREATE INDEX IF NOT EXISTS candidate_fact_subject_idx ON working.candidate_fact USING btree (subject_entity_id);
 CREATE INDEX IF NOT EXISTS candidate_fact_topics_gin ON working.candidate_fact USING gin (topic_tags);
-CREATE INDEX IF NOT EXISTS chat_chunk_lane_review_idx ON working.chat_chunk_lane USING btree (review_status, confidence, created_at);
-CREATE INDEX IF NOT EXISTS chat_chunk_lane_route_idx ON working.chat_chunk_lane USING btree (lane, chunk_id);
-CREATE INDEX IF NOT EXISTS chat_chunk_projection_pending_idx ON working.chat_chunk_projection USING btree (sink, lane, chunk_id) WHERE (projected_at IS NULL);
-CREATE INDEX IF NOT EXISTS chat_chunk_tag_tag_idx ON working.chat_chunk_tag USING btree (tag_id, chunk_id);
+CREATE INDEX IF NOT EXISTS change_decision_proposal_idx ON canon.change_decision USING btree (proposal_id);
+CREATE INDEX IF NOT EXISTS change_proposal_open_idx ON canon.change_proposal USING btree (status, tier) WHERE (status = 'proposed'::text);
+CREATE INDEX IF NOT EXISTS change_proposal_table_idx ON canon.change_proposal USING btree (canonical_table_id, created_at);
 CREATE INDEX IF NOT EXISTS chat_message_conversation_idx ON working.chat_message USING btree (conversation_id, message_index);
 CREATE INDEX IF NOT EXISTS chat_message_sent_at_idx ON working.chat_message USING btree (sent_at);
-CREATE INDEX IF NOT EXISTS chat_projection_dead_letter_open_idx ON working.chat_projection_dead_letter USING btree (sink_id, failed_at) WHERE (resolved_at IS NULL);
-CREATE INDEX IF NOT EXISTS claim_assertion_disposition_idx ON working.claim_assertion USING btree (owner_disposition);
-CREATE INDEX IF NOT EXISTS claim_assertion_generation_idx ON working.claim_assertion USING btree (assertion_generation);
-CREATE INDEX IF NOT EXISTS claim_assertion_targets_idx ON working.claim_assertion USING gin (argument_targets);
+CREATE INDEX IF NOT EXISTS claim_assertion_disposition_idx ON analysis.claim_assertion USING btree (owner_disposition);
+CREATE INDEX IF NOT EXISTS claim_assertion_generation_idx ON analysis.claim_assertion USING btree (assertion_generation);
+CREATE INDEX IF NOT EXISTS claim_assertion_targets_idx ON analysis.claim_assertion USING gin (argument_targets);
 CREATE INDEX IF NOT EXISTS claim_candidate_class_idx ON working.claim_candidate USING btree (claim_class);
 CREATE INDEX IF NOT EXISTS claim_candidate_conversation_idx ON working.claim_candidate USING btree (chat_conversation_id, message_ordinal);
 CREATE INDEX IF NOT EXISTS claim_candidate_fingerprint_idx ON working.claim_candidate USING btree (fingerprint);
@@ -6917,23 +5978,17 @@ CREATE INDEX IF NOT EXISTS claim_candidate_type_idx ON working.claim_candidate U
 CREATE INDEX IF NOT EXISTS claim_temporal_edge_from_idx ON working.claim_temporal_edge USING btree (from_claim_id);
 CREATE INDEX IF NOT EXISTS claim_temporal_edge_to_idx ON working.claim_temporal_edge USING btree (to_claim_id) WHERE (to_claim_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS claim_temporal_edge_unresolved_idx ON working.claim_temporal_edge USING btree (created_at) WHERE ((target_kind = 'unresolved_phrase'::text) AND (resolved_claim_id IS NULL));
-CREATE INDEX IF NOT EXISTS content_chunk_classification_review_idx ON working.content_chunk_classification_decision USING btree (review_state, lane, created_at);
+CREATE INDEX IF NOT EXISTS content_chunk_classification_review_idx ON analysis.content_chunk_classification_decision USING btree (review_state, lane, created_at);
 CREATE INDEX IF NOT EXISTS content_chunk_generation_idx ON working.content_chunk USING btree (generation_id, chunk_index);
 CREATE INDEX IF NOT EXISTS content_chunk_generation_normalized_idx ON working.content_chunk_generation USING btree (normalized_generation_id) WHERE (normalized_generation_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS content_chunk_generation_source_idx ON working.content_chunk_generation USING btree (source_version_id, generation_ordinal DESC);
 CREATE INDEX IF NOT EXISTS content_chunk_hash_lookup_idx ON working.content_chunk USING btree (content_sha256);
+CREATE INDEX IF NOT EXISTS content_chunk_projection_pending_idx ON working.content_chunk_projection USING btree (sink, created_at) WHERE (status = 'pending'::text);
 CREATE INDEX IF NOT EXISTS content_chunk_source_span_generation_idx ON working.content_chunk_source_span USING btree (generation_id, member_ordinal);
 CREATE INDEX IF NOT EXISTS content_chunk_source_span_subject_idx ON working.content_chunk_source_span USING btree (source_version_id, member_ordinal);
-CREATE INDEX IF NOT EXISTS context_asset_projection_pending_idx ON working.context_asset_projection USING btree (lane, representation, asset_id) WHERE (projected_at IS NULL);
-CREATE INDEX IF NOT EXISTS context_review_case_key_version_idx ON working.context_review_case USING btree (case_key, case_version DESC);
-CREATE INDEX IF NOT EXISTS context_review_case_queue_idx ON working.context_review_case USING btree (status, priority, created_at);
-CREATE INDEX IF NOT EXISTS context_review_decision_case_idx ON working.context_review_decision USING btree (review_case_id, decision_version DESC);
-CREATE INDEX IF NOT EXISTS context_review_dispatch_status_idx ON working.context_review_dispatch_attempt USING btree (status, started_at);
-CREATE INDEX IF NOT EXISTS context_review_temporal_run_state_idx ON working.context_review_temporal_run_state USING btree (review_workflow_id, temporal_run_id, state_version DESC);
-CREATE INDEX IF NOT EXISTS context_review_terminal_reconciliation_status_idx ON working.context_review_terminal_reconciliation USING btree (reconciliation_status, reconciled_at);
-CREATE INDEX IF NOT EXISTS court_case_matter_status_idx ON analysis.court_case USING btree (matter_id, status);
+CREATE INDEX IF NOT EXISTS court_case_matter_status_idx ON reference.court_case USING btree (matter_id, status);
 CREATE INDEX IF NOT EXISTS event_candidate_source_range_source_idx ON timeline.event_candidate_source_range USING btree (source_version_id, event_candidate_id);
-CREATE INDEX IF NOT EXISTS evidence_item_matter_case_review_idx ON analysis.evidence_item USING btree (matter_id, court_case_id, review_status) WHERE (matter_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS evidence_item_matter_case_review_idx ON evidence.evidence_item USING btree (matter_id, court_case_id, review_status) WHERE (matter_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS evidence_vector_projection_job_drain_idx ON working.evidence_vector_projection_job USING btree (status, next_attempt_at, created_at);
 CREATE INDEX IF NOT EXISTS extraction_run_extractor_idx ON working.extraction_run USING btree (extractor, extractor_version);
 CREATE INDEX IF NOT EXISTS extraction_run_graph_lane_idx ON working.extraction_run USING btree (graph_lane);
@@ -6952,7 +6007,6 @@ CREATE INDEX IF NOT EXISTS hash_receipt_normalized_generation_idx ON context.has
 CREATE INDEX IF NOT EXISTS idx_acquisition_acquired ON evidence.acquisition USING btree (acquired_at);
 CREATE INDEX IF NOT EXISTS idx_acquisition_method ON evidence.acquisition USING btree (method);
 CREATE INDEX IF NOT EXISTS idx_acquisition_supersedes ON evidence.acquisition USING btree (supersedes_id) WHERE (supersedes_id IS NOT NULL);
-CREATE INDEX IF NOT EXISTS idx_agent_run_status ON public.agent_run USING btree (status, started_at DESC);
 CREATE INDEX IF NOT EXISTS idx_agno_approvals_agent_id ON ai.agno_approvals USING btree (agent_id);
 CREATE INDEX IF NOT EXISTS idx_agno_approvals_approval_type ON ai.agno_approvals USING btree (approval_type);
 CREATE INDEX IF NOT EXISTS idx_agno_approvals_created_at ON ai.agno_approvals USING btree (created_at);
@@ -7015,11 +6069,10 @@ CREATE INDEX IF NOT EXISTS idx_agno_traces_status ON ai.agno_traces USING btree 
 CREATE INDEX IF NOT EXISTS idx_agno_traces_team_id ON ai.agno_traces USING btree (team_id);
 CREATE INDEX IF NOT EXISTS idx_agno_traces_user_id ON ai.agno_traces USING btree (user_id);
 CREATE INDEX IF NOT EXISTS idx_agno_traces_workflow_id ON ai.agno_traces USING btree (workflow_id);
-CREATE INDEX IF NOT EXISTS idx_alias_dmeta ON working.entity_alias USING btree (alias_dmeta);
-CREATE INDEX IF NOT EXISTS idx_alias_entity ON working.entity_alias USING btree (entity_id);
-CREATE INDEX IF NOT EXISTS idx_alias_trgm ON working.entity_alias USING gin (((alias_text)::text) gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_alias_dmeta ON reference.entity_alias USING btree (alias_dmeta);
+CREATE INDEX IF NOT EXISTS idx_alias_entity ON reference.entity_alias USING btree (entity_id);
+CREATE INDEX IF NOT EXISTS idx_alias_trgm ON reference.entity_alias USING gin (((alias_text)::text) gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_anchor_range ON working.temporal_anchor USING gist (valid_range);
-CREATE INDEX IF NOT EXISTS idx_approval_request_status ON public.approval_request USING btree (approval_status, requested_at DESC);
 CREATE INDEX IF NOT EXISTS idx_art_evid_gin ON working.artifact_registry USING gin (related_source_evidence);
 CREATE INDEX IF NOT EXISTS idx_art_kind_status ON working.artifact_registry USING btree (artifact_kind, status);
 CREATE INDEX IF NOT EXISTS idx_artmeta_set ON evidence.artifact_metadata USING btree (export_set_id) WHERE (export_set_id IS NOT NULL);
@@ -7034,8 +6087,6 @@ CREATE INDEX IF NOT EXISTS idx_audit_ledger_ts ON ops.audit_ledger USING btree (
 CREATE INDEX IF NOT EXISTS idx_behavior_category_alias ON reference.behavior_category USING gin (aliases);
 CREATE INDEX IF NOT EXISTS idx_behavior_category_mcl_factor ON reference.behavior_category_mcl USING btree (factor_code);
 CREATE INDEX IF NOT EXISTS idx_behavior_category_mcl ON reference.behavior_category USING gin (mcl_factors);
-CREATE INDEX IF NOT EXISTS idx_blockstatus_range ON working.block_status USING btree (target_id, effective_from, effective_to);
-CREATE INDEX IF NOT EXISTS idx_blockstatus_target ON working.block_status USING btree (target_kind, target_id);
 CREATE INDEX IF NOT EXISTS idx_call_conv ON working.call_log USING btree (conversation_id);
 CREATE INDEX IF NOT EXISTS idx_call_started ON working.call_log USING btree (started_at);
 CREATE INDEX IF NOT EXISTS idx_chunkclass_conv ON analysis.chunk_classification USING btree (conversation_key, seq);
@@ -7043,8 +6094,6 @@ CREATE INDEX IF NOT EXISTS idx_chunkclass_runkey ON analysis.chunk_classificatio
 CREATE INDEX IF NOT EXISTS idx_chunkclass_version ON analysis.chunk_classification USING btree (classifier_version);
 CREATE INDEX IF NOT EXISTS idx_clog_record ON public.change_log USING btree (table_name, record_id);
 CREATE INDEX IF NOT EXISTS idx_clog_time ON public.change_log USING btree (change_timestamp);
-CREATE INDEX IF NOT EXISTS idx_conv_platform ON working.conversation USING btree (platform);
-CREATE INDEX IF NOT EXISTS idx_conv_primary ON working.conversation USING btree (primary_participant_e164);
 CREATE INDEX IF NOT EXISTS idx_corroboration_flag_status ON analysis.corroboration_flag USING btree (status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_corroboration_flag_target ON analysis.corroboration_flag USING btree (target_kind, target_id);
 CREATE INDEX IF NOT EXISTS idx_ctxasset_archive ON working.context_asset USING btree (archive_id);
@@ -7059,16 +6108,12 @@ CREATE INDEX IF NOT EXISTS idx_custody_type ON evidence.custody_event USING btre
 CREATE INDEX IF NOT EXISTS idx_detection_pattern_cat ON reference.detection_pattern USING btree (category_id);
 CREATE INDEX IF NOT EXISTS idx_detection_pattern_kw ON reference.detection_pattern USING gin (keywords);
 CREATE INDEX IF NOT EXISTS idx_detection_pattern_trgm ON reference.detection_pattern USING gin (pattern gin_trgm_ops);
-CREATE INDEX IF NOT EXISTS idx_devown_device ON working.device_ownership USING btree (device_id);
-CREATE INDEX IF NOT EXISTS idx_devown_owner ON working.device_ownership USING btree (owner_entity_id);
-CREATE INDEX IF NOT EXISTS idx_devown_range ON working.device_ownership USING btree (device_id, effective_from, effective_to);
 CREATE INDEX IF NOT EXISTS idx_discreq_task ON analysis.discovery_request USING btree (task_id, status);
-CREATE INDEX IF NOT EXISTS idx_edge_child ON working.lineage_edge USING btree (child_artifact);
 CREATE INDEX IF NOT EXISTS idx_email_owner ON working.email USING btree (owner_entity_id);
-CREATE INDEX IF NOT EXISTS idx_entity_dispname_trgm ON working.entity USING gin (((display_name)::text) gin_trgm_ops);
-CREATE INDEX IF NOT EXISTS idx_entity_live ON working.entity USING btree (id) WHERE (merged_into_id IS NULL);
-CREATE INDEX IF NOT EXISTS idx_entity_normname_trgm ON working.entity USING gin (((normalized_name)::text) gin_trgm_ops);
-CREATE INDEX IF NOT EXISTS idx_entity_type ON working.entity USING btree (entity_type);
+CREATE INDEX IF NOT EXISTS idx_entity_dispname_trgm ON reference.entity USING gin (((display_name)::text) gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_entity_live ON reference.entity USING btree (id) WHERE (merged_into_id IS NULL);
+CREATE INDEX IF NOT EXISTS idx_entity_normname_trgm ON reference.entity USING gin (((normalized_name)::text) gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_entity_type ON reference.entity USING btree (entity_type);
 CREATE INDEX IF NOT EXISTS idx_esr_attestation ON working.event_source_record USING btree (record_id) WHERE (event_id IS NULL);
 CREATE INDEX IF NOT EXISTS idx_esr_disagree ON working.event_source_record USING btree (record_id) WHERE (agrees IS FALSE);
 CREATE INDEX IF NOT EXISTS idx_esr_rawref ON working.event_source_record USING btree (raw_ref);
@@ -7083,25 +6128,25 @@ CREATE INDEX IF NOT EXISTS idx_evhash_filenode ON evidence.evidence_hash USING b
 CREATE INDEX IF NOT EXISTS idx_evhash_level_source ON evidence.evidence_hash USING btree (level, source_id);
 CREATE INDEX IF NOT EXISTS idx_evhash_meta ON evidence.evidence_hash USING gin (meta);
 CREATE INDEX IF NOT EXISTS idx_evidence_hash_digest ON evidence.evidence_hash USING btree (digest);
-CREATE INDEX IF NOT EXISTS idx_evitem_case ON analysis.evidence_item USING btree (case_id, review_status);
-CREATE INDEX IF NOT EXISTS idx_evitem_export ON analysis.evidence_item USING btree (case_id) WHERE (safe_for_legal_use = true);
-CREATE INDEX IF NOT EXISTS idx_evitem_title_trgm ON analysis.evidence_item USING gin (title gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_evitem_case ON evidence.evidence_item USING btree (case_id, review_status);
+CREATE INDEX IF NOT EXISTS idx_evitem_export ON evidence.evidence_item USING btree (case_id) WHERE (safe_for_legal_use = true);
+CREATE INDEX IF NOT EXISTS idx_evitem_title_trgm ON evidence.evidence_item USING gin (title gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_factcite_factor ON analysis.factor_citation USING btree (factor, supports_factor);
 CREATE INDEX IF NOT EXISTS idx_factcite_item ON analysis.factor_citation USING btree (evidence_item_id);
-CREATE INDEX IF NOT EXISTS idx_filenode_parent ON evidence.file_node USING btree (parent_node_id);
-CREATE INDEX IF NOT EXISTS idx_filenode_path ON evidence.file_node USING gist (node_path);
-CREATE INDEX IF NOT EXISTS idx_filenode_sha ON evidence.file_node USING btree (sha256);
-CREATE INDEX IF NOT EXISTS idx_filenode_source ON evidence.file_node USING btree (source_id);
+CREATE INDEX IF NOT EXISTS idx_filenode_parent ON raw.file_node USING btree (parent_node_id);
+CREATE INDEX IF NOT EXISTS idx_filenode_path ON raw.file_node USING gist (node_path);
+CREATE INDEX IF NOT EXISTS idx_filenode_sha ON raw.file_node USING btree (sha256);
+CREATE INDEX IF NOT EXISTS idx_filenode_source ON raw.file_node USING btree (source_id);
 CREATE INDEX IF NOT EXISTS idx_finding_mcl ON analysis.finding USING gin (mcl_factors);
 CREATE INDEX IF NOT EXISTS idx_finding_review ON analysis.finding USING btree (review_status);
 CREATE INDEX IF NOT EXISTS idx_finding_type ON analysis.finding USING btree (finding_type);
 CREATE INDEX IF NOT EXISTS idx_geocode_audit_req ON ops.geocode_audit USING btree (request_id, occurred_at);
 CREATE INDEX IF NOT EXISTS idx_geocode_result_req ON working.geocode_result USING btree (request_id);
 CREATE INDEX IF NOT EXISTS idx_geofence_geog ON reference.geofence USING gist (geog);
-CREATE INDEX IF NOT EXISTS idx_gps_point_devtime ON evidence.gps_point USING btree (device_id, captured_at);
-CREATE INDEX IF NOT EXISTS idx_gps_point_geog ON evidence.gps_point USING gist (geog);
-CREATE INDEX IF NOT EXISTS idx_gps_point_raw ON evidence.gps_point USING gin (raw_data);
-CREATE INDEX IF NOT EXISTS idx_gps_point_seq ON evidence.gps_point USING btree (source_id, point_sequence);
+CREATE INDEX IF NOT EXISTS idx_gps_point_devtime ON raw.gps_point USING btree (device_id, captured_at);
+CREATE INDEX IF NOT EXISTS idx_gps_point_geog ON raw.gps_point USING gist (geog);
+CREATE INDEX IF NOT EXISTS idx_gps_point_raw ON raw.gps_point USING gin (raw_data);
+CREATE INDEX IF NOT EXISTS idx_gps_point_seq ON raw.gps_point USING btree (source_id, point_sequence);
 CREATE INDEX IF NOT EXISTS idx_gps_track_geog ON working.gps_track USING gist (geog);
 CREATE INDEX IF NOT EXISTS idx_handle_owner ON working.handle USING btree (owner_entity_id);
 CREATE INDEX IF NOT EXISTS idx_handle_trgm ON working.handle USING gin (((handle)::text) gin_trgm_ops);
@@ -7114,15 +6159,14 @@ CREATE INDEX IF NOT EXISTS idx_legaltl_case ON analysis.legal_timeline_event USI
 CREATE INDEX IF NOT EXISTS idx_legaltl_fact ON analysis.legal_timeline_event USING gin (mcl_factors);
 CREATE INDEX IF NOT EXISTS idx_locassert_geog ON analysis.location_assertion USING gist (geog);
 CREATE INDEX IF NOT EXISTS idx_locassert_subject ON analysis.location_assertion USING btree (subject_type, subject_id);
-CREATE INDEX IF NOT EXISTS idx_location_geog ON working.location USING gist (geog);
-CREATE INDEX IF NOT EXISTS idx_location_name_trgm ON working.location USING gin (name gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_location_geog ON reference.location USING gist (geog);
+CREATE INDEX IF NOT EXISTS idx_location_name_trgm ON reference.location USING gin (name gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_mem_fts ON public.memory_items USING gin (fts);
 CREATE INDEX IF NOT EXISTS idx_mem_title_trgm ON public.memory_items USING gin (title gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_mem_type_status ON public.memory_items USING btree (memory_type, status);
 CREATE INDEX IF NOT EXISTS idx_mention_dmeta ON working.entity_mention USING btree (mention_dmeta);
 CREATE INDEX IF NOT EXISTS idx_mention_subject ON working.entity_mention USING btree (subject_type, subject_id);
 CREATE INDEX IF NOT EXISTS idx_mention_trgm ON working.entity_mention USING gin (((surface_text)::text) gin_trgm_ops);
-CREATE INDEX IF NOT EXISTS idx_merge_surv ON working.entity_merge_event USING btree (surviving_entity_id);
 CREATE INDEX IF NOT EXISTS idx_message_derived ON working.message USING btree (derived_from_record_id);
 CREATE INDEX IF NOT EXISTS idx_msg_attrs ON working.message USING gin (platform_attrs);
 CREATE INDEX IF NOT EXISTS idx_msg_chash ON working.message USING btree (content_sha256);
@@ -7155,44 +6199,44 @@ CREATE INDEX IF NOT EXISTS idx_pattern_lexicon_variants ON reference.pattern_lex
 CREATE INDEX IF NOT EXISTS idx_pattern_set_active ON reference.detection_pattern_set USING btree (is_active) WHERE is_active;
 CREATE INDEX IF NOT EXISTS idx_phone_e164 ON working.phone USING btree (((e164)::text));
 CREATE INDEX IF NOT EXISTS idx_phone_owner ON working.phone USING btree (owner_entity_id);
-CREATE INDEX IF NOT EXISTS idx_raw_activity_source ON evidence.raw_activity USING btree (source_id);
-CREATE INDEX IF NOT EXISTS idx_raw_activity_start ON evidence.raw_activity USING gist (start_geog);
-CREATE INDEX IF NOT EXISTS idx_raw_activity_utc ON evidence.raw_activity USING btree (start_utc);
-CREATE INDEX IF NOT EXISTS idx_raw_ai_chat_device ON evidence.raw_ai_chat USING btree (device_id);
-CREATE INDEX IF NOT EXISTS idx_raw_ai_chat_hash ON evidence.raw_ai_chat USING btree (content_hash);
-CREATE INDEX IF NOT EXISTS idx_raw_ai_chat_live ON evidence.raw_ai_chat USING btree (source_id) WHERE (superseded_by IS NULL);
-CREATE INDEX IF NOT EXISTS idx_raw_ai_chat_source ON evidence.raw_ai_chat USING btree (source_id);
-CREATE INDEX IF NOT EXISTS idx_raw_csv_device ON evidence.raw_csv USING btree (device_id);
-CREATE INDEX IF NOT EXISTS idx_raw_csv_hash ON evidence.raw_csv USING btree (content_hash);
-CREATE INDEX IF NOT EXISTS idx_raw_csv_live ON evidence.raw_csv USING btree (source_id) WHERE (superseded_by IS NULL);
-CREATE INDEX IF NOT EXISTS idx_raw_csv_source ON evidence.raw_csv USING btree (source_id);
-CREATE INDEX IF NOT EXISTS idx_raw_facebook_device ON evidence.raw_facebook USING btree (device_id);
-CREATE INDEX IF NOT EXISTS idx_raw_facebook_hash ON evidence.raw_facebook USING btree (content_hash);
-CREATE INDEX IF NOT EXISTS idx_raw_facebook_live ON evidence.raw_facebook USING btree (source_id) WHERE (superseded_by IS NULL);
-CREATE INDEX IF NOT EXISTS idx_raw_facebook_source ON evidence.raw_facebook USING btree (source_id);
-CREATE INDEX IF NOT EXISTS idx_raw_imessage_device ON evidence.raw_imessage USING btree (device_id);
-CREATE INDEX IF NOT EXISTS idx_raw_imessage_hash ON evidence.raw_imessage USING btree (content_hash);
-CREATE INDEX IF NOT EXISTS idx_raw_imessage_live ON evidence.raw_imessage USING btree (source_id) WHERE (superseded_by IS NULL);
-CREATE INDEX IF NOT EXISTS idx_raw_imessage_source ON evidence.raw_imessage USING btree (source_id);
-CREATE INDEX IF NOT EXISTS idx_raw_path_geog ON evidence.raw_path USING gist (point_geog);
-CREATE INDEX IF NOT EXISTS idx_raw_path_source ON evidence.raw_path USING btree (source_id, path_serial, point_sequence);
-CREATE INDEX IF NOT EXISTS idx_raw_phone_device ON evidence.raw_phone USING btree (device_id);
-CREATE INDEX IF NOT EXISTS idx_raw_phone_hash ON evidence.raw_phone USING btree (content_hash);
-CREATE INDEX IF NOT EXISTS idx_raw_phone_live ON evidence.raw_phone USING btree (source_id) WHERE (superseded_by IS NULL);
-CREATE INDEX IF NOT EXISTS idx_raw_phone_source ON evidence.raw_phone USING btree (source_id);
-CREATE INDEX IF NOT EXISTS idx_raw_rejected_gin ON evidence.raw_rejected USING gin (raw);
-CREATE INDEX IF NOT EXISTS idx_raw_rejected_reason ON evidence.raw_rejected USING btree (reason);
-CREATE INDEX IF NOT EXISTS idx_raw_rejected_run ON evidence.raw_rejected USING btree (ingest_run_id);
-CREATE INDEX IF NOT EXISTS idx_raw_rejected_sha ON evidence.raw_rejected USING btree (source_sha256);
-CREATE INDEX IF NOT EXISTS idx_raw_sms_device ON evidence.raw_sms USING btree (device_id);
-CREATE INDEX IF NOT EXISTS idx_raw_sms_hash ON evidence.raw_sms USING btree (content_hash);
-CREATE INDEX IF NOT EXISTS idx_raw_sms_live ON evidence.raw_sms USING btree (source_id) WHERE (superseded_by IS NULL);
-CREATE INDEX IF NOT EXISTS idx_raw_sms_source ON evidence.raw_sms USING btree (source_id);
-CREATE INDEX IF NOT EXISTS idx_raw_trip_source ON evidence.raw_trip USING btree (source_id);
-CREATE INDEX IF NOT EXISTS idx_raw_trip_utc ON evidence.raw_trip USING btree (start_utc);
-CREATE INDEX IF NOT EXISTS idx_raw_visit_geog ON evidence.raw_visit USING gist (geog);
-CREATE INDEX IF NOT EXISTS idx_raw_visit_source ON evidence.raw_visit USING btree (source_id);
-CREATE INDEX IF NOT EXISTS idx_raw_visit_utc ON evidence.raw_visit USING btree (start_utc);
+CREATE INDEX IF NOT EXISTS idx_raw_activity_source ON raw.raw_activity USING btree (source_id);
+CREATE INDEX IF NOT EXISTS idx_raw_activity_start ON raw.raw_activity USING gist (start_geog);
+CREATE INDEX IF NOT EXISTS idx_raw_activity_utc ON raw.raw_activity USING btree (start_utc);
+CREATE INDEX IF NOT EXISTS idx_raw_ai_chat_device ON raw.raw_ai_chat USING btree (device_id);
+CREATE INDEX IF NOT EXISTS idx_raw_ai_chat_hash ON raw.raw_ai_chat USING btree (content_hash);
+CREATE INDEX IF NOT EXISTS idx_raw_ai_chat_live ON raw.raw_ai_chat USING btree (source_id) WHERE (superseded_by IS NULL);
+CREATE INDEX IF NOT EXISTS idx_raw_ai_chat_source ON raw.raw_ai_chat USING btree (source_id);
+CREATE INDEX IF NOT EXISTS idx_raw_csv_device ON raw.raw_csv USING btree (device_id);
+CREATE INDEX IF NOT EXISTS idx_raw_csv_hash ON raw.raw_csv USING btree (content_hash);
+CREATE INDEX IF NOT EXISTS idx_raw_csv_live ON raw.raw_csv USING btree (source_id) WHERE (superseded_by IS NULL);
+CREATE INDEX IF NOT EXISTS idx_raw_csv_source ON raw.raw_csv USING btree (source_id);
+CREATE INDEX IF NOT EXISTS idx_raw_facebook_device ON raw.raw_facebook USING btree (device_id);
+CREATE INDEX IF NOT EXISTS idx_raw_facebook_hash ON raw.raw_facebook USING btree (content_hash);
+CREATE INDEX IF NOT EXISTS idx_raw_facebook_live ON raw.raw_facebook USING btree (source_id) WHERE (superseded_by IS NULL);
+CREATE INDEX IF NOT EXISTS idx_raw_facebook_source ON raw.raw_facebook USING btree (source_id);
+CREATE INDEX IF NOT EXISTS idx_raw_imessage_device ON raw.raw_imessage USING btree (device_id);
+CREATE INDEX IF NOT EXISTS idx_raw_imessage_hash ON raw.raw_imessage USING btree (content_hash);
+CREATE INDEX IF NOT EXISTS idx_raw_imessage_live ON raw.raw_imessage USING btree (source_id) WHERE (superseded_by IS NULL);
+CREATE INDEX IF NOT EXISTS idx_raw_imessage_source ON raw.raw_imessage USING btree (source_id);
+CREATE INDEX IF NOT EXISTS idx_raw_path_geog ON raw.raw_path USING gist (point_geog);
+CREATE INDEX IF NOT EXISTS idx_raw_path_source ON raw.raw_path USING btree (source_id, path_serial, point_sequence);
+CREATE INDEX IF NOT EXISTS idx_raw_phone_device ON raw.raw_phone USING btree (device_id);
+CREATE INDEX IF NOT EXISTS idx_raw_phone_hash ON raw.raw_phone USING btree (content_hash);
+CREATE INDEX IF NOT EXISTS idx_raw_phone_live ON raw.raw_phone USING btree (source_id) WHERE (superseded_by IS NULL);
+CREATE INDEX IF NOT EXISTS idx_raw_phone_source ON raw.raw_phone USING btree (source_id);
+CREATE INDEX IF NOT EXISTS idx_raw_rejected_gin ON raw.raw_rejected USING gin (raw);
+CREATE INDEX IF NOT EXISTS idx_raw_rejected_reason ON raw.raw_rejected USING btree (reason);
+CREATE INDEX IF NOT EXISTS idx_raw_rejected_run ON raw.raw_rejected USING btree (ingest_run_id);
+CREATE INDEX IF NOT EXISTS idx_raw_rejected_sha ON raw.raw_rejected USING btree (source_sha256);
+CREATE INDEX IF NOT EXISTS idx_raw_sms_device ON raw.raw_sms USING btree (device_id);
+CREATE INDEX IF NOT EXISTS idx_raw_sms_hash ON raw.raw_sms USING btree (content_hash);
+CREATE INDEX IF NOT EXISTS idx_raw_sms_live ON raw.raw_sms USING btree (source_id) WHERE (superseded_by IS NULL);
+CREATE INDEX IF NOT EXISTS idx_raw_sms_source ON raw.raw_sms USING btree (source_id);
+CREATE INDEX IF NOT EXISTS idx_raw_trip_source ON raw.raw_trip USING btree (source_id);
+CREATE INDEX IF NOT EXISTS idx_raw_trip_utc ON raw.raw_trip USING btree (start_utc);
+CREATE INDEX IF NOT EXISTS idx_raw_visit_geog ON raw.raw_visit USING gist (geog);
+CREATE INDEX IF NOT EXISTS idx_raw_visit_source ON raw.raw_visit USING btree (source_id);
+CREATE INDEX IF NOT EXISTS idx_raw_visit_utc ON raw.raw_visit USING btree (start_utc);
 CREATE INDEX IF NOT EXISTS idx_rdec_target ON analysis.review_decision USING btree (target_kind, target_id);
 CREATE INDEX IF NOT EXISTS idx_relcls_phase ON analysis.relational_classification USING btree (cycle_phase);
 CREATE INDEX IF NOT EXISTS idx_relcls_review ON analysis.relational_classification USING btree (review_status) WHERE requires_human_review;
@@ -7237,8 +6281,8 @@ CREATE INDEX IF NOT EXISTS idx_workflow_run_stage_run ON ops.workflow_run_stage 
 CREATE INDEX IF NOT EXISTS idx_workflow_run_status ON analysis.workflow_run USING btree (status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_workflow_run_status ON ops.workflow_run USING btree (status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_workflow_run_trace_id ON ops.workflow_run USING btree (trace_id) WHERE (trace_id IS NOT NULL);
-CREATE INDEX IF NOT EXISTS idx_xref_b ON working.id_xref USING btree (system_b, native_id_b);
-CREATE INDEX IF NOT EXISTS idx_xref_entity ON working.id_xref USING btree (canonical_entity_id);
+CREATE INDEX IF NOT EXISTS idx_xref_b ON reference.id_xref USING btree (system_b, native_id_b);
+CREATE INDEX IF NOT EXISTS idx_xref_entity ON reference.id_xref USING btree (canonical_entity_id);
 CREATE INDEX IF NOT EXISTS knowledge_evidence_promotion_case_time_idx ON analysis.knowledge_evidence_promotion USING btree (court_case_id, promoted_at DESC);
 CREATE INDEX IF NOT EXISTS knowledge_evidence_promotion_matter_time_idx ON analysis.knowledge_evidence_promotion USING btree (matter_id, promoted_at DESC);
 CREATE INDEX IF NOT EXISTS knowledge_evidence_promotion_record_idx ON analysis.knowledge_evidence_promotion USING btree (normalized_record_id);
@@ -7246,13 +6290,9 @@ CREATE INDEX IF NOT EXISTS matter_knowledge_partition_default_case_idx ON analys
 CREATE INDEX IF NOT EXISTS matter_knowledge_partition_matter_idx ON analysis.matter_knowledge_partition USING btree (matter_id);
 CREATE INDEX IF NOT EXISTS message_projection_route_kind_idx ON working.message_projection_route USING btree (projection_kind, decision_state, normalized_record_id);
 CREATE INDEX IF NOT EXISTS normalization_lineage_raw_record_idx ON context.normalization_lineage USING btree (raw_record_id, normalized_record_id);
-CREATE INDEX IF NOT EXISTS normalized_record_chunk_profile_idx ON working.normalized_record_chunk USING btree (chunker_id, normalized_record_id);
-CREATE INDEX IF NOT EXISTS normalized_record_chunk_record_idx ON working.normalized_record_chunk USING btree (normalized_record_id);
 CREATE INDEX IF NOT EXISTS normalized_record_domain_idx ON working.normalized_record USING btree (case_id, domain);
 CREATE INDEX IF NOT EXISTS normalized_record_horizon_idx ON working.normalized_record USING btree (case_id, knowledge_time);
 CREATE INDEX IF NOT EXISTS normalized_record_topics_gin ON working.normalized_record USING gin (topic_tags);
-CREATE INDEX IF NOT EXISTS platform_consolidation_checkpoint_phase_idx ON public.platform_consolidation_checkpoint USING btree (plan_id, phase_key, copy_order, relation_key);
-CREATE INDEX IF NOT EXISTS platform_consolidation_receipt_checkpoint_idx ON public.platform_consolidation_proof_receipt USING btree (checkpoint_id, proof_kind, observed_at);
 CREATE INDEX IF NOT EXISTS promotion_candidate_idx ON working.promotion USING btree (candidate_kind, candidate_id);
 CREATE INDEX IF NOT EXISTS promotion_lane_idx ON working.promotion USING btree (lane, promoted_at DESC);
 CREATE INDEX IF NOT EXISTS promotion_target_idx ON working.promotion USING btree (target_system, promoted_at DESC);
@@ -7260,10 +6300,8 @@ CREATE INDEX IF NOT EXISTS raw_record_identity_generation_idx ON context.raw_rec
 CREATE INDEX IF NOT EXISTS raw_record_identity_source_version_idx ON context.raw_record_identity USING btree (source_version_id, id);
 CREATE INDEX IF NOT EXISTS realization_event_case_state_time_idx ON working.realization_event USING btree (case_id, approval_state, realized_at);
 CREATE INDEX IF NOT EXISTS realization_event_record_record_idx ON working.realization_event_record USING btree (normalized_record_id);
+CREATE INDEX IF NOT EXISTS recompute_queue_pending_idx ON canon.recompute_queue USING btree (recompute_target, created_at) WHERE (status = 'pending'::text);
 CREATE INDEX IF NOT EXISTS relative_time_anchor_bounds_idx ON context.relative_time_anchor USING btree (lower_bound_at, upper_bound_at);
-CREATE INDEX IF NOT EXISTS review_decision_candidate_idx ON working.review_decision USING btree (candidate_kind, candidate_id);
-CREATE INDEX IF NOT EXISTS review_decision_decided_idx ON working.review_decision USING btree (decided_at DESC);
-CREATE INDEX IF NOT EXISTS review_decision_reviewer_idx ON working.review_decision USING btree (reviewer, decided_at DESC);
 CREATE INDEX IF NOT EXISTS source_provenance_occurred_idx ON working.source_provenance USING btree (occurred_at);
 CREATE INDEX IF NOT EXISTS source_provenance_realized_idx ON working.source_provenance USING btree (realized_at);
 CREATE INDEX IF NOT EXISTS source_provenance_source_idx ON working.source_provenance USING btree (source_raw_table, source_raw_id);
@@ -7292,9 +6330,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS candidate_entity_dedup_idx ON working.candidat
 CREATE UNIQUE INDEX IF NOT EXISTS candidate_event_dedup_idx ON working.candidate_event USING btree (source_raw_table, source_raw_id, content_sha256);
 CREATE UNIQUE INDEX IF NOT EXISTS candidate_fact_dedup_idx ON working.candidate_fact USING btree (source_raw_table, source_raw_id, content_sha256);
 CREATE UNIQUE INDEX IF NOT EXISTS claim_candidate_run_span_key ON working.claim_candidate USING btree (extraction_run_id, chat_message_id, content_sha256);
-CREATE UNIQUE INDEX IF NOT EXISTS content_chunk_one_initial_context_uq ON working.content_chunk_classification_decision USING btree (chunk_id) WHERE (decision_kind = 'initial_context'::text);
-CREATE UNIQUE INDEX IF NOT EXISTS court_case_docket_per_matter_idx ON analysis.court_case USING btree (matter_id, lower(docket_number)) WHERE (docket_number IS NOT NULL);
-CREATE UNIQUE INDEX IF NOT EXISTS court_case_one_primary_per_matter_idx ON analysis.court_case USING btree (matter_id) WHERE is_primary;
+CREATE UNIQUE INDEX IF NOT EXISTS content_chunk_one_initial_context_uq ON analysis.content_chunk_classification_decision USING btree (chunk_id) WHERE (decision_kind = 'initial_context'::text);
+CREATE UNIQUE INDEX IF NOT EXISTS court_case_docket_per_matter_idx ON reference.court_case USING btree (matter_id, lower(docket_number)) WHERE (docket_number IS NOT NULL);
+CREATE UNIQUE INDEX IF NOT EXISTS court_case_one_primary_per_matter_idx ON reference.court_case USING btree (matter_id) WHERE is_primary;
 CREATE UNIQUE INDEX IF NOT EXISTS hash_manifest_member_normalized_record_uq ON context.hash_manifest_member USING btree (hash_manifest_id, normalized_record_id) WHERE (normalized_record_id IS NOT NULL);
 CREATE UNIQUE INDEX IF NOT EXISTS hash_manifest_member_raw_record_uq ON context.hash_manifest_member USING btree (hash_manifest_id, raw_record_id) WHERE (raw_record_id IS NOT NULL);
 CREATE UNIQUE INDEX IF NOT EXISTS hash_manifest_normalized_generation_kind_uq ON context.hash_manifest USING btree (normalized_generation_id, hash_kind) WHERE (normalized_generation_id IS NOT NULL);
@@ -7306,7 +6344,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS hash_receipt_normalized_generation_manifest_uq
 CREATE UNIQUE INDEX IF NOT EXISTS hash_receipt_normalized_record_uq ON context.hash_receipt USING btree (normalized_record_id) WHERE (hash_kind = 'normalized_record_digest'::text);
 CREATE UNIQUE INDEX IF NOT EXISTS message_one_per_spine_uq ON working.message USING btree (derived_from_record_id) WHERE (derived_from_record_id IS NOT NULL);
 CREATE UNIQUE INDEX IF NOT EXISTS normalized_record_source_key_uq ON working.normalized_record USING btree (artifact_id, source, source_record_key) WHERE (source_record_key IS NOT NULL);
-CREATE UNIQUE INDEX IF NOT EXISTS person_single_user_role_uq ON working.person USING btree (role_in_case) WHERE (role_in_case = 'user'::text);
+CREATE UNIQUE INDEX IF NOT EXISTS person_single_user_role_uq ON reference.person USING btree (role_in_case) WHERE (role_in_case = 'user'::text);
 CREATE UNIQUE INDEX IF NOT EXISTS promotion_live_idx ON working.promotion USING btree (candidate_kind, candidate_id, lane, target_system) WHERE (revoked_at IS NULL);
 CREATE UNIQUE INDEX IF NOT EXISTS source_provenance_revision_idx ON working.source_provenance USING btree (source_raw_table, source_raw_id, revision);
 CREATE UNIQUE INDEX IF NOT EXISTS source_version_object_one_original_uq ON context.source_version_object USING btree (source_version_id) WHERE (object_role = 'original'::text);
@@ -7316,16 +6354,16 @@ CREATE UNIQUE INDEX IF NOT EXISTS timeline_member_candidate_uq ON timeline.timel
 CREATE UNIQUE INDEX IF NOT EXISTS timeline_member_governed_uq ON timeline.timeline_member USING btree (collection_id, governed_source_schema, governed_source_table, governed_source_pk) WHERE (governed_source_schema IS NOT NULL);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_chunkclass_batch_item ON analysis.chunk_classification USING btree (run_key, batch_index, record_ref, classifier_version);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_chunkclass_decision_id ON analysis.chunk_classification USING btree (decision_id) WHERE (decision_id IS NOT NULL);
-CREATE UNIQUE INDEX IF NOT EXISTS uq_device_label ON working.device USING btree (device_label) WHERE (device_label IS NOT NULL);
-CREATE UNIQUE INDEX IF NOT EXISTS uq_entity_norm ON working.entity USING btree (entity_type, normalized_name) WHERE ((normalized_name IS NOT NULL) AND (merged_into_id IS NULL));
+CREATE UNIQUE INDEX IF NOT EXISTS uq_device_label ON reference.device USING btree (device_label) WHERE (device_label IS NOT NULL);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_entity_norm ON reference.entity USING btree (entity_type, normalized_name) WHERE ((normalized_name IS NOT NULL) AND (merged_into_id IS NULL));
 CREATE UNIQUE INDEX IF NOT EXISTS uq_esr_record ON working.event_source_record USING btree (event_id, record_id) WHERE (record_id IS NOT NULL);
-CREATE UNIQUE INDEX IF NOT EXISTS uq_location_dedup ON working.location USING btree (geohash9, COALESCE(name, ''::text));
-CREATE UNIQUE INDEX IF NOT EXISTS uq_raw_ai_chat_dedupe ON evidence.raw_ai_chat USING btree (device_id, medium, content_hash) NULLS NOT DISTINCT;
-CREATE UNIQUE INDEX IF NOT EXISTS uq_raw_csv_dedupe ON evidence.raw_csv USING btree (device_id, medium, content_hash) NULLS NOT DISTINCT;
-CREATE UNIQUE INDEX IF NOT EXISTS uq_raw_facebook_dedupe ON evidence.raw_facebook USING btree (device_id, medium, content_hash) NULLS NOT DISTINCT;
-CREATE UNIQUE INDEX IF NOT EXISTS uq_raw_imessage_dedupe ON evidence.raw_imessage USING btree (device_id, medium, content_hash) NULLS NOT DISTINCT;
-CREATE UNIQUE INDEX IF NOT EXISTS uq_raw_phone_dedupe ON evidence.raw_phone USING btree (device_id, medium, content_hash) NULLS NOT DISTINCT;
-CREATE UNIQUE INDEX IF NOT EXISTS uq_raw_sms_dedupe ON evidence.raw_sms USING btree (device_id, medium, content_hash) NULLS NOT DISTINCT;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_location_dedup ON reference.location USING btree (geohash9, COALESCE(name, ''::text));
+CREATE UNIQUE INDEX IF NOT EXISTS uq_raw_ai_chat_dedupe ON raw.raw_ai_chat USING btree (device_id, medium, content_hash) NULLS NOT DISTINCT;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_raw_csv_dedupe ON raw.raw_csv USING btree (device_id, medium, content_hash) NULLS NOT DISTINCT;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_raw_facebook_dedupe ON raw.raw_facebook USING btree (device_id, medium, content_hash) NULLS NOT DISTINCT;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_raw_imessage_dedupe ON raw.raw_imessage USING btree (device_id, medium, content_hash) NULLS NOT DISTINCT;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_raw_phone_dedupe ON raw.raw_phone USING btree (device_id, medium, content_hash) NULLS NOT DISTINCT;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_raw_sms_dedupe ON raw.raw_sms USING btree (device_id, medium, content_hash) NULLS NOT DISTINCT;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_res_current ON working.entity_resolution USING btree (mention_id) WHERE upper_inf(sys_period);
 
 -- ============ functions (guards excluded by design) ============
@@ -7466,6 +6504,95 @@ AS $function$ BEGIN
     VALUES (OLD.id, to_jsonb(OLD), COALESCE(current_setting('app.actor', true),'unknown'),
             'auto-snapshot before UPDATE', now());
     RETURN NEW; END $function$
+;
+CREATE OR REPLACE FUNCTION canon.apply_proposal(p_proposal_id uuid, p_decision_id uuid)
+ RETURNS uuid
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+  v_p        canon.change_proposal%ROWTYPE;
+  v_ct       canon.canonical_table%ROWTYPE;
+  v_prior    JSONB := '{}'::jsonb;
+  v_app_id   UUID;
+  v_col      TEXT;
+  v_pk_col   TEXT;
+  v_pk_val   TEXT;
+  v_set_sql  TEXT := '';
+  v_tgt      TEXT;
+BEGIN
+  SELECT * INTO v_p  FROM canon.change_proposal  WHERE id = p_proposal_id FOR UPDATE;
+  IF v_p.id IS NULL THEN RAISE EXCEPTION 'proposal % not found', p_proposal_id; END IF;
+  IF v_p.status NOT IN ('proposed','approved') THEN
+    RAISE EXCEPTION 'proposal % is %, not applicable', p_proposal_id, v_p.status;
+  END IF;
+  SELECT * INTO v_ct FROM canon.canonical_table  WHERE id = v_p.canonical_table_id FOR UPDATE;
+
+  -- STALENESS GUARD: reasoned against a superseded generation -> requeue, never apply
+  IF v_p.source_generation <> v_ct.current_generation THEN
+    UPDATE canon.change_proposal SET status = 'stale_requeued' WHERE id = p_proposal_id;
+    RETURN NULL;
+  END IF;
+
+  -- Only 'correct' patches are applied generically here; other kinds record the
+  -- ruling + receipt and are executed by their kind-specific worker off the queue.
+  IF v_p.proposal_kind = 'correct' THEN
+    SELECT key, value #>> '{}' INTO v_pk_col, v_pk_val
+      FROM jsonb_each(v_p.target_pk) LIMIT 1;
+    -- snapshot prior values of exactly the patched columns
+    EXECUTE format('SELECT to_jsonb(t) FROM %I.%I t WHERE %I = $1::uuid',
+                   v_ct.table_schema, v_ct.table_name, v_pk_col)
+      INTO v_prior USING v_pk_val;
+    IF v_prior IS NULL THEN RAISE EXCEPTION 'target row not found for proposal %', p_proposal_id; END IF;
+    SELECT jsonb_object_agg(k, v_prior -> k) INTO v_prior
+      FROM jsonb_object_keys(v_p.patch) k;
+    -- build and run the update
+    SELECT string_agg(format('%I = ($1::jsonb ->> %L)::%s', key,
+             key,
+             (SELECT format_type(a.atttypid, a.atttypmod)
+                FROM pg_attribute a
+               WHERE a.attrelid = format('%I.%I', v_ct.table_schema, v_ct.table_name)::regclass
+                 AND a.attname = key AND a.attnum > 0)), ', ')
+      INTO v_set_sql
+      FROM jsonb_each(v_p.patch);
+    EXECUTE format('UPDATE %I.%I SET %s WHERE %I = $2::uuid',
+                   v_ct.table_schema, v_ct.table_name, v_set_sql, v_pk_col)
+      USING v_p.patch, v_pk_val;
+  END IF;
+
+  UPDATE canon.canonical_table
+     SET current_generation = current_generation + 1
+   WHERE id = v_ct.id;
+
+  INSERT INTO canon.change_application
+      (proposal_id, decision_id, prior_values, applied_patch, generation_before, generation_after)
+  VALUES (p_proposal_id, p_decision_id, coalesce(v_prior,'{}'::jsonb), v_p.patch,
+          v_ct.current_generation, v_ct.current_generation + 1)
+  RETURNING id INTO v_app_id;
+
+  FOREACH v_tgt IN ARRAY v_ct.recompute_targets LOOP
+    INSERT INTO canon.recompute_queue
+        (application_id, canonical_table_id, target_pk, recompute_target)
+    VALUES (v_app_id, v_ct.id, v_p.target_pk, v_tgt);
+  END LOOP;
+
+  UPDATE canon.change_proposal SET status = 'applied' WHERE id = p_proposal_id;
+  RETURN v_app_id;
+END $function$
+;
+CREATE OR REPLACE FUNCTION canon.route_tier(p_canonical_table_id uuid, p_confidence numeric)
+ RETURNS text
+ LANGUAGE sql
+ STABLE
+AS $function$
+  SELECT CASE
+    WHEN ct.auto_confirm_min_confidence IS NOT NULL
+     AND p_confidence IS NOT NULL
+     AND p_confidence >= ct.auto_confirm_min_confidence
+    THEN 'auto_adopt'
+    ELSE ct.default_tier
+  END
+  FROM canon.canonical_table ct WHERE ct.id = p_canonical_table_id
+$function$
 ;
 CREATE OR REPLACE FUNCTION context.register_raw_format_subtype(p_format_id text)
  RETURNS regclass
@@ -7684,6 +6811,43 @@ BEGIN
     '(the only permitted change is setting superseded_by on a live row)';
 END;
 $function$
+;
+CREATE OR REPLACE FUNCTION ops.reset_test_data(p_confirm text)
+ RETURNS TABLE(truncated_schema text, tables_truncated integer)
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+  v_schema TEXT;
+  v_list   TEXT;
+  v_count  INTEGER;
+BEGIN
+  IF p_confirm IS DISTINCT FROM 'RESET' THEN
+    RAISE EXCEPTION 'refusing: call ops.reset_test_data(''RESET'') to confirm a full test-data reset';
+  END IF;
+
+  FOREACH v_schema IN ARRAY ARRAY['raw','evidence','working','context','timeline','analysis'] LOOP
+    SELECT string_agg(format('%I.%I', nn.nspname, c.relname), ', '), count(*)::INTEGER
+      INTO v_list, v_count
+      FROM pg_class c JOIN pg_namespace nn ON nn.oid = c.relnamespace
+     WHERE c.relkind = 'r' AND nn.nspname = v_schema;
+    IF v_list IS NOT NULL THEN
+      EXECUTE 'TRUNCATE TABLE ' || v_list || ' RESTART IDENTITY CASCADE';
+    END IF;
+    truncated_schema := v_schema; tables_truncated := coalesce(v_count,0);
+    RETURN NEXT;
+  END LOOP;
+
+  -- canon: test traffic resets, rulings survive
+  TRUNCATE TABLE canon.recompute_queue, canon.change_application,
+                 canon.change_decision, canon.change_proposal
+    RESTART IDENTITY CASCADE;
+  truncated_schema := 'canon (proposals/decisions/applications/queue only)';
+  tables_truncated := 4;
+  RETURN NEXT;
+
+  -- reset per-table generations: a fresh test run starts at generation 0
+  UPDATE canon.canonical_table SET current_generation = 0;
+END $function$
 ;
 CREATE OR REPLACE FUNCTION public.change_log_chain()
  RETURNS trigger
@@ -8505,7 +7669,7 @@ CREATE OR REPLACE VIEW analysis.vw_court_export AS
     evidence_hash_id,
     reviewed_by,
     reviewed_at
-   FROM analysis.evidence_item ei
+   FROM evidence.evidence_item ei
   WHERE safe_for_legal_use = true AND review_status = 'approved'::review_state AND (confidence_tier = ANY (ARRAY['high'::text, 'medium'::text])) AND is_hypothesis = false AND is_authenticated = true AND redaction_status <> 'required'::text AND sensitivity_tier <> 'sealed'::sensitivity_tier;
 CREATE OR REPLACE VIEW analysis.vw_human_label_long AS
  SELECT conversation_key,
@@ -8600,7 +7764,7 @@ CREATE OR REPLACE VIEW evidence.vw_dropped_records AS
     j.content_hash,
     j.raw,
     j.created_at
-   FROM evidence.raw_rejected j
+   FROM raw.raw_rejected j
      JOIN evidence.ingest_run ir ON ir.id = j.ingest_run_id
      LEFT JOIN evidence.source s ON s.sha256 = j.source_sha256;
 CREATE OR REPLACE VIEW evidence.vw_ingest_history AS
@@ -8637,7 +7801,7 @@ CREATE OR REPLACE VIEW evidence.vw_raw_all AS
     raw_sms.parser_version,
     raw_sms.superseded_by,
     raw_sms.ingested_at
-   FROM evidence.raw_sms
+   FROM raw.raw_sms
 UNION ALL
  SELECT 'evidence.raw_imessage'::text AS raw_table,
     raw_imessage.id,
@@ -8650,7 +7814,7 @@ UNION ALL
     raw_imessage.parser_version,
     raw_imessage.superseded_by,
     raw_imessage.ingested_at
-   FROM evidence.raw_imessage
+   FROM raw.raw_imessage
 UNION ALL
  SELECT 'evidence.raw_facebook'::text AS raw_table,
     raw_facebook.id,
@@ -8663,7 +7827,7 @@ UNION ALL
     raw_facebook.parser_version,
     raw_facebook.superseded_by,
     raw_facebook.ingested_at
-   FROM evidence.raw_facebook
+   FROM raw.raw_facebook
 UNION ALL
  SELECT 'evidence.raw_ai_chat'::text AS raw_table,
     raw_ai_chat.id,
@@ -8676,7 +7840,7 @@ UNION ALL
     raw_ai_chat.parser_version,
     raw_ai_chat.superseded_by,
     raw_ai_chat.ingested_at
-   FROM evidence.raw_ai_chat
+   FROM raw.raw_ai_chat
 UNION ALL
  SELECT 'evidence.raw_csv'::text AS raw_table,
     raw_csv.id,
@@ -8689,7 +7853,7 @@ UNION ALL
     raw_csv.parser_version,
     raw_csv.superseded_by,
     raw_csv.ingested_at
-   FROM evidence.raw_csv
+   FROM raw.raw_csv
 UNION ALL
  SELECT 'evidence.raw_phone'::text AS raw_table,
     raw_phone.id,
@@ -8702,7 +7866,7 @@ UNION ALL
     raw_phone.parser_version,
     raw_phone.superseded_by,
     raw_phone.ingested_at
-   FROM evidence.raw_phone;
+   FROM raw.raw_phone;
 CREATE OR REPLACE VIEW evidence.vw_source_acquisition AS
  SELECT s.id AS source_id,
     s.original_filename,
@@ -8929,50 +8093,9 @@ CREATE OR REPLACE VIEW working.content_chunk_current_classification AS
     confidence,
     reviewed_by,
     reviewed_at
-   FROM working.content_chunk_classification_decision
+   FROM analysis.content_chunk_classification_decision
   WHERE review_state = ANY (ARRAY['system_initial'::text, 'human_approved'::text])
   ORDER BY chunk_id, decision_version DESC, created_at DESC, id DESC;
-CREATE OR REPLACE VIEW working.context_review_current_case AS
- SELECT DISTINCT ON (case_key) case_key,
-    id AS review_case_id,
-    case_version,
-    conflict_kind,
-    status,
-    priority,
-    summary,
-    opened_by,
-    resolution_decision_id,
-    resolution_decision_version,
-    created_at
-   FROM working.context_review_case
-  ORDER BY case_key, case_version DESC, created_at DESC, id DESC;
-CREATE OR REPLACE VIEW working.context_review_current_decision AS
- SELECT DISTINCT ON (review_case_id) review_case_id,
-    id AS decision_id,
-    decision_version,
-    decision_action,
-    status,
-    reviewer_id,
-    rationale,
-    decided_at,
-    provenance_digest
-   FROM working.context_review_decision
-  WHERE status = 'final'::text
-  ORDER BY review_case_id, decision_version DESC, decided_at DESC, id DESC;
-CREATE OR REPLACE VIEW working.context_review_open_queue AS
- SELECT case_key,
-    review_case_id,
-    case_version,
-    conflict_kind,
-    status,
-    priority,
-    summary,
-    opened_by,
-    resolution_decision_id,
-    resolution_decision_version,
-    created_at
-   FROM working.context_review_current_case current_case
-  WHERE status = 'queued'::text;
 CREATE OR REPLACE VIEW working.current_provenance AS
  SELECT DISTINCT ON (source_raw_table, source_raw_id) id,
     source_raw_table,
@@ -9161,24 +8284,6 @@ CREATE OR REPLACE VIEW working.vw_record_disclosure AS
             ELSE NULL::interval
         END AS realization_lag
    FROM working.normalized_record r;
-CREATE OR REPLACE VIEW working.vw_record_sender_resolution AS
- SELECT r.id AS record_id,
-    r.occurred_at,
-    r.role,
-    r.device_id,
-    d.device_label,
-    r.sender_entity_id AS sender_stored,
-    o.owner_entity_id AS owner_at_occurred_at,
-        CASE
-            WHEN r.device_id IS NULL THEN 'no_device'::text
-            WHEN o.owner_entity_id IS NULL THEN 'no_ownership_record'::text
-            WHEN r.sender_entity_id IS NULL THEN 'unresolved'::text
-            WHEN r.sender_entity_id = o.owner_entity_id THEN 'consistent'::text
-            ELSE 'MISMATCH'::text
-        END AS attribution_status
-   FROM working.normalized_record r
-     LEFT JOIN working.device d ON d.id = r.device_id
-     LEFT JOIN working.device_ownership o ON o.device_id = r.device_id AND r.occurred_at >= o.effective_from AND (o.effective_to IS NULL OR r.occurred_at < o.effective_to);
 CREATE OR REPLACE VIEW working.vw_spine_horizon AS
  SELECT id,
     artifact_id,
@@ -9442,6 +8547,95 @@ AS $function$ BEGIN
             'auto-snapshot before UPDATE', now());
     RETURN NEW; END $function$
 ;
+CREATE OR REPLACE FUNCTION canon.apply_proposal(p_proposal_id uuid, p_decision_id uuid)
+ RETURNS uuid
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+  v_p        canon.change_proposal%ROWTYPE;
+  v_ct       canon.canonical_table%ROWTYPE;
+  v_prior    JSONB := '{}'::jsonb;
+  v_app_id   UUID;
+  v_col      TEXT;
+  v_pk_col   TEXT;
+  v_pk_val   TEXT;
+  v_set_sql  TEXT := '';
+  v_tgt      TEXT;
+BEGIN
+  SELECT * INTO v_p  FROM canon.change_proposal  WHERE id = p_proposal_id FOR UPDATE;
+  IF v_p.id IS NULL THEN RAISE EXCEPTION 'proposal % not found', p_proposal_id; END IF;
+  IF v_p.status NOT IN ('proposed','approved') THEN
+    RAISE EXCEPTION 'proposal % is %, not applicable', p_proposal_id, v_p.status;
+  END IF;
+  SELECT * INTO v_ct FROM canon.canonical_table  WHERE id = v_p.canonical_table_id FOR UPDATE;
+
+  -- STALENESS GUARD: reasoned against a superseded generation -> requeue, never apply
+  IF v_p.source_generation <> v_ct.current_generation THEN
+    UPDATE canon.change_proposal SET status = 'stale_requeued' WHERE id = p_proposal_id;
+    RETURN NULL;
+  END IF;
+
+  -- Only 'correct' patches are applied generically here; other kinds record the
+  -- ruling + receipt and are executed by their kind-specific worker off the queue.
+  IF v_p.proposal_kind = 'correct' THEN
+    SELECT key, value #>> '{}' INTO v_pk_col, v_pk_val
+      FROM jsonb_each(v_p.target_pk) LIMIT 1;
+    -- snapshot prior values of exactly the patched columns
+    EXECUTE format('SELECT to_jsonb(t) FROM %I.%I t WHERE %I = $1::uuid',
+                   v_ct.table_schema, v_ct.table_name, v_pk_col)
+      INTO v_prior USING v_pk_val;
+    IF v_prior IS NULL THEN RAISE EXCEPTION 'target row not found for proposal %', p_proposal_id; END IF;
+    SELECT jsonb_object_agg(k, v_prior -> k) INTO v_prior
+      FROM jsonb_object_keys(v_p.patch) k;
+    -- build and run the update
+    SELECT string_agg(format('%I = ($1::jsonb ->> %L)::%s', key,
+             key,
+             (SELECT format_type(a.atttypid, a.atttypmod)
+                FROM pg_attribute a
+               WHERE a.attrelid = format('%I.%I', v_ct.table_schema, v_ct.table_name)::regclass
+                 AND a.attname = key AND a.attnum > 0)), ', ')
+      INTO v_set_sql
+      FROM jsonb_each(v_p.patch);
+    EXECUTE format('UPDATE %I.%I SET %s WHERE %I = $2::uuid',
+                   v_ct.table_schema, v_ct.table_name, v_set_sql, v_pk_col)
+      USING v_p.patch, v_pk_val;
+  END IF;
+
+  UPDATE canon.canonical_table
+     SET current_generation = current_generation + 1
+   WHERE id = v_ct.id;
+
+  INSERT INTO canon.change_application
+      (proposal_id, decision_id, prior_values, applied_patch, generation_before, generation_after)
+  VALUES (p_proposal_id, p_decision_id, coalesce(v_prior,'{}'::jsonb), v_p.patch,
+          v_ct.current_generation, v_ct.current_generation + 1)
+  RETURNING id INTO v_app_id;
+
+  FOREACH v_tgt IN ARRAY v_ct.recompute_targets LOOP
+    INSERT INTO canon.recompute_queue
+        (application_id, canonical_table_id, target_pk, recompute_target)
+    VALUES (v_app_id, v_ct.id, v_p.target_pk, v_tgt);
+  END LOOP;
+
+  UPDATE canon.change_proposal SET status = 'applied' WHERE id = p_proposal_id;
+  RETURN v_app_id;
+END $function$
+;
+CREATE OR REPLACE FUNCTION canon.route_tier(p_canonical_table_id uuid, p_confidence numeric)
+ RETURNS text
+ LANGUAGE sql
+ STABLE
+AS $function$
+  SELECT CASE
+    WHEN ct.auto_confirm_min_confidence IS NOT NULL
+     AND p_confidence IS NOT NULL
+     AND p_confidence >= ct.auto_confirm_min_confidence
+    THEN 'auto_adopt'
+    ELSE ct.default_tier
+  END
+  FROM canon.canonical_table ct WHERE ct.id = p_canonical_table_id
+$function$
+;
 CREATE OR REPLACE FUNCTION context.register_raw_format_subtype(p_format_id text)
  RETURNS regclass
  LANGUAGE plpgsql
@@ -9659,6 +8853,43 @@ BEGIN
     '(the only permitted change is setting superseded_by on a live row)';
 END;
 $function$
+;
+CREATE OR REPLACE FUNCTION ops.reset_test_data(p_confirm text)
+ RETURNS TABLE(truncated_schema text, tables_truncated integer)
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+  v_schema TEXT;
+  v_list   TEXT;
+  v_count  INTEGER;
+BEGIN
+  IF p_confirm IS DISTINCT FROM 'RESET' THEN
+    RAISE EXCEPTION 'refusing: call ops.reset_test_data(''RESET'') to confirm a full test-data reset';
+  END IF;
+
+  FOREACH v_schema IN ARRAY ARRAY['raw','evidence','working','context','timeline','analysis'] LOOP
+    SELECT string_agg(format('%I.%I', nn.nspname, c.relname), ', '), count(*)::INTEGER
+      INTO v_list, v_count
+      FROM pg_class c JOIN pg_namespace nn ON nn.oid = c.relnamespace
+     WHERE c.relkind = 'r' AND nn.nspname = v_schema;
+    IF v_list IS NOT NULL THEN
+      EXECUTE 'TRUNCATE TABLE ' || v_list || ' RESTART IDENTITY CASCADE';
+    END IF;
+    truncated_schema := v_schema; tables_truncated := coalesce(v_count,0);
+    RETURN NEXT;
+  END LOOP;
+
+  -- canon: test traffic resets, rulings survive
+  TRUNCATE TABLE canon.recompute_queue, canon.change_application,
+                 canon.change_decision, canon.change_proposal
+    RESTART IDENTITY CASCADE;
+  truncated_schema := 'canon (proposals/decisions/applications/queue only)';
+  tables_truncated := 4;
+  RETURN NEXT;
+
+  -- reset per-table generations: a fresh test run starts at generation 0
+  UPDATE canon.canonical_table SET current_generation = 0;
+END $function$
 ;
 CREATE OR REPLACE FUNCTION public.change_log_chain()
  RETURNS trigger
@@ -10480,7 +9711,7 @@ CREATE OR REPLACE VIEW analysis.vw_court_export AS
     evidence_hash_id,
     reviewed_by,
     reviewed_at
-   FROM analysis.evidence_item ei
+   FROM evidence.evidence_item ei
   WHERE safe_for_legal_use = true AND review_status = 'approved'::review_state AND (confidence_tier = ANY (ARRAY['high'::text, 'medium'::text])) AND is_hypothesis = false AND is_authenticated = true AND redaction_status <> 'required'::text AND sensitivity_tier <> 'sealed'::sensitivity_tier;
 CREATE OR REPLACE VIEW analysis.vw_human_label_long AS
  SELECT conversation_key,
@@ -10575,7 +9806,7 @@ CREATE OR REPLACE VIEW evidence.vw_dropped_records AS
     j.content_hash,
     j.raw,
     j.created_at
-   FROM evidence.raw_rejected j
+   FROM raw.raw_rejected j
      JOIN evidence.ingest_run ir ON ir.id = j.ingest_run_id
      LEFT JOIN evidence.source s ON s.sha256 = j.source_sha256;
 CREATE OR REPLACE VIEW evidence.vw_ingest_history AS
@@ -10612,7 +9843,7 @@ CREATE OR REPLACE VIEW evidence.vw_raw_all AS
     raw_sms.parser_version,
     raw_sms.superseded_by,
     raw_sms.ingested_at
-   FROM evidence.raw_sms
+   FROM raw.raw_sms
 UNION ALL
  SELECT 'evidence.raw_imessage'::text AS raw_table,
     raw_imessage.id,
@@ -10625,7 +9856,7 @@ UNION ALL
     raw_imessage.parser_version,
     raw_imessage.superseded_by,
     raw_imessage.ingested_at
-   FROM evidence.raw_imessage
+   FROM raw.raw_imessage
 UNION ALL
  SELECT 'evidence.raw_facebook'::text AS raw_table,
     raw_facebook.id,
@@ -10638,7 +9869,7 @@ UNION ALL
     raw_facebook.parser_version,
     raw_facebook.superseded_by,
     raw_facebook.ingested_at
-   FROM evidence.raw_facebook
+   FROM raw.raw_facebook
 UNION ALL
  SELECT 'evidence.raw_ai_chat'::text AS raw_table,
     raw_ai_chat.id,
@@ -10651,7 +9882,7 @@ UNION ALL
     raw_ai_chat.parser_version,
     raw_ai_chat.superseded_by,
     raw_ai_chat.ingested_at
-   FROM evidence.raw_ai_chat
+   FROM raw.raw_ai_chat
 UNION ALL
  SELECT 'evidence.raw_csv'::text AS raw_table,
     raw_csv.id,
@@ -10664,7 +9895,7 @@ UNION ALL
     raw_csv.parser_version,
     raw_csv.superseded_by,
     raw_csv.ingested_at
-   FROM evidence.raw_csv
+   FROM raw.raw_csv
 UNION ALL
  SELECT 'evidence.raw_phone'::text AS raw_table,
     raw_phone.id,
@@ -10677,7 +9908,7 @@ UNION ALL
     raw_phone.parser_version,
     raw_phone.superseded_by,
     raw_phone.ingested_at
-   FROM evidence.raw_phone;
+   FROM raw.raw_phone;
 CREATE OR REPLACE VIEW evidence.vw_source_acquisition AS
  SELECT s.id AS source_id,
     s.original_filename,
@@ -10904,50 +10135,9 @@ CREATE OR REPLACE VIEW working.content_chunk_current_classification AS
     confidence,
     reviewed_by,
     reviewed_at
-   FROM working.content_chunk_classification_decision
+   FROM analysis.content_chunk_classification_decision
   WHERE review_state = ANY (ARRAY['system_initial'::text, 'human_approved'::text])
   ORDER BY chunk_id, decision_version DESC, created_at DESC, id DESC;
-CREATE OR REPLACE VIEW working.context_review_current_case AS
- SELECT DISTINCT ON (case_key) case_key,
-    id AS review_case_id,
-    case_version,
-    conflict_kind,
-    status,
-    priority,
-    summary,
-    opened_by,
-    resolution_decision_id,
-    resolution_decision_version,
-    created_at
-   FROM working.context_review_case
-  ORDER BY case_key, case_version DESC, created_at DESC, id DESC;
-CREATE OR REPLACE VIEW working.context_review_current_decision AS
- SELECT DISTINCT ON (review_case_id) review_case_id,
-    id AS decision_id,
-    decision_version,
-    decision_action,
-    status,
-    reviewer_id,
-    rationale,
-    decided_at,
-    provenance_digest
-   FROM working.context_review_decision
-  WHERE status = 'final'::text
-  ORDER BY review_case_id, decision_version DESC, decided_at DESC, id DESC;
-CREATE OR REPLACE VIEW working.context_review_open_queue AS
- SELECT case_key,
-    review_case_id,
-    case_version,
-    conflict_kind,
-    status,
-    priority,
-    summary,
-    opened_by,
-    resolution_decision_id,
-    resolution_decision_version,
-    created_at
-   FROM working.context_review_current_case current_case
-  WHERE status = 'queued'::text;
 CREATE OR REPLACE VIEW working.current_provenance AS
  SELECT DISTINCT ON (source_raw_table, source_raw_id) id,
     source_raw_table,
@@ -11136,24 +10326,6 @@ CREATE OR REPLACE VIEW working.vw_record_disclosure AS
             ELSE NULL::interval
         END AS realization_lag
    FROM working.normalized_record r;
-CREATE OR REPLACE VIEW working.vw_record_sender_resolution AS
- SELECT r.id AS record_id,
-    r.occurred_at,
-    r.role,
-    r.device_id,
-    d.device_label,
-    r.sender_entity_id AS sender_stored,
-    o.owner_entity_id AS owner_at_occurred_at,
-        CASE
-            WHEN r.device_id IS NULL THEN 'no_device'::text
-            WHEN o.owner_entity_id IS NULL THEN 'no_ownership_record'::text
-            WHEN r.sender_entity_id IS NULL THEN 'unresolved'::text
-            WHEN r.sender_entity_id = o.owner_entity_id THEN 'consistent'::text
-            ELSE 'MISMATCH'::text
-        END AS attribution_status
-   FROM working.normalized_record r
-     LEFT JOIN working.device d ON d.id = r.device_id
-     LEFT JOIN working.device_ownership o ON o.device_id = r.device_id AND r.occurred_at >= o.effective_from AND (o.effective_to IS NULL OR r.occurred_at < o.effective_to);
 CREATE OR REPLACE VIEW working.vw_spine_horizon AS
  SELECT id,
     artifact_id,
@@ -11280,8 +10452,7 @@ CREATE OR REPLACE VIEW working.vw_walk_delta AS
 
 -- ============ comments ============
 COMMENT ON TABLE analysis.chunk_classification IS 'DRAFT classification output of the n8n/Temporal pipeline (D-068). Versioned drafts only — classifier_version stamps provenance; re-runs add rows under new versions; low confidence lands as review_state=unreviewed (never a flag). No evidence-status effect.';
-COMMENT ON TABLE analysis.court_case IS 'Platform-native proceeding registry; composite identity prevents cross-matter case binding.';
-COMMENT ON TABLE analysis.entity_candidate IS 'Staging lane for extracted entities/relations. Records a CLAIM with confidence and provenance, not resolved truth. Append-only. Nothing propagates to Graphiti or the evidence graph until review_status = approved.';
+COMMENT ON TABLE analysis.content_chunk_classification_decision IS 'Context-first append-only reviewed classification history. It deliberately has no evidence lane.';
 COMMENT ON TABLE analysis.graphrag_comparison_join IS 'Joins the two lane receipts for one stage. Both lanes must cite the same manifest_digest; no automatic fusion of results (D-093).';
 COMMENT ON TABLE analysis.graphrag_comparison_run IS 'D-093 side-by-side evaluation run. horizon_at pins the pre-ranking horizon boundary both lanes share.';
 COMMENT ON TABLE analysis.graphrag_eligibility_manifest IS 'The single PostgreSQL-authorized eligibility set both lanes receive. Sealing computes membership_digest; both lanes cite the same digest or the comparison is invalid.';
@@ -11289,9 +10460,12 @@ COMMENT ON TABLE analysis.graphrag_lane_candidate IS 'Per-lane candidates carryi
 COMMENT ON TABLE analysis.human_label IS 'Prompt-example set: labeled messages for few-shot prompting / model training. Deliberately UNLINKED from live tables (owner ruling 2026-08-24 — linking caused problems every test). Stripped to message+label essentials by 0032; full-fidelity pre-strip copy = analysis.human_label_gold.';
 COMMENT ON TABLE analysis.human_label_gold IS 'Dependency-free archive of the owner-authored ground-truth labels. NO foreign keys by design: on 2026-08-01 human_label.message_id was found to be BOTH the primary key AND an ON DELETE CASCADE FK to analysis.message, so a routine clear of the message tables would have deleted all 1918 rows outright. This table cannot be reached by any cascade. legacy_message_id is a plain UUID column, deliberately not a reference.';
 COMMENT ON TABLE analysis.knowledge_evidence_promotion IS 'Append-only, idempotent ledger for promoting a canonical Knowledge result into a default-unsafe evidence_item. Retrieval IDs are supporting metadata; normalized record, custody hash, source/file, and run references are the authoritative provenance.';
-COMMENT ON TABLE analysis.matter IS 'Platform-native operator-authored matter registry. Migration 0054 creates no placeholder rows.';
 COMMENT ON TABLE analysis.matter_knowledge_partition IS 'Explicit partition-to-matter/default-case mapping created by an authorized application caller.';
 COMMENT ON VIEW analysis.vw_message_behavior IS 'One-click behavior filters for UI. *_hypothesis = a finding exists (unreviewed OK); *_confirmed = human-approved only. Replaces the old containsThreat/Blame booleans WITHOUT bypassing the court-safety review gate.';
+COMMENT ON TABLE canon.canonical_table IS 'The canon boundary. The spine accepts proposals only against rows of tables registered here. Registration is an owner act. current_generation is the per-table staleness anchor: proposals record it at filing, adoption checks it.';
+COMMENT ON TABLE canon.change_application IS 'The receipt. prior_values preserves what canon said before the change, so no correction ever silently destroys the original reading — history by recording, not by immutability guards (D-110).';
+COMMENT ON TABLE canon.change_proposal IS 'The universal write path to canon. Nothing authors canonical rows directly: extractors, the Workbench, graph reconciliation, agents and humans all file here. Rejected proposals are retained and marked, never deleted.';
+COMMENT ON TABLE canon.recompute_queue IS 'One row per (applied change x downstream target). Consumers poll their target, mark claimed/done. This is the leg that forces derived work to recalculate after re-canonicalization. It ships with the spine so it cannot become another consumer-less outbox.';
 COMMENT ON TABLE context.first_party_thread_version_relative_time_anchor IS 'Typed first-party fallback link. Primary availability remains occurred_at, never screenshot/export metadata.';
 COMMENT ON TABLE context.hash_receipt IS 'R02 context integrity fingerprints plus normalized reproducibility digests. These rows are not custody H1/H2/H3.';
 COMMENT ON TABLE context.normalization_lineage IS 'Real raw-to-normalized M:N lineage through FKs. Replaces any format-table/id polymorphic pointer.';
@@ -11303,14 +10477,8 @@ COMMENT ON TABLE context.uiw_preview_binding IS 'Opaque browser handle bound ser
 COMMENT ON TABLE context.uiw_source_context_revision IS 'Append-only operator assertions kept separate from immutable preview-only source observations. Preview hashes are not custody hashes. Each revision is actor-bound and receipt-addressed.';
 COMMENT ON TABLE evidence.acquisition IS 'One row per acquisition event (device/export). HITL-authored, append-only, non-producible by default. Referenced by evidence.source; never duplicated per message.';
 COMMENT ON TABLE evidence.artifact_metadata IS 'Wide, cold, one row per artifact. Records filesystem / embedded / derived metadata layers separately and never collapses them. Precedence for export time: embedded > filename > filesystem. Filesystem times are observations — they do not survive copying or cloud sync.';
+COMMENT ON TABLE evidence.evidence_item IS 'THE promotion target. A row here is promoted evidence: exhibit_number, is_authenticated, chain_of_custody, safe_for_legal_use, anchored to raw via evidence_hash_id/normalized_record_id. Written only via a canon.change_proposal of kind promote, after owner ruling. Part of the litigation loop: finding -> evidence_task -> evidence_item -> factor_citation -> legal_timeline_event.';
 COMMENT ON TABLE evidence.ingest_run IS 'One row per ingest ATTEMPT, written outside the ingest transaction so failed and rolled-back runs survive. The count_* columns are the funnel: claimed -> parsed -> rejected/deduped -> raw -> spine -> attestations. Added 2026-08-01 after a parser dropped 516 records with no trace.';
-COMMENT ON TABLE evidence.raw_ai_chat IS 'RAW per-source layer for ai_chat. The ONLY insert target for this format. Verbatim and never edited; spine and projection are derived from it. Dedup on (device, medium, content) only - a screenshot of the same message is a separate attestation, not a duplicate.';
-COMMENT ON TABLE evidence.raw_csv IS 'RAW per-source layer for csv. The ONLY insert target for this format. Verbatim and never edited; spine and projection are derived from it. Dedup on (device, medium, content) only - a screenshot of the same message is a separate attestation, not a duplicate.';
-COMMENT ON TABLE evidence.raw_facebook IS 'RAW per-source layer for facebook. The ONLY insert target for this format. Verbatim and never edited; spine and projection are derived from it. Dedup on (device, medium, content) only - a screenshot of the same message is a separate attestation, not a duplicate.';
-COMMENT ON TABLE evidence.raw_imessage IS 'RAW per-source layer for imessage. The ONLY insert target for this format. Verbatim and never edited; spine and projection are derived from it. Dedup on (device, medium, content) only - a screenshot of the same message is a separate attestation, not a duplicate.';
-COMMENT ON TABLE evidence.raw_phone IS 'RAW per-source layer for phone. The ONLY insert target for this format. Verbatim and never edited; spine and projection are derived from it. Dedup on (device, medium, content) only - a screenshot of the same message is a separate attestation, not a duplicate.';
-COMMENT ON TABLE evidence.raw_rejected IS 'Every record a parser refused, stored verbatim with the reason. A dropped record is an absence and cannot be queried after the fact - it must be written at the moment of refusal. dedup_duplicate_in_source rows are the losing side of a raw dedup collapse and are how "raw < parsed" is PROVEN rather than assumed.';
-COMMENT ON TABLE evidence.raw_sms IS 'RAW per-source layer for sms. The ONLY insert target for this format. Verbatim and never edited; spine and projection are derived from it. Dedup on (device, medium, content) only - a screenshot of the same message is a separate attestation, not a duplicate.';
 COMMENT ON VIEW evidence.vw_artifacts_without_claim IS 'Artifacts that cannot be reconciled because nothing recorded what they claim about themselves - either no artifact_metadata row exists, or its record_count_claimed is NULL. Every row here is a blind spot.';
 COMMENT ON VIEW evidence.vw_dropped_records IS 'Everything a parser refused, joined to the run that refused it. An empty result means nothing was dropped - which is only believable if vw_reconciliation also says RECONCILED.';
 COMMENT ON VIEW evidence.vw_ingest_history IS 'Every ingest attempt including failures and rollbacks. A rolled_back row with a populated funnel is the most useful diagnostic in the system: it shows exactly which stage stopped agreeing.';
@@ -11320,11 +10488,19 @@ COMMENT ON TABLE ops.audit_ledger IS 'ADR-0047 / D-042: ONE append-only, hash-ch
 COMMENT ON TABLE ops.workflow_run_review_action IS 'Append-only operator decisions attached to a durable workflow report. Original stage outcomes are never rewritten; corrections and overrides are new actions.';
 COMMENT ON TABLE public.app_setting IS 'Versionable key/value config (clustering thresholds, etc.).';
 COMMENT ON TABLE public.canon_registry IS 'Every algorithm/recipe that produces durable artifacts, as data with test vectors. NEVER change a recipe in place — add a new canon_name version and mark the old one superseded.';
-COMMENT ON TABLE public.platform_consolidation_checkpoint IS 'Immutable, idempotently keyed proof checkpoints for a future ai-to-platform copy. This table authorizes no copy or cutover and stores no source payload bytes.';
-COMMENT ON TABLE public.platform_consolidation_proof_receipt IS 'Append-only proof results. Corrections and reruns are new receipts, never row mutation.';
 COMMENT ON TABLE public.platform_consolidation_receipt_claim IS 'One immutable claim per receipt. The primary key serializes verified binding against supersession, including concurrent transactions.';
+COMMENT ON TABLE raw.raw_ai_chat IS 'RAW per-source layer for ai_chat. The ONLY insert target for this format. Verbatim and never edited; spine and projection are derived from it. Dedup on (device, medium, content) only - a screenshot of the same message is a separate attestation, not a duplicate.';
+COMMENT ON TABLE raw.raw_csv IS 'RAW per-source layer for csv. The ONLY insert target for this format. Verbatim and never edited; spine and projection are derived from it. Dedup on (device, medium, content) only - a screenshot of the same message is a separate attestation, not a duplicate.';
+COMMENT ON TABLE raw.raw_facebook IS 'RAW per-source layer for facebook. The ONLY insert target for this format. Verbatim and never edited; spine and projection are derived from it. Dedup on (device, medium, content) only - a screenshot of the same message is a separate attestation, not a duplicate.';
+COMMENT ON TABLE raw.raw_imessage IS 'RAW per-source layer for imessage. The ONLY insert target for this format. Verbatim and never edited; spine and projection are derived from it. Dedup on (device, medium, content) only - a screenshot of the same message is a separate attestation, not a duplicate.';
+COMMENT ON TABLE raw.raw_phone IS 'RAW per-source layer for phone. The ONLY insert target for this format. Verbatim and never edited; spine and projection are derived from it. Dedup on (device, medium, content) only - a screenshot of the same message is a separate attestation, not a duplicate.';
+COMMENT ON TABLE raw.raw_rejected IS 'Every record a parser refused, stored verbatim with the reason. A dropped record is an absence and cannot be queried after the fact - it must be written at the moment of refusal. dedup_duplicate_in_source rows are the losing side of a raw dedup collapse and are how "raw < parsed" is PROVEN rather than assumed.';
+COMMENT ON TABLE raw.raw_sms IS 'RAW per-source layer for sms. The ONLY insert target for this format. Verbatim and never edited; spine and projection are derived from it. Dedup on (device, medium, content) only - a screenshot of the same message is a separate attestation, not a duplicate.';
+COMMENT ON TABLE reference.court_case IS 'Identity registry: legal cases. Moved from analysis (0057) — a case is the coordinate system analysis happens IN, not a conclusion produced by it.';
+COMMENT ON TABLE reference.device IS 'Identity registry: physical devices evidence was acquired from. Moved from working (0057) — a purge of working must never delete the registry of phones the evidence came from.';
 COMMENT ON TABLE reference.format_resolver IS 'AI-assisted field-mapping registry for unknown message-export formats. mappings[].method records HOW each field was resolved (exact/fuzzy/content/ai) — court-defensibility: a human can see which columns were deterministic vs model-inferred. Seed dict + cascade ported from schema_resolver.py.';
 COMMENT ON TABLE reference.lexicon_sync IS 'External lexicon import provenance. HurtLex pinned v1.2 (valeriobasile/hurtlex); level conservative|inclusive; isCustom terms protected on resync (enforced in importer, not here).';
+COMMENT ON TABLE reference.matter IS 'Identity registry: matters. Moved from analysis (0057), same reasoning as court_case.';
 COMMENT ON TABLE reference.topic_code IS 'Human-readable conversation topic codes (6-char). Seed = topic_detector.py TOPIC_MAPPING.';
 COMMENT ON TABLE timeline.event_candidate IS 'Any-context event proposal (ADR-0060). CANDIDATE authority only -- D-082: an AI-chat-derived row is a lead, never evidence. A correction is a NEW row (new extraction_run_id), never an edit to this one -- see the append-only trigger below.';
 COMMENT ON TABLE timeline.event_candidate_relative_time_anchor IS 'Typed append-only relative-time link for event-candidate temporal roles. Corrections are new anchor versions/links, never JSON authority.';
@@ -11337,41 +10513,30 @@ COMMENT ON TABLE timeline.timeline_projection_member IS 'One immutable row per m
 COMMENT ON TABLE timeline.timeline_projection_receipt IS 'Append-only delivery/read-back receipt (R09 common-receipt shape). A current-status view is derived below -- rows here are never updated, a new attempt/observation is a new row.';
 COMMENT ON VIEW timeline.vw_projection_expected_manifest IS 'R09/WP-H01 expected-manifest read: ordered (generation, member) rows with the hashes a reconciliation run diffs against OpenSearch read-back observations.';
 COMMENT ON VIEW timeline.vw_projection_receipt_current IS 'Latest receipt per (generation, member, sink) -- the derived current-status read, not a source of truth (the append-only receipt rows are).';
-COMMENT ON TABLE working.block_status IS 'Time-scoped block state. analysis.phone.is_blocked / handle.is_blocked are untimed booleans that can only report today; this answers "was it blocked WHEN the message was sent", which is the evidentially relevant question. status is 4-valued because a block is usually INFERRED from delivery behaviour, not confirmed.';
-COMMENT ON TABLE working.chat_chunk_lane IS 'Multi-label routing after chunking. Ambiguous/failure chunks remain searchable in context and enter review; no chunk is discarded.';
-COMMENT ON TABLE working.content_chunk IS 'One format-neutral derived chunk authority. No global content-hash uniqueness; identical text can occur at distinct source positions.';
-COMMENT ON TABLE working.content_chunk_classification_decision IS 'Context-first append-only reviewed classification history. It deliberately has no evidence lane.';
+COMMENT ON TABLE working.chat_conversation IS 'PER-SOURCE conversation: one AI-chat export''s conversation. Vocabulary ruling D-116: "conversation" = per-source; "thread" = cross-platform human conversation. Never mixed.';
+COMMENT ON TABLE working.content_chunk IS 'THE chunk model (D-116). chat_chunk and normalized_record_chunk are deleted. Hash column convention: content_sha256; "content_hash" is banned.';
 COMMENT ON TABLE working.content_chunk_generation IS 'Version-pinned derived chunk manifest. Reruns create new generations; sealed/aborted generations are immutable.';
+COMMENT ON TABLE working.content_chunk_projection IS 'Fresh-ingest projection state for content_chunk (successor to chat_chunk_projection, 0058). Re-projection after an approved canon change is canon.recompute_queue''s job — deliberately separate processes.';
 COMMENT ON TABLE working.content_chunk_source_span IS 'Same-source ordered chunk membership referencing the typed context.source_range_locator half-open primitive.';
 COMMENT ON TABLE working.context_archive IS 'CONTEXT-tier record of a whole chat-export archive (owner 2026-08-12: process the zip as a whole unit). Separate from the evidence spine (no evidence FK). See server/analysis/chat_archive.py + sql/0021.';
 COMMENT ON TABLE working.context_asset IS 'CONTEXT-tier index of generated docs/code/images from a chat-export archive; bytes in R2 (r2_key), small text inline. Option B: NOT the evidence-tier artifact_registry (CONTEXT-never-EVIDENCE boundary). content_hash UNIQUE = idempotent materialization.';
 COMMENT ON TABLE working.context_record IS 'PG source of truth for AI-chat CONTEXT ingest (owner ruling 2026-08-12: PG first, change-detection projects to Weaviate). Standalone by design — NO evidence FK, referenced by NO evidence surface — which is the CONTEXT-never-EVIDENCE boundary (owner 2026-08-01). *_synced_at NULL = pending projection. See server/analysis/context_chat_ingest.py + ADR-0051.';
-COMMENT ON TABLE working.context_review_case IS 'Shared Workbench review queue case. Typed membership tables identify conflicts; presentation_payload is not authority.';
-COMMENT ON TABLE working.context_review_decision IS 'Append-only versioned human adjudication. Current activation is a view; corrections create superseding decision rows.';
-COMMENT ON TABLE working.context_review_dispatch_attempt IS 'Short activity dispatch receipt. n8n selects/invokes swappable review UI/service/notification adapters but is never approval authority.';
-COMMENT ON TABLE working.context_review_signal_receipt IS 'Idempotent signal receipt binding the Temporal workflow to the PostgreSQL-canonical append-only decision.';
-COMMENT ON TABLE working.context_review_temporal_workflow IS 'One durable Temporal ConflictReviewWorkflow identity per PostgreSQL-canonical review case. Stores references/digests only, never Temporal payloads.';
-COMMENT ON TABLE working.context_review_terminal_reconciliation IS 'Terminal reconciliation of expected case/decision versions and downstream reprojection receipt; no workflow payload storage.';
-COMMENT ON TABLE working.device_ownership IS 'Time-scoped device ownership. Resolves the implicit sender of outbound messages: an export attributes sent messages to "me", and "me" is whoever held the device at occurred_at. HITL-asserted; no export states this.';
 COMMENT ON TABLE working.extraction_run IS 'One extraction pass. Every candidate FKs here so a bad model version can be traced and its output re-reviewed or discarded wholesale.';
-COMMENT ON TABLE working.first_party_context_thread IS 'Stable cross-source/cross-platform first-party human thread identity, explicitly anchored to the one owner.';
-COMMENT ON TABLE working.investigation_event IS 'Human-curated investigation register. Entries are concerns/leads, not established facts or evidence; promotion to analysis.timeline_event is an explicit human act.';
+COMMENT ON TABLE working.first_party_context_thread IS 'THE cross-platform first-party thread model: one human conversation across SMS+iMessage+Facebook+... The winner of the conversation war (D-116). working.conversation and conversation_group are deleted; do not rebuild parallel models.';
 COMMENT ON VIEW working.knowledge_gap IS 'occurred_at vs realized_at. The gap between what was true and when it was understood is the evidence of manipulation, not a discrepancy to reconcile.';
 COMMENT ON TABLE working.promotion IS 'Every crossing of the human gate, labelled by which analysis pass it feeds: as_lived (Graphiti, keyed on realized_at), hindsight (Semantica/Neo4j, keyed on occurred_at), or consolidated (SurrealDB). Revocations are recorded, not deleted.';
 COMMENT ON TABLE working.record_visible_from IS 'Materialized projection of working.visible_from (ADR-0045 §A) — the FAST path for the spine view. Sole writer = the derivation-engine refresher (W1.4 grants; pg_advisory_lock F13). A cached row is trusted only when its base_version matches app.base_version; otherwise the predicate recomputes from authored state. NULL source availability always denies. ';
-COMMENT ON TABLE working.review_decision IS 'Append-only. Never UPDATE or DELETE — this is the provenance of human judgement and must remain defensible after the candidate changes.';
 COMMENT ON VIEW working.review_queue IS 'Everything awaiting human judgement, lowest-confidence first is the intended read: ORDER BY confidence NULLS FIRST, created_at.';
 COMMENT ON TABLE working.source_provenance IS 'Append-only revisions of the six clocks and the acquisition block for one source row. Never UPDATE — a correction is a new revision. Provenance may only be asserted by a human (asserted_by_kind is CHECKed to human).';
 COMMENT ON TABLE working.third_party_context_thread IS 'Stable cross-source/cross-platform acquired-third-party human thread identity. Owner participation is structurally rejected.';
 COMMENT ON TABLE working.third_party_context_thread_source IS 'One immutable representation assertion per source version/version. Screenshots, OCR, native exports and device captures coexist; none is collapsed or selected as canonical.';
-COMMENT ON TABLE working.third_party_conversation IS 'Derived acquired conversation projection. Approval requires explicit non-owner participants and an approved human acquisition link.';
+COMMENT ON TABLE working.third_party_conversation IS 'PER-SOURCE conversation from an acquired third-party export. See D-116 vocabulary ruling.';
 COMMENT ON TABLE working.third_party_conversation_acquisition IS 'Reviewed link from a derived third-party conversation to an authored human acquisition event; acquired_at gates raw-source availability.';
 COMMENT ON VIEW working.vw_derivation_lineage IS 'Every spine record traced back to the raw row it came from, whatever format that was, the artifact it came from, and how that artifact was acquired. A record with a NULL raw_id has no lineage and should not exist.';
 COMMENT ON VIEW working.vw_message_imessage IS 'iMessage typed view. date_read/date_edited/service/reply_to_guid populate only after a chat.db re-export (current HTML export lacks them — see extracted-code-sweep-ADDENDUM.md §4).';
 COMMENT ON VIEW working.vw_message_sms IS 'SMS-Backup&Restore fields as typed columns from platform_attrs.';
 COMMENT ON VIEW working.vw_record_attestations IS 'Every source attesting each spine record. attestation_status: CONFLICTED (an attestation disagrees — a finding), corroborated (multiple independent sources), single_source, unlinked. Multiple mediums for one message is expected and valuable.';
 COMMENT ON VIEW working.vw_record_disclosure IS 'Authoritative disclosure tier, derived from the clocks. disclosure_tier_asserted is the parse-time hint (parsers hardcode contemporaneous and cannot know better). realization_lag = realized_at - occurred_at is the as-lived gap.';
-COMMENT ON VIEW working.vw_record_sender_resolution IS 'Cross-checks stored sender against the time-scoped ownership timeline. attribution_status = MISMATCH means an outbound record is attributed to someone who did not hold the device when it was sent — the hand-me-down failure mode.';
 COMMENT ON VIEW working.vw_spine_horizon IS 'Spine filtered by the ADR-0045 §A horizon clock (visible_from), NOT the superseded knowledge_time. SET app.case_id / app.horizon / app.actor first. app.horizon unset/empty = hindsight (whole case incl. hindsight-tagged rows); set = ignorant agent at that cutoff (excludes hindsight-tagged + anything whose source_available_from is after the cutoff). Uses a base-version-pinned materialized fast path and fails closed for NULL availability. Repointed 2026-08-14 (0028); old knowledge_time predicate retired from the view.';
 COMMENT ON VIEW working.vw_walk_base_version_input IS 'Deterministically ordered inputs for a walk base-version hash, including visibility-bearing projection, acquisition, and realization decisions.';
 COMMENT ON VIEW working.vw_walk_contamination IS 'ADR-0045 §A contamination detector: a record retrieved at a step whose visible_from(record_id) > the step horizon_at was knowable only later — the ignorant agent saw a future fact. Non-empty here = the delta is silently corrupted. Uses visible_from (the §A clock), NOT the superseded knowledge_time.';

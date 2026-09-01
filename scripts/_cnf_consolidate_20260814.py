@@ -31,7 +31,7 @@ CNF MECHANISM (17:40): project_memory.json consolidated 118KB->34KB, 30->10 real
 
 context_record disclosure_tier removal PROVEN LIVE (17:47): working.context_record no longer has disclosure_tier (migration applied, verified on VPS PG, not claimed).
 
-OWNER INFRA RULING (17:47, verbatim): "Why aren't you using a volume that's a mapped volume instead of disposable one like map it to an actual directory on the server to use SSH into it" -> use bind-mount MAPPED volumes (map to a real server dir, SSH into it), not disposable volumes. (Matches the durable docker-mapped-volumes preference.) Bind-mount added via Coolify Persistent Storage UI.
+OWNER INFRA RULING (17:47, verbatim): "Why aren't you using a volume that's a mapped volume instead of disposable one like map it to an actual directory on the server to use SSH into it" -> use bind-mount MAPPED volumes (map to a real server dir, SSH into it), not disposable volumes. (Matches the durable docker-mapped-volumes pregistry.) Bind-mount added via Coolify Persistent Storage UI.
 
 COMMIT/PUSH (17:50, verbatim): "Push all of the changes so you don't fuck up what you've already done" -> commit + push to main of the context_record/disclosure_tier + bind-mount work."""
 

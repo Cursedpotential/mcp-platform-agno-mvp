@@ -360,7 +360,7 @@ type BundleWriter interface {
 	Abort(context.Context) error
 }
 
-// BundleResult contains only a compact, caller-minted reference.
+// BundleResult contains only a compact, caller-minted registry.
 type BundleResult struct {
 	BundleRef string
 }

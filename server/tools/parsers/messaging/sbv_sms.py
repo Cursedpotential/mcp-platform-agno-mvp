@@ -14,7 +14,7 @@ DUAL-PARSER / MESH SUBSTITUTION (ADR-0023, owner architecture): this tool and
 sms_xml.py BOTH register capability `parse.sms-xml`. SBV wins by an EXPLICIT
 PRIORITY, not by import order: this module declares `priority=100` below,
 sms_xml.py declares none (defaults to 0), and
-`server/tools/registry.py:87` resolves a capability with
+`server/tools/reference.py:87` resolves a capability with
 
     sorted(matches, key=lambda tool: getattr(tool, "priority", 0), reverse=True)
 
@@ -29,7 +29,7 @@ default. Unset means custody reconciliation is skipped even on the SBV path.
 
 Byline amendment: Claude Code · Opus 5 · 2026-08-23 — the previous version of
 this paragraph explained precedence as alphabetical registration order
-("`sbv_sms` sorts before `sms_xml`"). That was wrong: registry.py sorts by the
+("`sbv_sms` sorts before `sms_xml`"). That was wrong: reference.py sorts by the
 priority field, so renaming either file changes nothing. Outcome was the same,
 mechanism was not.
 

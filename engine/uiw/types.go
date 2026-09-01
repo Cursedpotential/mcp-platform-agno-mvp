@@ -113,7 +113,7 @@ type StageResult struct {
 	Stage ActivityName
 	// Status is the business outcome; see the Status constants.
 	Status Status
-	// Ref is this stage's compact usable result reference. Required (must be
+	// Ref is this stage's compact usable result registry. Required (must be
 	// non-empty) when Status is StatusSuccess. Always empty for
 	// StatusFailed — a business failure has nothing usable to hand
 	// downstream, only a receipt of the outcome. For StatusNotApplicable,

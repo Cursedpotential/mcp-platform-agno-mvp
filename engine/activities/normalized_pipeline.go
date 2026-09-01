@@ -61,7 +61,7 @@ type PersistNormalizedGenerationSpec struct {
 // PersistLineageSpec derives normalization_lineage purely from the ordered
 // correspondence between the already-persisted raw and normalized
 // generations (see normalize.GenericMessageNormalizer's doc comment): this
-// stage never receives the normalize bundle reference.
+// stage never receives the normalize bundle registry.
 type PersistLineageSpec struct {
 	RequestID               string
 	SourceVersionRef        uiw.Ref

@@ -1,5 +1,5 @@
 """
-server/tools/registry.py — the atomic-tool registry (polyglot orchestration mesh).
+server/tools/reference.py — the atomic-tool registry (polyglot orchestration mesh).
 Cross-domain capability layer (D-026): consumed by evidence, analysis, agents,
 workflows, and the CLI — not owned by any single domain.
 
@@ -264,7 +264,7 @@ def register(
 
     def _wrap(fn: Callable[[dict[str, Any]], dict[str, Any]]) -> Callable:
         normalized_formats, normalized_quality = _normalize_declarations(formats, quality)
-        registry.register(
+        reference.register(
             FunctionTool(
                 id=id,
                 capability=capability,
@@ -317,12 +317,12 @@ def load_builtin_tools() -> int:
     """
     global _BUILTINS_LOADED
     if _BUILTINS_LOADED:
-        return len(registry.all())
+        return len(reference.all())
     import importlib
     import pkgutil
 
     pkg_name = __package__  # "server.tools" in-repo; "server.tools" in the facade (whole server/ tree mounted)
-    assert pkg_name, "load_builtin_tools() requires registry.py to be imported as a package module"
+    assert pkg_name, "load_builtin_tools() requires reference.py to be imported as a package module"
     tools_pkg = importlib.import_module(pkg_name)
 
     prefix = tools_pkg.__name__ + "."
@@ -337,7 +337,7 @@ def load_builtin_tools() -> int:
             continue
         importlib.import_module(mod.name)
     _BUILTINS_LOADED = True
-    return len(registry.all())
+    return len(reference.all())
 
 
 _BUILTINS_LOADED = False

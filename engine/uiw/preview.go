@@ -50,7 +50,7 @@ type PreviewDecision struct {
 	RepairedParserOptionsRef Ref    `json:"repaired_parser_options_ref,omitempty"`
 }
 
-// RepairDecision contains only the durable decision reference. The HTTP
+// RepairDecision contains only the durable decision registry. The HTTP
 // surface persists the authenticated actor-bound decision before signaling.
 type RepairDecision struct {
 	DecisionRef Ref `json:"decision_ref"`

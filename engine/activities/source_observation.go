@@ -63,7 +63,7 @@ func (i SourceObservationInput) validate() error {
 }
 
 // MetadataRow is one source-level row for context.source_metadata.  A row is
-// source-level by construction: there is no raw-record reference.  The native
+// source-level by construction: there is no raw-record registry.  The native
 // JSON object is retained verbatim alongside extractor provenance.
 type MetadataRow struct {
 	MetadataClass    string
@@ -149,7 +149,7 @@ type MetadataPersistenceResult struct {
 
 // InventoryMember is structural inventory only.  It names a source member
 // and its exact byte accounting; it carries no parsed fields or assertions.
-// A nil ByteOffset denotes a whole-object/member reference.  A non-nil offset
+// A nil ByteOffset denotes a whole-object/member registry.  A non-nil offset
 // denotes a half-open range [offset, offset+length).
 type InventoryMember struct {
 	Ordinal    int64

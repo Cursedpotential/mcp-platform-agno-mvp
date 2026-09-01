@@ -639,12 +639,12 @@ def iter_pdf(
     rep = report if report is not None else RepairReport(fmt="pdf")
 
     try:
-        tool = registry.get("documents.extract-text")
+        tool = reference.get("documents.extract-text")
     except KeyError:
         from server.tools.registry import load_builtin_tools
 
         load_builtin_tools()
-        tool = registry.get("documents.extract-text")
+        tool = reference.get("documents.extract-text")
 
     try:
         out = tool.run({"path": str(path), "ocr": ocr})

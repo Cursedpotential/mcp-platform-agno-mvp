@@ -50,7 +50,7 @@ begins at the owner-promotion boundary.
   at the compatibility boundary.
 - Legacy retries preserve the original Activity name through
   `context.activity_execution`, its idempotency coordinate, `computed_by`, and
-  the legacy raw receipt-set result reference. Corrected context semantics do
+  the legacy raw receipt-set result registry. Corrected context semantics do
   not rewrite immutable Temporal execution provenance.
 - Raw/source verification reopens and hashes every retained raw member and the
   retained original source. It no longer refolds stored receipt digests or
@@ -60,7 +60,7 @@ begins at the owner-promotion boundary.
   corrupt raw member, truncated external range, and missing opener behavior.
 - Preview rejection is a durable `rejected` hold state. A later approval Signal
   resumes the same workflow identity only after carrying an explicit repaired
-  parser-selection or parser-options reference. The repaired references are
+  parser-selection or parser-options registry. The repaired references are
   surfaced in the preview query and passed to `execute_parser_activity`.
   Temporal `GetVersion` preserves replay behavior for histories recorded before
   repair-reference enforcement; timeout remains terminal and fail-closed.
@@ -84,7 +84,7 @@ Executed from `engine/` after remediation:
 - `go test -tags fts5 ./...` — BLOCKED outside this lane: the concurrent
   SBV attachment lane is mid-signature migration. Its tests still call the old
   one-argument `NewFilesystemArtifactSink` and two-argument `ArtifactDir`, while
-  the concurrent implementation now requires a registrar and source reference.
+  the concurrent implementation now requires a registrar and source registry.
   This lane did not edit or revert any SBV-owned file.
 
 Executed from repository root:

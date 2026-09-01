@@ -89,7 +89,7 @@ type uploadAcceptedResponse struct {
 // range. Forwarded identity headers are ignored. On success it
 // streams the request body straight into sealStream (single pass, no
 // intermediate unbounded buffering) and returns the resulting acquisition
-// reference.
+// registry.
 func (u *UploadIngress) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)

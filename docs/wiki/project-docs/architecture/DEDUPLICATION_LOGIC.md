@@ -492,4 +492,4 @@ const validateCrossSourceMatch = object({
 
 ---
 
-*Chain of custody starts at hash. Provenance ends at cross-reference.*
+*Chain of custody starts at hash. Provenance ends at cross-registry.*
