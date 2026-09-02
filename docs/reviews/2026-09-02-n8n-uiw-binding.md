@@ -281,3 +281,225 @@ reached a tracked file. All secret handling for the remainder of the session
 used name/length-only reporting and value-blind Python (values read into
 memory and used directly in HTTP calls or n8n credential payloads, never
 echoed to stdout).
+
+## 8. VERIFY LANE N3 — post-fix re-probe (2026-09-02, ~19:58–20:01 UTC)
+
+> _Byline: Claude Code · Sonnet 5 · 2026-09-02._
+
+Scope: re-probe all 7 webhooks after two claimed fixes (parser-activity-runtime
+`BIND_IP` set, publishing on `100.91.190.107:8090`; starter's `withAuth` now
+honors `PLATFORM_DEV_AUTH_BYPASS`), root-cause any remaining failures with
+container-log evidence, and verify the reverse direction (worker →
+n8n). No code changed, no workflow changed, no git commit. No real import was
+started — `start` was deliberately probed with an incomplete payload exactly
+as in §4, and `select`/`execute`/`assess`/`resolve` used synthetic
+`probe://synthetic/...` refs that satisfy each workflow's own field-shape
+validation but cannot resolve to real evidence.
+
+**Method correction vs the original §4 probe:** the n8n-mcp tool's
+`search_workflow_executions`/`get_workflow_execution` could not be used —
+all 7 workflows report `"availableInMCP": false`, and the tool refuses with
+`"Workflow is not available in MCP"`. Re-verified against n8n's own REST API
+(`GET /executions`, `GET /executions/{id}?includeData=true`, key length 289,
+from `~/.secrets/n8n-ovh2.env`) instead, which is what every result below is
+drawn from — again never the webhook's own HTTP status (still `200`/empty on
+every one of the 7 probes, confirming the §4 finding that this endpoint
+lies about failure).
+
+**Process note, same class of issue as §7:** the first execution-detail fetch
+(`GET /executions/38?includeData=true`) returned the inbound webhook node's
+captured request headers verbatim, which includes the real
+`N8N_UNIVERSAL_IMPORT_WEBHOOK` bearer value — it printed to this transcript
+and to a scratchpad file once before the redaction wrapper below was added.
+The scratchpad file is outside this repository and was never git-tracked;
+per this repo's amended secret-handling policy that is not a
+rotation-triggering incident. Every fetch after that point ran through a
+wrapper that redacts any `authorization`/`auth`/`bearer` key before printing
+or saving.
+
+### 8.1 Per-workflow results
+
+| Workflow | Reached backend? | Downstream status / error (from n8n execution detail, not the webhook's own 200) |
+|---|---|---|
+| `select_parser_activity` | **No.** n8n admitted the request, validated it, and fired the outbound HTTP node — but the node itself failed. | `ECONNREFUSED`: *"The service refused the connection – perhaps it is offline"*, at `http://100.91.190.107:8092/activities/select_parser_activity` |
+| `execute_parser_activity` | **No**, same shape | `ECONNREFUSED` at `http://100.91.190.107:8092/activities/execute_parser_activity` |
+| `assess_source_repair_activity` | **No**, same shape | `ECONNREFUSED` at `http://100.91.190.107:8092/activities/assess_source_repair_activity` |
+| `resolve_source_repair_activity` | **No**, same shape | `ECONNREFUSED` at `http://100.91.190.107:8092/activities/resolve_source_repair_activity` |
+| `start` | Not exercised past n8n's own validation (deliberate — starting a real Temporal run was out of scope) | n8n's `Validate + Shape Start Request` Code node rejected the intentionally-incomplete probe body, as designed. No HTTP node ran. Starter hop not directly invoked; see `decision`/`preview` below for the same gate, now proven passable. |
+| `decision` | **Yes.** Reached `universal-import-starter`, past `authorizedTailnetPeer`. | Real business-level Temporal error, not a 401: `"temporal: signal preview decision: workflow not found for ID: nonexistent-probe-n3verify-268d255ee2f3"` |
+| `preview` | **Yes.** Reached `universal-import-starter`, past `authorizedTailnetPeer`. | Real business-level Temporal error, not a 401: `"temporal: query preview state: workflow not found for ID: nonexistent-probe-n3verify-05395263f0ef"` |
+
+**Corroborating evidence — `universal-import-starter` container log**
+(`docker logs`, timestamps UTC, on `ovh-files` 100.91.190.107):
+
+```
+2026/09/02 20:00:56 WARN UIW starter HTTP auth: PLATFORM_DEV_AUTH_BYPASS admitted a non-tailnet peer (D-125, D-127) -- remove this flag before go-live flag=PLATFORM_DEV_AUTH_BYPASS remote_addr=172.18.0.5:47128 method=POST path=/reference-import/nonexistent-probe-n3verify-268d255ee2f3/decision
+2026/09/02 20:00:57 WARN UIW starter HTTP auth: PLATFORM_DEV_AUTH_BYPASS admitted a non-tailnet peer (D-125, D-127) -- remove this flag before go-live flag=PLATFORM_DEV_AUTH_BYPASS remote_addr=172.18.0.5:47138 method=GET path=/reference-import/nonexistent-probe-n3verify-05395263f0ef/preview
+```
+
+Timestamps and `nonexistent-probe-*` ids match the `decision`/`preview`
+executions exactly (n8n execution 50 started `20:00:56.703Z`, execution 51
+started `20:00:57.119Z`). `remote_addr=172.18.0.5` is n8n's container IP on
+the shared `coolify` bridge network — a genuinely non-tailnet peer, so the
+warning firing is direct proof the bypass is what admitted these calls, not
+a real tailnet-peer match. No corresponding log line exists for `/start` in
+this window — its absence is itself confirmation that `start`'s probe never
+reached the starter, consistent with the n8n-side execution trace (no HTTP
+node ran). **§3/§6-item-2 blocker is resolved**: `decision`/`preview`/(by
+the same-gate argument) `start` are now authorized.
+
+### 8.2 Root cause of the still-failing 4 (§4a is now the WRONG diagnosis)
+
+§4a concluded `parser-activity-runtime` itself was unreachable
+(loopback-only bind, no working route). That is **no longer true** — it was
+fixed exactly as the task described. Live evidence, this session:
+
+- `docker ps` on `ovh-files`: `parser-activity-runtime-o11nxvzqwskxrqmtbvup7iet-...` →
+  `100.91.190.107:8090->8090/tcp`.
+- `ss -ltnp` on the host: `LISTEN 100.91.190.107:8090` owned by `docker-proxy`.
+- `curl http://100.91.190.107:8090/healthz` → `200 {"status":"ok"}`, both
+  from this desktop session (itself tailnet-attached) and from `ovh-files`
+  itself.
+- `GET /applications/{uuid}` for `parser-activity-runtime` via the Coolify
+  API still reports `ports_mappings: "8092:8090"` — **this field is stale
+  relative to the live container** and was the source of the wrong port
+  used when §2 picked `100.91.190.107:8092` as "confirmed against ... the
+  live `ports_mappings`". It was not live; `docker ps`/`ss` on the host is
+  ground truth, the Coolify API field is not.
+
+**The actual, current root cause: the 4 parser-facing n8n HTTP Request nodes
+still point at port `8092`, which nothing listens on** (`ss -ltnp` shows no
+socket on 8092; `curl` to `:8092/healthz` returns `000`, i.e. refused, not a
+timeout). Confirmed by reading the live node config via the n8n REST API
+(`GET /workflows/{id}`), not the repo's exported JSON:
+
+| Workflow | Live HTTP node URL (n8n API, 2026-09-02) |
+|---|---|
+| `select_parser_activity` | `http://100.91.190.107:8092/activities/select_parser_activity` |
+| `execute_parser_activity` | `http://100.91.190.107:8092/activities/execute_parser_activity` |
+| `assess_source_repair_activity` | `http://100.91.190.107:8092/activities/assess_source_repair_activity` |
+| `resolve_source_repair_activity` | `http://100.91.190.107:8092/activities/resolve_source_repair_activity` |
+
+**This is now purely an n8n workflow configuration problem, not an
+infrastructure/network problem.** The infra fix (§6 item 1) landed and
+works; the n8n side was bound against the wrong port before that fix shipped
+and was never re-pointed at the corrected `:8090`. Fix (not applied in this
+verify-only lane): update these 4 HTTP Request nodes' `url` field from
+`:8092` to `:8090` and re-probe — no credential, auth, or network change
+needed, `authorizedTailnetPeer`/bearer auth on the runtime side is untouched
+by this.
+
+### 8.3 Reverse direction — worker → n8n
+
+**Verdict: still blocked, but the true address is now known and it is
+same-host, not cross-tailnet.**
+
+1. `modules/engine/uiwworker` reads `N8N_UNIVERSAL_IMPORT_BASE_URL`. Live
+   Coolify value on `universal-import-worker` (confirmed via the Coolify API,
+   `GET /applications/{uuid}/envs`): still
+   `http://n8n-ddjgrmys36d9n8xwcwj0mml2:5678/webhook` — unchanged since §2.
+2. **Correction to the task's own premise**: n8n does not run on
+   `ion-control` (100.98.98.38). Its Coolify service (`casebible-n8n`,
+   `ddjgrmys36d9n8xwcwj0mml2`) is deployed to server `100.91.190.107` —
+   `ovh-files`, the **same host** as `universal-import-worker`,
+   `universal-import-starter`, and `parser-activity-runtime` (confirmed via
+   `GET /services/{uuid}` on the Coolify API, and independently via
+   `docker ps` on `ovh-files` itself, which lists
+   `n8n-ddjgrmys36d9n8xwcwj0mml2` running there). `100.98.98.38` is the
+   **Coolify control-plane** host (where its API/UI lives, `ion-control`);
+   the app it manages is deployed onto `ovh-files`. Worth fixing in memory/
+   docs wherever "n8n runs on ion-control" is asserted, so this doesn't
+   recur.
+3. **DNS test, from inside the worker container** (`docker exec`, host
+   network mode, no curl/wget in this image — used bash's `/dev/tcp` as the
+   equivalent per the task's fallback intent):
+   `getent hosts n8n-ddjgrmys36d9n8xwcwj0mml2` → exit 2, not found; a raw
+   `/dev/tcp/n8n-ddjgrmys36d9n8xwcwj0mml2/5678` connect attempt →
+   `Temporary failure in name resolution`. This reproduces exactly the
+   failure mode the task predicted: a Coolify-internal Docker
+   bridge-network service name (`n8n-ddjgrmys36d9n8xwcwj0mml2`, valid only
+   on the `coolify`/service-specific bridge networks) does not resolve from
+   a **host-network** container (confirmed `NetworkMode: host` via
+   `docker inspect`), which uses the host's own resolver
+   (`/etc/resolv.conf` → `127.0.0.53`, systemd-resolved) and has no view of
+   Docker's embedded DNS for that name.
+4. **The real reachable address, tested from the same worker container**:
+   n8n's container publishes port 5678 directly on the host,
+   `100.91.190.107:5678->5678/tcp` (confirmed via `docker ps`/`docker
+   inspect` on `ovh-files`). A raw TCP connect from inside the worker
+   container — `cat < /dev/null > /dev/tcp/100.91.190.107/5678` — returned
+   **`CONNECT_OK`**.
+
+**Conclusion**: the worker cannot reach n8n today because
+`N8N_UNIVERSAL_IMPORT_BASE_URL` names a Docker-internal hostname that is
+invisible to its host-network container — not because of any cross-host
+tailnet problem (there isn't one; everything in this pipeline is
+co-located on `ovh-files`). Fix (not applied in this verify-only lane):
+set `N8N_UNIVERSAL_IMPORT_BASE_URL=http://100.91.190.107:5678/webhook` on
+both `universal-import-worker` and `universal-import-starter`, then
+redeploy both.
+
+### 8.4 Is the bridge connected in both directions? No — precise remaining state
+
+| Hop | State |
+|---|---|
+| n8n inbound webhook trigger + auth (all 7) | **Working.** Confirmed via execution detail on every probe. |
+| n8n → `universal-import-starter` (`decision`/`preview`, and by the same-gate argument `start`) | **Working.** `PLATFORM_DEV_AUTH_BYPASS` admits n8n's non-tailnet egress; proven via a real Temporal business error past the gate, and via the starter's own log line correlated by timestamp + probe id. |
+| n8n → `parser-activity-runtime` (`select`/`execute`/`assess`/`resolve`) | **Still blocked** — but the blocker moved. The runtime itself is now reachable (network fix confirmed working, §8.2). The 4 n8n HTTP nodes are configured against the old, wrong, non-listening port `8092` instead of the live `8090`. This is an n8n workflow edit, not an infra change — smallest possible remaining fix. |
+| worker → n8n (`N8N_UNIVERSAL_IMPORT_BASE_URL`) | **Still blocked.** Configured Docker-internal hostname does not resolve from the host-networked worker/starter containers. n8n is co-located on `ovh-files` (100.91.190.107:5678, confirmed reachable by raw TCP from the worker container) — not on `ion-control` as previously assumed. Needs an env-var fix + redeploy on both `universal-import-worker` and `universal-import-starter`. |
+
+**Bottom line: not fully connected in both directions yet.** Two small,
+well-evidenced, disjoint fixes remain, neither infra-mysterious this time:
+
+1. Repoint the 4 parser-facing n8n HTTP Request node URLs from `:8092` to
+   `:8090`.
+2. Repoint `N8N_UNIVERSAL_IMPORT_BASE_URL` (worker + starter) from
+   `http://n8n-ddjgrmys36d9n8xwcwj0mml2:5678/webhook` to
+   `http://100.91.190.107:5678/webhook`, then redeploy both apps.
+
+Both are configuration-only (no code change), both have a concrete, already-
+verified target value, and both should get one more live re-probe after
+applying — the same synthetic-payload/execution-detail method used in §4 and
+here, never the webhook's own HTTP status.
+
+
+## §9 — Post-fix state (2026-09-02 ~16:10 ET, orchestrator)
+
+Both blockers from §8 are fixed and live:
+
+1. **n8n parser-node URLs repointed `:8092` → `:8090`** on all four
+   parser-facing workflows (select_parser, execute_parser,
+   assess_source_repair, resolve_source_repair) via the n8n REST API. The
+   `:8092` value came from Coolify's stale `ports_mappings` field, not from the
+   live container. All 7 Universal Import workflows confirmed `active=True`
+   after the edit.
+2. **`N8N_UNIVERSAL_IMPORT_BASE_URL` repointed** on universal-import-worker and
+   universal-import-starter from the Coolify-internal container name
+   `http://n8n-ddjgrmys36d9n8xwcwj0mml2:5678/webhook` (which does not resolve
+   from a host-network container) to `http://100.91.190.107:5678/webhook`.
+   Both apps redeployed. NOTE: Coolify keeps a separate `is_preview` duplicate
+   of each env var; a naive read of the env list shows the stale preview value
+   and looks like the PATCH failed — filter `is_preview=false`.
+
+Ground-truth verification of the parser backend, from the desktop over tailnet:
+
+```
+GET  http://100.91.190.107:8090/healthz                        -> 200
+POST http://100.91.190.107:8090/activities/select_parser_activity
+     -> 401 {"error":"parser Activity authorization required"}
+```
+
+A 401 from the service's own handler proves the socket is live and the process
+is answering — the ECONNREFUSED class of failure is gone. (401 is correct here:
+the probe deliberately carried no PARSER_ACTIVITY_TOKEN.)
+
+Starter direction was already proven in §8: `decision` and `preview` reached
+real Temporal business errors ("workflow not found for ID: ...") and the
+starter logged the matching per-request line
+`PLATFORM_DEV_AUTH_BYPASS admitted a non-tailnet peer ... path=/reference-import/.../decision`.
+
+**Not yet proven end to end:** a webhook probe through n8n whose HTTP node
+actually fires — the synthetic payloads used so far are rejected by each
+workflow's envelope Code node before the HTTP request is made, so "no
+ECONNREFUSED" is necessary but not sufficient evidence. That proof belongs to
+the rehearsal, where a real well-formed run exercises the node for real.
