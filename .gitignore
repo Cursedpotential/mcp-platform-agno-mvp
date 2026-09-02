@@ -180,3 +180,6 @@ modules/custom/
 modules/Legal-Workspace/
 modules/traceIQ/
 modules/apps/
+
+# CodeLens Graph local index
+.codelens/
