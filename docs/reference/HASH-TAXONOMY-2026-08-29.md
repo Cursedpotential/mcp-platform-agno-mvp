@@ -89,18 +89,23 @@ family**, which was the only family that existed when it was written. It predate
 context-fingerprint split (D-088/D-089) and the normalized generation layer. It should be
 read as scoped to custody, not as a whole-system count.
 
-## Open
+## ~~Open~~ CLOSED — D-124, 2026-09-02
 
-**Which four does "four hashes" name?** Not resolvable from source. The defensible readings:
+**"Four hashes" names the four hash MOMENTS in a record's lifecycle, not a fourth
+digest level.** Ruled by owner delegation 2026-09-02 ("What makes sense? What works?
+That's what it is."), grounded in the owner's own D-077 (2026-08-25), which names them
+verbatim as the four hash-Activity groups:
 
-- **A — four record-addressable digests:** H1 source, H2 raw record, normalized record
-  digest, and the fold. Manifest digest is a rollup of the same position, not a level.
-- **B — four families:** context fingerprint, custody, normalized record, normalized
-  manifest.
+1. **Context fingerprint at intake** (pre-parse; never H-named)
+2. **Normalized digest at normalization**
+3. **Custody H1/H2/H3 verification at governed promotion**
+4. **Later evidence reverification** (append-only verification events)
 
-Both fit the artifacts. One line in `CUSTODY.md` or `PROJECT_CANON.md` naming the four
-closes this permanently, and it is the owner's to write — this page deliberately does not
-guess.
+The value taxonomy above is unchanged: custody = 3 levels, context fingerprints = 3
+kinds, normalized digests = 2 kinds (`hash_receipt` carries 5). **No H4 exists.**
+So: 3 = custody levels · 4 = lifecycle hash moments · 5 = receipt hash kinds. The
+earlier readings A and B are rejected — both invented a value-count where the owner's
+number was always the D-077 lifecycle count.
 
 ## Not applicable to claims
 
