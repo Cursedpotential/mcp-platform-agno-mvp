@@ -210,3 +210,77 @@ leftovers) which unblocked today's deploys — headroom is now ~3 networks.
 (e.g. base 10.201.0.0/16 size 24) to daemon.json, which requires a **Docker
 daemon restart — a full outage of every container on ovh-files** (PG, Neo4j,
 Weaviate, Surreal, n8n, Infisical, workbench...). Not taken unilaterally.
+
+---
+
+## EVENING STATUS — 2026-09-02 ~18:10 EDT
+
+> _Byline: Claude Code / Opus 5 / 2026-09-02. Written at owner instruction to get the
+> record caught up before any further building._
+
+### Delivered today
+
+| Item | State |
+|---|---|
+| Go build chain (3 apps) | **fixed** - all building; hermetic vendored Docker builds |
+| Schema admission gate | **fixed** - 0066 grants, 0067 constraints, 0069 DEV identity |
+| Three ingest services live | worker (26 activities), starter (:8091), parser runtime (:8090, 11 parsers) |
+| n8n bridge | 7 workflows active, URLs + credentials corrected both directions |
+| Security default inversion | **fixed** - workbench tailnet bypass defaulted ON, now OFF |
+| DuckDB secret leak | **fixed** - 94 duplicate R2 secrets collapsed to a fixed name |
+| **Acquisition seam** | **FIXED AND PROVEN LIVE** - see below |
+
+### The rehearsal ran, and it did its job
+
+Two runs against a synthetic fixture (95 messages, 555-prefix numbers, DEV sentinel
+identity - never real case data).
+
+**Run 1** found the defect that had blocked every UIW run ever attempted: the API boundary
+admits only `upload://` and `r2://`, the worker resolved only `file://`, and the
+intersection was empty. `acquisition.NewSchemeRouter` and `NewUploadIngressResolver` already
+existed and were already tested - `uiwworker/worker.go` simply never used them.
+
+**Run 2**, after the fix deployed, resolved an `upload://` reference and retained an
+original for the first time. `retain_original_activity` succeeded.
+
+**Run 2 then failed one stage later**, at `assess_source_repair_activity`: the UIW hands
+platform-tools a worker-local filesystem path, but the worker runs on ovh-files and
+platform-tools runs on ovh-app, where that volume does not exist. Ruled fix is the Go tool
+gateway on tsnet (**D-132**); an interim second platform-tools was explicitly rejected as
+temporary-permanent.
+
+### Corrections to earlier claims in this board and in chat
+
+- **Format coverage was understated.** An earlier count of "11 parsers" covered only the Go
+  engine. platform-tools exposes **39 tools**, including `transcripts.claude-ai-export`,
+  `transcripts.chatgpt-official`, `transcripts.perplexity-gdpr`, `transcripts.markdown`,
+  `documents.extract-docling`, and `repair.pdf-inspect`. The Lost and Found corpus is far
+  better covered than reported; the gap is delivery, not capability.
+- **Coolify auto-deploy is NOT broken.** It was briefly reported as not firing; it fired
+  correctly and took ~4 minutes to build. The check was made too early.
+
+### Delivery contract vs reality
+
+The contract was: ingest figured out, schemas done, tables done, Go engine functioning,
+parsing and chunking figured out, DuckDB ELT deployed - ready to ingest chats and messages
+tonight.
+
+**Met:** schemas, tables, Go engine building and running, parsing/chunking stages built and
+wired, DuckDB structured-ELT activity built, all three services live, the n8n bridge bound.
+
+**Not met:** a completed end-to-end ingest. Two blockers were found by actually running it;
+the first is fixed and proven, the second is ruled but not built. No real case material has
+been ingested.
+
+### Open, carried forward
+
+1. **D-132 Go tool gateway (tsnet)** - ruled, not built. This is the next build item.
+2. **D-131 SBV donor absorption** - ruled, not executed (subtree into `modules/engine/decode/`).
+3. **B2 backups stale since 2026-08-01** - nothing automated writes them; found today.
+4. **Docker address pools (ovh-files)** - unchanged owner decision; ~3 networks headroom.
+5. **Platform rename** - `propria` favored as an option, not ruled. Repo is still
+   `mcp-platform-agno-mvp` (also carries a stale "mvp").
+6. **Lost and Found corpus** staged as the first real ingest once the gateway lands:
+   `C:/Users/matts/OneDrive/Desktop/Google Drive (Not synced)/Lost and Found` - 18 markdown
+   chats, 2 ChatGPT exports, 2 Claude exports, 12 docx, 5 call-log PDFs.
+

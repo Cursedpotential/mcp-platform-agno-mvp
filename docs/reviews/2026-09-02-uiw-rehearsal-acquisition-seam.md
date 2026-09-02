@@ -1,4 +1,4 @@
-# UIW rehearsal — the acquisition seam is the last blocker
+# UIW rehearsal — the acquisition seam (FIXED, verified live) and what it uncovered
 
 > _Byline: Claude Code · Opus 5 · 2026-09-02 (step 9 rehearsal, live evidence)._
 
@@ -66,9 +66,92 @@ before handing the result to `NewSourceLifecycleRepository`. `upload` and `file`
 share `cfg.SourceObjectDir`; `r2` additionally needs the R2 credentials already
 mounted at `CASEBIBLE_R2_CONFIG_PATH` (`/run/secrets/casebible-r2.json`).
 
-## Not yet proven
+## ~~Not yet proven~~ superseded — see the live results below
+
+### (original section, kept for the record)
+
+#### Not yet proven
 
 - `execute_parser` never fired, so the n8n bridge still has no end-to-end proof.
   That proof is still owed and still belongs to a completed rehearsal.
 - Reject-first (proving `execute_parser` never fires on reject) not reached.
 - No `context.*` rows or receipts written beyond `register_source`.
+
+
+---
+
+# LIVE RESULT — the fix works, and the next blocker is a cross-host path assumption
+
+> _Appended 2026-09-02 after redeploy. Byline: Claude Code · Opus 5._
+
+## The acquisition seam is CLOSED (verified live, not inferred)
+
+`modules/engine/uiwworker/worker.go` now builds the filesystem and upload resolvers and
+combines them with `acquisition.NewSchemeRouter`. Deployed via Coolify (auto-deploy fired
+on push; the worker container restarted `2026-09-02T21:57:39Z`).
+
+Rehearsal run 2 — workflow `07918399-c2fc-4020-8ca1-18be271ef986`, DEV sentinel identity,
+synthetic fixture `upload://72640c6c…` (95 messages, 555-prefix numbers):
+
+| Stage | Before the fix | After |
+|---|---|---|
+| `POST /reference-import/start` | 201 | 201 |
+| `register_source_activity` | OK | OK |
+| `retain_original_activity` | **FAILED** — "acquisition reference must be a file:// URI" | **SUCCEEDED** |
+| `assess_source_repair_activity` | never reached | **FAILED** — new blocker below |
+
+**A UIW run has now resolved an `upload://` reference and retained an original for the
+first time.** That was the defect blocking every run since the workflow was written.
+
+## New blocker — platform-tools is on a different host than the object it is asked to read
+
+`assess_source_repair_activity` calls `POST {PLATFORM_TOOLS_BASE_URL}/tools/repair.detect/run`
+with `{"path": <worker-local filesystem path>}` (`activities/repair.go`, via
+`Store.ResolveOriginalPath`). The response is a 404 whose body is the path itself:
+
+```
+{"detail":"/data/uiw/source-objects/objects/sha256/72/72640c6c….source"}
+```
+
+Ground truth:
+
+- worker runs on **ovh-files** (`100.91.190.107`)
+- `PLATFORM_TOOLS_BASE_URL=http://100.72.169.40:8090` → **ovh-app**
+- `/data/agno/volumes/universal-import/source-objects` **does not exist on ovh-app**
+- the platform-tools container mounts only `/opt/sbv/data` and `/r2`
+
+So this is not a missing tool and not a routing error. `repair.detect` **is** registered.
+The UIW passes a host-local filesystem path across a host boundary. Same class of defect as
+the acquisition seam: two individually-correct halves with an incompatible contract.
+
+It also violates the atomicity rule committed today (AGENTS.md): references may travel,
+host-local paths may not.
+
+## Correction — platform-tools exposes 39 tools, not the engine's 11
+
+An earlier chat-only claim that the Lost and Found corpus had "no parser" for Claude
+exports, `.docx`, and PDFs was **wrong**: it counted only the Go engine's registered
+parsers. `GET /tools` on platform-tools returns **39**, including
+`transcripts.claude-ai-export`, `transcripts.chatgpt-official`, `transcripts.perplexity-gdpr`,
+`transcripts.markdown`, `transcripts.generic-md`, `documents.extract-docling`,
+`documents.extract-text`, `repair.pdf-inspect`, and the `messages.*` family. Format coverage
+is materially better than reported; the gap is delivery, not capability.
+
+## RULED 2026-09-02 — (B), the Go tool gateway. (A) is rejected.
+
+- **(A) Interim, config only:** run a second platform-tools on ovh-files with the
+  `source-objects` volume mounted and repoint `PLATFORM_TOOLS_BASE_URL`. Unblocks the
+  rehearsal today; leaves a duplicate service to dismantle later.
+- **(B) Go tool gateway on tsnet (owner proposal, 2026-09-02):** a Go front end with its own
+  Tailscale identity that indexes the tools, accepts **locators** (`upload://`, `r2://`)
+  instead of host paths, resolves bytes through the existing
+  `acquisition.NewSchemeRouter`, materializes locally, and calls the Python tool with a path
+  that genuinely exists. The Python tools keep their one-job contract unchanged. Permanent,
+  removes the cross-host assumption everywhere, and each call becomes a clean atomic unit
+  schedulable as an Activity or wrappable as an n8n node.
+
+**Owner ruled (B) and rejected (A) outright, 2026-09-02:** "Otherwise what will end up
+happening is what we joke around about when we're working on houses about things that get
+done temporarily. It becomes temporary-permanent." A second platform-tools stood up to
+unblock one evening would never be dismantled; it would become the architecture by default.
+No interim instance is to be created. See D-132.
