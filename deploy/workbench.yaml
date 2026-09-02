@@ -55,7 +55,7 @@ services:
       # Feature-gated owner testing path. Traefik remains the trusted socket
       # peer and X-Real-IP must be inside this Tailscale range. Disable after
       # Authentik activation without changing application code.
-      TAILNET_AUTH_BYPASS_ENABLED: ${WORKBENCH_TAILNET_AUTH_BYPASS_ENABLED:-true}
+      TAILNET_AUTH_BYPASS_ENABLED: ${WORKBENCH_TAILNET_AUTH_BYPASS_ENABLED:-false}
       TAILNET_AUTH_BYPASS_CIDRS: ${WORKBENCH_TAILNET_AUTH_BYPASS_CIDRS:-100.64.0.0/10}
       TRUSTED_TAILSCALE_SERVE_PROXY_CIDRS: ${WORKBENCH_TAILSCALE_SERVE_PROXY_CIDRS:-127.0.0.1/32,172.17.0.1/32}
       # Same-host service traffic stays on the shared private Coolify network.
