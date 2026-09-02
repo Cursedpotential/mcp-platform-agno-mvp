@@ -86,7 +86,7 @@ chunking = ["chonkie[semantic,code,table]==1.7.0"]
 classification = ["sentence-transformers[onnx]>=5,<6", "setfit>=1.1,<2"]
 # Optional external trace sink. Agno's own Postgres tracing remains enabled;
 # this exporter mirrors the same OTel spans to Langfuse when credentials exist.
-observability = ["opentelemetry-exporter-otlp-proto-http>=1.44,<2"]
+observability = ["opentelemetry-exporter-otlp-proto-http>=1.44,<2", "langfuse>=2.50,<4"]
 # claude-agent-sdk: powers agno.agents.claude.ClaudeAgent (runs Claude Code as
 # a subprocess — the SDK bundles its own native Claude Code binary, no
 # separate Node.js/CLI install needed). NOT a base dependency: it's a heavier

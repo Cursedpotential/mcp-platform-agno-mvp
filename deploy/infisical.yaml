@@ -1,0 +1,78 @@
+# =============================================================================
+# INFISICAL — the platform's secrets broker (D-122, owner ruling 2026-09-01:
+# "Coolify environment variables carry no secret values; rotation must never
+# require a rebuild or redeploy").
+#
+# Role: issues SHORT-LIVED PostgreSQL credentials (dynamic secrets) to
+# platform services at process start and holds every app-consumed third-party
+# credential (SBV service login, R2, n8n auth, provider keys not owned by
+# Portkey). Services authenticate to it with a machine identity; the only
+# bootstrap secret a service carries is that identity's client secret.
+#
+# DEPLOY AS ITS OWN Coolify "Docker Compose" app `infisical` on ovh-files
+# (server hosting data-pg-files), repo Cursedpotential/mcp-platform-agno-mvp
+# @ main, compose file /deploy/infisical.yaml. Watch paths: deploy/infisical.yaml
+# ONLY. Env: BIND_IP=100.91.190.107 — tailnet-only, never public.
+# Consumers call http://100.91.190.107:8880 (8080 is owned by coolify-proxy on
+# every node, hence the shifted host port).
+#
+# ROOT OF TRUST (set once in this app's Coolify env, never rotated by redeploy):
+#   ENCRYPTION_KEY   openssl rand -hex 16     (encrypts secrets at rest)
+#   AUTH_SECRET      openssl rand -base64 32  (signs sessions/tokens)
+#   DB_CONNECTION_URI postgres://infisical:<pw>@100.91.190.107:5432/infisical
+#                    (its OWN database + role on the shared cluster — the only
+#                    static database password that remains in the platform)
+# Redis is replaced by Dragonfly per the platform DB-substitution rule.
+#
+# HOST-PREP on ovh-files before first deploy:
+#   sudo install -d -m 0700 /data/agno/volumes/infisical-dragonfly
+# =============================================================================
+
+services:
+  infisical:
+    image: infisical/infisical:latest-postgres   # TODO pin digest after first successful deploy (record in DECISION_LOG)
+    container_name: infisical
+    restart: unless-stopped
+    depends_on:
+      dragonfly:
+        condition: service_started
+    ports:
+      - "${BIND_IP:-127.0.0.1}:8880:8080"
+    environment:
+      NODE_ENV: production
+      SITE_URL: ${SITE_URL:-http://100.91.190.107:8880}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY in Coolify app env (openssl rand -hex 16)}
+      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in Coolify app env (openssl rand -base64 32)}
+      DB_CONNECTION_URI: ${DB_CONNECTION_URI:?set DB_CONNECTION_URI in Coolify app env}
+      REDIS_URL: redis://dragonfly:6379
+      TELEMETRY_ENABLED: "false"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/status >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      start_period: 60s
+      timeout: 10s
+      retries: 5
+    networks:
+      - agno
+
+  dragonfly:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:v1.30.0
+    container_name: infisical-dragonfly
+    restart: unless-stopped
+    command: ["dragonfly", "--logtostderr", "--maxmemory=512mb", "--proactor_threads=2"]
+    ulimits:
+      memlock: -1
+    volumes:
+      - type: bind
+        source: /data/agno/volumes/infisical-dragonfly
+        target: /data
+        bind:
+          create_host_path: false
+    networks:
+      - agno
+
+networks:
+  agno:
+    external: true   # shared local bridge on ovh-files (data-tier split, 2026-07-19)
+
+# Byline: Claude Code · Fable 5.1 · 2026-09-01 (D-122 secrets broker — option 1: dynamic DB credentials)

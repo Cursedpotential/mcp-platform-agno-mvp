@@ -54,8 +54,9 @@ uv run mypy server
 uv run pytest -q
 ```
 
-Go work under `vendored/sbv` requires the `fts5` build tag; use its Makefile
-targets. Root `compose.yaml` is mirrored to the VPS and is production-facing,
+Go work under `modules/forks/sbv` (a submodule of `sbv-forensic`) requires the
+`fts5` build tag; use its Makefile targets. `deploy/compose.yaml` (moved from
+root in the 2026-09-01 restructure) is mirrored to the VPS and is production-facing,
 not a disposable local-only stack. Deployment runs through the current Coolify
 fleet and requires explicit owner review; do not infer a deploy from a local
 build or documentation change.

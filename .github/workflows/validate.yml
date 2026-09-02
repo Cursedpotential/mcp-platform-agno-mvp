@@ -44,7 +44,7 @@ jobs:
       - name: Install the project with dev dependencies
         run: |
           uv pip install --system -r requirements.txt
-          uv pip install --system -e .[dev]
+          uv pip install --system -e .[dev,observability,temporal]
           ruff --version
           mypy --version
 
@@ -114,7 +114,7 @@ jobs:
       - name: Install the project with dev dependencies
         run: |
           uv pip install --system -r requirements.txt
-          uv pip install --system -e .[dev]
+          uv pip install --system -e .[dev,observability,temporal]
 
       # Fails with a named, actionable error instead of a cryptic Tailscale/DB
       # timeout when the repo isn't configured yet. Failing (not skipping) on

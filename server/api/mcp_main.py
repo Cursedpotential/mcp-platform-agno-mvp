@@ -46,7 +46,10 @@ from agno.utils.log import log_info
 
 # The mounted FastMCP app (fastmcp StarletteWithLifespan). Serving THIS as the
 # main ASGI app makes uvicorn run its lifespan (session_manager.run()) natively.
-mcp_app = next(route.app for route in _m.app.routes if type(route.app).__name__ == "StarletteWithLifespan")
+# routes are BaseRoute; only Mount-like routes carry .app — getattr keeps mypy honest
+mcp_app = next(
+    app for app in (getattr(route, "app", None) for route in _m.app.routes) if type(app).__name__ == "StarletteWithLifespan"
+)
 
 log_info("Standalone MCP entrypoint: serving the FastMCP app as the main ASGI app")
 

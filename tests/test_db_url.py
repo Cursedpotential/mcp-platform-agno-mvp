@@ -41,7 +41,8 @@ def _build(monkeypatch, **env):
 
 
 def test_defaults_when_no_env(clean_db_env):
-    assert _load_module().build_db_url() == "postgresql+psycopg://ai:ai@localhost:5432/ai"
+    # Default database is `platform` since D-091/D-098 (the `ai` database no longer exists).
+    assert _load_module().build_db_url() == "postgresql+psycopg://ai:ai@localhost:5432/platform"
 
 
 def test_platform_db_url_takes_precedence(monkeypatch):
