@@ -59,7 +59,17 @@ services:
     image: docker.dragonflydb.io/dragonflydb/dragonfly:v1.30.0
     container_name: infisical-dragonfly
     restart: unless-stopped
-    command: ["dragonfly", "--logtostderr", "--maxmemory=512mb", "--proactor_threads=2"]
+    # BullMQ (Infisical's queue) requires these Dragonfly flags — without
+    # allow-undeclared-keys its Lua scripts fail with "script tried accessing
+    # undeclared key" and the backend crash-loops (verified live 2026-09-01).
+    command:
+      - "dragonfly"
+      - "--logtostderr"
+      - "--maxmemory=512mb"
+      - "--proactor_threads=2"
+      - "--default_lua_flags=allow-undeclared-keys"
+      - "--cluster_mode=emulated"
+      - "--lock_on_hashtags"
     ulimits:
       memlock: -1
     volumes:
