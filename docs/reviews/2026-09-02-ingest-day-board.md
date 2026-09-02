@@ -80,3 +80,31 @@ validated before apply).
   preview deadlock resolution into an appendix:
   `2026-09-02-ingest-day-board-appendix-codex-state.md` (spec-vs-built matrix +
   shortest wiring delta).
+
+## Status log — continued (morning, owner at work)
+
+- 06:0x — V1/V2/V3 verdicts in. Verified: engine green; UniversalImportWorkflow
+  26 activities fail-closed; context.* writers match live schema; fingerprint
+  constraints byte-match taxonomy; pg_duckdb live (read_csv_auto proven).
+  Broken/blocking: 3 Go Dockerfiles copy from pre-restructure paths (worker/
+  starter/parser-runtime exited:unhealthy, watch paths stale); chunk stage
+  orphaned (no writer/activity); ELT activity unbuilt; SBV desktop creds absent
+  (found in exec-platform-tools env); context_chat_ingest chunk layer targets
+  dropped tables; fingerprints Go-only by trigger design.
+- 06:1x — Build lanes dispatched: E1 (DuckDB ELT activity + secret-idempotence
+  fix), D1 (Dockerfile/vendor repair + watch-path list), C1 (chunk repository +
+  activity + workflow wiring), W1 (Workbench HITL verify + D-125 bypass flag +
+  metadata-fields assessment).
+- Recovery phase 2 COMPLETE: lanes A-D committed/pushed (34/38 recovered, 3
+  correctly excluded as Claude-authored, 1 pending other-source). D-072..D-081
+  in the log; D-123/D-124/D-125 recorded.
+- Codex mining synthesis (verbatim-sourced): HITL decisions ONLY on
+  /evidence/preview (post-parse, six receipts); append-only decision snapshots
+  (DB-enforced); indefinite Signal waits (GetVersion legacy 24h); opaque
+  preview_handle; starter HTTP POST /reference-import/start | /{id}/decision |
+  GET /{id}/preview on ${BIND_IP}:8091; n8n = 5-7 inactive bridge workflows,
+  binding contract in deploy/docker/n8n/workflows/universal-import/README.md
+  (placeholder endpoints + 3 credential objects; no $env in JSON); worker
+  acquisition resolver currently accepts file:// only (upload/R2 resolvers
+  exist unwired); known incident uiw-live-reject-20260828-001 root-caused to
+  the H2 stage substring(bytea) call (0048 repair lane addressed the guard).
