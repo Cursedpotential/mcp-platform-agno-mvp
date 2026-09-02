@@ -13,6 +13,7 @@ import (
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 
+	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/acquisition"
 	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/activities"
 	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/normalize"
 	platformpostgres "github.com/Cursedpotential/mcp-platform-agno-mvp/engine/postgres"
@@ -113,7 +114,32 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config) (Registrations, error) {
 	if err != nil {
 		return Registrations{}, err
 	}
-	acquisitionResolver, err := runtimeapi.NewFilesystemImmutableAcquisitionResolver(cfg.SourceObjectDir)
+	// The API boundary (runtimeapi/source_ref.go) admits only upload:// and
+	// r2:// source refs, so a worker wired with the file:// resolver alone can
+	// never resolve anything a caller is allowed to send: every run died in
+	// retain_original_activity with "acquisition reference must be a file://
+	// URI" (live rehearsal 2026-09-02, docs/reviews/2026-09-02-uiw-rehearsal-
+	// acquisition-seam.md). acquisition.NewSchemeRouter is the seam that closes
+	// this, and its own doc comment names exactly this wiring.
+	//
+	// file:// stays registered for internal callers that mint sealed refs
+	// (acquisition/seal.go returns file:// URIs); it is not reachable from the
+	// HTTP boundary. r2:// is deliberately NOT registered yet: the Go worker has
+	// no R2 credential plumbing (CASEBIBLE_R2_CONFIG_PATH is read only by the
+	// Workbench Python API), and an unregistered scheme fails closed rather than
+	// falling back to some default provider.
+	filesystemResolver, err := runtimeapi.NewFilesystemImmutableAcquisitionResolver(cfg.SourceObjectDir)
+	if err != nil {
+		return Registrations{}, err
+	}
+	uploadResolver, err := acquisition.NewUploadIngressResolver(cfg.SourceObjectDir)
+	if err != nil {
+		return Registrations{}, err
+	}
+	acquisitionResolver, err := acquisition.NewSchemeRouter(map[string]platformpostgres.ImmutableAcquisitionResolver{
+		"file":   filesystemResolver,
+		"upload": uploadResolver,
+	})
 	if err != nil {
 		return Registrations{}, err
 	}

@@ -21,55 +21,50 @@ retain original: resolve immutable acquisition:
 immutable acquisition resolver: acquisition reference must be a file:// URI
 ```
 
-## Root cause — the API boundary and the worker accept disjoint URI schemes
+## Root cause — the worker never wires the scheme router that already exists
 
-| Scheme | API accepts? (`runtimeapi/source_ref.go`) | Worker resolves? (`uiwworker/worker.go:116`) |
+`modules/engine/acquisition/` already implements the complete solution:
+
+| Symbol | Resolves | State |
 |---|---|---|
-| `upload://<sha256>` | **yes** | **no resolver exists anywhere** |
-| `r2://casebible-sorted/<key>` | **yes** | resolver EXISTS (`acquisition.NewCloudflareR2AcquisitionResolver`) but is **not wired** |
-| `b2://…` | no | resolver exists, not wired |
-| `file://<abs path>` | **no** | **yes** — the only one wired |
+| `NewUploadIngressResolver(root)` | `upload://<sha256-hex>` | built + unit-tested |
+| `NewCloudflareR2AcquisitionResolver(root, cfg)` | `r2://<bucket>/<key>` | built + unit-tested |
+| `NewBackblazeB2AcquisitionResolver(root, cfg)` | `b2://<bucket>/<key>` | built + unit-tested |
+| `NewSchemeRouter(map[scheme]resolver)` | dispatches by URI scheme | built + unit-tested |
+| `UploadIngress.ServeHTTP` | mints `upload://` refs from posted bytes | built (`acquisition/upload.go`) |
 
-**Every URI form the API accepts is unresolvable by the worker, and the only form
-the worker resolves is rejected by the API.** The intersection is empty. This is
-why no UIW run has ever completed end to end — it is not a config slip, it is an
-unclosed seam between two correct halves.
+`NewSchemeRouter`'s own doc comment names the intended wiring verbatim:
 
-`worker.go:116` wires only `runtimeapi.NewFilesystemImmutableAcquisitionResolver(cfg.SourceObjectDir)`.
+> `resolvers is keyed by lowercase URI scheme, e.g. {"file": fsResolver, "r2": r2Resolver, "b2": b2Resolver, "upload": uploadResolver}`
 
-## Secondary findings (both real, neither is the blocker)
+**`modules/engine/uiwworker/worker.go:116` bypasses the router entirely**, passing
+the bare filesystem resolver straight to `NewSourceLifecycleRepository`:
 
-1. **Duplicate `POST /reference-import/start` handlers.** `temporal/httpapi.go`
-   `StarterHTTPHandler` (tailnet IP + honors `PLATFORM_DEV_AUTH_BYPASS`) and
-   `runtimeapi/uiw_preview.go` `PreviewHTTPHandler` (tailnet IP **AND** bearer
-   service token, **ignores the bypass**). The live service runs the preview
-   handler — correct, since it carries the full HITL surface. So the **D-125 dev
-   bypass was wired to the handler that is not serving**. Consequence: n8n's
-   container egress still cannot reach the starter, because the bypass it relies
-   on is inert on the live route. Amends the D-125 §9 note.
-2. **`preview` query 503 is a symptom, not a bug.** `workflow.SetQueryHandler`
-   (`uiw/workflow.go:99`) runs *after* `retain_original`, so a run blocked there
-   never registers the handler. `KnownQueryTypes` showing only builtins is
-   expected under this failure, not evidence of a missing handler.
+```go
+acquisitionResolver, err := runtimeapi.NewFilesystemImmutableAcquisitionResolver(cfg.SourceObjectDir)
+```
 
-## Owner decision needed — how `upload://` resolves
+So the worker resolves `file://` and nothing else, while the API boundary
+(`runtimeapi/source_ref.go`) accepts only `upload://` and `r2://`. The
+intersection is empty and every UIW run dies at `retain_original_activity`.
 
-The object is already content-addressed on disk at
-`<SOURCE_OBJECT_DIR>/objects/sha256/<xx>/<sha256>.source`, published by the
-filesystem resolver's hard-link primitive. Two candidate closures:
+**This is a pure wiring gap, not a missing capability and not a design question.**
 
-- **(A) Scheme-dispatching composite resolver.** One resolver that routes by
-  scheme: `upload://<sha>` → the already-published immutable object (a lookup,
-  not a re-copy — the bytes are already sealed and hashed); `r2://` → the
-  existing Cloudflare resolver; `file://` retained for internal callers only.
-  Smallest change, wires what already exists, keeps one boundary.
-- **(B) Widen the API to accept `file://`.** Rejected on its face — it would let
-  a caller name any absolute path on the worker, which is exactly what the
-  `upload://`/`r2://` allowlist exists to prevent.
+> **CORRECTED 2026-09-02:** an earlier revision of this document claimed "no
+> resolver exists anywhere" for `upload://` and recommended writing a new
+> composite resolver. That was wrong — it was concluded from a grep scoped to the
+> wrong directories, which is precisely the "stopped at the first result" failure
+> mode. `NewUploadIngressResolver` and `NewSchemeRouter` were both already
+> written and tested on 2026-08-28 (Codex · GPT-5). No new resolver is needed and
+> no owner design decision is required; the fix is to wire the existing router.
 
-Recommendation: **(A)**. It closes the seam without weakening the boundary, and
-`upload://` resolving to an already-sealed content-addressed object is the
-semantics the digest form was clearly designed for.
+## The fix
+
+In `buildRegistrations` (`modules/engine/uiwworker/worker.go`), construct the
+filesystem, upload, and R2 resolvers and combine them with `NewSchemeRouter`
+before handing the result to `NewSourceLifecycleRepository`. `upload` and `file`
+share `cfg.SourceObjectDir`; `r2` additionally needs the R2 credentials already
+mounted at `CASEBIBLE_R2_CONFIG_PATH` (`/run/secrets/casebible-r2.json`).
 
 ## Not yet proven
 
