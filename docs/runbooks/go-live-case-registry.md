@@ -68,8 +68,27 @@ until this runbook's steps are complete.
 
 Per D-125, exactly these three apps read `PLATFORM_DEV_AUTH_BYPASS`:
 
-1. `universal-import-starter` (`deploy/universal-import-starter.yaml`) — calls
-   `ProbeUIWSchema` from `modules/engine/temporal/cmd/starter/main.go`.
+1. `universal-import-starter` (`deploy/universal-import-starter.yaml`) — reads
+   the flag in **two** independent places (BUILD LANE N2, 2026-09-02 added
+   the second):
+   - `ProbeUIWSchema` (`modules/engine/postgres/uiw_schema_probe.go`), called
+     once at boot from `modules/engine/temporal/cmd/starter/main.go` — the
+     case-registry identity/receipt admission this runbook is otherwise
+     about.
+   - `withAuth` (`modules/engine/temporal/httpapi.go`) — D-125's literal ask
+     on the starter's own HTTP surface (`POST /reference-import/start`,
+     `POST /reference-import/{workflow_id}/decision`,
+     `GET /reference-import/{workflow_id}/preview`). Flag unset (default) is
+     the unchanged strict tailnet-only check
+     (`authorizedTailnetPeer`/`100.64.0.0/10`); flag set admits a
+     non-tailnet-ranged peer (e.g. n8n running off-tailnet on ion-control)
+     but never removes the tailnet check itself, and logs one `WARN` line
+     per admitted-but-would-have-been-rejected request naming the flag, the
+     rejected `RemoteAddr`, and the route (D-127 Rule 5) — plus a one-time
+     `WARN` at `NewStarterHTTPHandler` construction when the flag is set,
+     matching `ProbeUIWSchema`'s startup-warning wording style. Both flag
+     states are covered by `modules/engine/temporal/httpapi_test.go`
+     (`TestWithAuthFlag*`, `TestNewStarterHTTPHandler*Startup*`).
 2. `universal-import-worker` (`deploy/universal-import-worker.yaml`) — calls
    `ProbeUIWSchema` from `modules/engine/uiwworker/worker.go`.
 3. `knowledge-workbench` (`deploy/workbench.yaml`) — the Workbench BFF (D-125's
@@ -255,6 +274,15 @@ window would bind to the DEV identity.
    after this step, the flag was not actually removed from that app's
    environment; check Coolify's rendered compose, not just the dashboard
    field.
+
+   For `universal-import-starter` specifically, also confirm its **second**
+   surface (`withAuth`) went strict: no `PLATFORM_DEV_AUTH_BYPASS is set`
+   warning at startup, and a probe request from a non-tailnet-ranged address
+   against `/reference-import/start` (or `/decision`, `/preview`) now
+   returns `401`, not an admitted response with a per-request `WARN` line.
+   n8n must reach this app over the tailnet from here on — confirm its
+   egress path (see the D-042 tailnet cutover notes) before removing the
+   flag, or the legitimate n8n bridge breaks the moment the flag is gone.
 
 ## What NOT to do
 

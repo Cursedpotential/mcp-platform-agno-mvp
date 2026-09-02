@@ -1,11 +1,22 @@
+// Byline: Claude Code · Sonnet 5 · 2026-09-02 (BUILD LANE N2, D-125/D-127):
+// PLATFORM_DEV_AUTH_BYPASS now honored by withAuth. Flag OFF (default,
+// unset, or any non-truthy value) is unchanged strict behavior -- only a
+// tailnet-ranged r.RemoteAddr is authorized. Flag ON does not remove the
+// tailnet check; it relaxes what happens when that check fails: the request
+// is admitted, but every admission logs a WARN line naming the flag, the
+// rejected RemoteAddr, and the route, so a flag-relaxed request is never
+// silent (D-127 Rule 5). See engine/postgres/uiw_schema_probe.go for the
+// sibling admission surface this flag also governs (D-126).
 package temporal
 
 import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/google/uuid"
@@ -30,6 +41,10 @@ func NewStarterHTTPHandler(starter WorkflowStarter) (*StarterHTTPHandler, error)
 	if starter == nil {
 		return nil, errors.New("temporal: starter HTTP handler requires a WorkflowStarter")
 	}
+	if devAuthBypassEnabled() {
+		slog.Warn("UIW starter HTTP auth: PLATFORM_DEV_AUTH_BYPASS is set -- non-tailnet peers will be admitted to reference-import routes, each admission logged individually (D-125, D-127); remove this flag before go-live",
+			"flag", platformDevAuthBypassEnv)
+	}
 	return &StarterHTTPHandler{starter: starter}, nil
 }
 
@@ -52,11 +67,26 @@ func (h *StarterHTTPHandler) Routes() http.Handler {
 
 func (h *StarterHTTPHandler) withAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !authorizedTailnetPeer(r) {
-			writeStarterError(w, http.StatusUnauthorized, errors.New("reference import starter authorization required"))
+		// D-127 Rule 4: the tailnet check itself stays intact and is always
+		// evaluated -- the flag never deletes it, it only decides what
+		// happens when it fails.
+		if authorizedTailnetPeer(r) {
+			next(w, r)
 			return
 		}
-		next(w, r)
+		if devAuthBypassEnabled() {
+			// D-127 Rule 5: never suppress a relaxed check into silence.
+			// One WARN line per admitted-but-would-have-been-rejected
+			// request, naming the flag, the rejected peer, and the route.
+			slog.Warn("UIW starter HTTP auth: PLATFORM_DEV_AUTH_BYPASS admitted a non-tailnet peer (D-125, D-127) -- remove this flag before go-live",
+				"flag", platformDevAuthBypassEnv,
+				"remote_addr", r.RemoteAddr,
+				"method", r.Method,
+				"path", r.URL.Path)
+			next(w, r)
+			return
+		}
+		writeStarterError(w, http.StatusUnauthorized, errors.New("reference import starter authorization required"))
 	}
 }
 
@@ -194,6 +224,28 @@ func authorizedTailnetPeer(r *http.Request) bool {
 	}
 	ip := net.ParseIP(host).To4()
 	return ip != nil && ip[0] == 100 && ip[1] >= 64 && ip[1] <= 127
+}
+
+// platformDevAuthBypassEnv is the one flag D-125 defines for every ingest
+// surface (this starter HTTP layer, the Workbench BFF, and -- per D-126 --
+// engine/postgres's schema-admission probe). Default OFF, fail-closed:
+// unset or anything but a truthy value means STRICT, i.e. unchanged
+// tailnet-only behavior.
+const platformDevAuthBypassEnv = "PLATFORM_DEV_AUTH_BYPASS"
+
+// devAuthBypassEnabled reads PLATFORM_DEV_AUTH_BYPASS directly rather than
+// taking a parameter, mirroring engine/postgres.devAuthBypassEnabled: D-125
+// defines one process-wide flag, not a value threaded through every caller.
+// Truthy values match D-125's own documented example
+// (PLATFORM_DEV_AUTH_BYPASS=1) plus the usual spellings; anything else,
+// including unset, is OFF (fail-closed default).
+func devAuthBypassEnabled() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(platformDevAuthBypassEnv))) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
 }
 
 func securityHeaders(next http.Handler) http.Handler {
