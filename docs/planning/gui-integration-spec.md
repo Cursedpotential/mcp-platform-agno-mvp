@@ -108,7 +108,7 @@ CopilotKit/AG-UI shell absorbs its role in G1 and `agent-ui` then becomes a fall
 
 | Candidate | What it adds | Integration mode |
 |---|---|---|
-| **Evidence.dev** (already running; owner wants more detail) | SQL+markdown BI reports. Speaks **Postgres AND DuckDB natively** — with our `pg_duckdb` PG18 it can query the `analysis` schema and R2 parquet directly. "More detail" = author more report pages (offline-buildable unit) | Static build → iframe at `/x/reports/` |
+| **Evidence.dev** (~~already running~~ **NOT currently deployed for this platform — corrected 2026-09-02, D-129**: its only project moved to traceIQ 2026-08-25, commit 557294c; the decision to use it was never reversed and re-establishing a project here is owed work) | SQL+markdown BI reports. Speaks **Postgres AND DuckDB natively** — with our `pg_duckdb` PG18 it can query the `analysis` schema and R2 parquet directly. "More detail" = author more report pages (offline-buildable unit) | Static build → iframe at `/x/reports/` |
 | **Claude Code history viewer** (owner-requested; exact repo TBC) | Browse Claude Code session history. Candidates: `d-kimuson/claude-code-viewer` (web, most embeddable), `InDate/claude-log-viewer`, `daaain/claude-code-log` (static HTML output). Long game: a native shell transcript-viewer over ingested NormalizedRecords covers ALL sources, not just Claude | Embed OSS viewer now (`/x/claude-history/`); native G5 page later |
 | **NeoDash** (neo4j-labs) | No-code dashboards straight over Neo4j/Graphiti: entity networks, relationship timelines, incident maps — biggest forensic-viz win | iframe `/x/neodash/` |
 | **Surrealist** | SurrealDB admin UI (parallels Attu-for-Milvus) | iframe `/x/surreal/` |

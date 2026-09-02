@@ -67,8 +67,13 @@ scripts/        format.sh, validate.sh, ingest_*, generate_requirements.sh, repa
 knowledge/      curated knowledge inputs (NEVER secrets/case-data)
 docs/           canon + the authoritative docs + adr/ + planning/ + wiki/ + visualizations/
 tests/          the pytest suite (208)
-analytics/      standalone Evidence.dev (evidence.dev) reporting projects, one subdir each
-                (e.g. analytics/visit-locations/) — NOT server/, NOT imported by app code
+analytics/      ~~standalone Evidence.dev reporting projects, one subdir each~~
+                **CORRECTED 2026-09-02 (D-129): this directory does not exist here and is
+                gitignored (.gitignore:97).** Its only project, visit-locations, was moved to
+                Projects/traceIQ/traceiq-rebuild by owner order 2026-08-25 (commit 557294c).
+                Evidence.dev remains the decided reporting lane — see D-129 — but no
+                platform-owned Evidence project has been re-established yet. Do not read the
+                absence of analytics/ as the tool having been dropped.
 deploy/         ONE compose file per Coolify application (S10, 2026-08-10, D-043): exec, gateway,
                 contextforge, platform-tools, sandbox, desktop, portkey, coolify-mcp, data-pg,
                 data-neo4j, data-graphiti, data-graphiti-case, data-vector, data-weaviate,
