@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SBV, Go Temporal, and Universal Parsing Boundary</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0b1020; --panel:#141b2d; --ink:#eef3ff; --muted:#aeb9d4; --line:#30405f; --ok:#55d6a9; --warn:#ffc766; --bad:#ff7e8a; --accent:#7bb5ff; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; }
+    main { max-width:1180px; margin:auto; padding:32px 20px 72px; }
+    h1,h2,h3 { line-height:1.2; }
+    h1 { margin-bottom:6px; }
+    h2 { margin-top:34px; border-bottom:1px solid var(--line); padding-bottom:8px; }
+    a { color:var(--accent); }
+    code { color:#d8e8ff; }
+    .meta,.muted { color:var(--muted); }
+    .decision { border:2px solid var(--ok); background:#10251f; padding:18px; border-radius:12px; margin:22px 0; }
+    .warning { border-left:5px solid var(--warn); background:#282215; padding:14px 18px; }
+    .bad { border-left:5px solid var(--bad); background:#2b171d; padding:14px 18px; }
+    .flow { display:grid; grid-template-columns:repeat(5,minmax(130px,1fr)); gap:12px; align-items:stretch; }
+    .box { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; }
+    .arrow { color:var(--accent); font-size:22px; text-align:center; align-self:center; }
+    table { width:100%; border-collapse:collapse; margin:14px 0; }
+    th,td { border:1px solid var(--line); padding:9px 11px; text-align:left; vertical-align:top; }
+    th { background:#1c2740; }
+    tr:nth-child(even) td { background:#10172a; }
+    .yes { color:var(--ok); font-weight:700; }
+    .no { color:var(--bad); font-weight:700; }
+    pre { white-space:pre-wrap; background:#080d19; border:1px solid var(--line); border-radius:10px; padding:16px; overflow:auto; }
+    @media (max-width:900px) { .flow { grid-template-columns:1fr; } .arrow { transform:rotate(90deg); } }
+  </style>
+</head>
+<body>
+<main>
+  <h1>SBV, Go Temporal, and Universal Parsing Boundary</h1>
+  <div class="meta">Owner clarification and verified implementation handoff · 2026-08-26 · HTML is the durable review surface</div>
+
+  <section class="decision">
+    <strong>Settled target:</strong> one Go-based Temporal orchestration runtime drives every import.
+    SBV is an optional visual client. Parsers are small language-independent adapters that only parse.
+    Every source follows the same workflow, contract, receipts, rules, and PostgreSQL destination.
+  </section>
+
+  <h2>1. One system, not parser-specific pipelines</h2>
+  <div class="flow">
+    <div class="box"><strong>Clients</strong><br>Agent<br>API client<br>SBV web UI</div>
+    <div class="arrow">→</div>
+    <div class="box"><strong>Platform API</strong><br>Submit<br>Query status<br>Review/correct</div>
+    <div class="arrow">→</div>
+    <div class="box"><strong>Go Temporal runtime</strong><br>UniversalImportWorkflow<br>Durable state<br>Bounded parallelism</div>
+  </div>
+  <div class="flow" style="margin-top:12px">
+    <div class="box"><strong>Tool adapters</strong><br>Go · Python · JS/TS<br>ExifTool · ffmpeg<br>Other existing tools</div>
+    <div class="arrow">→</div>
+    <div class="box"><strong>Common envelopes</strong><br>RawExtractionBundle<br>MetadataManifest<br>ActivityReceipt</div>
+    <div class="arrow">→</div>
+    <div class="box"><strong>PostgreSQL</strong><br>Raw source tables<br>Normalized tables<br>Lineage + receipts</div>
+  </div>
+
+  <p>The browser is never required for processing. An agent uses the same API as SBV. The Go workflow
+  remains alive through worker restarts; large inputs live in immutable storage/PostgreSQL, not in Go
+  memory or Temporal history.</p>
+
+  <h2>2. Universal workflow</h2>
+  <p>Every source executes these stages. Each Activity has exactly one atomic responsibility,
+  one side-effect boundary, one retry policy, and one receipt. A non-applicable stage writes an
+  explicit <code>not_applicable</code> receipt; it never disappears or silently bypasses the contract.</p>
+  <table>
+    <thead><tr><th>#</th><th>Go Temporal Activity</th><th>Responsibility</th><th>Compact result</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><code>register_source_activity</code></td><td>Create only the source/version identity and workflow idempotency coordinate.</td><td>Source/version reference</td></tr>
+      <tr><td>2</td><td><code>retain_original_activity</code></td><td>Retain only the immutable original bytes or immutable external object reference.</td><td>Original-object reference</td></tr>
+      <tr><td>3</td><td><code>capture_filesystem_metadata_activity</code></td><td>Capture only acquisition-side filesystem/path metadata and its provenance.</td><td>Filesystem metadata reference</td></tr>
+      <tr><td>4</td><td><code>hash_source_activity</code></td><td>Compute only H1 over the untouched original source bytes.</td><td>H1 receipt reference</td></tr>
+      <tr><td>5</td><td><code>inventory_container_activity</code></td><td>Enumerate only files, archive members, attachments, database objects, and hierarchy.</td><td>Container manifest reference</td></tr>
+      <tr><td>6</td><td><code>extract_embedded_metadata_activity</code></td><td>Extract only embedded/container/media metadata through specialist tools.</td><td>Metadata manifest reference</td></tr>
+      <tr><td>7</td><td><code>select_parser_activity</code></td><td>Select one registered adapter by declared format coverage and quality.</td><td>Parser selection receipt</td></tr>
+      <tr><td>8</td><td><code>execute_parser_activity</code></td><td>Parse only; emit a <code>RawExtractionBundle</code> reference.</td><td>Immutable bundle reference</td></tr>
+      <tr><td>9</td><td><code>persist_raw_generation_activity</code></td><td>Persist only the complete raw bundle into the governed source-format raw generation.</td><td>Raw generation receipt</td></tr>
+      <tr><td>10</td><td><code>hash_raw_records_activity</code></td><td>Compute only exact raw record/span/attachment digests after raw persistence.</td><td>Raw hash-manifest reference</td></tr>
+      <tr><td>11</td><td><code>reconcile_record_accounting_activity</code></td><td>Verify only expected/emitted/rejected/ignored record and attachment counts/order.</td><td>Accounting receipt</td></tr>
+      <tr><td>12</td><td><code>reconcile_byte_coverage_activity</code></td><td>Verify only byte/span coverage and explain every gap.</td><td>Coverage receipt</td></tr>
+      <tr><td>13</td><td><code>verify_raw_coverage_against_source_activity</code></td><td>Compare only the raw coverage/recomposition proof against H1; do not normalize.</td><td>Raw/source verification receipt</td></tr>
+      <tr><td>14</td><td><code>normalize_generation_activity</code></td><td>Transform raw values into one normalized bundle; perform no persistence.</td><td>Normalized bundle reference</td></tr>
+      <tr><td>15</td><td><code>persist_normalized_generation_activity</code></td><td>Persist only the normalized bundle as an unsealed generation.</td><td>Normalized generation reference</td></tr>
+      <tr><td>16</td><td><code>persist_lineage_activity</code></td><td>Persist only raw-to-normalized derivation edges and field/span mappings.</td><td>Lineage-set reference</td></tr>
+      <tr><td>17</td><td><code>validate_raw_lineage_activity</code></td><td>Validate only that every normalized member resolves through enforced raw FKs.</td><td>Lineage validation receipt</td></tr>
+      <tr><td>18</td><td><code>hash_normalized_records_activity</code></td><td>Compute only H2 for each canonical normalized message/record.</td><td>H2 member-manifest reference</td></tr>
+      <tr><td>19</td><td><code>hash_normalized_generation_activity</code></td><td>Compute only H3 over the exact ordered H2 membership of the conversation/import generation.</td><td>H3 receipt reference</td></tr>
+      <tr><td>20</td><td><code>verify_normalized_generation_activity</code></td><td>Recompute and compare only the H2/H3 membership proof.</td><td>Normalized verification receipt</td></tr>
+      <tr><td>21</td><td><code>seal_generation_activity</code></td><td>Atomically freeze only the reconciled generation, versions, and membership.</td><td>Sealed generation receipt</td></tr>
+      <tr><td>22</td><td><code>publish_generation_activity</code></td><td>Publish only the completion/outbox event after sealing.</td><td>Publication receipt</td></tr>
+    </tbody>
+  </table>
+
+  <p>Independent work may run in parallel—for example original-byte fingerprinting, container inventory,
+  filesystem metadata capture, and embedded metadata extraction—but the workflow joins them before raw reconciliation. Use bounded child
+  workflows or batches for large containers, heartbeats for long work, and Continue-As-New before history
+  grows without bound. Never create one Temporal Activity per record.</p>
+
+  <h3>Four hash computations; verification is separate</h3>
+  <table>
+    <thead><tr><th>Output</th><th>Hashes</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td>H1</td><td>Untouched original source bytes</td><td>Identity of the acquired binary/file.</td></tr>
+      <tr><td>Raw-record digest set</td><td>Exact raw spans, records, and attachments</td><td>Proves the lossless extraction pieces and supports raw-to-source coverage verification.</td></tr>
+      <tr><td>H2</td><td>Each canonical normalized message/record</td><td>Stable identity of each normalized member.</td></tr>
+      <tr><td>H3</td><td>Exact ordered H2 membership</td><td>Integrity of the sealed conversation or import generation.</td></tr>
+    </tbody>
+  </table>
+  <p>H3 is not compared for equality with H1 because they hash different representations. Raw byte/span
+  coverage is verified against H1; normalized H2/H3 membership is recomputed and verified against its
+  sealed manifest.</p>
+
+  <h2>3. Parser contract: parse, and nothing else</h2>
+  <pre>ParserInput {
+  source_version_ref
+  file_or_member_ref
+  declared_format
+  parser_options_ref
+}
+
+RawExtractionBundle {
+  contract_version
+  parser_id + parser_version
+  source_version_ref
+  format_id
+  ordered raw records with exact locators
+  source-native fields and encountered metadata
+  attachment/member references
+  rejected, malformed, unknown, and unparsed spans
+  warnings and deterministic counts
+}</pre>
+
+  <table>
+    <thead><tr><th>Parser does</th><th>Parser never does</th></tr></thead>
+    <tbody>
+      <tr><td>Decode its declared format</td><td>Hash or establish custody</td></tr>
+      <tr><td>Return source-native records and fields</td><td>Write PostgreSQL or own operational state</td></tr>
+      <tr><td>Preserve order and exact locators</td><td>Normalize, deduplicate, enrich, or classify</td></tr>
+      <tr><td>Report attachments, failures, and unknown spans</td><td>Schedule fallback, retries, or other tools</td></tr>
+      <tr><td>Expose encountered native metadata</td><td>Promote evidence, extract claims, or publish projections</td></tr>
+    </tbody>
+  </table>
+
+  <p>An adequate existing Python or other-language parser is reused. Go is required for the main
+  orchestration runtime, not as a rewrite mandate for every parser.</p>
+
+  <h2>4. Lossless raw and metadata contract</h2>
+  <p><strong>Preservation and interpretation are separate guarantees.</strong> The immutable original blob is
+  the byte-for-byte authority. Raw extraction accounts for its logical records and retains exact bytes or
+  byte-range/object references wherever a parser establishes them. Unknown or undecoded material remains
+  retained with a reason; it is never dropped.</p>
+  <table>
+    <thead><tr><th>Metadata class</th><th>Examples</th><th>Required treatment</th></tr></thead>
+    <tbody>
+      <tr><td>Filesystem/acquisition</td><td>Path, filename, size, birth/created/modified/accessed times, owner, permissions</td><td>Keep original values and identify the acquisition environment; these values may not be embedded in the file.</td></tr>
+      <tr><td>Embedded</td><td>EXIF, XMP, IPTC, PDF/Office properties, email headers, GPS, device/software IDs</td><td>Keep the complete native metadata object plus useful typed/indexed columns.</td></tr>
+      <tr><td>Container</td><td>ZIP members, folder hierarchy, internal timestamps, compression, archive headers</td><td>Create stable member/file locators and parent-child relationships.</td></tr>
+      <tr><td>Media/tool</td><td>Codec, duration, dimensions, streams, thumbnails, extractor warnings/version</td><td>Separate source metadata from tool-derived interpretation and record provenance.</td></tr>
+      <tr><td>Record-native</td><td>Unknown JSON keys, flags, headers, reactions, edits, deletions, raw timestamps</td><td>Retain every field in the source-format raw row even when normalization does not yet use it.</td></tr>
+    </tbody>
+  </table>
+
+  <p>Each parser-declared source format has its own raw payload table. Those tables are physical
+  subdivisions behind one PostgreSQL persistence Activity and one common base contract—not alternate
+  workflows or destinations.</p>
+
+  <h2>5. Enforced raw-to-normalized lineage</h2>
+  <pre>context.raw_record_identity
+  ├── source_version_id
+  ├── raw_generation_id
+  ├── format_id + ordinal + exact locator
+  └── context.raw_&lt;format&gt; (same id; native payload and metadata)
+
+context.normalized_record_identity
+  └── typed normalized table (same id)
+
+context.normalization_lineage
+  ├── normalized_record_id  FK → normalized identity
+  ├── raw_record_id         FK → raw identity
+  ├── source span / derivation role / field map
+  └── normalizer id + version</pre>
+
+  <p>The two identity spines contain identity and referential integrity, not a second copy of raw or
+  normalized content. This preserves per-format raw tables while eliminating the current unenforceable
+  <code>raw_table TEXT + raw_id UUID</code> pointer. The join supports one raw record producing multiple
+  normalized records and one normalized record using multiple raw records.</p>
+
+  <h2>6. SBV boundary</h2>
+  <table>
+    <thead><tr><th>SBV keeps</th><th>Moves behind the platform API/Temporal</th></tr></thead>
+    <tbody>
+      <tr><td>Upload/submit UI, source browsing, raw/normalized comparison, search, progress, failures</td><td>Synchronous import execution and parser routing</td></tr>
+      <tr><td>Metadata, attachment, byte-accounting, and lineage views</td><td>In-memory jobs, goroutines, directory scheduler, and process-global import mutex</td></tr>
+      <tr><td>Annotations and bulk proposed corrections</td><td>Hash invocation, attachment conversion, canonical persistence, and workflow state</td></tr>
+      <tr><td>Read model/cache only if still useful</td><td>SQLite authority for imports, custody, audit, or canonical records</td></tr>
+    </tbody>
+  </table>
+  <p>Corrections create immutable amendment candidates and signal a reprocessing/reconciliation workflow.
+  They never mutate the original raw generation.</p>
+
+  <h2>7. Verified current drift</h2>
+  <div class="bad">
+    <ul>
+      <li>SBV currently performs upload retention, H1, parsing, H2/H3, conversion, SQLite persistence, audit, and in-memory job control inside the web service.</li>
+      <li>The existing Python Temporal workflow is inert, chat-specific, and uses the obsolete custody → parse → store → knowledge sequence.</li>
+      <li>The general ingest API bypasses Temporal through in-process/direct calls.</li>
+      <li>Full parser record arrays currently cross Temporal history.</li>
+      <li>No production writer was found for the existing six raw messaging tables; several ingest paths write normalized tables directly.</li>
+      <li>Current normalized-to-raw coordinates are nullable text/UUID pairs with no FK and are not populated by the normal store path.</li>
+      <li>Current raw coverage omits document, PDF, email, media, OCR, archive, and other source families; JSONB alone is not byte-lossless.</li>
+    </ul>
+  </div>
+
+  <h2>8. Collision-safe implementation lanes</h2>
+  <table>
+    <thead><tr><th>Lane</th><th>Ownership</th><th>Depends on</th></tr></thead>
+    <tbody>
+      <tr><td>A — Contracts</td><td>Versioned API, RawExtractionBundle, metadata manifest, receipts, adapter capability registry</td><td>Owner boundary in this document</td></tr>
+      <tr><td>B — PostgreSQL</td><td>Context source/generation identities, raw-format base rules, metadata/file tree, lineage FKs, reconciliation</td><td>Lane A field contracts</td></tr>
+      <tr><td>C — Go Temporal runtime</td><td>UniversalImportWorkflow, task queues, bounded parallelism, API start/query/signal, retry and history controls</td><td>Lane A; DB interfaces from B</td></tr>
+      <tr><td>D — Parser adapters</td><td>Wrap existing Go/Python/JS/native parsers without adding orchestration or persistence</td><td>Lane A contract</td></tr>
+      <tr><td>E — SBV visual split</td><td>Remove runtime ownership; consume platform query/command API; add raw/metadata/lineage/review views</td><td>Lane A API; C query surface</td></tr>
+      <tr><td>F — Cutover and live proof</td><td>Route every entrypoint through Go Temporal, compatibility reads, Coolify deploy, live all-format matrix</td><td>A–E</td></tr>
+    </tbody>
+  </table>
+
+  <h2>9. Implementation progress — 2026-08-26</h2>
+  <table>
+    <thead><tr><th>Slice</th><th>Result</th><th>Verification</th></tr></thead>
+    <tbody>
+      <tr><td>Language-neutral contract</td><td class="yes">IMPLEMENTED</td><td><code>contracts/import/v1/</code>: 13 Draft 2020-12 schemas, 12 examples, cross-file references, and fail-closed negative cases. Parser output contains no platform-minted ID/timestamp; normalization contains no persistence or realization fields.</td></tr>
+      <tr><td>Go atomic stage graph</td><td class="yes">IMPLEMENTED</td><td><code>engine/stagegraph/</code>: all 23 atomic stages, exact dependencies, five distinct hash computations (H1/H2/H3 raw custody, with platform raw-all membership explicitly tagged, plus a separately-named normalized-record/normalized-generation-manifest digest pair — never called H2/H3), separate verification, and safe parallel fan-outs.</td></tr>
+      <tr><td>Go Temporal workflow</td><td class="yes">IMPLEMENTED</td><td><code>engine/uiw/</code> on Temporal Go SDK v1.48.0: one reference-only workflow, bounded per-stage options, fail-closed results, durable receipt refs, idempotency propagation, and no parser-specific workflow.</td></tr>
+      <tr><td>Five Go hashing Activity bodies</td><td class="yes">IMPLEMENTED</td><td><code>engine/activities/</code>: streamed and bounded H1/H2/H3 raw custody plus distinctly named normalized-record and normalized-generation digests; the canonical SBV fold implementation is reused under the exact platform raw-all membership tag; cancellation aborts partial batches; only compact result/receipt references return to Temporal.</td></tr>
+      <tr><td>Source and parser Activity bodies</td><td class="yes">12 / 23 IMPLEMENTED</td><td><code>engine/activities/</code> now implements and exactly registers five hash Activities, register/retain, filesystem metadata, container inventory, embedded metadata, and parser select/execute. Parser execution pins the selected parser ID/version and fails closed on registry drift. Eleven post-parse persistence, reconciliation, normalization, verification, seal, and publish bodies remain.</td></tr>
+      <tr><td>PostgreSQL raw/lineage foundation</td><td class="yes">LIVE ROLLBACK VERIFIED</td><td><code>sql/0036_context_import_foundation.sql</code> and targeted tests implement the context-only source/raw/normalized/lineage/receipt foundation and bounded hash manifests. <code>scripts/validate_0036_live.py</code> executed the full migration inside a rollback-only transaction on live PostgreSQL 18 and proved the before/after relation inventory was unchanged. That validation found and corrected invalid <code>activity_receipt</code> constraints referencing undeclared columns. The migration has <strong>not</strong> been applied.</td></tr>
+      <tr><td>Automated verification</td><td class="yes">GREEN</td><td>Contract meta-schema/examples/negative cases pass; <code>gofmt</code>, <code>go vet</code>, all Go tests, 19 targeted migration tests, and the rollback-only live PG18 migration execution pass.</td></tr>
+      <tr><td>PostgreSQL hash repository adapter</td><td class="yes">IMPLEMENTED / LOCALLY VERIFIED</td><td><code>engine/postgres/</code> streams original/raw/normalized bytes and ordered digest members, uses durable short-transaction batches, records Temporal attempts, resumes/verifies retries, and binds exact generation-scoped digest-set receipts. Full Go tests and the corrected migration's live rollback execution pass.</td></tr>
+      <tr><td>Concrete lifecycle/parser/observation stores</td><td style="color:var(--warn)">IN PROGRESS</td><td>Separate collision-safe lanes are implementing exact PostgreSQL Activity receipts, retained-object transitions, parser-selection pins, streaming bundle references, source metadata, and container manifests.</td></tr>
+      <tr><td>API/SBV cutover + Coolify live proof</td><td class="no">NOT IMPLEMENTED</td><td>Existing direct/SBV/legacy Temporal routes remain until compatible Activities and PostgreSQL persistence exist.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>10. Non-negotiable acceptance gates</h2>
+  <ol>
+    <li>Every entrypoint—agent, API, CLI, SBV, watcher, and bulk action—starts the same Go workflow.</li>
+    <li>Every Activity has one atomic responsibility; no parse-and-store, normalize-and-persist, hash-and-commit, or seal-and-publish combination exists.</li>
+    <li>Every adapter returns the same versioned raw envelope and cannot write canonical state.</li>
+    <li>Every source has retained original bytes, complete metadata manifests, raw records, failures, and accounting receipts.</li>
+    <li>Every committed normalized record has database-enforced raw lineage.</li>
+    <li>Temporal history contains compact references only; restart and duplicate-trigger tests remain idempotent.</li>
+    <li>SBV may be stopped while an agent starts, observes, and completes an import through the API.</li>
+    <li>No source family has a shortcut, alternate database, reduced workflow, or silent skipped stage.</li>
+    <li>Production completion requires commit, Coolify deployment, and live source-family verification.</li>
+  </ol>
+
+  <div class="warning"><strong>Status:</strong> the language-neutral contracts, atomic Go stage graph,
+  Go Temporal workflow, twelve Activity bodies, the PostgreSQL hash adapter, and the PostgreSQL raw/lineage migration are implemented
+  and locally verified. Migration 0036 also passes rollback-only execution against live PostgreSQL 18 but is not yet applied;
+  the remaining eleven Activity bodies, final PG repository integration, SBV/API cutover, Coolify
+  deployment, and live source-family verification remain open;
+  this document does not claim production completion.</div>
+</main>
+</body>
+</html>

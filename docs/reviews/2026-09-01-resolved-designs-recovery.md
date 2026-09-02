@@ -14,9 +14,15 @@
   were referenced repeatedly in session transcripts and in agent lane prompts —
   and have **zero git history**. They were never committed anywhere.
 - Decision-log entries **D-072 through D-080 never landed** in
-  `docs/DECISION_LOG.md` (the log jumps over them; the 08-25 session recorded
-  "decision log D-077 updated" — that update is not in the committed file).
-  Backfill remains OPEN — reconstruct from transcripts, do not fabricate.
+  `docs/DECISION_LOG.md` (the log jumped over them; the 08-25 session recorded
+  "decision log D-077 updated" — that update was not in the committed file).
+  ~~Backfill remains OPEN~~ **RESOLVED 2026-09-02: D-072–D-081 recovered
+  VERBATIM from Codex session rollouts and inserted into DECISION_LOG.md in
+  numeric order; provenance per row in
+  `docs/pending-review/D-072-D-080-backfill.md`. The three lost 08-25 ruling
+  docs were likewise reconstructed from rollouts into
+  `docs/reviews/2026-08-25-schema-audit/` (two full, one partial — see its
+  RECOVERY-NOTE.md for exact gaps).**
 - The external review artifacts lived only in `Downloads/`. As of this commit
   they are tracked under `docs/reviews/2026-08-31-external-reviews/`.
 
