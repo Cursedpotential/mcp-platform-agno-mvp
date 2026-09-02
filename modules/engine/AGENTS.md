@@ -1,27 +1,46 @@
-# AGENTS.md — Workbench browser application
+# modules/engine — the Go engine
 
-> _Byline: Codex · GPT-5.6-Sol · 2026-08-30._
+> _Byline: Claude Code · Opus 5 · 2026-09-02 (created; this directory had no AGENTS.md,
+> only AGENT_MEMORY.md — the atomicity rule below is why that gap mattered)._
 
-- This subtree is React + Vite + TypeScript. Do not restore Next.js conventions, imports, runtime
-  environment access, server components, or server actions.
-- Browser build-time variables use `import.meta.env.VITE_*`. The production default is same-origin;
-  do not bake a private service address into the client bundle.
-- TanStack Router owns browser navigation. Preserve deep-link behavior through the FastAPI SPA
-  fallback and keep unknown `/api`, health, docs, and asset paths as real 404 responses.
-- Storybook uses the React/Vite builder. A Storybook build proves component compilation, not the
-  deployed application or live API wiring.
-- Finish and smoke-test one functional operator path before exposing another navigation
-  destination. Do not advertise disconnected advanced surfaces.
-- PostgreSQL and durable backend receipts remain authoritative. Browser state cannot promote,
-  approve, or rewrite evidence by implication.
-- Glide Data Grid is the target for data-heavy operator tables; migrate one complete table at a
-  time and preserve its API/custody contract.
-- Desktop/Tauri packaging is deferred until the browser application is complete. Keep desktop
-  filesystem, IPC, and SQLite adapters outside browser-only modules.
-- Run `npm run lint`, `npm run build`, `npm run smoke`, and `npm run build-storybook` for product
-  changes. Coolify revision and live browser proof are separate required gates.
+This module owns custody hashing, acquisition, format decoding, parsing, chunking,
+normalization, and the Universal Import Workflow (UIW) stage graph. It is its own Go
+module (`go.mod` here, not at the repo root) — build and test from this directory:
 
-> _Sprint-mode policy REMOVED 2026-08-25 on owner order ("you're grounded — remove it entirely"). Confirm-and-discuss-before-changing is back in force._
+```bash
+go build ./...   # from modules/engine/
+go vet ./...
+go test ./...
+```
+
+## Package map
+
+| Package | Owns |
+|---|---|
+| `acquisition/` | sealing source objects; the scheme router (`file://`, `upload://`, `r2://`, `b2://`) |
+| `parser/` | the parser contract + registry; one adapter selected by declared coverage |
+| `adapters/` | concrete parser adapters over the decoder library |
+| `chunk/` | deterministic document-markdown chunking (separate from parsing by ruling) |
+| `normalize/` | normalized-record production |
+| `stagegraph/` | the 26 UIW stages and their dependency edges |
+| `uiw/` | the Temporal workflow: sequencing, gates, signals, queries |
+| `uiwworker/` | worker wiring — where resolvers and repositories are constructed |
+| `activities/` | Activity bodies |
+| `postgres/` | repositories; the schema admission probe |
+| `runtimeapi/` | HTTP surfaces and filesystem boundaries |
+
+## Boundaries that are rulings, not preferences
+
+- **Custody hashing never moves.** It stays in Go, computed over raw bytes before any
+  decoding or normalization (H1 -> H2 -> H3 -> only then normalize). `pg_duckdb`
+  transforms; it never writes custody.
+- **Parsing and chunking are separate stages, not two halves of one.** Already-
+  normalized text (markdown, plain text, AI work products) routes straight to
+  `chunk/` with no parse step.
+- **The API boundary admits only `upload://` and `r2://`.** `file://` exists for
+  internal sealed refs. Wire every scheme through `acquisition.NewSchemeRouter` — a
+  resolver registered directly is the defect that blocked all ingest until
+  2026-09-02 (`docs/reviews/2026-09-02-uiw-rehearsal-acquisition-seam.md`).
 
 ## ATOMICITY — every unit must be assignable to a Temporal Activity
 
