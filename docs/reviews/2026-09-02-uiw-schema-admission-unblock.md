@@ -304,3 +304,181 @@ should record this one too, once applied, per §3.
 4. Once 1–3 are resolved and a receipt row exists, `ProbeUIWSchema` should
    pass cleanly with `sql/0066`'s grants already in place — no further
    grants migration should be needed for the currently-known code paths.
+
+---
+
+## 8. BUILD LANE S2 — items 1 and 2 fixed (2026-09-02)
+
+> _Byline: Claude Code · Sonnet 5 · 2026-09-02._
+
+Scope: fix the two remaining-blocking items §7 called out as unambiguous
+(the Go ledger-query bug, and the 0054 constraint drift), leaving only
+§7 item 3 (receipt identity — an owner decision) blocking. Touched only
+`modules/engine/postgres/uiw_schema_probe.go` (+its test) and
+`sql/0067_uiw_admission_constraint_repair.sql`, plus this section. No git
+commit made.
+
+### 8.1 Go fix — `uiw_schema_probe.go`
+
+Two changes, both scoped to the ledger check:
+
+1. **`ledgerCount` subquery** retargeted from `public.schema_version` (0 rows,
+   not a ledger — D-109) to `ops.migration_ledger` (61 rows live, the real
+   ledger per D-109/sql/0055 PART 5). `ops.migration_ledger` has no `status`
+   column, so the `AND status='active'` predicate is dropped — presence of a
+   `migration_id` row in that table means applied, full stop.
+2. **Write-safety guard** (`grantsExact` clause) retargeted from
+   `NOT has_table_privilege('platform_runtime','public.schema_version','INSERT')`
+   to the same check against `ops.migration_ledger`. Reasoning (also inlined
+   as a code comment at the call site): the guard's intent is "platform_runtime
+   must never be able to forge ledger history" — that intent has to track
+   whichever table is *actually* the ledger. Denying INSERT on the old
+   data-contract-version table no longer protects anything now that writing
+   rows there can't masquerade as applied-migration state; the guard was
+   retargeted rather than duplicated, so there is exactly one ledger-integrity
+   assertion and it points at the table that matters. Live-verified before
+   writing the guard: `platform_runtime` already lacks INSERT on
+   `ops.migration_ledger` (0066 granted `SELECT (migration_id)` only), so the
+   retargeted guard passes today without any further grant.
+
+No other line in the probe query changed — `requiredUIWMigrations`,
+`requiredUIWTables`, `requiredUIWColumns`, the FK/CHECK/UNIQUE shape checks,
+the substrate/role/receipt checks, and all Go control flow after `.Scan(...)`
+are untouched.
+
+**Test coverage added:** `TestProbeUIWSchemaLedgerQueriesTheRealLedger` in
+`uiw_schema_probe_test.go`, using the existing `capturingProbeDB` harness. It
+strips `--` SQL line-comments (so the D-109 explanatory comments, which
+legitimately name `public.schema_version` for context, don't trip the
+assertion) and then asserts the *executable* SQL (a) queries
+`FROM ops.migration_ledger`, (b) contains no reference to
+`public.schema_version`, and (c) asserts
+`has_table_privilege('platform_runtime','ops.migration_ledger','INSERT')` is
+false. All prior tests (`AdmitsExactPlatformContract`,
+`CastsCatalogNamesBeforeTextArrayComparison`, `RejectsLegacy0043Substitution`,
+`RejectsWrongIdentityOrScope`, `HidesCatalogError`) pass unmodified.
+
+**Build/test (from `modules/engine`, `-mod=vendor -tags fts5`):**
+
+```
+go build -mod=vendor -tags fts5 ./...        # clean, no output
+go vet   -mod=vendor -tags fts5 ./...        # clean, no output
+go test  -mod=vendor -tags fts5 ./postgres/... -run TestProbeUIWSchema -v
+  --- PASS: TestProbeUIWSchemaAdmitsExactPlatformContract (0.00s)
+  --- PASS: TestProbeUIWSchemaCastsCatalogNamesBeforeTextArrayComparison (0.00s)
+  --- PASS: TestProbeUIWSchemaRejectsLegacy0043Substitution (0.00s)
+  --- PASS: TestProbeUIWSchemaLedgerQueriesTheRealLedger (0.00s)
+  --- PASS: TestProbeUIWSchemaRejectsWrongIdentityOrScope (+7 subtests) (0.00s)
+  --- PASS: TestProbeUIWSchemaHidesCatalogError (0.00s)
+  ok  	.../engine/postgres	4.126s
+go test  -mod=vendor -tags fts5 ./...        # all packages ok (postgres 8.623s; rest cached/ok)
+```
+
+### 8.2 SQL fix — `sql/0067_uiw_admission_constraint_repair.sql`
+
+Constraint inventory (live-verified via `pg_constraint` against `platform`,
+2026-09-02, matching §4's table exactly):
+
+| # | Constraint | Relation | Type | Live before 0067 | Action in 0067 |
+|---|---|---|---|---|---|
+| 1 | `source_version_matter_case_pair_check` | `context.source_version` | CHECK | exists, validated | untouched |
+| 2 | `source_version_court_case_scope_fk` | `context.source_version` | FK → `registry.court_case` | exists, validated | untouched |
+| 3 | `uiw_source_context_scope_key` | `context.uiw_source_context_revision` | UNIQUE | exists, validated | untouched |
+| 4 | `source_version_source_context_scope_fk` | `context.source_version` | FK → `context.uiw_source_context_revision` | exists, **not valid** | `VALIDATE CONSTRAINT` |
+| 5 | `uiw_source_context_matter_fk` | `context.uiw_source_context_revision` | FK → `registry.matter` | exists, **not valid** | `VALIDATE CONSTRAINT` |
+| 6 | `uiw_source_context_court_case_scope_fk` | `context.uiw_source_context_revision` | FK → `registry.court_case` | exists, **not valid** | `VALIDATE CONSTRAINT` |
+| 7 | `source_version_matter_fk` | `context.source_version` | FK → `registry.matter` | **missing entirely** | `ADD CONSTRAINT ... NOT VALID` (retargeted from 0054's `analysis.matter` to live `registry.matter`), then `VALIDATE CONSTRAINT` |
+| 8 | `source_version_source_context_scope_check` | `context.source_version` | CHECK | **missing entirely** | `ADD CONSTRAINT ... NOT VALID` (text unchanged from 0054 — unqualified), then `VALIDATE CONSTRAINT` |
+
+Both target tables are empty live (`context.source_version` and
+`context.uiw_source_context_revision`: 0 rows each, confirmed), so every
+`VALIDATE` is instantaneous and no data-compliance risk exists. Confirmed by
+direct read-only query before writing the migration: 0 orphan `matter_id`
+values against `registry.matter`, 0 rows violating the new CHECK's shape, 0
+orphan rows in either direction across all three retargeted FKs.
+
+`sql/0054_platform_case_registry.sql` was **not edited** (applied migrations
+are immutable per repo rule); 0067 is a forward-only repair that targets the
+live `registry.*` names directly, following 0062's registry split rather
+than 0054's now-stale `analysis.matter`/`analysis.court_case` references.
+Ownership: both tables are live-owned by the bootstrap superuser (not
+`platform_admin`, despite the `context` schema itself being
+`platform_admin`-owned — the same drift 0066 found for `analysis`/`evidence`/
+`ops`), so 0067's DDL runs without `SET LOCAL ROLE platform_admin`, and its
+preflight `DO` block asserts the applying session actually owns (or is
+superuser over) both tables before touching them, per 0066's
+ownership-aware convention.
+
+**Idempotence:** the two `ADD CONSTRAINT` statements are each guarded by an
+`IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname=... )` check inside
+a `DO` block (Postgres has no `ADD CONSTRAINT IF NOT EXISTS`); the five
+`VALIDATE CONSTRAINT` statements are unconditional because `VALIDATE
+CONSTRAINT` on an already-valid constraint is a documented Postgres no-op.
+Verified live: applying the full migration body twice in succession inside
+one open (later rolled-back) transaction produced no error on either run.
+
+**Verify block:** re-derives `uiw_schema_probe.go`'s own `constraintsExact`
+boolean expression line-for-line (same `VALUES` list, same
+`pg_constraint`/`pg_attribute` joins) and raises an exception if it does not
+evaluate `true` — so the migration cannot silently commit a shape the probe
+would still reject.
+
+### 8.3 Live validation (rollback-proven, nothing committed)
+
+Applied `sql/0067` inside one open transaction against live `platform` as the
+superuser (`ai`), re-running the corrected `ProbeUIWSchema` query (with §8.1's
+`ops.migration_ledger` retarget already reflected) as `platform_runtime`
+(`SET LOCAL ROLE`, via a savepoint) both before and after, then `ROLLBACK`.
+Connection: tailnet `100.91.190.107:5432`, credentials from this repo's
+`.env` (`DB_USER`/`DB_PASS`), parsed with a tolerant regex per the no-`source`
+rule — values never printed.
+
+**Before** (0066's grants already reflected; 0067 not yet applied):
+```
+database=platform current_user=platform_runtime database_owner=platform_admin
+ledger_count=9 table_count=36 column_count=16
+constraints_exact=False substrate_exact=True role_safe=True
+grants_exact=True receipt_exact=False
+```
+
+**Applying 0067** (same open transaction): no errors, including its own
+`$verify$` guard block.
+
+**After** (same query, same role, still inside the open transaction):
+```
+database=platform current_user=platform_runtime database_owner=platform_admin
+ledger_count=9 table_count=36 column_count=16
+constraints_exact=True substrate_exact=True role_safe=True
+grants_exact=True receipt_exact=False
+```
+
+Only `constraints_exact` changed, `False → True`, exactly the boolean this
+migration targets. Post-apply `pg_constraint` dump (still inside the
+transaction) confirmed all 8 constraints present, correctly typed, and
+`convalidated=true`. Transaction then `ROLLBACK`ed — **nothing was committed
+to live** by this build lane.
+
+### 8.4 What remains blocking
+
+With both S1 (`sql/0066`, grants) and S2 (Go retarget + `sql/0067`,
+constraints) accounted for, re-running the full corrected probe query as
+`platform_runtime` leaves exactly **one** false: `receipt_exact`. That is
+§7 item 3 from the original review — the `registry.matter`/`registry.court_case`
+identity mismatch between the live `01a055b0-...` rows and the
+`01a03136-...` ids the probe and manifest both hardcode. It is an owner
+identity decision on canonical case-registry data, explicitly out of scope
+for both build lanes, and is the only thing left before `ProbeUIWSchema`
+admits the worker.
+
+**Apply commands** (orchestrator, when ready — not run here; this build lane
+only proved 0067 inside a rolled-back transaction):
+```
+# Go: land the uiw_schema_probe.go + test changes in the next deploy build.
+# SQL: apply 0067 the same way 0066 was applied —
+psql "service=platform-migration dbname=platform" -v ON_ERROR_STOP=1 \
+     -f sql/0067_uiw_admission_constraint_repair.sql
+```
+Whatever mechanism records the other 62 rows in `ops.migration_ledger`
+(61 as of §3, +1 once 0066 is actually committed) should record 0067 too,
+once applied — this migration does not insert its own ledger row, matching
+0066's convention.

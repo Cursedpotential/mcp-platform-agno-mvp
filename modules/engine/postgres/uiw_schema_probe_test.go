@@ -1,4 +1,6 @@
 // Byline: Codex · GPT-5.6-Sol · 2026-08-30
+// Extended · Claude Code · Sonnet 5 · 2026-09-02 (BUILD LANE S2): ledger
+// retarget coverage (public.schema_version -> ops.migration_ledger, D-109).
 package postgres
 
 import (
@@ -74,6 +76,40 @@ func TestProbeUIWSchemaRejectsLegacy0043Substitution(t *testing.T) {
 	err := ProbeUIWSchema(context.Background(), probeDB{row: row})
 	if err == nil || !strings.Contains(err.Error(), "ledger=8/9") {
 		t.Fatalf("error = %v, want missing-0054 admission failure", err)
+	}
+}
+
+// TestProbeUIWSchemaLedgerQueriesTheRealLedger locks in D-109: the ledger
+// check must read ops.migration_ledger (sql/0055 PART 5, the actual ledger,
+// no status column -- presence means applied) and must never again read
+// public.schema_version (a data-contract version table that only resembles
+// a ledger; that resemblance destroyed migration state once already,
+// 2026-08-29). Regression guard for the BUILD LANE S2 retarget.
+func TestProbeUIWSchemaLedgerQueriesTheRealLedger(t *testing.T) {
+	db := &capturingProbeDB{row: admittedProbeRow()}
+	if err := ProbeUIWSchema(context.Background(), db); err != nil {
+		t.Fatal(err)
+	}
+	// Executable SQL only -- comments are allowed (and expected) to explain
+	// the D-109 history by naming the retired table, so strip "--" line
+	// comments before asserting what the query actually executes.
+	var executable strings.Builder
+	for _, line := range strings.Split(db.query, "\n") {
+		if idx := strings.Index(line, "--"); idx >= 0 {
+			line = line[:idx]
+		}
+		executable.WriteString(line)
+		executable.WriteByte('\n')
+	}
+	code := executable.String()
+	if !strings.Contains(code, "FROM ops.migration_ledger") {
+		t.Fatal("ledger check must query ops.migration_ledger, the real migration ledger (D-109)")
+	}
+	if strings.Contains(code, "public.schema_version") {
+		t.Fatal("ledger check must not reference public.schema_version, which is not a migration ledger (D-109)")
+	}
+	if !strings.Contains(code, "has_table_privilege('platform_runtime','ops.migration_ledger','INSERT')") {
+		t.Fatal("write-safety guard must assert platform_runtime lacks INSERT on the real ledger, ops.migration_ledger")
 	}
 }
 

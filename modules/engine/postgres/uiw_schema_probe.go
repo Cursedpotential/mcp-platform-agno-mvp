@@ -1,4 +1,7 @@
 // Byline: Codex · GPT-5.6-Sol · 2026-08-30 (shared UIW schema admission)
+// Retarget · Claude Code · Sonnet 5 · 2026-09-02 (BUILD LANE S2): ledger check
+// moved from public.schema_version to ops.migration_ledger per D-109 (see
+// comment at the ledgerCount subquery below).
 package postgres
 
 import (
@@ -72,8 +75,16 @@ func ProbeUIWSchema(ctx context.Context, db SchemaProbeDB) error {
 	err := db.QueryRow(ctx, `
 		SELECT current_database(), current_user,
 		       pg_get_userbyid((SELECT datdba FROM pg_database WHERE datname=current_database())),
-		       (SELECT count(*) FROM public.schema_version
-		         WHERE migration_id=ANY($1::text[]) AND status='active'),
+		       -- D-109 (docs/DECISION_LOG.md, 2026-08-30): public.schema_version is
+		       -- NOT a migration ledger -- its status vocabulary (active/superseded/
+		       -- deprecated) and columns (applies_to/ddl_uri/supersedes) describe
+		       -- data-contract versions, not applied migrations; that resemblance
+		       -- destroyed migration state once already (2026-08-29 CREATE DATABASE
+		       -- ... TEMPLATE ai inherited its rows). ops.migration_ledger (sql/0055
+		       -- PART 5) is THE ledger: one row per applied migration_id, no status
+		       -- column, so presence alone means "applied" -- no status predicate.
+		       (SELECT count(*) FROM ops.migration_ledger
+		         WHERE migration_id=ANY($1::text[])),
 		       (SELECT count(*) FROM information_schema.tables
 		         WHERE format('%s.%s',table_schema,table_name)=ANY($2::text[])),
 		       (SELECT count(*) FROM information_schema.columns
@@ -122,7 +133,14 @@ func ProbeUIWSchema(ctx context.Context, db SchemaProbeDB) error {
 		         AND NOT has_table_privilege('platform_runtime','registry.matter','INSERT')
 		         AND NOT has_table_privilege('platform_runtime','registry.matter','UPDATE')
 		         AND NOT has_table_privilege('platform_runtime','registry.matter','DELETE')
-		         AND NOT has_table_privilege('platform_runtime','public.schema_version','INSERT')
+		         -- The guard's intent is "platform_runtime must never be able to
+		         -- forge ledger history" -- it must track whichever table is
+		         -- ACTUALLY the ledger. Retargeted alongside the ledgerCount
+		         -- subquery above (D-109): checking INSERT-denial on the old
+		         -- data-contract-version table no longer protects anything, since
+		         -- platform_runtime writing rows there can no longer masquerade
+		         -- as applied-migration state.
+		         AND NOT has_table_privilege('platform_runtime','ops.migration_ledger','INSERT')
 		         AND (NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='agno_app') OR NOT (
 		           has_table_privilege('agno_app','registry.matter','INSERT')
 		           OR has_table_privilege('agno_app','registry.matter','UPDATE')
