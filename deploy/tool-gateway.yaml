@@ -52,7 +52,14 @@ services:
       TOOL_GATEWAY_PORT: ${TOOL_GATEWAY_PORT:-8099}
 
       # tsnet identity. Persist TS_STATE_DIR or the node re-registers each deploy.
+      # TOOL_GATEWAY_TS_SERVICE advertises a Tailscale SERVICE, matching the
+      # pattern already live on this tailnet (the Workbench is svc:workbench).
+      # Services require a TAG-BASED identity, hence TOOL_GATEWAY_TS_TAGS; the
+      # tailnet's existing nodes use tag:docker. The auth key must be minted
+      # with the same tag or registration is refused.
       TOOL_GATEWAY_TS_HOSTNAME: ${TOOL_GATEWAY_TS_HOSTNAME:-tool-gateway}
+      TOOL_GATEWAY_TS_SERVICE: ${TOOL_GATEWAY_TS_SERVICE:-svc:tool-gateway}
+      TOOL_GATEWAY_TS_TAGS: ${TOOL_GATEWAY_TS_TAGS:-tag:docker}
       TOOL_GATEWAY_TS_STATE_DIR: /data/toolgw/tsnet
       TOOL_GATEWAY_TS_AUTHKEY_FILE: /run/secrets/tool-gateway-ts-authkey
 
