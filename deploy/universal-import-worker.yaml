@@ -39,7 +39,7 @@
 services:
   universal-import-worker:
     build:
-      context: ..
+      context: .
       dockerfile: deploy/docker/universal-import-worker/Dockerfile
     image: ${UNIVERSAL_IMPORT_WORKER_IMAGE:-platform-universal-import-worker:latest}
     restart: unless-stopped

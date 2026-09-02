@@ -16,7 +16,7 @@
 services:
   parser-activity-runtime:
     build:
-      context: ..
+      context: .
       dockerfile: deploy/docker/parser-activity-runtime/Dockerfile
     image: ${PARSER_ACTIVITY_RUNTIME_IMAGE:-platform-parser-activity-runtime:latest}
     restart: unless-stopped

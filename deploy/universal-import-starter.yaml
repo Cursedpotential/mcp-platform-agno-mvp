@@ -15,7 +15,7 @@
 services:
   universal-import-starter:
     build:
-      context: ..
+      context: .
       dockerfile: deploy/docker/universal-import-starter/Dockerfile
     image: ${UNIVERSAL_IMPORT_STARTER_IMAGE:-platform-universal-import-starter:latest}
     restart: unless-stopped
