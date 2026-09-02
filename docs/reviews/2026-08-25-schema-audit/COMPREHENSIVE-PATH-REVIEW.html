@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Comprehensive Path Review — Old Code vs Corrected Direction</title>
+<style>
+:root{--bg:#f7f5ef;--card:#fff;--ink:#18201d;--mut:#66706b;--line:#d7d9d4;--good:#176b45;--goodbg:#e4f3ea;--warn:#9a6414;--warnbg:#fff1d7;--bad:#a23a31;--blue:#245d9c;--bluebg:#e8f0fa;--purple:#694c91}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:1160px;margin:auto;padding:30px 24px 80px}a{color:var(--blue)}h1{font-size:clamp(28px,5vw,48px);line-height:1.04;margin:8px 0 12px;max-width:900px}h2{font-size:24px;margin:48px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--line)}h3{font-size:16px;margin:0 0 7px}p{max-width:90ch}.eyebrow{font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--blue)}.sub{color:var(--mut);max-width:95ch}.hero{background:linear-gradient(135deg,#fff 0%,#eef5f0 100%);border:1px solid var(--line);border-left:8px solid var(--good);padding:25px 28px;margin:20px 0}.verdict{font-size:24px;font-weight:800;color:var(--good);margin:0 0 8px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:13px;margin:16px 0}.card{background:var(--card);border:1px solid var(--line);padding:16px}.score{font-size:36px;font-weight:800;line-height:1;color:var(--good)}.label{color:var(--mut);font-size:12px;text-transform:uppercase;letter-spacing:.06em}.plain{font-size:18px;line-height:1.6}.flow{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:stretch;margin:12px 0}.old,.new{padding:14px;border:1px solid var(--line);background:#fff}.old{border-left:5px solid var(--bad)}.new{border-left:5px solid var(--good)}.arrow{display:flex;align-items:center;font-size:22px;color:var(--mut)}code{font:13px ui-monospace,SFMono-Regular,Consolas,monospace;background:#efeee9;padding:1px 4px}table{border-collapse:collapse;width:100%;background:var(--card);font-size:13.5px}th{text-align:left;background:#eceeea;color:#4e5853;font-size:11px;text-transform:uppercase;letter-spacing:.05em}th,td{padding:9px 10px;border:1px solid var(--line);vertical-align:top}.scroll{overflow-x:auto}.pill{display:inline-block;padding:3px 8px;border-radius:999px;font-size:11px;font-weight:800;text-transform:uppercase}.good{background:var(--goodbg);color:var(--good)}.warn{background:var(--warnbg);color:var(--warn)}.proposal{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--blue);padding:15px 17px;margin:10px 0}.proposal h3{color:var(--blue)}.fixes{columns:2;column-gap:32px}.fixes li{break-inside:avoid;margin:0 0 9px}.steps{counter-reset:s}.step{counter-increment:s;display:grid;grid-template-columns:38px 1fr;gap:10px;margin:10px 0;background:#fff;border:1px solid var(--line);padding:12px}.step:before{content:counter(s);width:30px;height:30px;border-radius:50%;background:var(--blue);color:white;display:grid;place-items:center;font-weight:800}.note{background:var(--bluebg);border-left:5px solid var(--blue);padding:13px 16px}.foot{margin-top:50px;padding-top:14px;border-top:1px solid var(--line);color:var(--mut);font-size:12px}@media(max-width:720px){.flow{grid-template-columns:1fr}.arrow{transform:rotate(90deg);justify-content:center}.fixes{columns:1}}
+</style>
+</head>
+<body><main>
+<div class="eyebrow">Comprehensive code-to-architecture review · 2026-08-26</div>
+<h1>Are we finally heading in the right direction?</h1>
+<p class="sub">Old implementation compared with the corrected R00–R14 path. This is the preferred
+HTML review; the <a href="COMPREHENSIVE-PATH-REVIEW.md">Markdown source</a> preserves the full durable record.</p>
+
+<section class="hero">
+  <div class="verdict">Yes. The corrected direction is right.</div>
+  <p class="plain">The remaining work is bounded engineering closure—not a reason to redesign the
+  platform again. PostgreSQL authorizes and records every important transition. Weaviate, Neo4j and
+  Surreal do specialized work without becoming independent truth. Surreal executes the temporal
+  walks; PostgreSQL keeps the auditable manifests, checkpoints, beliefs, pair and delta.</p>
+  <p><span class="pill good">Direction 8/10</span> <span class="pill warn">Not implementation-ready yet</span></p>
+</section>
+
+<div class="grid">
+  <div class="card"><div class="score">9/10</div><div class="label">Architecture</div><p>Correct authority model, lane boundaries and independent R09/R14 gates.</p></div>
+  <div class="card"><div class="score">8/10</div><div class="label">Correctness</div><p>Custody, clocks, provenance and walk lifecycle now point the right way.</p></div>
+  <div class="card"><div class="score">8/10</div><div class="label">Security target</div><p>Design closes generic writes and store bypasses; current runtime still fails those gates.</p></div>
+  <div class="card"><div class="score" style="color:var(--warn)">6/10</div><div class="label">Performance readiness</div><p>Capacity, indexing, retention, lag and soak thresholds still need measurements.</p></div>
+</div>
+
+<h2>Plain English: what changed</h2>
+<div class="flow"><div class="old"><h3>Old: custody starts during intake</h3><p>A file can enter evidence/custody before it is parsed and before the owner selects it.</p></div><div class="arrow">→</div><div class="new"><h3>New: context first</h3><p>Everything lands as context. Only the governed R04 promotion command begins custody after independent H1/H2/H3 verification.</p></div></div>
+<div class="flow"><div class="old"><h3>Old: agents can obtain generic database writes</h3><p>The orchestration framework can bypass approvals, receipts and domain rules.</p></div><div class="arrow">→</div><div class="new"><h3>New: typed commands only</h3><p>Agno is a replaceable runner. Least-privilege roles permit only governed platform commands.</p></div></div>
+<div class="flow"><div class="old"><h3>Old: external stores can drift quietly</h3><p>Local acknowledgements and direct access do not prove complete, authorized projection state.</p></div><div class="arrow">→</div><div class="new"><h3>New: R09 reconciliation</h3><p>Immutable PG manifests compare membership, counts, hashes and versions before Surreal is admitted.</p></div></div>
+<div class="flow"><div class="old"><h3>Old: the product delta is not implemented</h3><p>The walk scaffold does not run a paired as-lived/hindsight experience or preserve canonical beliefs.</p></div><div class="arrow">→</div><div class="new"><h3>New: Surreal executes, PG proves</h3><p>Surreal performs the temporal analysis; PG keeps lifecycle, retrieval, belief, checkpoint, pair, delta and legal-review ledgers.</p></div></div>
+<div class="flow"><div class="old"><h3>Old: chat export can reach evidence import</h3><p>The current Workbench promotion route violates the permanent context-only boundary.</p></div><div class="arrow">→</div><div class="new"><h3>New: chat produces investigation work</h3><p>Typed claims, events, concerns, observations, strategies and created works retain chat lineage but carry zero evidentiary weight.</p></div></div>
+<div class="flow"><div class="old"><h3>Old: timeline is fragmented tables and views</h3><p>There is no maintained timeline product, immutable export generation or reconciled edit loop.</p></div><div class="arrow">→</div><div class="new"><h3>New: maintained Timesketch fork</h3><p>The fork shows context candidates and evidence-approved entries, backed by immutable PG projection generations.</p></div></div>
+<div class="flow"><div class="old"><h3>Old: edits can become store-local state</h3><p>Tags, annotations or bulk changes can drift from canonical context and authority.</p></div><div class="arrow">→</div><div class="new"><h3>New: governed round trip</h3><p>Every edit returns to PG as a version-bound context command. Changes to approved entries become amendment candidates for re-review and governed successors.</p></div></div>
+
+<h2>Old code vs corrected path</h2>
+<div class="scroll"><table>
+<thead><tr><th>Current problem</th><th>Risk</th><th>Corrected answer</th></tr></thead>
+<tbody>
+<tr><td>Custody-first evidence intake</td><td>Failed or unselected context can become evidence state</td><td>R02 context-only landing; R04 sole promotion/custody writer</td></tr>
+<tr><td>Existing H1 trusted during promotion</td><td>Selected normalized content and complete generation are not proved</td><td>Typed H1/H2/H3 manifests, ordered members and atomic finalization</td></tr>
+<tr><td>Generic agent DB tools</td><td>Approval, idempotency and audit boundaries can be bypassed</td><td>Typed commands, least privilege, denial tests and transaction-bound approvals</td></tr>
+<tr><td>Anonymous/direct vector and graph access</td><td>Future facts can bypass application horizon filters</td><td>Authenticated stores and pre-ranking/pre-traversal filtering everywhere</td></tr>
+<tr><td>Local projection receipts</td><td>Incomplete, stale or orphaned state can appear healthy</td><td>Universal PG events, receipts, manifests and R09 admission gate</td></tr>
+<tr><td>Synthetic Surreal proof</td><td>No production PG-authorized aggregation</td><td>R10 consumes only reconciled R09 manifests and returns PG receipts</td></tr>
+<tr><td>No real paired delta</td><td>The core deceit/realization deliverable is absent</td><td>R11 paired walks with canonical PG lifecycle and delta evidence</td></tr>
+<tr><td>Legacy legal/Workbench paths</td><td>Outputs may not resolve to governed facts and custody spans</td><td>Versioned work products, typed citations, review/release and consumption receipts</td></tr>
+<tr><td>Workbench chat-export promotion</td><td>AI context can enter custody/evidence despite D-082</td><td>Permanent service/API/DB denial plus live zero-write proof</td></tr>
+<tr><td>No Timesketch fork projection/curation contract</td><td>Timeline display and edits can split from PG authority</td><td>Immutable generations, receipts, bulk command ledger, amendment candidates and rebuild proof</td></tr>
+</tbody></table></div>
+
+<h2>Defects found in the proposed model—and fixed</h2>
+<ol class="fixes">
+<li>Removed Surreal-only canonical walk, belief and delta state.</li>
+<li>Replaced mutable-view Surreal admission with immutable R09 manifests.</li>
+<li>Made outbox idempotency structured, non-null and unique.</li>
+<li>Replaced polymorphic realization targets with typed foreign keys.</li>
+<li>Added ordered H2 membership and generation proofs for H3.</li>
+<li>Added custody/promotion/source-clock/projection identity to embeddings.</li>
+<li>Added relation candidates and exact source anchors for Neo4j edges.</li>
+<li>Expanded legal storage beyond a single export-package table.</li>
+<li>Removed blanket legacy drop lists; R14 now gates each retirement.</li>
+<li>Added a concrete sole-writer fence before new producers activate.</li>
+<li>Removed the Matter→CourtCase hierarchy from the current path.</li>
+<li>Corrected audit wording, coverage limits and missing HITL risk.</li>
+<li>Added the missing typed AI-chat candidate and created-work families.</li>
+<li>Added a maintained Timesketch fork with PG-authoritative projection generations.</li>
+<li>Added governed individual/bulk context curation and approved-entry amendment re-review.</li>
+</ol>
+
+<h2>Resolved rulings and remaining choices</h2>
+<div class="proposal"><h3>CR-001 · AI-chat authority · resolved D-082/D-083</h3><p><b>Owner ruling:</b> AI chat is permanently context-only and never evidence. Extraction fans out into claim/event candidates, investigation leads and evidence needs, AI observations, strategies, and immutable created works. Claims enter the claim chart and trigger an independent evidence search; chat lineage has zero evidentiary weight.</p></div>
+<div class="proposal"><h3>CR-001A · Timesketch fork and editing · resolved D-084/D-085</h3><p><b>Owner ruling:</b> maintain a real Timesketch fork that displays context candidates and evidence-approved timeline entries. Individual and bulk edits return through version-bound PostgreSQL context commands. Any change to an approved entry becomes a context amendment candidate; the approved version remains unchanged until governed re-review and reconciliation create a successor.</p></div>
+<div class="proposal"><h3>CR-002 · Realization targets</h3><p><b>Proposal:</b> allow exact record-version, source-span, claim and established-fact targets through separate typed relations. Require at least one target at commit.</p></div>
+<div class="proposal"><h3>CR-003 · Durable delta</h3><p><b>Proposal:</b> Surreal computes the pair; PG versions the result. Analytical items may be unanchored, but court-eligible items require an established fact and exact custody-backed citation.</p></div>
+<div class="proposal"><h3>CR-004 · Identity resolution history</h3><p><b>Proposal:</b> preserve verbatim participants forever and use append-only resolution assertions before resolved identity influences facts or legal output.</p></div>
+<div class="proposal"><h3>CR-005 · Later physical contracts</h3><p><b>Proposal:</b> finish the R09–R14 manifest, projection, walk, legal and cutover ledgers before implementation begins from the unified physical model.</p></div>
+<div class="proposal"><h3>CR-006 · Capacity and retention</h3><p><b>Proposal:</b> benchmark representative data, then freeze partitioning, pgvector indexing, batch size, projection lag, retention, soak and rollback thresholds. Do not guess them.</p></div>
+
+<h2>Safe next sequence</h2>
+<div class="step"><div><b>Ratify CR-001 through CR-004 in R00.</b><br>These are authority/cardinality defaults, not implementation details.</div></div>
+<div class="step"><div><b>Complete the CR-005 physical contracts.</b><br>Keep <code>UNIFIED-PHYSICAL-MODEL.md</code> blocked until enforceable keys, clocks and lifecycles exist.</div></div>
+<div class="step"><div><b>Measure and freeze CR-006 thresholds.</b><br>Attach benchmark evidence and explicit R14 acceptance/rollback limits.</div></div>
+<div class="step"><div><b>Issue dependency-ordered implementation handoffs.</b><br>Begin with R01–R04 and the R14 writer fences.</div></div>
+<div class="step"><div><b>Activate nothing downstream without proof.</b><br>Search, graph, Surreal, walks and legal readers require negative security/horizon tests, receipts and R14 acceptance.</div></div>
+
+<h2>Verification</h2>
+<div class="note"><b>Documentation verification passed:</b> all relative links in the schema-audit package resolve, and <code>uv run pytest -q -m integration tests/test_schema_docs_current.py</code> passed 3/3. No production service, database, deployment or runtime source code was changed.</div>
+
+<div class="foot">Preferred review artifact · HTML generated from the durable Markdown review · Architecture direction only, not production certification.</div>
+</main></body></html>
