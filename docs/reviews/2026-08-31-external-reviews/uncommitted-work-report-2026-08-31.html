@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<!-- saved from url=(0088)file:///E:/AI_Workspace/Projects/the-platform-workspace/UNCOMMITTED-WORK-2026-08-31.html -->
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Uncommitted Work Report</title>
+<style>
+  :root{--bg:#0d1117;--panel:#161b22;--panel2:#1c2330;--ink:#e8edf4;--dim:#9fb0c4;
+    --line:#2b3542;--red:#ff6b6b;--amber:#ffc14d;--green:#4ade80;--blue:#63b3ff;
+    --redbg:#2a1416;--amberbg:#2a2210;--greenbg:#122317;--bluebg:#0f1e2e;}
+  @media (prefers-color-scheme:light){:root{--bg:#fbfcfe;--panel:#fff;--panel2:#f2f5f9;
+    --ink:#10151c;--dim:#4a5768;--line:#d5dde7;--red:#b91c1c;--amber:#8a5a00;--green:#166534;
+    --blue:#0b57a4;--redbg:#fdeaea;--amberbg:#fdf4e0;--greenbg:#e8f6ec;--bluebg:#e8f1fb;}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:19px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1180px;margin:0 auto;padding:44px 26px 96px}
+  h1{font-size:44px;line-height:1.12;margin:0 0 10px;letter-spacing:-.024em;font-weight:800}
+  h2{font-size:30px;line-height:1.2;margin:58px 0 6px;letter-spacing:-.018em;font-weight:750;
+     padding-bottom:12px;border-bottom:3px solid var(--line)}
+  h3{font-size:22px;margin:32px 0 8px;font-weight:700;letter-spacing:-.01em}
+  p{margin:0 0 16px;max-width:80ch}
+  .sub{color:var(--dim);font-size:19px;margin-bottom:34px}
+  code{font:15px/1.5 ui-monospace,"SF Mono",Menlo,Consolas,monospace;background:var(--panel2);
+    padding:2px 7px;border-radius:5px;border:1px solid var(--line);white-space:nowrap}
+  .box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:22px 26px;margin:22px 0}
+  .box.red{background:var(--redbg);border-color:var(--red);border-left:8px solid var(--red)}
+  .box.amber{background:var(--amberbg);border-color:var(--amber);border-left:8px solid var(--amber)}
+  .box.green{background:var(--greenbg);border-color:var(--green);border-left:8px solid var(--green)}
+  .box.blue{background:var(--bluebg);border-color:var(--blue);border-left:8px solid var(--blue)}
+  .box h3{margin-top:0}
+  .lbl{display:inline-block;font-size:13px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;
+    padding:4px 11px;border-radius:6px;margin-bottom:12px}
+  .lbl.red{background:var(--red);color:#fff}.lbl.amber{background:var(--amber);color:#000}
+  .lbl.green{background:var(--green);color:#04220f}.lbl.blue{background:var(--blue);color:#04162a}
+  .scroll{overflow-x:auto;margin:22px 0;border:1px solid var(--line);border-radius:12px}
+  table{border-collapse:collapse;width:100%;font-size:16.5px;background:var(--panel)}
+  th{text-align:left;padding:13px 15px;background:var(--panel2);font-weight:750;
+    border-bottom:2px solid var(--line);white-space:nowrap;font-size:14px;text-transform:uppercase;
+    letter-spacing:.05em;color:var(--dim)}
+  td{padding:11px 15px;border-bottom:1px solid var(--line);vertical-align:top}
+  tr:last-child td{border-bottom:0}
+  td.m{font:14.5px/1.5 ui-monospace,Menlo,Consolas,monospace;white-space:nowrap}
+  .num{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;
+       font:14.5px/1.5 ui-monospace,Menlo,Consolas,monospace}
+  .add{color:var(--green)}.del{color:var(--red)}
+  .v{font-weight:800;white-space:nowrap;font-size:14px;letter-spacing:.05em}
+  .v.r{color:var(--red)}.v.g{color:var(--green)}.v.a{color:var(--amber)}
+  ul{margin:0 0 16px;padding-left:24px}li{margin-bottom:9px;max-width:78ch}
+  .k{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:20px 24px;
+    margin:20px 0;font:15.5px/1.7 ui-monospace,Menlo,Consolas,monospace;white-space:pre;overflow-x:auto}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:16px;margin:22px 0}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px}
+  .stat .n{font-size:38px;font-weight:800;line-height:1.05;letter-spacing:-.02em}
+  .stat .t{color:var(--dim);font-size:15px;margin-top:6px;line-height:1.4}
+  .stat.r .n{color:var(--red)}.stat.g .n{color:var(--green)}.stat.a .n{color:var(--amber)}
+  strong{font-weight:750}
+  .foot{color:var(--dim);font-size:16px;margin-top:56px;padding-top:22px;border-top:1px solid var(--line)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Uncommitted Work Report</h1>
+<p class="sub"><code>Agno-MCP-Platform</code> · branch <code>main</code>, ahead of <code>origin/main</code> by 1 commit · 31 August 2026</p>
+
+<div class="k">HEAD  216061b  feat(db): canon change spine — one governed write path for everything (D-114)
+      4d6c9c5  feat(db): re-baseline - schema builds from one file in 11s
+      9cde6fb  feat(db): rebuild from baseline, recover lost graphrag schema, add real migration ledger</div>
+
+<div class="grid">
+  <div class="stat a"><div class="n">78</div><div class="t">modified, unstaged</div></div>
+  <div class="stat r"><div class="n">6</div><div class="t">untracked migrations</div></div>
+  <div class="stat"><div class="n">0</div><div class="t">staged · 0 deleted</div></div>
+  <div class="stat g"><div class="n">+1,438<br>−2,227</div><div class="t">across 68 files with content diffs</div></div>
+</div>
+
+<div class="box red">
+  <span class="lbl red">Do not commit this tree as-is</span>
+  <h3>The rename sweep is a naive string replace. It breaks the Go build and corrupts English prose.</h3>
+  <p>Verified by running the compiler:</p>
+  <div class="k">cd engine &amp;&amp; go build ./...
+# github.com/Cursedpotential/mcp-platform-agno-mvp/engine/parser
+parser\registry.go:31:13: undefined: reference</div>
+  <p>The sweep replaced the Go <strong>identifier</strong> <code>registry</code> with <code>reference</code> at its <em>usage</em> sites while leaving the <em>declarations</em> as <code>registry</code>. In <code>engine/chunk/registry_test.go</code> the variable is declared on lines 37, 52, 79, 103 and 139 as <code>registry, err := NewRegistry(...)</code> and then called as <code>reference.Select(...)</code>. That is undefined-variable <em>and</em> declared-and-not-used — two hard compile errors.</p>
+  <p><strong>20 identifier breaks across 5 files:</strong> <code>chunk/registry.go</code> (1), <code>chunk/registry_test.go</code> (10), <code>parser/parser_test.go</code> (6), <code>parser/registry.go</code> (1), <code>stagegraph/graph_test.go</code> (2). Go stops at the first failing package, so only one error surfaces today; the rest appear as each is fixed.</p>
+  <p>It also replaced the ordinary English word <em>reference</em> with <em>registry</em> in prose and comments across <strong>16 files</strong>, producing text like <em>“cross-registry”</em>, <em>“a doc-only registry”</em>, <em>“the caller-minted registry”</em>, <em>“use the integration page as the main detailed registry”</em>.</p>
+  <p>Not everything is damaged: <code>engine/postgres/uiw_schema_probe.go</code>'s 20 changes are inside SQL string literals and are correct. The Python/SQL-qualified renames sampled earlier are correct. The breakage is confined to Go identifiers and to prose.</p>
+</div>
+
+<div class="box red">
+  <span class="lbl red">And separately</span>
+  <h3>Five of the six untracked migrations are already applied to the live database.</h3>
+  <p><code>ops.migration_ledger</code> records <strong>0057, 0058, 0059, 0060 and 0061 as applied</strong> between 17:25 and 17:47 UTC today, each with a SHA-256. The files that produced that structure <strong>exist only as untracked files on one disk.</strong></p>
+  <p>If that disk is lost, the live database has structure — including nine <code>DROP</code> statements in <code>0058_the_reckoning.sql</code> — that no committed file can reproduce. That is the same failure that cost the day of SAT work recovered from <code>.pyc</code> bytecode, running again right now.</p>
+</div>
+
+<div class="box amber">
+  <span class="lbl amber">Second finding</span>
+  <h3><code>0062</code> was written and swept through 78 files, but never applied. The code points at a schema that does not exist.</h3>
+  <p><code>0062_registry_split.sql</code> is <strong>not in the ledger</strong>, and the <code>registry</code> schema <strong>does not exist</strong> in the live database. Live schemas are: <code>ai, analysis, archive, canon, context, duckdb, evidence, ext, ops, public, raw, reference, timeline, working</code>.</p>
+  <p>The working tree has nonetheless already been rewritten to reference <code>registry.*</code>. Two concrete mismatches confirmed against live:</p>
+  <div class="scroll">
+  <table>
+  <thead><tr><th>Code now says</th><th>Live database has</th><th>State</th></tr></thead>
+  <tbody>
+  <tr><td class="m">registry.detection_pattern</td><td class="m">reference.detection_pattern</td><td><span class="v r">BROKEN</span> schema absent</td></tr>
+  <tr><td class="m">reference.matter_knowledge_partition</td><td class="m">analysis.matter_knowledge_partition</td><td><span class="v r">BROKEN</span> table not moved</td></tr>
+  <tr><td class="m">reference.matter</td><td class="m">reference.matter</td><td><span class="v g">OK</span></td></tr>
+  <tr><td class="m">reference.court_case</td><td class="m">reference.court_case</td><td><span class="v g">OK</span></td></tr>
+  </tbody>
+  </table>
+  </div>
+  <p>So the sweep is <strong>half-landed in both directions</strong>: the code ran ahead of the database on the registry split, and the database ran ahead of git on everything else.</p>
+</div>
+
+<h2>What the 78 modifications actually are</h2>
+
+<p>A two-stage schema rename sweep, applied mechanically across the tree. <strong>66 of the 68 files with content diffs are symmetric</strong> — equal insertions and deletions — which is the signature of find-and-replace, not authored change.</p>
+
+<div class="box amber">
+  <span class="lbl amber">Correction to an earlier revision of this report</span>
+  <p>An earlier revision called these 78 modifications “unremarkable.” That was based on sampling SQL-qualified table names in Python files, seeing a clean symmetric pattern, and generalizing to the other 66 files without reading them. Printing the diffs in full showed the sweep also hit Go identifiers and English prose. <strong>The symmetric +N/−N signature that looked like evidence of a clean rename was in fact evidence of an indiscriminate one</strong> — a blind string swap produces perfectly symmetric diffs precisely because it does not distinguish what it is swapping.</p>
+</div>
+
+<div class="k">Stage 1   analysis.*  →  reference.*     matter, court_case, matter_knowledge_partition
+Stage 2   reference.* →  registry.*      detection_pattern, behavior_category  ← NOT APPLIED TO DB</div>
+
+<p>Two files carry real change:</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th>File</th><th class="num">Diff</th><th>What it is</th></tr></thead>
+<tbody>
+<tr><td class="m">sql/bootstrap/schema_baseline_20260830.sql</td><td class="num"><span class="add">+1233</span> <span class="del">−2031</span></td><td>Regenerated baseline — net <strong>−798 lines</strong>, consistent with the nine drops in <code>0058</code></td></tr>
+<tr><td class="m">docs/DECISION_LOG.md</td><td class="num"><span class="add">+9</span> <span class="del">−0</span></td><td>New decision entries, pure addition</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>Ten of the 78 modified files show <strong>no content diff at all</strong> — line-ending or mode changes only. Notably <code>sql/bootstrap/schema_baseline.sql</code> (the superseded August 10 file) is one of them.</p>
+
+<h3>Sample of the sweep — <code>server/case_management/repository.py</code></h3>
+<div class="k">- "SELECT to_regclass('analysis.matter') IS NOT NULL "
++ "SELECT to_regclass('reference.matter') IS NOT NULL "
+- FROM analysis.matter m
++ FROM reference.matter m
+- LEFT JOIN analysis.matter_knowledge_partition mp ON mp.matter_id = m.id
++ LEFT JOIN reference.matter_knowledge_partition mp ON mp.matter_id = m.id   ← table not moved in DB</div>
+
+<h2>The six untracked migrations</h2>
+
+<p>All six bylined <em>“Claude · Opus 5 · 2026-08-31”</em>, written between 13:43 and 13:58 local.</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th>File</th><th class="num">Bytes</th><th class="num">Lines</th><th class="num">CREATE</th><th class="num">ALTER</th><th class="num">DROP</th><th class="num">INSERT</th><th>Applied to live?</th></tr></thead>
+<tbody>
+<tr><td class="m">0057_identity_home_reference.sql</td><td class="num">3,506</td><td class="num">57</td><td class="num">0</td><td class="num">8</td><td class="num">0</td><td class="num">0</td><td><span class="v a">YES</span> 17:36 UTC</td></tr>
+<tr><td class="m">0058_the_reckoning.sql</td><td class="num">12,930</td><td class="num">204</td><td class="num">1</td><td class="num">18</td><td class="num"><strong>9</strong></td><td class="num">0</td><td><span class="v a">YES</span> 17:43 UTC</td></tr>
+<tr><td class="m">0059_identity_trust_state.sql</td><td class="num">3,733</td><td class="num">48</td><td class="num">0</td><td class="num">5</td><td class="num">0</td><td class="num">1</td><td><span class="v a">YES</span> 17:45 UTC</td></tr>
+<tr><td class="m">0060_test_reset.sql</td><td class="num">3,455</td><td class="num">75</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td><span class="v a">YES</span> 17:47 UTC</td></tr>
+<tr><td class="m">0061_confidence_gated_tiers.sql</td><td class="num">3,009</td><td class="num">54</td><td class="num">0</td><td class="num">7</td><td class="num">0</td><td class="num">0</td><td><span class="v a">YES</span> 17:47 UTC</td></tr>
+<tr><td class="m">0062_registry_split.sql</td><td class="num">3,147</td><td class="num">50</td><td class="num">0</td><td class="num">9</td><td class="num">0</td><td class="num">0</td><td><span class="v r">NO</span> not in ledger</td></tr>
+</tbody>
+</table>
+</div>
+
+<p><code>0058_the_reckoning.sql</code> is the one to read before committing. It is 4× the size of the others and carries all nine <code>DROP</code> statements — already executed against live.</p>
+
+<h2>Ledger discrepancy worth your eye</h2>
+
+<div class="box blue">
+  <p>The ledger's baseline row records the file as <code>sql/bootstrap/schema_baseline.sql</code> — the <strong>superseded August 10 name</strong> — applied 03:27 UTC with <strong>1,340 statements</strong>.</p>
+  <p>The file currently at that path holds 155 tables. The live database has 268. 1,340 statements is far more consistent with the 268-table <code>schema_baseline_20260830.sql</code> than with the 155-table file.</p>
+  <p>Most likely reading: the correct file was applied, and the ledger recorded a filename that no longer points at it. <strong>I cannot prove that</strong> — and an ambiguous provenance pointer in the ledger is precisely the D-108 failure the ledger was built to prevent. Worth resolving before it is relied on.</p>
+</div>
+
+<h2>All 78 modified files</h2>
+
+<div class="scroll">
+<table>
+<thead><tr><th class="num">Diff</th><th>Path</th></tr></thead>
+<tbody>
+<tr><td class="num"><span class="add">+1233</span> <span class="del">−2031</span></td><td class="m">sql/bootstrap/schema_baseline_20260830.sql</td></tr>
+<tr><td class="num"><span class="add">+29</span> <span class="del">−29</span></td><td class="m">scripts/validate_0054_live.py</td></tr>
+<tr><td class="num"><span class="add">+20</span> <span class="del">−20</span></td><td class="m">engine/postgres/uiw_schema_probe.go</td></tr>
+<tr><td class="num"><span class="add">+19</span> <span class="del">−19</span></td><td class="m">scripts/_matter_validate_0030.py</td></tr>
+<tr><td class="num"><span class="add">+19</span> <span class="del">−19</span></td><td class="m">server/case_management/repository.py</td></tr>
+<tr><td class="num"><span class="add">+10</span> <span class="del">−10</span></td><td class="m">engine/chunk/registry_test.go</td></tr>
+<tr><td class="num"><span class="add">+9</span> <span class="del">−0</span></td><td class="m">docs/DECISION_LOG.md</td></tr>
+<tr><td class="num"><span class="add">+6</span> <span class="del">−6</span></td><td class="m">engine/parser/parser_test.go</td></tr>
+<tr><td class="num"><span class="add">+5</span> <span class="del">−5</span></td><td class="m">server/tools/gateway/toolfinder.py</td></tr>
+<tr><td class="num"><span class="add">+5</span> <span class="del">−5</span></td><td class="m">server/tools/registry.py</td></tr>
+<tr><td class="num"><span class="add">+4</span> <span class="del">−4</span></td><td class="m">scripts/schema_report/build_reckoning.py</td></tr>
+<tr><td class="num"><span class="add">+3</span> <span class="del">−3</span></td><td class="m">docs/reviews/2026-08-29-context-fingerprint-uiw-repair.md</td></tr>
+<tr><td class="num"><span class="add">+3</span> <span class="del">−3</span></td><td class="m">docs/URGENT-TODO.md</td></tr>
+<tr><td class="num"><span class="add">+3</span> <span class="del">−3</span></td><td class="m">server/analysis/chat_parse.py</td></tr>
+<tr><td class="num"><span class="add">+2</span> <span class="del">−2</span></td><td class="m">docs/reviews/2026-08-29-uiw-preview-go-surface.md</td></tr>
+<tr><td class="num"><span class="add">+2</span> <span class="del">−2</span></td><td class="m">docs/reviews/2026-08-29-uiw-repair-activity-integration.md</td></tr>
+<tr><td class="num"><span class="add">+2</span> <span class="del">−2</span></td><td class="m">engine/activities/source_observation.go</td></tr>
+<tr><td class="num"><span class="add">+2</span> <span class="del">−2</span></td><td class="m">engine/adapters/sbv/sbv_test.go</td></tr>
+<tr><td class="num"><span class="add">+2</span> <span class="del">−2</span></td><td class="m">engine/stagegraph/graph_test.go</td></tr>
+<tr><td class="num"><span class="add">+2</span> <span class="del">−2</span></td><td class="m">scripts/_matter_validate_repository.py</td></tr>
+<tr><td class="num"><span class="add">+2</span> <span class="del">−2</span></td><td class="m">scripts/repack_to_server_layout.py</td></tr>
+<tr><td class="num"><span class="add">+2</span> <span class="del">−2</span></td><td class="m">server/analysis/semantica_wiring.py</td></tr>
+<tr><td class="num"><span class="add">+2</span> <span class="del">−2</span></td><td class="m">server/api/entity_routes.py</td></tr>
+<tr><td class="num"><span class="add">+2</span> <span class="del">−2</span></td><td class="m">server/api/inspect_routes.py</td></tr>
+<tr><td class="num"><span class="add">+2</span> <span class="del">−2</span></td><td class="m">server/evidence/message_projection.py</td></tr>
+<tr><td class="num"><span class="add">+2</span> <span class="del">−2</span></td><td class="m">server/evidence/workflows.py</td></tr>
+<tr><td class="num"><span class="add">+2</span> <span class="del">−2</span></td><td class="m">server/temporal/activities.py</td></tr>
+<tr><td class="num"><span class="add">+2</span> <span class="del">−2</span></td><td class="m">server/tools/parsers/messaging/sbv_sms.py</td></tr>
+<tr><td class="num"><span class="add">+2</span> <span class="del">−2</span></td><td class="m">server/tools/repair/chunkers.py</td></tr>
+<tr><td class="num"><span class="add">+2</span> <span class="del">−2</span></td><td class="m">server/tools/repair/engines.py</td></tr>
+<tr><td class="num"><span class="add">+1</span> <span class="del">−1</span></td><td class="m">docs/adr/0046-universal-mcp-exposure-contract.md</td></tr>
+<tr><td class="num"><span class="add">+1</span> <span class="del">−1</span></td><td class="m">docs/EVIDENCE_MERGE_MAP.md</td></tr>
+<tr><td class="num"><span class="add">+1</span> <span class="del">−1</span></td><td class="m">docs/planning/reingest-etl-pipeline.md</td></tr>
+<tr><td class="num"><span class="add">+1</span> <span class="del">−1</span></td><td class="m">docs/reviews/2026-08-23-cross-repo-evidence-audit/verify-1-dialstack-claims.md</td></tr>
+<tr><td class="num"><span class="add">+1</span> <span class="del">−1</span></td><td class="m">docs/reviews/2026-08-25-schema-audit/GAP-019-IMPLEMENTATION-STATUS.md</td></tr>
+<tr><td class="num"><span class="add">+1</span> <span class="del">−1</span></td><td class="m">docs/schema/catalog.json</td></tr>
+<tr><td class="num"><span class="add">+1</span> <span class="del">−1</span></td><td class="m">docs/wiki/project-docs/architecture/DEDUPLICATION_LOGIC.md</td></tr>
+<tr><td class="num"><span class="add">+1</span> <span class="del">−1</span></td><td class="m">docs/wiki/project-docs/components/orchestration/wundergraph-cosmo.md</td></tr>
+<tr><td class="num"><span class="add">+1</span> <span class="del">−1</span></td><td class="m">engine/acquisition/upload.go</td></tr>
+<tr><td class="num"><span class="add">+1</span> <span class="del">−1</span></td><td class="m">engine/activities/hashing.go</td></tr>
+<tr><td class="num"><span class="add">+1</span> <span class="del">−1</span></td><td class="m">engine/activities/normalized_pipeline.go</td></tr>
+<tr><td class="num"><span class="add">+1</span> <span class="del">−1</span></td><td class="m">engine/chunk/registry.go</td></tr>
+<tr><td class="num"><span class="add">+1</span> <span class="del">−1</span></td><td class="m">engine/normalize/normalize.go</td></tr>
+<tr><td class="num"><span class="add">+1</span> <span class="del">−1</span></td><td class="m">engine/parser/parser.go</td></tr>
+<tr><td class="num"><span class="add">+1</span> <span class="del">−1</span></td><td class="m">engine/parser/registry.go</td></tr>
+<tr><td class="num"><span class="add">+1</span> <span class="del">−1</span></td><td class="m">engine/postgres/normalized_pipeline_repository.go</td></tr>
+<tr><td class="num"><span class="add">+1</span> <span class="del">−1</span></td><td class="m">engine/postgres/repair_activity_store.go</td></tr>
+<tr><td class="num"><span class="add">+1</span> <span class="del">−1</span></td><td class="m">engine/postgres/source_lifecycle_repository.go</td></tr>
+<tr><td class="num"><span class="add">+1</span> <span class="del">−1</span></td><td class="m">engine/postgres/source_observation_store.go</td></tr>
+<tr><td class="num"><span class="add">+1</span> <span class="del">−1</span></td><td class="m">engine/runtimeapi/normalized_bundle_store.go</td></tr>
+<tr><td class="num"><span class="add">+1</span> <span class="del">−1</span></td><td class="m">engine/uiw/preview.go</td></tr>
+<tr><td class="num"><span class="add">+1</span> <span class="del">−1</span></td><td class="m">engine/uiw/types.go</td></tr>
+<tr><td class="num"><span class="add">+1</span> <span class="del">−1</span></td><td class="m">engine/uiw/workflow.go</td></tr>
+<tr><td class="num"><span class="add">+1</span> <span class="del">−1</span></td><td class="m">engine/uiw/workflow_test.go</td></tr>
+<tr><td class="num"><span class="add">+1</span> <span class="del">−1</span></td><td class="m">scripts/_cnf_consolidate_20260814.py</td></tr>
+<tr><td class="num"><span class="add">+1</span> <span class="del">−1</span></td><td class="m">scripts/_matter_activation_preflight.py</td></tr>
+<tr><td class="num"><span class="add">+1</span> <span class="del">−1</span></td><td class="m">scripts/drain_context.py</td></tr>
+<tr><td class="num"><span class="add">+1</span> <span class="del">−1</span></td><td class="m">scripts/npm_catalog_rescan.py</td></tr>
+<tr><td class="num"><span class="add">+1</span> <span class="del">−1</span></td><td class="m">scripts/parser_smoke.py</td></tr>
+<tr><td class="num"><span class="add">+1</span> <span class="del">−1</span></td><td class="m">scripts/schema_report/build_shapes.py</td></tr>
+<tr><td class="num"><span class="add">+1</span> <span class="del">−1</span></td><td class="m">server/agents/tools/gateway_tools.py</td></tr>
+<tr><td class="num"><span class="add">+1</span> <span class="del">−1</span></td><td class="m">server/analysis/config/behavioral_patterns.json</td></tr>
+<tr><td class="num"><span class="add">+1</span> <span class="del">−1</span></td><td class="m">server/analysis/context_assets.py</td></tr>
+<tr><td class="num"><span class="add">+1</span> <span class="del">−1</span></td><td class="m">server/analysis/patterns.py</td></tr>
+<tr><td class="num"><span class="add">+1</span> <span class="del">−1</span></td><td class="m">server/evidence/cli.py</td></tr>
+<tr><td class="num"><span class="add">+1</span> <span class="del">−1</span></td><td class="m">server/tools/__init__.py</td></tr>
+<tr><td class="num"><span class="add">+1</span> <span class="del">−1</span></td><td class="m">server/tools/parsers/__init__.py</td></tr>
+<tr><td class="num"><span class="add">+1</span> <span class="del">−1</span></td><td class="m">server/tools/repair/types.py</td></tr>
+<tr><td class="num" style="color:var(--dim)">no diff</td><td class="m">docs/adr/0041-memgraph-additive-temporal-graphrag-layer.md</td></tr>
+<tr><td class="num" style="color:var(--dim)">no diff</td><td class="m">docs/awaiting-verification/summaries/COMPACT-SUMMARY-2026-08-12.md</td></tr>
+<tr><td class="num" style="color:var(--dim)">no diff</td><td class="m">docs/design/0061-unified-operator-surface/spec.md</td></tr>
+<tr><td class="num" style="color:var(--dim)">no diff</td><td class="m">docs/HANDOFF-2026-08-24-n8n-pipeline-golive.md</td></tr>
+<tr><td class="num" style="color:var(--dim)">no diff</td><td class="m">docs/n8n-model-and-node-notes.md</td></tr>
+<tr><td class="num" style="color:var(--dim)">no diff</td><td class="m">docs/planning/forensic-db-architecture/discovery/A4_reports.md</td></tr>
+<tr><td class="num" style="color:var(--dim)">no diff</td><td class="m">docs/planning/forensic-db-architecture/FORENSIC_DB_ARCHITECTURE_DRAFT.md</td></tr>
+<tr><td class="num" style="color:var(--dim)">no diff</td><td class="m">docs/planning/forensic-db-architecture/sections/20-workproduct-memory.md</td></tr>
+<tr><td class="num" style="color:var(--dim)">no diff</td><td class="m">sql/bootstrap/schema_baseline.sql</td></tr>
+<tr><td class="num" style="color:var(--dim)">no diff</td><td class="m">sql/validation/validate_0016_working_gate_layer.sql</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>Method</h2>
+<p>Read-only throughout. Git commands run locally via Desktop Commander (the network mount times out on <code>git diff</code>); ledger and schema facts read from <code>platform</code> on <code>100.91.190.107</code> over a read-only session. Nothing staged, committed, applied, or modified.</p>
+<div class="k">git status --porcelain --untracked-files=all      → 78 ' M', 6 '??', 0 staged, 0 deleted
+git diff HEAD --numstat                          → 68 files, +1438 / -2227
+select * from ops.migration_ledger               → 57 rows; 0057-0061 present, 0062 absent
+select schema_name from information_schema.schemata → no 'registry'</div>
+
+<p class="foot">Uncommitted work report · 31 August 2026 · Every figure re-derivable from the commands above.</p>
+
+</div>
+
+
+<iframe src="./Uncommitted Work Report_files/index.html" style="width: 0px; height: 0px; border-width: medium; border-style: none; border-color: currentcolor; border-image: none; visibility: hidden; opacity: 0;"></iframe></body></html>
