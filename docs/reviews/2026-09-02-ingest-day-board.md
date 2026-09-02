@@ -108,3 +108,16 @@ validated before apply).
   acquisition resolver currently accepts file:// only (upload/R2 resolvers
   exist unwired); known incident uiw-live-reject-20260828-001 root-caused to
   the H2 stage substring(bytea) call (0048 repair lane addressed the guard).
+
+## Queued enhancements (owner suggestions, post-tonight)
+
+- **tsnet for the Go services** (owner, 2026-09-02): embed `tailscale.com/tsnet`
+  in universal-import-starter/-worker so each is a first-class tailnet node
+  (own IP + MagicDNS name + ACL identity) instead of ${BIND_IP} host binding.
+  Complements the existing Tailscale-Serve pattern (deploy/tailscale/
+  workbench-serve.hujson). Not tonight-critical.
+- **D-090 candidate packages + OCR ladder**: the community-node candidates
+  (D-090) and the OCR/semantic-chunking options doc
+  (CLAIMED_COMPLETE_LIKELY_LIES/OCR-SEMANTIC-CHUNKING-AND-TAGGING-OPTIONS)
+  remain the approved sourcing lists for capability packages - each requires
+  the D-090 representative-corpus gates before adoption.
