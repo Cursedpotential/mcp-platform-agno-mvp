@@ -121,3 +121,39 @@ validated before apply).
   (CLAIMED_COMPLETE_LIKELY_LIES/OCR-SEMANTIC-CHUNKING-AND-TAGGING-OPTIONS)
   remain the approved sourcing lists for capability packages - each requires
   the D-090 representative-corpus gates before adoption.
+
+## SEQUENTIAL TODO (owner order: think sequentially, act sequentially)
+
+1. [x] D1 landed: vendored hermetic Go build (50M vendor, proven with submodule
+       hidden), 3 Dockerfiles + 3 compose files fixed (context: .. — build was
+       broken even pre-restructure), WATCH-PATHS.md written, tests green.
+2. [x] .dockerignore scoped for repo-root context (nested repos + docs excluded).
+3. [ ] Update Coolify watch paths (3 apps) per deploy/WATCH-PATHS.md — API.
+4. [ ] Verify PLATFORM_DATABASE_URL on worker/starter/parser-runtime embeds
+       platform_runtime and the credential still authenticates (D-122 rotation
+       risk) — BEFORE redeploy.
+5. [ ] Redeploy universal-import-worker, universal-import-starter,
+       parser-activity-runtime; verify healthy + worker registered on
+       universal-import-v1 (26 activities).
+6. [ ] Bind + activate the n8n universal-import bridge workflows per
+       deploy/docker/n8n/workflows/universal-import/README.md substitution map
+       (real endpoints: starter ${BIND_IP}:8091, parser-runtime addr; 3
+       credential objects). Without this SelectParser/ExecuteParser 404s.
+7. [ ] Land + merge C1/E1/P1/W1 as they return (register.go merge is mine).
+8. [ ] SBV desktop creds -> ~/.secrets/Agno-MCP-Platform.env (from
+       exec-platform-tools env) for the desktop CLI lane.
+9. [ ] REHEARSAL (disposable fixture, never real case data): starter
+       /reference-import/start (real registry matter/court_case UUIDs) ->
+       preview -> REJECT first (prove execute_parser never fires) -> new run ->
+       approve -> publication + idempotency; verify context.* rows + receipts.
+10. [ ] Evening handoff note for owner: what works, exact ingest steps, gaps.
+
+### Pre-mortem watchlist (applied to steps above)
+- Coolify context '..' resolution — probe-verified only; watch the first build log (step 5).
+- Old preserved Temporal histories: any workflow-def change must be GetVersion-gated (relayed to C1).
+- Worker acquisition resolver accepts file:// only — tonight's lane is the starter upload -> shared
+  UIW_SOURCE_OBJECT_DIR path; r2:// sources are OUT of scope tonight (resolver unwired).
+- Working-layer projection (D-116 message/thread tables) has NO writer — tonight ends at approved
+  published context generations + preview; that projection is the next build, not silently missing.
+- Classification/enrichment (D-053 lanes, D-090 nodes) not wired into UIW — scope boundary, stated.
+- register.go collision between C1/E1 — orchestrator merges.

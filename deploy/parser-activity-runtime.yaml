@@ -1,14 +1,23 @@
 # Parser Activity Runtime — separate Coolify application on ovh-files.
-# Watch paths: engine/**, vendored/sbv/**,
-# docker/parser-activity-runtime/**, deploy/parser-activity-runtime.yaml
+# Watch paths — see deploy/WATCH-PATHS.md for the exact value to paste into
+# Coolify. As of the vendored-build repair (2026-09-02):
+#   modules/engine/**, deploy/docker/parser-activity-runtime/**,
+#   deploy/parser-activity-runtime.yaml
+# modules/forks/sbv/** is deliberately NOT a watch path anymore — see
+# deploy/WATCH-PATHS.md for why.
 # Host prep (root-owned, before deployment):
 # install -d -m 0700 /data/agno/volumes/universal-import/parser-artifacts
+#
+# Byline: Claude Code · Sonnet 5 · 2026-09-02 (BUILD LANE D1: hermetic vendored
+# build post-restructure — build context set to repo root so
+# deploy/docker/parser-activity-runtime/Dockerfile's `COPY modules/engine/`
+# resolves; dockerfile path made explicit and repo-root-relative)
 
 services:
   parser-activity-runtime:
     build:
-      context: .
-      dockerfile: docker/parser-activity-runtime/Dockerfile
+      context: ..
+      dockerfile: deploy/docker/parser-activity-runtime/Dockerfile
     image: ${PARSER_ACTIVITY_RUNTIME_IMAGE:-platform-parser-activity-runtime:latest}
     restart: unless-stopped
     ports:

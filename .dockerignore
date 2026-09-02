@@ -39,3 +39,13 @@ vendored/sbv/sbv
 vendored/sbv/**/*.db
 vendored/sbv/**/*.db-shm
 vendored/sbv/**/*.db-wal
+
+# 2026-09-02: build context moved to repo root (deploy/*.yaml context: ..) - exclude nested repos + bulk
+modules/forks/
+modules/custom/
+modules/traceIQ/
+modules/Legal-Workspace/
+modules/apps/
+modules/workbench/web/node_modules/
+docs/
+tests/

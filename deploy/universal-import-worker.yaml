@@ -4,11 +4,16 @@
 # only ${TEMPORAL_TASK_QUEUE}, which must be a dedicated UIW queue and is
 # rejected at startup if set to evidence-pipeline.
 #
-# Coolify watch paths:
-#   engine/**
-#   vendored/sbv/**
-#   docker/universal-import-worker/**
+# Coolify watch paths — see deploy/WATCH-PATHS.md for the exact value to paste
+# into Coolify's Watch Paths field for this app. As of the vendored-build repair
+# (2026-09-02) they are:
+#   modules/engine/**
+#   deploy/docker/universal-import-worker/**
 #   deploy/universal-import-worker.yaml
+# modules/forks/sbv/** is deliberately NOT a watch path: the Go module vendor
+# snapshot under modules/engine/vendor/ is what the build actually reads, and it
+# only changes when someone re-runs `go mod vendor` (which touches
+# modules/engine/vendor/**, already covered above).
 #
 # Host preparation (once):
 #   install -d -o 10001 -g 10001 -m 0750 \
@@ -26,12 +31,16 @@
 # Byline: Codex · GPT-5 · 2026-08-29 (fixed Case Bible Sorted runtime secret)
 # Byline: Codex · GPT-5.6-Sol · 2026-08-30 (direct-tailnet host networking)
 # Byline: Codex · GPT-5.6-Terra · 2026-08-30 (rotatable n8n runtime-file auth)
+# Byline: Claude Code · Sonnet 5 · 2026-09-02 (BUILD LANE D1: hermetic vendored
+# build post-restructure — build context set to repo root so
+# deploy/docker/universal-import-worker/Dockerfile's `COPY modules/engine/`
+# resolves; dockerfile path made explicit and repo-root-relative)
 
 services:
   universal-import-worker:
     build:
-      context: .
-      dockerfile: docker/universal-import-worker/Dockerfile
+      context: ..
+      dockerfile: deploy/docker/universal-import-worker/Dockerfile
     image: ${UNIVERSAL_IMPORT_WORKER_IMAGE:-platform-universal-import-worker:latest}
     restart: unless-stopped
     # No inbound listener exists. Host networking avoids consuming another

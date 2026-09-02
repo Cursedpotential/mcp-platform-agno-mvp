@@ -1,16 +1,22 @@
 # Universal Import Starter — separate Coolify application on ovh-files.
-# Watch paths: engine/**, docker/universal-import-starter/**,
-# deploy/universal-import-starter.yaml
+# Watch paths — see deploy/WATCH-PATHS.md for the exact value to paste into
+# Coolify. As of the vendored-build repair (2026-09-02):
+#   modules/engine/**, deploy/docker/universal-import-starter/**,
+#   deploy/universal-import-starter.yaml
 # The upload ingress and worker share this host-backed source-object root.
 # Prepare it with ownership 10001:10001 and mode 0750 before deployment.
 # Byline: Codex · GPT-5.6-Sol · 2026-08-30 (durable preview and source-context API)
 # Byline: Codex · GPT-5.6-Terra · 2026-08-30 (rotatable n8n runtime-file auth)
+# Byline: Claude Code · Sonnet 5 · 2026-09-02 (BUILD LANE D1: hermetic vendored
+# build post-restructure — build context set to repo root so
+# deploy/docker/universal-import-starter/Dockerfile's `COPY modules/engine/`
+# resolves; dockerfile path made explicit and repo-root-relative)
 
 services:
   universal-import-starter:
     build:
-      context: .
-      dockerfile: docker/universal-import-starter/Dockerfile
+      context: ..
+      dockerfile: deploy/docker/universal-import-starter/Dockerfile
     image: ${UNIVERSAL_IMPORT_STARTER_IMAGE:-platform-universal-import-starter:latest}
     restart: unless-stopped
     # Host networking preserves the actual Tailscale socket peer. Docker's
