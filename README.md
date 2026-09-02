@@ -16,6 +16,86 @@ not the approved replacement.
 > Decisions: [`docs/adr/`](docs/adr/). Active plan:
 > [`docs/BUILD_PLAN.md`](docs/BUILD_PLAN.md). Debt register: [`docs/DEBT.md`](docs/DEBT.md).
 
+## Why this exists
+
+> _Mission section added 2026-09-02 (Claude Code · Opus 5), from an owner working session.
+> Stated generally on purpose: the case specifics belong in the case record, not the repo._
+
+Coercive control works by capturing the narrative. *That never happened. You're
+remembering it wrong. You're the unstable one.* Its power is the power to **narrate
+another person** — to take childhood trauma, family tragedy, private grief, past
+struggles, and the people they love most, and repackage each one as evidence of who they
+are. You do not defeat that by arguing better. You defeat it with a record that the person
+telling the story cannot revise.
+
+Everything in this platform follows from that one fact.
+
+**Decontextualization is the weapon. Sequence is the remedy.**
+Every mechanism of this kind of abuse works the same way: lift one act out of its chain
+and it means the opposite of what it meant. An angry message, isolated, is proof of
+volatility. In sequence — after months of blocked access, after the fourth cancelled
+exchange — it is an ordinary human response to sustained provocation. That is the
+reactive-abuse trap: the person who finally snaps manufactures the only clean exhibit the
+other side needs. So the core operation here is not search or storage. It is **restoring
+sequence to acts that were stripped of it** — which is why per-record custody and
+chunk-level provenance are worth the engineering. Not to prove a message is authentic, but
+to prove what came before it.
+
+**The volume is a symptom, not an accident.**
+Coercive control leaves an enormous trail precisely because it is continuous and low-grade:
+thousands of small acts, none individually actionable. That is *why* it works, and why it
+is nearly unprovable — the abuse is invisible at the resolution a courtroom operates at. A
+judge can hold one screenshot, not forty thousand messages. The real product is therefore
+**resolution translation**: making a pattern that exists only at scale legible at human
+scale without flattening it into "they fought a lot." Nuance is the abuse. Nuance is also
+unpresentable. That tension is the engineering problem, and it is why naive summarization
+is dangerous here in a way it is not in other domains.
+
+**Immutability is the counter-move, not a compliance feature.**
+A record that can be edited is just another version of events, and against a skilled
+narrator another version loses. Immutability is the only property that makes this record
+unfalsifiable by the person who lies — including by us. See D-128.
+
+**The horizon delta exonerates the past self.**
+"Why didn't you see it?" is itself a weapon; it implies complicity or stupidity. The
+ignorant agent answers it: given only what was knowable at the time, the conclusion reached
+was reasonable. This is why the walk must actually run forward rather than be a filter
+applied afterward — a retrospective query proves nothing about what a person could have
+known. The delta is a defense of the person, not merely an indictment of the other party.
+
+**Bitemporality is the defense against weaponized history.**
+A fact from twenty years ago, introduced today to characterize someone, is a different
+object from a contemporaneous one. Separating when something happened, when it became
+knowable, and when it was deployed is what stops decontextualized history from functioning
+as character evidence. The clocks are the rebuttal.
+
+**The attack becomes data.**
+The cruelest move available is to take what most deserves compassion — a family tragedy, a
+childhood trauma, an illness, a death — and convert it into evidence of unfitness. There is
+no technical answer to that cruelty. There is one to the record of it: each deployment is
+itself an event, with a timestamp and a pattern. Captured faithfully, it stops being only a
+wound and becomes an exhibit about the person wielding it.
+
+**It has to be able to tell you you're wrong.**
+This is the requirement most easily lost, and the one that protects the whole enterprise.
+The lasting damage of gaslighting is that you stop trusting your own read — so the person
+using this tool is, by construction, the person least able to judge their own evidence. A
+tool that only ever returns *confirmed abuse* is worthless in court and corrosive to use;
+the first move against it is "you built a machine to agree with you," and if it cannot
+return a null result, that objection is correct. **The ignorant/hindsight architecture is
+falsifiable by design: if the delta is empty, there was no deceit at that horizon.** Protect
+that property. The moment it is "improved" into always finding something, it stops being
+evidence and becomes advocacy.
+
+**The record does not narrate.**
+The strongest position against someone who characterizes everything is to characterize
+nothing — to produce the record and let it speak. In front of a judge who has seen a
+hundred high-conflict custody matters and is tired of both parents, the party who is not
+spinning is the one who is believed. That posture is a design constraint, not a style
+preference, and it reaches into the schema: ADR-0059 forbids inventing the owner as a
+participant in an acquired third-party conversation. Do not put words in anyone's mouth.
+The system does not get to narrate its user either.
+
 ## The three-part arc
 1. **Evidence** — custody (sha256 + manifest) → parse → normalize → store → court-ready export,
    over a polyglot tool mesh (named workflows per evidence type + composable atomic tools).
