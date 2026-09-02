@@ -1,0 +1,70 @@
+# tool-gateway — locator-addressed front end for the Python platform-tools
+# registry (D-132), with its own Tailscale identity via tsnet.
+#
+# WHY IT EXISTS: the UIW worker (ovh-files) handed platform-tools (ovh-app) a
+# worker-local filesystem path; platform-tools 404'd with the path as the
+# response body because the file was not there. This gateway takes LOCATORS
+# (upload://, r2://, b2://), resolves them through the same
+# acquisition.NewSchemeRouter the engine uses, materializes the bytes where the
+# tool can read them, and only then calls the tool. An interim second
+# platform-tools was explicitly rejected by the owner as temporary-permanent.
+#
+# DEPLOYMENT REQUIREMENT — read this before changing any path:
+#   TOOL_GATEWAY_MATERIALIZE_DIR must be bind-mounted into the platform-tools
+#   container at the SAME absolute path. The gateway hands that path to the
+#   tool; if the two sides disagree the service fails closed with 404s, which is
+#   precisely the defect it was built to remove. Deploy this app on the SAME
+#   HOST as platform-tools and share
+#   /data/agno/volumes/tool-gateway/materialize into both.
+#
+# Host preparation (once, on the platform-tools host):
+#   install -d -o 10001 -g 10001 -m 0750 \
+#     /data/agno/volumes/tool-gateway/materialize \
+#     /data/agno/volumes/tool-gateway/seal \
+#     /data/agno/volumes/tool-gateway/tsnet
+#   # then add this to the platform-tools app's volumes:
+#   #   /data/agno/volumes/tool-gateway/materialize:/data/toolgw/materialize:ro
+#
+# Coolify watch paths for this app:
+#   modules/engine/**
+#   deploy/docker/tool-gateway/**
+#   deploy/tool-gateway.yaml
+#
+# Byline: Claude Code · Opus 5 · 2026-09-02.
+
+services:
+  tool-gateway:
+    build:
+      context: .
+      dockerfile: deploy/docker/tool-gateway/Dockerfile
+    image: ${TOOL_GATEWAY_IMAGE:-platform-tool-gateway:latest}
+    restart: unless-stopped
+    # Host networking keeps direct Tailscale routing and avoids consuming
+    # another Coolify bridge subnet (ovh-files' pool is near exhaustion).
+    network_mode: host
+    environment:
+      # platform-tools is reached over loopback because the two are co-located.
+      PLATFORM_TOOLS_BASE_URL: ${PLATFORM_TOOLS_BASE_URL:?set}
+
+      # Shared with the platform-tools container at the identical path.
+      TOOL_GATEWAY_MATERIALIZE_DIR: /data/toolgw/materialize
+      TOOL_GATEWAY_SEAL_DIR: /data/toolgw/seal
+      TOOL_GATEWAY_PORT: ${TOOL_GATEWAY_PORT:-8099}
+
+      # tsnet identity. Persist TS_STATE_DIR or the node re-registers each deploy.
+      TOOL_GATEWAY_TS_HOSTNAME: ${TOOL_GATEWAY_TS_HOSTNAME:-tool-gateway}
+      TOOL_GATEWAY_TS_STATE_DIR: /data/toolgw/tsnet
+      TOOL_GATEWAY_TS_AUTHKEY_FILE: /run/secrets/tool-gateway-ts-authkey
+
+      # Bearer token required in addition to the always-on tailnet peer check.
+      TOOL_GATEWAY_SERVICE_TOKEN_FILE: /run/secrets/tool-gateway-service-token
+
+      # Cross-host source bytes travel via object storage, never a shared disk.
+      CASEBIBLE_R2_CONFIG_PATH: /run/secrets/casebible-r2.json
+    volumes:
+      - /data/agno/volumes/tool-gateway/materialize:/data/toolgw/materialize
+      - /data/agno/volumes/tool-gateway/seal:/data/toolgw/seal
+      - /data/agno/volumes/tool-gateway/tsnet:/data/toolgw/tsnet
+      - /data/agno/secrets/casebible-r2.json:/run/secrets/casebible-r2.json:ro
+      - /data/agno/secrets/tool-gateway/ts-authkey:/run/secrets/tool-gateway-ts-authkey:ro
+      - /data/agno/secrets/tool-gateway/service-token:/run/secrets/tool-gateway-service-token:ro
