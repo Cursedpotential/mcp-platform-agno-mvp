@@ -183,3 +183,6 @@ modules/apps/
 
 # CodeLens Graph local index
 .codelens/
+
+# generated pytest reports (workbench API; same rule as tests/_reports/)
+modules/workbench/api/tests/_reports/

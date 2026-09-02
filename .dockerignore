@@ -30,15 +30,9 @@ aienv*
 tmp/
 .claude/
 
-# Vendored SBV — build artifacts are produced INSIDE the image (stages 1-3),
-# never copied from the build context. Keep them out of the root context that
-# platform-tools (and agentos-api) upload.
-vendored/sbv/frontend/node_modules
-vendored/sbv/frontend/dist
-vendored/sbv/sbv
-vendored/sbv/**/*.db
-vendored/sbv/**/*.db-shm
-vendored/sbv/**/*.db-wal
+# Byline: Claude Code · Fable 5 · 2026-09-02 — removed stale root vendored/sbv/* excludes
+# (sbv moved to modules/forks/sbv in the 2026-09-01 restructure; no root vendored/ exists,
+# so those patterns matched nothing — modules/forks/ below covers the whole tree).
 
 # 2026-09-02: build context moved to repo root (deploy/*.yaml context: ..) - exclude nested repos + bulk
 modules/forks/

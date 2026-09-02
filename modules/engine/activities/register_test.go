@@ -123,6 +123,20 @@ func TestRegisterRawPipelineActivitiesUsesExactCanonicalStageNames(t *testing.T)
 	}
 }
 
+func TestRegisterStructuredELTActivitiesUsesExactCanonicalName(t *testing.T) {
+	registrar := &recordingRegistrar{}
+	RegisterStructuredELTActivities(registrar, StructuredELTActivities{})
+	want := []string{ExecuteStructuredELTActivityName}
+	if len(registrar.names) != len(want) {
+		t.Fatalf("registered %d structured elt activities, want %d: %v", len(registrar.names), len(want), registrar.names)
+	}
+	for i := range want {
+		if registrar.names[i] != want[i] {
+			t.Errorf("registration %d = %q, want %q", i, registrar.names[i], want[i])
+		}
+	}
+}
+
 func TestRegisterNormalizedPipelineActivitiesUsesExactCanonicalStageNames(t *testing.T) {
 	registrar := &recordingRegistrar{}
 	RegisterNormalizedPipelineActivities(registrar, NormalizedPipelineActivities{})

@@ -75,3 +75,32 @@ type Descriptor struct {
 	Result         string
 	DependsOn      []StageID
 }
+
+// ChunkDocument is the canon Activity name for the skip-to-chunk capability
+// (D-116 / owner ruling 2026-08-29: "if it doesn't need to be parsed and
+// really needs to be chunked and ingested, so be it"). It runs when a route
+// decision says chunk-not-parse rather than execute_parser_activity.
+//
+// ChunkDocument is deliberately NOT a member of Stages. Stages is the
+// exhaustive, fully-convergent DAG behind UniversalImportWorkflow's 26 canon
+// stages: graph_test.go's requiredStages map fails closed on any stage not
+// in that exact set (TestEveryRequiredStageAppearsExactlyOnce), and
+// TestPublishRequiresAllGates/TestNoStageReachesPublishWithoutItsOwnGate
+// together prove every single entry in Stages is a transitive ancestor of
+// PublishGeneration — the graph has no vocabulary for an alternate,
+// mutually-exclusive path (chunk-not-parse is an OR-branch against
+// ExecuteParser, not a converging AND-dependency). Splicing ChunkDocument
+// into Stages today would either violate that invariant or force every
+// existing stage's DependsOn to route around it, which is a real workflow
+// restructuring, not a stage addition — see the wiring-plan note in
+// engine/activities/chunking.go and the BUILD LANE C1 handoff for the exact
+// steps that restructuring needs (a workflow.GetVersion-gated branch, plus a
+// graph invariant that can express alternation).
+//
+// The Activity is fully real and Temporal-callable today: it is registered
+// on the UIW worker (uiwworker.RegisterAll) exactly like every Stages
+// member, using the same uiw.StageRequest/uiw.StageResult wire contract, so
+// a future gated branch in UniversalImportWorkflow can call it via the
+// existing r.exec helper with no signature change. It is simply not yet
+// invoked by the workflow.
+const ChunkDocument StageID = "chunk_document_activity"

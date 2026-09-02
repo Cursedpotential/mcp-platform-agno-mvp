@@ -206,3 +206,25 @@ func RegisterNormalizedPipelineActivities(registrar ActivityRegistrar, activitie
 	registrar.RegisterActivityWithOptions(activities.SealGeneration, activity.RegisterOptions{Name: string(stagegraph.SealGeneration)})
 	registrar.RegisterActivityWithOptions(activities.PublishGeneration, activity.RegisterOptions{Name: string(stagegraph.PublishGeneration)})
 }
+
+// NewStructuredELTActivities binds the durable pg_duckdb structured-ELT body
+// (BUILD LANE E1) to the current Temporal attempt, following the same
+// injection shape as every other NewXxxActivities constructor in this file.
+func NewStructuredELTActivities(repository StructuredELTRepository) StructuredELTActivities {
+	return StructuredELTActivities{
+		Repository: repository,
+		Attempt: func(ctx context.Context) int32 {
+			return activity.GetInfo(ctx).Attempt
+		},
+	}
+}
+
+// RegisterStructuredELTActivities registers ExecuteStructuredELT under
+// ExecuteStructuredELTActivityName. It is not yet called from
+// uiwworker.Run/buildRegistrations — that workflow-layer wiring (constructing
+// a postgres.StructuredELTRepository from the worker's pgxpool.Pool and
+// calling this function alongside the other RegisterXxxActivities calls) is
+// the exact remaining step the BUILD LANE E1 handoff reports as outstanding.
+func RegisterStructuredELTActivities(registrar ActivityRegistrar, activities StructuredELTActivities) {
+	registrar.RegisterActivityWithOptions(activities.ExecuteStructuredELT, activity.RegisterOptions{Name: ExecuteStructuredELTActivityName})
+}
