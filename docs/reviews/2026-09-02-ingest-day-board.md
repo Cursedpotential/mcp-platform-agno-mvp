@@ -157,3 +157,56 @@ validated before apply).
   published context generations + preview; that projection is the next build, not silently missing.
 - Classification/enrichment (D-053 lanes, D-090 nodes) not wired into UIW — scope boundary, stated.
 - register.go collision between C1/E1 — orchestrator merges.
+
+## Status log — deploy chain (2026-09-02 ~11:50-12:20 ET)
+
+Steps 3-5 executed. **The Go build chain is repaired end to end** — all three
+apps now build and start; what remains are config/grant issues, not build ones.
+
+- **Step 3 DONE** — watch paths set on all three apps via Coolify API per
+  deploy/WATCH-PATHS.md.
+- **Step 4 DONE** — PLATFORM_DATABASE_URL on all three embeds `platform_runtime`
+  @100.91.190.107/platform (64-char password); credential live-verified
+  authenticating (D-122 rotation risk cleared).
+- **Step 5 PARTIAL:**
+  - `parser-activity-runtime` — **LIVE**: `parser Activity runtime listening
+    address=:8090 parser_count=11`. Required two fixes beyond D1: its Coolify
+    app was a **dockerfile** buildpack pinned to the pre-restructure path
+    `/docker/parser-activity-runtime/Dockerfile` (so it never read its compose
+    file, hence `PARSER_ARTIFACT_DIR is required` — that var only exists in the
+    compose). Switched to `dockercompose` +
+    `/deploy/parser-activity-runtime.yaml`; host dir
+    `/data/agno/volumes/universal-import/parser-artifacts` created and chowned
+    to 10001:10001 to match its siblings (compose sets create_host_path:false).
+  - `universal-import-worker` / `universal-import-starter` — build + container
+    start OK; both crash-loop on their own fail-closed gate:
+    `UIW schema admission: catalog verification unavailable`.
+
+### Root cause of the admission failure (diagnosed, lane S1 fixing)
+
+The probe QUERY errors (not a check returning false). Live evidence as
+`platform_runtime`:
+- `permission denied for schema ops` (probe reads ops.migration_ledger)
+- `permission denied for schema registry` (probe requires registry.matter /
+  registry.court_case — post-0062 names)
+- also no USAGE on `raw` (the raw pipeline's write target)
+- `analysis.case_registry_import_receipt` has **0 rows**; the probe requires
+  exactly one owner-approved receipt matching its hardcoded hashes.
+- All required migrations (0036-0039, 0042, 0050-0051, 0053-0054) ARE ledgered.
+
+**sql/0062_registry_split.sql granted USAGE+SELECT on `registry` to
+platform_api / platform_worker / platform_reader but NOT to platform_runtime**,
+which D-094 made the actual runtime login. That is the regression.
+
+### Infrastructure finding — Docker address pools (ovh-files)
+
+`Error response from daemon: all predefined address pools have been fully
+subnetted` killed container creation for all three apps. `/etc/docker/daemon.json`
+has **no** `default-address-pools`, so Docker's built-in pool was exhausted at 33
+networks. `docker network prune -f` freed 3 (librechat, windmill, horizon-scratch
+leftovers) which unblocked today's deploys — headroom is now ~3 networks.
+
+**OWNER DECISION NEEDED:** the durable fix is adding `default-address-pools`
+(e.g. base 10.201.0.0/16 size 24) to daemon.json, which requires a **Docker
+daemon restart — a full outage of every container on ovh-files** (PG, Neo4j,
+Weaviate, Surreal, n8n, Infisical, workbench...). Not taken unilaterally.
