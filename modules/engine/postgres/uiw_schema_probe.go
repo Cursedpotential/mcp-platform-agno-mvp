@@ -2,12 +2,21 @@
 // Retarget · Claude Code · Sonnet 5 · 2026-09-02 (BUILD LANE S2): ledger check
 // moved from public.schema_version to ops.migration_ledger per D-109 (see
 // comment at the ledgerCount subquery below).
+// Dev-flag identity/receipt sentinel · Claude Code · Sonnet 5 · 2026-09-02
+// (BUILD LANE S3, D-126): PLATFORM_DEV_AUTH_BYPASS (D-125) points the
+// identity + receipt checks at a fixed, obviously-synthetic pre-launch
+// sentinel instead of the real go-live identity. Both checks stay fully
+// enforced in both modes -- see the doc comment on devMatterID below for the
+// owner's exact scoping ruling and why this is not a skip.
 package postgres
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"os"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -63,11 +72,100 @@ const registryPayloadSchemaVersion = "0030-platform-registry-handoff-v1"
 const registryCanonicalPayloadSHA256 = "8e0a8e2d86027add31f9470976d1378e039d6efb5312ecae4cfec0ebd10690e6"
 const registryAPIPayloadSHA256 = "cd370f6c9c00e620f39f283e2d0d7d1a83a463b14097b99537b886d438618a6d"
 
+// The two receipt predicates that used to be hardcoded literals in the SQL
+// text below (D-126 needed a second, DEV-mode expectation for both) are now
+// bind parameters too. These three constants are STRICT mode's values --
+// unchanged from the literals Codex originally wrote inline.
+const registryReceiptPayloadByteLength = 1075
+const registryReceiptApprovedBy = "owner"
+const registryReceiptApprovedOn = "2026-08-23"
+
+// platformDevAuthBypassEnv is the one flag D-125 defines for every ingest
+// surface (UIW starter, Workbench BFF, and -- as of D-126 -- this admission
+// probe). Default OFF, fail-closed: unset or anything but a truthy value
+// means STRICT (the real go-live identity is required, unmet until go-live).
+const platformDevAuthBypassEnv = "PLATFORM_DEV_AUTH_BYPASS"
+
+// D-126 (2026-09-02, owner refinement): "The only thing the feature flag
+// should really do is bypass the UUID type requirement. And allow for the
+// UUID to persist. And add a fake one instead of an auto created one, but
+// everything else is still going to look for it, still going to reference
+// it. But it's going to be referencing a fake one that's not an actual
+// UUID." I.e. identity and receipt checking stay fully ON under the flag --
+// only WHICH constants they must match changes. This is not "skip the
+// check"; it is "check against the known-fake pre-launch value."
+//
+// registry.matter.id / registry.court_case.id are Postgres `uuid`-typed
+// columns with live FK referrers across sql/0043, 0047, 0053 and 0054
+// (context.source_version, context.uiw_source_context_revision,
+// working.first_party_context_thread/third_party_context_thread,
+// analysis.matter_knowledge_partition, analysis.case_registry_import_receipt
+// all carry `matter_id UUID`/`court_case_id UUID` FKs) -- a non-UUID-shaped
+// literal ("dev1" etc.) cannot be stored without a destabilizing type change
+// across every one of them. So the sentinel is UUID-SHAPED but built
+// entirely from classic "this is obviously fake" hex magic numbers (every
+// digit is valid hex, 0-9/a-f): DEADBEEF for the matter, CAFEBABE for the
+// court case. Neither uuidv7() nor any real UUID generator emits either
+// pattern, and both read as fake at a glance next to a real time-ordered
+// uuidv7 id, which always starts with a timestamp prefix (e.g. 01a0...).
+// sql/0069_dev_case_registry_identity.sql seeds exactly these two values.
+const devMatterID = "deadbeef-dead-beef-dead-beefdeadbeef"
+const devCourtCaseID = "cafebabe-cafe-babe-cafe-babecafebabe"
+
+// The dev receipt is written HONESTLY: D-126 forbids ever recording
+// approved_by='owner' for an approval the owner did not give -- that would
+// be exactly the fabricated-record class of defect
+// docs/CLAIMED_COMPLETE_LIKELY_LIES/ exists to catch. approved_by here names
+// the mechanism, not a person. Every hash/commit field is a fixed hex
+// "magic number" placeholder (never derived from a real payload) so it is
+// obviously not asserting real content-integrity -- sql/0069 seeds the
+// identical literals; the two files must be changed together.
+const devReceiptSourceMigrationURI = "sql/0069_dev_case_registry_identity.sql"
+const devReceiptSourceMigrationSHA256 = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
+const devReceiptSourceGitCommit = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
+const devReceiptPayloadSchemaVersion = "dev-placeholder-v1"
+const devReceiptPayloadByteLength = 1
+const devReceiptCanonicalPayloadSHA256 = "cafebabecafebabecafebabecafebabecafebabecafebabecafebabecafebabe"
+const devReceiptAPIPayloadSHA256 = "deadfacedeadfacedeadfacedeadfacedeadfacedeadfacedeadfacedeadface"
+const devReceiptApprovedBy = "dev-mode-placeholder"
+const devReceiptApprovedOn = "2026-09-02"
+
+// devAuthBypassEnabled reads PLATFORM_DEV_AUTH_BYPASS directly rather than
+// taking a parameter: ProbeUIWSchema is called from modules/engine/temporal/
+// cmd/starter/main.go and modules/engine/uiwworker/worker.go with a fixed
+// two-argument signature, and D-125's contract is one process-wide flag, not
+// a value threaded through every caller. Truthy values match D-125's own
+// documented example (PLATFORM_DEV_AUTH_BYPASS=1) plus the usual spellings;
+// anything else, including unset, is OFF (fail-closed default).
+func devAuthBypassEnabled() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(platformDevAuthBypassEnv))) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
+}
+
 // ProbeUIWSchema rejects an incomplete, legacy, over-privileged, or wrongly
 // scoped database before any UIW Temporal queue is polled.
 func ProbeUIWSchema(ctx context.Context, db SchemaProbeDB) error {
 	if db == nil {
 		return errors.New("UIW schema admission: database is required")
+	}
+	devBypass := devAuthBypassEnabled()
+	matterID, courtCaseID := authoritativeMatterID, authoritativeCourtCaseID
+	receiptURI, receiptSHA256Hex := registrySourceMigrationURI, registrySourceMigrationSHA256
+	gitCommit, schemaVersion := registrySourceGitCommit, registryPayloadSchemaVersion
+	canonicalSHA256Hex, apiSHA256Hex := registryCanonicalPayloadSHA256, registryAPIPayloadSHA256
+	payloadByteLength, approvedBy, approvedOn := registryReceiptPayloadByteLength, registryReceiptApprovedBy, registryReceiptApprovedOn
+	if devBypass {
+		matterID, courtCaseID = devMatterID, devCourtCaseID
+		receiptURI, receiptSHA256Hex = devReceiptSourceMigrationURI, devReceiptSourceMigrationSHA256
+		gitCommit, schemaVersion = devReceiptSourceGitCommit, devReceiptPayloadSchemaVersion
+		canonicalSHA256Hex, apiSHA256Hex = devReceiptCanonicalPayloadSHA256, devReceiptAPIPayloadSHA256
+		payloadByteLength, approvedBy, approvedOn = devReceiptPayloadByteLength, devReceiptApprovedBy, devReceiptApprovedOn
+		slog.Warn("UIW schema admission: PLATFORM_DEV_AUTH_BYPASS is set -- admitting the pre-launch DEV sentinel case-registry identity, not the real go-live identity (D-125, D-126); remove this flag before go-live",
+			"flag", platformDevAuthBypassEnv, "dev_matter_id", devMatterID, "dev_court_case_id", devCourtCaseID)
 	}
 	var database, currentUser, databaseOwner string
 	var ledgerCount, tableCount, columnCount int
@@ -151,15 +249,23 @@ func ProbeUIWSchema(ctx context.Context, db SchemaProbeDB) error {
 		           OR has_table_privilege('agno_app','analysis.matter_knowledge_partition','INSERT')
 		           OR has_table_privilege('agno_app','analysis.matter_knowledge_partition','UPDATE')
 		           OR has_table_privilege('agno_app','analysis.matter_knowledge_partition','DELETE'))),
+		       -- payload_byte_length ($12), approved_by ($13) and approved_on
+		       -- ($14) used to be hardcoded literals (1075 / 'owner' /
+		       -- DATE '2026-08-23'). D-126 needs a second, DEV-mode
+		       -- expectation for the same predicates, so all three are now
+		       -- bind parameters -- the query text itself never changes
+		       -- between STRICT and DEV mode, only which Go constants are
+		       -- bound to $4/$5/$6..$14.
 		       (SELECT count(*)=1 AND count(*) FILTER (WHERE matter_id=$4::uuid AND court_case_id=$5::uuid
 		          AND source_migration_uri=$6 AND encode(source_migration_sha256,'hex')=$7
-		          AND source_git_commit=$8 AND payload_schema_version=$9 AND payload_byte_length=1075
+		          AND source_git_commit=$8 AND payload_schema_version=$9 AND payload_byte_length=$12
 		          AND encode(canonical_payload_sha256,'hex')=$10 AND encode(api_payload_sha256,'hex')=$11
-		          AND approved_by='owner' AND approved_on=DATE '2026-08-23')=1
+		          AND approved_by=$13 AND approved_on=$14::date)=1
 		          FROM analysis.case_registry_import_receipt)`,
-		requiredUIWMigrations, requiredUIWTables, requiredUIWColumns, authoritativeMatterID, authoritativeCourtCaseID,
-		registrySourceMigrationURI, registrySourceMigrationSHA256, registrySourceGitCommit,
-		registryPayloadSchemaVersion, registryCanonicalPayloadSHA256, registryAPIPayloadSHA256,
+		requiredUIWMigrations, requiredUIWTables, requiredUIWColumns, matterID, courtCaseID,
+		receiptURI, receiptSHA256Hex, gitCommit,
+		schemaVersion, canonicalSHA256Hex, apiSHA256Hex,
+		payloadByteLength, approvedBy, approvedOn,
 	).Scan(&database, &currentUser, &databaseOwner, &ledgerCount, &tableCount, &columnCount,
 		&constraintsExact, &substrateExact, &roleSafe, &grantsExact, &receiptExact)
 	if err != nil {
@@ -169,8 +275,8 @@ func ProbeUIWSchema(ctx context.Context, db SchemaProbeDB) error {
 		return fmt.Errorf("UIW schema admission: identity rejected: database=%q role=%q owner=%q", database, currentUser, databaseOwner)
 	}
 	if ledgerCount != len(requiredUIWMigrations) || tableCount != len(requiredUIWTables) || columnCount != len(requiredUIWColumns) || !constraintsExact || !substrateExact || !roleSafe || !grantsExact || !receiptExact {
-		return fmt.Errorf("UIW schema admission failed: ledger=%d/%d tables=%d/%d columns=%d/%d constraints=%t substrate=%t role=%t grants=%t receipt=%t",
-			ledgerCount, len(requiredUIWMigrations), tableCount, len(requiredUIWTables), columnCount,
+		return fmt.Errorf("UIW schema admission failed (dev_bypass=%t): ledger=%d/%d tables=%d/%d columns=%d/%d constraints=%t substrate=%t role=%t grants=%t receipt=%t",
+			devBypass, ledgerCount, len(requiredUIWMigrations), tableCount, len(requiredUIWTables), columnCount,
 			len(requiredUIWColumns), constraintsExact, substrateExact, roleSafe, grantsExact, receiptExact)
 	}
 	return nil

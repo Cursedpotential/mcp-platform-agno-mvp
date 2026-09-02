@@ -1,11 +1,15 @@
 // Byline: Codex · GPT-5.6-Sol · 2026-08-30
 // Extended · Claude Code · Sonnet 5 · 2026-09-02 (BUILD LANE S2): ledger
 // retarget coverage (public.schema_version -> ops.migration_ledger, D-109).
+// Extended · Claude Code · Sonnet 5 · 2026-09-02 (BUILD LANE S3, D-126):
+// dev-bypass sentinel-identity gating coverage.
 package postgres
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"strings"
 	"testing"
 
@@ -20,11 +24,13 @@ func (db probeDB) QueryRow(context.Context, string, ...any) pgx.Row {
 
 type capturingProbeDB struct {
 	query string
+	args  []any
 	row   probeRow
 }
 
-func (db *capturingProbeDB) QueryRow(_ context.Context, query string, _ ...any) pgx.Row {
+func (db *capturingProbeDB) QueryRow(_ context.Context, query string, args ...any) pgx.Row {
 	db.query = query
+	db.args = args
 	return db.row
 }
 
@@ -128,6 +134,118 @@ func TestProbeUIWSchemaRejectsWrongIdentityOrScope(t *testing.T) {
 			mutate(&row)
 			if err := ProbeUIWSchema(context.Background(), probeDB{row: row}); err == nil {
 				t.Fatal("expected fail-closed admission")
+			}
+		})
+	}
+}
+
+// TestProbeUIWSchemaDefaultBindsStrictAuthoritativeIdentity locks in the
+// fail-closed default (D-125, D-126): with PLATFORM_DEV_AUTH_BYPASS unset,
+// the probe must bind the REAL authoritative identity and the STRICT
+// (approved_by='owner') receipt expectation -- unmet until go-live, exactly
+// as before this build lane.
+func TestProbeUIWSchemaDefaultBindsStrictAuthoritativeIdentity(t *testing.T) {
+	db := &capturingProbeDB{row: admittedProbeRow()}
+	if err := ProbeUIWSchema(context.Background(), db); err != nil {
+		t.Fatal(err)
+	}
+	if len(db.args) != 14 {
+		t.Fatalf("expected 14 bound query args, got %d", len(db.args))
+	}
+	if db.args[3] != authoritativeMatterID || db.args[4] != authoritativeCourtCaseID {
+		t.Fatalf("flag unset must bind the real authoritative identity, got matter=%v court_case=%v", db.args[3], db.args[4])
+	}
+	if db.args[11] != registryReceiptPayloadByteLength || db.args[12] != registryReceiptApprovedBy || db.args[13] != registryReceiptApprovedOn {
+		t.Fatalf("flag unset must bind the STRICT receipt expectation, got payload_byte_length=%v approved_by=%v approved_on=%v",
+			db.args[11], db.args[12], db.args[13])
+	}
+}
+
+// TestProbeUIWSchemaDevBypassBindsSentinelIdentityNotSkipsIt is the D-126
+// regression guard for the owner's exact correction: the flag must not turn
+// identity/receipt checking OFF, it must repoint both checks at the fixed
+// DEV sentinel. If this ever regresses into a bypass that removes the
+// predicates rather than retargeting them, this test fails.
+func TestProbeUIWSchemaDevBypassBindsSentinelIdentityNotSkipsIt(t *testing.T) {
+	t.Setenv("PLATFORM_DEV_AUTH_BYPASS", "1")
+	db := &capturingProbeDB{row: admittedProbeRow()}
+	if err := ProbeUIWSchema(context.Background(), db); err != nil {
+		t.Fatal(err)
+	}
+	if len(db.args) != 14 {
+		t.Fatalf("expected 14 bound query args, got %d", len(db.args))
+	}
+	if db.args[3] != devMatterID || db.args[4] != devCourtCaseID {
+		t.Fatalf("PLATFORM_DEV_AUTH_BYPASS=1 must bind the DEV sentinel identity, got matter=%v court_case=%v", db.args[3], db.args[4])
+	}
+	if db.args[12] != devReceiptApprovedBy {
+		t.Fatalf("PLATFORM_DEV_AUTH_BYPASS=1 must bind the honest dev receipt label, got approved_by=%v", db.args[12])
+	}
+	if db.args[12] == registryReceiptApprovedBy {
+		t.Fatal("dev-mode approved_by must never equal 'owner' (D-126: no fabricated owner-approval receipt)")
+	}
+	// The query text itself must be byte-identical between modes -- only the
+	// bound constants move. This is what makes it a retarget, not a skip.
+	strictDB := &capturingProbeDB{row: admittedProbeRow()}
+	// t.Setenv above is still in effect for this subtest scope; unset for
+	// the strict-mode capture by clearing the variable explicitly.
+	t.Setenv("PLATFORM_DEV_AUTH_BYPASS", "")
+	if err := ProbeUIWSchema(context.Background(), strictDB); err != nil {
+		t.Fatal(err)
+	}
+	if db.query != strictDB.query {
+		t.Fatal("dev-bypass mode must run the identical query text as strict mode -- only bound values may differ")
+	}
+}
+
+// TestProbeUIWSchemaDevBypassLogsLoudWarning: D-125/D-126 both require a
+// loud one-line warning naming the flag whenever the bypass is active.
+func TestProbeUIWSchemaDevBypassLogsLoudWarning(t *testing.T) {
+	t.Setenv("PLATFORM_DEV_AUTH_BYPASS", "true")
+	var buf bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+
+	if err := ProbeUIWSchema(context.Background(), probeDB{row: admittedProbeRow()}); err != nil {
+		t.Fatal(err)
+	}
+	logged := buf.String()
+	if !strings.Contains(logged, "PLATFORM_DEV_AUTH_BYPASS") {
+		t.Fatalf("dev-bypass admission must log a warning naming the flag, got: %s", logged)
+	}
+	if !strings.Contains(strings.ToUpper(logged), "WARN") {
+		t.Fatalf("dev-bypass admission warning must be logged at WARN level, got: %s", logged)
+	}
+}
+
+// TestProbeUIWSchemaDevBypassEnvSpellings covers the truthy/falsy env
+// vocabulary devAuthBypassEnabled accepts, including the fail-closed default.
+func TestProbeUIWSchemaDevBypassEnvSpellings(t *testing.T) {
+	cases := map[string]bool{
+		"":        false,
+		"0":       false,
+		"false":   false,
+		"no":      false,
+		"off":     false,
+		"garbage": false,
+		"1":       true,
+		"true":    true,
+		"TRUE":    true,
+		"  1  ":   true,
+		"yes":     true,
+		"on":      true,
+	}
+	for value, want := range cases {
+		t.Run("value="+value, func(t *testing.T) {
+			t.Setenv("PLATFORM_DEV_AUTH_BYPASS", value)
+			db := &capturingProbeDB{row: admittedProbeRow()}
+			if err := ProbeUIWSchema(context.Background(), db); err != nil {
+				t.Fatal(err)
+			}
+			gotDev := db.args[3] == devMatterID
+			if gotDev != want {
+				t.Fatalf("PLATFORM_DEV_AUTH_BYPASS=%q: dev-mode active = %t, want %t", value, gotDev, want)
 			}
 		})
 	}
