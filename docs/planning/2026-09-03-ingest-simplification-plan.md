@@ -49,6 +49,35 @@ as custody. Chunk hashes are **not** promotable to H2 (different bytes, post-
 chunking) — they prove chunking was lossless and re-extraction deterministic,
 which is exactly the verification job the owner named.
 
+## The hub-and-mirror model (owner ruling, 2026-09-03 12:51)
+
+Owner: "we're going to split what we were trying to do in one set into two sets,
+but essentially everything remains the same… we're still going to chunk
+everything… we may not have to ingest the evidence into the vectors a second
+time… once we link the original working tables and the evidence tables,
+everything that was linked to the one should be linked to the other."
+
+**The working row is the hub. Evidence is a linked mirror. Every projection stays
+pointed at the hub and reaches evidence through the link.**
+
+| Thing | Where it lives | At promotion |
+|---|---|---|
+| Working record / chunk | `working.*` | untouched |
+| Evidence record / chunk | `evidence.*` — **mirrors** of the working tables (reuse the 7 existing `evidence.*` tables where they fit; add mirrors only where no fit) | new rows written |
+| The link | **link table** `working_evidence_link(working_id, evidence_id, promotion_receipt_ref, linked_at)` — append-only, never a column added onto the working row | one row per promoted record |
+| Vector index | points at the hub (working row) | **NOT re-embedded** — a search hit resolves to the working row, then to its evidence twin via the link |
+| Entities, graph edges, timeline | attached to the hub | **NOT re-linked** — transitively reach evidence through the link |
+| Chunking | **always**, everything, parse-then-chunk | chunks are what get mirrored and what the FK points at |
+
+Why a link table and not a column: the plan's standing rule is that promotion
+never mutates a working row. Appending `evidence_id` onto `working.content_chunk`
+would be a mutation. A separate append-only link table keeps that rule intact
+and also carries the promotion receipt, which a column could not.
+
+Why chunk everything: it is the most efficient unit, and it guarantees messages
+are properly split BEFORE anything reaches evidence — a message that was never
+chunked correctly never gets promoted incorrectly.
+
 ---
 
 ## Phase 0 — Discovery (DONE; consolidated here so later phases need not repeat it)
@@ -148,7 +177,7 @@ these before any phase; do not re-derive them.
 **Goal:** the workflow shape the owner described.
 
 **Implement:**
-1. Add `chunk_document_activity` to `stagegraph.Stages` and the DAG in `registry.go`, depending on `retain_original` and running **before** parse for already-normalized text (markdown, plain text) and **after** parse for decoded records. Read `stage.go:79-106` first — it explains why it was excluded (it's an OR-branch, not a converging dependency). Model it as two entry points if needed; do not fake a linear dependency.
+1. Add `chunk_document_activity` to `stagegraph.Stages` and the DAG in `registry.go`. **Owner ruling: chunk EVERYTHING, always, parse-then-chunk.** Already-normalized text (markdown, plain text) still passes through the parse stage as a whole-file record (`generic/whole_file_fallback.py` exists for exactly this) and then chunks — so there is ONE entry point, not two, and the OR-branch concern in `stage.go:79-106` dissolves. Read that comment anyway before editing so its original reasoning is recorded as superseded, not deleted.
 2. Chunk hashing: the chunker already emits `ContentHash` and byte ranges (`chunk.go:150-167`). Persist them to `working.content_chunk.content_sha256` — copy the repository write shape from `modules/engine/postgres/chunk_repository.go` (built in C1, 2026-09-02).
 3. Per-file activity: introduce a `IngestFileWorkflow` (child workflow) in `modules/engine/uiw/` that runs the existing stage sequence for ONE source. The batch entry point fans out one child per file — copy the child-workflow shape from the Temporal Go SDK vendored at `modules/engine/vendor/go.temporal.io/sdk/workflow/` (`ExecuteChildWorkflow`). Do not invent a fan-out helper; the SDK has one.
 4. Parallel chunks: inside the per-file activity, chunk processing (fingerprint/persist) fans out with a bounded `errgroup` — copy the concurrency pattern already used in `hashing.go:291-365` if present, else the standard `golang.org/x/sync/errgroup` (check `go.mod` before adding).
@@ -175,10 +204,10 @@ ADR-0052 CDC fan-out into graph and vectors — never a mutation of working rows
 2. Re-read the sealed original via the acquisition resolver (`acquisition.NewSchemeRouter` — same one the gateway uses). Recompute SHA-256; assert equal to the intake `context_source_fingerprint`. **Mismatch → fail closed, no promotion.**
 3. Re-parse through the SAME parser id+version recorded on the source version (`postgres/parser_activity_store.go` persists it). Re-chunk.
 4. **Verify against working rows:** for every produced chunk, look up the existing `working.content_chunk` row by `(source_version, byte_start, byte_end)`; assert `content_sha256` equal. Any mismatch → surface the diff as a receipt and **stop** — the exhibit must be the thing that was reviewed. Never mutate the working row.
-5. On full match, **write the evidence projection**: new rows in `evidence.*` tables (a NEW migration adds `evidence.message`/`evidence.chunk` or reuses existing evidence tables — inventory `evidence.*` in `schema_baseline_20260830.sql` first and reuse before adding). Each evidence row carries its own `uuidv7`, the complete record content, and a FK `working_chunk_id` / `working_record_id` back to its source row. The FK is the provenance link; it is the only join and it is the platform's standard one.
+5. On full match, **write the evidence projection**: new rows in `evidence.*`. The 7 existing tables are `acquisition`, `artifact_metadata`, `custody_event`, `evidence_hash`, `evidence_item`, `ingest_run`, `source` — reuse `evidence_item` if its shape fits a chunk/message row; otherwise a NEW migration adds **mirror** tables (`evidence.message`, `evidence.chunk`) whose columns mirror `working.*`. Then write one `working_evidence_link` row per promoted record (`working_id`, `evidence_id`, `promotion_receipt_ref`, `linked_at`). The link table is the ONLY join, it is append-only, and it never touches the working row.
 6. Write custody on the evidence rows — H1 (`HashFileH1`, tag `h1-rawbytes-v1`), H2 per raw record span (`HashRecordH2`, `h2-rawelement-v1`), H3 fold (`ChainH3`, `h3-chain-sbv-genesisempty-v1`) — into `evidence.evidence_hash` using the column contract at `server/evidence/custody.py:415-432`.
 7. Message-level check: for each promoted message, compute `fidelity.Digest` from the working row and from the evidence row; assert equal. That equality is the recorded proof that the exhibit equals what was reviewed.
-8. Working rows are untouched and keep evolving — investigation continues after promotion; the evidence rows are the frozen snapshot under the D-128 guards.
+8. Working rows are untouched and keep evolving — investigation continues after promotion; the evidence rows are the frozen snapshot under the D-128 guards. **Do NOT re-embed into Weaviate, re-link entities, or re-project the graph at promotion** — those all point at the hub and reach evidence through the link table. The one permitted write to the search surface is a metadata patch (see the tension note below).
 9. Register under `stagegraph` as its own stage; it is NOT part of the ingest DAG. It is invoked by the operator's decision, not by ingest completion.
 
 **Verification:**
