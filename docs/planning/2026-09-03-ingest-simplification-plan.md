@@ -11,9 +11,14 @@
 > to "one activity per file, so if the workflow is calling a batch it will call
 > multiple activities… large files broken into chunks early… processed in
 > parallel." And: "H1 still happens… likely the chunks also… it's more
-> verification than anything." And on identity: promotion **verifies existing
-> rows in place** — it never replaces them, so the `uuidv7` primary key is the
-> immutable ID and no join key is needed.
+> verification than anything." And on identity (corrected same day): promotion
+> writes **new rows into `evidence.*` tables linked by FK to the working rows** —
+> "create new tables for the evidence that has everything included and then it
+> can just link to that particular foreign key for its provenance… just like it
+> does through the change detection and into the graph and the vectors." An
+> earlier verify-in-place variant was rejected because the D-128 immutability
+> guards attach to `evidence.*` tables, so a flagged working row would be
+> unguarded evidence.
 >
 > Each phase is self-contained for a fresh session. Every task is framed as
 > COPY-FROM-A-CITED-LOCATION, not "migrate". Every phase ends with a proof
@@ -27,7 +32,7 @@
 | Intake — whole file | context fingerprint | **keep** | `context-source-fingerprint-v1` |
 | Intake — chunking | (chunker orphaned) | **wire in, hash each chunk** | `content_sha256` + byte range (D-116) |
 | Normalization | normalized digests | **DELETE** — tables also hold AI chats | — |
-| Promotion | custody H1/H2/H3 (never built) | **BUILD, verify-in-place** | `h1-rawbytes-v1`, `h2-rawelement-v1`, `h3-chain-sbv-genesisempty-v1` |
+| Promotion | custody H1/H2/H3 (never built) | **BUILD — project into `evidence.*`, FK to working rows** | `h1-rawbytes-v1`, `h2-rawelement-v1`, `h3-chain-sbv-genesisempty-v1` |
 | Later | reverification | keep | — |
 
 **Why this is safe:** `context-source-fingerprint-v1` and `h1-rawbytes-v1` are the
@@ -75,13 +80,14 @@ these before any phase; do not re-derive them.
 - **Go ingest already computes zero custody hashes.** Only context fingerprints under distinct tags. The custody symbols are declared-unused. (Agent: repo-wide grep excluding `vendor/` returned only the declaration lines.)
 - **No promotion code exists anywhere** — not in `modules/engine`, not in `server/evidence/`. Only comments saying R04 will do it. Phase 4 is greenfield.
 - **The chunker is orphaned.** Built, tested, registered, never scheduled by the workflow.
-- **`content_chunk.id` is `uuidv7()`** — random. Immutable only if promotion never replaces rows. Hence verify-in-place.
+- **`content_chunk.id` is `uuidv7()`** — random, and it stays put: promotion never touches working rows. Evidence rows get their own `uuidv7` plus a FK back — the standard provenance link, same as every CDC projection.
 - **Python still writes custody H1 at ingest** (`custody.py:418`). This is the only real "custody at ingest" left, and it's the one to cut.
 
 ### Anti-patterns (global, every phase)
 
 - Writing `h1-rawbytes-v1`, `h2-rawelement-v1`, or any `h3-chain-*` tag anywhere except the promotion activity.
-- Promotion creating new rows. It verifies existing rows and flips their tier.
+- Promotion MUTATING working rows (tier flips, content edits, id changes). It writes new `evidence.*` rows and links back by FK; working rows keep evolving.
+- Evidence living anywhere other than `evidence.*` — that is the D-128 guard boundary, and a flagged working row is unguarded evidence.
 - Hashing anything in `analysis.normalized_record` / normalized generations.
 - A parser or chunker computing a hash it then persists as custody (D-130 rule 1/2).
 - Regenerating `uuidv7` for a record that already exists.
@@ -154,27 +160,31 @@ these before any phase; do not re-derive them.
 
 ---
 
-## Phase 4 — Build promotion (greenfield, verify-in-place)
+## Phase 4 — Build promotion (greenfield): project into `evidence.*`, FK to working rows
 
-**Goal:** R04. The only place custody tags are ever written.
+**Goal:** R04. The only place custody tags are ever written. Evidence is a
+**projection** of working data into the guarded schema — the same shape as the
+ADR-0052 CDC fan-out into graph and vectors — never a mutation of working rows.
 
 **Implement** — new package `modules/engine/promotion/`, new activity `promote_source_version_activity`:
 1. Input: `source_version_ref` + the operator's decision receipt (copy the request/receipt shape from `activities/repair.go:100-140`, which already models an operator-gated activity).
 2. Re-read the sealed original via the acquisition resolver (`acquisition.NewSchemeRouter` — same one the gateway uses). Recompute SHA-256; assert equal to the intake `context_source_fingerprint`. **Mismatch → fail closed, no promotion.**
 3. Re-parse through the SAME parser id+version recorded on the source version (`postgres/parser_activity_store.go` persists it). Re-chunk.
-4. **Verify in place:** for every produced chunk, look up the existing `working.content_chunk` row by `(source_version, byte_start, byte_end)`; assert `content_sha256` equal. Any mismatch → surface the diff as a receipt and **stop** — the exhibit must be the thing that was reviewed. Never create rows; never touch `id`.
-5. On full match: write custody — H1 (`HashFileH1`, tag `h1-rawbytes-v1`), H2 per raw record span (`HashRecordH2`, `h2-rawelement-v1`), H3 fold (`ChainH3`, `h3-chain-sbv-genesisempty-v1`) — into `evidence.evidence_hash` using the write shape at `server/evidence/custody.py:415-432` as the column contract. Then flip the tier on the existing rows (`safe_for_legal_use` / `data_tier` per `working.entity_resolution` at `schema_baseline_20260830.sql:3601-3630` for the column names in use).
-6. Message-level check: for each promoted message, compute `fidelity.Digest` from the stored row and from the fresh parse; assert equal (this is the fidelity package's new job — Phase 1 updated its comment).
-7. Register under `stagegraph` as its own stage; it is NOT part of the ingest DAG. It is invoked by the operator's decision, not by ingest completion.
+4. **Verify against working rows:** for every produced chunk, look up the existing `working.content_chunk` row by `(source_version, byte_start, byte_end)`; assert `content_sha256` equal. Any mismatch → surface the diff as a receipt and **stop** — the exhibit must be the thing that was reviewed. Never mutate the working row.
+5. On full match, **write the evidence projection**: new rows in `evidence.*` tables (a NEW migration adds `evidence.message`/`evidence.chunk` or reuses existing evidence tables — inventory `evidence.*` in `schema_baseline_20260830.sql` first and reuse before adding). Each evidence row carries its own `uuidv7`, the complete record content, and a FK `working_chunk_id` / `working_record_id` back to its source row. The FK is the provenance link; it is the only join and it is the platform's standard one.
+6. Write custody on the evidence rows — H1 (`HashFileH1`, tag `h1-rawbytes-v1`), H2 per raw record span (`HashRecordH2`, `h2-rawelement-v1`), H3 fold (`ChainH3`, `h3-chain-sbv-genesisempty-v1`) — into `evidence.evidence_hash` using the column contract at `server/evidence/custody.py:415-432`.
+7. Message-level check: for each promoted message, compute `fidelity.Digest` from the working row and from the evidence row; assert equal. That equality is the recorded proof that the exhibit equals what was reviewed.
+8. Working rows are untouched and keep evolving — investigation continues after promotion; the evidence rows are the frozen snapshot under the D-128 guards.
+9. Register under `stagegraph` as its own stage; it is NOT part of the ingest DAG. It is invoked by the operator's decision, not by ingest completion.
 
 **Verification:**
-- Unit: byte-identical re-parse → promotes; one altered byte in the original → refuses at step 2; one altered stored chunk → refuses at step 4 with a diff receipt; a swapped-direction message → refuses at step 6
+- Unit: byte-identical re-parse → promotes; one altered byte in the original → refuses at step 2; one altered stored chunk → refuses at step 4 with a diff receipt; a swapped-direction message → refuses at step 7
 - `grep -rn "h1-rawbytes-v1\|h2-rawelement-v1\|h3-chain" modules/engine server --include=*.go --include=*.py | grep -v vendor | grep -v _test` → hits ONLY in `modules/engine/promotion/` and the constant declarations
-- Live: promote the synthetic fixture (`upload://72640c6c…`, 95 messages, 555-numbers); `evidence.evidence_hash` gains H1 + 95 H2 + 1 H3; `working.content_chunk` row count unchanged and every `id` unchanged (assert by snapshotting ids before/after)
+- `grep -n "UPDATE working\.\|DELETE FROM working\." modules/engine/promotion/` → **0** (promotion never mutates working)
+- Live: promote the synthetic fixture (`upload://72640c6c…`, 95 messages, 555-numbers); `evidence.evidence_hash` gains H1 + 95 H2 + 1 H3; `evidence.*` gains 95 message rows each with a valid FK; `working.content_chunk` row count and every `id` are unchanged (snapshot ids before/after)
+- Every evidence row's FK resolves: `SELECT count(*) FROM evidence.message e LEFT JOIN working.content_chunk w ON w.id = e.working_chunk_id WHERE w.id IS NULL` → 0
 
-**Guards:** never new rows; never regenerate ids; never promote on any mismatch; custody tags nowhere else.
-
----
+**Guards:** never mutate working rows; evidence only in `evidence.*`; never promote on any mismatch; custody tags nowhere else; reuse existing `evidence.*` tables before adding new ones.
 
 ## Phase 5 — Deploy and rehearse on real data
 
