@@ -104,11 +104,27 @@ Case Bible domain        (v4 taxonomy, NO numbers — e.g. Messaging)
 
 Consequences, binding on every phase below:
 
+- **Conversation grouping is OUR classification act inside ingest — NOT assigned
+  by the Case Bible sort** (owner correction, 2026-09-03 13:08: "this isn't
+  gonna happen at the organizational level"). The folder is one signal; it does
+  not decide. It runs in TWO passes because the real signal is parsed content:
+  1. **Tentative group** at classify, per file, pre-parse — from Case Bible path,
+     filename, platform, and any thread id visible in the container listing.
+     Cheap; its only job is to fan packages out together.
+  2. **Real group** after parse, ACROSS files — a `group_conversations` activity:
+     parsed counterparty handles → `registry.id_xref` → canonical entity, evaluated
+     as-of each message's date (numbers change); platform; date-range overlap;
+     export thread ids (`thread_id`, `thread_path`); for screenshots the OCR'd
+     counterparty and visible dates. This is entity resolution applied to
+     counterparties, not a new classifier, and it is what makes cross-platform
+     hopping one group (`5551234567` and `fb:1000…` → same person).
+  The hard classify cases — an `.md` that may be an AI transcript or the owner's
+  own notes; which conversation a screenshot depicts — are where agents READ
+  content. Cheap sniffing covers A/D/E/F; agents cover the ambiguous middle.
+  Both live in ingest+classify, never in sorting.
 - **The manifest carries the whole path.** Every row has `case_bible_domain`,
-  `platform`, `conversation_group`, `artifact_kind`, `package_id`, then the
-  file-level fields. The Case Bible folder structure — already produced by the
-  sorter (package-aware, convo + attachments together) — is the PRIMARY grouping
-  signal; content sniffing refines it, never overrides it silently.
+  `platform`, `tentative_group`, `artifact_kind`, `package_id`, then the
+  file-level fields; `conversation_group` is written by pass 2.
 - **Fan-out is per package** (custody unit), and each package carries its
   `conversation_group` so the corroboration stage can find its siblings after
   ingest without re-discovery.
