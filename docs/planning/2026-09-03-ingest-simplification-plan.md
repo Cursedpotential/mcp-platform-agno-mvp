@@ -79,6 +79,56 @@ Why chunk everything: it is the most efficient unit, and it guarantees messages
 are properly split BEFORE anything reaches evidence — a message that was never
 chunked correctly never gets promoted incorrectly.
 
+## The hierarchy — Case Bible level down to chunk (owner ruling, 2026-09-03 13:06)
+
+Owner: "Even when it's separated down to per-platform folders, there are still
+going to be multiple file types within the platform, because the same
+conversation may have happened, or been extracted, or live in several different
+file types or export types."
+
+The R2 inventory bears this out: `casebible-sorted/…/snapchat/` alone holds
+**8 file types** (jpg, jpeg, png, html, json, mp4, xlsx, docx) that are all
+artifacts of a small number of conversations. Routing is per FILE CLASS; grouping
+and corroboration are per CONVERSATION. Both levels must exist or the
+corroboration graph has nothing to hang edges on.
+
+```
+Case Bible domain        (v4 taxonomy, NO numbers — e.g. Messaging)
+ └ platform              (Snapchat, WhatsApp, SMS, Messenger, Google Voice …)
+    └ conversation group (the logical thread: "Snapchat — Katrina")
+       └ artifact        (JSON export | HTML export | screenshot set | audio | summary docx)
+          └ package      (an export zip, a screenshot folder — THE CUSTODY UNIT, never split)
+             └ file      (routed by class per the table below)
+                └ record / chunk
+```
+
+Consequences, binding on every phase below:
+
+- **The manifest carries the whole path.** Every row has `case_bible_domain`,
+  `platform`, `conversation_group`, `artifact_kind`, `package_id`, then the
+  file-level fields. The Case Bible folder structure — already produced by the
+  sorter (package-aware, convo + attachments together) — is the PRIMARY grouping
+  signal; content sniffing refines it, never overrides it silently.
+- **Fan-out is per package** (custody unit), and each package carries its
+  `conversation_group` so the corroboration stage can find its siblings after
+  ingest without re-discovery.
+- **Corroboration edges are built WITHIN a conversation group** — native export
+  ↔ screenshot ↔ audio ↔ summary — with independence class on every edge
+  (same device / same party / cross-party). This is where "a screenshot shows a
+  message the export lacks" becomes a recorded deletion finding.
+- **Promotion is conversation-aware.** The operator promotes a conversation
+  group — all its artifacts together with their corroboration verdicts — not one
+  file in isolation. The evidence package then presents native + screenshots +
+  verdicts as one exhibit set, which is what the owner described: "normalized
+  data that's easy to read… along with it the original source data… validated as
+  unchanged… slide in the hash validations… and the reassembly of cross-platform
+  hopping."
+- **A conversation may span platforms.** The group is keyed by counterparty and
+  thread, not by platform; platform is an attribute of the artifact. A thread
+  that hopped SMS → Messenger → WhatsApp is ONE conversation group with artifacts
+  on three platforms, and the composition manifest (ordered by each source's own
+  clock, ambiguity flagged) is how it is reassembled.
+
 ---
 
 ## Phase 0 — Discovery (DONE; consolidated here so later phases need not repeat it)
