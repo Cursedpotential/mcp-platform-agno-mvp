@@ -35,7 +35,7 @@
 |---|---|---|---|
 | Intake — whole file | context fingerprint | **keep** | `context-source-fingerprint-v1` |
 | Intake — chunking | (chunker orphaned) | **wire in, hash each chunk** | `content_sha256` + byte range (D-116) |
-| Normalization | normalized digests | **DELETE** — tables also hold AI chats | — |
+| Normalization | normalized digests | **keep — reclassified as INTEGRITY VERIFICATION, never custody** (owner-ruled 2026-09-03) | `normalized-record-postgresql18-jsonb-text-utf8-sha256-v1`, `normalized-generation-ordered-digests-lengthframed-sha256-v1` — already non-custody tags |
 | Promotion | custody H1/H2/H3 (never built) | **BUILD — project into `evidence.*`, FK to working rows** | `h1-rawbytes-v1`, `h2-rawelement-v1`, `h3-chain-sbv-genesisempty-v1` |
 | Later | reverification | keep | — |
 
@@ -100,7 +100,7 @@ these before any phase; do not re-derive them.
 | Chunk activity | `modules/engine/activities/chunking.go:13` `chunk_document_activity` | registered, **NOT in `Stages`**, not workflow-invoked (`stagegraph/stage.go:79-106` explains why) |
 | Chunk table | `working.content_chunk` (`sql/bootstrap/schema_baseline_20260830.sql:3415`) | `id uuid DEFAULT uuidv7()`, `content_sha256`, byte ranges |
 | Stage list (26) | `modules/engine/stagegraph/stage.go:14-41`; DAG `registry.go:55-223` | 5 hash stages asserted by `graph_test.go:160-185` (`TestFiveHashComputationStagesAreDistinct`) |
-| Hash stages | `FingerprintSource`, `FingerprintRawRecords`, `FingerprintRawGeneration`, `HashNormalizedRecords`, `HashNormalizedGeneration` | the last two are hash moment 2 |
+| Hash stages | `FingerprintSource`, `FingerprintRawRecords`, `FingerprintRawGeneration`, `HashNormalizedRecords`, `HashNormalizedGeneration` | ALL FIVE STAY. The last two are hash moment 2 — integrity verification of a normalized generation, never custody |
 | Workflow | `modules/engine/uiw/workflow.go` | version gates via `workflow.GetVersion` (`:13-41`) |
 | Fidelity digest | `modules/engine/fidelity/fidelity.go` | 4-field seal; **KEEP (owner-ruled)** — guards the record where chunk hashes guard the file; used at promotion (step 7) and post-promotion reverification (moment 4) |
 | n8n flow → Activity | `modules/engine/temporal/flowbinding.go`, `flowactivity.go` | declare a flow, get an Activity |
@@ -122,7 +122,7 @@ these before any phase; do not re-derive them.
 - Writing `h1-rawbytes-v1`, `h2-rawelement-v1`, or any `h3-chain-*` tag anywhere except the promotion activity.
 - Promotion MUTATING working rows (tier flips, content edits, id changes). It writes new `evidence.*` rows and links back by FK; working rows keep evolving.
 - Evidence living anywhere other than `evidence.*` — that is the D-128 guard boundary, and a flagged working row is unguarded evidence.
-- Hashing anything in `analysis.normalized_record` / normalized generations.
+- Writing a CUSTODY tag against `analysis.normalized_record` / normalized generations. Integrity-verification digests there are correct and required; custody there is not.
 - A parser or chunker computing a hash it then persists as custody (D-130 rule 1/2).
 - Regenerating `uuidv7` for a record that already exists.
 - Returning an empty record set on an unrecognized shape (the 516-MMS failure). Raise.
@@ -137,7 +137,7 @@ these before any phase; do not re-derive them.
 **Implement:**
 1. Append to `docs/DECISION_LOG.md` (copy the row shape of D-136 exactly):
    - **D-137** — Custody only at promotion; promotion verifies existing rows in place; one activity per file; chunks early and parallel. Quote the owner fragments in the header of this plan.
-   - **D-124 amendment** — hash moment 2 (normalized digests) is DELETED; moments 1, 3, 4 stand. Strike-through the old moment-2 text with a dated correction (never silently delete).
+   - **D-124 amendment** — all four hash moments STAND. Moment 2 (normalized digests) is reclassified as **integrity verification, never custody**: it proves a normalized generation is complete, contiguous and reproducible, which cross-platform conversation reassembly depends on (owner, 2026-09-03: reassembling from multiple normalized tables across platform hops needs each one provably intact). AI-chat rows receive it too — harmless, because it is not custody, so no D-082 conflict. An earlier draft of this plan proposed deleting moment 2; record that as struck, not silently removed.
    - **D-130 amendment** — "one unit does one thing" is satisfied by *ingest a file*; a per-file activity is compliant. Atomic sub-units remain the shape *inside* Go for parallelism, not the Temporal boundary.
 2. Update `docs/reference/HASH-TAXONOMY-2026-08-29.md` "The recurring shape" table: remove the Normalized row from *custody-relevant* families; add a sentence that chunk hashes are verification-only and not promotable to H2.
 3. Update `modules/engine/fidelity/fidelity.go` package comment: its job is the **comparison check at promotion** (stored row vs fresh parse), not a join key. Keep the construction and canon tag unchanged — changing the tag would invalidate nothing yet, but don't.
@@ -159,13 +159,13 @@ these before any phase; do not re-derive them.
 **Implement:**
 1. `server/evidence/custody.py:418-427` — the `INSERT INTO evidence.evidence_hash … level='H1', canon_version='h1-rawbytes-v1'` on every `ingest_artifact`. Change it to write the **context fingerprint** under `context-source-fingerprint-v1` into the context receipt table used by `hashing.go:217` (copy the write shape from `modules/engine/postgres/hash_repository.go:427-435` ref-kind mapping). Keep the SHA-256 computation (`_sha256_file`, `:228`) — it's the same number. Only the tag and destination change.
 2. `verify_artifact` (`custody.py:458-462`) must keep working against the fingerprint row — update its lookup, don't delete it.
-3. Delete hash moment 2 from the workflow: in `modules/engine/uiw/workflow.go`, stop scheduling `HashNormalizedRecords` and `HashNormalizedGeneration`. Do this behind a NEW `workflow.GetVersion` gate — copy the exact shape at `uiw/workflow.go:13-41` (`fingerprintVocabularyChangeID`) so in-flight histories replay. Do NOT delete the activity code yet; unregister it from the DAG in `stagegraph/registry.go` and update `graph_test.go:160-185` (`TestFiveHashComputationStagesAreDistinct`) to assert **three** hash stages.
-4. `verify_normalized_generation_activity` (`normalized_pipeline.go:348`, recompute at `:386`) depends on moment 2. Reduce it to lineage/coverage checks only, or remove it under the same version gate.
+3. **Hash moment 2 STAYS — owner-ruled 2026-09-03.** `HashNormalizedRecords`, `HashNormalizedGeneration`, and `verify_normalized_generation_activity` (`normalized_pipeline.go:341-418`) remain in the DAG unchanged, as do the `sql/0036` seal-trigger preconditions that require their receipts. Their role is integrity verification of each normalized generation (contiguous ordinals, canon check, reproducible fold, refuse-on-zero), which cross-platform reassembly depends on. `TestFiveHashComputationStagesAreDistinct` continues to assert **five**. Only their DOCUMENTATION changes: the activity/package comments must say verification-not-custody explicitly, citing this ruling, so no future session re-derives the deletion.
+4. Confirm by grep that the two normalized tags never appear anywhere a custody tag is expected (`grep -rn "normalized-record-postgresql18\|normalized-generation-ordered" server/evidence/` → 0).
 5. Resolve the ELT open question at `elt_structured_repository.go:33-49`: `raw.<format>.content_hash` is a **context fingerprint**. Rename the constant at `:65` from `h2-rawelement-duckdb-json-v1` to `context-rawrecord-duckdb-json-fingerprint-v1` and update the SQL defaults at `sql/0009_raw_layer_and_derivation.sql:111` and `schema_baseline.sql:4678,4710,4742,4774,4830,4889` via a NEW migration (never edit an applied one). Strike the open-question comment with the resolution.
 
 **Verification:**
 - `grep -rn "h1-rawbytes-v1\|h2-rawelement-v1\|h3-chain" server/ modules/engine --include=*.py --include=*.go | grep -v vendor | grep -v _test | grep -v promotion` → **zero hits outside the (not-yet-built) promotion package** and the constant declarations at `hashing.go:28-31`
-- `go test ./stagegraph/` passes with the hash-stage count = 3
+- `go test ./stagegraph/` passes with the hash-stage count still = 5
 - `uv run pytest tests/ -k custody` passes; `verify_artifact` test still green
 - Replay test: an in-flight workflow history recorded before the gate still replays (copy the pattern from `uiw/workflow_test.go`)
 
@@ -241,7 +241,6 @@ ADR-0052 CDC fan-out into graph and vectors — never a mutation of working rows
 1. Anti-pattern grep (run all, expect the stated results):
    - custody tags outside promotion → 0
    - `uuidv7()` regeneration in promotion → 0 (`grep -n "uuidv7\|NewString" modules/engine/promotion/`)
-   - normalized-table hashing → 0 (`grep -n "HashNormalized" modules/engine/uiw/workflow.go` inside the live branch of the version gate)
    - `return None` / empty-set on unrecognized shape in any parser → review each hit
 2. `go build ./... && go vet ./... && go test ./...` in `modules/engine/` — green
 3. `uv run ruff check server tests && uv run mypy server && uv run pytest -q` — green, and the pre-existing 26 failures (deploy-contract drift, `FrozenInstanceError`, opencode-ops) are either fixed or explicitly listed as out of scope with their cause
