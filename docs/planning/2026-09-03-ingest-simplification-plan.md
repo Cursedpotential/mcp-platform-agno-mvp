@@ -2,6 +2,10 @@
 
 > _Byline: Claude Code · Opus 5 · 2026-09-03. Orchestrator plan per `/make-plan`._
 >
+> **STATUS: ITERATING — NOT DONE.** This plan is done only when the owner says it
+> is done (owner, 2026-09-03: "You don't decide when the plan is done… We iterate
+> until I say the plan is done"). Every phase below is a proposal until ratified.
+>
 > Owner direction, 2026-09-03 (verbatim fragments): "at the point that it becomes
 > evidence we are going to re-extract it from the original binary… store that
 > immutably… add all of our metadata and our tables away from the file… once it
