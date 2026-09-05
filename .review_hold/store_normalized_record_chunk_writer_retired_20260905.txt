@@ -1,0 +1,58 @@
+QUARANTINE (never-delete rule) -- retired Python chunk writer
+Source: server/evidence/store.py, lines 428-475 at commit fa51dde
+Retired: 2026-09-05 by Claude Code . Opus 5 (H-04).
+Why: working.normalized_record_chunk was DROPPED by sql/0058_the_reckoning.sql:97 (D-116).
+      Successor writer = the Go message-window chunker Temporal Activity
+      (docs/planning/2026-09-03-ingest-redesign-plan-and-sequential-guide.md, Stage 3),
+      which writes working.content_chunk + working.content_chunk_message. D-130: one unit, one job.
+Only the owner deletes from quarantine.
+
+----- verbatim -----
+    ]
+
+    chunk_rows = []
+    for chunk in chunks:
+        if chunk.source_record_index >= len(record_ids):
+            raise ValueError("chunk source_record_index is outside the source-record batch")
+        chunk_rows.append(
+            {
+                "normalized_record_id": record_ids[chunk.source_record_index],
+                "chunker_id": chunk.chunker_id,
+                "chunk_index": chunk.chunk_index,
+                "content": chunk.content,
+                "content_sha256": bytes.fromhex(chunk.content_sha256),
+                "source_content_sha256": bytes.fromhex(chunk.source_content_sha256),
+                "char_start": chunk.char_start,
+                "char_end": chunk.char_end,
+                "token_count": chunk.token_count,
+                "attrs": json.dumps(chunk.attrs),
+            }
+        )
+
+    def _do_insert() -> None:
+        with _get_engine().begin() as conn:
+            conn.execute(
+                text(
+                    "INSERT INTO working.normalized_record "
+                    "(id, artifact_id, record_type, source, conversation_id, role, participants, "
+                    " content, occurred_at, knowledge_time, disclosure_tier, attrs, case_id, domain, "
+                    " source_record_key, source_content_sha256, sender, recipients, message_corpus) "
+                    "VALUES (CAST(:id AS uuid), :artifact_id, :record_type, :source, :conversation_id, :role, "
+                    " CAST(:participants AS jsonb), :content, :occurred_at, :knowledge_time, "
+                    " :disclosure_tier, CAST(:attrs AS jsonb), :case_id, :domain, :source_record_key, "
+                    " :source_content_sha256, :sender, CAST(:recipients AS jsonb), :message_corpus)"
+                ),
+                rows,
+            )
+            if chunk_rows:
+                conn.execute(
+                    text(
+                        "INSERT INTO working.normalized_record_chunk "
+                        "(normalized_record_id, chunker_id, chunk_index, content, content_sha256, "
+                        " source_content_sha256, char_start, char_end, token_count, attrs) "
+                        "VALUES (CAST(:normalized_record_id AS uuid), :chunker_id, :chunk_index, :content, "
+                        " :content_sha256, :source_content_sha256, :char_start, :char_end, :token_count, "
+                        " CAST(:attrs AS jsonb))"
+                    ),
+                    chunk_rows,
+                )

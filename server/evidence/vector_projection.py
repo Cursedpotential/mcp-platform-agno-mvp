@@ -5,6 +5,14 @@ PostgreSQL remains projection authority.  Every drain re-evaluates
 trusted as authority.  No Agno knowledge object participates in this path.
 
 Byline: Codex · GPT-5 · 2026-08-18
+Byline amendment: Claude Code · Opus 5 · 2026-09-05 (H-04 -- the queue and this
+drain now read ``working.content_chunk`` through the ``working.content_chunk_message``
+bridge; ``working.normalized_record_chunk`` was dropped by 0058 per D-116.  The
+bridge's ``is_center`` row is the message coordinate a projection carries, so
+each job resolves to exactly one ``normalized_record`` -- the 2026-08-29
+dual-graph rule.  ``chunker_id`` now comes from ``content_chunk_generation`` and
+``source_content_hash`` from the message row's own ``source_content_sha256``;
+``content_chunk`` carries neither.)
 """
 
 from __future__ import annotations
@@ -147,17 +155,20 @@ class NativeEvidenceProjector:
             row = (
                 connection.execute(
                     text(
-                        "SELECT job.id AS job_id, chunk.id AS chunk_id, chunk.normalized_record_id, "
+                        "SELECT job.id AS job_id, chunk.id AS chunk_id, nr.id AS normalized_record_id, "
                         "nr.artifact_id, encode(custody.digest,'hex') AS source_sha256, "
                         "nr.case_id, nr.disclosure_tier, nr.occurred_at, nr.conversation_id, "
                         "COALESCE(nr.message_corpus,'authored_evidence') AS source_kind, "
-                        "COALESCE(route.projection_kind,'normalized_record_chunk') AS projection_kind, "
+                        "COALESCE(route.projection_kind,'content_chunk') AS projection_kind, "
                         "route.decision_state, working.source_available_from(nr.id) AS source_available_from, "
-                        "chunk.chunker_id, chunk.content, encode(chunk.content_sha256,'hex') AS content_hash, "
-                        "encode(chunk.source_content_sha256,'hex') AS source_content_hash "
+                        "gen.chunker_id, chunk.content, encode(chunk.content_sha256,'hex') AS content_hash, "
+                        "encode(nr.source_content_sha256,'hex') AS source_content_hash "
                         "FROM working.evidence_vector_projection_job job "
-                        "JOIN working.normalized_record_chunk chunk ON chunk.id=job.chunk_id "
-                        "JOIN working.normalized_record nr ON nr.id=chunk.normalized_record_id "
+                        "JOIN working.content_chunk chunk ON chunk.id=job.chunk_id "
+                        "JOIN working.content_chunk_generation gen ON gen.id=chunk.generation_id "
+                        "JOIN working.content_chunk_message bridge "
+                        "ON bridge.chunk_id=chunk.id AND bridge.is_center "
+                        "JOIN working.normalized_record nr ON nr.id=bridge.message_id "
                         "JOIN evidence.evidence_hash custody ON custody.id=nr.artifact_id "
                         "LEFT JOIN working.message_projection_route route ON route.normalized_record_id=nr.id "
                         "WHERE job.id=CAST(:job_id AS uuid) AND job.status='processing' "

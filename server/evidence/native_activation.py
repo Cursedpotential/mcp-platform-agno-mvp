@@ -5,6 +5,14 @@ enqueue, drain, reconciliation/canaries, and alias creation are separate
 commands so a crash can resume without guessing which gate completed.
 
 Byline: Codex · GPT-5 · 2026-08-18
+Byline amendment: Claude Code · Opus 5 · 2026-09-05 (H-04 -- every chunk read here
+now goes through ``working.content_chunk`` + the ``working.content_chunk_message``
+bridge; ``working.normalized_record_chunk`` was dropped by 0058 per D-116.  The
+frozen watermark now compares ``content_chunk.created_at`` (the successor of the
+dropped table's ``derived_at``), ``chunker_id`` comes from
+``content_chunk_generation``, ``source_content_hash`` from the message row, and
+the manifest's embed model/version are derived from the module constant instead
+of the hard-coded, NIM-retired ``nvidia/nv-embed-v1``.)
 """
 
 from __future__ import annotations
@@ -22,6 +30,7 @@ from weaviate.classes.query import Filter
 
 from server.core.evidence_vector_store import (
     EVIDENCE_EMBED_DIM,
+    EVIDENCE_EMBED_MODEL,
     EVIDENCE_PROJECTION_VERSION,
     EVIDENCE_VECTOR_ALIAS,
     EVIDENCE_VECTOR_COLLECTION,
@@ -95,9 +104,11 @@ def enqueue_frozen_backfill(engine: Any, *, state_path: Path) -> ActivationState
         eligible = int(
             connection.execute(
                 text(
-                    "SELECT count(*) FROM working.normalized_record_chunk chunk "
-                    "JOIN working.normalized_record nr ON nr.id=chunk.normalized_record_id "
-                    "WHERE chunk.derived_at<=:watermark "
+                    "SELECT count(*) FROM working.content_chunk chunk "
+                    "JOIN working.content_chunk_message bridge "
+                    "ON bridge.chunk_id=chunk.id AND bridge.is_center "
+                    "JOIN working.normalized_record nr ON nr.id=bridge.message_id "
+                    "WHERE chunk.created_at<=:watermark "
                     "AND working.source_available_from(nr.id) IS NOT NULL"
                 ),
                 {"watermark": watermark},
@@ -109,9 +120,11 @@ def enqueue_frozen_backfill(engine: Any, *, state_path: Path) -> ActivationState
                     "INSERT INTO working.evidence_vector_projection_job"
                     "(chunk_id,projection_version,reason,status,next_attempt_at,updated_at) "
                     "SELECT chunk.id,:projection_version,:reason,'pending',now(),now() "
-                    "FROM working.normalized_record_chunk chunk "
-                    "JOIN working.normalized_record nr ON nr.id=chunk.normalized_record_id "
-                    "WHERE chunk.derived_at<=:watermark "
+                    "FROM working.content_chunk chunk "
+                    "JOIN working.content_chunk_message bridge "
+                    "ON bridge.chunk_id=chunk.id AND bridge.is_center "
+                    "JOIN working.normalized_record nr ON nr.id=bridge.message_id "
+                    "WHERE chunk.created_at<=:watermark "
                     "AND working.source_available_from(nr.id) IS NOT NULL "
                     "ON CONFLICT (chunk_id,projection_version) DO UPDATE SET "
                     "reason=EXCLUDED.reason,status='pending',generation="
@@ -320,27 +333,31 @@ def _postgres_manifest(engine: Any, state: ActivationState) -> list[dict[str, An
             text(
                 "SELECT chunk.id AS chunk_id,nr.artifact_id,encode(custody.digest,'hex') AS source_sha256,"
                 "nr.case_id,nr.disclosure_tier,COALESCE(nr.message_corpus,'authored_evidence') AS source_kind,"
-                "COALESCE(route.projection_kind,'normalized_record_chunk') AS projection_kind,"
+                "COALESCE(route.projection_kind,'content_chunk') AS projection_kind,"
                 "job.authority_state,TRUE AS source_availability_complete,"
                 "working.source_available_from(nr.id) AS source_available_from,nr.id AS normalized_record_id,"
-                "nr.conversation_id,chunk.chunker_id,'nvidia/nv-embed-v1' AS embed_model,"
+                "nr.conversation_id,gen.chunker_id,:embed_model AS embed_model,"
                 ":dimension AS embed_dimension,:embedder_version AS embedder_version,"
                 "job.projection_version,job.projection_hash,encode(chunk.content_sha256,'hex') AS content_hash,"
-                "encode(chunk.source_content_sha256,'hex') AS source_content_hash,chunk.content "
+                "encode(nr.source_content_sha256,'hex') AS source_content_hash,chunk.content "
                 "FROM working.evidence_vector_projection_job job "
-                "JOIN working.normalized_record_chunk chunk ON chunk.id=job.chunk_id "
-                "JOIN working.normalized_record nr ON nr.id=chunk.normalized_record_id "
+                "JOIN working.content_chunk chunk ON chunk.id=job.chunk_id "
+                "JOIN working.content_chunk_generation gen ON gen.id=chunk.generation_id "
+                "JOIN working.content_chunk_message bridge "
+                "ON bridge.chunk_id=chunk.id AND bridge.is_center "
+                "JOIN working.normalized_record nr ON nr.id=bridge.message_id "
                 "JOIN evidence.evidence_hash custody ON custody.id=nr.artifact_id "
                 "LEFT JOIN working.message_projection_route route ON route.normalized_record_id=nr.id "
-                "WHERE job.reason=:reason AND chunk.derived_at<=:watermark AND job.status='completed' "
+                "WHERE job.reason=:reason AND chunk.created_at<=:watermark AND job.status='completed' "
                 "AND job.authority_state='active' AND working.source_available_from(nr.id) IS NOT NULL "
                 "ORDER BY chunk.id"
             ),
             {
                 "reason": state.reason,
                 "watermark": _parse_timestamp(state.watermark),
+                "embed_model": EVIDENCE_EMBED_MODEL,
                 "dimension": EVIDENCE_EMBED_DIM,
-                "embedder_version": "nvidia/nv-embed-v1@openai-compatible-v1",
+                "embedder_version": f"{EVIDENCE_EMBED_MODEL}@openai-compatible-v1",
             },
         ).mappings()
         return [_canonical_manifest_row(row, vector_dimension=EVIDENCE_EMBED_DIM) for row in rows]
@@ -364,8 +381,10 @@ def _postgres_canary_samples(engine: Any, state: ActivationState) -> list[dict[s
                 "COALESCE(nr.message_corpus,'authored_evidence') AS source_kind,"
                 "working.source_available_from(nr.id) AS source_available_from "
                 "FROM working.evidence_vector_projection_job job "
-                "JOIN working.normalized_record_chunk chunk ON chunk.id=job.chunk_id "
-                "JOIN working.normalized_record nr ON nr.id=chunk.normalized_record_id "
+                "JOIN working.content_chunk chunk ON chunk.id=job.chunk_id "
+                "JOIN working.content_chunk_message bridge "
+                "ON bridge.chunk_id=chunk.id AND bridge.is_center "
+                "JOIN working.normalized_record nr ON nr.id=bridge.message_id "
                 "WHERE job.reason=:reason AND job.status='completed' AND job.authority_state='active' "
                 "AND working.source_available_from(nr.id) IS NOT NULL "
                 "ORDER BY COALESCE(nr.message_corpus,'authored_evidence'),chunk.id"

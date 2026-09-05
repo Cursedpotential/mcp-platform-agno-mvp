@@ -6,23 +6,57 @@ single compound filter, so Weaviate builds the eligible allow-list *before*
 ranking.  The old ``Platform_knowledge`` collection remains untouched.
 
 Byline: Codex · GPT-5 · 2026-08-18
+Byline amendment: Claude Code · Opus 5 · 2026-09-05 (embedder contract moved off
+the NIM-retired ``nvidia/nv-embed-v1``/4096-d to ``nvidia/nemotron-3-embed-1b``/2048-d).
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from os import getenv as _getenv
 from typing import Any, Literal, Sequence
 from uuid import UUID
 
 from weaviate.classes.config import Configure, DataType, Property, Tokenization
 from weaviate.classes.query import Filter, MetadataQuery
 
+
+def _positive_int_env(name: str, default: int) -> int:
+    """Read a positive integer override, failing loudly on anything else."""
+
+    raw = _getenv(name)
+    if raw is None or not raw.strip():
+        return default
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be an integer, got {raw!r}") from exc
+    if value < 1:
+        raise ValueError(f"{name} must be positive, got {value}")
+    return value
+
+
 EVIDENCE_VECTOR_COLLECTION_VERSION = 1
 EVIDENCE_VECTOR_COLLECTION = f"EvidenceChunkV{EVIDENCE_VECTOR_COLLECTION_VERSION}"
 EVIDENCE_VECTOR_ALIAS = "EvidenceChunks"
-EVIDENCE_EMBED_MODEL = "nvidia/nv-embed-v1"
-EVIDENCE_EMBED_DIM = 4096
+# Embedder contract for the native evidence lane.
+#
+# ``nvidia/nv-embed-v1`` reached end of life on NIM 2026-08-25 (HTTP 410); the
+# live NIM text embedder is ``nvidia/nemotron-3-embed-1b`` at 2048 dimensions,
+# symmetric (no per-call ``input_type``).  There is no settings entry for the
+# evidence lane -- ``server/core/settings.py`` only carries the legacy NIM
+# fallback ids -- so the knob is an environment override with a fail-loud
+# default: an unparseable or non-positive dimension raises at import.
+#
+# Safe to change here: ``EvidenceChunkV1`` does not exist in Weaviate
+# (verified live 2026-09-05, ``GET /v1/schema`` returned 7 classes, none of
+# them EvidenceChunk*), so the collection is created fresh at the declared
+# dimension.  If it is ever created at another dimension, it must be dropped
+# and rebuilt -- a mismatched dimension is a hard Weaviate error, never a
+# silent downgrade.
+EVIDENCE_EMBED_MODEL = _getenv("EVIDENCE_EMBED_MODEL", "nvidia/nemotron-3-embed-1b")
+EVIDENCE_EMBED_DIM = _positive_int_env("EVIDENCE_EMBED_DIM", 2048)
 EVIDENCE_PROJECTION_VERSION = "evidence-vector@1"
 
 DisclosureTier = Literal["contemporaneous", "discovered", "hindsight"]

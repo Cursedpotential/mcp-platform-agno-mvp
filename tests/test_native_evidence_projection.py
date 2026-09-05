@@ -21,11 +21,13 @@ from server.evidence.vector_projection import ProjectionDrainResult
 
 
 def test_projector_rejects_wrong_model_or_dimension() -> None:
-    with pytest.raises(ValueError, match="nvidia/nv-embed-v1"):
+    # nvidia/nv-embed-v1 was end-of-lifed on NIM 2026-08-25; the contract is
+    # nvidia/nemotron-3-embed-1b at 2048-d (amended 2026-09-05, H-04).
+    with pytest.raises(ValueError, match="nvidia/nemotron-3-embed-1b"):
         NativeEvidenceProjector(
             object(), MagicMock(), lambda text: [], embed_model="other", embedder_version="v1", worker_id="w"
         )
-    with pytest.raises(ValueError, match="4096"):
+    with pytest.raises(ValueError, match="2048"):
         NativeEvidenceProjector(
             object(),
             MagicMock(),

@@ -33,6 +33,13 @@ C2.6 (resilience + observability, 2026-07-20/21) additions:
 # Byline amendment: Codex · GPT-5 · 2026-08-18 (transactional governed message projections)
 # Byline amendment: Codex · GPT-5 · 2026-08-18 (mandatory message classification + duplicate acquisition link)
 # Byline amendment: Codex · GPT-5 · 2026-08-18 (native vector outbox receipt state)
+# Byline amendment: Claude Code · Opus 5 · 2026-09-05 (H-04: the Python chunk writer is
+#   RETIRED -- working.normalized_record_chunk was dropped by sql/0058_the_reckoning.sql:97
+#   under D-116, so the insert could only raise UndefinedTable.  Chunks are written by the
+#   Go message-window chunker Temporal Activity into working.content_chunk +
+#   working.content_chunk_message (D-130: one unit, one job).  The receipt reader now counts
+#   projection jobs through that bridge.  Retired code quarantined verbatim at
+#   .review_hold/store_normalized_record_chunk_writer_retired_20260905.txt -- never deleted.)
 
 from __future__ import annotations
 
@@ -352,11 +359,31 @@ def store_record_batch(
     projection_request: IngestRequest | None = None,
     retry: bool = True,
 ) -> int:
-    """Atomically store source records, chunks, and governed message projections."""
+    """Atomically store source records and governed message projections.
 
+    ``chunks`` is accepted only to keep the call signature stable for existing
+    callers; a non-empty list is refused.  Chunk writing was retired here on
+    2026-09-05 (H-04) -- see the ``NotImplementedError`` below.
+    """
+
+    # Fail closed before anything else is validated or written.  The Python
+    # chunk writer is RETIRED (H-04, 2026-09-05): it inserted into
+    # working.normalized_record_chunk, which sql/0058_the_reckoning.sql:97
+    # DROPPED under D-116, so the path could only ever raise UndefinedTable at
+    # runtime.  Chunk writing now belongs to exactly one unit -- the Go
+    # message-window chunker Temporal Activity (redesign plan Stage 3), which
+    # writes working.content_chunk plus its working.content_chunk_message
+    # bridge rows.  D-130: a record writer does not also chunk.  The retired
+    # code is quarantined verbatim at
+    # .review_hold/store_normalized_record_chunk_writer_retired_20260905.txt.
+    if chunks:
+        raise NotImplementedError(
+            "the Python chunk writer is retired (H-04/D-116): its target table was dropped by "
+            "sql/0058_the_reckoning.sql. Chunks are written only by the Go message-window chunker Temporal "
+            "Activity into working.content_chunk + working.content_chunk_message. Call store_record_batch with "
+            "chunks=[] and let the chunker Activity run as its own stage."
+        )
     if not records:
-        if chunks:
-            raise ValueError("derived chunks cannot exist without source records")
         return 0
     unclassified = [
         index
@@ -427,24 +454,6 @@ def store_record_batch(
         for index, r in enumerate(records)
     ]
 
-    chunk_rows = []
-    for chunk in chunks:
-        if chunk.source_record_index >= len(record_ids):
-            raise ValueError("chunk source_record_index is outside the source-record batch")
-        chunk_rows.append(
-            {
-                "normalized_record_id": record_ids[chunk.source_record_index],
-                "chunker_id": chunk.chunker_id,
-                "chunk_index": chunk.chunk_index,
-                "content": chunk.content,
-                "content_sha256": bytes.fromhex(chunk.content_sha256),
-                "source_content_sha256": bytes.fromhex(chunk.source_content_sha256),
-                "char_start": chunk.char_start,
-                "char_end": chunk.char_end,
-                "token_count": chunk.token_count,
-                "attrs": json.dumps(chunk.attrs),
-            }
-        )
 
     def _do_insert() -> None:
         with _get_engine().begin() as conn:
@@ -461,18 +470,6 @@ def store_record_batch(
                 ),
                 rows,
             )
-            if chunk_rows:
-                conn.execute(
-                    text(
-                        "INSERT INTO working.normalized_record_chunk "
-                        "(normalized_record_id, chunker_id, chunk_index, content, content_sha256, "
-                        " source_content_sha256, char_start, char_end, token_count, attrs) "
-                        "VALUES (CAST(:normalized_record_id AS uuid), :chunker_id, :chunk_index, :content, "
-                        " :content_sha256, :source_content_sha256, :char_start, :char_end, :token_count, "
-                        " CAST(:attrs AS jsonb))"
-                    ),
-                    chunk_rows,
-                )
             if projection_request is not None:
                 from server.evidence.message_projection import write_message_projections
 
@@ -548,9 +545,9 @@ def native_projection_jobs_for_artifact(artifact_id: str) -> int | None:
         return int(
             conn.execute(
                 text(
-                    "SELECT count(*) FROM working.evidence_vector_projection_job job "
-                    "JOIN working.normalized_record_chunk chunk ON chunk.id=job.chunk_id "
-                    "JOIN working.normalized_record nr ON nr.id=chunk.normalized_record_id "
+                    "SELECT count(DISTINCT job.id) FROM working.evidence_vector_projection_job job "
+                    "JOIN working.content_chunk_message bridge ON bridge.chunk_id=job.chunk_id "
+                    "JOIN working.normalized_record nr ON nr.id=bridge.message_id "
                     "WHERE nr.artifact_id=:artifact_id"
                 ),
                 {"artifact_id": artifact_id},

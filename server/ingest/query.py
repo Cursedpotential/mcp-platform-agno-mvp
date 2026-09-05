@@ -5,6 +5,16 @@ depending on Agno or a vector-store projection.
 
 Byline: Codex · GPT-5 · 2026-08-16
 Byline amendment: Codex · GPT-5 · 2026-08-18 (source records and derived chunks split)
+Byline amendment: Claude Code · Opus 5 · 2026-09-05 (H-04 -- chunks are read from
+``working.content_chunk`` through the ``working.content_chunk_message`` bridge;
+``working.normalized_record_chunk`` was dropped by 0058 per D-116, so both queries
+here were reading a table that does not exist.  Shape changes that follow from the
+successor table, not from taste: ``char_start``/``char_end``/``attrs`` have no
+successor column on ``content_chunk`` (typed span lineage lives in
+``working.content_chunk_source_span``, out of scope here) and are gone;
+``derived_at`` is ``content_chunk.created_at``; ``chunker_id`` comes from
+``content_chunk_generation``; ``source_content_sha256`` comes from the message row;
+``is_center``, ``member_position`` and ``derivation_mode`` are new and real.)
 """
 
 from __future__ import annotations
@@ -47,13 +57,15 @@ def list_items(*, matter_id: str = "primary", lane: IngestLane | None = None, li
                 "SELECT r.artifact_id::text AS artifact_id, encode(e.digest, 'hex') AS source_sha256, "
                 "       min(coalesce(r.attrs->>'source_name', e.source_ref)) AS source_name, "
                 "       min(coalesce(r.attrs->>'source_path', e.source_ref)) AS source_path, "
-                "       min(r.attrs->>'parser_id') AS parser_id, min(c.chunker_id) AS chunker_id, "
+                "       min(r.attrs->>'parser_id') AS parser_id, min(g.chunker_id) AS chunker_id, "
                 "       min(coalesce(r.attrs->>'lane', r.domain)) AS lane, r.case_id AS matter_id, "
-                "       count(DISTINCT r.id)::int AS record_count, count(c.id)::int AS chunk_count, "
+                "       count(DISTINCT r.id)::int AS record_count, count(DISTINCT c.id)::int AS chunk_count, "
                 "       min(r.created_at) AS created_at "
                 "FROM working.normalized_record r "
                 "JOIN evidence.evidence_hash e ON e.id = r.artifact_id "
-                "LEFT JOIN working.normalized_record_chunk c ON c.normalized_record_id = r.id "
+                "LEFT JOIN working.content_chunk_message b ON b.message_id = r.id "
+                "LEFT JOIN working.content_chunk c ON c.id = b.chunk_id "
+                "LEFT JOIN working.content_chunk_generation g ON g.id = c.generation_id "
                 "WHERE r.case_id = :case_id "
                 f"{domain_clause} "
                 "GROUP BY r.artifact_id, e.digest, r.case_id "
@@ -86,12 +98,16 @@ def get_item(artifact_id: str, *, matter_id: str = "primary") -> dict[str, Any] 
         chunks = list(
             conn.execute(
                 text(
-                    "SELECT c.id::text AS chunk_id, c.normalized_record_id::text AS normalized_record_id, "
-                    "       c.chunker_id, c.chunk_index, c.content, encode(c.content_sha256, 'hex') AS content_sha256, "
-                    "       encode(c.source_content_sha256, 'hex') AS source_content_sha256, "
-                    "       c.char_start, c.char_end, c.token_count, c.attrs, c.derived_at "
-                    "FROM working.normalized_record_chunk c "
-                    "JOIN working.normalized_record r ON r.id = c.normalized_record_id "
+                    "SELECT c.id::text AS chunk_id, b.message_id::text AS normalized_record_id, "
+                    "       b.is_center, b.position AS member_position, "
+                    "       g.chunker_id, c.chunk_index, c.derivation_mode, c.content, "
+                    "       encode(c.content_sha256, 'hex') AS content_sha256, "
+                    "       encode(r.source_content_sha256, 'hex') AS source_content_sha256, "
+                    "       c.token_count, c.created_at AS derived_at "
+                    "FROM working.content_chunk c "
+                    "JOIN working.content_chunk_generation g ON g.id = c.generation_id "
+                    "JOIN working.content_chunk_message b ON b.chunk_id = c.id "
+                    "JOIN working.normalized_record r ON r.id = b.message_id "
                     "WHERE r.artifact_id = CAST(:artifact_id AS uuid) AND r.case_id = :case_id "
                     "ORDER BY r.created_at, r.id, c.chunk_index, c.id"
                 ),
