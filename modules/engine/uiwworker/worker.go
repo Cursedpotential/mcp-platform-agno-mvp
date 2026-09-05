@@ -124,10 +124,18 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config) (Registrations, error) {
 	//
 	// file:// stays registered for internal callers that mint sealed refs
 	// (acquisition/seal.go returns file:// URIs); it is not reachable from the
-	// HTTP boundary. r2:// is deliberately NOT registered yet: the Go worker has
-	// no R2 credential plumbing (CASEBIBLE_R2_CONFIG_PATH is read only by the
-	// Workbench Python API), and an unregistered scheme fails closed rather than
-	// falling back to some default provider.
+	// HTTP boundary.
+	//
+	// ~~r2:// is deliberately NOT registered yet: the Go worker has no R2
+	// credential plumbing~~ CORRECTED 2026-09-05 (live rehearsal
+	// req-rehearsal-20260905-r2-1788608263 died in retain_original_activity with
+	// `no acquisition resolver registered for scheme "r2"`): the worker compose
+	// has mounted /run/secrets/casebible-r2.json and set CASEBIBLE_R2_CONFIG_PATH
+	// since 2026-08-29, and the API boundary admits r2:// refs, so r2:// is now
+	// registered exactly as the tool gateway does it (cmd/tool-gateway/main.go
+	// buildResolver), sealing into the same SOURCE_OBJECT_DIR. Cross-host source
+	// bytes travel via object storage (D-132). Absent the config path, r2://
+	// stays unregistered and fails closed as before.
 	filesystemResolver, err := runtimeapi.NewFilesystemImmutableAcquisitionResolver(cfg.SourceObjectDir)
 	if err != nil {
 		return Registrations{}, err
@@ -136,10 +144,22 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config) (Registrations, error) {
 	if err != nil {
 		return Registrations{}, err
 	}
-	acquisitionResolver, err := acquisition.NewSchemeRouter(map[string]platformpostgres.ImmutableAcquisitionResolver{
+	resolvers := map[string]platformpostgres.ImmutableAcquisitionResolver{
 		"file":   filesystemResolver,
 		"upload": uploadResolver,
-	})
+	}
+	if path := strings.TrimSpace(os.Getenv("CASEBIBLE_R2_CONFIG_PATH")); path != "" {
+		r2cfg, err := acquisition.LoadObjectStorageConfigFile(path)
+		if err != nil {
+			return Registrations{}, fmt.Errorf("r2 acquisition config: %w", err)
+		}
+		r2Resolver, err := acquisition.NewCloudflareR2AcquisitionResolver(cfg.SourceObjectDir, r2cfg)
+		if err != nil {
+			return Registrations{}, err
+		}
+		resolvers["r2"] = r2Resolver
+	}
+	acquisitionResolver, err := acquisition.NewSchemeRouter(resolvers)
 	if err != nil {
 		return Registrations{}, err
 	}
