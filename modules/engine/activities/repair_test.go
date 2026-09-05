@@ -10,13 +10,15 @@ import (
 
 type repairClientStub struct {
 	calls    []string
+	sources  []uiw.Ref
 	payloads []map[string]any
 	result   json.RawMessage
 }
 
-func (c *repairClientStub) Run(_ context.Context, id string, payload map[string]any) (json.RawMessage, error) {
+func (c *repairClientStub) Run(_ context.Context, id string, sourceRef uiw.Ref, args map[string]any) (json.RawMessage, error) {
 	c.calls = append(c.calls, id)
-	c.payloads = append(c.payloads, payload)
+	c.sources = append(c.sources, sourceRef)
+	c.payloads = append(c.payloads, args)
 	if c.result != nil {
 		return c.result, nil
 	}
@@ -30,9 +32,6 @@ type repairStoreStub struct {
 	persistedFound         bool
 }
 
-func (s *repairStoreStub) ResolveOriginalPath(context.Context, uiw.Ref, uiw.Ref) (string, error) {
-	return "/r2/source.pdf", nil
-}
 func (s *repairStoreStub) LoadPersistedRepairAssessment(context.Context, RepairAssessmentSpec) (RepairPersistenceResult, bool, error) {
 	return s.persisted, s.persistedFound, nil
 }
@@ -136,5 +135,40 @@ func TestResolveSourceRepairInjectsManualApprovalOnlyAfterStoredDecision(t *test
 	}
 	if client.payloads[0]["_execution_mode"] != "manual" || client.payloads[0]["approved"] != true {
 		t.Fatalf("payload=%v", client.payloads[0])
+	}
+	// D-132: a stored decision payload may carry a stale host path from an
+	// older schema. It must be stripped, and the source rebound to the
+	// governed locator.
+	if _, leaked := client.payloads[0]["path"]; leaked {
+		t.Fatalf("approved repair leaked a host path to the gateway: %v", client.payloads[0])
+	}
+	if client.sources[0] != "original" {
+		t.Fatalf("approved repair did not address the retained original by locator: %q", client.sources[0])
+	}
+}
+
+// TestAssessSourceRepairAddressesSourceByLocatorNotHostPath pins the D-132
+// contract: the Activity names a locator and never a filesystem path, because
+// the worker and platform-tools are on different hosts.
+func TestAssessSourceRepairAddressesSourceByLocatorNotHostPath(t *testing.T) {
+	client := &repairClientStub{}
+	store := &repairStoreStub{assessment: RepairPersistenceResult{ResultRef: "assessment", ReceiptRef: "receipt"}}
+	if _, err := (RepairActivities{Client: client, Store: store}).AssessSourceRepair(
+		t.Context(), repairRequest(map[string]uiw.Ref{"original": "r2://bucket/object"})); err != nil {
+		t.Fatal(err)
+	}
+	if len(client.sources) != 2 {
+		t.Fatalf("expected detect + preview calls, got sources=%v calls=%v", client.sources, client.calls)
+	}
+	for index, source := range client.sources {
+		if source != "r2://bucket/object" {
+			t.Fatalf("call %d addressed %q instead of the retained-original locator", index, source)
+		}
+		if _, leaked := client.payloads[index]["path"]; leaked {
+			t.Fatalf("call %d sent a host path: %v", index, client.payloads[index])
+		}
+	}
+	if client.payloads[1]["format"] != "pdf" || client.payloads[1]["sample_limit"] != 25 {
+		t.Fatalf("preview args lost their tool options: %v", client.payloads[1])
 	}
 }

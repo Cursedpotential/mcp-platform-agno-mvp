@@ -43,7 +43,15 @@ services:
     # another Coolify bridge subnet (ovh-files' pool is near exhaustion).
     network_mode: host
     environment:
-      # platform-tools is reached over loopback because the two are co-located.
+      # ~~platform-tools is reached over loopback because the two are
+      # co-located.~~ CORRECTED 2026-09-05 (probed live on ovh-app):
+      # platform-tools publishes on ${BIND_IP}, NOT loopback —
+      # `curl http://100.72.169.40:8090/tools` → 200, while
+      # `curl http://127.0.0.1:8090/tools` → connection refused. Co-location
+      # does not make loopback work, and `network_mode: host` does not change
+      # that. Set PLATFORM_TOOLS_BASE_URL to the host's TAILNET address, e.g.
+      # http://100.72.169.40:8090. (`GET /` is 404; `/tools` is the liveness
+      # route.)
       PLATFORM_TOOLS_BASE_URL: ${PLATFORM_TOOLS_BASE_URL:?set}
 
       # Shared with the platform-tools container at the identical path.

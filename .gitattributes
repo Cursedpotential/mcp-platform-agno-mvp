@@ -15,6 +15,12 @@ Dockerfile text eol=lf
 *.toml  text eol=lf
 *.json  text eol=lf
 
+# Vendored //go:embed assets — byte-exact, never line-ending-normalized. These
+# are upstream build artifacts embedded by
+# github.com/tailscale/web-client-prebuilt; a CRLF rewrite would silently alter
+# what the binary serves and would show as churn against `go mod vendor`.
+modules/engine/vendor/github.com/tailscale/web-client-prebuilt/build/** -text
+
 # Binary formats — never diff or normalize.
 *.png    binary
 *.jpg    binary

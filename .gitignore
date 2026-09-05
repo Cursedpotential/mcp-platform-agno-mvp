@@ -7,6 +7,15 @@ __pycache__/
 
 # Packaging / build artifacts
 build/
+# EXCEPTION (2026-09-05): this vendored Go package embeds its `build/` directory
+# with //go:embed, so the blanket `build/` rule above silently un-vendored it and
+# every clean clone failed `go build` with
+# "pattern build: no matching files found". The assets are 4 files / ~148 KB and
+# are part of the vendored module, not our packaging output. Re-include the
+# directory first, then its contents — a negation cannot reach into a directory
+# that is itself still excluded.
+!modules/engine/vendor/github.com/tailscale/web-client-prebuilt/build/
+!modules/engine/vendor/github.com/tailscale/web-client-prebuilt/build/**
 dist/
 *.egg-info/
 .eggs/

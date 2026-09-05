@@ -187,7 +187,9 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config) (Registrations, error) {
 	if err != nil {
 		return Registrations{}, err
 	}
-	toolsClient, err := runtimeapi.NewPlatformToolsClient(cfg.PlatformToolsBaseURL)
+	// D-132: Activities reach tools ONLY through the gateway, addressing the
+	// source by locator and authenticating with the mounted service token.
+	toolsClient, err := runtimeapi.NewToolGatewayClient(cfg.PlatformToolsBaseURL, cfg.ToolGatewayServiceToken)
 	if err != nil {
 		return Registrations{}, err
 	}

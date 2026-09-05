@@ -29,7 +29,17 @@ type Config struct {
 	ParserBundleDir      string
 	NormalizedBundleDir  string
 	InventoryManifestDir string
+
+	// PlatformToolsBaseURL addresses the TOOL GATEWAY, not platform-tools
+	// directly (D-132): the gateway is the only sanctioned path from an
+	// Activity to a tool, because it takes locators instead of host paths.
+	// The name is retained so the deployed Coolify env key does not churn.
 	PlatformToolsBaseURL string
+	// ToolGatewayServiceTokenFile is a mounted secret file. The gateway
+	// requires `Authorization: Bearer`, so a missing or empty file is a
+	// startup failure, never a silent unauthenticated mode.
+	ToolGatewayServiceTokenFile string
+	ToolGatewayServiceToken     string
 
 	N8NBaseURL         string
 	N8NAuthHeader      string
@@ -76,6 +86,21 @@ func LoadConfig() (Config, error) {
 		problems = append(problems, "PLATFORM_DATABASE_URL_FILE is unavailable or invalid")
 	} else {
 		cfg.DatabaseURL = value
+	}
+	cfg.ToolGatewayServiceTokenFile = firstEnvironment("TOOL_GATEWAY_SERVICE_TOKEN_FILE")
+	if cfg.ToolGatewayServiceTokenFile == "" {
+		cfg.ToolGatewayServiceTokenFile = "/run/secrets/tool-gateway-service-token"
+	}
+	if !absoluteRuntimePath(cfg.ToolGatewayServiceTokenFile) {
+		problems = append(problems, "TOOL_GATEWAY_SERVICE_TOKEN_FILE must be an absolute path")
+	} else if value, err := platformtemporal.ReadRuntimeSecretFile(cfg.ToolGatewayServiceTokenFile, 16<<10); err != nil || strings.TrimSpace(value) == "" {
+		// Fail closed. The gateway is the only sanctioned path to a platform
+		// tool (D-132) and answers 401 without this bearer token, so a worker
+		// that starts without it would poll the queue only to fail every
+		// repair Activity at call time.
+		problems = append(problems, "TOOL_GATEWAY_SERVICE_TOKEN_FILE is unavailable or empty")
+	} else {
+		cfg.ToolGatewayServiceToken = value
 	}
 	if cfg.N8NAuthValueFile == "" {
 		cfg.N8NAuthValueFile = "/run/secrets/n8n-universal-import-auth"

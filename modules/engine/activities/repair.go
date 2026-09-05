@@ -21,10 +21,13 @@ var allowedDerivedRepairTools = map[string]bool{
 	"repair.pdf-derived":   true,
 }
 
-// RepairToolClient executes an already-registered platform-tools capability.
+// RepairToolClient executes an already-registered platform-tools capability
+// THROUGH THE TOOL GATEWAY (D-132). The source is named by LOCATOR, never by a
+// host path: this Activity and platform-tools run on different hosts, and a
+// worker-local path is exactly the defect the gateway was built to remove.
 // Results are persisted by RepairActivityStore and never returned to Temporal.
 type RepairToolClient interface {
-	Run(context.Context, string, map[string]any) (json.RawMessage, error)
+	Run(ctx context.Context, toolID string, sourceRef uiw.Ref, args map[string]any) (json.RawMessage, error)
 }
 
 type RepairDecisionRecord struct {
@@ -62,7 +65,6 @@ type RepairPersistenceResult struct {
 // RepairActivityStore owns locator resolution, immutable assessment storage,
 // approval revalidation, and the exact activity receipt/idempotency boundary.
 type RepairActivityStore interface {
-	ResolveOriginalPath(context.Context, uiw.Ref, uiw.Ref) (string, error)
 	LoadPersistedRepairAssessment(context.Context, RepairAssessmentSpec) (RepairPersistenceResult, bool, error)
 	PersistRepairAssessment(context.Context, RepairAssessmentSpec) (RepairPersistenceResult, error)
 	LoadApprovedRepairDecision(context.Context, uiw.Ref, uiw.Ref, uiw.Ref) (RepairDecisionRecord, error)
@@ -116,18 +118,14 @@ func (a RepairActivities) AssessSourceRepair(ctx context.Context, req uiw.StageR
 	if found {
 		return repairAssessmentResult(prior)
 	}
-	path, err := a.Store.ResolveOriginalPath(ctx, req.SourceVersionRef, original)
-	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("resolve retained original for repair assessment: %w", err)
-	}
-	if strings.TrimSpace(path) == "" {
-		return uiw.StageResult{}, errors.New("repair assessment resolved an empty platform-tools path")
-	}
-	detection, err := a.Client.Run(ctx, RepairDetectTool, map[string]any{"path": path})
+	// The retained original travels as a LOCATOR. The gateway resolves it
+	// through the shared acquisition router and materializes the bytes where
+	// the tool can actually read them.
+	detection, err := a.Client.Run(ctx, RepairDetectTool, original, nil)
 	if err != nil {
 		return uiw.StageResult{}, fmt.Errorf("run repair detection: %w", err)
 	}
-	preview, err := a.Client.Run(ctx, RepairPreviewTool, map[string]any{"path": path, "format": req.DeclaredFormat, "sample_limit": 25})
+	preview, err := a.Client.Run(ctx, RepairPreviewTool, original, map[string]any{"format": req.DeclaredFormat, "sample_limit": 25})
 	if err != nil {
 		return uiw.StageResult{}, fmt.Errorf("run repair preview: %w", err)
 	}
@@ -187,17 +185,14 @@ func (a RepairActivities) ResolveSourceRepair(ctx context.Context, req uiw.Stage
 		for key, value := range decision.Payload {
 			payload[key] = value
 		}
-		path, pathErr := a.Store.ResolveOriginalPath(ctx, req.SourceVersionRef, original)
-		if pathErr != nil {
-			return uiw.StageResult{}, fmt.Errorf("resolve retained original for approved repair: %w", pathErr)
-		}
 		// A persisted human decision chooses the operation and safe destination,
-		// never a replacement source. The source path is rebound from the governed
-		// retained-object membership immediately before execution.
-		payload["path"] = path
+		// never a replacement source. The source is rebound to the governed
+		// retained-object LOCATOR immediately before execution, so a stored
+		// "path" from an older decision can never reach a tool.
+		delete(payload, "path")
 		payload["_execution_mode"] = "manual"
 		payload["approved"] = true
-		toolResult, err = a.Client.Run(ctx, decision.ToolID, payload)
+		toolResult, err = a.Client.Run(ctx, decision.ToolID, original, payload)
 		if err != nil {
 			return uiw.StageResult{}, fmt.Errorf("run approved derived repair: %w", err)
 		}

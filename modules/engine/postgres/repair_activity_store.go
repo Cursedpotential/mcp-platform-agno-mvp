@@ -48,36 +48,11 @@ func NewRepairActivityStore(db DB, allowedRoots []string) (*RepairActivityStore,
 	return &RepairActivityStore{db: db, allowedRoots: roots, clock: func() time.Time { return time.Now().UTC() }}, nil
 }
 
-func (s *RepairActivityStore) ResolveOriginalPath(ctx context.Context, sourceRef, objectRef uiw.Ref) (string, error) {
-	sourceID, err := uuid.Parse(string(sourceRef))
-	if err != nil {
-		return "", fmt.Errorf("source version reference: %w", err)
-	}
-	objectID, err := uuid.Parse(string(objectRef))
-	if err != nil {
-		return "", fmt.Errorf("retained object reference: %w", err)
-	}
-	var storageClass, objectURI string
-	err = s.db.QueryRow(ctx, `SELECT object.storage_class, object.object_uri
-		FROM context.source_version source
-		JOIN context.source_version_object member ON member.source_version_id=source.id
-		JOIN context.retained_object object ON object.id=member.object_id
-		WHERE source.id=$1::uuid AND member.object_id=$2::uuid AND source.status='retained'`, sourceID, objectID).Scan(&storageClass, &objectURI)
-	if err != nil {
-		return "", fmt.Errorf("resolve repair source membership: %w", err)
-	}
-	if storageClass == "inline" {
-		return "", errors.New("inline retained objects cannot be passed to platform-tools by path")
-	}
-	path, err := fileURIPath(objectURI)
-	if err != nil {
-		return "", err
-	}
-	if !s.pathAllowed(path) {
-		return "", errors.New("retained repair source is outside configured shared roots")
-	}
-	return path, nil
-}
+// REMOVED 2026-09-05 (D-132): ResolveOriginalPath yielded a HOST PATH, which the
+// repair Activity then posted to platform-tools running on a DIFFERENT host —
+// the exact defect the tool gateway exists to eliminate. The retained original
+// is now addressed by LOCATOR and materialized by the gateway. Do not
+// reintroduce a path-yielding method on this store.
 
 func fileURIPath(raw string) (string, error) {
 	u, err := url.Parse(raw)

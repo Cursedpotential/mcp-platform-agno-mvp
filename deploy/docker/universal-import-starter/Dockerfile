@@ -1,4 +1,5 @@
-FROM golang:1.25-bookworm AS builder
+# Toolchain pinned to match modules/engine/go.mod (`go 1.26.6`).
+FROM golang:1.26-bookworm AS builder
 
 # Hermetic vendored build (repair post-restructure, 2026-09-02): engine/ moved to
 # modules/engine/ and sbv moved to modules/forks/sbv/ (a private, gitignored-locally

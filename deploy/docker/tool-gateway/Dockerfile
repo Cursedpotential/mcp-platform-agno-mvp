@@ -7,7 +7,10 @@
 # (see deploy/tool-gateway.yaml `context: .`).
 #
 # Byline: Claude Code · Opus 5 · 2026-09-02.
-FROM golang:1.25-bookworm AS builder
+# Toolchain pinned to match modules/engine/go.mod (`go 1.26.6`). A 1.25 builder
+# fails the build outright with GOTOOLCHAIN=local; do not bump go.mod without
+# bumping every Go Dockerfile in this directory in the same change.
+FROM golang:1.26-bookworm AS builder
 
 WORKDIR /src/engine
 COPY modules/engine/ ./

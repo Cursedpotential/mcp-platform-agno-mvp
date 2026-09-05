@@ -8,8 +8,11 @@
 #
 # DEPLOY AS its own Coolify "Docker Compose" app on OVH-1 (server
 # fmuao9enq3nxk8qw5hqjzzce), app `exec-platform-tools`. Build context is the
-# REPO ROOT (SBV built from vendored/sbv/, Dockerfile COPYs are repo-root-
-# relative) — set the Coolify app's base directory to "/". Env: BIND_IP.
+# REPO ROOT and every Dockerfile COPY is repo-root-relative — set the Coolify
+# app's base directory to "/". Env: BIND_IP.
+# ~~SBV built from vendored/sbv/~~ CORRECTED 2026-09-05: the SBV binary is
+# lifted from the fork's CI-built image by immutable digest; no SBV source is
+# needed in the build context (see deploy/docker/tools/Dockerfile).
 #
 # agentos-api / agentos-mcp (the rump exec-tier bundle) reach this over the
 # shared `agno` network via SBV_BASE_URL=http://platform-tools:8085 — SAME
@@ -26,8 +29,15 @@
 services:
   platform-tools:
     build:
+      # Coolify runs `docker compose --project-directory <repo root> -f
+      # <repo root>/deploy/platform-tools.yaml build`, so `context: .` is the
+      # REPO ROOT and `dockerfile:` must be repo-root-relative. Corrected
+      # 2026-09-05: this said `docker/tools/Dockerfile`, a path that stopped
+      # existing in the 2026-09-01 restructure, so any redeploy would have
+      # failed the build and taken platform-tools down. Same pattern as the
+      # working deploy/universal-import-worker.yaml.
       context: .
-      dockerfile: docker/tools/Dockerfile
+      dockerfile: deploy/docker/tools/Dockerfile
     image: agno-platform-tools:latest
     container_name: platform-tools
     restart: unless-stopped
@@ -37,6 +47,11 @@ services:
     volumes:
       - /data/agno/volumes/sbv_data:/opt/sbv/data   # SAME bind as the bundle
       - r2-nexus:/r2
+      # tool-gateway materialization share (D-132). The gateway resolves a
+      # locator, materializes the bytes here, and hands this container THE SAME
+      # ABSOLUTE PATH. Read-only on this side: the tool reads, never writes.
+      # Both containers must run on the same host; see deploy/tool-gateway.yaml.
+      - /data/agno/volumes/tool-gateway/materialize:/data/toolgw/materialize:ro
     healthcheck:
       test:
         - CMD-SHELL

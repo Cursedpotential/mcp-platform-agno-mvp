@@ -11,11 +11,19 @@
 #     parsers/extractors (chat exports, messaging, location, pdf/unstructured)
 # Media conversion deps (HEIC/3GP/AMR) come from ffmpeg + libheif.
 #
-# BUILD CONTEXT = the deploy/ directory (compose sets `context: .`, which the
-# compose spec resolves relative to the compose file). Corrected 2026-09-01:
-# SBV source is no longer needed in the context (binary comes from the pinned
-# CI image below). COPYs are context-relative:
-#   docker/tools/...      this dir's facade + supervisord
+# BUILD CONTEXT = the REPOSITORY ROOT.
+#
+# Corrected 2026-09-05. The previous note claimed the context was `deploy/`,
+# because the compose spec resolves a relative `context:` against the compose
+# file's directory. Coolify does NOT run compose that way: its deployment log
+# shows `docker compose --project-directory <repo root> -f <repo root>/deploy/
+# platform-tools.yaml build`, so `context: .` is the repo root. The file was
+# also internally inconsistent — it mixed `COPY docker/tools/...` (deploy/
+# context) with `COPY server/...` (repo-root context), and no single context
+# satisfied both. Every COPY below is now repo-root-relative, matching the
+# working reference deploy/universal-import-worker.yaml.
+#   deploy/docker/tools/...   this dir's facade + supervisord
+#   server/                   the platform server package
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -64,7 +72,7 @@ COPY --from=sbv /usr/lib /opt/sbv-libs
 # keeps this capability image small and prevents an optional local model stack
 # from arriving through an unrelated extra.
 WORKDIR /opt/tools
-COPY docker/tools/tools/ /opt/tools/
+COPY deploy/docker/tools/tools/ /opt/tools/
 # The whole server tree: server.tools.registry pulls in server.contracts.records
 # (the NormalizedRecord schema, ADR-0035) + server.tools/parsers/* +
 # server.tools._sbv_client + server.vendored.chatminer transitively.
@@ -91,6 +99,6 @@ RUN pip install --no-cache-dir \
     && command -v tesseract >/dev/null \
     && command -v pdftoppm >/dev/null
 
-COPY docker/tools/supervisord.conf /etc/supervisor/conf.d/platform-tools.conf
+COPY deploy/docker/tools/supervisord.conf /etc/supervisor/conf.d/platform-tools.conf
 EXPOSE 8080 8090
 CMD ["supervisord", "-n", "-c", "/etc/supervisor/supervisord.conf"]

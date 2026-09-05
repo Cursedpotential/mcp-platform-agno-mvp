@@ -18,6 +18,10 @@ func setWorkerEnvironment(t *testing.T) {
 	if err := os.WriteFile(databaseURLFile, []byte("postgresql://runtime:secret@postgres/platform\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	gatewayTokenFile := filepath.Join(root, "tool-gateway-service-token")
+	if err := os.WriteFile(gatewayTokenFile, []byte("gateway-token-value\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	values := map[string]string{
 		"TEMPORAL_HOST_PORT":                   "temporal:7233",
 		"TEMPORAL_NAMESPACE":                   "default",
@@ -28,6 +32,7 @@ func setWorkerEnvironment(t *testing.T) {
 		"NORMALIZED_BUNDLE_DIR":                filepath.Join(root, "normalized"),
 		"INVENTORY_MANIFEST_DIR":               filepath.Join(root, "inventory"),
 		"PLATFORM_TOOLS_BASE_URL":              "https://platform-tools.example.test",
+		"TOOL_GATEWAY_SERVICE_TOKEN_FILE":      gatewayTokenFile,
 		"N8N_UNIVERSAL_IMPORT_BASE_URL":        "https://n8n.example.test/webhook/",
 		"N8N_UNIVERSAL_IMPORT_AUTH_HEADER":     "Authorization",
 		"N8N_UNIVERSAL_IMPORT_AUTH_VALUE_FILE": authValueFile,
@@ -72,6 +77,23 @@ func TestLoadConfigRejectsMissingDatabaseURLFileWithoutLeakingPath(t *testing.T)
 	}
 }
 
+// D-132: the tool gateway is the only sanctioned path to a platform tool and
+// requires a bearer service token. A worker that starts without it would poll
+// the queue and 401 on every repair Activity, so the failure belongs at
+// startup, not at call time.
+func TestLoadConfigFailsClosedWithoutTheToolGatewayServiceToken(t *testing.T) {
+	setWorkerEnvironment(t)
+	path := filepath.Join(t.TempDir(), "missing-gateway-token")
+	t.Setenv("TOOL_GATEWAY_SERVICE_TOKEN_FILE", path)
+	_, err := LoadConfig()
+	if err == nil || !strings.Contains(err.Error(), "TOOL_GATEWAY_SERVICE_TOKEN_FILE is unavailable or empty") {
+		t.Fatalf("LoadConfig() error = %v, want fail-closed gateway token error", err)
+	}
+	if strings.Contains(err.Error(), path) {
+		t.Fatalf("LoadConfig() error leaked the gateway secret path: %q", err)
+	}
+}
+
 func TestLoadConfigRejectsLegacyEvidenceQueue(t *testing.T) {
 	setWorkerEnvironment(t)
 	t.Setenv("TEMPORAL_TASK_QUEUE", legacyEvidenceTaskQueue)
@@ -88,7 +110,7 @@ func TestLoadConfigNeverEchoesSecrets(t *testing.T) {
 	if err == nil {
 		t.Fatal("LoadConfig() error = nil")
 	}
-	for _, secret := range []string{"secret-value", "postgresql://runtime:secret@postgres/platform"} {
+	for _, secret := range []string{"secret-value", "gateway-token-value", "postgresql://runtime:secret@postgres/platform"} {
 		if strings.Contains(err.Error(), secret) {
 			t.Fatalf("configuration error exposed a secret: %q", err)
 		}
