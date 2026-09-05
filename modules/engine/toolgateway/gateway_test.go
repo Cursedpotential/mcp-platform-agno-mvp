@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -269,5 +270,26 @@ func TestHealthzNeedsNoAuth(t *testing.T) {
 	h.Routes().ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected healthz 200, got %d", rec.Code)
+	}
+}
+
+// Byline: Claude Code · Fable 5.1 · 2026-09-05 — regression for the live 401:
+// VIP-service peers arrive with IPv6 tailnet addresses.
+func TestTailnetAddressAcceptsBothTailscaleFamilies(t *testing.T) {
+	cases := map[string]bool{
+		"100.91.190.107":            true,
+		"100.64.0.1":                true,
+		"100.127.255.254":           true,
+		"100.128.0.1":               false,
+		"fd7a:115c:a1e0::1b29:fb86": true,
+		"fd7a:115c:a1e0:ab12::1":    true,
+		"fd7a:115c:a1e1::1":         false,
+		"10.0.0.1":                  false,
+		"::1":                       false,
+	}
+	for raw, want := range cases {
+		if got := tailnetAddress(net.ParseIP(raw)); got != want {
+			t.Fatalf("tailnetAddress(%s) = %v, want %v", raw, got, want)
+		}
 	}
 }

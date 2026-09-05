@@ -53,18 +53,39 @@ func (h *HTTPHandler) Routes() http.Handler {
 
 // authorizedTailnetPeer mirrors the check used by the UIW starter: only
 // Tailscale CGNAT space (100.64.0.0/10) is admitted.
+//
+// Both Tailscale address families are admitted: the IPv4 CGNAT range
+// 100.64.0.0/10 and the IPv6 ULA range fd7a:115c:a1e0::/48. Live finding
+// 2026-09-05: a VIP-service connection (svc:tool-gateway) reaches the tsnet
+// listener with an IPv6 tailnet RemoteAddr, and the IPv4-only check rejected
+// every worker call with 401 before the token was even compared.
 func authorizedTailnetPeer(r *http.Request) bool {
 	host, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr))
 	if err != nil {
 		return false
 	}
-	ip := net.ParseIP(host).To4()
-	return ip != nil && ip[0] == 100 && ip[1] >= 64 && ip[1] <= 127
+	return tailnetAddress(net.ParseIP(host))
+}
+
+var tailscaleULA = func() *net.IPNet {
+	_, n, _ := net.ParseCIDR("fd7a:115c:a1e0::/48")
+	return n
+}()
+
+func tailnetAddress(ip net.IP) bool {
+	if ip == nil {
+		return false
+	}
+	if v4 := ip.To4(); v4 != nil {
+		return v4[0] == 100 && v4[1] >= 64 && v4[1] <= 127
+	}
+	return tailscaleULA.Contains(ip)
 }
 
 func (h *HTTPHandler) auth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !authorizedTailnetPeer(r) {
+			slog.Warn("tool gateway: rejected non-tailnet peer", "remote_addr", r.RemoteAddr, "path", r.URL.Path)
 			writeError(w, http.StatusUnauthorized, errors.New("tool gateway: tailnet authorization required"))
 			return
 		}
