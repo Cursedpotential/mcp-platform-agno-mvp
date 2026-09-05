@@ -70,3 +70,7 @@ services:
       - /data/agno/secrets/casebible-r2.json:/run/secrets/casebible-r2.json:ro
       - /data/agno/secrets/n8n/universal-import-auth:/run/secrets/n8n-universal-import-auth:ro
       - /data/agno/secrets/platform/database-url:/run/secrets/platform-database-url:ro
+      # Tool gateway service token (D-132): the worker calls platform-tools ONLY through
+      # the gateway and fails closed at startup without this file. Copied from ovh-app
+      # /data/agno/secrets/tool-gateway/service-token on 2026-09-05.
+      - /data/agno/secrets/tool-gateway/service-token:/run/secrets/tool-gateway-service-token:ro
