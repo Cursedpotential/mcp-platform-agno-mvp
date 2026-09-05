@@ -696,7 +696,7 @@ func (h *PreviewHTTPHandler) decideRepair(w http.ResponseWriter, r *http.Request
 	decisionRef, err := h.repairs.PersistRepairDecision(r.Context(), uiw.RepairDecisionSpec{
 		SourceVersionRef: state.SourceVersionRef, AssessmentRef: state.RepairAssessmentRef,
 		ActorRef: uiw.Ref(actor), Approved: req.Approved, ApplyRepair: req.ApplyRepair,
-		ToolID: strings.TrimSpace(req.ToolID), ToolPayload: req.ToolPayload,
+		ToolID: strings.TrimSpace(req.ToolID), ToolPayload: nonNilPayload(req.ToolPayload),
 		IdempotencyKey: "uiw:" + handle + ":" + idempotencyKey,
 	})
 	if err != nil {
@@ -800,6 +800,18 @@ func decodePreviewJSON(w http.ResponseWriter, r *http.Request, dest any) error {
 		return err
 	}
 	return nil
+}
+
+// nonNilPayload guarantees a use-original decision persists `{}` rather than
+// `null`: encoding/json renders a nil map as null, which violates
+// context.repair_decision_check (live 2026-09-05, first decision on
+// rehearsal-20260905-r2e-1788612588 returned 422 until tool_payload was sent
+// explicitly as {}).
+func nonNilPayload(payload map[string]any) map[string]any {
+	if payload == nil {
+		return map[string]any{}
+	}
+	return payload
 }
 
 func previewJSON(w http.ResponseWriter, status int, value any) {

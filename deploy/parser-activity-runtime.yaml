@@ -29,6 +29,12 @@ services:
       PARSER_BUNDLE_DIR: /data/uiw/parser-bundles
       PARSER_ARTIFACT_DIR: /data/uiw/parser-artifacts
     volumes:
+      # Retained source objects, READ-ONLY. Live finding 2026-09-05 (rehearsal
+      # rehearsal-20260905-r2e-1788612588): execute_parser_activity failed with
+      # "open retained object file …/source-objects/objects/sha256/…: no such
+      # file or directory" because this service never mounted the store the
+      # worker retains into. Same host, same path convention as the worker.
+      - /data/agno/volumes/universal-import/source-objects:/data/uiw/source-objects:ro
       - /data/agno/volumes/universal-import/parser-bundles:/data/uiw/parser-bundles
       - type: bind
         source: /data/agno/volumes/universal-import/parser-artifacts
