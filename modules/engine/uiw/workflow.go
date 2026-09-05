@@ -87,8 +87,14 @@ func UniversalImportWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowRe
 		// Repair assessment is produced before the repair gate, so the human is
 		// deciding against durable data that already exists. The signal contains
 		// only the persisted actor-bound decision registry.
+		// "acquisition" is the scheme-prefixed source LOCATOR (upload:// / r2://)
+		// the tool gateway resolves on its own host (D-132); "original" is the
+		// retained-object identity used for persistence. Live rehearsal
+		// 2026-09-05 (rehearsal-20260905-r2c-1788610705) failed with the
+		// gateway rejecting the bare original UUID: "has no URI scheme".
 		repairAssessmentRef, err := r.exec(ctx, stagegraph.AssessSourceRepair, in.DeclaredFormat, map[string]Ref{
-			"original": originalRef,
+			"original":    originalRef,
+			"acquisition": in.SourceRef,
 		})
 		if err != nil {
 			return r.result(""), err
@@ -101,7 +107,7 @@ func UniversalImportWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowRe
 		}); err != nil {
 			return r.result(""), fmt.Errorf("uiw: register preview query handler: %w", err)
 		}
-		refs := map[string]Ref{"original": originalRef, "repair_assessment": repairAssessmentRef}
+		refs := map[string]Ref{"original": originalRef, "repair_assessment": repairAssessmentRef, "acquisition": in.SourceRef}
 		if assessmentResult.Status == StatusNotApplicable {
 			refs["auto_clean_assessment"] = repairAssessmentRef
 		} else {

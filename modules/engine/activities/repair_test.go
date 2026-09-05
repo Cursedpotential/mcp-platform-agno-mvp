@@ -55,7 +55,7 @@ func repairRequest(refs map[string]uiw.Ref) uiw.StageRequest {
 func TestAssessSourceRepairCallsExistingCapabilitiesAndReturnsOnlyRefs(t *testing.T) {
 	client := &repairClientStub{}
 	store := &repairStoreStub{assessment: RepairPersistenceResult{ResultRef: "assessment", ReceiptRef: "receipt", ReviewRequired: false}}
-	result, err := (RepairActivities{Client: client, Store: store}).AssessSourceRepair(t.Context(), repairRequest(map[string]uiw.Ref{"original": "original"}))
+	result, err := (RepairActivities{Client: client, Store: store}).AssessSourceRepair(t.Context(), repairRequest(map[string]uiw.Ref{"original": "original", "acquisition": "r2://bucket/object"}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func TestAssessSourceRepairCallsExistingCapabilitiesAndReturnsOnlyRefs(t *testin
 func TestAssessSourceRepairRequiresReviewWhenDetectorFlagsRepair(t *testing.T) {
 	client := &repairClientStub{result: json.RawMessage(`{"needs_repair":true}`)}
 	store := &repairStoreStub{assessment: RepairPersistenceResult{ResultRef: "assessment", ReceiptRef: "receipt", ReviewRequired: true}}
-	result, err := (RepairActivities{Client: client, Store: store}).AssessSourceRepair(t.Context(), repairRequest(map[string]uiw.Ref{"original": "original"}))
+	result, err := (RepairActivities{Client: client, Store: store}).AssessSourceRepair(t.Context(), repairRequest(map[string]uiw.Ref{"original": "original", "acquisition": "r2://bucket/object"}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +90,7 @@ func TestAssessSourceRepairRetryKeepsPersistedReviewRequirement(t *testing.T) {
 	store := &repairStoreStub{persistedFound: true, persisted: RepairPersistenceResult{
 		ResultRef: "persisted-assessment", ReceiptRef: "persisted-receipt", ReviewRequired: true,
 	}}
-	result, err := (RepairActivities{Client: client, Store: store}).AssessSourceRepair(t.Context(), repairRequest(map[string]uiw.Ref{"original": "original"}))
+	result, err := (RepairActivities{Client: client, Store: store}).AssessSourceRepair(t.Context(), repairRequest(map[string]uiw.Ref{"original": "original", "acquisition": "r2://bucket/object"}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +105,7 @@ func TestAssessSourceRepairRetryKeepsPersistedReviewRequirement(t *testing.T) {
 func TestResolveSourceRepairAutomaticallyPersistsCleanResolution(t *testing.T) {
 	store := &repairStoreStub{resolution: RepairPersistenceResult{ResultRef: "original-resolution", ReceiptRef: "receipt"}}
 	result, err := (RepairActivities{Client: &repairClientStub{}, Store: store}).ResolveSourceRepair(t.Context(), repairRequest(map[string]uiw.Ref{
-		"original": "original", "repair_assessment": "assessment", "auto_clean_assessment": "assessment",
+		"original": "original", "acquisition": "r2://bucket/object", "repair_assessment": "assessment", "auto_clean_assessment": "assessment",
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -117,7 +117,7 @@ func TestResolveSourceRepairAutomaticallyPersistsCleanResolution(t *testing.T) {
 
 func TestResolveSourceRepairFailsClosedWithoutExactApproval(t *testing.T) {
 	store := &repairStoreStub{decision: RepairDecisionRecord{DecisionRef: "decision", ActorRef: "actor", Approved: false}, resolution: RepairPersistenceResult{ResultRef: "derived", ReceiptRef: "receipt"}}
-	_, err := (RepairActivities{Client: &repairClientStub{}, Store: store}).ResolveSourceRepair(t.Context(), repairRequest(map[string]uiw.Ref{"original": "original", "repair_assessment": "assessment", "repair_decision": "decision"}))
+	_, err := (RepairActivities{Client: &repairClientStub{}, Store: store}).ResolveSourceRepair(t.Context(), repairRequest(map[string]uiw.Ref{"original": "original", "acquisition": "r2://bucket/object", "repair_assessment": "assessment", "repair_decision": "decision"}))
 	if err == nil {
 		t.Fatal("unapproved repair decision was accepted")
 	}
@@ -126,7 +126,7 @@ func TestResolveSourceRepairFailsClosedWithoutExactApproval(t *testing.T) {
 func TestResolveSourceRepairInjectsManualApprovalOnlyAfterStoredDecision(t *testing.T) {
 	client := &repairClientStub{}
 	store := &repairStoreStub{decision: RepairDecisionRecord{DecisionRef: "decision", ActorRef: "actor", Approved: true, ApplyRepair: true, ToolID: "repair.pdf-derived", Payload: map[string]any{"path": "/r2/source.pdf", "dest": "/r2/derived.pdf", "artifact_root": "/r2"}}, resolution: RepairPersistenceResult{ResultRef: "derived-original", ReceiptRef: "receipt"}}
-	result, err := (RepairActivities{Client: client, Store: store}).ResolveSourceRepair(t.Context(), repairRequest(map[string]uiw.Ref{"original": "original", "repair_assessment": "assessment", "repair_decision": "decision"}))
+	result, err := (RepairActivities{Client: client, Store: store}).ResolveSourceRepair(t.Context(), repairRequest(map[string]uiw.Ref{"original": "original", "acquisition": "r2://bucket/object", "repair_assessment": "assessment", "repair_decision": "decision"}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,8 +142,8 @@ func TestResolveSourceRepairInjectsManualApprovalOnlyAfterStoredDecision(t *test
 	if _, leaked := client.payloads[0]["path"]; leaked {
 		t.Fatalf("approved repair leaked a host path to the gateway: %v", client.payloads[0])
 	}
-	if client.sources[0] != "original" {
-		t.Fatalf("approved repair did not address the retained original by locator: %q", client.sources[0])
+	if client.sources[0] != "r2://bucket/object" {
+		t.Fatalf("approved repair did not address the source by its acquisition locator: %q", client.sources[0])
 	}
 }
 
@@ -154,15 +154,17 @@ func TestAssessSourceRepairAddressesSourceByLocatorNotHostPath(t *testing.T) {
 	client := &repairClientStub{}
 	store := &repairStoreStub{assessment: RepairPersistenceResult{ResultRef: "assessment", ReceiptRef: "receipt"}}
 	if _, err := (RepairActivities{Client: client, Store: store}).AssessSourceRepair(
-		t.Context(), repairRequest(map[string]uiw.Ref{"original": "r2://bucket/object"})); err != nil {
+		t.Context(), repairRequest(map[string]uiw.Ref{"original": "01a06423-d4ce-799e-acbb-bbc4b867ab94", "acquisition": "r2://bucket/object"})); err != nil {
 		t.Fatal(err)
 	}
 	if len(client.sources) != 2 {
 		t.Fatalf("expected detect + preview calls, got sources=%v calls=%v", client.sources, client.calls)
 	}
 	for index, source := range client.sources {
+		// The gateway is addressed by the scheme-prefixed acquisition locator,
+		// never by the retained-original UUID (live 2026-09-05: "has no URI scheme").
 		if source != "r2://bucket/object" {
-			t.Fatalf("call %d addressed %q instead of the retained-original locator", index, source)
+			t.Fatalf("call %d addressed %q instead of the acquisition locator", index, source)
 		}
 		if _, leaked := client.payloads[index]["path"]; leaked {
 			t.Fatalf("call %d sent a host path: %v", index, client.payloads[index])

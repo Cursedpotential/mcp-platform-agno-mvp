@@ -118,14 +118,22 @@ func (a RepairActivities) AssessSourceRepair(ctx context.Context, req uiw.StageR
 	if found {
 		return repairAssessmentResult(prior)
 	}
-	// The retained original travels as a LOCATOR. The gateway resolves it
-	// through the shared acquisition router and materializes the bytes where
-	// the tool can actually read them.
-	detection, err := a.Client.Run(ctx, RepairDetectTool, original, nil)
+	// The source travels to the gateway as a scheme-prefixed LOCATOR
+	// (req.Refs["acquisition"]: upload:// or r2://), which the gateway
+	// resolves through the shared acquisition router on ITS host and
+	// materializes where the tool can read it (D-132). `original` is the
+	// retained-object identity (a UUID, no scheme) and is what gets persisted.
+	// Live rehearsal 2026-09-05 (rehearsal-20260905-r2c-1788610705) proved the
+	// distinction: the gateway rejected the UUID with "has no URI scheme".
+	locator, err := repairRef(req, "acquisition")
+	if err != nil {
+		return uiw.StageResult{}, err
+	}
+	detection, err := a.Client.Run(ctx, RepairDetectTool, locator, nil)
 	if err != nil {
 		return uiw.StageResult{}, fmt.Errorf("run repair detection: %w", err)
 	}
-	preview, err := a.Client.Run(ctx, RepairPreviewTool, original, map[string]any{"format": req.DeclaredFormat, "sample_limit": 25})
+	preview, err := a.Client.Run(ctx, RepairPreviewTool, locator, map[string]any{"format": req.DeclaredFormat, "sample_limit": 25})
 	if err != nil {
 		return uiw.StageResult{}, fmt.Errorf("run repair preview: %w", err)
 	}
@@ -192,7 +200,11 @@ func (a RepairActivities) ResolveSourceRepair(ctx context.Context, req uiw.Stage
 		delete(payload, "path")
 		payload["_execution_mode"] = "manual"
 		payload["approved"] = true
-		toolResult, err = a.Client.Run(ctx, decision.ToolID, original, payload)
+		locator, locErr := repairRef(req, "acquisition")
+		if locErr != nil {
+			return uiw.StageResult{}, locErr
+		}
+		toolResult, err = a.Client.Run(ctx, decision.ToolID, locator, payload)
 		if err != nil {
 			return uiw.StageResult{}, fmt.Errorf("run approved derived repair: %w", err)
 		}
