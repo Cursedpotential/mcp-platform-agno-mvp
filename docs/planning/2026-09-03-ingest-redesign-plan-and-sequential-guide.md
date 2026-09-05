@@ -42,7 +42,7 @@ barrier question by construction, (c) names the chunk-unit bake-off that gates a
 |---|---|---|---|
 | 1 | **Evidence unit** | the normalized message row in `working.*` (hub, per the hub-and-mirror model). Content + timestamps immutable (D-136). No column added to it. | proposal |
 | 2 | **Search unit** | a small overlapping message-safe window written to `working.content_chunk` as an **index handle**, never a display unit. Candidate default: center message ± N neighbors. Alternatives to bake off: time-gap session window; Chonkie semantic group over a turn-aware pre-split (Chonkie already chosen, `docs/planning/agno-chunking-strategy.md`). | **unmeasured** |
-| 3 | **Provenance** | new table `working.content_chunk_message` (name not ruled): chunk_id → member message ids, center_message_id, conversation_id, ordinal range. `chat_chunk_message` died in 0058; no successor exists. Required before any SAT projection. | needs building |
+| 3 | **Provenance** | ~~new table `working.content_chunk_message` (name not ruled)~~ **BUILT 2026-09-05** as `sql/0072_content_chunk_message_bridge.sql` per Q9: `(chunk_id, message_id)` PK, `is_center`, `position`, `created_at`, append-only, FKs to `content_chunk` and `normalized_record`. The centre is carried as the `is_center` flag rather than a `center_message_id` column, and `conversation_id`/ordinal are read from the message row (D-136: never duplicated onto the association). `chat_chunk_message` died in 0058; this is its successor. | **built, not deployed** |
 | 4 | **Retrieval** | hit → chunk_id → provenance → center_message_id + conversation_id → expand **on the message table** by conversation + ordinal (PREV/NEXT), bounded by K neighbors or a time gap → dedupe on center id, merge overlapping spans → return **messages**, never chunk text. K is a runtime parameter independent of N. | proposal |
 | 5 | **Barrier question** | dissolved: expansion never touches chunks. A hit at the edge of chunk A pulls neighboring messages, which exist once in the message table. Overlapping windows dedupe on center id. | by construction |
 | 6 | **Graph lane `sat-temporal`** | one node per message row carrying the PG source coordinate (`normalized_record_id` + `content_chunk_id`) with the seven version-stamp fields (`sql/0055:256-272`); `PREV`/`NEXT` from ordinal; `IN_CONVERSATION` edges; no fusion with Semantica `evidence`; lane-labelled results (D-093). ADR-0062 claim-temporal edges are *asserted* order and are NOT duplicated here — these are structural sequence edges. | proposal |
@@ -196,9 +196,30 @@ held; immutability guards switchable by design (D-110/D-127/D-128); naming (D-13
   ingest-simplification-plan chunk-unit lines; ADR index rows 0062+0063; memory note scope.
 - ☐ CI: empty-DB baseline build + `content_hash` grep gate (round-5 #1/#2).
 - ☐ Rule + fix migration holes 0040/0041/0044-0046 (round-5 #3).
-- ☐ Migration: `working.content_chunk_message` provenance table (Q9), rollback-validated live.
+- ☑ **BUILT, NOT DEPLOYED** (2026-09-05, Claude Code · Opus 5) — Migration:
+  `working.content_chunk_message` provenance/bridge table (Q9), rollback-validated live.
+  `sql/0072_content_chunk_message_bridge.sql`: PK `(chunk_id, message_id)`, FKs both ways
+  (`content_chunk`, `normalized_record`, both `ON DELETE CASCADE`), `is_center`, `position`,
+  `created_at`, append-only UPDATE trigger, index on `message_id`, `≤1` centre and distinct
+  positions per chunk. It also re-anchors `evidence_vector_projection_job.chunk_id` — that FK
+  had been silently gone since 0058 dropped its referent (verified live: zero `contype='f'`
+  rows on the table) — and rewrites `working.enqueue_evidence_vector_projection(uuid[],text)`
+  to select through the bridge. Validated live: applied twice in one txn, FK asserted, the
+  function called with `[]` and with a random uuid (0, 0), blank reason raised
+  `VECTOR_PROJECTION_REASON_REQUIRED`, then ROLLBACK. **Not yet applied to the live database.**
 - ☐ Migration/outbox: ADR-0052 Part 1 outbox table (B3) — required before any projection.
-- ☐ Rewire Weaviate feed off the dropped `normalized_record_chunk` → `content_chunk` (B2).
+- ☑ **BUILT, NOT DEPLOYED** (2026-09-05, Claude Code · Opus 5) — Rewired the Weaviate feed off
+  the dropped `normalized_record_chunk` → `content_chunk` via the bridge (B2). Nine code sites
+  plus the SQL function; zero executable references to the dropped table remain in `server/`
+  or in any non-history migration. `chunker_id` now comes from `content_chunk_generation`,
+  `source_content_hash` from the message row's own `source_content_sha256` (`content_chunk`
+  has neither column), the frozen watermark compares `content_chunk.created_at`, and the
+  `projection_kind` default is `'content_chunk'`. The embedder contract moved off the
+  NIM-retired `nvidia/nv-embed-v1`/4096-d to `nvidia/nemotron-3-embed-1b`/2048-d — safe
+  because `EvidenceChunkV1` does not exist in Weaviate yet (verified live). The Python chunk
+  writer in `server/evidence/store.py` is retired fail-closed; the Go message-window chunker
+  Activity (Stage 3, below) is the writer. Full record:
+  `docs/reviews/2026-09-05-h04-bridge-and-weaviate-feed-rewire.md`.
 - ☐ Register `execute_structured_elt_activity` in the worker + extend to emit the standard
   `RawRecordEnvelope` per Q1 (B6, Q1) [Go — needs deny lifted on `modules/engine/**`].
 - ☐ Fact/claim ID scheme + AI-GEN source category + `kind` field on normalized record
@@ -456,7 +477,7 @@ Every step runs as a subagent on owner command. Nothing writes before that.
 1. **Write ADR-0063** `docs/adr/0063-sat-rag-message-node-model-and-neighbor-expansion.md`, Status *Proposed — ITERATING*, from the table above. Draft text already exists in this session's transcript and is reused verbatim minus every LlamaIndex mention.
 2. **Append D-138** to `docs/DECISION_LOG.md` (check the tail: D-137 is the propria ruling; the ingest plan still tells a future session to append "D-137" for custody-at-promotion — renumber whichever lands second).
 3. **Same-turn drift fixes:** `docs/design/surrealdb-analytical-surface.md:188-200` (gap → pointer to ADR-0063); `docs/planning/2026-09-03-ingest-simplification-plan.md:71,78-80` (chunk unit = ADR-0063 window under evaluation; Phase 3 chunk stage emits provenance rows); `docs/adr/README.md` (append 0062 AND 0063 — index stops at 0061); memory note `dont-relitigate-chunking-pipeline-adr-0053.md` (messaging unit tracked in ADR-0063, not settled); `docs/adr/0041:34-36` dated note that "Agno-native orchestration" is superseded by D-107.
-4. **Migration** `sql/00NN_content_chunk_message_provenance.sql` — the provenance table; zero-net-write validated (apply in a txn, count, rollback) against live PG before apply.
+4. ~~**Migration** `sql/00NN_content_chunk_message_provenance.sql` — the provenance table; zero-net-write validated (apply in a txn, count, rollback) against live PG before apply.~~ **DONE 2026-09-05** as `sql/0072_content_chunk_message_bridge.sql`, rollback-validated live exactly as specified (applied twice in one txn, function exercised, ROLLBACK, absence re-asserted). Still to do: push → apply live → redeploy. See `docs/reviews/2026-09-05-h04-bridge-and-weaviate-feed-rewire.md`.
 5. **Go: message-window chunker activity** — new unit, emits chunk rows + provenance rows + `content_sha256`; registered in the stage graph; `go build/vet/test` green.
 6. **Go or Python: expansion unit** — input (chunk_id | message_id, K | gap), output message rows + boundary metadata; wrapped as Temporal Activity + n8n binding via the existing flow-binding registry.
 7. **Bake-off harness** — runs the §9 comparison on Google Voice, writes receipts, produces the metrics table; owner rules N and the unit; ADR flips to Accepted only then.
