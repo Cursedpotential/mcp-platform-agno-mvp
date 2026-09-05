@@ -114,6 +114,9 @@ func run() error {
 		return err
 	}
 	defer cleanup()
+	// tsnet listeners (service or node) hand requests over loopback with the
+	// tailnet peer in X-Forwarded-For; only then is that header trusted.
+	handler.TrustForwardedFromLoopback = env("TOOL_GATEWAY_TS_AUTHKEY_FILE") != ""
 
 	server := &http.Server{
 		Handler:           handler.Routes(),

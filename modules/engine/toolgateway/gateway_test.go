@@ -293,3 +293,34 @@ func TestTailnetAddressAcceptsBothTailscaleFamilies(t *testing.T) {
 		}
 	}
 }
+
+func TestAuthorizedTailnetPeerTrustsForwardedOnlyFromLoopbackOnTsnet(t *testing.T) {
+	mk := func(remote, xff string) *http.Request {
+		r := httptest.NewRequest(http.MethodGet, "/tools", nil)
+		r.RemoteAddr = remote
+		if xff != "" {
+			r.Header.Set("X-Forwarded-For", xff)
+		}
+		return r
+	}
+	tsnet := &HTTPHandler{TrustForwardedFromLoopback: true}
+	plain := &HTTPHandler{}
+	if !tsnet.authorizedTailnetPeer(mk("127.0.0.1:59786", "100.91.190.107")) {
+		t.Fatal("tsnet mode must accept a loopback hop carrying a tailnet X-Forwarded-For")
+	}
+	if !tsnet.authorizedTailnetPeer(mk("127.0.0.1:1", "fd7a:115c:a1e0::1b29:fb86, 10.0.0.9")) {
+		t.Fatal("first X-Forwarded-For hop is the peer")
+	}
+	if tsnet.authorizedTailnetPeer(mk("127.0.0.1:1", "203.0.113.5")) {
+		t.Fatal("non-tailnet forwarded peer must be rejected")
+	}
+	if tsnet.authorizedTailnetPeer(mk("127.0.0.1:1", "")) {
+		t.Fatal("loopback without a forwarded peer must be rejected")
+	}
+	if plain.authorizedTailnetPeer(mk("127.0.0.1:1", "100.91.190.107")) {
+		t.Fatal("plain BIND_IP listener must never trust X-Forwarded-For")
+	}
+	if !plain.authorizedTailnetPeer(mk("100.91.190.107:4444", "")) {
+		t.Fatal("direct tailnet peer is always accepted")
+	}
+}

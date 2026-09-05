@@ -31,6 +31,10 @@ type HTTPHandler struct {
 	Gateway      *Gateway
 	Index        func() (json.RawMessage, error)
 	ServiceToken string
+	// TrustForwardedFromLoopback is set ONLY when the listener is a tsnet
+	// service/node listener: tailscale's in-process serve proxy delivers the
+	// request over loopback with the tailnet peer in X-Forwarded-For.
+	TrustForwardedFromLoopback bool
 }
 
 type runRequest struct {
@@ -59,12 +63,28 @@ func (h *HTTPHandler) Routes() http.Handler {
 // 2026-09-05: a VIP-service connection (svc:tool-gateway) reaches the tsnet
 // listener with an IPv6 tailnet RemoteAddr, and the IPv4-only check rejected
 // every worker call with 401 before the token was even compared.
-func authorizedTailnetPeer(r *http.Request) bool {
+//
+// Second live finding, same day: in tsnet's HTTPS service mode the connection
+// is terminated by tailscale's serve proxy inside the process and handed to
+// this handler over loopback, so RemoteAddr is 127.0.0.1 and the real peer
+// travels in X-Forwarded-For (vendor/tailscale.com/ipn/ipnlocal/serve.go:1074).
+// That header is trusted ONLY when the handler was built for a tsnet listener
+// (TrustForwardedFromLoopback) AND the direct peer is loopback — never on the
+// plain TOOL_GATEWAY_BIND_IP listener, where a client could forge it.
+func (h *HTTPHandler) authorizedTailnetPeer(r *http.Request) bool {
 	host, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr))
 	if err != nil {
 		return false
 	}
-	return tailnetAddress(net.ParseIP(host))
+	direct := net.ParseIP(host)
+	if tailnetAddress(direct) {
+		return true
+	}
+	if h.TrustForwardedFromLoopback && direct != nil && direct.IsLoopback() {
+		fwd := strings.TrimSpace(strings.Split(r.Header.Get("X-Forwarded-For"), ",")[0])
+		return tailnetAddress(net.ParseIP(fwd))
+	}
+	return false
 }
 
 var tailscaleULA = func() *net.IPNet {
@@ -84,7 +104,7 @@ func tailnetAddress(ip net.IP) bool {
 
 func (h *HTTPHandler) auth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !authorizedTailnetPeer(r) {
+		if !h.authorizedTailnetPeer(r) {
 			slog.Warn("tool gateway: rejected non-tailnet peer", "remote_addr", r.RemoteAddr, "path", r.URL.Path)
 			writeError(w, http.StatusUnauthorized, errors.New("tool gateway: tailnet authorization required"))
 			return
