@@ -133,7 +133,16 @@ func (a RepairActivities) AssessSourceRepair(ctx context.Context, req uiw.StageR
 	if err != nil {
 		return uiw.StageResult{}, fmt.Errorf("run repair detection: %w", err)
 	}
-	preview, err := a.Client.Run(ctx, RepairPreviewTool, locator, map[string]any{"format": req.DeclaredFormat, "sample_limit": 25})
+	// The repair engines take the STRUCTURAL format the detector found ("xml",
+	// "json", …), not the platform format tag the boundary declared
+	// ("sms_xml"). Live rehearsal 2026-09-05 (rehearsal-20260905-r2d-1788611759):
+	// passing DeclaredFormat made platform-tools answer 422 "no engine for
+	// format 'sms_xml'". Omitting it lets the engine auto-detect.
+	previewArgs := map[string]any{"sample_limit": 25}
+	if structural := repairDetectionFormat(detection); structural != "" {
+		previewArgs["format"] = structural
+	}
+	preview, err := a.Client.Run(ctx, RepairPreviewTool, locator, previewArgs)
 	if err != nil {
 		return uiw.StageResult{}, fmt.Errorf("run repair preview: %w", err)
 	}
@@ -251,6 +260,21 @@ func repairResult(stage stagegraph.StageID, result RepairPersistenceResult, stat
 		return uiw.StageResult{}, errors.New("repair persistence returned incomplete compact references")
 	}
 	return uiw.StageResult{Stage: stage, Status: status, Ref: result.ResultRef, ReceiptRef: result.ReceiptRef}, nil
+}
+
+// repairDetectionFormat extracts the structural format the detector reported
+// ({"detection":{"fmt":"xml",...}}). Empty when absent, so the caller omits
+// the argument and the engine auto-detects.
+func repairDetectionFormat(detection json.RawMessage) string {
+	var payload struct {
+		Detection struct {
+			Fmt string `json:"fmt"`
+		} `json:"detection"`
+	}
+	if err := json.Unmarshal(detection, &payload); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(payload.Detection.Fmt)
 }
 
 // RepairReviewRequired derives the fail-closed human-review requirement from

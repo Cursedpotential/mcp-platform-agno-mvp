@@ -170,7 +170,23 @@ func TestAssessSourceRepairAddressesSourceByLocatorNotHostPath(t *testing.T) {
 			t.Fatalf("call %d sent a host path: %v", index, client.payloads[index])
 		}
 	}
-	if client.payloads[1]["format"] != "pdf" || client.payloads[1]["sample_limit"] != 25 {
-		t.Fatalf("preview args lost their tool options: %v", client.payloads[1])
+	// The declared platform format ("pdf" in repairRequest) must NOT reach the
+	// repair engine; only a structural format from the detection result does.
+	// The stub's detection carries no fmt, so no format is sent and the engine
+	// auto-detects (live 2026-09-05: "no engine for format 'sms_xml'").
+	if _, sent := client.payloads[1]["format"]; sent || client.payloads[1]["sample_limit"] != 25 {
+		t.Fatalf("preview args wrong: %v", client.payloads[1])
+	}
+}
+
+func TestAssessSourceRepairForwardsStructuralFormatFromDetection(t *testing.T) {
+	client := &repairClientStub{result: json.RawMessage(`{"detection":{"fmt":"xml","encoding":"utf-8"},"cloud_only":false}`)}
+	store := &repairStoreStub{assessment: RepairPersistenceResult{ResultRef: "assessment", ReceiptRef: "receipt"}}
+	if _, err := (RepairActivities{Client: client, Store: store}).AssessSourceRepair(
+		t.Context(), repairRequest(map[string]uiw.Ref{"original": "orig", "acquisition": "r2://bucket/object"})); err != nil {
+		t.Fatal(err)
+	}
+	if client.payloads[1]["format"] != "xml" {
+		t.Fatalf("preview must carry the detector's structural format: %v", client.payloads[1])
 	}
 }
