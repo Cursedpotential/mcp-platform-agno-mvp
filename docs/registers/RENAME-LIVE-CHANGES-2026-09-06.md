@@ -103,4 +103,30 @@ first per the transfer rule); old prefix stays until the copy is verified. Not d
 | SBV's own "universal import" API term in `sbv_sms.py` / `_sbv_client.py` | donor vocabulary, not our lane |
 | Case Bible identifiers (`casebible-*` buckets, `casebible` database/table prefix, `cb-*` commands) | D-141 KEEP |
 | sibling repos `Legal-Workspace` → advocatio, `traceIQ` → vestigia (GitHub names) | directory renames are the last step of this pass; GitHub repo renames need their own decision |
-| Checkout directory `Agno-MCP-Platform` → `probata` + memory dir + parent gitlink + memsearch collection | BLOCKED by open handles (this session, the ingest session, a pwsh window): Windows refuses the rename while any process has the dir as cwd. `modules/Legal-Workspace` → `modules/advocatio` DONE (junction at old name). `modules/traceIQ` → `vestigia` and the repo dir + memory dir are done by `finish_rename_dirs.ps1` (scratchpad) once all sessions are closed; it also aliases the parent routers, commits both repos, and reindexes memsearch under the new collection name |
+| ~~Checkout directory `Agno-MCP-Platform` → `probata` + memory dir + parent gitlink + memsearch collection~~ **DONE 2026-09-06, see §9** | ~~BLOCKED by open handles (this session, the ingest session, a pwsh window): Windows refuses the rename while any process has the dir as cwd. `modules/Legal-Workspace` → `modules/advocatio` DONE (junction at old name). `modules/traceIQ` → `vestigia` and the repo dir + memory dir are done by `finish_rename_dirs.ps1` (scratchpad) once all sessions are closed; it also aliases the parent routers, commits both repos, and reindexes memsearch under the new collection name~~ |
+
+## 9. Directory rename — DONE 2026-09-06 ~15:45 EDT (owner ran `finish_rename_dirs.ps1` three times; the script left defects that were then fixed by hand, one read at a time)
+
+> _Byline: Claude Code · Fable 5.1 · 2026-09-06._
+
+Verified directly with `Get-Item` / `git ls-files -s` / `git log` / `memsearch search` after the runs (no script):
+
+| Item | State |
+|---|---|
+| `E:\AI_Workspace\Projects\the-platform-workspace\probata` | real directory (was `Agno-MCP-Platform`) |
+| `…\the-platform-workspace\Agno-MCP-Platform` | junction → `probata` |
+| `probata\modules\vestigia` / `probata\modules\advocatio` | real directories |
+| `probata\modules\traceIQ` / `probata\modules\Legal-Workspace` | junctions → the new dirs (targets spelled through the old outer path; resolve via the outer junction) |
+| `%USERPROFILE%\.claude\projects\E--…-probata` | real dir; the `…-Agno-MCP-Platform` name is a junction to it |
+| probata `main` | `25f1ce3` pushed to `Cursedpotential/probata` |
+| workspace `master` | commits `8514f089` + `08f98a66` from the script runs, plus the fix commit below; pushed to `origin/master` (the script pushed `main`, which does not exist on that repo) |
+| memsearch | pin `.memsearch/collection` = `ms_agno_mcp_platform_9e350219`; `memsearch search "proffer rename probata"` returns the D-137..D-142 journal entry; result paths still show the old directory (index not rebuilt; junction resolves them) |
+
+Defects the script produced, and the fixes:
+
+1. **Workspace lost its product-repo gitlink.** Run 2 un-staged the old `Agno-MCP-Platform` gitlink, but the `git add …/probata` was refused because the parent `.gitignore` still carried the `probata/` alias-ignore line the router script had added on 2026-09-06 morning. Fix: took that ignore block out (and a duplicated `Agno-MCP-Platform/` line), staged `Projects/the-platform-workspace/probata` → mode `160000` pinned at `25f1ce3`.
+2. **Router text applied twice.** Runs 2 and 3 both ran the text substitutions, yielding `probata/ (formerly probata/ (formerly Agno-MCP-Platform/))` in five router files and a second, garbled byline note in all seven. Fix: collapsed to `probata/ (formerly Agno-MCP-Platform/)`, dropped the garbled byline, and replaced the "junction until the directory rename lands" phrasing with "directory rename landed 2026-09-06".
+3. **Ignore lines tripled.** `the-platform-workspace/.gitignore` (`probata/data|tmp|.data`) and `probata/.gitignore` (`modules/advocatio/`, `modules/vestigia/`) got one copy per run. Deduplicated.
+4. **Push to the wrong branch.** Workspace repo's branch is `master`; the script pushed `main`. Pushed `master` by hand.
+
+Still open from this section: the memsearch collection name still encodes the old directory (renaming the Milvus collection is handoff 07's call); the two nested junction targets are spelled through `…\Agno-MCP-Platform\modules\…` and will break if the outer junction is retired after 2026-09-13 — re-point them to `…\probata\modules\…` before that.

@@ -4,14 +4,14 @@
 
 | # | File | Who | Needs owner? |
 |---|---|---|---|
-| 01 | `01-finish-directory-rename.md` | any agent, after all sessions in the tree are closed | no (script prepared) |
+| 01 | `01-finish-directory-rename.md` — **DONE 2026-09-06** (owner ran it; defects fixed by hand, see register §9) | — | — |
 | 02 | `02-restore-deny-list-and-gate.md` | owner or explicitly authorized agent | yes (owner's settings file) |
 | 03 | `03-r2-dev-fixtures-copy.md` | any agent | yes (billable transfer sign-off) |
 | 04 | `04-golden-clone-teardown.md` | the ingest session | yes before touching `platform` |
 | 05 | `05-identifier-rulings-needed.md` | any agent, in conversation with the owner | yes (18 rulings) |
 | 06 | `06-analysis-engine-split-indagatio.md` | planning agent | plan iterates until owner says done |
 | 07 | `07-memory-tooling-repairs.md` | any agent | only for dropping collections |
-| 08 | (no file yet) the **advocatio** repo (`modules/advocatio/`, its own commit root, `Cursedpotential/Legal-Workspace`) still calls itself Legal-Workspace and refers to `Agno-MCP-Platform` in its README, AGENTS.md, AGENT_MEMORY.md, pyproject, and docs; it needs its own naming sweep under D-138, with the same alias-vs-replace rule. Same for `modules/vestigia/` (traceIQ). | any agent, from inside that repo | product rename ruled; GitHub repo renames not ruled |
+| 08 | **DONE 2026-09-06** — sibling naming sweeps via `scripts/rename_siblings_2026_09_06.py`: advocatio commit `5c62b38` pushed to `Cursedpotential/Legal-Workspace` master; vestigia commit `5013583` pushed to `Cursedpotential/TraceIQ` main. Code identifiers (`legal_workspace` package, dist name) and GitHub repo names NOT renamed — those need their own rulings. | — | GitHub repo renames unruled |
 
 ## Standing rules every file assumes (from AGENTS.md / CLAUDE.md)
 

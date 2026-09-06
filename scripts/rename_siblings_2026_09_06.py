@@ -111,10 +111,15 @@ def main() -> None:
         touched = sorted(set(touched))
         # gitignored files (local compact summaries etc.) are annotated on disk but cannot be staged
         ignored = subprocess.run(["git", "-C", str(repo), "check-ignore", "--", *touched], capture_output=True, text=True).stdout.split()
-        touched = [t for t in touched if t.replace("\\", "/") not in {i.replace("\\", "/") for i in ignored}]
+        ign = {i.replace("\\", "/").rstrip("/") for i in ignored}
+        # check-ignore reports the matching DIRECTORY for directory rules; treat entries as prefixes
+        touched = [t for t in touched if not any(t.replace("\\", "/") == i or t.replace("\\", "/").startswith(i + "/") for i in ign)]
         print(f"{name}: {len(touched)} tracked files ({len(ignored)} ignored, annotated only)")
         if touched:
             subprocess.run(["git", "-C", str(repo), "add", "--", *touched], check=True)
+            if subprocess.run(["git", "-C", str(repo), "diff", "--cached", "--quiet"]).returncode == 0:
+                print(f"{name}: nothing new to commit (already committed)")
+                continue
             msg = (f"docs: naming sweep - product is {spec['product']} (formerly {spec['old']}); "
                    "evidence platform is probata (formerly Agno-MCP-Platform); historical docs annotated (D-137..D-150)\n\n"
                    "Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>\n")
