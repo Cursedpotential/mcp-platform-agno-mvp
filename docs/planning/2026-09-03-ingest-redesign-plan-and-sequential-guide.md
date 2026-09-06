@@ -208,6 +208,59 @@ held; immutability guards switchable by design (D-110/D-127/D-128); naming (D-13
 > this plan and its §G corrections applied below live at
 > `docs/reviews/2026-09-06-ingest-to-surreal-thinking-pass.md`.
 
+> **2026-09-06 10:33 — DESK ANSWERS Q20–Q24, owner corrections (newest wins):**
+> **Q20 — first real ingest = SMS (SMS Backup & Restore XML) and iMessage. These are "the two
+> most critical" sources. Snapchat and Google Voice are "the least significant."** The process
+> must work across ALL sources; some have multiple export types (Facebook: HTML and JSON,
+> fragmented by recovery problems) — do not ask the owner to commit to things the data
+> doesn't yet support. ~~Google Voice as the first real ingest~~ STRUCK.
+> **Q22 — WITHDRAWN.** Nothing is promoted without the owner clicking promote. A conflict is
+> shown to the owner; it never "promotes with a flag." My question implied automatic
+> promotion; that framing is wrong and is not to recur.
+> **Q24 = A, with a vocabulary correction:** nothing is "packaged" before it is parsed,
+> reviewed, and promoted by the owner. My use of "package" for the export folder (the
+> custody unit) collided with packaging-for-export. From here: the ingest unit is the
+> **export folder**; "package" is reserved for owner-promoted export bundles.
+> **Q23 — my explanation lacked context** ("verdicts on what?"). Plain version now on the
+> desk: a verdict is the owner's own decision when the two extraction paths disagree about
+> the same message. Nothing else. Q21 (Action) — discuss, plain words, no options.
+
+> **2026-09-06 10:36 — TWO MORE OWNER RULINGS.**
+> **D-145, the lifecycle order (final):** ingest → context/working → the OWNER reads → owner
+> sends to **SurrealDB for analysis** (the D-107 click) → after analysis, when the owner decides
+> it matters → **package + promote to evidence** (a second click). Evidence promotion comes
+> AFTER Surreal analysis. Every place this plan put Stage 5 "promotion" before Surreal, or
+> implied automatic promotion, is wrong and is corrected by this note; "promote" is never said
+> bare again — it is "send to Surreal" or "promote to evidence."
+> **Media (MP4 and audio): NOT "no coverage."** Owner: "you're gonna be extracting transcripts…
+> that will have to get bundled with it, even for context… separate from the whole evidence
+> thing, and if I decide it was evidence I can come back and have it properly packaged for
+> court." → Stage 3 gains a **media transcription activity** (ASR); the transcript is a CONTEXT
+> record linked to the media file and stitched into its conversation; the media file itself is
+> retained/sealed like any original; nothing about it is evidence until the owner promotes it.
+> The router's third state is therefore `media → transcribe`, and `no-coverage` is reserved for
+> formats with no decoder AND no transcription path (owner Q24 = A: inventory row + flag).
+> **D-146:** owner-only shortcut — context straight to evidence when he already knows it is
+> evidence; "not the rule"; same custody, receipt records the path.
+> **Promotion unit = BIG BATCHES, never single records** (owner 10:38): "whole big chunks…
+> groups of events… the messages with their attached edges and events and entities… groups of
+> GPS data." Q10=A (conversation group) is one instance of this; the general unit is an
+> owner-assembled bundle of records + their edges, events, entities, and related data. The
+> promote activity, the link table, and the export packaging must take a bundle, not a row.
+> **What Surreal analysis is FOR** (owner 10:38): "filter out things that are irrelevant
+> entirely to the entire relationship… then I can figure out what is relevant and worthy of
+> evidence quality, and then we can discuss it. Some things I'll just know as evidence." So the
+> Surreal stage is a relevance filter over the whole relationship first, evidence-worthiness
+> second, owner-decided; D-146's shortcut covers the "just know" cases.
+> **The gate INTO Surreal = "relevant to the relationship"** (owner 10:39): garbage, material
+> about somebody else, and the completely irrelevant get stripped in context; everything else
+> goes to Surreal; FROM Surreal the owner decides what is relevant for court, what is evidence,
+> what is worthy of proving a point.
+> **At ANY point in the workflow the owner can flag something for promotion** (owner 10:40) —
+> a "flag for promotion" action must exist on every surface that shows a record, group, or
+> bundle: context review, Surreal analysis, search results. Flagging never promotes by itself;
+> it queues for the owner's promote click (D-145/D-146).
+
 ### Stage 0 — Rulings that unlock everything (owner, via the Decision Desk)
 - ~~☐ **Q19 NUL bytes in raw records (new 2026-09-05):** PostgreSQL TEXT cannot hold 0x00; the
   synthetic SMS XML has one in element 8 and the parse dies at the raw insert. D-136 says content
