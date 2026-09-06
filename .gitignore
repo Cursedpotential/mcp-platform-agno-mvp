@@ -187,7 +187,9 @@ tests/_reports/
 modules/forks/timesketch/
 modules/custom/
 modules/Legal-Workspace/
+modules/advocatio/
 modules/traceIQ/
+modules/vestigia/
 modules/apps/
 
 # CodeLens Graph local index
