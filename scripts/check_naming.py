@@ -91,6 +91,7 @@ ALLOW_FILES = {
     "docs/NAMING.md",
     "scripts/check_naming.py",
     "scripts/rename_routers_2026_09_06.py",  # carries the old names as search strings by design
+    "scripts/rename_siblings_2026_09_06.py",  # same: sibling-repo sweep, old names are its search strings
 }
 # Historical review/planning docs are annotated, not rewritten (D-142 alias rule for
 # history). A file is exempt if it carries the naming note.
