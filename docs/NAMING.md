@@ -46,7 +46,7 @@ belongs to.
 | Cross-domain tool registry | `tool-gateway` | `server/tools/` gateway | D-131 |
 | Format decoder library | `decode` | SBV-donor-derived decoder set, destined for `modules/engine/decode/` | D-131 |
 | Import lane (was `uiw`) | `proffer` | Custody-preserving ingest lane — Go package `proffer`, worker binary `proffer-worker`, starter binary `proffer-starter`, Temporal task queue `proffer-v1`, workflow type `ProfferWorkflow`, Python package `server/proffer/` | D-140 |
-| Operator client (desktop ingest) | `intake` | The D-123 desktop ingest client | Proposed, not yet ruled |
+| Operator client (desktop ingest) | `intake` | The D-123 desktop ingest client | ruled D-150 (2026-09-06)|
 | Promotion activity family | `admit` | The activity family that promotes proffered records into `evidence.*` (evidence is *admitted* into the record) | Proposed, not yet ruled |
 
 ## 3. Old → new glossary
