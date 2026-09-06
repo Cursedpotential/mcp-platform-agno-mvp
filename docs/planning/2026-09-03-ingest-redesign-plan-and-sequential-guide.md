@@ -59,7 +59,7 @@ begin in that workflow, so it needs to be able to make those queries."*
 
 | Rule | Consequence |
 |---|---|
-| **Extract vs parse is the split, not file class.** If a file only needs EXTRACTION (its records are already rows: JSON/JSONL/CSV/Parquet; XML/HTML where regex over `read_text` yields the fields), DuckDB ELT is the **primary** path and REPLACES the Go/Python decoder for it. | Router column: `extract-only?` decided at classify, per file. |
+| **Extract vs parse is the split, not file class.** If a file only needs EXTRACTION (its records are already rows: JSON/JSONL/CSV/Parquet; XML/HTML where regex over `read_text` yields the fields), DuckDB ELT is the **primary** path and REPLACES the Go/Python decoder for it. | Router column: `extract-only?` decided at classify, per file. ~~(binary)~~ **Third state added 2026-09-06 (thinking pass §G-9, D-136 cl.1):** `no-coverage → inventory row + deferred flag` — a file with neither an ELT template nor a registered parser (e.g. the MP4 in a Snapchat package) gets an inventory row and a deferred flag, never silent omission. |
 | **Existing Go/Python parsers remain as failure fallback**, not as a parallel first-class path. | One primary per file; fallback only on logged ELT failure (same shape as ADR-0052 Q3's Go→Python fallback). No rewrite of any parser. |
 | **Go stays the orchestrator and the caller.** The workflow begins in Go; Go must be able to issue the DuckDB queries. | `duckdb_elt_activity` in `modules/engine/activities/`: input = locator + SQL template id + target table; runs the query through the PG connection (pg_duckdb) so the result lands in PG in the same transaction as the per-table outbox row (ADR-0052). No hashing, chunking, or projection inside it (D-130). |
 | **Files that must be PARSED** (PDF, images/OCR, docx layout, screenshots, anything opaque) stay with Go/Python decoders. DuckDB has nothing for them beyond `read_text` on `word/document.xml`. | unchanged |
@@ -84,6 +84,12 @@ chats before it is adopted (context-only lane, D-082).
 - Never hash chunks for custody: `content_sha256` is verification only (D-124, D-130 rule 2).
 - Never mutate a working row; provenance is its own table.
 - Preview/HITL shows the **expanded messages with the chunk boundary drawn** so parser and chunker defects are visible (D-135/D-136).
+- **Never write a verdict or alias into either lane graph** (added 2026-09-06, thinking pass §G-10):
+  `lane_diff`/adjudication reads both graphs read-only; a verdict or alias written back into
+  Neo4j `evidence` or `sat-temporal` is fusion by another name.
+- **Never let ELT and a decoder both land raw for the same file** (added 2026-09-06, thinking pass
+  §G-10): exclusive primary per file (Q1/router); the decoder is fallback only after a logged ELT
+  failure, never a parallel first-class path.
 
 ## Review round 2 — the owner's SAT-Graph document vs this plan (Opus reader, 18:24)
 
@@ -198,13 +204,18 @@ held; immutability guards switchable by design (D-110/D-127/D-128); naming (D-13
 > (fingerprint matcher) and #6 (status decoder) — both RE-ADOPTED; PII transformer = on-demand
 > export redaction, not ingest. Scope rule from Q17: promotion/evidence/analysis questions are
 > PARKED until ingest runs end to end.
+> **2026-09-06 thinking pass:** full graph/ToC/systems/OODA/adversarial/second-order analysis of
+> this plan and its §G corrections applied below live at
+> `docs/reviews/2026-09-06-ingest-to-surreal-thinking-pass.md`.
 
 ### Stage 0 — Rulings that unlock everything (owner, via the Decision Desk)
-- ☐ **Q19 NUL bytes in raw records (new 2026-09-05):** PostgreSQL TEXT cannot hold 0x00; the
+- ~~☐ **Q19 NUL bytes in raw records (new 2026-09-05):** PostgreSQL TEXT cannot hold 0x00; the
   synthetic SMS XML has one in element 8 and the parse dies at the raw insert. D-136 says content
   is immutable — the byte-exact record stays in the envelope bytes / H2; the question is the TEXT
   rendering: (A) substitute U+FFFD + flag `had_nul` on the row; (B) store raw text as BYTEA and
-  render at read; (C) reject the record to `raw.raw_rejected` with reason. Owner rules.
+  render at read; (C) reject the record to `raw.raw_rejected` with reason. Owner rules.~~
+- ☑ **Q19 RULED 2026-09-06 = A** (U+FFFD substitution + `had_nul` flag on the row; envelope
+  bytes/H2 remain the byte-exact record per D-136) (2026-09-06, thinking pass §G-1).
 - ☑ **Q1 RULED 2026-09-04 23:4x = C** ("my lean is C… make it work the same way and
   everything checkable again"). Mechanism: DuckDB templates use `read_text` → self-split into
   records with a running byte offset → decode columns FROM the record text → activity builds the
@@ -215,12 +226,24 @@ held; immutability guards switchable by design (D-110/D-127/D-128); naming (D-13
   hash + compare (fast lane); null → re-parse with pinned parser version + compare (slow lane).
   Retire `h2-rawelement-duckdb-json-v1`; ELT rows carry the real `h2-rawelement-v1`. Cost:
   `read_text` is whole-file; multi-GB XML needs block scratch + streaming (ties to Q3).
-- ☐ Q2 router tie-break · Q3 ELT unit (file vs package) · Q5 Google Voice first-run path.
+- ~~☐ Q2 router tie-break · Q3 ELT unit (file vs package) · Q5 Google Voice first-run path.~~
+- ☑ **Q3 RULED 2026-09-06 = B** (one package per call — the orchestrator stitches before
+  normalization; owner: "folders have different file types… parsers must work together")
+  (2026-09-06, thinking pass §G-1).
+- ☐ Q2 router tie-break · Q5 Google Voice first-run path remain open (2026-09-06, thinking
+  pass §G-1).
 - ☐ SAT-Graph mapping for messaging: conversation = Item? message = TextUnit? what is an Action?
   do immutable messages have Versions? (round-2 questions)
 - ☐ Surreal: D-107 manual-promotion-only vs the guide's live aggregation surface. One wins.
-- ☐ Q6 chunk bake-off before or after first ingest · Q7 chunker unit split · Q8 ordinal.
-- ☐ Which January-era items, if any, are re-adopted (fingerprint matcher, tz field, decoder).
+- ~~☐ Q6 chunk bake-off before or after first ingest · Q7 chunker unit split · Q8 ordinal.~~
+- ☑ **Q6 RULED 2026-09-06 = A** (ingest now on a provisional window, re-chunk later); **Q7
+  RULED 2026-09-06 = A** (chunker emits chunks + provenance; hashing is a separate Activity
+  family, D-130 r2) (2026-09-06, thinking pass §G-1).
+- ☐ Q8 ordinal remains open (2026-09-06, thinking pass §G-1).
+- ~~☐ Which January-era items, if any, are re-adopted (fingerprint matcher, tz field, decoder).~~
+- ☑ **RULED 2026-09-06 (Q18 re-adopted, critical):** the fingerprint matcher and the SMS/MMS
+  status decoder are re-adopted — moved to Stage 3 as ☐ items below; PII/redaction remains
+  on-demand export-time only, not ingest (2026-09-06, thinking pass §G-2).
 
 ### Stage 1 — Foundation (no ingest yet)  [Sonnet unless marked]
 > **2026-09-05 05:5x — PUSHED to origin/main at `5eda234`** (owner: "commit… push… Clean. Done."):
@@ -265,8 +288,21 @@ held; immutability guards switchable by design (D-110/D-127/D-128); naming (D-13
   `docs/reviews/2026-09-05-h04-bridge-and-weaviate-feed-rewire.md`.
 - ☐ Register `execute_structured_elt_activity` in the worker + extend to emit the standard
   `RawRecordEnvelope` per Q1 (B6, Q1) [Go — needs deny lifted on `modules/engine/**`].
+- ☐ **Migration `sql/00NN_raw_byte_offsets.sql`** (added 2026-09-06, thinking pass §G-7): nullable
+  `byte_start`/`byte_end` on the raw content tables per Q1=C — filled whenever the envelope
+  carried a range (all DuckDB ELT records + Go range parsers), null for StoredBytes-only parsers.
+- ☐ **Typed `StageResult` error contract, n8n → worker** (added 2026-09-06, thinking pass §G-8):
+  a parser 4xx (e.g. NUL-byte rejection) must not surface to Temporal as an opaque
+  `decode n8n StageResult: EOF` — live-verified defect, 2026-09-05 rehearsal.
 - ☐ Fact/claim ID scheme + AI-GEN source category + `kind` field on normalized record
   (round-4 #4/#5) — schema decision [Opus draft, owner rule].
+- ☐ **`analysis.lane_adjudication_verdict` schema** (added 2026-09-06, thinking pass §G-5):
+  append-only verdict table — `verdict_id`, `pg_source_coordinate`, `source_generation`,
+  `conflict_level` (entity|edge|claim|temporal_order), `lane_a_name`/`lane_a_receipt_id`/
+  `lane_a_assertion` (jsonb), `lane_b_name`/`lane_b_receipt_id`/`lane_b_assertion` (jsonb),
+  `detection_rule_id`, `resolution_class` (auto_rule|human), `verdict`
+  (lane_a|lane_b|both_retained|neither|not_comparable|stale), `rationale`, `decided_by`,
+  `decided_at`, `supersedes_verdict_id`, `extractor_versions` (jsonb), `run_id`. See Stage 3.5.
 
 ### Stage 2 — Gateway live (owner + Sonnet)
 - ☐ Owner: mint `tag:docker` Tailscale auth key → `/data/agno/secrets/tool-gateway/ts-authkey`;
@@ -276,12 +312,27 @@ held; immutability guards switchable by design (D-110/D-127/D-128); naming (D-13
 
 ### Stage 3 — First real ingest: Google Voice (~29k HTML + 502 MP3)
 - ☐ Route per Q5; classify emits file class + extract-only? + tentative group + package.
-- ☐ Message-window chunker activity (new, per Q7) + provenance rows; provisional window if Q6=A.
+- ~~☐ Message-window chunker activity (new, per Q7) + provenance rows; provisional window if Q6=A.~~
+- ☐ **`group_conversations` pass 2 via `registry.id_xref` as-of message date (pre-mortem #4) —
+  MOVED ABOVE normalize and above the chunker: stitch precedes normalize completion (Q3 note)**
+  (2026-09-06, thinking pass §G-3).
+- ☐ **Message-window chunker Activity, split per Q7=A / D-130 r2** (2026-09-06, thinking pass
+  §G-4): (a) chunk + provenance Activity — writes `working.content_chunk` + provenance rows,
+  provisional window per Q6=A; (b) hashing as a separate Activity family, never folded into (a).
 - ☐ Embedding activity: outbox → Weaviate, nemotron-3-embed-1b 2048-d; TextUnit objects carry
   validity window + PG source coordinate.
-- ☐ `group_conversations` pass 2 via `registry.id_xref` as-of message date (pre-mortem #4).
+- ☐ **Fingerprint matcher for unregistered export formats** (re-adopted, Q18: critical) (2026-09-06,
+  thinking pass §G-2).
+- ☐ **SMS/MMS status/type integer → label decoder** (re-adopted, Q18: critical) (2026-09-06,
+  thinking pass §G-2).
 - ☐ Near-duplicate marker native-export ↔ screenshot-OCR (round-3 #7, kept: recent ruling on
   corroboration both directions).
+- ☐ **LangGraph stitching / verification / promotion-assembly Activities** (per D-144; moved
+  from the Stage 4 header, 2026-09-06 thinking pass §G-6): LangGraph serves Stage-3 stitching,
+  the independent verification loop, and promotion-assembly — not retrieval.
+- ☐ **LlamaIndex Stage-3.5 SAT-lane extractor** (per D-144; moved from the Stage 4 header,
+  2026-09-06 thinking pass §G-6): LlamaIndex builds the `sat-temporal` property-graph lane in
+  Stage 3.5, not the retrieval layer.
 - ☐ Interactive preview: N records, per-field fix, "10 more", chunk boundary drawn (D-135).
   HITL = Temporal Signal + wait_condition (round-3 #4).
 - ☐ Singleton/detail-stability flag at extraction (round-4 #6).
@@ -289,7 +340,26 @@ held; immutability guards switchable by design (D-110/D-127/D-128); naming (D-13
 - ☐ Assert `record_count > 0` on every parsed file; ELT-vs-decoder count disagreement handled
   per Q4.
 
-### Stage 4 — Retrieval layer (LlamaIndex + LangGraph, as Temporal activities)  [Opus design]
+### Stage 3.5 — Lane diff + adjudication (added 2026-09-06, thinking pass §G-5)
+> Sits between Stage 3 (single-lane extraction) and Stage 4 (retrieval). Never fuses lanes;
+> compares only. See `docs/reviews/2026-09-06-ingest-to-surreal-thinking-pass.md` §F for the
+> full conflict-resolution model.
+- ☐ **`lane_diff` Temporal Activity**: fires when both lanes (Semantica `evidence`, SAT
+  `sat-temporal`) report a completed projection generation for the same eligibility manifest.
+  Joins on `(pg_source_coordinate, source_generation)`, reads both graphs read-only through the
+  fixed-database gateway, emits diff rows. Never blocks or edits a lane.
+- ☐ **`analysis.lane_adjudication_verdict`** table (schema added to Stage 1 above) — append-only,
+  provenance-bearing; auto-resolvable classes (stale/coverage-gap/alias-candidate) write via rule;
+  human-only classes (contradictory sender/timestamp/deletion, edge direction/label, mutually
+  exclusive claims, any cross-lane disagreement) go to HITL.
+- ☐ **HITL for human-only conflicts**: LangGraph-shaped signal + `wait_condition`, same mechanism
+  as the Stage-3 repair/disagreement gates (Q4).
+- ☐ Unresolved human-only conflicts on a coordinate mark the downstream promotion candidate
+  `disputed` (blocking-vs-flag choice is an open owner question, thinking-pass §H-1).
+
+### Stage 4 — Retrieval layer (added 2026-09-06, thinking pass §G-6: renamed from "Retrieval
+layer (LlamaIndex + LangGraph, as Temporal activities)" — per D-144, LangGraph and LlamaIndex's
+ingest-side roles moved to Stage 3/3.5 above; this stage is retrieval only)  [Opus design]
 - ☐ Neo4j `sat-temporal`: Item/Version/Action/TextUnit/Theme/ItemType labels per Stage-0
   mapping; PREV/NEXT light edges + Version chain/HAS_CURRENT for consequential; edge-label
   discipline (Q12); PG source coordinate + 7 version-stamp fields on every node/edge.
