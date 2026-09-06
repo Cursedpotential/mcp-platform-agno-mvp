@@ -131,7 +131,7 @@ Run it when resuming, or any time a lane feels stale. It is read-only.
      Thread-stack dump: `store.py:_load_collection` → `pymilvus.load_collection` →
      `wait_for_loading_collection` → `time.sleep` forever. `get_load_state` shows **3 of 6
      collections stuck at `Loading, progress: 0`** (`agent_session_memory`,
-     `ms_agno_mcp_platform_9e350219`, `ms_double_shot_latte_4080276b`); the other 3 load fine.
+     `ms_agno_mcp_platform_9e350219` (dropped 2026-09-06; successor `ms_probata_4ac6a58f` after the directory rename), `ms_double_shot_latte_4080276b`); the other 3 load fine.
      Milvus accepts the connection and lists collections instantly — it just never finishes loading
      these three. **This is the live argument for ADR-0040's Weaviate cutover**, which already
      locked Weaviate and sidelined Milvus; memsearch still pointing at Milvus is drift from canon
