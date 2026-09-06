@@ -135,7 +135,7 @@ Defects the script produced, and the fixes:
 
 | Item | Done |
 |---|---|
-| Nested junctions `modules/Legal-Workspace` and `modules/traceIQ` | re-pointed to `…\probata\modulesdvocatio` / `…\probata\modulesestigia` (verified with `dir /al`); the outer `Agno-MCP-Platform` junction can now be retired without breaking them |
+| Nested junctions `modules/Legal-Workspace` and `modules/traceIQ` | re-pointed to `…\probata\modules\advocatio` / `…\probata\modules\vestigia` (verified with `dir /al`); the outer `Agno-MCP-Platform` junction can now be retired without breaking them |
 | `AGENTS.md` vestigia row | "lands with the directory-rename step" → "rename landed 2026-09-06" |
 | `scripts/rename_routers_2026_09_06.py`, `scripts/rename_siblings_2026_09_06.py` | marked PROVENANCE ONLY / already run; `REPO` and vestigia `dir` now name the real `probata` / `vestigia` directories; the sibling note text updated to "landed 2026-09-06" |
 | vestigia repo (`modules/vestigia`) | the same stale sentence in its naming note fixed in 248 annotated files (32 tracked); commit `e1a4acd` pushed to `Cursedpotential/TraceIQ` main |
