@@ -108,7 +108,7 @@ class AIChatEvidenceDenied(RuntimeError):
     to evidence custody. This is the single, non-bypassable enforcement point
     (see module docstring) — every caller (server/api/evidence_routes.py,
     server/evidence/workflows.py's chat-transcript vertical,
-    server/temporal/activities.py's custody_activity, server/ingest/service.py,
+    server/temporal/activities.py's custody_activity, server/proffer/service.py,
     the CLI) funnels through ingest_artifact() before any hash/blob/DB write.
     GAP-032/WP-C01.
     """
@@ -130,7 +130,7 @@ class AIChatEvidenceDenied(RuntimeError):
 #    spoofed away — but it also only covers callers that go through the named
 #    chat-transcript vertical.
 # 2. Content sniff — closes the generic-route bypass (e.g. an AI-chat export
-#    submitted through server/ingest/service.py's /v1/ingest under a
+#    submitted through server/proffer/service.py's /v1/ingest under a
 #    different lane, which never sets a "workflow" key at all). Mirrors the
 #    heuristic workbench/api/app/service/detect.py already uses to CLASSIFY a
 #    staged upload as a chat export — kept as an independent, dependency-light

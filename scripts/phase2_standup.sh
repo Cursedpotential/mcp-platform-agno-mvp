@@ -34,7 +34,7 @@ MILVUS_CONFIG_SRC="${MILVUS_CONFIG_SRC:?set MILVUS_CONFIG_SRC to the dir with em
 PROJECT_UUID=nbg0ocqqrf91xag492yjqf5i
 ENV_NAME=production
 GITHUB_APP_UUID=r4mhpblr8cnxk3481r07xxz0
-GIT_REPO=Cursedpotential/mcp-platform-agno-mvp
+GIT_REPO=Cursedpotential/probata
 SERVER_UUID=cn89l8801u8gsginw1rxq5qt   # ovh-files
 
 declare -A APP_TARBALL=([data-neo4j]=data-neo4j [data-vector]=data-vector [nocodb]=nocodb)

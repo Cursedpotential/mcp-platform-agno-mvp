@@ -19,7 +19,7 @@ from pydantic import ValidationError
 from server.api.platform_auth import require_platform_owner
 from server.api.uploads import safe_upload_name
 from server.contracts.ingest import IngestLane, IngestRequest
-from server.ingest.service import IngestError, PostgresReceiptJournal, ingest_file
+from server.proffer.service import IngestError, PostgresReceiptJournal, ingest_file
 
 _MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 _INGEST_TASKS: set[asyncio.Task[None]] = set()
@@ -176,14 +176,14 @@ def register_ingest_routes(app: FastAPI, native_projector: Any | None = None) ->
         _authorize(request)
         if not 1 <= limit <= 500:
             raise HTTPException(422, "limit must be between 1 and 500")
-        from server.ingest.query import list_items
+        from server.proffer.query import list_items
 
         return await asyncio.to_thread(list_items, matter_id=matter_id, lane=lane, limit=limit)
 
     @app.get("/v1/knowledge/items/{artifact_id}")
     async def knowledge_item(artifact_id: str, request: Request, matter_id: str = "primary") -> dict[str, Any]:
         _authorize(request)
-        from server.ingest.query import get_item
+        from server.proffer.query import get_item
 
         item = await asyncio.to_thread(get_item, artifact_id, matter_id=matter_id)
         if item is None:

@@ -68,7 +68,7 @@ async def ingest_all(_knowledge=None, bases: dict | None = None) -> int:
     are deliberately ignored. No framework object crosses the ingest contract.
     """
     from server.contracts.ingest import IngestLane, IngestRequest
-    from server.ingest.service import ingest_file
+    from server.proffer.service import ingest_file
 
     del bases
     count = 0

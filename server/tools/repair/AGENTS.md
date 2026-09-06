@@ -202,7 +202,7 @@ Rules, in force everywhere:
    (`upload://`, `r2://`, sealed `file://`), never through Temporal history, an n8n
    payload, or a PostgreSQL activity request.
 6. **No orchestration inside a unit.** Sequencing, fan-out, retries, and human gates
-   belong to the workflow (`modules/engine/uiw`) and to n8n's visual flow — never
+   belong to the workflow (`modules/engine/proffer` (formerly `uiw`, renamed D-140)) and to n8n's visual flow — never
    buried inside a parser, decoder, chunker, or repository method.
 7. **New capability = new Activity, registered in the stage graph.** Do not widen an
    existing Activity to cover a second concern because it is convenient.

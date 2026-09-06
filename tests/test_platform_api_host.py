@@ -244,7 +244,7 @@ def test_owner_auth_fails_closed_when_runtime_secret_is_missing_or_empty(monkeyp
 
 def test_lifespan_runs_r2_initialization_and_ingest_recovery(monkeypatch) -> None:
     from server.api import runtime_support
-    from server.ingest import service as ingest_service
+    from server.proffer import service as ingest_service
 
     calls: list[tuple[str, object]] = []
 

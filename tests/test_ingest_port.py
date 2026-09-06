@@ -15,7 +15,7 @@ import pytest
 
 from server.contracts.ingest import AcquisitionAssertion, IngestLane, IngestRequest
 from server.contracts.records import NormalizedRecord
-from server.ingest import service
+from server.proffer import service
 
 
 @dataclass
@@ -95,7 +95,7 @@ def test_public_ingest_modules_have_no_framework_imports() -> None:
         (root / relative).read_text(encoding="utf-8")
         for relative in (
             "server/contracts/ingest.py",
-            "server/ingest/service.py",
+            "server/proffer/service.py",
             "server/api/ingest_routes.py",
         )
     ).lower()

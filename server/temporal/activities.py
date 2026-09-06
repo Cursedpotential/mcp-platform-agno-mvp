@@ -207,7 +207,7 @@ def parse_activity(params: ParseParams) -> ParseResult:
 
     NOTE on the task brief: the brief named
     ``server/analysis/chat_parse.py::parse_chat_export`` plus the
-    ``server/ingest/service.py::_parse`` fallback chain. That is the ingest
+    ``server/proffer/service.py::_parse`` fallback chain. That is the ingest
     facade's parse path, not this workflow's. ``build_chat_transcript_workflow``'s
     own ``parse_step`` resolves through ``server/tools/reference.py``, and the P1
     rule is 1:1 with the workflow's actual steps — so this mirrors the registry

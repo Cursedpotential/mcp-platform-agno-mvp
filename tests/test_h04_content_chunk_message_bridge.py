@@ -30,7 +30,7 @@ _REWIRED_MODULES = (
     "server/evidence/vector_projection.py",
     "server/evidence/native_activation.py",
     "server/evidence/store.py",
-    "server/ingest/query.py",
+    "server/proffer/query.py",
 )
 
 # A comment, docstring, or error message may still *name* the dropped table --
@@ -54,7 +54,7 @@ def test_no_module_emits_sql_naming_the_dropped_chunk_table(relative: str) -> No
 
 @pytest.mark.parametrize(
     "relative",
-    ("server/evidence/vector_projection.py", "server/evidence/native_activation.py", "server/ingest/query.py"),
+    ("server/evidence/vector_projection.py", "server/evidence/native_activation.py", "server/proffer/query.py"),
 )
 def test_every_chunk_reader_joins_the_bridge(relative: str) -> None:
     source = _source(relative)

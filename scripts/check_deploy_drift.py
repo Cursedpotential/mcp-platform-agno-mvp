@@ -60,7 +60,7 @@ from typing import Any, Optional
 HOME = Path(os.environ.get("USERPROFILE") or os.environ.get("HOME") or "~").expanduser()
 DEFAULT_COOLIFY_ENV = HOME / ".secrets" / "coolify-ionos-api.env"
 DEFAULT_BASE_URL = "http://100.98.98.38:8000/api/v1"
-THIS_REPO_DEFAULT = "Cursedpotential/mcp-platform-agno-mvp"
+THIS_REPO_DEFAULT = "Cursedpotential/probata"
 
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 # A bare root-level compose file reference: no directory component, no glob.

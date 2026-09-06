@@ -16,7 +16,7 @@ from typing import Any, Iterator
 import pytest
 
 from server.contracts.ingest import IngestRequest
-from server.ingest.service import (
+from server.proffer.service import (
     IngestRunAlreadyActive,
     PostgresReceiptJournal,
     _eligible_for_recovery,

@@ -135,7 +135,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         )
 
     async def run_ingest_recovery() -> None:
-        from server.ingest.service import recover_incomplete_ingests
+        from server.proffer.service import recover_incomplete_ingests
 
         try:
             recovered = await recover_incomplete_ingests(

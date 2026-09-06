@@ -195,7 +195,7 @@ def test_async_submission_reserves_receipt_before_worker(tmp_path, monkeypatch) 
 
 def test_folder_walk_calls_neutral_port_without_framework_object(tmp_path, monkeypatch) -> None:
     from scripts import ingest_knowledge
-    from server.ingest import service
+    from server.proffer import service
 
     platform = tmp_path / "platform"
     platform.mkdir()

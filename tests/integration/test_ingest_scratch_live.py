@@ -15,8 +15,8 @@ from pathlib import Path
 import pytest
 
 from server.contracts.ingest import IngestLane, IngestRequest
-from server.ingest.query import get_item, list_items
-from server.ingest.service import ingest_file
+from server.proffer.query import get_item, list_items
+from server.proffer.service import ingest_file
 
 pytestmark = pytest.mark.integration
 

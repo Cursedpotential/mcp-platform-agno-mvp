@@ -5,7 +5,7 @@ containers.
 
 Fallback behaviour is asymmetric — read this before assuming coverage:
 
-- ``.pdf`` — the caller (``server/ingest/service.py:_extract_document``) also appends
+- ``.pdf`` — the caller (``server/proffer/service.py:_extract_document``) also appends
   ``documents.extract-text``, so a missing ``document-ai`` extra degrades to
   native/Tesseract extraction as intended.
 - ``.docx`` / ``.pptx`` / ``.xlsx`` / ``.html`` / ``.htm`` — **no fallback is registered**

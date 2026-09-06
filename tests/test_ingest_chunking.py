@@ -10,7 +10,7 @@ from pathlib import Path
 
 from server.contracts.records import NormalizedRecord
 from server.core.chunking_identity import CHONKIE_PIN
-from server.ingest.chunking import chunk_records
+from server.proffer.chunking import chunk_records
 
 
 def test_real_recursive_chunker_preserves_source_provenance_and_temporal_fields() -> None:
@@ -47,7 +47,7 @@ def test_empty_record_remains_visible_as_one_zero_length_chunk() -> None:
 
 
 def test_neutral_chunking_source_has_no_framework_imports() -> None:
-    source = (Path(__file__).resolve().parents[1] / "server/ingest/chunking.py").read_text(encoding="utf-8").lower()
+    source = (Path(__file__).resolve().parents[1] / "server/proffer/chunking.py").read_text(encoding="utf-8").lower()
     for forbidden in ("import agno", "import graphiti", "import surreal", "vercel", "ai_sdk"):
         assert forbidden not in source
 

@@ -414,7 +414,7 @@ def _ingest_file_once(
         _stage_start(journal, receipt_id, active_stage)
         source_records, parser_id, parser_engine, attempts = _parse(path, request)
         source_records = _enrich(source_records, request, path, parser_id)
-        from server.ingest.chunking import chunk_records
+        from server.proffer.chunking import chunk_records
 
         chunked = chunk_records(source_records)
         projection_records = chunked.records
