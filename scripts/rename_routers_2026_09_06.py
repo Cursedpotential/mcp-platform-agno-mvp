@@ -1,8 +1,12 @@
 """One-shot: alias the workspace and repo router files to the D-137..D-150 names.
 
 Recall/router rule (D-142): the new name is added BESIDE the old one, never replacing it, so
-either term resolves. `probata/` resolves today via a forward junction to `Agno-MCP-Platform/`;
-the real directory rename lands with docs/handoffs/2026-09-06-rename-followups/01.
+either term resolves.
+
+PROVENANCE ONLY — already run 2026-09-06 ~10:30 and superseded: the directory rename landed
+2026-09-06 ~15:45 (`Agno-MCP-Platform/` is now the junction, `probata/` the real directory; see
+docs/registers/RENAME-LIVE-CHANGES-2026-09-06.md §9). The substitution strings below describe
+that morning's state and are kept verbatim as the record of what was applied. Do not re-run.
 
 Run from the repo root:  uv run python scripts/rename_routers_2026_09_06.py
 Byline: Claude Code · Fable 5.1 · 2026-09-06.
@@ -13,7 +17,7 @@ from __future__ import annotations
 import pathlib
 
 WS = pathlib.Path(r"E:\AI_Workspace")
-REPO = WS / "Projects/the-platform-workspace/Agno-MCP-Platform"
+REPO = WS / "Projects/the-platform-workspace/probata"  # real directory since 2026-09-06 ~15:45
 
 NOTE = (
     "> _Naming amendment: Claude Code · Fable 5.1 · 2026-09-06 — product canon D-137..D-150 "

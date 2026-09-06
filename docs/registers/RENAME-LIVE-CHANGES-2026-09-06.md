@@ -129,4 +129,17 @@ Defects the script produced, and the fixes:
 3. **Ignore lines tripled.** `the-platform-workspace/.gitignore` (`probata/data|tmp|.data`) and `probata/.gitignore` (`modules/advocatio/`, `modules/vestigia/`) got one copy per run. Deduplicated.
 4. **Push to the wrong branch.** Workspace repo's branch is `master`; the script pushed `main`. Pushed `master` by hand.
 
-Still open from this section: the memsearch collection name still encodes the old directory (renaming the Milvus collection is handoff 07's call); the two nested junction targets are spelled through `…\Agno-MCP-Platform\modules\…` and will break if the outer junction is retired after 2026-09-13 — re-point them to `…\probata\modules\…` before that.
+~~Still open from this section: the memsearch collection name still encodes the old directory (renaming the Milvus collection is handoff 07's call); the two nested junction targets are spelled through `…\Agno-MCP-Platform\modules\…` and will break if the outer junction is retired after 2026-09-13 — re-point them to `…\probata\modules\…` before that.~~
+
+**Follow-up sweep 2026-09-06 ~16:10 EDT (Claude Code · Fable 5.1), all by hand:**
+
+| Item | Done |
+|---|---|
+| Nested junctions `modules/Legal-Workspace` and `modules/traceIQ` | re-pointed to `…\probata\modulesdvocatio` / `…\probata\modulesestigia` (verified with `dir /al`); the outer `Agno-MCP-Platform` junction can now be retired without breaking them |
+| `AGENTS.md` vestigia row | "lands with the directory-rename step" → "rename landed 2026-09-06" |
+| `scripts/rename_routers_2026_09_06.py`, `scripts/rename_siblings_2026_09_06.py` | marked PROVENANCE ONLY / already run; `REPO` and vestigia `dir` now name the real `probata` / `vestigia` directories; the sibling note text updated to "landed 2026-09-06" |
+| vestigia repo (`modules/vestigia`) | the same stale sentence in its naming note fixed in 248 annotated files (32 tracked); commit `e1a4acd` pushed to `Cursedpotential/TraceIQ` main |
+| Claude memory index `MEMORY.md` (probata store) | project pointer aliased: **Indicia Probata / probata** (formerly Agno MCP Platform); old path noted as the junction |
+| Guardian rule `guardian-naming-Agno-MCP-Platform-scripts.md` (repo `.claude/rules/` and `~/.claude/rules/`, untracked) | replaced by `guardian-naming-probata-scripts.md` with the old path kept as "(formerly …)"; old file kept beside it with a `.superseded-20260906` suffix |
+
+Still open: the memsearch collection name (`ms_agno_mcp_platform_9e350219`) still encodes the old directory — handoff 07's call, not changed here. `.claude/settings.local.json` still carries historical one-shot permission entries with the old scratchpad path; they are inert allow-list lines and belong to handoff 02 (owner's settings file).

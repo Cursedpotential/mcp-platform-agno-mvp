@@ -7,6 +7,7 @@ name kept beside it; every other doc that mentions an old name gets a one-line n
 its own tests, and the GitHub repo names are not ruled.
 
 Run from the probata repo root:  uv run python scripts/rename_siblings_2026_09_06.py
+Already run 2026-09-06 (advocatio 5c62b38, vestigia 5013583); idempotent, kept as provenance.
 Byline: Claude Code · Fable 5.1 · 2026-09-06.
 """
 
@@ -46,13 +47,13 @@ SIBLINGS = {
         },
     },
     "vestigia": {
-        "dir": "traceIQ",
+        "dir": "vestigia",  # real directory since 2026-09-06 ~15:45 (traceIQ is the junction)
         "product": "vestigia",
         "old": "traceIQ",
         "note": (
             "> _Naming (D-140, 2026-09-05; applied 2026-09-06): this product is **vestigia** (formerly traceIQ / "
             "TraceIQ - Latin: footprints, tracks). Working copy: `probata/modules/vestigia/` (directory rename from "
-            "`modules/traceIQ/` lands with the workspace directory-rename step; old name kept as a junction). GitHub "
+            "`modules/traceIQ/` landed 2026-09-06; old name kept as a junction). GitHub "
             "repo name unchanged pending its own decision. Canon: `probata/docs/NAMING.md`. Historical text below is "
             "left verbatim; both names remain valid in recall stores (D-142)._"
         ),

@@ -4,7 +4,7 @@
 
 | # | File | Who | Needs owner? |
 |---|---|---|---|
-| 01 | `01-finish-directory-rename.md` — **DONE 2026-09-06** (owner ran it; defects fixed by hand, see register §9) | — | — |
+| 01 | `01-finish-directory-rename.md` — **DONE 2026-09-06** (owner ran it; defects fixed by hand and the follow-up sweep — nested junctions re-pointed, stale "rename pending" text cleared in this repo, the vestigia repo, memory index and guardian rules — see register §9) | — | — |
 | 02 | `02-restore-deny-list-and-gate.md` | owner or explicitly authorized agent | yes (owner's settings file) |
 | 03 | `03-r2-dev-fixtures-copy.md` | any agent | yes (billable transfer sign-off) |
 | 04 | `04-golden-clone-teardown.md` | the ingest session | yes before touching `platform` |
