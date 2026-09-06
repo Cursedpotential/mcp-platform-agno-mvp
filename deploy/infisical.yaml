@@ -10,7 +10,7 @@
 # bootstrap secret a service carries is that identity's client secret.
 #
 # DEPLOY AS ITS OWN Coolify "Docker Compose" app `infisical` on ovh-files
-# (server hosting data-pg-files), repo Cursedpotential/mcp-platform-agno-mvp
+# (server hosting data-pg-files), repo Cursedpotential/probata (formerly mcp-platform-agno-mvp)
 # @ main, compose file /deploy/infisical.yaml. Watch paths: deploy/infisical.yaml
 # ONLY. Env: BIND_IP=100.91.190.107 — tailnet-only, never public.
 # Consumers call http://100.91.190.107:8880 (8080 is owned by coolify-proxy on

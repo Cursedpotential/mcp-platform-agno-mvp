@@ -1,7 +1,7 @@
 # Ingest simplification plan — custody only at promotion, one activity per file
 
 > _Byline: Claude Code · Opus 5 · 2026-09-03. Orchestrator plan per `/make-plan`._
-> _Byline amendment: Claude Code · Fable 5.1 · 2026-09-05 — naming canon sweep D-137..D-141. This repository is now **Indicia Probata** / `probata`; the import lane (`uiw` in the code paths referenced below, not yet renamed in `modules/engine/`) is named **proffer** going forward (D-140). Code path literals below (`modules/engine/uiw/...`) reflect the actual current tree and are left as-is until the owning lane executes the rename; see `docs/NAMING.md`._
+> _Byline amendment: Claude Code · Fable 5.1 · 2026-09-05 — naming canon sweep D-137..D-141. This repository is now **Indicia Probata** / `probata`; the import lane (`uiw` in the code paths referenced below, not yet renamed in `modules/engine/`) is named **proffer** going forward (D-140). Code path literals below (`modules/engine/proffer/ (formerly uiw/)...`) reflect the actual current tree and are left as-is until the owning lane executes the rename; see `docs/NAMING.md`._
 >
 > **STATUS: ITERATING — NOT DONE.** This plan is done only when the owner says it
 > is done (owner, 2026-09-03: "You don't decide when the plan is done… We iterate
@@ -168,7 +168,7 @@ these before any phase; do not re-derive them.
 | Chunk table | `working.content_chunk` (`sql/bootstrap/schema_baseline_20260830.sql:3415`) | `id uuid DEFAULT uuidv7()`, `content_sha256`, byte ranges |
 | Stage list (26) | `modules/engine/stagegraph/stage.go:14-41`; DAG `registry.go:55-223` | 5 hash stages asserted by `graph_test.go:160-185` (`TestFiveHashComputationStagesAreDistinct`) |
 | Hash stages | `FingerprintSource`, `FingerprintRawRecords`, `FingerprintRawGeneration`, `HashNormalizedRecords`, `HashNormalizedGeneration` | ALL FIVE STAY. The last two are hash moment 2 — integrity verification of a normalized generation, never custody |
-| Workflow | `modules/engine/uiw/workflow.go` | version gates via `workflow.GetVersion` (`:13-41`) |
+| Workflow | `modules/engine/proffer/ (formerly uiw/)workflow.go` | version gates via `workflow.GetVersion` (`:13-41`) |
 | Fidelity digest | `modules/engine/fidelity/fidelity.go` | 4-field seal; **KEEP (owner-ruled)** — guards the record where chunk hashes guard the file; used at promotion (step 7) and post-promotion reverification (moment 4) |
 | n8n flow → Activity | `modules/engine/temporal/flowbinding.go`, `flowactivity.go` | declare a flow, get an Activity |
 | Tool gateway | `modules/engine/toolgateway/`, `cmd/tool-gateway/` | built, **undeployed** |
@@ -193,7 +193,7 @@ these before any phase; do not re-derive them.
 - A parser or chunker computing a hash it then persists as custody (D-130 rule 1/2).
 - Regenerating `uuidv7` for a record that already exists.
 - Returning an empty record set on an unrecognized shape (the 516-MMS failure). Raise.
-- Inventing a Temporal API — copy the `workflow.GetVersion` gate shape from `uiw/workflow.go:13-41`.
+- Inventing a Temporal API — copy the `workflow.GetVersion` gate shape from `proffer/workflow.go (formerly uiw/):13-41`.
 
 ---
 
@@ -234,7 +234,7 @@ these before any phase; do not re-derive them.
 - `grep -rn "h1-rawbytes-v1\|h2-rawelement-v1\|h3-chain" server/ modules/engine --include=*.py --include=*.go | grep -v vendor | grep -v _test | grep -v promotion` → **zero hits outside the (not-yet-built) promotion package** and the constant declarations at `hashing.go:28-31`
 - `go test ./stagegraph/` passes with the hash-stage count still = 5
 - `uv run pytest tests/ -k custody` passes; `verify_artifact` test still green
-- Replay test: an in-flight workflow history recorded before the gate still replays (copy the pattern from `uiw/workflow_test.go`)
+- Replay test: an in-flight workflow history recorded before the gate still replays (copy the pattern from `proffer/workflow_test.go`)
 
 **Guards:** never edit an applied migration; the `GetVersion` gate is mandatory or live runs break on redeploy; keep the SHA-256 computation, only retag.
 
@@ -247,13 +247,13 @@ these before any phase; do not re-derive them.
 **Implement:**
 1. Add `chunk_document_activity` to `stagegraph.Stages` and the DAG in `registry.go`. **Owner ruling: chunk EVERYTHING, always, parse-then-chunk.** Already-normalized text (markdown, plain text) still passes through the parse stage as a whole-file record (`generic/whole_file_fallback.py` exists for exactly this) and then chunks — so there is ONE entry point, not two, and the OR-branch concern in `stage.go:79-106` dissolves. Read that comment anyway before editing so its original reasoning is recorded as superseded, not deleted.
 2. Chunk hashing: the chunker already emits `ContentHash` and byte ranges (`chunk.go:150-167`). Persist them to `working.content_chunk.content_sha256` — copy the repository write shape from `modules/engine/postgres/chunk_repository.go` (built in C1, 2026-09-02).
-3. Per-file activity: introduce a `IngestFileWorkflow` (child workflow) in `modules/engine/uiw/` that runs the existing stage sequence for ONE source. The batch entry point fans out one child per file — copy the child-workflow shape from the Temporal Go SDK vendored at `modules/engine/vendor/go.temporal.io/sdk/workflow/` (`ExecuteChildWorkflow`). Do not invent a fan-out helper; the SDK has one.
+3. Per-file activity: introduce a `IngestFileWorkflow` (child workflow) in `modules/engine/proffer/ (formerly uiw/)` that runs the existing stage sequence for ONE source. The batch entry point fans out one child per file — copy the child-workflow shape from the Temporal Go SDK vendored at `modules/engine/vendor/go.temporal.io/sdk/workflow/` (`ExecuteChildWorkflow`). Do not invent a fan-out helper; the SDK has one.
 4. Parallel chunks: inside the per-file activity, chunk processing (fingerprint/persist) fans out with a bounded `errgroup` — copy the concurrency pattern already used in `hashing.go:291-365` if present, else the standard `golang.org/x/sync/errgroup` (check `go.mod` before adding).
 5. Heartbeat: any activity that processes a multi-GB file must call `activity.RecordHeartbeat` — copy from wherever the vendored SDK examples do it; the 86 GB SMS/MMS bucket has single files that need it.
 
 **Verification:**
 - `go test ./stagegraph/` — chunk stage present, DAG acyclic, dependency test passes
-- `go test ./uiw/` — child-workflow fan-out test: 3 fixtures → 3 child runs
+- `go test ./proffer/` — child-workflow fan-out test: 3 fixtures → 3 child runs
 - Live: start a batch of 3 fixtures via the starter; Temporal UI shows 3 child workflows
 - Chunk rows carry `content_sha256` and the validator's lossless-coverage check is exercised in a test
 

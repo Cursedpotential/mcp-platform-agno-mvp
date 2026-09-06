@@ -24,8 +24,8 @@ test("clean assessments continue without an operator decision", () => {
 });
 
 test("repair decision is typed, correlated, and carries no browser-authored tool payload", () => {
-  assert.match(client, /\/api\/uiw\/previews\/\$\{encodeURIComponent\(previewHandle\)\}\/repair-decision/);
-  assert.match(types, /interface UIWRepairDecisionRequest/);
+  assert.match(client, /\/api\/proffer\/previews\/\$\{encodeURIComponent\(previewHandle\)\}\/repair-decision/);
+  assert.match(types, /interface ProfferRepairDecisionRequest/);
   assert.match(intake, /approved: true,\s*apply_repair: false/);
   assert.match(intake, /decision\.preview_handle !== run\.preview_handle/);
   assert.match(intake, /waitForPreview\(run\.preview_handle/);
@@ -33,7 +33,7 @@ test("repair decision is typed, correlated, and carries no browser-authored tool
 });
 
 test("the UI does not invent a derived repair choice absent from the assessment contract", () => {
-  const assessment = types.slice(types.indexOf("interface UIWRepairAssessmentView"), types.indexOf("interface UIWRepairDecisionRequest"));
+  const assessment = types.slice(types.indexOf("interface ProfferRepairAssessmentView"), types.indexOf("interface ProfferRepairDecisionRequest"));
   assert.doesNotMatch(assessment, /tool|payload|option|choice/);
   assert.match(intake, /workflow supplied no allowed derived-repair choice/);
 });

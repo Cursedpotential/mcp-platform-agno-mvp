@@ -57,6 +57,12 @@ jobs:
       - name: Unit tests
         run: uv run pytest -q
 
+      # Naming gate (D-137..D-142; docs/reviews/2026-09-05-rename-as-a-system.md §3):
+      # a retired product/lane name outside the allowlist fails the build. This is the
+      # balancing loop that stops a second name from creeping back in.
+      - name: Naming gate
+        run: uv run python scripts/check_naming.py
+
   go:
     # sbv build/test steps removed 2026-09-01: sbv lives at modules/forks/sbv,
     # now a proper git SUBMODULE of Cursedpotential/sbv-forensic (private),
@@ -155,8 +161,8 @@ jobs:
           INTEGRATION_DB_PASS: ${{ secrets.INTEGRATION_DB_PASS }}
         run: |
           mkdir -p "$HOME/.secrets"
-          printf 'DB_PASS=%s\n' "$INTEGRATION_DB_PASS" > "$HOME/.secrets/Agno-MCP-Platform.env"
-          chmod 600 "$HOME/.secrets/Agno-MCP-Platform.env"
+          printf 'DB_PASS=%s\n' "$INTEGRATION_DB_PASS" > "$HOME/.secrets/probata.env"
+          chmod 600 "$HOME/.secrets/probata.env"
 
       - name: Run mandatory integration suite
         env:

@@ -35,10 +35,10 @@ class Settings(BaseSettings):
     # Buckets are fixed in the adapter: ``casebible-sorted`` for source reads
     # and ``nexus`` for new Workbench staging writes.
     casebible_r2_config_path: str = "/run/secrets/casebible-r2.json"
-    # Direct-tailnet UIW starter boundary; blank values fail closed in the adapter.
-    uiw_starter_url: str = ""
+    # Direct-tailnet Proffer starter boundary; blank values fail closed in the adapter.
+    proffer_starter_url: str = ""
     # Non-secret location only. Read once per outbound request for rotation.
-    uiw_service_token_file: str = "/run/secrets/uiw-service-token"
+    proffer_service_token_file: str = "/run/secrets/proffer-service-token"
     # Separate runtime-read operator capability. Only the Workbench receives
     # the mounted file; bounded agent tasks use Temporal-provided walk context.
     evidence_operator_bearer_secret_file: str = "/run/secrets/evidence-operator-security-key"

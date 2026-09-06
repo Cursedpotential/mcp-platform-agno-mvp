@@ -1,4 +1,4 @@
-"""Workbench BFF routes for the Universal Import Workflow starter.
+"""Workbench BFF routes for the Proffer starter.
 
 Byline: Codex · GPT-5 · 2026-08-28.
 """
@@ -10,8 +10,8 @@ from typing import Annotated
 from fastapi import APIRouter, Header, HTTPException, Path, Query, Request
 from fastapi.responses import StreamingResponse
 
-from app.service.uiw import (
-    UIWError,
+from app.service.proffer import (
+    ProfferError,
     browse_sources,
     decide,
     decide_repair,
@@ -22,38 +22,38 @@ from app.service.uiw import (
     start,
     validated_preview_events,
 )
-from app.types.uiw import (
-    UIWDecisionActor,
-    UIWDecisionRequest,
-    UIWDecisionResponse,
-    UIWPreviewMessagesResponse,
-    UIWPreviewResponse,
-    UIWRepairDecisionRequest,
-    UIWRepairDecisionResponse,
-    UIWSourceBrowserResponse,
-    UIWStartRequest,
-    UIWStartResponse,
+from app.types.proffer import (
+    ProfferDecisionActor,
+    ProfferDecisionRequest,
+    ProfferDecisionResponse,
+    ProfferPreviewMessagesResponse,
+    ProfferPreviewResponse,
+    ProfferRepairDecisionRequest,
+    ProfferRepairDecisionResponse,
+    ProfferSourceBrowserResponse,
+    ProfferStartRequest,
+    ProfferStartResponse,
 )
 
-router = APIRouter(prefix="/api/uiw", tags=["uiw"])
+router = APIRouter(prefix="/api/proffer", tags=["proffer"])
 
 
-def _translate(error: UIWError) -> HTTPException:
+def _translate(error: ProfferError) -> HTTPException:
     return HTTPException(status_code=error.status_code, detail=error.detail)
 
 
-def _decision_actor(request: Request) -> UIWDecisionActor:
+def _decision_actor(request: Request) -> ProfferDecisionActor:
     subject_uid = str(getattr(request.state, "subject_uid", "")).strip()
     username = str(getattr(request.state, "principal", "")).strip()
     if not subject_uid or not username:
         raise HTTPException(status_code=401, detail="authenticated subject identity is unavailable")
     try:
-        return UIWDecisionActor(subject_uid=subject_uid, username=username)
+        return ProfferDecisionActor(subject_uid=subject_uid, username=username)
     except ValueError:
         raise HTTPException(status_code=401, detail="authenticated subject identity is invalid") from None
 
 
-@router.get("/sources", response_model=UIWSourceBrowserResponse)
+@router.get("/sources", response_model=ProfferSourceBrowserResponse)
 def sources_endpoint(prefix: str = "", continuation_token: str | None = None, filter: str = "", page_size: int = 100):
     if page_size < 1 or page_size > 500:
         raise HTTPException(status_code=422, detail="page_size must be between 1 and 500")
@@ -64,15 +64,15 @@ def sources_endpoint(prefix: str = "", continuation_token: str | None = None, fi
             filter_text=filter,
             page_size=page_size,
         )
-    except UIWError as error:
+    except ProfferError as error:
         raise _translate(error) from None
 
 
-@router.post("/start", response_model=UIWStartResponse, status_code=201)
-async def start_endpoint(body: UIWStartRequest):
+@router.post("/start", response_model=ProfferStartResponse, status_code=201)
+async def start_endpoint(body: ProfferStartRequest):
     try:
         return await start(body)
-    except UIWError as error:
+    except ProfferError as error:
         raise _translate(error) from None
 
 
@@ -84,7 +84,7 @@ async def upload_endpoint(request: Request):
             content_type=request.headers.get("content-type"),
             content_length=request.headers.get("content-length"),
         )
-    except UIWError as error:
+    except ProfferError as error:
         raise _translate(error) from None
 
     async def body():
@@ -104,42 +104,42 @@ async def upload_endpoint(request: Request):
 PreviewHandle = Annotated[str, Path(pattern=r"^[A-Za-z0-9_-]{32,128}$")]
 
 
-@router.post("/previews/{preview_handle}/decision", response_model=UIWDecisionResponse)
-async def decision_endpoint(preview_handle: PreviewHandle, body: UIWDecisionRequest, request: Request):
+@router.post("/previews/{preview_handle}/decision", response_model=ProfferDecisionResponse)
+async def decision_endpoint(preview_handle: PreviewHandle, body: ProfferDecisionRequest, request: Request):
     if not body.approved and not body.reason.strip():
         raise HTTPException(status_code=422, detail="a rejection decision requires a non-empty reason")
     actor = _decision_actor(request)
     try:
         return await decide(preview_handle, body, actor)
-    except UIWError as error:
+    except ProfferError as error:
         raise _translate(error) from None
 
 
 @router.post(
     "/previews/{preview_handle}/repair-decision",
-    response_model=UIWRepairDecisionResponse,
+    response_model=ProfferRepairDecisionResponse,
 )
 async def repair_decision_endpoint(
     preview_handle: PreviewHandle,
-    body: UIWRepairDecisionRequest,
+    body: ProfferRepairDecisionRequest,
     request: Request,
 ):
     actor = _decision_actor(request)
     try:
         return await decide_repair(preview_handle, body, actor)
-    except UIWError as error:
+    except ProfferError as error:
         raise _translate(error) from None
 
 
-@router.get("/previews/{preview_handle}", response_model=UIWPreviewResponse)
+@router.get("/previews/{preview_handle}", response_model=ProfferPreviewResponse)
 async def preview_endpoint(preview_handle: PreviewHandle):
     try:
         return await preview(preview_handle)
-    except UIWError as error:
+    except ProfferError as error:
         raise _translate(error) from None
 
 
-@router.get("/previews/{preview_handle}/messages", response_model=UIWPreviewMessagesResponse)
+@router.get("/previews/{preview_handle}/messages", response_model=ProfferPreviewMessagesResponse)
 async def preview_messages_endpoint(
     preview_handle: PreviewHandle,
     cursor: Annotated[str | None, Query(max_length=512)] = None,
@@ -147,7 +147,7 @@ async def preview_messages_endpoint(
 ):
     try:
         return await preview_messages(preview_handle, cursor=cursor, limit=limit)
-    except UIWError as error:
+    except ProfferError as error:
         raise _translate(error) from None
 
 
@@ -166,7 +166,7 @@ async def preview_events_endpoint(
             raise HTTPException(status_code=422, detail="Last-Event-ID must be a non-negative integer")
     try:
         client, response = await open_preview_event_stream(preview_handle, last_event_id=last_event_id)
-    except UIWError as error:
+    except ProfferError as error:
         raise _translate(error) from None
 
     async def body():

@@ -60,7 +60,7 @@ type FlowBinding struct {
 	Name string `json:"name"`
 
 	// WebhookPath is the n8n webhook path relative to N8NBaseURL, without a
-	// leading slash, e.g. "universal-import/select-parser-activity".
+	// leading slash, e.g. "proffer/select-parser-activity".
 	WebhookPath string `json:"webhook_path"`
 
 	// RequireRefs names the locator keys this flow's own validator demands.

@@ -26,11 +26,11 @@ type SchemaProbeDB interface {
 	QueryRow(context.Context, string, ...any) pgx.Row
 }
 
-var requiredUIWMigrations = []string{
+var requiredProfferMigrations = []string{
 	"0036", "0037", "0038", "0039", "0042", "0050", "0051", "0053", "0054",
 }
 
-var requiredUIWTables = []string{
+var requiredProfferTables = []string{
 	"registry.matter", "registry.court_case", "analysis.matter_knowledge_partition", "analysis.case_registry_import_receipt",
 	"context.activity_execution", "context.activity_receipt", "context.hash_batch",
 	"context.hash_batch_member", "context.hash_manifest", "context.hash_manifest_member",
@@ -45,7 +45,7 @@ var requiredUIWTables = []string{
 	"context.repair_decision", "context.repair_resolution", "context.uiw_source_context_revision",
 }
 
-var requiredUIWColumns = []string{
+var requiredProfferColumns = []string{
 	"context.source_version.matter_id", "context.source_version.court_case_id",
 	"context.source_version.source_context_ref",
 	"context.uiw_source_context_revision.matter_id",
@@ -131,7 +131,7 @@ const devReceiptApprovedBy = "dev-mode-placeholder"
 const devReceiptApprovedOn = "2026-09-02"
 
 // devAuthBypassEnabled reads PLATFORM_DEV_AUTH_BYPASS directly rather than
-// taking a parameter: ProbeUIWSchema is called from modules/engine/temporal/
+// taking a parameter: ProbeProfferSchema is called from modules/engine/temporal/
 // cmd/starter/main.go and modules/engine/profferworker/worker.go with a fixed
 // two-argument signature, and D-125's contract is one process-wide flag, not
 // a value threaded through every caller. Truthy values match D-125's own
@@ -146,9 +146,9 @@ func devAuthBypassEnabled() bool {
 	}
 }
 
-// ProbeUIWSchema rejects an incomplete, legacy, over-privileged, or wrongly
+// ProbeProfferSchema rejects an incomplete, legacy, over-privileged, or wrongly
 // scoped database before any Proffer Temporal queue is polled.
-func ProbeUIWSchema(ctx context.Context, db SchemaProbeDB) error {
+func ProbeProfferSchema(ctx context.Context, db SchemaProbeDB) error {
 	if db == nil {
 		return errors.New("Proffer schema admission: database is required")
 	}
@@ -262,7 +262,7 @@ func ProbeUIWSchema(ctx context.Context, db SchemaProbeDB) error {
 		          AND encode(canonical_payload_sha256,'hex')=$10 AND encode(api_payload_sha256,'hex')=$11
 		          AND approved_by=$13 AND approved_on=$14::date)=1
 		          FROM analysis.case_registry_import_receipt)`,
-		requiredUIWMigrations, requiredUIWTables, requiredUIWColumns, matterID, courtCaseID,
+		requiredProfferMigrations, requiredProfferTables, requiredProfferColumns, matterID, courtCaseID,
 		receiptURI, receiptSHA256Hex, gitCommit,
 		schemaVersion, canonicalSHA256Hex, apiSHA256Hex,
 		payloadByteLength, approvedBy, approvedOn,
@@ -274,10 +274,10 @@ func ProbeUIWSchema(ctx context.Context, db SchemaProbeDB) error {
 	if database != "platform" || currentUser != "platform_runtime" || databaseOwner != "platform_admin" {
 		return fmt.Errorf("Proffer schema admission: identity rejected: database=%q role=%q owner=%q", database, currentUser, databaseOwner)
 	}
-	if ledgerCount != len(requiredUIWMigrations) || tableCount != len(requiredUIWTables) || columnCount != len(requiredUIWColumns) || !constraintsExact || !substrateExact || !roleSafe || !grantsExact || !receiptExact {
+	if ledgerCount != len(requiredProfferMigrations) || tableCount != len(requiredProfferTables) || columnCount != len(requiredProfferColumns) || !constraintsExact || !substrateExact || !roleSafe || !grantsExact || !receiptExact {
 		return fmt.Errorf("Proffer schema admission failed (dev_bypass=%t): ledger=%d/%d tables=%d/%d columns=%d/%d constraints=%t substrate=%t role=%t grants=%t receipt=%t",
-			devBypass, ledgerCount, len(requiredUIWMigrations), tableCount, len(requiredUIWTables), columnCount,
-			len(requiredUIWColumns), constraintsExact, substrateExact, roleSafe, grantsExact, receiptExact)
+			devBypass, ledgerCount, len(requiredProfferMigrations), tableCount, len(requiredProfferTables), columnCount,
+			len(requiredProfferColumns), constraintsExact, substrateExact, roleSafe, grantsExact, receiptExact)
 	}
 	return nil
 }

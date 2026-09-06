@@ -282,7 +282,7 @@ func TestPreviewSurfaceFailsClosedOnAuthUnknownHandleAndEventGap(t *testing.T) {
 	require.Equal(t, http.StatusConflict, recorder.Code)
 }
 
-func TestRepairDecisionIsPersistedByUIWBeforeTemporalSignal(t *testing.T) {
+func TestRepairDecisionIsPersistedByProfferBeforeTemporalSignal(t *testing.T) {
 	store := NewMemoryPreviewStore(&countingEntropy{next: 1})
 	order := []string{}
 	workflow := &previewWorkflowStub{order: &order, state: proffer.PreviewState{

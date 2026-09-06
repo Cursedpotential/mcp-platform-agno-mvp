@@ -17,25 +17,25 @@ from app.service.source_inspection import (
     stream_source_content,
 )
 from app.service.source_context import create_source_context
-from app.service.uiw import UIWError
+from app.service.proffer import ProfferError
 from app.types.source_context import SourceContextCreateRequest, SourceContextReceipt
 from app.types.source_inspection import SourceInspectionRequest, SourceInspectionResponse
-from app.types.uiw import UIWDecisionActor
+from app.types.proffer import ProfferDecisionActor
 
 
-router = APIRouter(prefix="/api/uiw", tags=["uiw"])
+router = APIRouter(prefix="/api/proffer", tags=["proffer"])
 
 
 def _translate(error: SourceInspectionError) -> HTTPException:
     return HTTPException(status_code=error.status_code, detail=error.detail)
 
 
-def _actor(request: Request) -> UIWDecisionActor:
+def _actor(request: Request) -> ProfferDecisionActor:
     subject_uid = str(getattr(request.state, "subject_uid", "")).strip()
     username = str(getattr(request.state, "principal", "")).strip()
     if not subject_uid or not username:
         raise HTTPException(status_code=401, detail="authenticated subject identity is unavailable")
-    return UIWDecisionActor(subject_uid=subject_uid, username=username)
+    return ProfferDecisionActor(subject_uid=subject_uid, username=username)
 
 
 @router.post("/source-inspection", response_model=SourceInspectionResponse)
@@ -50,7 +50,7 @@ def source_inspection_endpoint(body: SourceInspectionRequest):
 async def source_context_endpoint(body: SourceContextCreateRequest, request: Request):
     try:
         return await create_source_context(body, _actor(request))
-    except UIWError as error:
+    except ProfferError as error:
         raise HTTPException(status_code=error.status_code, detail=error.detail) from None
 
 

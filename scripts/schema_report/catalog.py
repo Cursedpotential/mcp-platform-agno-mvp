@@ -1,6 +1,6 @@
 import re,sys,json
 from pathlib import Path
-env=Path.home()/".secrets"/"Agno-MCP-Platform.env"; pw=None
+env=Path.home()/".secrets"/"probata.env"; pw=None
 for line in env.read_text(encoding="utf-8",errors="ignore").splitlines():
     m=re.match(r"^\s*(?:export\s+)?DB_PASS\s*=\s*['\"]?(.+?)['\"]?\s*$",line)
     if m: pw=m.group(1);break

@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Agno-MCP-Platform are recorded here.
+All notable changes to probata (formerly Agno-MCP-Platform) are recorded here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 decisions behind changes live in [`docs/DECISION_LOG.md`](docs/DECISION_LOG.md).
 

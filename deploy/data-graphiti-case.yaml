@@ -37,7 +37,7 @@
 #
 # DEPLOY AS ITS OWN Coolify "Docker Compose" app `data-graphiti-case` on
 # ovh-files (server cn89l8801u8gsginw1rxq5qt), repo
-# Cursedpotential/mcp-platform-agno-mvp @ main, file /compose.data-graphiti-case.yaml.
+# Cursedpotential/probata (formerly mcp-platform-agno-mvp) @ main, file /compose.data-graphiti-case.yaml.
 # Env:
 #   BIND_IP=100.91.190.107        (ovh-files tailnet — ports bind here, never 0.0.0.0)
 #   NEO4J_URI=bolt://100.119.96.29:7687   (tailnet, NOT docker DNS — see above)

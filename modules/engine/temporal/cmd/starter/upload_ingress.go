@@ -14,7 +14,7 @@ import (
 
 const (
 	uploadIngressPath = "/acquisition/upload"
-	uploadMaxBytesEnv = "UNIVERSAL_IMPORT_UPLOAD_MAX_BYTES"
+	uploadMaxBytesEnv = "PROFFER_UPLOAD_MAX_BYTES"
 )
 
 // newUploadIngress builds the starter's bounded upload surface from deployment

@@ -35,7 +35,7 @@ services:
       # 2026-09-05: this said `docker/tools/Dockerfile`, a path that stopped
       # existing in the 2026-09-01 restructure, so any redeploy would have
       # failed the build and taken platform-tools down. Same pattern as the
-      # working deploy/universal-import-worker.yaml.
+      # working deploy/proffer-worker.yaml.
       context: .
       dockerfile: deploy/docker/tools/Dockerfile
     image: agno-platform-tools:latest

@@ -1,15 +1,15 @@
-# Universal Import Workflow worker — dedicated Coolify application.
+# Proffer worker — dedicated Coolify application.
 #
 # This service does not replace the existing Python temporal-worker. It polls
-# only ${TEMPORAL_TASK_QUEUE}, which must be a dedicated UIW queue and is
+# only ${TEMPORAL_TASK_QUEUE}, which must be a dedicated proffer queue and is
 # rejected at startup if set to evidence-pipeline.
 #
 # Coolify watch paths — see deploy/WATCH-PATHS.md for the exact value to paste
 # into Coolify's Watch Paths field for this app. As of the vendored-build repair
 # (2026-09-02) they are:
 #   modules/engine/**
-#   deploy/docker/universal-import-worker/**
-#   deploy/universal-import-worker.yaml
+#   deploy/docker/proffer-worker/**
+#   deploy/proffer-worker.yaml
 # modules/forks/sbv/** is deliberately NOT a watch path: the Go module vendor
 # snapshot under modules/engine/vendor/ is what the build actually reads, and it
 # only changes when someone re-runs `go mod vendor` (which touches
@@ -17,14 +17,14 @@
 #
 # Host preparation (once):
 #   install -d -o 10001 -g 10001 -m 0750 \
-#     /data/agno/volumes/universal-import/source-objects \
-#     /data/agno/volumes/universal-import/parser-bundles \
-#     /data/agno/volumes/universal-import/normalized-bundles \
-#     /data/agno/volumes/universal-import/inventory-manifests
+#     /data/agno/volumes/proffer/source-objects \
+#     /data/agno/volumes/proffer/parser-bundles \
+#     /data/agno/volumes/proffer/normalized-bundles \
+#     /data/agno/volumes/proffer/inventory-manifests
 #
 # The parser-activity-runtime Coolify app must mount the same host
-# /data/agno/volumes/universal-import/parser-bundles directory at
-# /data/uiw/parser-bundles.
+# /data/agno/volumes/proffer/parser-bundles directory at
+# /data/proffer/parser-bundles.
 # Stored file:// paths are container-visible authority locators, so changing
 # only one side's mount path will fail closed.
 #
@@ -33,15 +33,15 @@
 # Byline: Codex · GPT-5.6-Terra · 2026-08-30 (rotatable n8n runtime-file auth)
 # Byline: Claude Code · Sonnet 5 · 2026-09-02 (BUILD LANE D1: hermetic vendored
 # build post-restructure — build context set to repo root so
-# deploy/docker/universal-import-worker/Dockerfile's `COPY modules/engine/`
+# deploy/docker/proffer-worker/Dockerfile's `COPY modules/engine/`
 # resolves; dockerfile path made explicit and repo-root-relative)
 
 services:
-  universal-import-worker:
+  proffer-worker:
     build:
       context: .
-      dockerfile: deploy/docker/universal-import-worker/Dockerfile
-    image: ${UNIVERSAL_IMPORT_WORKER_IMAGE:-platform-universal-import-worker:latest}
+      dockerfile: deploy/docker/proffer-worker/Dockerfile
+    image: ${PROFFER_WORKER_IMAGE:-platform-proffer-worker:latest}
     restart: unless-stopped
     # No inbound listener exists. Host networking avoids consuming another
     # exhausted Coolify bridge subnet and preserves direct Tailscale routing.
@@ -50,25 +50,25 @@ services:
       PLATFORM_DATABASE_URL_FILE: /run/secrets/platform-database-url
       TEMPORAL_HOST_PORT: ${TEMPORAL_HOST_PORT:?set}
       TEMPORAL_NAMESPACE: ${TEMPORAL_NAMESPACE:-default}
-      TEMPORAL_TASK_QUEUE: ${TEMPORAL_TASK_QUEUE:-universal-import-v1}
-      N8N_UNIVERSAL_IMPORT_BASE_URL: ${N8N_UNIVERSAL_IMPORT_BASE_URL:?set}
-      N8N_UNIVERSAL_IMPORT_AUTH_HEADER: ${N8N_UNIVERSAL_IMPORT_AUTH_HEADER:?set}
-      N8N_UNIVERSAL_IMPORT_AUTH_VALUE_FILE: /run/secrets/n8n-universal-import-auth
+      TEMPORAL_TASK_QUEUE: ${TEMPORAL_TASK_QUEUE:-proffer-v1}
+      N8N_PROFFER_BASE_URL: ${N8N_PROFFER_BASE_URL:?set}
+      N8N_PROFFER_AUTH_HEADER: ${N8N_PROFFER_AUTH_HEADER:?set}
+      N8N_PROFFER_AUTH_VALUE_FILE: /run/secrets/n8n-proffer-auth
       SELECT_PARSER_HTTP_TIMEOUT: ${SELECT_PARSER_HTTP_TIMEOUT:-35s}
       EXECUTE_PARSER_HTTP_TIMEOUT: ${EXECUTE_PARSER_HTTP_TIMEOUT:-31m}
-      SOURCE_OBJECT_DIR: /data/uiw/source-objects
-      PARSER_BUNDLE_DIR: /data/uiw/parser-bundles
-      NORMALIZED_BUNDLE_DIR: /data/uiw/normalized-bundles
-      INVENTORY_MANIFEST_DIR: /data/uiw/inventory-manifests
+      SOURCE_OBJECT_DIR: /data/proffer/source-objects
+      PARSER_BUNDLE_DIR: /data/proffer/parser-bundles
+      NORMALIZED_BUNDLE_DIR: /data/proffer/normalized-bundles
+      INVENTORY_MANIFEST_DIR: /data/proffer/inventory-manifests
       PLATFORM_TOOLS_BASE_URL: ${PLATFORM_TOOLS_BASE_URL:?set}
       CASEBIBLE_R2_CONFIG_PATH: /run/secrets/casebible-r2.json
     volumes:
-      - /data/agno/volumes/universal-import/source-objects:/data/uiw/source-objects
-      - /data/agno/volumes/universal-import/parser-bundles:/data/uiw/parser-bundles
-      - /data/agno/volumes/universal-import/normalized-bundles:/data/uiw/normalized-bundles
-      - /data/agno/volumes/universal-import/inventory-manifests:/data/uiw/inventory-manifests
+      - /data/agno/volumes/proffer/source-objects:/data/proffer/source-objects
+      - /data/agno/volumes/proffer/parser-bundles:/data/proffer/parser-bundles
+      - /data/agno/volumes/proffer/normalized-bundles:/data/proffer/normalized-bundles
+      - /data/agno/volumes/proffer/inventory-manifests:/data/proffer/inventory-manifests
       - /data/agno/secrets/casebible-r2.json:/run/secrets/casebible-r2.json:ro
-      - /data/agno/secrets/n8n/universal-import-auth:/run/secrets/n8n-universal-import-auth:ro
+      - /data/agno/secrets/n8n/proffer-auth:/run/secrets/n8n-proffer-auth:ro
       - /data/agno/secrets/platform/database-url:/run/secrets/platform-database-url:ro
       # Tool gateway service token (D-132): the worker calls platform-tools ONLY through
       # the gateway and fails closed at startup without this file. Copied from ovh-app

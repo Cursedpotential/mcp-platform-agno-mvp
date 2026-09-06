@@ -2,7 +2,7 @@
 // ProfferWorkflow. It is the only Go process allowed to poll the
 // dedicated Proffer task queue, and it registers every canonical stage body.
 //
-// Package profferworker (formerly uiwworker / Universal Import Workflow worker; renamed D-140, 2026-09-05).
+// Package profferworker (formerly uiwworker / Proffer worker; renamed D-140, 2026-09-05).
 package profferworker
 
 import (
@@ -72,9 +72,9 @@ func LoadConfig() (Config, error) {
 		NormalizedBundleDir:  require("NORMALIZED_BUNDLE_DIR"),
 		InventoryManifestDir: require("INVENTORY_MANIFEST_DIR"),
 		PlatformToolsBaseURL: strings.TrimRight(require("PLATFORM_TOOLS_BASE_URL"), "/"),
-		N8NBaseURL:           strings.TrimRight(require("N8N_UNIVERSAL_IMPORT_BASE_URL"), "/"),
-		N8NAuthHeader:        require("N8N_UNIVERSAL_IMPORT_AUTH_HEADER"),
-		N8NAuthValueFile:     firstEnvironment("N8N_UNIVERSAL_IMPORT_AUTH_VALUE_FILE"),
+		N8NBaseURL:           strings.TrimRight(require("N8N_PROFFER_BASE_URL"), "/"),
+		N8NAuthHeader:        require("N8N_PROFFER_AUTH_HEADER"),
+		N8NAuthValueFile:     firstEnvironment("N8N_PROFFER_AUTH_VALUE_FILE"),
 		SelectHTTPTimeout:    35 * time.Second,
 		ExecuteHTTPTimeout:   31 * time.Minute,
 	}
@@ -105,10 +105,10 @@ func LoadConfig() (Config, error) {
 		cfg.ToolGatewayServiceToken = value
 	}
 	if cfg.N8NAuthValueFile == "" {
-		cfg.N8NAuthValueFile = "/run/secrets/n8n-universal-import-auth"
+		cfg.N8NAuthValueFile = "/run/secrets/n8n-proffer-auth"
 	}
 	if !absoluteRuntimePath(cfg.N8NAuthValueFile) {
-		problems = append(problems, "N8N_UNIVERSAL_IMPORT_AUTH_VALUE_FILE must be an absolute path")
+		problems = append(problems, "N8N_PROFFER_AUTH_VALUE_FILE must be an absolute path")
 	}
 	if cfg.TemporalTaskQueue == legacyEvidenceTaskQueue {
 		problems = append(problems, "TEMPORAL_TASK_QUEUE must be dedicated to universal import and cannot be evidence-pipeline")

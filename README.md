@@ -8,7 +8,7 @@
 **Indicia Probata** ("proven signs"; short form `probata`) is a pro se family-law
 evidence, analysis, and legal-strategy platform, part of the **propria** umbrella
 (D-137). ~~This repository was previously referred to as the Temporal Evidence and
-Agent Experience Platform / Agno-MCP-Platform~~ **(renamed D-138, 2026-09-05)**. The
+Agent Experience Platform / ~~Agno-MCP-Platform~~ probata~~ **(renamed D-138, 2026-09-05)**. The
 current backend runs through an **Agno 2.8.7 / AgentOS adapter**; the accepted target
 is a **framework-neutral platform API and custom Workbench**. Agno remains available
 during the strangler migration and is not yet retired. AG2 is a bounded coordination

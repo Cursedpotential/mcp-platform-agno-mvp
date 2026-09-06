@@ -15,8 +15,8 @@ RUN CGO_ENABLED=1 go build \
     -tags fts5 \
     -trimpath \
     -ldflags="-s -w" \
-    -o /out/universal-import-worker \
-    ./cmd/universal-import-worker
+    -o /out/proffer-worker \
+    ./cmd/proffer-worker
 
 FROM debian:bookworm-slim
 
@@ -25,17 +25,17 @@ RUN apt-get update \
     && groupadd --system --gid 10001 platform \
     && useradd --system --uid 10001 --gid platform --home-dir /nonexistent --shell /usr/sbin/nologin platform \
     && install -d -o platform -g platform -m 0750 \
-       /data/uiw/source-objects \
-       /data/uiw/parser-bundles \
-       /data/uiw/normalized-bundles \
-       /data/uiw/inventory-manifests
+       /data/proffer/source-objects \
+       /data/proffer/parser-bundles \
+       /data/proffer/normalized-bundles \
+       /data/proffer/inventory-manifests
 
-COPY --from=builder /out/universal-import-worker /usr/local/bin/universal-import-worker
+COPY --from=builder /out/proffer-worker /usr/local/bin/proffer-worker
 
 USER 10001:10001
-ENV SOURCE_OBJECT_DIR=/data/uiw/source-objects \
-    PARSER_BUNDLE_DIR=/data/uiw/parser-bundles \
-    NORMALIZED_BUNDLE_DIR=/data/uiw/normalized-bundles \
-    INVENTORY_MANIFEST_DIR=/data/uiw/inventory-manifests
+ENV SOURCE_OBJECT_DIR=/data/proffer/source-objects \
+    PARSER_BUNDLE_DIR=/data/proffer/parser-bundles \
+    NORMALIZED_BUNDLE_DIR=/data/proffer/normalized-bundles \
+    INVENTORY_MANIFEST_DIR=/data/proffer/inventory-manifests
 
-ENTRYPOINT ["/usr/local/bin/universal-import-worker"]
+ENTRYPOINT ["/usr/local/bin/proffer-worker"]

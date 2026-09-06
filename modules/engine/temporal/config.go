@@ -50,7 +50,7 @@ const (
 	defaultSelectHTTPTimeout  = 35 * time.Second
 	defaultExecuteHTTPTimeout = 31 * time.Minute
 	defaultStarterAddr        = ":8091"
-	defaultN8NAuthValueFile   = "/run/secrets/n8n-universal-import-auth"
+	defaultN8NAuthValueFile   = "/run/secrets/n8n-proffer-auth"
 )
 
 // LoadConfig reads every required environment variable, trims it, and
@@ -71,15 +71,15 @@ func LoadConfig() (Config, error) {
 		TemporalHostPort:  require("TEMPORAL_HOST_PORT"),
 		TemporalNamespace: require("TEMPORAL_NAMESPACE"),
 		TemporalTaskQueue: require("TEMPORAL_TASK_QUEUE"),
-		N8NBaseURL:        strings.TrimRight(require("N8N_UNIVERSAL_IMPORT_BASE_URL"), "/"),
-		N8NAuthHeader:     require("N8N_UNIVERSAL_IMPORT_AUTH_HEADER"),
+		N8NBaseURL:        strings.TrimRight(require("N8N_PROFFER_BASE_URL"), "/"),
+		N8NAuthHeader:     require("N8N_PROFFER_AUTH_HEADER"),
 	}
-	cfg.N8NAuthValueFile = strings.TrimSpace(os.Getenv("N8N_UNIVERSAL_IMPORT_AUTH_VALUE_FILE"))
+	cfg.N8NAuthValueFile = strings.TrimSpace(os.Getenv("N8N_PROFFER_AUTH_VALUE_FILE"))
 	if cfg.N8NAuthValueFile == "" {
 		cfg.N8NAuthValueFile = defaultN8NAuthValueFile
 	}
 	if !isAbsoluteRuntimePath(cfg.N8NAuthValueFile) {
-		problems = append(problems, "N8N_UNIVERSAL_IMPORT_AUTH_VALUE_FILE must be an absolute path")
+		problems = append(problems, "N8N_PROFFER_AUTH_VALUE_FILE must be an absolute path")
 	}
 
 	cfg.StarterAddr = strings.TrimSpace(os.Getenv("REFERENCE_STARTER_ADDR"))

@@ -70,7 +70,7 @@ func (s *temporalStarter) Start(ctx context.Context, in proffer.WorkflowInput) (
 		if runID, ok := alreadyStartedRunID(err); ok {
 			return in.RequestID, runID, nil
 		}
-		return "", "", fmt.Errorf("temporal: start universal import workflow: %w", err)
+		return "", "", fmt.Errorf("temporal: start proffer workflow (formerly universal import workflow): %w", err)
 	}
 	return run.GetID(), run.GetRunID(), nil
 }

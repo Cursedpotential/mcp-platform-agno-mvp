@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 
 from app.repo import object_store_client
 from app.runtime import source_inspection as source_runtime
-from app.service import uiw
+from app.service import proffer
 from app.service import source_inspection
 from app.types.source_context import SourceContextReceipt
 
@@ -40,8 +40,8 @@ def test_browser_lists_fixed_bucket_with_delimiter_pagination_and_filter(monkeyp
             ],
         }
 
-    monkeypatch.setattr(uiw, "list_casebible_sorted_objects", fake_list)
-    result = uiw.browse_sources(
+    monkeypatch.setattr(proffer, "list_casebible_sorted_objects", fake_list)
+    result = proffer.browse_sources(
         prefix="exports/", continuation_token="opaque-current", filter_text="message", page_size=25
     )
 
@@ -137,13 +137,13 @@ def test_runtime_client_uses_fixed_source_and_staging_buckets(monkeypatch) -> No
 
 def test_browser_rejects_escape_prefix_before_object_store_call(monkeypatch) -> None:
     monkeypatch.setattr(
-        uiw,
+        proffer,
         "list_casebible_sorted_objects",
         lambda **_: (_ for _ in ()).throw(AssertionError("object store must not be called")),
     )
     try:
-        uiw.browse_sources(prefix="../wrong-case/")
-    except uiw.UIWError as error:
+        proffer.browse_sources(prefix="../wrong-case/")
+    except proffer.ProfferError as error:
         assert error.status_code == 422
     else:
         raise AssertionError("escaping prefix accepted")
@@ -171,7 +171,7 @@ def test_source_inspection_hashes_immediately_without_claiming_a_custody_digest(
     app.include_router(source_runtime.router)
 
     response = TestClient(app).post(
-        "/api/uiw/source-inspection",
+        "/api/proffer/source-inspection",
         json={
             "key": "filings/source.pdf",
             "expected_byte_length": len(payload),
@@ -184,7 +184,7 @@ def test_source_inspection_hashes_immediately_without_claiming_a_custody_digest(
     assert body["sha256"] == hashlib.sha256(payload).hexdigest()
     assert body["digest_status"] == "preview_only"
     assert body["preview_kind"] == "pdf"
-    assert body["preview_url"].startswith("/api/uiw/source-content?")
+    assert body["preview_url"].startswith("/api/proffer/source-content?")
     assert body["parser_preflight"] == {
         "declared_format": "pdf",
         "route_label": "PDF document route",
@@ -203,7 +203,7 @@ def test_source_inspection_rejects_a_changed_listing_identity(monkeypatch) -> No
     app.include_router(source_runtime.router)
 
     response = TestClient(app).post(
-        "/api/uiw/source-inspection",
+        "/api/proffer/source-inspection",
         json={"key": "source.pdf", "expected_byte_length": 11, "expected_etag": '"old-etag"'},
     )
 
@@ -229,7 +229,7 @@ def test_source_content_is_same_origin_etag_pinned_and_range_bounded(monkeypatch
     app.include_router(source_runtime.router)
 
     response = TestClient(app).get(
-        "/api/uiw/source-content",
+        "/api/proffer/source-content",
         params={"key": "source.pdf", "etag": '"etag"'},
         headers={"Range": "bytes=2-5"},
     )
@@ -248,7 +248,7 @@ def test_source_context_route_uses_authenticated_actor_and_returns_only_receipt(
         captured.update(body=body, actor=actor)
         return SourceContextReceipt(
             source_context_ref="33333333-3333-3333-3333-333333333333",
-            receipt_ref="uiw-source-context://33333333-3333-3333-3333-333333333333",
+            receipt_ref="proffer-source-context://33333333-3333-3333-3333-333333333333",
             content_digest="a" * 64,
             revision=1,
             recorded_at=datetime(2026, 8, 30, tzinfo=UTC),
@@ -265,7 +265,7 @@ def test_source_context_route_uses_authenticated_actor_and_returns_only_receipt(
 
     app.include_router(source_runtime.router)
     response = TestClient(app).post(
-        "/api/uiw/source-contexts",
+        "/api/proffer/source-contexts",
         json={
             "request_id": "request-1",
             "matter_id": "11111111-1111-1111-1111-111111111111",

@@ -6,7 +6,7 @@
 # modules/forks/sbv/** is deliberately NOT a watch path anymore — see
 # deploy/WATCH-PATHS.md for why.
 # Host prep (root-owned, before deployment):
-# install -d -m 0700 /data/agno/volumes/universal-import/parser-artifacts
+# install -d -m 0700 /data/agno/volumes/proffer/parser-artifacts
 #
 # Byline: Claude Code · Sonnet 5 · 2026-09-02 (BUILD LANE D1: hermetic vendored
 # build post-restructure — build context set to repo root so
@@ -26,19 +26,19 @@ services:
       PLATFORM_DATABASE_URL: ${PLATFORM_DATABASE_URL:?set}
       PARSER_ACTIVITY_TOKEN: ${PARSER_ACTIVITY_TOKEN:?set}
       PARSER_ACTIVITY_ADDR: :8090
-      PARSER_BUNDLE_DIR: /data/uiw/parser-bundles
-      PARSER_ARTIFACT_DIR: /data/uiw/parser-artifacts
+      PARSER_BUNDLE_DIR: /data/proffer/parser-bundles
+      PARSER_ARTIFACT_DIR: /data/proffer/parser-artifacts
     volumes:
       # Retained source objects, READ-ONLY. Live finding 2026-09-05 (rehearsal
       # rehearsal-20260905-r2e-1788612588): execute_parser_activity failed with
       # "open retained object file …/source-objects/objects/sha256/…: no such
       # file or directory" because this service never mounted the store the
       # worker retains into. Same host, same path convention as the worker.
-      - /data/agno/volumes/universal-import/source-objects:/data/uiw/source-objects:ro
-      - /data/agno/volumes/universal-import/parser-bundles:/data/uiw/parser-bundles
+      - /data/agno/volumes/proffer/source-objects:/data/proffer/source-objects:ro
+      - /data/agno/volumes/proffer/parser-bundles:/data/proffer/parser-bundles
       - type: bind
-        source: /data/agno/volumes/universal-import/parser-artifacts
-        target: /data/uiw/parser-artifacts
+        source: /data/agno/volumes/proffer/parser-artifacts
+        target: /data/proffer/parser-artifacts
         bind:
           create_host_path: false
     networks:

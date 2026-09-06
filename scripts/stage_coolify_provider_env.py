@@ -40,7 +40,7 @@ import requests
 
 HOME = Path(os.environ.get("USERPROFILE") or os.environ.get("HOME") or "~").expanduser()
 SECRETS_DIR = HOME / ".secrets"
-PLATFORM_ENV = SECRETS_DIR / "Agno-MCP-Platform.env"
+PLATFORM_ENV = SECRETS_DIR / "probata.env"
 ANTHROPIC_ENV = SECRETS_DIR / "anthropic.env"
 COOLIFY_ENV = SECRETS_DIR / "coolify-ionos-api.env"
 

@@ -18,10 +18,10 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_SPECS = {
-    ROOT / "deploy/docker/n8n/workflows/universal-import/wf-select-parser-activity.json": "select_parser_activity",
-    ROOT / "deploy/docker/n8n/workflows/universal-import/wf-execute-parser-activity.json": "execute_parser_activity",
+    ROOT / "deploy/docker/n8n/workflows/proffer/wf-select-parser-activity.json": "select_parser_activity",
+    ROOT / "deploy/docker/n8n/workflows/proffer/wf-execute-parser-activity.json": "execute_parser_activity",
 }
-ALL_UIW_WORKFLOWS = tuple(sorted((ROOT / "deploy/docker/n8n/workflows/universal-import").glob("wf-*.json")))
+ALL_PROFFER_WORKFLOWS = tuple(sorted((ROOT / "deploy/docker/n8n/workflows/proffer").glob("wf-*.json")))
 
 REQUEST_FIELDS = {"request_id", "source_version_ref", "declared_format", "refs"}
 RESULT_FIELDS = {"stage", "status", "ref", "receipt_ref"}
@@ -202,7 +202,7 @@ def test_platform_call_is_authenticated_and_uses_literal_placeholder_base_url(pa
     assert host and host.endswith(".example.invalid"), f"unexpected non-placeholder host: {host}"
 
 
-@pytest.mark.parametrize("path", ALL_UIW_WORKFLOWS)
+@pytest.mark.parametrize("path", ALL_PROFFER_WORKFLOWS)
 def test_all_uiw_workflows_keep_env_access_blocked_and_fail_closed(path: Path):
     workflow = _load_workflow(path)
     workflow_text = json.dumps(workflow, sort_keys=True)

@@ -97,7 +97,7 @@ func TestCallStageSelectParserSuccess(t *testing.T) {
 		result.Ref != "selection-ref" || result.ReceiptRef != "selection-receipt" {
 		t.Errorf("CallStage() result = %+v, unexpected", result)
 	}
-	if gotPath != "/universal-import/select-parser-activity" {
+	if gotPath != "/proffer/select-parser-activity" {
 		t.Errorf("request path = %q, want select webhook path", gotPath)
 	}
 	if gotAuth != "Bearer test-token" {
@@ -221,7 +221,7 @@ func TestReadN8NAuthValueRejectsInvalidFiles(t *testing.T) {
 
 func TestCallStageExecuteParserSuccess(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/universal-import/execute-parser-activity" {
+		if r.URL.Path != "/proffer/execute-parser-activity" {
 			t.Errorf("request path = %q, want execute webhook path", r.URL.Path)
 		}
 		w.Header().Set("Content-Type", "application/json")

@@ -1,5 +1,5 @@
 // Byline: Claude Code · Sonnet (agent) · 2026-07-20
-// Byline: Codex · GPT-5 · 2026-08-28 (production UIW intake surface)
+// Byline: Codex · GPT-5 · 2026-08-28 (production Proffer intake surface)
 /**
  * Intake — the renamed Files page. Upload is folded in here (no more
  * standalone /upload route — see _stale/upload-page-pre-c1/ for the retired

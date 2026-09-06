@@ -9,7 +9,7 @@ Durable source of truth for the Portkey gateway's routing configs, in parity wit
 `ovh-app`) is a **stateless, no-DB, no-volume** deployment — it has no durable config of its own.
 Every route is expressed as a JSON body sent per-request in the `x-portkey-config` header. These
 files are that JSON, committed here so routing isn't only "whatever header a caller happened to
-build" — see `Agno-MCP-Platform/../PROPOSAL-portkey-changeover.md`-class research doc (OneDrive AI
+build" — see `probata (formerly Agno-MCP-Platform)/../PROPOSAL-portkey-changeover.md`-class research doc (OneDrive AI
 Space) for the full as-built research this was built from.
 
 ## Files
@@ -24,7 +24,7 @@ Space) for the full as-built research this was built from.
 Each `$VAR` placeholder is substituted with a real secret value at request-construction time by
 whatever consumer builds the outgoing `x-portkey-config` header — Portkey itself does **not** read
 these from its own container env (confirmed: `Mounts: []`, and env-substitution inside an inline
-header isn't a documented Portkey feature). The values live in `C:\Users\matts\.secrets\Agno-MCP-Platform.env`
+header isn't a documented Portkey feature). The values live in `C:\Users\matts\.secrets\probata (formerly Agno-MCP-Platform).env`
 locally and were also upserted into the Portkey Coolify app's stored env
 (`NVIDIA_API_KEY`, `GEMINI_API_KEY`, `GEMINI_API_KEY_2`, `GEMINI_API_KEY_3`, `GEMINI_API_KEY_4` on
 2026-07-19 Phase 1; `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `CEREBRAS_API_KEY`, `MISTRAL_API_KEY`,

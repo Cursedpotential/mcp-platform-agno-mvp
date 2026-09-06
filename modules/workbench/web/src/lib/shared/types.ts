@@ -5,7 +5,7 @@
 // Byline amendment: Codex · GPT-5 · 2026-08-18 (third-party human review contracts)
 // Byline amendment: Codex · GPT-5 · 2026-08-18 (Evidence Operations Desk source/context contracts)
 // Byline: Codex · GPT-5 · 2026-08-18 (native evidence search compatibility envelope)
-// Byline: Codex · GPT-5 · 2026-08-28 (Universal Import Workflow contracts)
+// Byline: Codex · GPT-5 · 2026-08-28 (proffer workflow (formerly Universal Import Workflow) contracts)
 /**
  * Types for the Knowledge Workbench staged-file record.
  *
@@ -949,13 +949,13 @@ export interface MatterDetail extends Matter {
   court_cases: CourtCase[];
 }
 
-export interface UIWUploadResponse {
+export interface ProfferUploadResponse {
   acquisition_ref: string;
   sha256: string;
   byte_length: number;
 }
 
-export interface UIWSourceObject {
+export interface ProfferSourceObject {
   kind: "object";
   key: string;
   name: string;
@@ -964,13 +964,13 @@ export interface UIWSourceObject {
   etag?: string | null;
 }
 
-export interface UIWSourcePrefix {
+export interface ProfferSourcePrefix {
   kind: "prefix";
   prefix: string;
   name: string;
 }
 
-export interface UIWSourceBrowserResponse {
+export interface ProfferSourceBrowserResponse {
   source: "casebible-sorted";
   prefix: string;
   delimiter: "/";
@@ -979,11 +979,11 @@ export interface UIWSourceBrowserResponse {
   page_size: number;
   is_truncated: boolean;
   continuation_token?: string | null;
-  prefixes: UIWSourcePrefix[];
-  objects: UIWSourceObject[];
+  prefixes: ProfferSourcePrefix[];
+  objects: ProfferSourceObject[];
 }
 
-export interface UIWSourceInspection {
+export interface ProfferSourceInspection {
   source: "casebible-sorted";
   key: string;
   source_ref: string;
@@ -1005,7 +1005,7 @@ export interface UIWSourceInspection {
   };
 }
 
-export interface UIWHumanSourceAssertions {
+export interface ProfferHumanSourceAssertions {
   source_class: "first_party" | "acquired_third_party" | "unknown";
   source_principal: string;
   other_party: string;
@@ -1021,7 +1021,7 @@ export interface UIWHumanSourceAssertions {
   notes: string;
 }
 
-export interface UIWSourceContextReceipt {
+export interface ProfferSourceContextReceipt {
   source_context_ref: string;
   receipt_ref: string;
   content_digest: string;
@@ -1029,7 +1029,7 @@ export interface UIWSourceContextReceipt {
   recorded_at: string;
 }
 
-export interface UIWStartRequest {
+export interface ProfferStartRequest {
   request_id: string;
   source_ref: string;
   declared_format: string;
@@ -1039,11 +1039,11 @@ export interface UIWStartRequest {
   source_context_ref?: string | null;
 }
 
-export interface UIWStartResponse {
+export interface ProfferStartResponse {
   preview_handle: string;
 }
 
-export interface UIWPreviewReceipt {
+export interface ProfferPreviewReceipt {
   receipt_type: "custody" | "parser_selection" | "parser_execution" | "normalization" | "storage" | "completeness";
   receipt_ref: string;
   status: "pending" | "running" | "completed" | "failed" | "skipped";
@@ -1051,26 +1051,26 @@ export interface UIWPreviewReceipt {
   recorded_at: string;
 }
 
-export interface UIWRepairAssessmentView {
+export interface ProfferRepairAssessmentView {
   assessment_ref: string;
   source_version_ref: string;
   review_required: boolean;
 }
 
-export interface UIWRepairDecisionRequest {
+export interface ProfferRepairDecisionRequest {
   approved: boolean;
   apply_repair: boolean;
   tool_id?: string;
   tool_payload?: Record<string, unknown>;
 }
 
-export interface UIWRepairDecisionResponse {
+export interface ProfferRepairDecisionResponse {
   preview_handle: string;
   decision_ref: string;
   status: string;
 }
 
-export interface UIWPreviewResponse {
+export interface ProfferPreviewResponse {
   preview_handle: string;
   phase: "awaiting_decision" | "approved" | "rejected" | "timed_out" | string;
   correlation: {
@@ -1085,18 +1085,18 @@ export interface UIWPreviewResponse {
     config_digest: string;
   } | null;
   preview_digest: string;
-  receipts: UIWPreviewReceipt[];
+  receipts: ProfferPreviewReceipt[];
   reason?: string;
-  repair_assessment?: UIWRepairAssessmentView | null;
+  repair_assessment?: ProfferRepairAssessmentView | null;
 }
 
-export interface UIWPreviewParticipant {
+export interface ProfferPreviewParticipant {
   participant_id: string;
   display_name: string;
   canonical_address?: string | null;
 }
 
-export interface UIWPreviewAttachment {
+export interface ProfferPreviewAttachment {
   attachment_id: string;
   filename?: string | null;
   media_type?: string | null;
@@ -1105,25 +1105,25 @@ export interface UIWPreviewAttachment {
   source_locator_ref: string;
 }
 
-export interface UIWPreviewMessage {
+export interface ProfferPreviewMessage {
   message_id: string;
   ordinal: number;
   sent_at?: string | null;
   sender_participant_id?: string | null;
   body: string;
   participant_ids: string[];
-  attachments: UIWPreviewAttachment[];
+  attachments: ProfferPreviewAttachment[];
   source_locator_ref: string;
 }
 
-export interface UIWPreviewMessagesResponse {
+export interface ProfferPreviewMessagesResponse {
   preview_handle: string;
-  participants: UIWPreviewParticipant[];
-  messages: UIWPreviewMessage[];
+  participants: ProfferPreviewParticipant[];
+  messages: ProfferPreviewMessage[];
   next_cursor?: string | null;
 }
 
-export interface UIWPreviewEvent {
+export interface ProfferPreviewEvent {
   event_id: number;
   event_type: "phase_changed" | "receipt_recorded" | "messages_available" | "decision_requested" | "decision_recorded" | "completed" | "failed";
   occurred_at: string;
@@ -1134,7 +1134,7 @@ export interface UIWPreviewEvent {
   detail?: string;
 }
 
-export interface UIWDecisionResponse {
+export interface ProfferDecisionResponse {
   preview_handle: string;
   status: string;
 }

@@ -11,7 +11,7 @@ agno can be configured with the account's REAL catalog instead of a hardcoded
 handful of ids.
 
 Reads keys from the process environment first, falling back to a tolerant
-regex parse of ~/.secrets/Agno-MCP-Platform.env and ~/.secrets/anthropic.env
+regex parse of ~/.secrets/probata.env (formerly Agno-MCP-Platform.env) and ~/.secrets/anthropic.env
 (never `source`d — CLAUDE.md's ~/.secrets rule: `KEY = value` spacing breaks
 a shell source and echoes fragments). Secret VALUES are never printed, only
 presence + length + a masked prefix/suffix.
@@ -36,7 +36,7 @@ import requests
 
 HOME = Path(os.environ.get("USERPROFILE") or os.environ.get("HOME") or "~").expanduser()
 SECRETS_DIR = HOME / ".secrets"
-PLATFORM_ENV = SECRETS_DIR / "Agno-MCP-Platform.env"
+PLATFORM_ENV = SECRETS_DIR / "probata.env"
 ANTHROPIC_ENV = SECRETS_DIR / "anthropic.env"
 
 NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"

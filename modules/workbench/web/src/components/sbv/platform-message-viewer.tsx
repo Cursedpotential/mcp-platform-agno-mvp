@@ -6,11 +6,11 @@ import { useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import type { UIWPreviewMessage, UIWPreviewParticipant } from "@/lib/shared/types";
+import type { ProfferPreviewMessage, ProfferPreviewParticipant } from "@/lib/shared/types";
 
 interface PlatformMessageViewerProps {
-  messages: UIWPreviewMessage[];
-  participants: UIWPreviewParticipant[];
+  messages: ProfferPreviewMessage[];
+  participants: ProfferPreviewParticipant[];
   loading: boolean;
   error: string | null;
   previewHandle: string;

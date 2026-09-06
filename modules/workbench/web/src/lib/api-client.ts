@@ -3,7 +3,7 @@
 // Byline: Codex · GPT-5 · 2026-08-18 (conversation intake and governed entities)
 // Byline amendment: Codex · GPT-5 · 2026-08-18 (third-party review client)
 // Byline: Codex · GPT-5 · 2026-08-18 (native evidence horizon search parameter)
-// Byline: Codex · GPT-5 · 2026-08-28 (Universal Import Workflow client)
+// Byline: Codex · GPT-5 · 2026-08-28 (proffer workflow (formerly Universal Import Workflow) client)
 /**
  * API client for the Knowledge Workbench.
  *
@@ -79,19 +79,19 @@ import type {
   VerifyResponse,
   WeaviateDetail,
   Workflow,
-  UIWDecisionResponse,
-  UIWPreviewResponse,
-  UIWRepairDecisionRequest,
-  UIWRepairDecisionResponse,
-  UIWPreviewMessagesResponse,
-  UIWStartRequest,
-  UIWStartResponse,
-  UIWUploadResponse,
-  UIWSourceBrowserResponse,
-  UIWSourceInspection,
-  UIWSourceObject,
-  UIWHumanSourceAssertions,
-  UIWSourceContextReceipt,
+  ProfferDecisionResponse,
+  ProfferPreviewResponse,
+  ProfferRepairDecisionRequest,
+  ProfferRepairDecisionResponse,
+  ProfferPreviewMessagesResponse,
+  ProfferStartRequest,
+  ProfferStartResponse,
+  ProfferUploadResponse,
+  ProfferSourceBrowserResponse,
+  ProfferSourceInspection,
+  ProfferSourceObject,
+  ProfferHumanSourceAssertions,
+  ProfferSourceContextReceipt,
 } from "./shared/types";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
@@ -586,11 +586,11 @@ export async function getCaseManagementCapabilities() {
 }
 
 // ---------------------------------------------------------------------------
-// Universal Import Workflow — production acquisition and decision boundary
+// proffer workflow (formerly Universal Import Workflow) — production acquisition and decision boundary
 // ---------------------------------------------------------------------------
 
-export async function uploadUIWSource(file: File) {
-  const response = await fetch(`${API_BASE}/api/uiw/upload`, {
+export async function uploadProfferSource(file: File) {
+  const response = await fetch(`${API_BASE}/api/proffer/upload`, {
     method: "POST",
     headers: {
       "Content-Type": file.type || "application/octet-stream",
@@ -609,10 +609,10 @@ export async function uploadUIWSource(file: File) {
     }
     throw new ApiError(detail, response.status);
   }
-  return (await response.json()) as UIWUploadResponse;
+  return (await response.json()) as ProfferUploadResponse;
 }
 
-export function listUIWSources(params: {
+export function listProfferSources(params: {
   prefix?: string;
   continuationToken?: string;
   filter?: string;
@@ -624,11 +624,11 @@ export function listUIWSources(params: {
   if (params.filter) query.set("filter", params.filter);
   if (params.pageSize) query.set("page_size", String(params.pageSize));
   const suffix = query.size ? `?${query.toString()}` : "";
-  return apiFetch<UIWSourceBrowserResponse>(`/api/uiw/sources${suffix}`);
+  return apiFetch<ProfferSourceBrowserResponse>(`/api/proffer/sources${suffix}`);
 }
 
-export function inspectUIWSource(source: UIWSourceObject) {
-  return apiFetch<UIWSourceInspection>("/api/uiw/source-inspection", {
+export function inspectProfferSource(source: ProfferSourceObject) {
+  return apiFetch<ProfferSourceInspection>("/api/proffer/source-inspection", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -639,7 +639,7 @@ export function inspectUIWSource(source: UIWSourceObject) {
   });
 }
 
-export function createUIWSourceContext(payload: {
+export function createProfferSourceContext(payload: {
   request_id: string;
   matter_id: string;
   court_case_id: string;
@@ -653,31 +653,31 @@ export function createUIWSourceContext(payload: {
     verification_state: "preview_only";
   };
   supersedes_ref?: string | null;
-  assertions: UIWHumanSourceAssertions;
+  assertions: ProfferHumanSourceAssertions;
   change_reason: string;
 }) {
-  return apiFetch<UIWSourceContextReceipt>("/api/uiw/source-contexts", {
+  return apiFetch<ProfferSourceContextReceipt>("/api/proffer/source-contexts", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
 }
 
-export function startUIW(payload: UIWStartRequest) {
-  return apiFetch<UIWStartResponse>("/api/uiw/start", {
+export function startProffer(payload: ProfferStartRequest) {
+  return apiFetch<ProfferStartResponse>("/api/proffer/start", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
 }
 
-export function getUIWPreview(previewHandle: string, signal?: AbortSignal) {
-  return apiFetch<UIWPreviewResponse>(`/api/uiw/previews/${encodeURIComponent(previewHandle)}`, { signal });
+export function getProfferPreview(previewHandle: string, signal?: AbortSignal) {
+  return apiFetch<ProfferPreviewResponse>(`/api/proffer/previews/${encodeURIComponent(previewHandle)}`, { signal });
 }
 
-export function decideUIWRepair(previewHandle: string, payload: UIWRepairDecisionRequest) {
-  return apiFetch<UIWRepairDecisionResponse>(
-    `/api/uiw/previews/${encodeURIComponent(previewHandle)}/repair-decision`,
+export function decideProfferRepair(previewHandle: string, payload: ProfferRepairDecisionRequest) {
+  return apiFetch<ProfferRepairDecisionResponse>(
+    `/api/proffer/previews/${encodeURIComponent(previewHandle)}/repair-decision`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -686,18 +686,18 @@ export function decideUIWRepair(previewHandle: string, payload: UIWRepairDecisio
   );
 }
 
-export function decideUIW(
+export function decideProffer(
   previewHandle: string,
   payload: { approved: boolean; reason: string },
 ) {
-  return apiFetch<UIWDecisionResponse>(`/api/uiw/previews/${encodeURIComponent(previewHandle)}/decision`, {
+  return apiFetch<ProfferDecisionResponse>(`/api/proffer/previews/${encodeURIComponent(previewHandle)}/decision`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
 }
 
-export function getUIWPreviewMessages(
+export function getProfferPreviewMessages(
   previewHandle: string,
   cursor?: string,
   limit = 100,
@@ -705,15 +705,15 @@ export function getUIWPreviewMessages(
 ) {
   const query = new URLSearchParams({ limit: String(limit) });
   if (cursor) query.set("cursor", cursor);
-  return apiFetch<UIWPreviewMessagesResponse>(
-    `/api/uiw/previews/${encodeURIComponent(previewHandle)}/messages?${query.toString()}`,
+  return apiFetch<ProfferPreviewMessagesResponse>(
+    `/api/proffer/previews/${encodeURIComponent(previewHandle)}/messages?${query.toString()}`,
     { signal },
   );
 }
 
-export function createUIWPreviewEventSource(previewHandle: string) {
+export function createProfferPreviewEventSource(previewHandle: string) {
   return new EventSource(
-    `${API_BASE}/api/uiw/previews/${encodeURIComponent(previewHandle)}/events`,
+    `${API_BASE}/api/proffer/previews/${encodeURIComponent(previewHandle)}/events`,
     { withCredentials: true },
   );
 }

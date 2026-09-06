@@ -1,7 +1,7 @@
 # Parser Activity Runtime
 
 Production Go service for the two atomic parser Activities used by the n8n
-wrappers inside the Universal Import Workflow. It registers every supported
+wrappers inside the Proffer. It registers every supported
 SBV parse-only adapter, persists streamed extraction bundles outside request
 and Temporal history, and returns compact UUID references only.
 
@@ -13,7 +13,7 @@ and Temporal history, and returns compact UUID references only.
 - Exposed port: `8090`
 - Health check: `GET /healthz`
 - Persistent storage: bind the shared host parser-bundle directory at
-  `/data/uiw/parser-bundles`, exactly matching the worker path
+  `/data/proffer/parser-bundles`, exactly matching the worker path
 - Watch paths: `engine/**`, `vendored/sbv/**`, and
   `docker/parser-activity-runtime/**`
 
@@ -23,7 +23,7 @@ Required runtime environment:
 |---|---|
 | `PLATFORM_DATABASE_URL` | PostgreSQL connection string for the fresh `platform` database; `DATABASE_URL` is accepted only as a compatibility fallback. |
 | `PARSER_ACTIVITY_TOKEN` | Dedicated bearer token shared only with the n8n parser Activity credentials. |
-| `PARSER_BUNDLE_DIR` | Durable bundle path; the image default is `/data/uiw/parser-bundles`. |
+| `PARSER_BUNDLE_DIR` | Durable bundle path; the image default is `/data/proffer/parser-bundles`. |
 
 Optional environment:
 

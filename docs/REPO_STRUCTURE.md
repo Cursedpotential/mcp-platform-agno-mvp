@@ -17,10 +17,10 @@
 
 ## The one active build
 
-`Agno-MCP-Platform/` is **the only active repo**. Everything under the workspace root *outside* it
+`probata/ (formerly Agno-MCP-Platform/)` is **the only active repo**. Everything under the workspace root *outside* it
 is reference (donor archives, mined code, planning history). **Never build a parallel stack.**
 
-## Canonical layout (`Agno-MCP-Platform/`) — ONE backend boundary (ADR-0033)
+## Canonical layout (`probata/ (formerly Agno-MCP-Platform/)`) — ONE backend boundary (ADR-0033)
 
 > Repacked 2026-07-09 (ADR-0033): every backend package lives under `server/`; import paths
 > are `server.*`. The old flat siblings (`app/ agents/ db/ evidence/ gateway/ tools/ chatminer/`)

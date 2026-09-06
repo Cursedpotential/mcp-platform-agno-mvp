@@ -1,9 +1,9 @@
 # engine/ — platform-owned Go Temporal runtime
 
 > Byline: Claude Code · Sonnet 5 · 2026-08-26 (`engine/proffer` orchestration added same day)
-> drift-fix 2026-09-06 Claude Code · Sonnet 5.1: D-137..D-141 rename — `engine/uiw`
-> is now `engine/proffer`, `UniversalImportWorkflow` is now `ProfferWorkflow`
-> (formerly UIW / Universal Import Workflow).
+> drift-fix 2026-09-06 Claude Code · Sonnet 5.1: D-137..D-141 rename — `engine/proffer`
+> is now `engine/proffer`, `UniversalImportWorkflow` was renamed `ProfferWorkflow`
+> (formerly UIW / proffer workflow (formerly Universal Import Workflow)).
 
 This module is the platform's own Go orchestration runtime. It is the
 authoritative implementation of `ProfferWorkflow`, the single Temporal
@@ -26,7 +26,7 @@ concerns.
 Five, not four, stages compute hashes — `hash_source` (H1), `hash_raw_records`
 (H2, per raw record/span), `hash_raw_generation` (H3, the order-sensitive fold
 of the ordered H2 digests), `hash_normalized_records`, and
-`hash_normalized_generation`. The universal-import H3 reuses the tested SBV
+`hash_normalized_generation`. The proffer (formerly universal-import) H3 reuses the tested SBV
 empty-genesis fold implementation but uses the distinct
 `h3-chain-platform-rawall-genesisempty-v1` tag because its membership includes
 every ordered raw row, including envelope/unparsed spans; legacy SBV H3 covers
@@ -37,7 +37,7 @@ manifest digest) that are never called H2 or H3, and are never compared for
 equality against H1 — reconciliation/verification of a hash against its
 manifest is a distinct responsibility from computing it.
 
-`engine/proffer` (Universal Import Workflow) is the real Temporal SDK
+`engine/proffer` (proffer workflow (formerly Universal Import Workflow)) is the real Temporal SDK
 orchestration that consumes that graph: `ProfferWorkflow(ctx,
 WorkflowInput) (WorkflowResult, error)`, built on
 `go.temporal.io/sdk v1.48.0`. It implements the graph in `engine/stagegraph`

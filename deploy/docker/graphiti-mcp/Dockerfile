@@ -123,7 +123,7 @@ LABEL org.opencontainers.image.title="Graphiti MCP Server (platform build)" \
       org.opencontainers.image.description="Graphiti MCP server with the Neo4j database-selection fix, CPU-local GLiNER2 NER + BGE reranker, telemetry disabled" \
       org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.revision="${VCS_REF}" \
-      org.opencontainers.image.source="https://github.com/Cursedpotential/mcp-platform-agno-mvp" \
+      org.opencontainers.image.source="https://github.com/Cursedpotential/probata" \
       graphiti.core.version="${GRAPHITI_CORE_VERSION}" \
       graphiti.upstream.ref="${UPSTREAM_REF}"
 

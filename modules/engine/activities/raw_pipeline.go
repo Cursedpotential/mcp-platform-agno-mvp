@@ -1,5 +1,5 @@
 // Package activities implements the raw-generation Activities for the
-// universal import workflow: persist_raw_generation_activity,
+// proffer workflow (formerly universal import workflow): persist_raw_generation_activity,
 // reconcile_record_accounting_activity, reconcile_byte_coverage_activity, and
 // verify_raw_coverage_against_source_activity. Persistence is the only
 // Activity that writes raw records; the other three verify only — none of

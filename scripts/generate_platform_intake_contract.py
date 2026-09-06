@@ -1,4 +1,4 @@
-"""Generate the bounded UIW OpenAPI contract from the live FastAPI models.
+"""Generate the bounded proffer (formerly UIW) OpenAPI contract from the live FastAPI models.
 
 Byline: Codex · GPT-5.6-Sol · 2026-08-30
 """
@@ -17,10 +17,10 @@ ROOT = Path(__file__).resolve().parents[1]
 API_ROOT = ROOT / "modules" / "workbench" / "api"
 TARGET = ROOT / "docs" / "schemas" / "platform-intake-job-contract-v1.openapi.yaml"
 SELECTED_PATHS = (
-    "/api/uiw/source-inspection",
-    "/api/uiw/source-contexts",
-    "/api/uiw/start",
-    "/api/uiw/previews/{preview_handle}",
+    "/api/proffer/source-inspection",
+    "/api/proffer/source-contexts",
+    "/api/proffer/start",
+    "/api/proffer/previews/{preview_handle}",
 )
 
 
@@ -58,7 +58,7 @@ def render_contract() -> str:
             "x-byline": "Codex GPT-5.6-Sol 2026-08-30",
             "x-generated-from": "workbench.api.main:app.openapi",
             "description": (
-                "Generated bounded client contract for the implemented UIW source inspection, "
+                "Generated bounded client contract for the implemented proffer (formerly UIW) source inspection, "
                 "append-only source context, start, and preview routes. Regenerate instead of "
                 "hand-copying browser or backend types."
             ),

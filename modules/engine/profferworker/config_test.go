@@ -23,21 +23,21 @@ func setWorkerEnvironment(t *testing.T) {
 		t.Fatal(err)
 	}
 	values := map[string]string{
-		"TEMPORAL_HOST_PORT":                   "temporal:7233",
-		"TEMPORAL_NAMESPACE":                   "default",
-		"TEMPORAL_TASK_QUEUE":                  "proffer-v1",
-		"PLATFORM_DATABASE_URL_FILE":           databaseURLFile,
-		"SOURCE_OBJECT_DIR":                    filepath.Join(root, "source"),
-		"PARSER_BUNDLE_DIR":                    filepath.Join(root, "parser"),
-		"NORMALIZED_BUNDLE_DIR":                filepath.Join(root, "normalized"),
-		"INVENTORY_MANIFEST_DIR":               filepath.Join(root, "inventory"),
-		"PLATFORM_TOOLS_BASE_URL":              "https://platform-tools.example.test",
-		"TOOL_GATEWAY_SERVICE_TOKEN_FILE":      gatewayTokenFile,
-		"N8N_UNIVERSAL_IMPORT_BASE_URL":        "https://n8n.example.test/webhook/",
-		"N8N_UNIVERSAL_IMPORT_AUTH_HEADER":     "Authorization",
-		"N8N_UNIVERSAL_IMPORT_AUTH_VALUE_FILE": authValueFile,
-		"SELECT_PARSER_HTTP_TIMEOUT":           "",
-		"EXECUTE_PARSER_HTTP_TIMEOUT":          "",
+		"TEMPORAL_HOST_PORT":              "temporal:7233",
+		"TEMPORAL_NAMESPACE":              "default",
+		"TEMPORAL_TASK_QUEUE":             "proffer-v1",
+		"PLATFORM_DATABASE_URL_FILE":      databaseURLFile,
+		"SOURCE_OBJECT_DIR":               filepath.Join(root, "source"),
+		"PARSER_BUNDLE_DIR":               filepath.Join(root, "parser"),
+		"NORMALIZED_BUNDLE_DIR":           filepath.Join(root, "normalized"),
+		"INVENTORY_MANIFEST_DIR":          filepath.Join(root, "inventory"),
+		"PLATFORM_TOOLS_BASE_URL":         "https://platform-tools.example.test",
+		"TOOL_GATEWAY_SERVICE_TOKEN_FILE": gatewayTokenFile,
+		"N8N_PROFFER_BASE_URL":            "https://n8n.example.test/webhook/",
+		"N8N_PROFFER_AUTH_HEADER":         "Authorization",
+		"N8N_PROFFER_AUTH_VALUE_FILE":     authValueFile,
+		"SELECT_PARSER_HTTP_TIMEOUT":      "",
+		"EXECUTE_PARSER_HTTP_TIMEOUT":     "",
 	}
 	for name, value := range values {
 		t.Setenv(name, value)

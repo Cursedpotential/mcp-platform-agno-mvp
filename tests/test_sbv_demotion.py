@@ -1,5 +1,5 @@
 # Byline amendment: Codex · GPT-5 · 2026-08-18 (combined-change hygiene)
-"""SBV promotion & universal-import forensic parity.
+"""SBV promotion & universal import (SBV donor API term) forensic parity.
 
 Byline: Claude Code . Fable 5 . 2026-08-09 (S2 build-and-test-green task 4)
 
@@ -29,7 +29,7 @@ drift apart again.
 
 CODE FIX landed alongside this rewrite (not just a test change): SBV's
 SMS-XML importer (vendored/sbv/internal/sms_xml_importer.go) projects a
-universal-import row's `metadata` straight from the RAW XML entry — it has no
+universal import (SBV donor API term) row's `metadata` straight from the RAW XML entry — it has no
 "role"/"sender" key for this format (verified by reading both
 vendored/sbv/internal/parser.go's SMSEntry/MMSEntry/CallEntry structs and
 sms_xml_importer.go's messageSourceRecord/callSourceRecord). Before this
@@ -47,7 +47,7 @@ back to the same type-code -> OWNER mapping sms_xml.py uses (2/4/5/6 for
 messages, 2 for calls) before finally using the first participant. See that
 function's docstring for the full trace.
 
-Legacy `_map_message` (the pre-universal-import SBV mapper this file used to
+Legacy `_map_message` (the pre-universal import (SBV donor API term) SBV mapper this file used to
 test directly) had zero production callers as of 2026-08-09 and is retired to
 _stale/sbv_sms_map_message_legacy.py per the workspace never-delete rule.
 """

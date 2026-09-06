@@ -12,16 +12,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  createUIWPreviewEventSource,
-  decideUIW,
-  getUIWPreview,
-  getUIWPreviewMessages,
+  createProfferPreviewEventSource,
+  decideProffer,
+  getProfferPreview,
+  getProfferPreviewMessages,
 } from "@/lib/api-client";
 import type {
-  UIWPreviewEvent,
-  UIWPreviewMessage,
-  UIWPreviewParticipant,
-  UIWPreviewResponse,
+  ProfferPreviewEvent,
+  ProfferPreviewMessage,
+  ProfferPreviewParticipant,
+  ProfferPreviewResponse,
 } from "@/lib/shared/types";
 
 function initialHandle() {
@@ -29,14 +29,14 @@ function initialHandle() {
   return new URLSearchParams(window.location.search).get("preview_handle")?.trim() ?? "";
 }
 
-export function UIWPreviewClient() {
+export function ProfferPreviewClient() {
   const [draftHandle, setDraftHandle] = useState("");
   const [previewHandle, setPreviewHandle] = useState("");
-  const [preview, setPreview] = useState<UIWPreviewResponse | null>(null);
-  const [messages, setMessages] = useState<UIWPreviewMessage[]>([]);
-  const [participants, setParticipants] = useState<UIWPreviewParticipant[]>([]);
+  const [preview, setPreview] = useState<ProfferPreviewResponse | null>(null);
+  const [messages, setMessages] = useState<ProfferPreviewMessage[]>([]);
+  const [participants, setParticipants] = useState<ProfferPreviewParticipant[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [events, setEvents] = useState<UIWPreviewEvent[]>([]);
+  const [events, setEvents] = useState<ProfferPreviewEvent[]>([]);
   const [snapshotError, setSnapshotError] = useState<string | null>(null);
   const [messageError, setMessageError] = useState<string | null>(null);
   const [eventError, setEventError] = useState<string | null>(null);
@@ -89,7 +89,7 @@ export function UIWPreviewClient() {
     const controller = new AbortController();
     snapshotControllerRef.current = controller;
     try {
-      const result = await getUIWPreview(handle, controller.signal);
+      const result = await getProfferPreview(handle, controller.signal);
       if (generation !== generationRef.current || activeHandleRef.current !== handle) return;
       if (result.preview_handle !== handle) throw new Error("Preview snapshot correlation failed");
       setPreview(result);
@@ -113,7 +113,7 @@ export function UIWPreviewClient() {
     messageControllersRef.current.set(cursorKey, controller);
     setMessagesLoading(true);
     try {
-      const page = await getUIWPreviewMessages(handle, cursor, 100, controller.signal);
+      const page = await getProfferPreviewMessages(handle, cursor, 100, controller.signal);
       if (generation !== generationRef.current || activeHandleRef.current !== handle) return;
       if (page.preview_handle !== handle) throw new Error("Preview message correlation failed");
       setParticipants((current) => {
@@ -150,11 +150,11 @@ export function UIWPreviewClient() {
       void loadSnapshot();
       void loadMessages();
     }, 0);
-    const source = createUIWPreviewEventSource(previewHandle);
+    const source = createProfferPreviewEventSource(previewHandle);
     const onEvent = (raw: MessageEvent<string>) => {
       try {
         if (generation !== generationRef.current || activeHandleRef.current !== previewHandle) return;
-        const event = JSON.parse(raw.data) as UIWPreviewEvent;
+        const event = JSON.parse(raw.data) as ProfferPreviewEvent;
         if (event.preview_handle !== previewHandle) throw new Error("Preview event correlation failed");
         setEvents((current) => [...current.filter((item) => item.event_id !== event.event_id), event]
           .sort((left, right) => left.event_id - right.event_id)
@@ -167,10 +167,10 @@ export function UIWPreviewClient() {
         source.close();
       }
     };
-    source.addEventListener("uiw.preview", onEvent as EventListener);
+    source.addEventListener("proffer.preview", onEvent as EventListener);
     source.onerror = () => {
       if (generation === generationRef.current && activeHandleRef.current === previewHandle) {
-        setEventError("The UIW preview event stream is unavailable");
+        setEventError("The Proffer preview event stream is unavailable");
       }
     };
     return () => {
@@ -209,7 +209,7 @@ export function UIWPreviewClient() {
     }
     setDecisionPending(true);
     try {
-      const result = await decideUIW(handle, { approved, reason: approved ? "" : rejectionReason.trim() });
+      const result = await decideProffer(handle, { approved, reason: approved ? "" : rejectionReason.trim() });
       if (generation !== generationRef.current || activeHandleRef.current !== handle) return;
       if (result.preview_handle !== handle) throw new Error("Decision response correlation failed");
       toast.success(approved ? "Preview approved" : "Preview rejected");
@@ -270,8 +270,8 @@ export function UIWPreviewClient() {
         <CardHeader className="pb-3"><CardTitle className="text-sm">Attach to an import preview</CardTitle></CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
           <div className="space-y-1.5">
-            <Label htmlFor="uiw-preview-handle">Preview handle</Label>
-            <Input id="uiw-preview-handle" value={draftHandle} onChange={(event) => setDraftHandle(event.target.value)} autoComplete="off" />
+            <Label htmlFor="proffer-preview-handle">Preview handle</Label>
+            <Input id="proffer-preview-handle" value={draftHandle} onChange={(event) => setDraftHandle(event.target.value)} autoComplete="off" />
           </div>
           <Button onClick={attach} className="gap-2"><Activity className="size-4" /> Open preview</Button>
         </CardContent>
@@ -320,8 +320,8 @@ export function UIWPreviewClient() {
                     </ul>
                     {awaitingDecision && (
                       <div className="space-y-2 border-t pt-3">
-                        <Label htmlFor="uiw-rejection-reason">Rejection reason</Label>
-                        <Input id="uiw-rejection-reason" value={rejectionReason} onChange={(event) => setRejectionReason(event.target.value)} />
+                        <Label htmlFor="proffer-rejection-reason">Rejection reason</Label>
+                        <Input id="proffer-rejection-reason" value={rejectionReason} onChange={(event) => setRejectionReason(event.target.value)} />
                         <div className="flex gap-2">
                           <Button disabled={decisionPending || !decisionEligible} onClick={() => void decide(true)}><Check className="size-4" /> Approve</Button>
                           <Button disabled={decisionPending || !decisionEligible} variant="destructive" onClick={() => void decide(false)}><X className="size-4" /> Reject</Button>
@@ -335,7 +335,7 @@ export function UIWPreviewClient() {
             </Card>
 
             <Card className="platform-panel">
-              <CardHeader><CardTitle className="text-sm">UIW events</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-sm">Proffer events</CardTitle></CardHeader>
               <CardContent>
                 {eventError && <p className="text-sm text-destructive" role="alert">{eventError}</p>}
                 {!eventError && events.length === 0 && <p className="text-sm text-muted-foreground">Waiting for replayable workflow events…</p>}

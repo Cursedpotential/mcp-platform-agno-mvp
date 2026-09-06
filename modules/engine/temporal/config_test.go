@@ -9,7 +9,7 @@ func clearConfigEnv(t *testing.T) {
 	t.Helper()
 	names := []string{
 		"TEMPORAL_HOST_PORT", "TEMPORAL_NAMESPACE", "TEMPORAL_TASK_QUEUE",
-		"N8N_UNIVERSAL_IMPORT_BASE_URL", "N8N_UNIVERSAL_IMPORT_AUTH_HEADER", "N8N_UNIVERSAL_IMPORT_AUTH_VALUE_FILE",
+		"N8N_PROFFER_BASE_URL", "N8N_PROFFER_AUTH_HEADER", "N8N_PROFFER_AUTH_VALUE_FILE",
 		"REFERENCE_STARTER_ADDR",
 		"SELECT_PARSER_HTTP_TIMEOUT", "EXECUTE_PARSER_HTTP_TIMEOUT",
 	}
@@ -22,9 +22,9 @@ func setRequiredConfigEnv(t *testing.T) {
 	t.Helper()
 	t.Setenv("TEMPORAL_HOST_PORT", "temporal-frontend:7233")
 	t.Setenv("TEMPORAL_NAMESPACE", "default")
-	t.Setenv("TEMPORAL_TASK_QUEUE", "universal-import-reference")
-	t.Setenv("N8N_UNIVERSAL_IMPORT_BASE_URL", "https://n8n.example.com/webhook/")
-	t.Setenv("N8N_UNIVERSAL_IMPORT_AUTH_HEADER", "Authorization")
+	t.Setenv("TEMPORAL_TASK_QUEUE", "proffer-reference")
+	t.Setenv("N8N_PROFFER_BASE_URL", "https://n8n.example.com/webhook/")
+	t.Setenv("N8N_PROFFER_AUTH_HEADER", "Authorization")
 }
 
 func TestLoadConfigSucceedsWithAllRequiredVars(t *testing.T) {
@@ -61,7 +61,7 @@ func TestLoadConfigCollectsEveryMissingVar(t *testing.T) {
 	}
 	for _, name := range []string{
 		"TEMPORAL_HOST_PORT", "TEMPORAL_NAMESPACE", "TEMPORAL_TASK_QUEUE",
-		"N8N_UNIVERSAL_IMPORT_BASE_URL", "N8N_UNIVERSAL_IMPORT_AUTH_HEADER",
+		"N8N_PROFFER_BASE_URL", "N8N_PROFFER_AUTH_HEADER",
 	} {
 		if !strings.Contains(err.Error(), name) {
 			t.Errorf("LoadConfig() error %q does not mention missing var %q", err.Error(), name)
@@ -72,10 +72,10 @@ func TestLoadConfigCollectsEveryMissingVar(t *testing.T) {
 func TestLoadConfigRejectsRelativeAuthValueFile(t *testing.T) {
 	clearConfigEnv(t)
 	setRequiredConfigEnv(t)
-	t.Setenv("N8N_UNIVERSAL_IMPORT_AUTH_VALUE_FILE", "relative/auth-value")
+	t.Setenv("N8N_PROFFER_AUTH_VALUE_FILE", "relative/auth-value")
 
 	_, err := LoadConfig()
-	if err == nil || !strings.Contains(err.Error(), "N8N_UNIVERSAL_IMPORT_AUTH_VALUE_FILE") {
+	if err == nil || !strings.Contains(err.Error(), "N8N_PROFFER_AUTH_VALUE_FILE") {
 		t.Fatalf("LoadConfig() error = %v, want absolute auth file rejection", err)
 	}
 }

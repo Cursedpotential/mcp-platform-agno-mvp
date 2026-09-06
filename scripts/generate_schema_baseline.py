@@ -1,6 +1,6 @@
 import psycopg,sys,datetime,collections
 sys.path.insert(0,'/tmp/mig'); from env import creds
-OUT='/sessions/sharp-trusting-planck/mnt/the-platform-workspace/Agno-MCP-Platform/sql/bootstrap/schema_baseline_20260830.sql'
+OUT='/sessions/sharp-trusting-planck/mnt/the-platform-workspace/probata/sql/bootstrap/schema_baseline_20260830.sql'
 SKIP=('pg_catalog','information_schema','pg_toast')
 L=[]
 w=L.append

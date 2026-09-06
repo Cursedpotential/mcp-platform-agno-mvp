@@ -3,7 +3,7 @@
 Five deliberately small n8n 2.36.6 workflow exports implement the HTTP body
 of the two n8n-backed parser Activities plus the "start / decide / preview"
 surface a human operator uses to run one end-to-end import through
-`engine/uiw.UniversalImportWorkflow` — the real 23-stage workflow, not a
+`engine/proffer.ProfferWorkflow` — the real 23-stage workflow, not a
 substitute. Temporal remains the durable owner of sequencing, timeouts,
 retry policy, and the human preview hold's Signal/Query/Timer state; n8n
 only validates envelopes, calls the authenticated Go HTTP endpoint it owns,
@@ -11,17 +11,17 @@ validates the response, and sends it back to the caller.
 
 ```
 n8n "start" webhook --> engine/temporal starter HTTP --> Temporal client
-  --> engine/uiw.UniversalImportWorkflow
+  --> engine/proffer.ProfferWorkflow
         --> register_source_activity ... the observation fan-out (stages 1-6)
         --> select_parser_activity  --> n8n "select" webhook --> engine/runtimeapi (Go parser)
         --> [human preview hold: a real Signal + Query + Timer, entirely
-             inside UniversalImportWorkflow — engine/uiw/preview.go]
+             inside ProfferWorkflow — engine/proffer/preview.go]
         --> n8n "decision" webhook --> engine/temporal starter HTTP --> Signal
         --> execute_parser_activity --> n8n "execute" webhook --> engine/runtimeapi (Go parser)
         --> persist/hash/reconcile/normalize/seal/publish (stages 9-22)
 ```
 
-The preview hold lives **inside** UniversalImportWorkflow itself, as a
+The preview hold lives **inside** ProfferWorkflow itself, as a
 genuine Temporal Signal + Query + Timer, not as a trick at the Activity
 boundary in `engine/temporal`. That is a deliberate, load-bearing choice: only
 a workflow-level hold survives a worker restart or a replica change, because
@@ -35,11 +35,11 @@ worker and a starter process) could not give that guarantee and was rejected
 
 | File | Purpose | Webhook path | Calls |
 |---|---|---|---|
-| `wf-select-parser-activity.json` | `select_parser_activity` body | `universal-import/select-parser-activity` | `engine/runtimeapi` `/activities/select_parser_activity` |
-| `wf-execute-parser-activity.json` | `execute_parser_activity` body | `universal-import/execute-parser-activity` | `engine/runtimeapi` `/activities/execute_parser_activity` |
-| `wf-start-import.json` | begin one `UniversalImportWorkflow` run | `universal-import/start` | `engine/temporal` starter `POST /reference-import/start` |
-| `wf-preview-decision.json` | approve/reject a held run | `universal-import/decision` | `engine/temporal` starter `POST /reference-import/{workflow_id}/decision` |
-| `wf-preview-status.json` | read a run's current preview state | `universal-import/preview` (GET, `?workflow_id=`) | `engine/temporal` starter `GET /reference-import/{workflow_id}/preview` |
+| `wf-select-parser-activity.json` | `select_parser_activity` body | `proffer/select-parser-activity` | `engine/runtimeapi` `/activities/select_parser_activity` |
+| `wf-execute-parser-activity.json` | `execute_parser_activity` body | `proffer/execute-parser-activity` | `engine/runtimeapi` `/activities/execute_parser_activity` |
+| `wf-start-import.json` | begin one `ProfferWorkflow` run | `proffer/start` | `engine/temporal` starter `POST /reference-import/start` |
+| `wf-preview-decision.json` | approve/reject a held run | `proffer/decision` | `engine/temporal` starter `POST /reference-import/{workflow_id}/decision` |
+| `wf-preview-status.json` | read a run's current preview state | `proffer/preview` (GET, `?workflow_id=`) | `engine/temporal` starter `GET /reference-import/{workflow_id}/preview` |
 
 The runtime URLs are explicit, non-secret configuration in each HTTP Request
 node. Checked-in exports use the fail-closed hosts
@@ -68,13 +68,13 @@ now call the correct path.
 **Added 2026-08-27:** the two existing Webhook trigger nodes previously had
 no `authentication` set at all, so anyone who discovered the webhook URL
 could invoke a real parser Activity. All five Webhook nodes now require the
-`headerAuth` credential `N8N_UNIVERSAL_IMPORT_WEBHOOK (placeholder)` — set a
+`headerAuth` credential `N8N_PROFFER_WEBHOOK (placeholder)` — set a
 real header/value pair on it before activating any of these workflows in a
 live instance.
 
 **Corrected 2026-08-27:** `wf-start-import.json` and `engine/temporal`
 previously started a smaller, package-local substitute workflow instead of
-the real `UniversalImportWorkflow`, and implemented the preview hold as
+the real `ProfferWorkflow`, and implemented the preview hold as
 in-process Activity async-completion rather than a workflow-level Signal.
 Both are now the real workflow and a real Signal/Query/Timer — see the note
 above.
@@ -138,7 +138,7 @@ execution and does not reach the Respond node.
 
 ## Compact contracts: start / decision / preview
 
-`wf-start-import.json` mirrors `engine/uiw.WorkflowInput` exactly — this
+`wf-start-import.json` mirrors `engine/proffer.WorkflowInput` exactly — this
 starts the real workflow from its actual root input, not a partially-observed
 mid-pipeline state:
 
@@ -163,10 +163,10 @@ workflow having acted on it yet, since Signals are asynchronous.
 current `{"phase": "...", "select_ref": "...", "reason": "..."}` (`reason`
 only present once the run has left `awaiting_decision`). `phase` is one of
 `awaiting_decision`, `approved`, `rejected`, `timed_out` — see
-`engine/uiw/preview.go`'s `PreviewPhase` constants. The hold itself sits
+`engine/proffer/preview.go`'s `PreviewPhase` constants. The hold itself sits
 between `select_parser_activity` and `execute_parser_activity`
-(`engine/uiw/workflow.go`) and times out after 24 hours
-(`engine/uiw/preview.go`'s `previewDecisionTimeout`) if never decided — a
+(`engine/proffer/workflow.go`) and times out after 24 hours
+(`engine/proffer/preview.go`'s `previewDecisionTimeout`) if never decided — a
 real Temporal Timer, not bounded by any Activity's own timeout.
 
 ## Node inventory
@@ -192,8 +192,8 @@ relaying start/Signal/Query calls to Temporal. The select call uses a
 
 ## The `engine/temporal` side
 
-`engine/cmd/universal-import-worker` is the sole production Temporal worker:
-it registers the real `engine/uiw.UniversalImportWorkflow` and all 23 canon
+`engine/cmd/proffer-worker` is the sole production Temporal worker:
+it registers the real `engine/proffer.ProfferWorkflow` and all 23 canon
 Activity names on one dedicated UIW task queue. The two parser Activities are
 thin, heartbeating HTTP proxies to the n8n webhooks above; the other 21 use
 their concrete PostgreSQL/runtime implementations. The old
@@ -218,8 +218,8 @@ Shared starter/worker environment:
 | `TEMPORAL_HOST_PORT` | Temporal frontend address |
 | `TEMPORAL_NAMESPACE` | Temporal namespace |
 | `TEMPORAL_TASK_QUEUE` | dedicated UIW task queue shared by the all-23 worker and starter; never `evidence-pipeline` |
-| `N8N_UNIVERSAL_IMPORT_BASE_URL` | n8n webhook base (worker only) |
-| `N8N_UNIVERSAL_IMPORT_AUTH_HEADER` / `N8N_UNIVERSAL_IMPORT_AUTH_VALUE` | header the worker sends on every call to the n8n webhooks — must match the `headerAuth` credential on the select/execute Webhook nodes (worker only) |
+| `N8N_PROFFER_BASE_URL` | n8n webhook base (worker only) |
+| `N8N_PROFFER_AUTH_HEADER` / `N8N_PROFFER_AUTH_VALUE` | header the worker sends on every call to the n8n webhooks — must match the `headerAuth` credential on the select/execute Webhook nodes (worker only) |
 | `REFERENCE_STARTER_TOKEN` | bearer token the starter HTTP service requires — must match the `headerAuth` credential on the start/decision/preview Webhook nodes |
 | `REFERENCE_STARTER_ADDR` | starter listen address (default `:8091`) |
 | `SELECT_PARSER_HTTP_TIMEOUT` / `EXECUTE_PARSER_HTTP_TIMEOUT` | optional overrides (Go duration strings) |
@@ -227,7 +227,7 @@ Shared starter/worker environment:
 The worker additionally requires `PLATFORM_DATABASE_URL` and four absolute
 shared roots: `SOURCE_OBJECT_DIR`, `PARSER_BUNDLE_DIR`,
 `NORMALIZED_BUNDLE_DIR`, and `INVENTORY_MANIFEST_DIR`. See
-`deploy/universal-import-worker.yaml`. The parser runtime must mount its
+`deploy/proffer-worker.yaml`. The parser runtime must mount its
 parser-bundle host directory at the same container path the worker sees;
 otherwise retained `file://` locators correctly fail closed.
 
@@ -239,12 +239,12 @@ otherwise retained `file://` locators correctly fail closed.
    start/decision/preview with the stable, non-secret live service endpoints.
    Bind the `PLATFORM_IMPORT_RUNTIME` and `REFERENCE_IMPORT_STARTER` header
    credentials separately; do not put tokens in the URL or workflow export.
-3. Attach a real `N8N_UNIVERSAL_IMPORT_WEBHOOK` `headerAuth` credential to
+3. Attach a real `N8N_PROFFER_WEBHOOK` `headerAuth` credential to
    all five Webhook trigger nodes, and configure `engine/temporal`'s worker
    and starter with the matching header/value via
-   `N8N_UNIVERSAL_IMPORT_AUTH_HEADER`/`_VALUE` and `REFERENCE_STARTER_TOKEN`.
+   `N8N_PROFFER_AUTH_HEADER`/`_VALUE` and `REFERENCE_STARTER_TOKEN`.
 4. Confirm the production/test webhook base URL and the five paths above.
-5. Deploy `deploy/universal-import-worker.yaml`, confirm its startup schema
+5. Deploy `deploy/proffer-worker.yaml`, confirm its startup schema
    gate passes, and deploy the starter against the identical dedicated queue.
 6. Keep the workflows inactive while reviewing endpoints and credentials;
    activate only once the all-23 worker and starter are both running.

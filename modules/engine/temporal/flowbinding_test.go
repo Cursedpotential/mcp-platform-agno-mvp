@@ -74,7 +74,7 @@ func TestLoadFlowBindingsMissingFileIsEmptyNotAnError(t *testing.T) {
 func TestLoadFlowBindingsReadsDeclarations(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "bindings.json")
 	doc := `{"bindings":[
-      {"name":"chunk_preview","webhook_path":"universal-import/chunk-preview","require_refs":["original"],
+      {"name":"chunk_preview","webhook_path":"proffer/chunk-preview","require_refs":["original"],
        "require_inputs":["chunk_profile"],"description":"Chunk and preview","timeout_seconds":120},
       {"name":"ocr_page","webhook_path":"tools/ocr-page"}
     ]}`
@@ -114,7 +114,7 @@ func newFlowTestRegistry(t *testing.T) *FlowRegistry {
 	t.Helper()
 	registry, err := NewFlowRegistry([]FlowBinding{{
 		Name:          "chunk_preview",
-		WebhookPath:   "universal-import/chunk-preview",
+		WebhookPath:   "proffer/chunk-preview",
 		RequireRefs:   []string{"original"},
 		RequireInputs: []string{"chunk_profile"},
 	}})
@@ -200,7 +200,7 @@ func TestCallFlowRoundTripsTheWireContract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RunFlow: %v", err)
 	}
-	if !strings.HasSuffix(gotPath, "/universal-import/chunk-preview") {
+	if !strings.HasSuffix(gotPath, "/proffer/chunk-preview") {
 		t.Fatalf("called %q, want the declared webhook path", gotPath)
 	}
 	if gotIdempotency != "req-42" {

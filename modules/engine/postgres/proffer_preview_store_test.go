@@ -231,7 +231,7 @@ func TestMigration0050RollbackOnlyOnPostgreSQL18(t *testing.T) {
 }
 
 func TestRecordDecisionContainsNoSnapshotMutation(t *testing.T) {
-	body, err := os.ReadFile("uiw_preview_store.go")
+	body, err := os.ReadFile("proffer_preview_store.go")
 	if err != nil {
 		t.Fatal(err)
 	}

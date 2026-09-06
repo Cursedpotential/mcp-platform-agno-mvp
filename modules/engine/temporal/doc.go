@@ -1,7 +1,7 @@
 // Package temporal implements the n8n <-> Temporal transport for
 // engine/proffer.ProfferWorkflow's two n8n-backed Activities
 // (select_parser_activity, execute_parser_activity — see
-// docker/n8n/workflows/universal-import/README.md). It registers the real
+// docker/n8n/workflows/proffer/README.md). It registers the real
 // ProfferWorkflow — not a workflow of its own — and provides the
 // small authenticated HTTP surface n8n's start/decision/preview workflows
 // call, since n8n has no native Temporal client.

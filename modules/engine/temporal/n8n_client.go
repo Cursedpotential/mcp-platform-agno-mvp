@@ -23,7 +23,7 @@ const (
 // stageRoute is everything the N8N client needs to reach and safely wait on
 // one n8n-backed Activity: its webhook path, the compact set of Refs keys
 // the n8n workflow's own validator requires (exactly these, nothing else —
-// see docker/n8n/workflows/universal-import/README.md), and how long the
+// see docker/n8n/workflows/proffer/README.md), and how long the
 // HTTP leg to n8n is allowed to run.
 type stageRoute struct {
 	path        string
@@ -34,12 +34,12 @@ type stageRoute struct {
 func stageRoutes(cfg Config) map[stagegraph.StageID]stageRoute {
 	return map[stagegraph.StageID]stageRoute{
 		stagegraph.SelectParser: {
-			path:        "universal-import/select-parser-activity",
+			path:        "proffer/select-parser-activity",
 			requireRefs: []string{"filesystem_metadata", "container_manifest", "metadata_manifest"},
 			timeout:     cfg.SelectHTTPTimeout,
 		},
 		stagegraph.ExecuteParser: {
-			path:        "universal-import/execute-parser-activity",
+			path:        "proffer/execute-parser-activity",
 			requireRefs: []string{"parser_selection", "original", "parser_options"},
 			timeout:     cfg.ExecuteHTTPTimeout,
 		},
@@ -106,7 +106,7 @@ type stageRequestWire struct {
 // Webhook" node returns on success: exactly these four fields, all non-empty
 // strings. The n8n contract never sends a fifth "reason" field on the
 // success path this client is built to reach — see
-// docker/n8n/workflows/universal-import/README.md.
+// docker/n8n/workflows/proffer/README.md.
 type stageResultWire struct {
 	Stage      string `json:"stage"`
 	Status     string `json:"status"`

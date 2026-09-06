@@ -1,4 +1,4 @@
-"""Authenticated adapter for durable UIW source-context receipts.
+"""Authenticated adapter for durable Proffer source-context receipts.
 
 Byline: Codex · GPT-5.6-Sol · 2026-08-30.
 """
@@ -8,14 +8,14 @@ from __future__ import annotations
 import hashlib
 import json
 
-from app.service.uiw import _json_payload, _request, _validated
+from app.service.proffer import _json_payload, _request, _validated
 from app.types.source_context import SourceContextCreateRequest, SourceContextReceipt
-from app.types.uiw import UIWDecisionActor
+from app.types.proffer import ProfferDecisionActor
 
 
 async def create_source_context(
     request: SourceContextCreateRequest,
-    actor: UIWDecisionActor,
+    actor: ProfferDecisionActor,
 ) -> SourceContextReceipt:
     canonical = json.dumps(
         request.model_dump(mode="json"),
@@ -31,7 +31,7 @@ async def create_source_context(
         headers={
             "X-authentik-uid": actor.subject_uid,
             "X-authentik-username": actor.username,
-            "Idempotency-Key": f"uiw-source-context:{key}",
+            "Idempotency-Key": f"proffer-source-context:{key}",
         },
     )
     return _validated(

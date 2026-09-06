@@ -94,11 +94,11 @@ func newFakeN8N(t *testing.T) *fakeN8N {
 	t.Helper()
 	f := &fakeN8N{}
 	mux := http.NewServeMux()
-	mux.HandleFunc("/universal-import/select-parser-activity", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/proffer/select-parser-activity", func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt32(&f.selectCalls, 1)
 		writeFakeStageResult(w, "select_parser_activity", "selection-ref", "selection-receipt")
 	})
-	mux.HandleFunc("/universal-import/execute-parser-activity", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/proffer/execute-parser-activity", func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt32(&f.executeCalls, 1)
 		writeFakeStageResult(w, "execute_parser_activity", "execute-ref", "execute-receipt")
 	})

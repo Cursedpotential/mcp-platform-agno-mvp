@@ -80,7 +80,7 @@ func buildStarterHandler(t *testing.T, starter *fakeStarter) http.Handler {
 
 // captureSlogWarnings redirects slog's default logger to an in-memory
 // buffer for the duration of the test, mirroring
-// engine/postgres/uiw_schema_probe_test.go's TestProbeUIWSchemaDevBypassLogsLoudWarning.
+// engine/postgres/proffer_schema_probe_test.go's TestProbeProfferSchemaDevBypassLogsLoudWarning.
 // Call it AFTER any handler construction whose own startup log should not
 // be captured, so per-request assertions aren't polluted by the one-time
 // construction-time warning.
@@ -355,7 +355,7 @@ func TestWithAuthFlagSetAllowsTailnetPeerWithoutWarning(t *testing.T) {
 
 // TestNewStarterHTTPHandlerLogsBypassWarningAtStartup: D-125/D-127 Rule 3
 // requires a one-time startup warning naming the flag, matching the wording
-// style of engine/postgres.ProbeUIWSchema's equivalent startup log.
+// style of engine/postgres.ProbeProfferSchema's equivalent startup log.
 func TestNewStarterHTTPHandlerLogsBypassWarningAtStartup(t *testing.T) {
 	t.Setenv("PLATFORM_DEV_AUTH_BYPASS", "1")
 	buf := captureSlogWarnings(t)

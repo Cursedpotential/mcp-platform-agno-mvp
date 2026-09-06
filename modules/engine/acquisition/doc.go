@@ -1,6 +1,6 @@
 // Byline: Codex · GPT-5 · 2026-08-28 (provider-neutral acquisition boundary)
 // Package acquisition implements the provider-neutral object acquisition
-// boundary for the Universal Import Workflow: it turns an opaque proffer.Ref
+// boundary for the proffer workflow (formerly Universal Import Workflow): it turns an opaque proffer.Ref
 // naming a not-yet-retained source — a Cloudflare R2 object, a Backblaze B2
 // object, or a bearer-authenticated Windows upload — into exactly the same
 // platformpostgres.ImmutableAcquisition that retain_original_activity

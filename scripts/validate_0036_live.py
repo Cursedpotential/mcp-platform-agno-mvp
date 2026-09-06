@@ -19,7 +19,7 @@ from psycopg import sql as psycopg_sql
 
 
 ROOT = Path(__file__).resolve().parent.parent
-ENV_FILES = (Path.home() / ".secrets" / "Agno-MCP-Platform.env", ROOT / ".env")
+ENV_FILES = (Path.home() / ".secrets" / "probata.env", ROOT / ".env")
 TAILNET_HOST = "100.91.190.107"
 MIGRATION = ROOT / "sql" / "0036_context_import_foundation.sql"
 EXPECTED_RELATIONS = (

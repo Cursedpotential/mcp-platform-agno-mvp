@@ -84,7 +84,7 @@ func Run(ctx context.Context, cfg Config) error {
 	if err := pool.Ping(ctx); err != nil {
 		return errors.New("proffer worker: connect to platform database: unavailable")
 	}
-	if err := platformpostgres.ProbeUIWSchema(ctx, pool); err != nil {
+	if err := platformpostgres.ProbeProfferSchema(ctx, pool); err != nil {
 		return err
 	}
 

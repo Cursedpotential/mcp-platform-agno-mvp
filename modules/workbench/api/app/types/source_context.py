@@ -11,7 +11,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
 
-from app.types.uiw import validate_authorized_source_ref
+from app.types.proffer import validate_authorized_source_ref
 
 
 BoundedText = Annotated[str, StringConstraints(strip_whitespace=True, max_length=4000)]

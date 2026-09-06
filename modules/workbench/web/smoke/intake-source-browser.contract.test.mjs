@@ -15,16 +15,16 @@ test("Case Bible Sorted is the default browser and local upload is secondary", (
 });
 
 test("browser API never accepts provider or bucket input", () => {
-  assert.match(client, /\/api\/uiw\/sources/);
-  assert.doesNotMatch(client, /listUIWSources[\s\S]{0,500}(provider|bucket)\??:/);
+  assert.match(client, /\/api\/proffer\/sources/);
+  assert.doesNotMatch(client, /listProfferSources[\s\S]{0,500}(provider|bucket)\??:/);
   assert.match(types, /source: "casebible-sorted"/);
 });
 
 test("remote listings stay factual while inspection computes a separate preview checksum", () => {
-  const remoteType = types.slice(types.indexOf("interface UIWSourceObject"), types.indexOf("interface UIWSourcePrefix"));
+  const remoteType = types.slice(types.indexOf("interface ProfferSourceObject"), types.indexOf("interface ProfferSourcePrefix"));
   assert.doesNotMatch(remoteType, /sha256/i);
-  assert.match(client, /inspectUIWSource/);
-  assert.match(client, /\/api\/uiw\/source-inspection/);
+  assert.match(client, /inspectProfferSource/);
+  assert.match(client, /\/api\/proffer\/source-inspection/);
   assert.match(types, /digest_status: "preview_only"/);
   assert.match(intake, /Acquisition recomputes and receipts the custody checksum before promotion/);
 });

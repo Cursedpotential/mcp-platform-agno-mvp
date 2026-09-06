@@ -1,4 +1,4 @@
-"""Typed boundary models for the Universal Import Workflow starter.
+"""Typed boundary models for the Proffer starter.
 
 Byline: Codex · GPT-5 · 2026-08-28.
 """
@@ -49,7 +49,7 @@ def validate_authorized_source_ref(value: str) -> str:
     raise ValueError("source_ref must be an upload reference or a Case Bible Sorted object")
 
 
-class UIWStartRequest(BaseModel):
+class ProfferStartRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     request_id: NonBlank
@@ -66,7 +66,7 @@ class UIWStartRequest(BaseModel):
         return validate_authorized_source_ref(value)
 
 
-class UIWSourceObject(BaseModel):
+class ProfferSourceObject(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     kind: Literal["object"] = "object"
@@ -77,7 +77,7 @@ class UIWSourceObject(BaseModel):
     etag: str | None = None
 
 
-class UIWSourcePrefix(BaseModel):
+class ProfferSourcePrefix(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     kind: Literal["prefix"] = "prefix"
@@ -85,7 +85,7 @@ class UIWSourcePrefix(BaseModel):
     name: NonBlank
 
 
-class UIWSourceBrowserResponse(BaseModel):
+class ProfferSourceBrowserResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     source: Literal["casebible-sorted"] = "casebible-sorted"
@@ -96,32 +96,32 @@ class UIWSourceBrowserResponse(BaseModel):
     page_size: int
     is_truncated: bool
     continuation_token: str | None = None
-    prefixes: list[UIWSourcePrefix]
-    objects: list[UIWSourceObject]
+    prefixes: list[ProfferSourcePrefix]
+    objects: list[ProfferSourceObject]
 
 
-class UIWStartResponse(BaseModel):
+class ProfferStartResponse(BaseModel):
     # Go may add non-security response metadata without breaking this typed BFF.
     model_config = ConfigDict(extra="ignore")
 
     preview_handle: OpaquePreviewHandle
 
 
-class UIWDecisionRequest(BaseModel):
+class ProfferDecisionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     approved: bool
     reason: BoundedReason = ""
 
 
-class UIWDecisionResponse(BaseModel):
+class ProfferDecisionResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     preview_handle: OpaquePreviewHandle
     status: NonBlank
 
 
-class UIWDecisionActor(BaseModel):
+class ProfferDecisionActor(BaseModel):
     """Immutable identity forwarded by the authenticated BFF, never the browser."""
 
     model_config = ConfigDict(extra="forbid")
@@ -130,7 +130,7 @@ class UIWDecisionActor(BaseModel):
     username: BoundedActorIdentity
 
 
-class UIWRepairDecisionRequest(BaseModel):
+class ProfferRepairDecisionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     approved: bool
@@ -139,7 +139,7 @@ class UIWRepairDecisionRequest(BaseModel):
     tool_payload: Annotated[dict[str, Any], Field(max_length=128)] = Field(default_factory=dict)
 
     @model_validator(mode="after")
-    def validate_repair_choice(self) -> UIWRepairDecisionRequest:
+    def validate_repair_choice(self) -> ProfferRepairDecisionRequest:
         if self.apply_repair and (not self.approved or not self.tool_id):
             raise ValueError("an applied repair requires approval and a tool_id")
         if not self.apply_repair and (self.tool_id or self.tool_payload):
@@ -159,7 +159,7 @@ class UIWRepairDecisionRequest(BaseModel):
         return self
 
 
-class UIWRepairDecisionResponse(BaseModel):
+class ProfferRepairDecisionResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     preview_handle: OpaquePreviewHandle
@@ -167,7 +167,7 @@ class UIWRepairDecisionResponse(BaseModel):
     status: NonBlank
 
 
-class UIWParserIdentity(BaseModel):
+class ProfferParserIdentity(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     parser_id: NonBlank
@@ -175,7 +175,7 @@ class UIWParserIdentity(BaseModel):
     config_digest: Sha256Digest
 
 
-class UIWPreviewCorrelation(BaseModel):
+class ProfferPreviewCorrelation(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     request_id: NonBlank
@@ -184,7 +184,7 @@ class UIWPreviewCorrelation(BaseModel):
     normalized_generation_id: UUID
 
 
-class UIWPreviewReceipt(BaseModel):
+class ProfferPreviewReceipt(BaseModel):
     """Reference-only receipt; raw or normalized payload bytes are forbidden here."""
 
     model_config = ConfigDict(extra="ignore")
@@ -203,7 +203,7 @@ class UIWPreviewReceipt(BaseModel):
     recorded_at: datetime
 
 
-class UIWRepairAssessmentView(BaseModel):
+class ProfferRepairAssessmentView(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     assessment_ref: Annotated[NonBlank, StringConstraints(max_length=512)]
@@ -211,20 +211,20 @@ class UIWRepairAssessmentView(BaseModel):
     review_required: bool
 
 
-class UIWPreviewResponse(BaseModel):
+class ProfferPreviewResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     preview_handle: OpaquePreviewHandle
     phase: NonBlank
-    correlation: UIWPreviewCorrelation | None = None
-    parser: UIWParserIdentity | None = None
+    correlation: ProfferPreviewCorrelation | None = None
+    parser: ProfferParserIdentity | None = None
     preview_digest: Sha256Digest | None = None
-    receipts: Annotated[list[UIWPreviewReceipt], Field(max_length=64)] | None = None
+    receipts: Annotated[list[ProfferPreviewReceipt], Field(max_length=64)] | None = None
     reason: BoundedReason = ""
-    repair_assessment: UIWRepairAssessmentView | None = None
+    repair_assessment: ProfferRepairAssessmentView | None = None
 
     @model_validator(mode="after")
-    def validate_snapshot_shape(self) -> UIWPreviewResponse:
+    def validate_snapshot_shape(self) -> ProfferPreviewResponse:
         if self.phase == "awaiting_repair_decision":
             if self.repair_assessment is None or not self.repair_assessment.review_required:
                 raise ValueError("an awaiting repair decision snapshot requires a review assessment")
@@ -237,7 +237,7 @@ class UIWPreviewResponse(BaseModel):
         return self
 
 
-class UIWPreviewParticipant(BaseModel):
+class ProfferPreviewParticipant(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     participant_id: NonBlank
@@ -245,7 +245,7 @@ class UIWPreviewParticipant(BaseModel):
     canonical_address: str | None = None
 
 
-class UIWPreviewAttachment(BaseModel):
+class ProfferPreviewAttachment(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     attachment_id: NonBlank
@@ -256,7 +256,7 @@ class UIWPreviewAttachment(BaseModel):
     source_locator_ref: NonBlank
 
 
-class UIWPreviewMessage(BaseModel):
+class ProfferPreviewMessage(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     message_id: NonBlank
@@ -265,20 +265,20 @@ class UIWPreviewMessage(BaseModel):
     sender_participant_id: str | None = None
     body: Annotated[str, StringConstraints(max_length=1_000_000)]
     participant_ids: Annotated[list[str], Field(max_length=64)]
-    attachments: Annotated[list[UIWPreviewAttachment], Field(max_length=128)]
+    attachments: Annotated[list[ProfferPreviewAttachment], Field(max_length=128)]
     source_locator_ref: NonBlank
 
 
-class UIWPreviewMessagesResponse(BaseModel):
+class ProfferPreviewMessagesResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     preview_handle: OpaquePreviewHandle
-    participants: Annotated[list[UIWPreviewParticipant], Field(max_length=256)]
-    messages: Annotated[list[UIWPreviewMessage], Field(max_length=250)]
+    participants: Annotated[list[ProfferPreviewParticipant], Field(max_length=256)]
+    messages: Annotated[list[ProfferPreviewMessage], Field(max_length=250)]
     next_cursor: OpaqueCursor | None = None
 
 
-class UIWPreviewEvent(BaseModel):
+class ProfferPreviewEvent(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     event_id: Annotated[int, Field(ge=0)]

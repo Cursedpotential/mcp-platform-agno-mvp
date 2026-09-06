@@ -25,14 +25,14 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --system --gid 10001 platform \
     && useradd --system --uid 10001 --gid platform --home-dir /nonexistent --shell /usr/sbin/nologin platform \
-    && install -d -o platform -g platform -m 0750 /data/uiw/parser-bundles
+    && install -d -o platform -g platform -m 0750 /data/proffer/parser-bundles
 
 COPY --from=builder /out/parser-activity-runtime /usr/local/bin/parser-activity-runtime
 
 USER 10001:10001
 EXPOSE 8090
 ENV PARSER_ACTIVITY_ADDR=:8090 \
-    PARSER_BUNDLE_DIR=/data/uiw/parser-bundles
+    PARSER_BUNDLE_DIR=/data/proffer/parser-bundles
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=4 \
     CMD curl --fail --silent --show-error http://127.0.0.1:8090/healthz || exit 1

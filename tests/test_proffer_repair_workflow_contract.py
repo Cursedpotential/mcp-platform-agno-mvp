@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).parents[1]
-WORKFLOWS = ROOT / "deploy/docker/n8n/workflows/universal-import"
+WORKFLOWS = ROOT / "deploy/docker/n8n/workflows/proffer"
 
 
 def _workflow(name: str) -> dict:
@@ -15,12 +15,12 @@ def _workflow(name: str) -> dict:
 def test_repair_activity_exports_are_inactive_reference_only_wrappers() -> None:
     expected = {
         "wf-assess-source-repair-activity.json": (
-            "universal-import/assess-source-repair-activity",
+            "proffer/assess-source-repair-activity",
             "/activities/assess_source_repair_activity",
             {"original", "filesystem_metadata", "container_manifest", "metadata_manifest"},
         ),
         "wf-resolve-source-repair-activity.json": (
-            "universal-import/resolve-source-repair-activity",
+            "proffer/resolve-source-repair-activity",
             "/activities/resolve_source_repair_activity",
             {"original", "repair_assessment", "repair_decision"},
         ),
@@ -43,6 +43,14 @@ def test_repair_activity_exports_are_inactive_reference_only_wrappers() -> None:
 
 
 def test_temporal_routes_match_checked_in_repair_webhooks() -> None:
-    source = (ROOT / "modules/engine/temporal/n8n_client.go").read_text(encoding="utf-8")
-    assert 'path:        "universal-import/assess-source-repair-activity"' in source
-    assert 'path:        "universal-import/resolve-source-repair-activity"' in source
+    # Since the flow-binding registry (d0b18f5) the repair webhooks are bound from the
+    # checked-in workflow JSON, not hard-coded in n8n_client.go; assert the JSON side.
+    assess = _workflow("wf-assess-source-repair-activity.json")
+    resolve = _workflow("wf-resolve-source-repair-activity.json")
+    paths = {
+        node["parameters"].get("path")
+        for wf in (assess, resolve)
+        for node in wf["nodes"]
+        if "path" in node.get("parameters", {})
+    }
+    assert {"proffer/assess-source-repair-activity", "proffer/resolve-source-repair-activity"} <= paths

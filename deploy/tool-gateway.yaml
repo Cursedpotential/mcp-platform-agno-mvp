@@ -1,7 +1,7 @@
 # tool-gateway — locator-addressed front end for the Python platform-tools
 # registry (D-132), with its own Tailscale identity via tsnet.
 #
-# WHY IT EXISTS: the UIW worker (ovh-files) handed platform-tools (ovh-app) a
+# WHY IT EXISTS: the proffer worker (formerly UIW) (ovh-files) handed platform-tools (ovh-app) a
 # worker-local filesystem path; platform-tools 404'd with the path as the
 # response body because the file was not there. This gateway takes LOCATORS
 # (upload://, r2://, b2://), resolves them through the same

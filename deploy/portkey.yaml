@@ -6,7 +6,7 @@
 # Authorization passes the provider key through). No DB, no volumes.
 #
 # DEPLOY AS ITS OWN Coolify "Docker Compose" app `portkey` on ovh-app
-# (server fmuao9enq3nxk8qw5hqjzzce), repo Cursedpotential/mcp-platform-agno-mvp
+# (server fmuao9enq3nxk8qw5hqjzzce), repo Cursedpotential/probata (formerly mcp-platform-agno-mvp)
 # @ main, compose file /compose.portkey.yaml. Env: BIND_IP=100.72.169.40
 # (ovh-app tailnet) — port is tailnet-only, never public.
 # Consumers call http://100.72.169.40:8787/v1 (OpenAI-compatible).

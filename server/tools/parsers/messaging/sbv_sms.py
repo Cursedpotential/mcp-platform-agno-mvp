@@ -39,7 +39,7 @@ Provenance: new module wrapping the SBV REST API (sbv-client.ts blueprint +
 SBV_MCP_INTEGRATION.md). Forensic call-block logic mirrors sms_xml.py
 (ported from dial-stack ConflictAnalysisApp).
 
-RETIRED 2026-08-09: the pre-universal-import `_map_message` mapper moved to
+RETIRED 2026-08-09: the pre-universal import (SBV donor API term) `_map_message` mapper moved to
 _stale/sbv_sms_map_message_legacy.py (zero production callers; see that
 file's docstring) — this module's live path is `_map_universal_record`.
 """
@@ -90,7 +90,7 @@ def _counterparty(msg: dict[str, Any]) -> str:
     return (msg.get("address") or msg.get("number") or "unknown").strip() or "unknown"
 
 
-# _map_message (per-record mapper for the pre-universal-import SBV path) was
+# _map_message (per-record mapper for the pre-universal import (SBV donor API term) SBV path) was
 # retired to _stale/sbv_sms_map_message_legacy.py on 2026-08-09 (S2
 # build-and-test-green task 4c): zero production callers (parse() below has
 # called _map_universal_record exclusively since the universal import engine
@@ -145,7 +145,7 @@ def _map_call(call: dict[str, Any]) -> NormalizedRecord:
     )
 
 
-# Owner-authored type codes for the universal-import role fallback (see
+# Owner-authored type codes for the universal import (SBV donor API term) role fallback (see
 # _role_for_universal_record). Same convention as sms_xml.py's _SMS_TYPE/
 # _CALL_TYPE tables and the (retired, see _stale/) legacy _map_message: for
 # messages 2/sent, 4/outbox, 5/failed, 6/queued are all owner-authored; for
@@ -155,7 +155,7 @@ _UNIVERSAL_CALL_OWNER_TYPES = {"2"}
 
 
 def _role_for_universal_record(kind: str, metadata: dict[str, Any], participants: list[str]) -> str:
-    """Derive authorship role for one universal-import row.
+    """Derive authorship role for one universal import (SBV donor API term) row.
 
     FIX 2026-08-09 (S2 build-and-test-green task 4 — RE-PIN outbound-role
     guarantee): prefers an explicit "role"/"sender" key from SBV's metadata,
@@ -172,7 +172,7 @@ def _role_for_universal_record(kind: str, metadata: dict[str, Any], participants
     2/4/5/6) to counterparty-authored: the exact bug the 2026-08-02
     parser-gap review found and fixed in the legacy `_map_message()` (now
     retired to _stale/, see sbv_sms.py header), just reappearing on the
-    universal-import path that superseded it. The separate ``sender`` field
+    universal import (SBV donor API term) path that superseded it. The separate ``sender`` field
     is neutral and source-principal governed; this function intentionally
     preserves the established legacy ``role`` contract.
     """

@@ -15,7 +15,7 @@ RUN CGO_ENABLED=1 go build \
     -tags fts5 \
     -trimpath \
     -ldflags="-s -w" \
-    -o /out/universal-import-starter \
+    -o /out/proffer-starter \
     ./temporal/cmd/starter
 
 FROM debian:bookworm-slim
@@ -26,7 +26,7 @@ RUN apt-get update \
     && groupadd --system --gid 10001 platform \
     && useradd --system --uid 10001 --gid platform --home-dir /nonexistent --shell /usr/sbin/nologin platform
 
-COPY --from=builder /out/universal-import-starter /usr/local/bin/universal-import-starter
+COPY --from=builder /out/proffer-starter /usr/local/bin/proffer-starter
 
 USER 10001:10001
 EXPOSE 8091
@@ -36,4 +36,4 @@ ENV REFERENCE_STARTER_HEALTH_URL=http://127.0.0.1:8091/healthz
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=4 \
     CMD curl --fail --silent --show-error "$REFERENCE_STARTER_HEALTH_URL" || exit 1
 
-ENTRYPOINT ["/usr/local/bin/universal-import-starter"]
+ENTRYPOINT ["/usr/local/bin/proffer-starter"]

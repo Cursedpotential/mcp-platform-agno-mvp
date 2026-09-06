@@ -1,4 +1,4 @@
-"""Focused contract tests for the Workbench UIW BFF adapter.
+"""Focused contract tests for the Workbench Proffer BFF adapter.
 
 Byline: Codex · GPT-5 · 2026-08-28.
 """
@@ -11,16 +11,16 @@ import json
 import httpx
 
 from app.config import Settings
-from app.runtime import uiw as runtime
-from app.service import uiw
+from app.runtime import proffer as runtime
+from app.service import proffer
 from starlette.requests import Request
 
-from app.types.uiw import (
-    UIWDecisionActor,
-    UIWDecisionRequest,
-    UIWPreviewResponse,
-    UIWRepairDecisionRequest,
-    UIWStartRequest,
+from app.types.proffer import (
+    ProfferDecisionActor,
+    ProfferDecisionRequest,
+    ProfferPreviewResponse,
+    ProfferRepairDecisionRequest,
+    ProfferStartRequest,
 )
 
 
@@ -55,18 +55,18 @@ def authenticated_request() -> Request:
     return request
 
 
-def test_uiw_service_auth_configuration_contains_only_a_secret_path(monkeypatch) -> None:
-    monkeypatch.delenv("UIW_SERVICE_TOKEN", raising=False)
-    monkeypatch.delenv("UIW_SERVICE_TOKEN_FILE", raising=False)
+def test_proffer_service_auth_configuration_contains_only_a_secret_path(monkeypatch) -> None:
+    monkeypatch.delenv("PROFFER_SERVICE_TOKEN", raising=False)
+    monkeypatch.delenv("PROFFER_SERVICE_TOKEN_FILE", raising=False)
     configured = Settings(_env_file=None)
 
-    assert configured.uiw_service_token_file == "/run/secrets/uiw-service-token"
-    assert not hasattr(configured, "uiw_service_token")
+    assert configured.proffer_service_token_file == "/run/secrets/proffer-service-token"
+    assert not hasattr(configured, "proffer_service_token")
 
 
 def test_models_reject_unknown_fields() -> None:
     try:
-        UIWStartRequest(
+        ProfferStartRequest(
             request_id="r1",
             matter_id="00000000-0000-0000-0000-000000000001",
             court_case_id="00000000-0000-0000-0000-000000000002",
@@ -78,14 +78,14 @@ def test_models_reject_unknown_fields() -> None:
     except Exception as error:
         assert "extra_forbidden" in str(error)
     else:
-        raise AssertionError("unknown UIW start fields must be rejected")
+        raise AssertionError("unknown Proffer start fields must be rejected")
 
 
 def test_decision_route_rejects_without_reason() -> None:
     async def exercise():
         return await runtime.decision_endpoint(
             PREVIEW_HANDLE,
-            UIWDecisionRequest(approved=False, reason=""),
+            ProfferDecisionRequest(approved=False, reason=""),
             authenticated_request(),
         )
 
@@ -104,17 +104,17 @@ def test_service_preserves_exact_upstream_contract(monkeypatch) -> None:
             return {"preview_handle": PREVIEW_HANDLE}
 
     captured = {}
-    monkeypatch.setattr(uiw.settings, "uiw_starter_url", "https://starter.internal")
+    monkeypatch.setattr(proffer.settings, "proffer_starter_url", "https://starter.internal")
 
     async def fake_request(method, path, **kwargs):
         captured.update(method=method, path=path, kwargs=kwargs)
         return Response()
 
-    monkeypatch.setattr(uiw, "_request", fake_request)
+    monkeypatch.setattr(proffer, "_request", fake_request)
 
     async def exercise():
-        return await uiw.start(
-            UIWStartRequest(
+        return await proffer.start(
+            ProfferStartRequest(
                 request_id="r1",
                 matter_id="00000000-0000-0000-0000-000000000001",
                 court_case_id="00000000-0000-0000-0000-000000000002",
@@ -141,11 +141,11 @@ def test_start_fails_closed_when_upstream_has_only_temporal_ids(monkeypatch) -> 
     async def fake_request(*args, **kwargs):
         return Response()
 
-    monkeypatch.setattr(uiw, "_request", fake_request)
+    monkeypatch.setattr(proffer, "_request", fake_request)
 
     async def exercise():
-        await uiw.start(
-            UIWStartRequest(
+        await proffer.start(
+            ProfferStartRequest(
                 request_id="r1",
                 matter_id="00000000-0000-0000-0000-000000000001",
                 court_case_id="00000000-0000-0000-0000-000000000002",
@@ -157,7 +157,7 @@ def test_start_fails_closed_when_upstream_has_only_temporal_ids(monkeypatch) -> 
 
     try:
         asyncio.run(exercise())
-    except uiw.UIWError as error:
+    except proffer.ProfferError as error:
         assert error.status_code == 502
         assert "invalid start response" in error.detail
     else:
@@ -176,7 +176,7 @@ def test_decision_identity_is_derived_from_authentik_request_state(monkeypatch) 
     result = asyncio.run(
         runtime.decision_endpoint(
             PREVIEW_HANDLE,
-            UIWDecisionRequest(approved=True, reason=""),
+            ProfferDecisionRequest(approved=True, reason=""),
             authenticated_request(),
         )
     )
@@ -199,9 +199,9 @@ def test_preview_decision_forwards_actor_only_in_trusted_headers(monkeypatch) ->
         captured.update(method=method, path=path, kwargs=kwargs)
         return Response()
 
-    monkeypatch.setattr(uiw, "_request", fake_request)
-    actor = UIWDecisionActor(subject_uid="authentik-subject-123", username="matt")
-    asyncio.run(uiw.decide(PREVIEW_HANDLE, UIWDecisionRequest(approved=True), actor))
+    monkeypatch.setattr(proffer, "_request", fake_request)
+    actor = ProfferDecisionActor(subject_uid="authentik-subject-123", username="matt")
+    asyncio.run(proffer.decide(PREVIEW_HANDLE, ProfferDecisionRequest(approved=True), actor))
 
     assert captured["kwargs"]["json"] == {"approved": True, "reason": ""}
     assert "actor" not in captured["kwargs"]["json"]
@@ -218,7 +218,7 @@ def test_decision_fails_closed_without_authenticated_subject() -> None:
         asyncio.run(
             runtime.decision_endpoint(
                 PREVIEW_HANDLE,
-                UIWDecisionRequest(approved=True, reason=""),
+                ProfferDecisionRequest(approved=True, reason=""),
                 request,
             )
         )
@@ -236,7 +236,7 @@ def test_decision_fails_closed_for_header_unsafe_authenticated_identity() -> Non
         asyncio.run(
             runtime.decision_endpoint(
                 PREVIEW_HANDLE,
-                UIWDecisionRequest(approved=True, reason=""),
+                ProfferDecisionRequest(approved=True, reason=""),
                 request,
             )
         )
@@ -250,7 +250,7 @@ def test_decision_fails_closed_for_header_unsafe_authenticated_identity() -> Non
 def test_decision_model_rejects_browser_supplied_actor_fields() -> None:
     for forbidden in ({"decider": "owner"}, {"role": "owner"}, {"subject_uid": "forged"}):
         try:
-            UIWDecisionRequest(approved=True, reason="", **forbidden)
+            ProfferDecisionRequest(approved=True, reason="", **forbidden)
         except Exception as error:
             assert "extra_forbidden" in str(error)
         else:
@@ -263,7 +263,7 @@ def test_upstream_preview_unknown_fields_are_ignored_compatibly() -> None:
     payload["correlation"]["future_coordinate"] = "ignored"
     payload["parser"]["future_parser_field"] = 1
 
-    result = UIWPreviewResponse.model_validate(payload)
+    result = ProfferPreviewResponse.model_validate(payload)
 
     assert result.preview_handle == PREVIEW_HANDLE
     assert not hasattr(result, "future_metadata")
@@ -288,8 +288,8 @@ def test_repair_assessment_is_readable_only_through_correlated_opaque_handle(mon
         assert path == f"/reference-import/previews/{PREVIEW_HANDLE}"
         return Response()
 
-    monkeypatch.setattr(uiw, "_request", fake_request)
-    result = asyncio.run(uiw.preview(PREVIEW_HANDLE))
+    monkeypatch.setattr(proffer, "_request", fake_request)
+    result = asyncio.run(proffer.preview(PREVIEW_HANDLE))
 
     assert result.phase == "awaiting_repair_decision"
     assert result.repair_assessment is not None
@@ -312,8 +312,8 @@ def test_clean_repair_assessment_is_read_only_and_needs_no_browser_decision(monk
     async def fake_request(*args, **kwargs):
         return Response()
 
-    monkeypatch.setattr(uiw, "_request", fake_request)
-    result = asyncio.run(uiw.preview(PREVIEW_HANDLE))
+    monkeypatch.setattr(proffer, "_request", fake_request)
+    result = asyncio.run(proffer.preview(PREVIEW_HANDLE))
 
     assert result.repair_assessment is not None
     assert result.repair_assessment.review_required is False
@@ -333,21 +333,21 @@ def test_preview_events_fail_closed_on_non_monotonic_replay() -> None:
 
     async def exercise():
         emitted = []
-        async for item in uiw.validated_preview_events(response, preview_handle=PREVIEW_HANDLE, last_event_id=4):
+        async for item in proffer.validated_preview_events(response, preview_handle=PREVIEW_HANDLE, last_event_id=4):
             emitted.append(item)
         return emitted
 
     try:
         asyncio.run(exercise())
-    except uiw.UIWError as error:
+    except proffer.ProfferError as error:
         assert error.status_code == 502
         assert "not monotonic" in error.detail
     else:
-        raise AssertionError("duplicate UIW preview event ids must fail closed")
+        raise AssertionError("duplicate Proffer preview event ids must fail closed")
 
 
 def test_service_replaces_browser_authorization_with_runtime_service_token(monkeypatch, tmp_path) -> None:
-    secret = tmp_path / "uiw-service-token"
+    secret = tmp_path / "proffer-service-token"
     service_token = "s" * 32
     secret.write_text(service_token, encoding="utf-8")
 
@@ -366,84 +366,84 @@ def test_service_replaces_browser_authorization_with_runtime_service_token(monke
             assert "authorization" not in kwargs["headers"]
             return httpx.Response(200, json={"workflow_id": "wf-1", "run_id": "run-1"})
 
-    monkeypatch.setattr(uiw.settings, "uiw_starter_url", "https://starter.internal")
-    monkeypatch.setattr(uiw.settings, "uiw_service_token_file", str(secret))
-    monkeypatch.setattr(uiw.httpx, "AsyncClient", Client)
+    monkeypatch.setattr(proffer.settings, "proffer_starter_url", "https://starter.internal")
+    monkeypatch.setattr(proffer.settings, "proffer_service_token_file", str(secret))
+    monkeypatch.setattr(proffer.httpx, "AsyncClient", Client)
 
     async def exercise():
-        return await uiw._request("GET", "/reference-import/wf-1/preview", headers={"Authorization": "forbidden"})
+        return await proffer._request("GET", "/reference-import/wf-1/preview", headers={"Authorization": "forbidden"})
 
     asyncio.run(exercise())
 
 
-def test_uiw_service_token_is_read_fresh_for_every_request(monkeypatch, tmp_path) -> None:
-    secret = tmp_path / "uiw-service-token"
-    monkeypatch.setattr(uiw.settings, "uiw_service_token_file", str(secret))
+def test_proffer_service_token_is_read_fresh_for_every_request(monkeypatch, tmp_path) -> None:
+    secret = tmp_path / "proffer-service-token"
+    monkeypatch.setattr(proffer.settings, "proffer_service_token_file", str(secret))
     first_token = "a" * 32
     rotated_token = "b" * 32
     secret.write_text(first_token, encoding="utf-8")
 
-    assert uiw._service_authorization_headers() == {"Authorization": f"Bearer {first_token}"}
+    assert proffer._service_authorization_headers() == {"Authorization": f"Bearer {first_token}"}
 
     secret.write_text(rotated_token, encoding="utf-8")
-    assert uiw._service_authorization_headers() == {"Authorization": f"Bearer {rotated_token}"}
+    assert proffer._service_authorization_headers() == {"Authorization": f"Bearer {rotated_token}"}
 
 
-def test_uiw_service_token_accepts_maximum_token_with_crlf(monkeypatch, tmp_path) -> None:
-    secret = tmp_path / "uiw-service-token"
+def test_proffer_service_token_accepts_maximum_token_with_crlf(monkeypatch, tmp_path) -> None:
+    secret = tmp_path / "proffer-service-token"
     maximum_token = "m" * 4096
     secret.write_bytes(maximum_token.encode() + b"\r\n")
-    monkeypatch.setattr(uiw.settings, "uiw_service_token_file", str(secret))
+    monkeypatch.setattr(proffer.settings, "proffer_service_token_file", str(secret))
 
-    assert uiw._service_authorization_headers() == {"Authorization": f"Bearer {maximum_token}"}
+    assert proffer._service_authorization_headers() == {"Authorization": f"Bearer {maximum_token}"}
 
 
-def test_invalid_uiw_service_token_fails_closed_without_leaking_value_or_path(monkeypatch, tmp_path) -> None:
-    secret = tmp_path / "private-uiw-token"
+def test_invalid_proffer_service_token_fails_closed_without_leaking_value_or_path(monkeypatch, tmp_path) -> None:
+    secret = tmp_path / "private-proffer-token"
     secret.write_text("forbidden token value", encoding="utf-8")
-    monkeypatch.setattr(uiw.settings, "uiw_service_token_file", str(secret))
+    monkeypatch.setattr(proffer.settings, "proffer_service_token_file", str(secret))
 
     try:
-        uiw._service_authorization_headers()
-    except uiw.UIWError as error:
+        proffer._service_authorization_headers()
+    except proffer.ProfferError as error:
         assert error.status_code == 503
-        assert error.detail == "UIW service authentication is unavailable or invalid"
+        assert error.detail == "Proffer service authentication is unavailable or invalid"
         assert "forbidden token value" not in error.detail
         assert str(secret) not in error.detail
     else:
-        raise AssertionError("invalid UIW service token must fail closed")
+        raise AssertionError("invalid Proffer service token must fail closed")
 
 
-def test_short_uiw_service_token_fails_closed(monkeypatch, tmp_path) -> None:
-    secret = tmp_path / "private-uiw-token"
+def test_short_proffer_service_token_fails_closed(monkeypatch, tmp_path) -> None:
+    secret = tmp_path / "private-proffer-token"
     secret.write_text("s" * 31, encoding="utf-8")
-    monkeypatch.setattr(uiw.settings, "uiw_service_token_file", str(secret))
+    monkeypatch.setattr(proffer.settings, "proffer_service_token_file", str(secret))
 
     try:
-        uiw._service_authorization_headers()
-    except uiw.UIWError as error:
+        proffer._service_authorization_headers()
+    except proffer.ProfferError as error:
         assert error.status_code == 503
-        assert error.detail == "UIW service authentication is unavailable or invalid"
+        assert error.detail == "Proffer service authentication is unavailable or invalid"
     else:
-        raise AssertionError("short UIW service token must fail closed")
+        raise AssertionError("short Proffer service token must fail closed")
 
 
-def test_missing_uiw_service_token_fails_closed_without_leaking_path(monkeypatch, tmp_path) -> None:
-    secret = tmp_path / "missing-private-uiw-token"
-    monkeypatch.setattr(uiw.settings, "uiw_service_token_file", str(secret))
+def test_missing_proffer_service_token_fails_closed_without_leaking_path(monkeypatch, tmp_path) -> None:
+    secret = tmp_path / "missing-private-proffer-token"
+    monkeypatch.setattr(proffer.settings, "proffer_service_token_file", str(secret))
 
     try:
-        uiw._service_authorization_headers()
-    except uiw.UIWError as error:
+        proffer._service_authorization_headers()
+    except proffer.ProfferError as error:
         assert error.status_code == 503
-        assert error.detail == "UIW service authentication is unavailable or invalid"
+        assert error.detail == "Proffer service authentication is unavailable or invalid"
         assert str(secret) not in error.detail
     else:
-        raise AssertionError("missing UIW service token must fail closed")
+        raise AssertionError("missing Proffer service token must fail closed")
 
 
 def test_preview_event_stream_reads_and_forwards_service_token(monkeypatch, tmp_path) -> None:
-    secret = tmp_path / "uiw-service-token"
+    secret = tmp_path / "proffer-service-token"
     stream_token = "e" * 32
     secret.write_text(stream_token, encoding="utf-8")
     captured = {}
@@ -468,11 +468,11 @@ def test_preview_event_stream_reads_and_forwards_service_token(monkeypatch, tmp_
         async def aclose(self):
             return None
 
-    monkeypatch.setattr(uiw.settings, "uiw_starter_url", "https://starter.internal")
-    monkeypatch.setattr(uiw.settings, "uiw_service_token_file", str(secret))
-    monkeypatch.setattr(uiw.httpx, "AsyncClient", Client)
+    monkeypatch.setattr(proffer.settings, "proffer_starter_url", "https://starter.internal")
+    monkeypatch.setattr(proffer.settings, "proffer_service_token_file", str(secret))
+    monkeypatch.setattr(proffer.httpx, "AsyncClient", Client)
 
-    client, response = asyncio.run(uiw.open_preview_event_stream(PREVIEW_HANDLE, last_event_id=4))
+    client, response = asyncio.run(proffer.open_preview_event_stream(PREVIEW_HANDLE, last_event_id=4))
     assert captured["request"].headers["Authorization"] == f"Bearer {stream_token}"
     assert captured["request"].headers["Last-Event-ID"] == "4"
     asyncio.run(response.aclose())
@@ -480,7 +480,7 @@ def test_preview_event_stream_reads_and_forwards_service_token(monkeypatch, tmp_
 
 
 def test_upload_stream_reads_and_forwards_service_token(monkeypatch, tmp_path) -> None:
-    secret = tmp_path / "uiw-service-token"
+    secret = tmp_path / "proffer-service-token"
     upload_token = "u" * 32
     secret.write_text(upload_token, encoding="utf-8")
     captured = {}
@@ -504,12 +504,12 @@ def test_upload_stream_reads_and_forwards_service_token(monkeypatch, tmp_path) -
     async def body():
         yield b"payload"
 
-    monkeypatch.setattr(uiw.settings, "uiw_starter_url", "https://starter.internal")
-    monkeypatch.setattr(uiw.settings, "uiw_service_token_file", str(secret))
-    monkeypatch.setattr(uiw.httpx, "AsyncClient", Client)
+    monkeypatch.setattr(proffer.settings, "proffer_starter_url", "https://starter.internal")
+    monkeypatch.setattr(proffer.settings, "proffer_service_token_file", str(secret))
+    monkeypatch.setattr(proffer.httpx, "AsyncClient", Client)
 
     client, response = asyncio.run(
-        uiw.open_upload_stream(body(), content_type="application/octet-stream", content_length="7")
+        proffer.open_upload_stream(body(), content_type="application/octet-stream", content_length="7")
     )
     assert captured["request"].headers["Authorization"] == f"Bearer {upload_token}"
     assert captured["request"].headers["Content-Length"] == "7"
@@ -519,7 +519,7 @@ def test_upload_stream_reads_and_forwards_service_token(monkeypatch, tmp_path) -
 
 def test_preview_requires_full_correlation_and_digest() -> None:
     try:
-        UIWPreviewResponse.model_validate({"preview_handle": PREVIEW_HANDLE, "phase": "awaiting_decision"})
+        ProfferPreviewResponse.model_validate({"preview_handle": PREVIEW_HANDLE, "phase": "awaiting_decision"})
     except Exception as error:
         assert "correlation" in str(error)
         assert "preview_digest" in str(error)
@@ -528,11 +528,11 @@ def test_preview_requires_full_correlation_and_digest() -> None:
 
 
 def test_service_fails_closed_without_dedicated_starter_configuration(monkeypatch) -> None:
-    monkeypatch.setattr(uiw.settings, "uiw_starter_url", "")
+    monkeypatch.setattr(proffer.settings, "proffer_starter_url", "")
 
     async def exercise():
-        await uiw.start(
-            UIWStartRequest(
+        await proffer.start(
+            ProfferStartRequest(
                 request_id="r1",
                 source_ref=f"upload://{'a' * 64}",
                 declared_format="pdf",
@@ -544,15 +544,15 @@ def test_service_fails_closed_without_dedicated_starter_configuration(monkeypatc
 
     try:
         asyncio.run(exercise())
-    except uiw.UIWError as error:
+    except proffer.ProfferError as error:
         assert error.status_code == 503
     else:
-        raise AssertionError("UIW must fail closed when its dedicated settings are absent")
+        raise AssertionError("Proffer must fail closed when its dedicated settings are absent")
 
 
 def test_start_rejects_malformed_matter_uuid() -> None:
     try:
-        UIWStartRequest(
+        ProfferStartRequest(
             request_id="r1",
             matter_id="not-a-uuid",
             court_case_id="00000000-0000-0000-0000-000000000002",
@@ -575,9 +575,9 @@ def test_start_accepts_only_upload_or_fixed_casebible_sorted_scope() -> None:
         "parser_options_ref": "opts-1",
     }
     upload_ref = f"upload://{'a' * 64}"
-    assert UIWStartRequest(source_ref=upload_ref, **common).source_ref == upload_ref
+    assert ProfferStartRequest(source_ref=upload_ref, **common).source_ref == upload_ref
     assert (
-        UIWStartRequest(source_ref="r2://casebible-sorted/folder/source.pdf", **common).source_ref
+        ProfferStartRequest(source_ref="r2://casebible-sorted/folder/source.pdf", **common).source_ref
         == "r2://casebible-sorted/folder/source.pdf"
     )
     for forbidden in (
@@ -587,7 +587,7 @@ def test_start_accepts_only_upload_or_fixed_casebible_sorted_scope() -> None:
         "r2://casebible-sorted/../source.pdf",
     ):
         try:
-            UIWStartRequest(source_ref=forbidden, **common)
+            ProfferStartRequest(source_ref=forbidden, **common)
         except Exception as error:
             assert "Case Bible Sorted" in str(error)
         else:
@@ -602,10 +602,10 @@ def test_preview_snapshot_requires_exact_requested_handle(monkeypatch) -> None:
     async def fake_request(*args, **kwargs):
         return Response()
 
-    monkeypatch.setattr(uiw, "_request", fake_request)
+    monkeypatch.setattr(proffer, "_request", fake_request)
     try:
-        asyncio.run(uiw.preview(PREVIEW_HANDLE))
-    except uiw.UIWError as error:
+        asyncio.run(proffer.preview(PREVIEW_HANDLE))
+    except proffer.ProfferError as error:
         assert error.status_code == 502
         assert "snapshot correlation failed" in error.detail
     else:
@@ -625,10 +625,10 @@ def test_preview_messages_require_exact_requested_handle(monkeypatch) -> None:
     async def fake_request(*args, **kwargs):
         return Response()
 
-    monkeypatch.setattr(uiw, "_request", fake_request)
+    monkeypatch.setattr(proffer, "_request", fake_request)
     try:
-        asyncio.run(uiw.preview_messages(PREVIEW_HANDLE, cursor=None, limit=100))
-    except uiw.UIWError as error:
+        asyncio.run(proffer.preview_messages(PREVIEW_HANDLE, cursor=None, limit=100))
+    except proffer.ProfferError as error:
         assert error.status_code == 502
         assert "message correlation failed" in error.detail
     else:
@@ -643,10 +643,10 @@ def test_malformed_json_is_normalized_to_502(monkeypatch) -> None:
     async def fake_request(*args, **kwargs):
         return Response()
 
-    monkeypatch.setattr(uiw, "_request", fake_request)
+    monkeypatch.setattr(proffer, "_request", fake_request)
     try:
-        asyncio.run(uiw.preview(PREVIEW_HANDLE))
-    except uiw.UIWError as error:
+        asyncio.run(proffer.preview(PREVIEW_HANDLE))
+    except proffer.ProfferError as error:
         assert error.status_code == 502
         assert "malformed JSON for preview snapshot" in error.detail
     else:
@@ -661,16 +661,16 @@ def test_decision_response_requires_exact_requested_handle(monkeypatch) -> None:
     async def fake_request(*args, **kwargs):
         return Response()
 
-    monkeypatch.setattr(uiw, "_request", fake_request)
+    monkeypatch.setattr(proffer, "_request", fake_request)
     try:
         asyncio.run(
-            uiw.decide(
+            proffer.decide(
                 PREVIEW_HANDLE,
-                UIWDecisionRequest(approved=True, reason=""),
-                uiw.UIWDecisionActor(subject_uid="subject-1", username="owner"),
+                ProfferDecisionRequest(approved=True, reason=""),
+                proffer.ProfferDecisionActor(subject_uid="subject-1", username="owner"),
             )
         )
-    except uiw.UIWError as error:
+    except proffer.ProfferError as error:
         assert error.status_code == 502
         assert "decision response correlation failed" in error.detail
     else:
@@ -693,17 +693,17 @@ def test_repair_decision_forwards_bounded_body_actor_headers_and_deterministic_k
         calls.append((method, path, kwargs))
         return Response()
 
-    monkeypatch.setattr(uiw, "_request", fake_request)
-    actor = UIWDecisionActor(subject_uid="authentik-subject-123", username="matt")
-    body = UIWRepairDecisionRequest(
+    monkeypatch.setattr(proffer, "_request", fake_request)
+    actor = ProfferDecisionActor(subject_uid="authentik-subject-123", username="matt")
+    body = ProfferRepairDecisionRequest(
         approved=True,
         apply_repair=True,
         tool_id="repair.write-derived",
         tool_payload={"destination_ref": "derived://repair/result"},
     )
 
-    first = asyncio.run(uiw.decide_repair(PREVIEW_HANDLE, body, actor))
-    second = asyncio.run(uiw.decide_repair(PREVIEW_HANDLE, body, actor))
+    first = asyncio.run(proffer.decide_repair(PREVIEW_HANDLE, body, actor))
+    second = asyncio.run(proffer.decide_repair(PREVIEW_HANDLE, body, actor))
 
     assert first.status == second.status == "signaled"
     assert calls[0][0:2] == (
@@ -714,21 +714,21 @@ def test_repair_decision_forwards_bounded_body_actor_headers_and_deterministic_k
     assert "actor" not in calls[0][2]["json"]
     assert calls[0][2]["headers"]["X-authentik-uid"] == "authentik-subject-123"
     assert calls[0][2]["headers"]["X-authentik-username"] == "matt"
-    assert calls[0][2]["headers"]["Idempotency-Key"].startswith("uiw-repair:")
+    assert calls[0][2]["headers"]["Idempotency-Key"].startswith("proffer-repair:")
     assert calls[0][2]["headers"]["Idempotency-Key"] == calls[1][2]["headers"]["Idempotency-Key"]
 
 
 def test_repair_idempotency_key_changes_with_decision_content_not_username() -> None:
-    actor = UIWDecisionActor(subject_uid="subject-1", username="first-name")
-    renamed_actor = UIWDecisionActor(subject_uid="subject-1", username="renamed")
-    approve = UIWRepairDecisionRequest(approved=True, apply_repair=False)
-    reject = UIWRepairDecisionRequest(approved=False, apply_repair=False)
+    actor = ProfferDecisionActor(subject_uid="subject-1", username="first-name")
+    renamed_actor = ProfferDecisionActor(subject_uid="subject-1", username="renamed")
+    approve = ProfferRepairDecisionRequest(approved=True, apply_repair=False)
+    reject = ProfferRepairDecisionRequest(approved=False, apply_repair=False)
 
-    first = uiw._repair_idempotency_key(PREVIEW_HANDLE, approve, actor)
+    first = proffer._repair_idempotency_key(PREVIEW_HANDLE, approve, actor)
 
-    assert first == uiw._repair_idempotency_key(PREVIEW_HANDLE, approve, renamed_actor)
-    assert first != uiw._repair_idempotency_key(PREVIEW_HANDLE, reject, actor)
-    assert first != uiw._repair_idempotency_key(OTHER_PREVIEW_HANDLE, approve, actor)
+    assert first == proffer._repair_idempotency_key(PREVIEW_HANDLE, approve, renamed_actor)
+    assert first != proffer._repair_idempotency_key(PREVIEW_HANDLE, reject, actor)
+    assert first != proffer._repair_idempotency_key(OTHER_PREVIEW_HANDLE, approve, actor)
 
 
 def test_repair_decision_route_fails_closed_without_authenticated_identity() -> None:
@@ -738,7 +738,7 @@ def test_repair_decision_route_fails_closed_without_authenticated_identity() -> 
         asyncio.run(
             runtime.repair_decision_endpoint(
                 PREVIEW_HANDLE,
-                UIWRepairDecisionRequest(approved=True, apply_repair=False),
+                ProfferRepairDecisionRequest(approved=True, apply_repair=False),
                 request,
             )
         )
@@ -760,16 +760,16 @@ def test_repair_decision_requires_exact_requested_handle(monkeypatch) -> None:
     async def fake_request(*args, **kwargs):
         return Response()
 
-    monkeypatch.setattr(uiw, "_request", fake_request)
+    monkeypatch.setattr(proffer, "_request", fake_request)
     try:
         asyncio.run(
-            uiw.decide_repair(
+            proffer.decide_repair(
                 PREVIEW_HANDLE,
-                UIWRepairDecisionRequest(approved=True, apply_repair=False),
-                UIWDecisionActor(subject_uid="subject-1", username="owner"),
+                ProfferRepairDecisionRequest(approved=True, apply_repair=False),
+                ProfferDecisionActor(subject_uid="subject-1", username="owner"),
             )
         )
-    except uiw.UIWError as error:
+    except proffer.ProfferError as error:
         assert error.status_code == 502
         assert "repair decision response correlation failed" in error.detail
     else:
@@ -778,14 +778,14 @@ def test_repair_decision_requires_exact_requested_handle(monkeypatch) -> None:
 
 def test_repair_decision_route_preserves_upstream_error(monkeypatch) -> None:
     async def fake_decide_repair(*args, **kwargs):
-        raise uiw.UIWError("workflow is not awaiting repair", 409)
+        raise proffer.ProfferError("workflow is not awaiting repair", 409)
 
     monkeypatch.setattr(runtime, "decide_repair", fake_decide_repair)
     try:
         asyncio.run(
             runtime.repair_decision_endpoint(
                 PREVIEW_HANDLE,
-                UIWRepairDecisionRequest(approved=True, apply_repair=False),
+                ProfferRepairDecisionRequest(approved=True, apply_repair=False),
                 authenticated_request(),
             )
         )

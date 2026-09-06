@@ -140,7 +140,7 @@ def inspect_source(request: SourceInspectionRequest) -> SourceInspectionResponse
     )
     preview_text = bytes(captured).decode("utf-8", errors="replace") if preview_kind == "text" else ""
     preview_url = (
-        f"/api/uiw/source-content?key={quote(key, safe='')}&etag={quote(etag, safe='')}"
+        f"/api/proffer/source-content?key={quote(key, safe='')}&etag={quote(etag, safe='')}"
         if preview_kind in {"pdf", "text", "image"}
         else None
     )

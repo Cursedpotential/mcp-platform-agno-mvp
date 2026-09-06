@@ -69,7 +69,7 @@ func run() error {
 	if err := pool.Ping(context.Background()); err != nil {
 		return errors.New("connect platform preview database: unavailable")
 	}
-	if err := platformpostgres.ProbeUIWSchema(context.Background(), pool); err != nil {
+	if err := platformpostgres.ProbeProfferSchema(context.Background(), pool); err != nil {
 		return err
 	}
 

@@ -32,9 +32,9 @@ contains_secrets: false
 ## D-140 rename (2026-09-06)
 
 - Ingest lane renamed: `uiw` package -> `proffer`, `uiwworker` -> `profferworker`,
-  `UniversalImportWorkflow` -> `ProfferWorkflow`. Module path is now
+  renamed `UniversalImportWorkflow` -> `ProfferWorkflow`. Module path is now
   `github.com/Cursedpotential/probata/engine` (D-137..D-141). n8n webhook path
-  segments and `N8N_UNIVERSAL_IMPORT_*` env var names were left unchanged pending
+  segments and `N8N_PROFFER_*` env var names (formerly `N8N_UNIVERSAL_IMPORT_*`) were renamed on 2026-09-06 together with the deploy lane; this note previously said they were left unchanged pending
   coordinated rename with the deploy/n8n lane.
 
 ## Verification caution

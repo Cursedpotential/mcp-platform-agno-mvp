@@ -55,20 +55,20 @@ func (row probeRow) Scan(dest ...any) error {
 func admittedProbeRow() probeRow {
 	return probeRow{
 		database: "platform", user: "platform_runtime", owner: "platform_admin",
-		ledger: len(requiredUIWMigrations), tables: len(requiredUIWTables), columns: len(requiredUIWColumns),
+		ledger: len(requiredProfferMigrations), tables: len(requiredProfferTables), columns: len(requiredProfferColumns),
 		constraintsExact: true, substrateExact: true, roleSafe: true, grantsExact: true, receiptExact: true,
 	}
 }
 
-func TestProbeUIWSchemaAdmitsExactPlatformContract(t *testing.T) {
-	if err := ProbeUIWSchema(context.Background(), probeDB{row: admittedProbeRow()}); err != nil {
+func TestProbeProfferSchemaAdmitsExactPlatformContract(t *testing.T) {
+	if err := ProbeProfferSchema(context.Background(), probeDB{row: admittedProbeRow()}); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func TestProbeUIWSchemaCastsCatalogNamesBeforeTextArrayComparison(t *testing.T) {
+func TestProbeProfferSchemaCastsCatalogNamesBeforeTextArrayComparison(t *testing.T) {
 	db := &capturingProbeDB{row: admittedProbeRow()}
-	if err := ProbeUIWSchema(context.Background(), db); err != nil {
+	if err := ProbeProfferSchema(context.Background(), db); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Count(db.query, "a.attname::text") != 3 || strings.Contains(db.query, "ARRAY(SELECT a.attname FROM") {
@@ -76,24 +76,24 @@ func TestProbeUIWSchemaCastsCatalogNamesBeforeTextArrayComparison(t *testing.T) 
 	}
 }
 
-func TestProbeUIWSchemaRejectsLegacy0043Substitution(t *testing.T) {
+func TestProbeProfferSchemaRejectsLegacy0043Substitution(t *testing.T) {
 	row := admittedProbeRow()
 	row.ledger--
-	err := ProbeUIWSchema(context.Background(), probeDB{row: row})
+	err := ProbeProfferSchema(context.Background(), probeDB{row: row})
 	if err == nil || !strings.Contains(err.Error(), "ledger=8/9") {
 		t.Fatalf("error = %v, want missing-0054 admission failure", err)
 	}
 }
 
-// TestProbeUIWSchemaLedgerQueriesTheRealLedger locks in D-109: the ledger
+// TestProbeProfferSchemaLedgerQueriesTheRealLedger locks in D-109: the ledger
 // check must read ops.migration_ledger (sql/0055 PART 5, the actual ledger,
 // no status column -- presence means applied) and must never again read
 // public.schema_version (a data-contract version table that only resembles
 // a ledger; that resemblance destroyed migration state once already,
 // 2026-08-29). Regression guard for the BUILD LANE S2 retarget.
-func TestProbeUIWSchemaLedgerQueriesTheRealLedger(t *testing.T) {
+func TestProbeProfferSchemaLedgerQueriesTheRealLedger(t *testing.T) {
 	db := &capturingProbeDB{row: admittedProbeRow()}
-	if err := ProbeUIWSchema(context.Background(), db); err != nil {
+	if err := ProbeProfferSchema(context.Background(), db); err != nil {
 		t.Fatal(err)
 	}
 	// Executable SQL only -- comments are allowed (and expected) to explain
@@ -119,7 +119,7 @@ func TestProbeUIWSchemaLedgerQueriesTheRealLedger(t *testing.T) {
 	}
 }
 
-func TestProbeUIWSchemaRejectsWrongIdentityOrScope(t *testing.T) {
+func TestProbeProfferSchemaRejectsWrongIdentityOrScope(t *testing.T) {
 	for name, mutate := range map[string]func(*probeRow){
 		"legacy database": func(row *probeRow) { row.database = "ai" },
 		"wrong role":      func(row *probeRow) { row.user = "ai" },
@@ -132,21 +132,21 @@ func TestProbeUIWSchemaRejectsWrongIdentityOrScope(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			row := admittedProbeRow()
 			mutate(&row)
-			if err := ProbeUIWSchema(context.Background(), probeDB{row: row}); err == nil {
+			if err := ProbeProfferSchema(context.Background(), probeDB{row: row}); err == nil {
 				t.Fatal("expected fail-closed admission")
 			}
 		})
 	}
 }
 
-// TestProbeUIWSchemaDefaultBindsStrictAuthoritativeIdentity locks in the
+// TestProbeProfferSchemaDefaultBindsStrictAuthoritativeIdentity locks in the
 // fail-closed default (D-125, D-126): with PLATFORM_DEV_AUTH_BYPASS unset,
 // the probe must bind the REAL authoritative identity and the STRICT
 // (approved_by='owner') receipt expectation -- unmet until go-live, exactly
 // as before this build lane.
-func TestProbeUIWSchemaDefaultBindsStrictAuthoritativeIdentity(t *testing.T) {
+func TestProbeProfferSchemaDefaultBindsStrictAuthoritativeIdentity(t *testing.T) {
 	db := &capturingProbeDB{row: admittedProbeRow()}
-	if err := ProbeUIWSchema(context.Background(), db); err != nil {
+	if err := ProbeProfferSchema(context.Background(), db); err != nil {
 		t.Fatal(err)
 	}
 	if len(db.args) != 14 {
@@ -161,15 +161,15 @@ func TestProbeUIWSchemaDefaultBindsStrictAuthoritativeIdentity(t *testing.T) {
 	}
 }
 
-// TestProbeUIWSchemaDevBypassBindsSentinelIdentityNotSkipsIt is the D-126
+// TestProbeProfferSchemaDevBypassBindsSentinelIdentityNotSkipsIt is the D-126
 // regression guard for the owner's exact correction: the flag must not turn
 // identity/receipt checking OFF, it must repoint both checks at the fixed
 // DEV sentinel. If this ever regresses into a bypass that removes the
 // predicates rather than retargeting them, this test fails.
-func TestProbeUIWSchemaDevBypassBindsSentinelIdentityNotSkipsIt(t *testing.T) {
+func TestProbeProfferSchemaDevBypassBindsSentinelIdentityNotSkipsIt(t *testing.T) {
 	t.Setenv("PLATFORM_DEV_AUTH_BYPASS", "1")
 	db := &capturingProbeDB{row: admittedProbeRow()}
-	if err := ProbeUIWSchema(context.Background(), db); err != nil {
+	if err := ProbeProfferSchema(context.Background(), db); err != nil {
 		t.Fatal(err)
 	}
 	if len(db.args) != 14 {
@@ -190,7 +190,7 @@ func TestProbeUIWSchemaDevBypassBindsSentinelIdentityNotSkipsIt(t *testing.T) {
 	// t.Setenv above is still in effect for this subtest scope; unset for
 	// the strict-mode capture by clearing the variable explicitly.
 	t.Setenv("PLATFORM_DEV_AUTH_BYPASS", "")
-	if err := ProbeUIWSchema(context.Background(), strictDB); err != nil {
+	if err := ProbeProfferSchema(context.Background(), strictDB); err != nil {
 		t.Fatal(err)
 	}
 	if db.query != strictDB.query {
@@ -198,16 +198,16 @@ func TestProbeUIWSchemaDevBypassBindsSentinelIdentityNotSkipsIt(t *testing.T) {
 	}
 }
 
-// TestProbeUIWSchemaDevBypassLogsLoudWarning: D-125/D-126 both require a
+// TestProbeProfferSchemaDevBypassLogsLoudWarning: D-125/D-126 both require a
 // loud one-line warning naming the flag whenever the bypass is active.
-func TestProbeUIWSchemaDevBypassLogsLoudWarning(t *testing.T) {
+func TestProbeProfferSchemaDevBypassLogsLoudWarning(t *testing.T) {
 	t.Setenv("PLATFORM_DEV_AUTH_BYPASS", "true")
 	var buf bytes.Buffer
 	previous := slog.Default()
 	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
 	t.Cleanup(func() { slog.SetDefault(previous) })
 
-	if err := ProbeUIWSchema(context.Background(), probeDB{row: admittedProbeRow()}); err != nil {
+	if err := ProbeProfferSchema(context.Background(), probeDB{row: admittedProbeRow()}); err != nil {
 		t.Fatal(err)
 	}
 	logged := buf.String()
@@ -219,9 +219,9 @@ func TestProbeUIWSchemaDevBypassLogsLoudWarning(t *testing.T) {
 	}
 }
 
-// TestProbeUIWSchemaDevBypassEnvSpellings covers the truthy/falsy env
+// TestProbeProfferSchemaDevBypassEnvSpellings covers the truthy/falsy env
 // vocabulary devAuthBypassEnabled accepts, including the fail-closed default.
-func TestProbeUIWSchemaDevBypassEnvSpellings(t *testing.T) {
+func TestProbeProfferSchemaDevBypassEnvSpellings(t *testing.T) {
 	cases := map[string]bool{
 		"":        false,
 		"0":       false,
@@ -240,7 +240,7 @@ func TestProbeUIWSchemaDevBypassEnvSpellings(t *testing.T) {
 		t.Run("value="+value, func(t *testing.T) {
 			t.Setenv("PLATFORM_DEV_AUTH_BYPASS", value)
 			db := &capturingProbeDB{row: admittedProbeRow()}
-			if err := ProbeUIWSchema(context.Background(), db); err != nil {
+			if err := ProbeProfferSchema(context.Background(), db); err != nil {
 				t.Fatal(err)
 			}
 			gotDev := db.args[3] == devMatterID
@@ -251,8 +251,8 @@ func TestProbeUIWSchemaDevBypassEnvSpellings(t *testing.T) {
 	}
 }
 
-func TestProbeUIWSchemaHidesCatalogError(t *testing.T) {
-	err := ProbeUIWSchema(context.Background(), probeDB{row: probeRow{err: errors.New("secret dsn detail")}})
+func TestProbeProfferSchemaHidesCatalogError(t *testing.T) {
+	err := ProbeProfferSchema(context.Background(), probeDB{row: probeRow{err: errors.New("secret dsn detail")}})
 	if err == nil || strings.Contains(err.Error(), "secret") {
 		t.Fatalf("error = %v, want generic catalog failure", err)
 	}

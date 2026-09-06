@@ -39,7 +39,7 @@ from app.runtime import (
     source_inspection,
     tools,
     upload,
-    uiw,
+    proffer,
 )
 from app.runtime.auth import authentication_middleware
 from fastapi import FastAPI
@@ -110,7 +110,7 @@ app.add_middleware(BaseHTTPMiddleware, dispatch=authentication_middleware)
 
 app.include_router(health.router)
 app.include_router(upload.router)
-app.include_router(uiw.router)
+app.include_router(proffer.router)
 app.include_router(source_inspection.router)
 app.include_router(files.router)
 app.include_router(promote.router)

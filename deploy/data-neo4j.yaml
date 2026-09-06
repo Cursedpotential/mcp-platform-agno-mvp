@@ -5,7 +5,7 @@
 # others. Mirrors the Milvus split (commit 18c42d2 / compose.data-vector.yaml).
 #
 # DEPLOY AS ITS OWN Coolify "Docker Compose" app `data-neo4j` on OVH-3
-# (server jt1tv1j5samqn5rglmtky0qc), repo Cursedpotential/mcp-platform-agno-mvp
+# (server jt1tv1j5samqn5rglmtky0qc), repo Cursedpotential/probata (formerly mcp-platform-agno-mvp)
 # @ main, compose file /compose.data-neo4j.yaml.
 # Env (copy from existing data-tier app):
 #   BIND_IP=100.119.96.29      (OVH-3 tailnet — ports bind here, never 0.0.0.0)

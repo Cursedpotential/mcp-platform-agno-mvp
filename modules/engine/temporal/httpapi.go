@@ -5,7 +5,7 @@
 // tailnet check; it relaxes what happens when that check fails: the request
 // is admitted, but every admission logs a WARN line naming the flag, the
 // rejected RemoteAddr, and the route, so a flag-relaxed request is never
-// silent (D-127 Rule 5). See engine/postgres/uiw_schema_probe.go for the
+// silent (D-127 Rule 5). See engine/postgres/proffer_schema_probe.go for the
 // sibling admission surface this flag also governs (D-126).
 package temporal
 

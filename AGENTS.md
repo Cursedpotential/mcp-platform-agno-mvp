@@ -20,7 +20,7 @@
 > Weaviate = project vector store projection**; "Milvus down" meant only the platform's
 > own data-vector role and that phrasing is retired — never conflate service with role;
 > drift-fix 2026-09-05 Claude Code · Fable 5.1: naming canon sweep D-137..D-141 — this
-> repository is **Indicia Probata** / `probata`; the import lane (UIW / Universal Import /
+> repository is **Indicia Probata** / `probata`; the import lane (formerly UIW / Universal Import /
 > `uiw`) is renamed **proffer**; see `docs/NAMING.md`.)_
 
 > **This is the first file any agent (Claude Code, Codex, Gemini CLI, opencode) reads.**
@@ -155,7 +155,7 @@ Rules, in force everywhere:
    (`upload://`, `r2://`, sealed `file://`), never through Temporal history, an n8n
    payload, or a PostgreSQL activity request.
 6. **No orchestration inside a unit.** Sequencing, fan-out, retries, and human gates
-   belong to the workflow (`modules/engine/uiw`) and to n8n's visual flow — never
+   belong to the workflow (`modules/engine/proffer`; renamed from `uiw`, D-140) and to n8n's visual flow — never
    buried inside a parser, decoder, chunker, or repository method.
 7. **New capability = new Activity, registered in the stage graph.** Do not widen an
    existing Activity to cover a second concern because it is convenient.

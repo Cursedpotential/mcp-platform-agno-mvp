@@ -3,10 +3,10 @@
 > _Byline: Claude Code · Opus 5 · 2026-09-02 (created; this directory had no AGENTS.md,
 > only AGENT_MEMORY.md — the atomicity rule below is why that gap mattered)._
 > drift-fix 2026-09-06 Claude Code · Sonnet 5.1: D-137..D-141 rename applied in this
-> module — package `uiw` -> `proffer`, `uiwworker` -> `profferworker`,
-> `UniversalImportWorkflow` -> `ProfferWorkflow`, task queue `universal-import-v1` ->
+> module — renamed: package `uiw` -> `proffer`, `uiwworker` -> `profferworker`,
+> renamed `UniversalImportWorkflow` -> `ProfferWorkflow`, task queue `universal-import-v1` -> (renamed)
 > `proffer-v1`, module path -> `github.com/Cursedpotential/probata/engine`. The n8n
-> webhook path segments and `N8N_UNIVERSAL_IMPORT_*` env var names are UNCHANGED
+> webhook path segments (`proffer/*`) and `N8N_PROFFER_*` env var names (formerly `universal-import/*`, `N8N_UNIVERSAL_IMPORT_*`) were renamed 2026-09-06 with the deploy lane; an earlier revision of this line said they were UNCHANGED
 > pending a coordinated rename with the deploy/n8n lane (see
 > docs/reviews/ for the day's rename report)._
 

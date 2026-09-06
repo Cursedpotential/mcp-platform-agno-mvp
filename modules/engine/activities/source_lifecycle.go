@@ -1,5 +1,5 @@
 // Package activities implements the source-lifecycle Activities for the
-// universal import workflow. These Activities own only intake identity and
+// proffer workflow (formerly universal import workflow). These Activities own only intake identity and
 // retention: they do not read source bytes into Temporal history, parse,
 // normalize, hash, or make an evidence-authority decision.
 package activities

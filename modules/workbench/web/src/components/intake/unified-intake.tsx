@@ -25,23 +25,23 @@ import { AtomicTools } from "@/components/tools/atomic-tools";
 import { Button } from "@/components/ui/button";
 import {
   ApiError,
-  createUIWSourceContext,
-  decideUIWRepair,
-  getUIWPreview,
-  inspectUIWSource,
-  listUIWSources,
-  startUIW,
-  uploadUIWSource,
+  createProfferSourceContext,
+  decideProfferRepair,
+  getProfferPreview,
+  inspectProfferSource,
+  listProfferSources,
+  startProffer,
+  uploadProfferSource,
 } from "@/lib/api-client";
 import type {
-  UIWPreviewResponse,
-  UIWHumanSourceAssertions,
-  UIWSourceContextReceipt,
-  UIWStartResponse,
-  UIWUploadResponse,
-  UIWSourceBrowserResponse,
-  UIWSourceInspection,
-  UIWSourceObject,
+  ProfferPreviewResponse,
+  ProfferHumanSourceAssertions,
+  ProfferSourceContextReceipt,
+  ProfferStartResponse,
+  ProfferUploadResponse,
+  ProfferSourceBrowserResponse,
+  ProfferSourceInspection,
+  ProfferSourceObject,
 } from "@/lib/shared/types";
 import { useFixedCase } from "@/lib/fixed-case-context";
 import { cn } from "@/lib/utils";
@@ -52,7 +52,7 @@ type OperatorTab = "intake" | "atomic_tools";
 
 const LOCAL_FILE_ACCEPT = ".md,.json,.docx,.html,.htm,.pdf";
 
-const EMPTY_ASSERTIONS: UIWHumanSourceAssertions = {
+const EMPTY_ASSERTIONS: ProfferHumanSourceAssertions = {
   source_class: "unknown",
   source_principal: "",
   other_party: "",
@@ -98,11 +98,11 @@ function bytes(value: number) {
 const terminalPreviewPhases = new Set(["awaiting_repair_decision", "awaiting_decision", "approved", "rejected", "timed_out"]);
 
 async function waitForPreview(previewHandle: string, attempts = 80, ignoredTerminalPhases: ReadonlySet<string> = new Set()) {
-  let lastState: UIWPreviewResponse | null = null;
+  let lastState: ProfferPreviewResponse | null = null;
   let lastError: unknown = null;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
-      lastState = await getUIWPreview(previewHandle);
+      lastState = await getProfferPreview(previewHandle);
       lastError = null;
       if (terminalPreviewPhases.has(lastState.phase) && !ignoredTerminalPhases.has(lastState.phase)) return lastState;
     } catch (requestError) {
@@ -126,11 +126,11 @@ async function fileDigest(file: File) {
 export function UnifiedIntake() {
   const { matter, primaryCourtCase, loading: scopeLoading, error: scopeError } = useFixedCase();
   const [file, setFile] = useState<File | null>(null);
-  const [remote, setRemote] = useState<UIWSourceObject | null>(null);
-  const [inspection, setInspection] = useState<UIWSourceInspection | null>(null);
+  const [remote, setRemote] = useState<ProfferSourceObject | null>(null);
+  const [inspection, setInspection] = useState<ProfferSourceInspection | null>(null);
   const [inspectionLoading, setInspectionLoading] = useState(false);
   const [inspectionError, setInspectionError] = useState<string | null>(null);
-  const [sources, setSources] = useState<UIWSourceBrowserResponse | null>(null);
+  const [sources, setSources] = useState<ProfferSourceBrowserResponse | null>(null);
   const [sourcePrefix, setSourcePrefix] = useState("");
   const [sourceFilter, setSourceFilter] = useState("");
   const [sourcesLoading, setSourcesLoading] = useState(true);
@@ -138,20 +138,20 @@ export function UnifiedIntake() {
   const [digest, setDigest] = useState("");
   const [textPreview, setTextPreview] = useState("");
   const [phase, setPhase] = useState<IntakePhase>("choose");
-  const [upload, setUpload] = useState<UIWUploadResponse | null>(null);
-  const [run, setRun] = useState<UIWStartResponse | null>(null);
-  const [preview, setPreview] = useState<UIWPreviewResponse | null>(null);
+  const [upload, setUpload] = useState<ProfferUploadResponse | null>(null);
+  const [run, setRun] = useState<ProfferStartResponse | null>(null);
+  const [preview, setPreview] = useState<ProfferPreviewResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [previewTab, setPreviewTab] = useState<PreviewTab>("source");
   const [operatorTab, setOperatorTab] = useState<OperatorTab>("intake");
   const [repairChoice, setRepairChoice] = useState<"original" | null>(null);
   const [repairSubmitting, setRepairSubmitting] = useState(false);
   const [repairDecisionRef, setRepairDecisionRef] = useState<string | null>(null);
-  const [assertions, setAssertions] = useState<UIWHumanSourceAssertions>(EMPTY_ASSERTIONS);
-  const [sourceContextReceipt, setSourceContextReceipt] = useState<UIWSourceContextReceipt | null>(null);
+  const [assertions, setAssertions] = useState<ProfferHumanSourceAssertions>(EMPTY_ASSERTIONS);
+  const [sourceContextReceipt, setSourceContextReceipt] = useState<ProfferSourceContextReceipt | null>(null);
   const [intakeRequestId, setIntakeRequestId] = useState<string | null>(null);
 
-  function updateAssertion<K extends keyof UIWHumanSourceAssertions>(key: K, value: UIWHumanSourceAssertions[K]) {
+  function updateAssertion<K extends keyof ProfferHumanSourceAssertions>(key: K, value: ProfferHumanSourceAssertions[K]) {
     setAssertions((current) => ({ ...current, [key]: value }));
     setSourceContextReceipt(null);
     setIntakeRequestId(null);
@@ -160,7 +160,7 @@ export function UnifiedIntake() {
   useEffect(() => {
     let cancelled = false;
     const timer = setTimeout(() => {
-      listUIWSources({ prefix: sourcePrefix, filter: sourceFilter, pageSize: 100 })
+      listProfferSources({ prefix: sourcePrefix, filter: sourceFilter, pageSize: 100 })
         .then((response) => {
           if (!cancelled) {
             setSources(response);
@@ -224,7 +224,7 @@ export function UnifiedIntake() {
     setTextPreview(nextText.slice(0, 250_000));
   }
 
-  async function selectRemote(selected: UIWSourceObject) {
+  async function selectRemote(selected: ProfferSourceObject) {
     const sameSelection = remote?.key === selected.key;
     setRemote(selected);
     setFile(null);
@@ -247,7 +247,7 @@ export function UnifiedIntake() {
     setRepairDecisionRef(null);
     setPhase("ready");
     try {
-      const inspected = await inspectUIWSource(selected);
+      const inspected = await inspectProfferSource(selected);
       if (inspected.key !== selected.key) throw new Error("The inspected source did not match the selection.");
       setInspection(inspected);
       setDigest(inspected.sha256);
@@ -263,7 +263,7 @@ export function UnifiedIntake() {
     if (!sources?.continuation_token) return;
     setSourcesLoading(true);
     try {
-      const next = await listUIWSources({
+      const next = await listProfferSources({
         prefix: sourcePrefix,
         filter: sourceFilter,
         continuationToken: sources.continuation_token,
@@ -284,15 +284,15 @@ export function UnifiedIntake() {
     setRepairChoice(null);
     setRepairDecisionRef(null);
     try {
-      const sealed = file ? await uploadUIWSource(file) : null;
+      const sealed = file ? await uploadProfferSource(file) : null;
       setUpload(sealed);
       const selected = file ?? remote;
       if (!selected) return;
-      const requestId = intakeRequestId ?? `uiw-${matter.id}-${crypto.randomUUID()}`;
+      const requestId = intakeRequestId ?? `proffer-${matter.id}-${crypto.randomUUID()}`;
       setIntakeRequestId(requestId);
       const sourceRef = sealed?.acquisition_ref ?? inspection?.source_ref;
       if (!sourceRef) throw new Error("The selected source has no inspected acquisition reference.");
-      const sourceContext = sourceContextReceipt ?? await createUIWSourceContext({
+      const sourceContext = sourceContextReceipt ?? await createProfferSourceContext({
         request_id: requestId,
         source_ref: sourceRef,
         matter_id: matter.id,
@@ -319,7 +319,7 @@ export function UnifiedIntake() {
         change_reason: "Operator supplied source context during intake",
       });
       setSourceContextReceipt(sourceContext);
-      const started = await startUIW({
+      const started = await startProffer({
         request_id: requestId,
         source_ref: sourceRef,
         declared_format: declaredFormat(selected),
@@ -344,7 +344,7 @@ export function UnifiedIntake() {
     setRepairSubmitting(true);
     setError(null);
     try {
-      const decision = await decideUIWRepair(run.preview_handle, {
+      const decision = await decideProfferRepair(run.preview_handle, {
         approved: true,
         apply_repair: false,
       });
@@ -567,7 +567,7 @@ export function UnifiedIntake() {
                       </div>
                       <div className="mt-5 grid gap-4 sm:grid-cols-2">
                         <label className="grid gap-1.5 text-xs font-semibold">Source relationship
-                          <select className="h-10 border bg-background px-3 font-normal" value={assertions.source_class} onChange={(event) => updateAssertion("source_class", event.target.value as UIWHumanSourceAssertions["source_class"])}>
+                          <select className="h-10 border bg-background px-3 font-normal" value={assertions.source_class} onChange={(event) => updateAssertion("source_class", event.target.value as ProfferHumanSourceAssertions["source_class"])}>
                             <option value="unknown">Unknown / not sure</option><option value="first_party">First party / mine</option><option value="acquired_third_party">Acquired third party</option>
                           </select>
                         </label>
@@ -578,7 +578,7 @@ export function UnifiedIntake() {
                           <input className="h-10 border bg-background px-3 font-normal" value={assertions.source_principal} onChange={(event) => updateAssertion("source_principal", event.target.value)} placeholder="Account, phone, device, or person this came from" />
                         </label>
                         <label className="grid gap-1.5 text-xs font-semibold">How acquired
-                          <select className="h-10 border bg-background px-3 font-normal" value={assertions.acquisition_method} onChange={(event) => updateAssertion("acquisition_method", event.target.value as UIWHumanSourceAssertions["acquisition_method"])}>
+                          <select className="h-10 border bg-background px-3 font-normal" value={assertions.acquisition_method} onChange={(event) => updateAssertion("acquisition_method", event.target.value as ProfferHumanSourceAssertions["acquisition_method"])}>
                             <option value="">Not entered</option><option value="own_device">Own device</option><option value="household_device">Household device</option><option value="voluntary_third_party">Provided voluntarily</option><option value="legal_process">Legal process</option><option value="public_source">Public source</option><option value="unknown">Unknown</option>
                           </select>
                         </label>
@@ -586,7 +586,7 @@ export function UnifiedIntake() {
                           <input type="datetime-local" className="h-10 border bg-background px-3 font-normal" value={assertions.acquired_at ?? ""} onChange={(event) => updateAssertion("acquired_at", event.target.value || null)} />
                         </label>
                         <label className="grid gap-1.5 text-xs font-semibold">Acquisition authority
-                          <select className="h-10 border bg-background px-3 font-normal" value={assertions.acquisition_authority} onChange={(event) => updateAssertion("acquisition_authority", event.target.value as UIWHumanSourceAssertions["acquisition_authority"])}>
+                          <select className="h-10 border bg-background px-3 font-normal" value={assertions.acquisition_authority} onChange={(event) => updateAssertion("acquisition_authority", event.target.value as ProfferHumanSourceAssertions["acquisition_authority"])}>
                             <option value="">Not entered</option><option value="device_owner">Device owner</option><option value="parent_guardian">Parent / guardian</option><option value="account_holder">Account holder</option><option value="consent_given">Consent given</option><option value="court_order">Court order</option><option value="unclear">Unclear</option>
                           </select>
                         </label>
@@ -597,7 +597,7 @@ export function UnifiedIntake() {
                           <input type="date" className="h-10 border bg-background px-3 font-normal" value={assertions.occurred_end} onChange={(event) => updateAssertion("occurred_end", event.target.value)} />
                         </label>
                         <label className="grid gap-1.5 text-xs font-semibold">Date certainty
-                          <select className="h-10 border bg-background px-3 font-normal" value={assertions.date_certainty} onChange={(event) => updateAssertion("date_certainty", event.target.value as UIWHumanSourceAssertions["date_certainty"])}>
+                          <select className="h-10 border bg-background px-3 font-normal" value={assertions.date_certainty} onChange={(event) => updateAssertion("date_certainty", event.target.value as ProfferHumanSourceAssertions["date_certainty"])}>
                             <option value="">Not entered</option><option value="exact">Exact</option><option value="approximate">Approximate</option><option value="range">Date range</option><option value="unknown">Unknown</option>
                           </select>
                         </label>
@@ -712,7 +712,7 @@ export function UnifiedIntake() {
   );
 }
 
-function phaseForPreview(state: UIWPreviewResponse): IntakePhase {
+function phaseForPreview(state: ProfferPreviewResponse): IntakePhase {
   if (state.phase === "awaiting_repair_decision" && state.repair_assessment?.review_required) return "repair_review";
   if (state.phase === "awaiting_decision") return "review";
   return "complete";

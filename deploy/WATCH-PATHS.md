@@ -18,7 +18,7 @@ watch paths matter: apps without them redeploy on every push to `main`.
 Before this repair, all three Dockerfiles built directly from a live
 `vendored/sbv/` (now `modules/forks/sbv/`) checkout via `COPY vendored/sbv/ ...`,
 so a change there could change the built binary and the old watch-path comments
-listed it for `universal-import-worker` and `parser-activity-runtime`.
+listed it for `proffer-worker` and `parser-activity-runtime`.
 
 That is no longer how the build gets sbv's source. `modules/engine/go.mod` has:
 
@@ -49,22 +49,22 @@ a `modules/engine/vendor/**` diff, so no separate watch path is needed.
 
 ## Per-app Watch Paths
 
-### `universal-import-worker` (`deploy/universal-import-worker.yaml`)
+### `proffer-worker` (`deploy/proffer-worker.yaml`)
 
 Paste into Coolify's Watch Paths field for this app:
 
 ```
 modules/engine/**
-deploy/docker/universal-import-worker/**
-deploy/universal-import-worker.yaml
+deploy/docker/proffer-worker/**
+deploy/proffer-worker.yaml
 ```
 
-### `universal-import-starter` (`deploy/universal-import-starter.yaml`)
+### `proffer-starter` (`deploy/proffer-starter.yaml`)
 
 ```
 modules/engine/**
-deploy/docker/universal-import-starter/**
-deploy/universal-import-starter.yaml
+deploy/docker/proffer-starter/**
+deploy/proffer-starter.yaml
 ```
 
 ### `parser-activity-runtime` (`deploy/parser-activity-runtime.yaml`)

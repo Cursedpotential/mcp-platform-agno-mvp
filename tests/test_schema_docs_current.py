@@ -23,7 +23,7 @@ pytestmark = pytest.mark.integration
 
 REPO = Path(__file__).resolve().parents[1]
 CATALOG = REPO / "docs" / "schema" / "catalog.json"
-ENV = Path.home() / ".secrets" / "Agno-MCP-Platform.env"
+ENV = Path.home() / ".secrets" / "probata.env"
 HOST, PORT, DB, USER = "100.91.190.107", 5432, "ai", "ai"
 
 

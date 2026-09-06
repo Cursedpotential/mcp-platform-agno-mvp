@@ -50,7 +50,7 @@ present and enforces this boundary. SDK-facing clients remain under `app/repo/`.
 ## Endpoints
 
 - `POST /api/upload` — stream-hash + stage a file (dedupes by sha256)
-- `GET /api/uiw/sources` — browse the fixed, read-only `casebible-sorted` source bucket
+- `GET /api/proffer/sources` — browse the fixed, read-only `casebible-sorted` source bucket
 - `GET /api/files`, `GET /api/files/{id}`, `PATCH /api/files/{id}` — list/detail/edit staged files
 - `POST /api/promote/{id}`, `POST /api/promote-all` — framework-neutral document ingest through `/v1/ingest`, tracked by the durable `/v1/runs/{run_id}` receipt; AI-chat exports remain denied by D-082
 - `POST /api/runs` (json `{staged_id, workflow, domain, mode, source_meta}` or multipart `file`), `GET /api/runs`, `GET /api/runs/{id}` — proxy to the spine's `/v1/runs` pipeline (custody → parse → store → knowledge)
@@ -102,8 +102,8 @@ runtime-read files and are never accepted as inbound Workbench credentials.
 One runtime-mounted JSON file supplies the R2 endpoint and account credential.
 The browser cannot choose a bucket: source browsing is fixed read-only to
 `casebible-sorted`, while local `POST /api/upload` staging writes are fixed to
-`nexus` under `OBJECT_STORE_PREFIX`. `POST /api/uiw/upload` is a different route:
-it streams to the UIW starter and does not write the Workbench staging bucket.
+`nexus` under `OBJECT_STORE_PREFIX`. `POST /api/proffer/upload` is a different route:
+it streams to the Proffer starter and does not write the Workbench staging bucket.
 
 ## Origin
 
