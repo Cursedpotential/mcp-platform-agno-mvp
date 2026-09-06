@@ -58,6 +58,7 @@ This file is a router, not an encyclopedia. Read only the branches relevant to t
 | `sql/**` | `sql/AGENT_MEMORY.md` |
 | `deploy/**` | `deploy/AGENT_MEMORY.md` |
 | `deploy/docker/**` (was root `docker/`, moved 2026-09-01) | `deploy/docker/AGENT_MEMORY.md`; for n8n also `deploy/docker/n8n/AGENT_MEMORY.md` |
+| `modules/advocatio/**` (advocatio; formerly `modules/Legal-Workspace/`) and `modules/vestigia/**` (vestigia; formerly `modules/traceIQ/`) | each nested repo's own `AGENTS.md` / `AGENT_MEMORY.md` |
 | `modules/workbench/**` (was root `workbench/`, moved 2026-09-01) | `modules/workbench/AGENT_MEMORY.md` plus the closest nested memory |
 | `tests/**` | `tests/AGENT_MEMORY.md` |
 | `knowledge/**` | `knowledge/AGENT_MEMORY.md` |
