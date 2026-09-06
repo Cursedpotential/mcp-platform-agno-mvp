@@ -13,12 +13,11 @@ Status legend: **DONE** (verified live) · **PENDING-OWNER** (classifier refused
 |---|---|---|---|
 | GitHub repository | `Cursedpotential/mcp-platform-agno-mvp` | `Cursedpotential/probata` (GitHub redirect from old name active) | DONE 2026-09-05 |
 | Local `origin` remote | old URL | `https://github.com/Cursedpotential/probata.git` | DONE |
-| Commits on `main`, local, **not yet pushed** at time of writing | — | `d7e8f81` (D-142 + swept pure renames), `34f8d8d` engine, `b50d828` server, `01dfaa2` docs, `48ff9f3` deploy/engine-contract/workbench/tests/gate | push is AFTER the Coolify repoint (§2), otherwise the next auto-build fails |
+| Commits on `main` | — | `d7e8f81`, `34f8d8d`, `b50d828`, `01dfaa2`, `48ff9f3`, `4fed839` + the ingest session's `9c00b46`, `35e5092` | PUSHED 2026-09-06 10:25 EDT after the Coolify repoint |
 
-## 2. Coolify (control plane on IONOS) — PENDING-OWNER
+## 2. Coolify (control plane on IONOS) — DONE 2026-09-06 10:24 EDT (owner exited auto mode; verified with `show`/`envs`)
 
-The classifier refused the PATCH/env calls from this session; the exact commands are in the chat handoff
-(scratchpad `coolify_rename.py`). Nothing below has landed yet as of 09:55 EDT; re-verify with `show`.
+Caveat found during the env rename: Coolify keeps a preview-environment twin of every key; the first pass deleted the preview twins and created the new keys as preview rows. Corrected by deleting the remaining old production rows and promoting the new keys to production (values verbatim). `N8N_PROFFER_BASE_URL` production value was re-set to the tailnet URL (`http://100.91.190.107:5678/webhook`, 34 chars) because the preview twin carried the docker-internal hostname. `TEMPORAL_TASK_QUEUE=proffer-v1` set explicitly on worker and starter.
 
 | App uuid | Field | Old | New |
 |---|---|---|---|
@@ -53,7 +52,7 @@ until each app is redeployed (§6).
 Container-side paths changed in git: `/data/uiw/*` → `/data/proffer/*`; `/run/secrets/uiw-*` → `/run/secrets/proffer-*`;
 `/run/secrets/n8n-universal-import-auth` → `/run/secrets/n8n-proffer-auth`.
 
-## 4. Temporal — AFTER PUSH
+## 4. Temporal — DONE 2026-09-06 10:28 EDT: worker log `Started Worker Namespace default TaskQueue proffer-v1`, 26 activities; starter `/healthz` 200
 
 | Item | Old | New | Note |
 |---|---|---|---|
@@ -61,7 +60,7 @@ Container-side paths changed in git: `/data/uiw/*` → `/data/proffer/*`; `/run/
 | Workflow type | `UniversalImportWorkflow` | `ProfferWorkflow` | in-flight runs are rehearsals (D-142); they are orphaned, not drained — terminate them in Temporal UI after the new worker is up |
 | Old worker drained? | — | no | D-142: nothing live to preserve |
 
-## 5. n8n — PENDING-OWNER (MCP access is not enabled on the seven workflows, so this session cannot edit them)
+## 5. n8n — DONE 2026-09-06 10:24 EDT via the REST API (`X-N8N-API-KEY`, the same path the agents used to create them); all seven renamed `Proffer - …`, webhook paths `proffer/*`, all still active
 
 | Live workflow (id) | Old webhook path | New path | Rename name to |
 |---|---|---|---|
@@ -78,7 +77,7 @@ The checked-in definitions under `deploy/docker/n8n/workflows/proffer/*.json` al
 Sequencing: change the live paths at the same time as the worker/starter redeploy; until both sides match,
 parser select/execute calls 404.
 
-## 6. Redeploys — AFTER PUSH (in this order)
+## 6. Redeploys — DONE 2026-09-06 10:26–10:29 EDT (all four queued via API; worker Up, starter healthy, parser-runtime healthy, workbench healthy; worker mounts verified on `/data/agno/volumes/proffer/*` and `/run/secrets/n8n-proffer-auth`)
 
 1. `proffer-worker` and `proffer-starter` together (queue + workflow type + env names + mounts all change at once).
 2. `parser-activity-runtime` (new bind-mount paths).
@@ -104,4 +103,4 @@ first per the transfer rule); old prefix stays until the copy is verified. Not d
 | SBV's own "universal import" API term in `sbv_sms.py` / `_sbv_client.py` | donor vocabulary, not our lane |
 | Case Bible identifiers (`casebible-*` buckets, `casebible` database/table prefix, `cb-*` commands) | D-141 KEEP |
 | sibling repos `Legal-Workspace` → advocatio, `traceIQ` → vestigia (GitHub names) | directory renames are the last step of this pass; GitHub repo renames need their own decision |
-| Checkout directory `Agno-MCP-Platform` → `probata` + memory dir + parent gitlink + memsearch collection | last step, ends the session; see chat |
+| Checkout directory `Agno-MCP-Platform` → `probata` + memory dir + parent gitlink + memsearch collection | BLOCKED by open handles (this session, the ingest session, a pwsh window): Windows refuses the rename while any process has the dir as cwd. `modules/Legal-Workspace` → `modules/advocatio` DONE (junction at old name). `modules/traceIQ` → `vestigia` and the repo dir + memory dir are done by `finish_rename_dirs.ps1` (scratchpad) once all sessions are closed; it also aliases the parent routers, commits both repos, and reindexes memsearch under the new collection name |
