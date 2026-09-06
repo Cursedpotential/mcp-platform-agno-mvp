@@ -1,0 +1,29 @@
+# SETTLED — do not re-open without explicit owner sign-off
+
+> _Byline: Claude Code · glm-5.3:cloud · 2026-09-03._
+> This is the **lookup index** from `docs/reviews/2026-09-02-relitigation-pattern-and-fix.md` §4-F1.
+> `docs/DECISION_LOG.md` and `docs/adr/` remain the authority; this file is only the recall surface.
+> **Recording rule (F1):** a row is appended here in the SAME turn a D-entry or ADR is recorded — part of the recording checklist, not an afterthought. Never delete rows; supersede via the last column.
+> **Use rule (F3):** any proposal touching a row's keywords must cite the ruling in its first line. Contradicting a cited ruling requires opening with `RE-OPENING D-xxx: <what changed>` and gets no build work until the owner signs off.
+
+| Topic keywords | Ruling | One-line verdict | Supersedes / superseded-by |
+|---|---|---|---|
+| hashing, custody hash, H1 H2 H3, "four hashes", hash moments, fingerprint | D-124, D-077, D-136 | 3 levels / 4 hash MOMENTS / 5 kinds; no H4; content+timestamps are the immutable core; two distinct H3 chain constructions (SBV Go vs Case Bible) — never relabel legacy | — |
+| feature flags, dev bypass, auth bypass, immutability guards | D-125, D-126, D-127, D-128 | Flags stop dev-stage gates, never the work; guards are owed work, built and proven, switchable off until go-live | D-128 amends D-110 |
+| Temporal activities, unit modularity, n8n node as activity, activity wrapping | D-130 + AGENTS.md ATOMICITY | One unit = one Activity; three call shapes, one unit; no orchestration inside a unit; new capability = new Activity in the stage graph | — |
+| extraction scope, preview restrictions, message modification, metadata edits | D-136 (governs), D-134, D-135 | THE WHOLE RULE: extract everything; never modify content or timestamps; everything else is operator discretion — no permission gates, no ceremony | D-136 simplifies D-135 |
+| SBV, donor, fork, decode engine | D-131 | SBV is a DONOR (lowcarbdev, MIT), not a fork; absorbing into `modules/engine/decode/`; name donor-derived code for what it does now | — |
+| Workbench frontend stack, Evidence, TanStack, datagrids | D-129 | Named standard (incl. Evidence.dev); it exists as a standard because it is recorded here, not only in package.json | — |
+| service identity, Tailscale address, Traefik, Authentik, forward-auth | D-132, D-133, D-134 | Per-service Tailscale identity; Authentik = OIDC only, NOT Traefik forward-auth; no second platform-tools interim | D-133 supersedes the built-then-abandoned `deploy/authentik.yaml` forward-auth design |
+| dev identity, case registry UUID, go-live | D-126 | Forced synthetic DEV identity behind the dev flag until go-live; real UUIDs minted only then | — |
+| preview vs custodian assertion, read-only preview | D-135/D-136, ADR-0052/0059, D-123 | Preview identifies/parses/derives; the custodian (affiant) asserts metadata | — |
+| knowledge horizons, passes, as-lived vs hindsight stores, retrieval filter | ADR-0045 §B, ADR-0059 | One authored spine; version-pinned derived materializations only; a pass is a retrieval filter bound to an agent — never a table or lane | — |
+| chunking, document unit, conversation bundle | ADR-0053 | chunk → classify → domain-tag; the classified chunk is the document unit | supersedes the per-record `occurred_at_max` bundle-clock proposal |
+| SurrealDB role, retired stores, graph engine | D-073, D-080, D-070 | SurrealDB = governed final temporal-graph/walk/analysis engine; only the legacy Agno operational adapter is retired; Graphiti retired | — |
+| geo lane, GPS, stay points, geofence | D-121 | PARKED deliberately; restore only from `sql/parked/geo_lane_parked_20260831.sql`; absence is not a gap | — |
+| tests location, durable reports | ADR-0054 (amended 2026-09-01) | Test source in `tests/`; durable reports in `tests/_reports/`; `build/` is packaging only | — |
+| parser coverage, tools gateway, chatminer, "do we have a parser for X" | 2026-09-02 deployment + 2026-09-03 owner correction | 11 live parsers deployed in the Go tools gateway (SMS XML, Facebook, iMessage, messaging CSV, Snapchat, WhatsApp, … ported from chatminer/`parsers/*`). INVENTORY the gateway before proposing any parser build. | — |
+| chats, AI-chat exports, ChatGPT/Claude transcripts as evidence | 2026-09-03 session ruling (owner verbal, D-number pending) | AI-chat exports are context-only, never evidence-level messaging; sender/receiver normalization applies to first/third-party messaging only | — || Milvus, memsearch, vector store down/up, data-vector | 2026-09-03 owner correction (repeated angrily; D-number pending, I-13 debt) | The Milvus service (`100.91.190.107:19530`, collection `agent_session_memory_nemotron3`) is UP and IS memsearch's backend — memsearch is a live, working source. Only the Agno platform's `data-vector` role is deliberately down (Weaviate is the platform search projection, D-042). NEVER say "Milvus is down" and NEVER treat a memsearch failure as expected. | — |
+
+| empty stocks, "preserve the data", migration vs teardown, live evidence, golden clone, reclone | D-142 (2026-09-05; owner: "preserving shit that isn't there drove two weeks of database bullshit") | ZERO committed live evidence exists. Only `reference.*`, hand labels, catalog, curated docs are precious. Never design around protecting an empty stock: tear down + re-clone from a golden template instead of purging or migrating. Renames of paths/DB objects/queues/collections are cheap until first real ingest. | sharpens the 2026-08-02 disposable-data ruling |
+| rename, memory stores, recall, alias vs replace, AGENT_MEMORY, .remember, memsearch, cnf | D-142 | Recall stores (memory dir, `.remember`, memsearch journals, cnf, knowledge graph, AGENT_MEMORY routers) get the NEW name APPENDED beside the old, never replaced, so either term hits. Canon/truth docs get strike-through + new name. | — |
