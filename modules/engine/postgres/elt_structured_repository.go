@@ -55,7 +55,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/activities"
+	"github.com/Cursedpotential/probata/engine/activities"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )

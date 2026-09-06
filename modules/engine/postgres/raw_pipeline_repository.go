@@ -18,10 +18,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/activities"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/parser"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/activities"
+	"github.com/Cursedpotential/probata/engine/parser"
+	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/stagegraph"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -66,7 +66,7 @@ type bundleLine struct {
 	Accounting *parser.BundleAccounting  `json:"accounting,omitempty"`
 }
 
-func (r *RawPipelineRepository) OpenRawBundle(ctx context.Context, ref uiw.Ref) (activities.RawBundleReader, error) {
+func (r *RawPipelineRepository) OpenRawBundle(ctx context.Context, ref proffer.Ref) (activities.RawBundleReader, error) {
 	if err := requireRef(ref, "raw bundle"); err != nil {
 		return nil, err
 	}
@@ -272,7 +272,7 @@ func (r *RawPipelineRepository) BeginRawGeneration(ctx context.Context, spec act
 			return nil, decodeErr
 		}
 		return &rawGenerationReplayWriter{
-			resultRef: uiw.Ref(summary.RefID), receiptRef: uiw.Ref(priorReceiptID.String()),
+			resultRef: proffer.Ref(summary.RefID), receiptRef: proffer.Ref(priorReceiptID.String()),
 			expected: summary.BundleAccounting(),
 		}, nil
 	}
@@ -393,7 +393,7 @@ func (w *rawGenerationWriter) Append(ctx context.Context, record parser.RawRecor
 	return nil
 }
 
-func (w *rawGenerationWriter) Commit(ctx context.Context, accounting parser.BundleAccounting) (uiw.Ref, uiw.Ref, error) {
+func (w *rawGenerationWriter) Commit(ctx context.Context, accounting parser.BundleAccounting) (proffer.Ref, proffer.Ref, error) {
 	if w.closed {
 		return "", "", errors.New("raw generation writer is closed")
 	}
@@ -437,7 +437,7 @@ func (w *rawGenerationWriter) Commit(ctx context.Context, accounting parser.Bund
 		return "", "", fmt.Errorf("commit raw generation: %w", err)
 	}
 	w.closed = true
-	return uiw.Ref(w.rawGenerationID.String()), uiw.Ref(receiptID.String()), nil
+	return proffer.Ref(w.rawGenerationID.String()), proffer.Ref(receiptID.String()), nil
 }
 
 func (w *rawGenerationWriter) Abort(ctx context.Context) error {
@@ -456,7 +456,7 @@ func (w *rawGenerationWriter) Abort(ctx context.Context) error {
 // final accounting matches the prior receipt exactly before returning the
 // same references.
 type rawGenerationReplayWriter struct {
-	resultRef, receiptRef uiw.Ref
+	resultRef, receiptRef proffer.Ref
 	expected              parser.BundleAccounting
 	count                 uint64
 	closed                bool
@@ -476,7 +476,7 @@ func (w *rawGenerationReplayWriter) Append(ctx context.Context, record parser.Ra
 	return nil
 }
 
-func (w *rawGenerationReplayWriter) Commit(ctx context.Context, accounting parser.BundleAccounting) (uiw.Ref, uiw.Ref, error) {
+func (w *rawGenerationReplayWriter) Commit(ctx context.Context, accounting parser.BundleAccounting) (proffer.Ref, proffer.Ref, error) {
 	if w.closed {
 		return "", "", errors.New("raw generation writer is closed")
 	}
@@ -673,7 +673,7 @@ func encodeJSON(value any) ([]byte, error) {
 	return encoded, nil
 }
 
-func resolveRawGenerationFromChain(ctx context.Context, tx pgx.Tx, ref uiw.Ref) (rawGenerationID, sourceVersionID uuid.UUID, err error) {
+func resolveRawGenerationFromChain(ctx context.Context, tx pgx.Tx, ref proffer.Ref) (rawGenerationID, sourceVersionID uuid.UUID, err error) {
 	receiptID, err := parseUUIDRef(ref, "raw generation chain")
 	if err != nil {
 		return uuid.Nil, uuid.Nil, err
@@ -765,16 +765,16 @@ func priorReconciliationOutcome(ctx context.Context, tx pgx.Tx, executionID uuid
 		SELECT status, jsonb_array_length(discrepancies) FROM context.reconciliation_receipt WHERE id = $1::uuid`, ref.RefID).Scan(&status, &discrepancyCount); err != nil {
 		return activities.ReconciliationOutcome{}, false, fmt.Errorf("read prior %s reconciliation receipt: %w", noun, err)
 	}
-	outcome := activities.ReconciliationOutcome{ReceiptRef: uiw.Ref(receiptID.String())}
+	outcome := activities.ReconciliationOutcome{ReceiptRef: proffer.Ref(receiptID.String())}
 	switch status {
 	case "success":
-		outcome.Status = uiw.StatusSuccess
-		outcome.Ref = uiw.Ref(ref.RefID)
+		outcome.Status = proffer.StatusSuccess
+		outcome.Ref = proffer.Ref(ref.RefID)
 	case "not_applicable":
-		outcome.Status = uiw.StatusNotApplicable
+		outcome.Status = proffer.StatusNotApplicable
 		outcome.Reason = fmt.Sprintf("%s previously determined not applicable", noun)
 	case "failed":
-		outcome.Status = uiw.StatusFailed
+		outcome.Status = proffer.StatusFailed
 		outcome.Reason = fmt.Sprintf("%s previously found %d discrepancy(ies)", noun, discrepancyCount)
 	default:
 		return activities.ReconciliationOutcome{}, false, fmt.Errorf("prior %s reconciliation receipt has unsupported status %q", noun, status)
@@ -823,16 +823,16 @@ func (r *RawPipelineRepository) writeReconciliation(
 		return activities.ReconciliationOutcome{}, fmt.Errorf("write %s reconciliation receipt: %w", kind, err)
 	}
 
-	outcome := activities.ReconciliationOutcome{ReceiptRef: uiw.Ref(receiptID.String())}
+	outcome := activities.ReconciliationOutcome{ReceiptRef: proffer.Ref(receiptID.String())}
 	switch status {
 	case "success":
-		outcome.Status = uiw.StatusSuccess
-		outcome.Ref = uiw.Ref(reconciliationID.String())
+		outcome.Status = proffer.StatusSuccess
+		outcome.Ref = proffer.Ref(reconciliationID.String())
 	case "not_applicable":
-		outcome.Status = uiw.StatusNotApplicable
+		outcome.Status = proffer.StatusNotApplicable
 		outcome.Reason = reason
 	default:
-		outcome.Status = uiw.StatusFailed
+		outcome.Status = proffer.StatusFailed
 		outcome.Reason = reason
 	}
 	return outcome, nil
@@ -1189,7 +1189,7 @@ func (r *RawPipelineRepository) ReconcileByteCoverage(ctx context.Context, spec 
 	return outcome, nil
 }
 
-func loadReconciliationStatus(ctx context.Context, tx pgx.Tx, ref uiw.Ref, wantKind string, rawGenerationID uuid.UUID) (string, error) {
+func loadReconciliationStatus(ctx context.Context, tx pgx.Tx, ref proffer.Ref, wantKind string, rawGenerationID uuid.UUID) (string, error) {
 	reconciliationID, err := parseUUIDRef(ref, wantKind)
 	if err != nil {
 		return "", err
@@ -1210,7 +1210,7 @@ func loadReconciliationStatus(ctx context.Context, tx pgx.Tx, ref uiw.Ref, wantK
 	return status, nil
 }
 
-func loadHashReceiptDigest(ctx context.Context, tx pgx.Tx, ref uiw.Ref, wantKind string) (digestHex, construction string, sourceVersionID uuid.UUID, err error) {
+func loadHashReceiptDigest(ctx context.Context, tx pgx.Tx, ref proffer.Ref, wantKind string) (digestHex, construction string, sourceVersionID uuid.UUID, err error) {
 	receiptID, err := parseUUIDRef(ref, wantKind)
 	if err != nil {
 		return "", "", uuid.Nil, err
@@ -1381,7 +1381,7 @@ func (r *RawPipelineRepository) VerifyRawCoverageAgainstSource(ctx context.Conte
 	if outcome, found, err := priorReconciliationOutcome(ctx, tx, executionID, "raw/source verification"); err != nil {
 		return activities.ReconciliationOutcome{}, err
 	} else if found {
-		if outcome.Status == uiw.StatusSuccess {
+		if outcome.Status == proffer.StatusSuccess {
 			if err := sealRawGeneration(ctx, tx, rawGenerationID, r.now()); err != nil {
 				return activities.ReconciliationOutcome{}, err
 			}
@@ -1478,7 +1478,7 @@ func (r *RawPipelineRepository) VerifyRawCoverageAgainstSource(ctx context.Conte
 	if err != nil {
 		return activities.ReconciliationOutcome{}, err
 	}
-	if outcome.Status == uiw.StatusSuccess {
+	if outcome.Status == proffer.StatusSuccess {
 		if err := sealRawGeneration(ctx, tx, rawGenerationID, r.now()); err != nil {
 			return activities.ReconciliationOutcome{}, err
 		}

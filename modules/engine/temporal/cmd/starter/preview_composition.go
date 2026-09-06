@@ -12,10 +12,10 @@ import (
 )
 
 const (
-	previewCursorKeyFileEnv        = "UIW_PREVIEW_CURSOR_KEY_FILE"
-	previewServiceTokenFileEnv     = "UIW_SERVICE_TOKEN_FILE"
-	defaultPreviewCursorKeyFile    = "/run/secrets/uiw-preview-cursor-key"
-	defaultPreviewServiceTokenFile = "/run/secrets/uiw-service-token"
+	previewCursorKeyFileEnv        = "PROFFER_PREVIEW_CURSOR_KEY_FILE"
+	previewServiceTokenFileEnv     = "PROFFER_SERVICE_TOKEN_FILE"
+	defaultPreviewCursorKeyFile    = "/run/secrets/proffer-preview-cursor-key"
+	defaultPreviewServiceTokenFile = "/run/secrets/proffer-service-token"
 )
 
 func previewCursorKey() ([]byte, error) {

@@ -34,10 +34,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/activities"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/chunk"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/activities"
+	"github.com/Cursedpotential/probata/engine/chunk"
+	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/stagegraph"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -351,7 +351,7 @@ func (r *ChunkRepository) PersistChunkGeneration(ctx context.Context, spec activ
 	}
 	rollback = false
 	return activities.ChunkGenerationOutcome{
-		GenerationRef: uiw.Ref(generationID.String()), ReceiptRef: uiw.Ref(receiptID.String()),
+		GenerationRef: proffer.Ref(generationID.String()), ReceiptRef: proffer.Ref(receiptID.String()),
 		ChunkCount: chunkCount, ReassemblyVerified: true,
 	}, nil
 }
@@ -366,7 +366,7 @@ func loadChunkOutcome(ctx context.Context, tx pgx.Tx, generationID, receiptID uu
 		return activities.ChunkGenerationOutcome{}, fmt.Errorf("read prior chunk reassembly receipt: %w", err)
 	}
 	return activities.ChunkGenerationOutcome{
-		GenerationRef: uiw.Ref(generationID.String()), ReceiptRef: uiw.Ref(receiptID.String()),
+		GenerationRef: proffer.Ref(generationID.String()), ReceiptRef: proffer.Ref(receiptID.String()),
 		ChunkCount: chunkCount, ReassemblyVerified: verification == "exact",
 	}, nil
 }

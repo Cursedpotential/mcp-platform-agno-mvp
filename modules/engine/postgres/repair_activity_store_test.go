@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/activities"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/activities"
+	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/google/uuid"
 )
 
@@ -39,7 +39,7 @@ func TestValidatePriorRepairAssessmentReturnsDurableReviewRequirement(t *testing
 	detection := []byte(`{"needs_repair":true,"details":{"count":2}}`)
 	preview := []byte(`{"sample":[]}`)
 	spec := activities.RepairAssessmentSpec{
-		SourceVersionRef: uiw.Ref(sourceID.String()), OriginalRef: uiw.Ref(originalID.String()),
+		SourceVersionRef: proffer.Ref(sourceID.String()), OriginalRef: proffer.Ref(originalID.String()),
 		DeclaredFormat: "pdf", Detection: json.RawMessage(`{"details":{"count":2},"needs_repair":true}`),
 		Preview: json.RawMessage(`{"sample":[]}`), ReviewRequired: false,
 	}
@@ -48,7 +48,7 @@ func TestValidatePriorRepairAssessmentReturnsDurableReviewRequirement(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.ResultRef != uiw.Ref(assessmentID.String()) || !result.ReviewRequired {
+	if result.ResultRef != proffer.Ref(assessmentID.String()) || !result.ReviewRequired {
 		t.Fatalf("prior assessment did not preserve durable review requirement: %+v", result)
 	}
 }
@@ -59,7 +59,7 @@ func TestValidatePriorRepairAssessmentDiscardsChangedRetryContent(t *testing.T) 
 	originalID := uuid.MustParse("00000000-0000-0000-0000-000000000063")
 	resultRef, _ := json.Marshal(map[string]string{"ref_kind": "repair_assessment", "ref_id": assessmentID.String()})
 	spec := activities.RepairAssessmentSpec{
-		SourceVersionRef: uiw.Ref(sourceID.String()), OriginalRef: uiw.Ref(originalID.String()),
+		SourceVersionRef: proffer.Ref(sourceID.String()), OriginalRef: proffer.Ref(originalID.String()),
 		DeclaredFormat: "pdf", Detection: json.RawMessage(`{"needs_repair":false}`), Preview: json.RawMessage(`{"sample":[]}`),
 	}
 	result, err := validatePriorRepairAssessment(spec, assessmentID, sourceID, originalID, "pdf", resultRef,
@@ -67,7 +67,7 @@ func TestValidatePriorRepairAssessmentDiscardsChangedRetryContent(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !result.ReviewRequired || result.ResultRef != uiw.Ref(assessmentID.String()) {
+	if !result.ReviewRequired || result.ResultRef != proffer.Ref(assessmentID.String()) {
 		t.Fatalf("changed retry content replaced the persisted assessment: %+v", result)
 	}
 }

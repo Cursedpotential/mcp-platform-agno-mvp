@@ -1,4 +1,4 @@
-// Byline: Codex · GPT-5.6-Sol · 2026-08-30 (fixed UIW source authority)
+// Byline: Codex · GPT-5.6-Sol · 2026-08-30 (fixed Proffer source authority)
 package runtimeapi
 
 import (
@@ -11,16 +11,16 @@ import (
 )
 
 // devFixtureBucket / devFixturePrefix name the ONLY non-canonical R2 location a
-// UIW run may start from, and only while PLATFORM_DEV_AUTH_BYPASS is set
+// Proffer run may start from, and only while PLATFORM_DEV_AUTH_BYPASS is set
 // (D-125/D-127: the dev flag is the single switch for every dev-only
 // admission). Synthetic rehearsal fixtures live there so they never touch
 // casebible-sorted (owner rule: test data must never become canonical).
 // Live finding 2026-09-05: the tool gateway's R2 resolver is proven against
-// r2://nexus/uiw/test-fixtures/…, but this allowlist rejected it at the API.
+// r2://nexus/proffer/test-fixtures/…, but this allowlist rejected it at the API.
 // Production source authority (upload:// or Case Bible Sorted) is unchanged.
 const (
 	devFixtureBucket = "nexus"
-	devFixturePrefix = "uiw/test-fixtures/"
+	devFixturePrefix = "proffer/test-fixtures/"
 )
 
 func devFixtureSourcesEnabled() bool {

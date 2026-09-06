@@ -8,7 +8,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/parser"
+	"github.com/Cursedpotential/probata/engine/parser"
 )
 
 const (
@@ -33,7 +33,7 @@ const (
 // correspondence: it derives normalization_lineage purely by zipping the
 // ordered parsed-raw-record sequence against the ordered normalized-record
 // sequence, since normalize_generation_activity's bundle reference is not
-// itself passed to persist_lineage_activity (see engine/uiw/workflow.go).
+// itself passed to persist_lineage_activity (see engine/proffer/workflow.go).
 type GenericMessageNormalizer struct{}
 
 func (GenericMessageNormalizer) Capability() Capability {

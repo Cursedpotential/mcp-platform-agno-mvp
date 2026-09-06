@@ -24,9 +24,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/normalize"
-	platformpostgres "github.com/Cursedpotential/mcp-platform-agno-mvp/engine/postgres"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/normalize"
+	platformpostgres "github.com/Cursedpotential/probata/engine/postgres"
+	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -61,7 +61,7 @@ func NewFilesystemNormalizedBundleFactory(db platformpostgres.DB, root string) (
 			return nil, fmt.Errorf("unsafe normalized bundle %s directory: %w", directory, err)
 		}
 	}
-	return func(_ context.Context, req uiw.StageRequest, input normalize.NormalizerInput) (normalize.BundleWriter, error) {
+	return func(_ context.Context, req proffer.StageRequest, input normalize.NormalizerInput) (normalize.BundleWriter, error) {
 		if strings.TrimSpace(req.RequestID) == "" || req.SourceVersionRef == "" {
 			return nil, errors.New("normalized bundle writer requires request and source references")
 		}
@@ -75,7 +75,7 @@ func NewFilesystemNormalizedBundleFactory(db platformpostgres.DB, root string) (
 type filesystemNormalizedBundleWriter struct {
 	db        platformpostgres.DB
 	root      string
-	request   uiw.StageRequest
+	request   proffer.StageRequest
 	input     normalize.NormalizerInput
 	file      *os.File
 	buffer    *bufio.Writer
@@ -416,7 +416,7 @@ func NewFilesystemNormalizedBundleReaderFactory(db platformpostgres.DB, open pla
 	if db == nil {
 		return nil, errors.New("normalized bundle reader: database is required")
 	}
-	return func(ctx context.Context, ref uiw.Ref) (platformpostgres.NormalizedBundleReader, error) {
+	return func(ctx context.Context, ref proffer.Ref) (platformpostgres.NormalizedBundleReader, error) {
 		if strings.TrimSpace(string(ref)) == "" {
 			return nil, errors.New("normalized bundle reference is required")
 		}

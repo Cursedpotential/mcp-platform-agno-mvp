@@ -1,4 +1,4 @@
-// Byline: Codex · GPT-5.6 · 2026-08-29 (UIW preview storage model)
+// Byline: Codex · GPT-5.6 · 2026-08-29 (Proffer preview storage model)
 package previewmodel
 
 import (
@@ -11,23 +11,23 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/proffer"
 )
 
 var (
-	ErrNotFound = errors.New("uiw preview handle not found")
-	ErrNotReady = errors.New("uiw preview projection not ready")
-	ErrEventGap = errors.New("uiw preview event replay gap")
+	ErrNotFound = errors.New("proffer preview handle not found")
+	ErrNotReady = errors.New("proffer preview projection not ready")
+	ErrEventGap = errors.New("proffer preview event replay gap")
 )
 
 type Binding struct {
 	Handle                 string
 	RequestID              string
-	SourceRef              uiw.Ref
+	SourceRef              proffer.Ref
 	WorkflowID             string
 	RunID                  string
-	SelectionRef           uiw.Ref
-	ParserOptionsRef       uiw.Ref
+	SelectionRef           proffer.Ref
+	ParserOptionsRef       proffer.Ref
 	SourceVersionID        uuid.UUID
 	RawGenerationID        uuid.UUID
 	NormalizedGenerationID uuid.UUID
@@ -103,7 +103,7 @@ type Store interface {
 	Snapshot(context.Context, string) (Snapshot, error)
 	Page(context.Context, string, int, int) (Page, error)
 	EventsAfter(context.Context, string, int64) ([]Event, error)
-	RecordDecision(context.Context, string, bool, string, string, uiw.Ref, uiw.Ref) error
+	RecordDecision(context.Context, string, bool, string, string, proffer.Ref, proffer.Ref) error
 }
 
 var ReceiptTypes = []string{"custody", "parser_selection", "parser_execution", "normalization", "storage", "completeness"}

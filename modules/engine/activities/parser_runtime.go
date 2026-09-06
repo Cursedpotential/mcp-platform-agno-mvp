@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/parser"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/parser"
+	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/stagegraph"
 )
 
 // ParserSelectionSpec is the immutable selection decision persisted by
@@ -16,7 +16,7 @@ import (
 // workflow coordinates; selection never receives source bytes or records.
 type ParserSelectionSpec struct {
 	RequestID        string
-	SourceVersionRef uiw.Ref
+	SourceVersionRef proffer.Ref
 	DeclaredFormat   parser.FormatID
 	ParserID         string
 	ParserVersion    string
@@ -27,7 +27,7 @@ type ParserSelectionSpec struct {
 // execute_parser_activity. The parser ID/version is an execution pin, not a
 // hint to repeat selection after registry drift.
 type PersistedParserSelection struct {
-	SourceVersionRef uiw.Ref
+	SourceVersionRef proffer.Ref
 	DeclaredFormat   parser.FormatID
 	ParserID         string
 	ParserVersion    string
@@ -38,11 +38,11 @@ type PersistedParserSelection struct {
 // not this parser Activity, later owns canonical raw-record persistence.
 type ParserExecutionSpec struct {
 	RequestID          string
-	SourceVersionRef   uiw.Ref
-	ParserSelectionRef uiw.Ref
+	SourceVersionRef   proffer.Ref
+	ParserSelectionRef proffer.Ref
 	ParserID           string
 	ParserVersion      string
-	BundleRef          uiw.Ref
+	BundleRef          proffer.Ref
 	Attempt            int32
 }
 
@@ -51,11 +51,11 @@ type ParserExecutionSpec struct {
 // persists immutable activity receipts; it never exposes a record array on an
 // Activity request or result.
 type ParserActivityStore interface {
-	PersistParserSelection(context.Context, ParserSelectionSpec) (selectionRef uiw.Ref, receiptRef uiw.Ref, err error)
-	LoadParserSelection(context.Context, uiw.Ref) (PersistedParserSelection, error)
-	ResolveParserInput(context.Context, uiw.StageRequest, PersistedParserSelection) (parser.ParserInput, error)
-	OpenParserBundleWriter(context.Context, uiw.StageRequest, PersistedParserSelection, parser.ParserInput) (parser.BundleWriter, error)
-	PersistParserExecution(context.Context, ParserExecutionSpec) (resultRef uiw.Ref, receiptRef uiw.Ref, err error)
+	PersistParserSelection(context.Context, ParserSelectionSpec) (selectionRef proffer.Ref, receiptRef proffer.Ref, err error)
+	LoadParserSelection(context.Context, proffer.Ref) (PersistedParserSelection, error)
+	ResolveParserInput(context.Context, proffer.StageRequest, PersistedParserSelection) (parser.ParserInput, error)
+	OpenParserBundleWriter(context.Context, proffer.StageRequest, PersistedParserSelection, parser.ParserInput) (parser.BundleWriter, error)
+	PersistParserExecution(context.Context, ParserExecutionSpec) (resultRef proffer.Ref, receiptRef proffer.Ref, err error)
 }
 
 // ParserActivities implements the two parser-related atomic Activity bodies.
@@ -91,20 +91,20 @@ func (a ParserActivities) attempt(ctx context.Context) int32 {
 // SelectParser persists the one declared-format/quality selection decision.
 // Registry accepts no input size, source bytes, or hash data, so selection is
 // strictly capability coverage and quality as required by the v1 contract.
-func (a ParserActivities) SelectParser(ctx context.Context, req uiw.StageRequest) (uiw.StageResult, error) {
+func (a ParserActivities) SelectParser(ctx context.Context, req proffer.StageRequest) (proffer.StageResult, error) {
 	if err := a.validate(); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	if err := ctx.Err(); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	if strings.TrimSpace(req.RequestID) == "" || req.SourceVersionRef == "" {
-		return uiw.StageResult{}, errors.New("select parser requires request and source version references")
+		return proffer.StageResult{}, errors.New("select parser requires request and source version references")
 	}
 	format := parser.FormatID(req.DeclaredFormat)
 	capability, err := a.Registry.SelectCapability(format)
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("select parser for format %q: %w", req.DeclaredFormat, err)
+		return proffer.StageResult{}, fmt.Errorf("select parser for format %q: %w", req.DeclaredFormat, err)
 	}
 	selectionRef, receiptRef, err := a.Store.PersistParserSelection(ctx, ParserSelectionSpec{
 		RequestID:        req.RequestID,
@@ -115,10 +115,10 @@ func (a ParserActivities) SelectParser(ctx context.Context, req uiw.StageRequest
 		Attempt:          a.attempt(ctx),
 	})
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("persist parser selection: %w", err)
+		return proffer.StageResult{}, fmt.Errorf("persist parser selection: %w", err)
 	}
 	if selectionRef == "" || receiptRef == "" {
-		return uiw.StageResult{}, errors.New("persisted parser selection lacks result or activity receipt reference")
+		return proffer.StageResult{}, errors.New("persisted parser selection lacks result or activity receipt reference")
 	}
 	return parserStageSuccess(stagegraph.SelectParser, selectionRef, receiptRef), nil
 }
@@ -126,44 +126,44 @@ func (a ParserActivities) SelectParser(ctx context.Context, req uiw.StageRequest
 // ExecuteParser loads the exact prior selection and executes that parser only.
 // It does not call Registry.Select: a missing, stale, or wrong selection is a
 // hard error rather than an opportunity to choose a newer parser.
-func (a ParserActivities) ExecuteParser(ctx context.Context, req uiw.StageRequest) (uiw.StageResult, error) {
+func (a ParserActivities) ExecuteParser(ctx context.Context, req proffer.StageRequest) (proffer.StageResult, error) {
 	if err := a.validate(); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	if err := ctx.Err(); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	if strings.TrimSpace(req.RequestID) == "" || req.SourceVersionRef == "" {
-		return uiw.StageResult{}, errors.New("execute parser requires request and source version references")
+		return proffer.StageResult{}, errors.New("execute parser requires request and source version references")
 	}
 	selectionRef, err := requiredParserRef(req, "parser_selection")
 	if err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	if _, err := requiredParserRef(req, "original"); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	selection, err := a.Store.LoadParserSelection(ctx, selectionRef)
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("load persisted parser selection %q: %w", selectionRef, err)
+		return proffer.StageResult{}, fmt.Errorf("load persisted parser selection %q: %w", selectionRef, err)
 	}
 	if err := validatePersistedSelection(req, selection); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	input, err := a.Store.ResolveParserInput(ctx, req, selection)
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("resolve parser input: %w", err)
+		return proffer.StageResult{}, fmt.Errorf("resolve parser input: %w", err)
 	}
 	if err := validateResolvedInput(req, selection, input); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	writer, err := a.Store.OpenParserBundleWriter(ctx, req, selection, input)
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("open parser bundle writer: %w", err)
+		return proffer.StageResult{}, fmt.Errorf("open parser bundle writer: %w", err)
 	}
 	bundleResult, err := a.Registry.ExecuteSelected(ctx, input, selection.ParserID, selection.ParserVersion, writer)
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("execute persisted parser %q version %q: %w", selection.ParserID, selection.ParserVersion, err)
+		return proffer.StageResult{}, fmt.Errorf("execute persisted parser %q version %q: %w", selection.ParserID, selection.ParserVersion, err)
 	}
 	resultRef, receiptRef, err := a.Store.PersistParserExecution(ctx, ParserExecutionSpec{
 		RequestID:          req.RequestID,
@@ -171,23 +171,23 @@ func (a ParserActivities) ExecuteParser(ctx context.Context, req uiw.StageReques
 		ParserSelectionRef: selectionRef,
 		ParserID:           selection.ParserID,
 		ParserVersion:      selection.ParserVersion,
-		BundleRef:          uiw.Ref(bundleResult.BundleRef),
+		BundleRef:          proffer.Ref(bundleResult.BundleRef),
 		Attempt:            a.attempt(ctx),
 	})
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("persist parser execution: %w", err)
+		return proffer.StageResult{}, fmt.Errorf("persist parser execution: %w", err)
 	}
 	if resultRef == "" || receiptRef == "" {
-		return uiw.StageResult{}, errors.New("persisted parser execution lacks result or activity receipt reference")
+		return proffer.StageResult{}, errors.New("persisted parser execution lacks result or activity receipt reference")
 	}
 	return parserStageSuccess(stagegraph.ExecuteParser, resultRef, receiptRef), nil
 }
 
-func parserStageSuccess(stage stagegraph.StageID, resultRef, receiptRef uiw.Ref) uiw.StageResult {
-	return uiw.StageResult{Stage: stage, Status: uiw.StatusSuccess, Ref: resultRef, ReceiptRef: receiptRef}
+func parserStageSuccess(stage stagegraph.StageID, resultRef, receiptRef proffer.Ref) proffer.StageResult {
+	return proffer.StageResult{Stage: stage, Status: proffer.StatusSuccess, Ref: resultRef, ReceiptRef: receiptRef}
 }
 
-func requiredParserRef(req uiw.StageRequest, name string) (uiw.Ref, error) {
+func requiredParserRef(req proffer.StageRequest, name string) (proffer.Ref, error) {
 	ref := req.Refs[name]
 	if ref == "" {
 		return "", fmt.Errorf("%s requires non-empty %q reference", stagegraph.ExecuteParser, name)
@@ -195,7 +195,7 @@ func requiredParserRef(req uiw.StageRequest, name string) (uiw.Ref, error) {
 	return ref, nil
 }
 
-func validatePersistedSelection(req uiw.StageRequest, selection PersistedParserSelection) error {
+func validatePersistedSelection(req proffer.StageRequest, selection PersistedParserSelection) error {
 	if selection.SourceVersionRef != req.SourceVersionRef {
 		return errors.New("persisted parser selection belongs to a different source version")
 	}
@@ -208,7 +208,7 @@ func validatePersistedSelection(req uiw.StageRequest, selection PersistedParserS
 	return nil
 }
 
-func validateResolvedInput(req uiw.StageRequest, selection PersistedParserSelection, input parser.ParserInput) error {
+func validateResolvedInput(req proffer.StageRequest, selection PersistedParserSelection, input parser.ParserInput) error {
 	if err := input.Validate(); err != nil {
 		return fmt.Errorf("resolved parser input: %w", err)
 	}

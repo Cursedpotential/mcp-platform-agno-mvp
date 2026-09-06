@@ -14,8 +14,8 @@ import (
 	"runtime"
 	"strings"
 
-	platformpostgres "github.com/Cursedpotential/mcp-platform-agno-mvp/engine/postgres"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	platformpostgres "github.com/Cursedpotential/probata/engine/postgres"
+	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/google/uuid"
 )
 
@@ -56,7 +56,7 @@ func NewFilesystemImmutableAcquisitionResolver(root string) (platformpostgres.Im
 		}
 	}
 
-	return func(ctx context.Context, ref uiw.Ref) (platformpostgres.ImmutableAcquisition, error) {
+	return func(ctx context.Context, ref proffer.Ref) (platformpostgres.ImmutableAcquisition, error) {
 		if err := ctx.Err(); err != nil {
 			return platformpostgres.ImmutableAcquisition{}, err
 		}

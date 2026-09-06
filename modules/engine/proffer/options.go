@@ -1,4 +1,4 @@
-package uiw
+package proffer
 
 import (
 	"time"
@@ -6,7 +6,7 @@ import (
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
+	"github.com/Cursedpotential/probata/engine/stagegraph"
 )
 
 // retryPolicy builds a bounded RetryPolicy. MaximumAttempts must always be
@@ -198,7 +198,7 @@ func optionsFor(id stagegraph.StageID) workflow.ActivityOptions {
 	}
 	opts, ok := stageOptions[id]
 	if !ok {
-		panic("uiw: no ActivityOptions registered for stage " + string(id))
+		panic("proffer: no ActivityOptions registered for stage " + string(id))
 	}
 	return opts
 }

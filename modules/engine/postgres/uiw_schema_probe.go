@@ -1,4 +1,4 @@
-// Byline: Codex · GPT-5.6-Sol · 2026-08-30 (shared UIW schema admission)
+// Byline: Codex · GPT-5.6-Sol · 2026-08-30 (shared Proffer schema admission)
 // Retarget · Claude Code · Sonnet 5 · 2026-09-02 (BUILD LANE S2): ledger check
 // moved from public.schema_version to ops.migration_ledger per D-109 (see
 // comment at the ledgerCount subquery below).
@@ -81,7 +81,7 @@ const registryReceiptApprovedBy = "owner"
 const registryReceiptApprovedOn = "2026-08-23"
 
 // platformDevAuthBypassEnv is the one flag D-125 defines for every ingest
-// surface (UIW starter, Workbench BFF, and -- as of D-126 -- this admission
+// surface (Proffer starter, Workbench BFF, and -- as of D-126 -- this admission
 // probe). Default OFF, fail-closed: unset or anything but a truthy value
 // means STRICT (the real go-live identity is required, unmet until go-live).
 const platformDevAuthBypassEnv = "PLATFORM_DEV_AUTH_BYPASS"
@@ -132,7 +132,7 @@ const devReceiptApprovedOn = "2026-09-02"
 
 // devAuthBypassEnabled reads PLATFORM_DEV_AUTH_BYPASS directly rather than
 // taking a parameter: ProbeUIWSchema is called from modules/engine/temporal/
-// cmd/starter/main.go and modules/engine/uiwworker/worker.go with a fixed
+// cmd/starter/main.go and modules/engine/profferworker/worker.go with a fixed
 // two-argument signature, and D-125's contract is one process-wide flag, not
 // a value threaded through every caller. Truthy values match D-125's own
 // documented example (PLATFORM_DEV_AUTH_BYPASS=1) plus the usual spellings;
@@ -147,10 +147,10 @@ func devAuthBypassEnabled() bool {
 }
 
 // ProbeUIWSchema rejects an incomplete, legacy, over-privileged, or wrongly
-// scoped database before any UIW Temporal queue is polled.
+// scoped database before any Proffer Temporal queue is polled.
 func ProbeUIWSchema(ctx context.Context, db SchemaProbeDB) error {
 	if db == nil {
-		return errors.New("UIW schema admission: database is required")
+		return errors.New("Proffer schema admission: database is required")
 	}
 	devBypass := devAuthBypassEnabled()
 	matterID, courtCaseID := authoritativeMatterID, authoritativeCourtCaseID
@@ -164,7 +164,7 @@ func ProbeUIWSchema(ctx context.Context, db SchemaProbeDB) error {
 		gitCommit, schemaVersion = devReceiptSourceGitCommit, devReceiptPayloadSchemaVersion
 		canonicalSHA256Hex, apiSHA256Hex = devReceiptCanonicalPayloadSHA256, devReceiptAPIPayloadSHA256
 		payloadByteLength, approvedBy, approvedOn = devReceiptPayloadByteLength, devReceiptApprovedBy, devReceiptApprovedOn
-		slog.Warn("UIW schema admission: PLATFORM_DEV_AUTH_BYPASS is set -- admitting the pre-launch DEV sentinel case-registry identity, not the real go-live identity (D-125, D-126); remove this flag before go-live",
+		slog.Warn("Proffer schema admission: PLATFORM_DEV_AUTH_BYPASS is set -- admitting the pre-launch DEV sentinel case-registry identity, not the real go-live identity (D-125, D-126); remove this flag before go-live",
 			"flag", platformDevAuthBypassEnv, "dev_matter_id", devMatterID, "dev_court_case_id", devCourtCaseID)
 	}
 	var database, currentUser, databaseOwner string
@@ -269,13 +269,13 @@ func ProbeUIWSchema(ctx context.Context, db SchemaProbeDB) error {
 	).Scan(&database, &currentUser, &databaseOwner, &ledgerCount, &tableCount, &columnCount,
 		&constraintsExact, &substrateExact, &roleSafe, &grantsExact, &receiptExact)
 	if err != nil {
-		return errors.New("UIW schema admission: catalog verification unavailable")
+		return errors.New("Proffer schema admission: catalog verification unavailable")
 	}
 	if database != "platform" || currentUser != "platform_runtime" || databaseOwner != "platform_admin" {
-		return fmt.Errorf("UIW schema admission: identity rejected: database=%q role=%q owner=%q", database, currentUser, databaseOwner)
+		return fmt.Errorf("Proffer schema admission: identity rejected: database=%q role=%q owner=%q", database, currentUser, databaseOwner)
 	}
 	if ledgerCount != len(requiredUIWMigrations) || tableCount != len(requiredUIWTables) || columnCount != len(requiredUIWColumns) || !constraintsExact || !substrateExact || !roleSafe || !grantsExact || !receiptExact {
-		return fmt.Errorf("UIW schema admission failed (dev_bypass=%t): ledger=%d/%d tables=%d/%d columns=%d/%d constraints=%t substrate=%t role=%t grants=%t receipt=%t",
+		return fmt.Errorf("Proffer schema admission failed (dev_bypass=%t): ledger=%d/%d tables=%d/%d columns=%d/%d constraints=%t substrate=%t role=%t grants=%t receipt=%t",
 			devBypass, ledgerCount, len(requiredUIWMigrations), tableCount, len(requiredUIWTables), columnCount,
 			len(requiredUIWColumns), constraintsExact, substrateExact, roleSafe, grantsExact, receiptExact)
 	}

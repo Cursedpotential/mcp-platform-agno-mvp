@@ -13,17 +13,17 @@ import (
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/testsuite"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/stagegraph"
 )
 
 // This file proves this package's real N8NActivities correctly plug into
-// the real engine/uiw.UniversalImportWorkflow end to end: the other 21
-// stages are mocked (exactly like engine/uiw's own test suite does — this
+// the real engine/proffer.ProfferWorkflow end to end: the other 21
+// stages are mocked (exactly like engine/proffer's own test suite does — this
 // package does not own their bodies), but select_parser_activity and
 // execute_parser_activity are this package's actual production code,
 // exercised against real httptest servers standing in for n8n. That is what
-// distinguishes this from engine/uiw/workflow_test.go's own hold tests
+// distinguishes this from engine/proffer/workflow_test.go's own hold tests
 // (which mock every stage, including the two n8n-backed ones) and from this
 // package's n8n_client_test.go/activities_test.go (which exercise the real
 // HTTP client but never inside the real workflow).
@@ -31,14 +31,14 @@ import (
 // placeholderStageActivity exists only so the TestWorkflowEnvironment has a
 // function signature to register the 21 non-parser canon stage names
 // against; every test below mocks it via OnActivity before executing the
-// workflow (mirrors engine/uiw/workflow_test.go's own placeholderActivity
+// workflow (mirrors engine/proffer/workflow_test.go's own placeholderActivity
 // pattern, reproduced locally since it is unexported there).
-func placeholderStageActivity(_ context.Context, _ uiw.StageRequest) (uiw.StageResult, error) {
-	return uiw.StageResult{Status: uiw.StatusFailed, Reason: "integration test: placeholder activity ran unmocked", ReceiptRef: "placeholder-receipt"}, nil
+func placeholderStageActivity(_ context.Context, _ proffer.StageRequest) (proffer.StageResult, error) {
+	return proffer.StageResult{Status: proffer.StatusFailed, Reason: "integration test: placeholder activity ran unmocked", ReceiptRef: "placeholder-receipt"}, nil
 }
 
-func stageStub(id stagegraph.StageID) uiw.StageResult {
-	return uiw.StageResult{Status: uiw.StatusSuccess, Ref: uiw.Ref(string(id) + "-ref"), ReceiptRef: uiw.Ref(string(id) + "-receipt")}
+func stageStub(id stagegraph.StageID) proffer.StageResult {
+	return proffer.StageResult{Status: proffer.StatusSuccess, Ref: proffer.Ref(string(id) + "-ref"), ReceiptRef: proffer.Ref(string(id) + "-receipt")}
 }
 
 // registerRealActivities registers this package's real N8NActivities (Client
@@ -73,8 +73,8 @@ func registerRealActivities(t *testing.T, env *testsuite.TestWorkflowEnvironment
 	}
 }
 
-func integrationInput() uiw.WorkflowInput {
-	return uiw.WorkflowInput{
+func integrationInput() proffer.WorkflowInput {
+	return proffer.WorkflowInput{
 		RequestID: "req-1", SourceRef: "acquisition-ref",
 		MatterID: "11111111-1111-1111-1111-111111111111", CourtCaseID: "22222222-2222-2222-2222-222222222222",
 		DeclaredFormat: "whatsapp_export_json", ParserOptionsRef: "parser-options-ref",
@@ -119,15 +119,15 @@ func TestIntegrationApprovedRunsAllStagesAndCallsRealParserHTTP(t *testing.T) {
 
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
-	env.RegisterWorkflow(uiw.UniversalImportWorkflow)
+	env.RegisterWorkflow(proffer.ProfferWorkflow)
 	registerRealActivities(t, env, n8n.server.URL)
 
 	env.RegisterDelayedCallback(func() {
-		env.SignalWorkflow(uiw.RepairDecisionSignalName, uiw.RepairDecision{DecisionRef: "repair-decision-ref"})
-		env.SignalWorkflow(uiw.PreviewDecisionSignalName, uiw.PreviewDecision{Approved: true, Decider: "operator-1"})
+		env.SignalWorkflow(proffer.RepairDecisionSignalName, proffer.RepairDecision{DecisionRef: "repair-decision-ref"})
+		env.SignalWorkflow(proffer.PreviewDecisionSignalName, proffer.PreviewDecision{Approved: true, Decider: "operator-1"})
 	}, time.Millisecond)
 
-	env.ExecuteWorkflow(uiw.UniversalImportWorkflow, integrationInput())
+	env.ExecuteWorkflow(proffer.ProfferWorkflow, integrationInput())
 
 	if !env.IsWorkflowCompleted() {
 		t.Fatal("workflow did not complete")
@@ -135,12 +135,12 @@ func TestIntegrationApprovedRunsAllStagesAndCallsRealParserHTTP(t *testing.T) {
 	if err := env.GetWorkflowError(); err != nil {
 		t.Fatalf("workflow returned error on the approved path: %v", err)
 	}
-	var result uiw.WorkflowResult
+	var result proffer.WorkflowResult
 	if err := env.GetWorkflowResult(&result); err != nil {
 		t.Fatalf("GetWorkflowResult failed: %v", err)
 	}
-	if result.Status != uiw.StatusSuccess {
-		t.Errorf("result.Status = %q, want %q", result.Status, uiw.StatusSuccess)
+	if result.Status != proffer.StatusSuccess {
+		t.Errorf("result.Status = %q, want %q", result.Status, proffer.StatusSuccess)
 	}
 	if len(result.Stages) != len(stagegraph.Stages) {
 		t.Errorf("result.Stages has %d entries, want %d (every stage exactly once)", len(result.Stages), len(stagegraph.Stages))
@@ -159,15 +159,15 @@ func TestIntegrationRejectedNeverCallsRealParserHTTP(t *testing.T) {
 
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
-	env.RegisterWorkflow(uiw.UniversalImportWorkflow)
+	env.RegisterWorkflow(proffer.ProfferWorkflow)
 	registerRealActivities(t, env, n8n.server.URL)
 
 	env.RegisterDelayedCallback(func() {
-		env.SignalWorkflow(uiw.RepairDecisionSignalName, uiw.RepairDecision{DecisionRef: "repair-decision-ref"})
-		env.SignalWorkflow(uiw.PreviewDecisionSignalName, uiw.PreviewDecision{Approved: false, Reason: "wrong format", Decider: "operator-1"})
+		env.SignalWorkflow(proffer.RepairDecisionSignalName, proffer.RepairDecision{DecisionRef: "repair-decision-ref"})
+		env.SignalWorkflow(proffer.PreviewDecisionSignalName, proffer.PreviewDecision{Approved: false, Reason: "wrong format", Decider: "operator-1"})
 	}, time.Millisecond)
 
-	env.ExecuteWorkflow(uiw.UniversalImportWorkflow, integrationInput())
+	env.ExecuteWorkflow(proffer.ProfferWorkflow, integrationInput())
 
 	if !env.IsWorkflowCompleted() {
 		t.Fatal("workflow did not complete")

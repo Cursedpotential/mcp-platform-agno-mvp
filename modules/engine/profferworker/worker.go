@@ -1,4 +1,4 @@
-package uiwworker
+package profferworker
 
 import (
 	"context"
@@ -13,19 +13,19 @@ import (
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/acquisition"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/activities"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/normalize"
-	platformpostgres "github.com/Cursedpotential/mcp-platform-agno-mvp/engine/postgres"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/runtimeapi"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
-	platformtemporal "github.com/Cursedpotential/mcp-platform-agno-mvp/engine/temporal"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/acquisition"
+	"github.com/Cursedpotential/probata/engine/activities"
+	"github.com/Cursedpotential/probata/engine/normalize"
+	platformpostgres "github.com/Cursedpotential/probata/engine/postgres"
+	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/runtimeapi"
+	"github.com/Cursedpotential/probata/engine/stagegraph"
+	platformtemporal "github.com/Cursedpotential/probata/engine/temporal"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Registrations contains the bounded Activity groups that collectively
-// implement all 26 UIW stages. Filesystem and embedded observation bodies are
+// implement all 26 Proffer stages. Filesystem and embedded observation bodies are
 // separate values so extractor provenance cannot cross activity boundaries.
 type Registrations struct {
 	Lifecycle             activities.SourceLifecycleActivities
@@ -46,7 +46,7 @@ func RegisterAll(registrar interface {
 	activities.ActivityRegistrar
 	RegisterWorkflow(interface{})
 }, registrations Registrations) {
-	registrar.RegisterWorkflow(uiw.UniversalImportWorkflow)
+	registrar.RegisterWorkflow(proffer.ProfferWorkflow)
 	activities.RegisterSourceLifecycleActivities(registrar, registrations.Lifecycle)
 	activities.RegisterFilesystemMetadataActivity(registrar, registrations.FilesystemObservation)
 	activities.RegisterHashActivities(registrar, registrations.Hash)
@@ -61,13 +61,13 @@ func RegisterAll(registrar interface {
 }
 
 // Run constructs concrete production adapters, verifies PostgreSQL and shared
-// storage before polling, and serves the dedicated UIW queue until shutdown.
+// storage before polling, and serves the dedicated Proffer queue until shutdown.
 func Run(ctx context.Context, cfg Config) error {
 	if stringsTrim(cfg.TemporalTaskQueue) == "" {
-		return errors.New("uiw worker: TEMPORAL_TASK_QUEUE is required")
+		return errors.New("proffer worker: TEMPORAL_TASK_QUEUE is required")
 	}
 	if cfg.TemporalTaskQueue == legacyEvidenceTaskQueue {
-		return errors.New("uiw worker: refusing legacy evidence-pipeline task queue")
+		return errors.New("proffer worker: refusing legacy evidence-pipeline task queue")
 	}
 	if err := validateSharedPaths(cfg); err != nil {
 		return err
@@ -78,11 +78,11 @@ func Run(ctx context.Context, cfg Config) error {
 
 	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
 	if err != nil {
-		return errors.New("uiw worker: configure platform database pool: invalid configuration")
+		return errors.New("proffer worker: configure platform database pool: invalid configuration")
 	}
 	defer pool.Close()
 	if err := pool.Ping(ctx); err != nil {
-		return errors.New("uiw worker: connect to platform database: unavailable")
+		return errors.New("proffer worker: connect to platform database: unavailable")
 	}
 	if err := platformpostgres.ProbeUIWSchema(ctx, pool); err != nil {
 		return err
@@ -94,14 +94,14 @@ func Run(ctx context.Context, cfg Config) error {
 	}
 	temporalClient, err := client.Dial(client.Options{HostPort: cfg.TemporalHostPort, Namespace: cfg.TemporalNamespace})
 	if err != nil {
-		return fmt.Errorf("uiw worker: connect to Temporal: %w", err)
+		return fmt.Errorf("proffer worker: connect to Temporal: %w", err)
 	}
 	defer temporalClient.Close()
 
 	temporalWorker := worker.New(temporalClient, cfg.TemporalTaskQueue, worker.Options{})
 	RegisterAll(temporalWorker, registrations)
 	if err := temporalWorker.Start(); err != nil {
-		return fmt.Errorf("uiw worker: start Temporal worker: %w", err)
+		return fmt.Errorf("proffer worker: start Temporal worker: %w", err)
 	}
 	slog.Info("universal import worker started", "task_queue", cfg.TemporalTaskQueue, "namespace", cfg.TemporalNamespace, "activity_count", len(stagegraph.Stages))
 	<-ctx.Done()
@@ -118,7 +118,7 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config) (Registrations, error) {
 	// r2:// source refs, so a worker wired with the file:// resolver alone can
 	// never resolve anything a caller is allowed to send: every run died in
 	// retain_original_activity with "acquisition reference must be a file://
-	// URI" (live rehearsal 2026-09-02, docs/reviews/2026-09-02-uiw-rehearsal-
+	// URI" (live rehearsal 2026-09-02, docs/reviews/2026-09-02-proffer-rehearsal-
 	// acquisition-seam.md). acquisition.NewSchemeRouter is the seam that closes
 	// this, and its own doc comment names exactly this wiring.
 	//
@@ -213,7 +213,7 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config) (Registrations, error) {
 	if err != nil {
 		return Registrations{}, err
 	}
-	previewStore, err := platformpostgres.NewUIWPreviewStore(pool, nil)
+	previewStore, err := platformpostgres.NewProfferPreviewStore(pool, nil)
 	if err != nil {
 		return Registrations{}, err
 	}
@@ -243,18 +243,18 @@ func prepareSharedPaths(cfg Config) error {
 		"INVENTORY_MANIFEST_DIR": cfg.InventoryManifestDir,
 	} {
 		if err := os.MkdirAll(path, 0o750); err != nil {
-			return fmt.Errorf("uiw worker: create %s: %w", name, err)
+			return fmt.Errorf("proffer worker: create %s: %w", name, err)
 		}
 		info, err := os.Lstat(path)
 		if err != nil {
-			return fmt.Errorf("uiw worker: inspect %s: %w", name, err)
+			return fmt.Errorf("proffer worker: inspect %s: %w", name, err)
 		}
 		if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-			return fmt.Errorf("uiw worker: %s must be a real directory", name)
+			return fmt.Errorf("proffer worker: %s must be a real directory", name)
 		}
 		resolved, err := filepath.EvalSymlinks(path)
 		if err != nil || filepath.Clean(resolved) != filepath.Clean(path) {
-			return fmt.Errorf("uiw worker: %s must not traverse a symlink or junction", name)
+			return fmt.Errorf("proffer worker: %s must not traverse a symlink or junction", name)
 		}
 	}
 	return nil

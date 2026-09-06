@@ -14,7 +14,7 @@ import (
 	"runtime"
 	"strings"
 
-	platformpostgres "github.com/Cursedpotential/mcp-platform-agno-mvp/engine/postgres"
+	platformpostgres "github.com/Cursedpotential/probata/engine/postgres"
 	"github.com/google/uuid"
 )
 

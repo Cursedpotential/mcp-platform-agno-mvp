@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/activities"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/parser"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/activities"
+	"github.com/Cursedpotential/probata/engine/parser"
+	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/lowcarbdev/sbv/pkg/parseonly"
@@ -24,7 +24,7 @@ func TestSelectionReceiptResultRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if selection.SourceVersionRef != uiw.Ref(sourceID.String()) ||
+	if selection.SourceVersionRef != proffer.Ref(sourceID.String()) ||
 		selection.ParserID != "sms-parser" || selection.ParserVersion != "2.1.0" ||
 		selection.DeclaredFormat != parser.FormatID("sms_xml_backup") {
 		t.Fatalf("selection = %+v", selection)
@@ -34,7 +34,7 @@ func TestSelectionReceiptResultRoundTrip(t *testing.T) {
 func TestParserStoreRegistersArtifactThroughRetainedMembership(t *testing.T) {
 	digest := strings.Repeat("ab", 32)
 	db := &artifactRegistrationDB{}
-	store, err := NewParserStore(db, func(context.Context, uiw.StageRequest, activities.PersistedParserSelection, parser.ParserInput) (parser.BundleWriter, error) {
+	store, err := NewParserStore(db, func(context.Context, proffer.StageRequest, activities.PersistedParserSelection, parser.ParserInput) (parser.BundleWriter, error) {
 		return nil, errors.New("unused")
 	})
 	if err != nil {
@@ -46,12 +46,12 @@ func TestParserStoreRegistersArtifactThroughRetainedMembership(t *testing.T) {
 			AttemptID: strings.Repeat("a", 32), ParentSourcePos: "element:7", AttachmentOrdinal: 2,
 			OriginalName: "photo.jpg", MIME: "image/jpeg", ByteCount: 19,
 		},
-		ObjectURI: "file:///data/uiw/parser-artifacts/object.bin", DigestSHA256: digest,
+		ObjectURI: "file:///data/proffer/parser-artifacts/object.bin", DigestSHA256: digest,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if locator.URI != "file:///data/uiw/parser-artifacts/object.bin" || locator.ContentHash != digest || !db.called {
+	if locator.URI != "file:///data/proffer/parser-artifacts/object.bin" || locator.ContentHash != digest || !db.called {
 		t.Fatalf("locator=%+v called=%v", locator, db.called)
 	}
 	if strings.Contains(db.logicalIdentity, digest) {
@@ -66,7 +66,7 @@ func TestParserStoreRegistersArtifactThroughRetainedMembership(t *testing.T) {
 
 func TestParserStoreRejectsDifferentBytesAtExistingLogicalIdentity(t *testing.T) {
 	db := &artifactRegistrationDB{returnedDigest: strings.Repeat("cd", 32), identityExisted: true}
-	store, err := NewParserStore(db, func(context.Context, uiw.StageRequest, activities.PersistedParserSelection, parser.ParserInput) (parser.BundleWriter, error) {
+	store, err := NewParserStore(db, func(context.Context, proffer.StageRequest, activities.PersistedParserSelection, parser.ParserInput) (parser.BundleWriter, error) {
 		return nil, errors.New("unused")
 	})
 	if err != nil {
@@ -77,7 +77,7 @@ func TestParserStoreRejectsDifferentBytesAtExistingLogicalIdentity(t *testing.T)
 			Kind: parseonly.ArtifactAttachment, SourceAssociation: "00000000-0000-0000-0000-000000000042",
 			ParentSourcePos: "element:7", AttachmentOrdinal: 2, ByteCount: 19,
 		},
-		ObjectURI: "file:///data/uiw/parser-artifacts/object.bin", DigestSHA256: strings.Repeat("ab", 32),
+		ObjectURI: "file:///data/proffer/parser-artifacts/object.bin", DigestSHA256: strings.Repeat("ab", 32),
 	})
 	if err == nil || !strings.Contains(err.Error(), "logical identity conflicts") {
 		t.Fatalf("conflicting logical identity error=%v", err)
@@ -86,7 +86,7 @@ func TestParserStoreRejectsDifferentBytesAtExistingLogicalIdentity(t *testing.T)
 
 func TestParserStoreIdenticalBytesKeepDistinctSourceOccurrences(t *testing.T) {
 	db := &artifactRegistrationDB{}
-	store, err := NewParserStore(db, func(context.Context, uiw.StageRequest, activities.PersistedParserSelection, parser.ParserInput) (parser.BundleWriter, error) {
+	store, err := NewParserStore(db, func(context.Context, proffer.StageRequest, activities.PersistedParserSelection, parser.ParserInput) (parser.BundleWriter, error) {
 		return nil, errors.New("unused")
 	})
 	if err != nil {
@@ -99,7 +99,7 @@ func TestParserStoreIdenticalBytesKeepDistinctSourceOccurrences(t *testing.T) {
 				Kind: parseonly.ArtifactAttachment, SourceAssociation: "00000000-0000-0000-0000-000000000042",
 				ParentSourcePos: "element:7", AttachmentOrdinal: ordinal, ByteCount: 19,
 			},
-			ObjectURI: "file:///data/uiw/parser-artifacts/shared.bin", DigestSHA256: digest,
+			ObjectURI: "file:///data/proffer/parser-artifacts/shared.bin", DigestSHA256: digest,
 		})
 		if err != nil {
 			t.Fatal(err)

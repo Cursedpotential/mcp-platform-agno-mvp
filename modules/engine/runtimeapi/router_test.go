@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/activities"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/parser"
+	"github.com/Cursedpotential/probata/engine/activities"
+	"github.com/Cursedpotential/probata/engine/parser"
 )
 
 func TestRouterHealthReadinessAndAuthenticatedCapabilities(t *testing.T) {

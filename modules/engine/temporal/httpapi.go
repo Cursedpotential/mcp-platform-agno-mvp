@@ -21,7 +21,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/proffer"
 )
 
 const maxStarterRequestBytes int64 = 16 << 10
@@ -42,7 +42,7 @@ func NewStarterHTTPHandler(starter WorkflowStarter) (*StarterHTTPHandler, error)
 		return nil, errors.New("temporal: starter HTTP handler requires a WorkflowStarter")
 	}
 	if devAuthBypassEnabled() {
-		slog.Warn("UIW starter HTTP auth: PLATFORM_DEV_AUTH_BYPASS is set -- non-tailnet peers will be admitted to reference-import routes, each admission logged individually (D-125, D-127); remove this flag before go-live",
+		slog.Warn("Proffer starter HTTP auth: PLATFORM_DEV_AUTH_BYPASS is set -- non-tailnet peers will be admitted to reference-import routes, each admission logged individually (D-125, D-127); remove this flag before go-live",
 			"flag", platformDevAuthBypassEnv)
 	}
 	return &StarterHTTPHandler{starter: starter}, nil
@@ -78,7 +78,7 @@ func (h *StarterHTTPHandler) withAuth(next http.HandlerFunc) http.HandlerFunc {
 			// D-127 Rule 5: never suppress a relaxed check into silence.
 			// One WARN line per admitted-but-would-have-been-rejected
 			// request, naming the flag, the rejected peer, and the route.
-			slog.Warn("UIW starter HTTP auth: PLATFORM_DEV_AUTH_BYPASS admitted a non-tailnet peer (D-125, D-127) -- remove this flag before go-live",
+			slog.Warn("Proffer starter HTTP auth: PLATFORM_DEV_AUTH_BYPASS admitted a non-tailnet peer (D-125, D-127) -- remove this flag before go-live",
 				"flag", platformDevAuthBypassEnv,
 				"remote_addr", r.RemoteAddr,
 				"method", r.Method,
@@ -90,8 +90,8 @@ func (h *StarterHTTPHandler) withAuth(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// startRequest mirrors engine/uiw.WorkflowInput exactly: this starts the
-// real UniversalImportWorkflow from its actual root input (the raw,
+// startRequest mirrors engine/proffer.WorkflowInput exactly: this starts the
+// real ProfferWorkflow from its actual root input (the raw,
 // not-yet-retained acquisition reference), not a partially-observed
 // mid-pipeline state.
 type startRequest struct {
@@ -119,13 +119,13 @@ func (h *StarterHTTPHandler) handleStart(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	in := uiw.WorkflowInput{
+	in := proffer.WorkflowInput{
 		RequestID:        req.RequestID,
 		MatterID:         req.MatterID,
 		CourtCaseID:      req.CourtCaseID,
-		SourceRef:        uiw.Ref(req.SourceRef),
+		SourceRef:        proffer.Ref(req.SourceRef),
 		DeclaredFormat:   req.DeclaredFormat,
-		ParserOptionsRef: uiw.Ref(req.ParserOptionsRef),
+		ParserOptionsRef: proffer.Ref(req.ParserOptionsRef),
 	}
 	workflowID, runID, err := h.starter.Start(r.Context(), in)
 	if err != nil {
@@ -182,7 +182,7 @@ func (h *StarterHTTPHandler) handleDecision(w http.ResponseWriter, r *http.Reque
 		writeStarterError(w, http.StatusBadRequest, errors.New("a rejection decision requires a non-empty reason"))
 		return
 	}
-	if err := h.starter.Decide(r.Context(), workflowID, uiw.PreviewDecision{
+	if err := h.starter.Decide(r.Context(), workflowID, proffer.PreviewDecision{
 		Approved: req.Approved,
 		Reason:   req.Reason,
 		Decider:  req.Decider,

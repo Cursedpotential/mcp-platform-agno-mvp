@@ -6,12 +6,12 @@ import (
 
 	"go.temporal.io/sdk/activity"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/stagegraph"
 )
 
 // executeHeartbeatInterval is how often ExecuteParser records a Temporal
-// heartbeat while blocked on the n8n HTTP call. engine/uiw's ActivityOptions
+// heartbeat while blocked on the n8n HTTP call. engine/proffer's ActivityOptions
 // for execute_parser_activity carry a 1-minute HeartbeatTimeout (its HTTP
 // leg can run up to ~31 minutes), so this must stay comfortably under that.
 // select_parser_activity carries no HeartbeatTimeout at all, so a heartbeat
@@ -19,11 +19,11 @@ import (
 const executeHeartbeatInterval = 20 * time.Second
 
 // N8NActivities implements the two n8n-backed Temporal Activity bodies for
-// engine/uiw.UniversalImportWorkflow: select_parser_activity and
+// engine/proffer.ProfferWorkflow: select_parser_activity and
 // execute_parser_activity. Both are plain synchronous Activities — the human
 // preview hold between them is a real Signal + Query + Timer inside
-// UniversalImportWorkflow itself (engine/uiw/preview.go,
-// engine/uiw/workflow.go), not anything implemented here. By the time
+// ProfferWorkflow itself (engine/proffer/preview.go,
+// engine/proffer/workflow.go), not anything implemented here. By the time
 // execute_parser_activity is scheduled, the workflow has already resolved
 // the hold: this Activity only ever runs on an approved decision.
 type N8NActivities struct {
@@ -32,13 +32,13 @@ type N8NActivities struct {
 
 // SelectParser is the select_parser_activity body: a synchronous HTTP proxy
 // to the n8n select workflow.
-func (a N8NActivities) SelectParser(ctx context.Context, req uiw.StageRequest) (uiw.StageResult, error) {
+func (a N8NActivities) SelectParser(ctx context.Context, req proffer.StageRequest) (proffer.StageResult, error) {
 	return a.Client.CallStage(ctx, stagegraph.SelectParser, req)
 }
 
 // ExecuteParser is the execute_parser_activity body: a synchronous,
 // heartbeating HTTP proxy to the n8n execute workflow.
-func (a N8NActivities) ExecuteParser(ctx context.Context, req uiw.StageRequest) (uiw.StageResult, error) {
+func (a N8NActivities) ExecuteParser(ctx context.Context, req proffer.StageRequest) (proffer.StageResult, error) {
 	stop := make(chan struct{})
 	defer close(stop)
 	go func() {

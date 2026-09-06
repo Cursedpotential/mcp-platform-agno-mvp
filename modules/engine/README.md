@@ -1,9 +1,12 @@
 # engine/ — platform-owned Go Temporal runtime
 
-> Byline: Claude Code · Sonnet 5 · 2026-08-26 (`engine/uiw` orchestration added same day)
+> Byline: Claude Code · Sonnet 5 · 2026-08-26 (`engine/proffer` orchestration added same day)
+> drift-fix 2026-09-06 Claude Code · Sonnet 5.1: D-137..D-141 rename — `engine/uiw`
+> is now `engine/proffer`, `UniversalImportWorkflow` is now `ProfferWorkflow`
+> (formerly UIW / Universal Import Workflow).
 
 This module is the platform's own Go orchestration runtime. It is the
-authoritative implementation of `UniversalImportWorkflow`, the single Temporal
+authoritative implementation of `ProfferWorkflow`, the single Temporal
 workflow that every source — every format, every client, every entrypoint —
 runs through. See
 `docs/reviews/2026-08-25-schema-audit/SBV-GO-TEMPORAL-RUNTIME-BOUNDARY.html`
@@ -13,7 +16,7 @@ document's collision-safe lane table).
 ## What lives here today
 
 `engine/stagegraph` locks the exact atomic stage graph for
-`UniversalImportWorkflow` before any Temporal SDK code is written: the 23
+`ProfferWorkflow` before any Temporal SDK code is written: the 23
 required stages, their single responsibility each, their dependency edges,
 and the safe parallel fan-out after `retain_original_activity`. It has no
 external dependencies — not even the Temporal SDK — by design, so the stage
@@ -34,8 +37,8 @@ manifest digest) that are never called H2 or H3, and are never compared for
 equality against H1 — reconciliation/verification of a hash against its
 manifest is a distinct responsibility from computing it.
 
-`engine/uiw` (Universal Import Workflow) is the real Temporal SDK
-orchestration that consumes that graph: `UniversalImportWorkflow(ctx,
+`engine/proffer` (Universal Import Workflow) is the real Temporal SDK
+orchestration that consumes that graph: `ProfferWorkflow(ctx,
 WorkflowInput) (WorkflowResult, error)`, built on
 `go.temporal.io/sdk v1.48.0`. It implements the graph in `engine/stagegraph`
 exactly — the same 23 stages, the same dependency edges, the same safe
@@ -76,7 +79,7 @@ contracts and Lane B's PostgreSQL interfaces. Only compact wire types cross
 the workflow boundary — `Ref` (an opaque pointer into external storage),
 `Status` (`success` / `not_applicable` / `failed`), `StageRequest`, and
 `StageResult` — never a file, a raw record, a normalized record, or a
-metadata payload; `engine/uiw/workflow_test.go`'s
+metadata payload; `engine/proffer/workflow_test.go`'s
 `TestWireTypesCarryOnlyCompactReferences` proves this by reflecting over
 every wire type's fields.
 
@@ -118,14 +121,14 @@ heartbeats; and history growth is bounded with Continue-As-New rather than
 letting a single workflow execution accumulate unbounded event history.
 Never one Temporal Activity per record.
 
-`engine/uiw` today: `StageRequest`/`StageResult` already enforce the
+`engine/proffer` today: `StageRequest`/`StageResult` already enforce the
 references-only contract at the type level, and every stage that can walk or
 hash a large source (`retain_original`, `hash_source`,
 `inventory_container`, `extract_embedded_metadata`, `hash_raw_records`,
 `normalize_generation`, `hash_normalized_records`) carries an explicit
 `HeartbeatTimeout`. `hash_raw_generation` does not — it folds already-computed
 H2 hex digests, not source bytes, so it is cheap like `hash_normalized_generation`.
-`UniversalImportWorkflow` is a single, fixed 23-stage
+`ProfferWorkflow` is a single, fixed 23-stage
 run — it does not yet batch per-record work into child workflows or apply
 Continue-As-New. The hashing bodies already stream members internally rather
 than creating one Activity per record, so record count does not expand
@@ -136,7 +139,7 @@ loops whose Workflow history itself can grow without bound.
 
 Every source family — messaging, documents, PDFs, email, media, OCR,
 archives, whatever comes next — runs through the same 23-stage
-`UniversalImportWorkflow`. No source family gets a shortcut, an alternate
+`ProfferWorkflow`. No source family gets a shortcut, an alternate
 database, a reduced stage set, or a silently skipped stage; a stage that
 does not apply to a given source still emits an explicit `not_applicable`
 receipt so the gap is visible rather than absent.

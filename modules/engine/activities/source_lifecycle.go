@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/stagegraph"
 )
 
 // SourceRegistrationSpec is the compact input resolved by
@@ -25,8 +25,8 @@ type SourceRegistrationSpec struct {
 	RequestID        string
 	MatterID         string
 	CourtCaseID      string
-	AcquisitionRef   uiw.Ref
-	SourceContextRef uiw.Ref
+	AcquisitionRef   proffer.Ref
+	SourceContextRef proffer.Ref
 	DeclaredFormat   string
 	Attempt          int32
 }
@@ -38,8 +38,8 @@ type SourceRegistrationSpec struct {
 // return source bytes through this Activity.
 type OriginalRetentionSpec struct {
 	RequestID        string
-	SourceVersionRef uiw.Ref
-	AcquisitionRef   uiw.Ref
+	SourceVersionRef proffer.Ref
+	AcquisitionRef   proffer.Ref
 	Attempt          int32
 }
 
@@ -55,8 +55,8 @@ type OriginalRetentionSpec struct {
 // The interface intentionally returns only compact references. Implementations
 // must never put source bytes, metadata, or a full row payload in a result.
 type SourceLifecycleStore interface {
-	RegisterSource(context.Context, SourceRegistrationSpec) (resultRef uiw.Ref, receiptRef uiw.Ref, err error)
-	RetainOriginal(context.Context, OriginalRetentionSpec) (resultRef uiw.Ref, receiptRef uiw.Ref, err error)
+	RegisterSource(context.Context, SourceRegistrationSpec) (resultRef proffer.Ref, receiptRef proffer.Ref, err error)
+	RetainOriginal(context.Context, OriginalRetentionSpec) (resultRef proffer.Ref, receiptRef proffer.Ref, err error)
 }
 
 // SourceLifecycleActivities implements the two atomic intake Activities.
@@ -90,22 +90,22 @@ func (a SourceLifecycleActivities) attempt(ctx context.Context) int32 {
 // identity and workflow idempotency coordinate. Registration intentionally
 // happens before retention; no downstream data may be written until
 // retain_original_activity succeeds.
-func (a SourceLifecycleActivities) RegisterSource(ctx context.Context, req uiw.StageRequest) (uiw.StageResult, error) {
+func (a SourceLifecycleActivities) RegisterSource(ctx context.Context, req proffer.StageRequest) (proffer.StageResult, error) {
 	if err := a.validate(); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	if err := ctx.Err(); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	if strings.TrimSpace(req.RequestID) == "" {
-		return uiw.StageResult{}, errors.New("register source requires a request id")
+		return proffer.StageResult{}, errors.New("register source requires a request id")
 	}
 	if strings.TrimSpace(req.DeclaredFormat) == "" {
-		return uiw.StageResult{}, errors.New("register source requires a declared format")
+		return proffer.StageResult{}, errors.New("register source requires a declared format")
 	}
 	acquisitionRef, err := requiredSourceRef(req, stagegraph.RegisterSource, "acquisition")
 	if err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	sourceContextRef := req.Refs["source_context"]
 	resultRef, receiptRef, err := a.Store.RegisterSource(ctx, SourceRegistrationSpec{
@@ -118,10 +118,10 @@ func (a SourceLifecycleActivities) RegisterSource(ctx context.Context, req uiw.S
 		Attempt:          a.attempt(ctx),
 	})
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("register source: %w", err)
+		return proffer.StageResult{}, fmt.Errorf("register source: %w", err)
 	}
 	if resultRef == "" || receiptRef == "" {
-		return uiw.StageResult{}, errors.New("registered source lacks result or activity receipt reference")
+		return proffer.StageResult{}, errors.New("registered source lacks result or activity receipt reference")
 	}
 	return sourceLifecycleSuccess(stagegraph.RegisterSource, resultRef, receiptRef), nil
 }
@@ -129,22 +129,22 @@ func (a SourceLifecycleActivities) RegisterSource(ctx context.Context, req uiw.S
 // RetainOriginal binds exactly one immutable retained object to the already
 // registered source version and advances only registered -> retained. It does
 // not hash, parse, normalize, or infer evidence authority.
-func (a SourceLifecycleActivities) RetainOriginal(ctx context.Context, req uiw.StageRequest) (uiw.StageResult, error) {
+func (a SourceLifecycleActivities) RetainOriginal(ctx context.Context, req proffer.StageRequest) (proffer.StageResult, error) {
 	if err := a.validate(); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	if err := ctx.Err(); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	if strings.TrimSpace(req.RequestID) == "" {
-		return uiw.StageResult{}, errors.New("retain original requires a request id")
+		return proffer.StageResult{}, errors.New("retain original requires a request id")
 	}
 	if strings.TrimSpace(string(req.SourceVersionRef)) == "" {
-		return uiw.StageResult{}, errors.New("retain original requires a source version reference")
+		return proffer.StageResult{}, errors.New("retain original requires a source version reference")
 	}
 	acquisitionRef, err := requiredSourceRef(req, stagegraph.RetainOriginal, "acquisition")
 	if err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	resultRef, receiptRef, err := a.Store.RetainOriginal(ctx, OriginalRetentionSpec{
 		RequestID:        req.RequestID,
@@ -153,15 +153,15 @@ func (a SourceLifecycleActivities) RetainOriginal(ctx context.Context, req uiw.S
 		Attempt:          a.attempt(ctx),
 	})
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("retain original: %w", err)
+		return proffer.StageResult{}, fmt.Errorf("retain original: %w", err)
 	}
 	if resultRef == "" || receiptRef == "" {
-		return uiw.StageResult{}, errors.New("retained original lacks result or activity receipt reference")
+		return proffer.StageResult{}, errors.New("retained original lacks result or activity receipt reference")
 	}
 	return sourceLifecycleSuccess(stagegraph.RetainOriginal, resultRef, receiptRef), nil
 }
 
-func requiredSourceRef(req uiw.StageRequest, stage stagegraph.StageID, name string) (uiw.Ref, error) {
+func requiredSourceRef(req proffer.StageRequest, stage stagegraph.StageID, name string) (proffer.Ref, error) {
 	ref := req.Refs[name]
 	if strings.TrimSpace(string(ref)) == "" {
 		return "", fmt.Errorf("%s requires non-empty %q reference", stage, name)
@@ -169,8 +169,8 @@ func requiredSourceRef(req uiw.StageRequest, stage stagegraph.StageID, name stri
 	return ref, nil
 }
 
-func sourceLifecycleSuccess(stage stagegraph.StageID, resultRef, receiptRef uiw.Ref) uiw.StageResult {
-	return uiw.StageResult{Stage: stage, Status: uiw.StatusSuccess, Ref: resultRef, ReceiptRef: receiptRef}
+func sourceLifecycleSuccess(stage stagegraph.StageID, resultRef, receiptRef proffer.Ref) proffer.StageResult {
+	return proffer.StageResult{Stage: stage, Status: proffer.StatusSuccess, Ref: resultRef, ReceiptRef: receiptRef}
 }
 
 // boundedCleanup gives abort/rollback paths a short cancellation-independent

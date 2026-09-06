@@ -6,16 +6,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/activities"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/normalize"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/activities"
+	"github.com/Cursedpotential/probata/engine/normalize"
+	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/google/uuid"
 )
 
-func fakeNormalizedBundleWriterFactory(context.Context, uiw.StageRequest, normalize.NormalizerInput) (normalize.BundleWriter, error) {
+func fakeNormalizedBundleWriterFactory(context.Context, proffer.StageRequest, normalize.NormalizerInput) (normalize.BundleWriter, error) {
 	return nil, errors.New("not implemented")
 }
-func fakeNormalizedBundleReaderFactory(context.Context, uiw.Ref) (NormalizedBundleReader, error) {
+func fakeNormalizedBundleReaderFactory(context.Context, proffer.Ref) (NormalizedBundleReader, error) {
 	return nil, errors.New("not implemented")
 }
 
@@ -153,17 +153,17 @@ func TestNormalizedRefJSONRoundTrips(t *testing.T) {
 
 func TestParseLineageSetRef(t *testing.T) {
 	id := uuid.New()
-	got, err := parseLineageSetRef(uiw.Ref(lineageSetPrefix + id.String()))
+	got, err := parseLineageSetRef(proffer.Ref(lineageSetPrefix + id.String()))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got != id {
 		t.Fatalf("got %s, want %s", got, id)
 	}
-	if _, err := parseLineageSetRef(uiw.Ref("not-prefixed:" + id.String())); err == nil {
+	if _, err := parseLineageSetRef(proffer.Ref("not-prefixed:" + id.String())); err == nil {
 		t.Fatal("unprefixed ref accepted")
 	}
-	if _, err := parseLineageSetRef(uiw.Ref(lineageSetPrefix + "not-a-uuid")); err == nil {
+	if _, err := parseLineageSetRef(proffer.Ref(lineageSetPrefix + "not-a-uuid")); err == nil {
 		t.Fatal("invalid uuid accepted")
 	}
 }

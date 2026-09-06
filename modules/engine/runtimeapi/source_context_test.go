@@ -12,7 +12,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/sourcecontext"
+	"github.com/Cursedpotential/probata/engine/sourcecontext"
 )
 
 type sourceContextWriterStub struct {
@@ -23,7 +23,7 @@ func (s *sourceContextWriterStub) PersistSourceContext(_ context.Context, spec s
 	s.spec = spec
 	return sourcecontext.Receipt{
 		SourceContextRef: "33333333-3333-3333-3333-333333333333",
-		ReceiptRef:       "uiw-source-context://33333333-3333-3333-3333-333333333333",
+		ReceiptRef:       "proffer-source-context://33333333-3333-3333-3333-333333333333",
 		ContentDigest:    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		Revision:         1,
 		RecordedAt:       time.Unix(1, 0).UTC(),

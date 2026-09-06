@@ -20,8 +20,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/activities"
-	platformpostgres "github.com/Cursedpotential/mcp-platform-agno-mvp/engine/postgres"
+	"github.com/Cursedpotential/probata/engine/activities"
+	platformpostgres "github.com/Cursedpotential/probata/engine/postgres"
 	"github.com/google/uuid"
 )
 

@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/activities"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/parser"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/activities"
+	"github.com/Cursedpotential/probata/engine/parser"
+	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -18,7 +18,7 @@ func TestFilesystemBundleWriterStreamsAndQuarantinesAbort(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	request := uiw.StageRequest{RequestID: "workflow-1", SourceVersionRef: "source-1", DeclaredFormat: "sms_xml_backup"}
+	request := proffer.StageRequest{RequestID: "workflow-1", SourceVersionRef: "source-1", DeclaredFormat: "sms_xml_backup"}
 	selection := activities.PersistedParserSelection{SourceVersionRef: "source-1", DeclaredFormat: "sms_xml_backup", ParserID: "sbv_sms_xml_backup", ParserVersion: "1.0.0"}
 	input := parser.ParserInput{ContractVersion: parser.ContractVersion, SourceVersionRef: "source-1", DeclaredFormat: "sms_xml_backup", FileOrMember: parser.Locator{Type: parser.LocatorWholeObject, ObjectRef: parser.ObjectRef{StorageClass: "filesystem", URI: "file:///source.xml", ContentHash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}}
 	writer, err := factory(context.Background(), request, selection, input)

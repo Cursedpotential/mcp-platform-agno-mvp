@@ -15,11 +15,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/activities"
-	sbvadapter "github.com/Cursedpotential/mcp-platform-agno-mvp/engine/adapters/sbv"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/parser"
-	platformpostgres "github.com/Cursedpotential/mcp-platform-agno-mvp/engine/postgres"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/runtimeapi"
+	"github.com/Cursedpotential/probata/engine/activities"
+	sbvadapter "github.com/Cursedpotential/probata/engine/adapters/sbv"
+	"github.com/Cursedpotential/probata/engine/parser"
+	platformpostgres "github.com/Cursedpotential/probata/engine/postgres"
+	"github.com/Cursedpotential/probata/engine/runtimeapi"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 

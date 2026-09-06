@@ -13,8 +13,8 @@ import (
 	"os"
 	"strings"
 
-	platformpostgres "github.com/Cursedpotential/mcp-platform-agno-mvp/engine/postgres"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	platformpostgres "github.com/Cursedpotential/probata/engine/postgres"
+	"github.com/Cursedpotential/probata/engine/proffer"
 )
 
 // uploadRefScheme is the opaque acquisition-reference scheme minted for a
@@ -77,7 +77,7 @@ func NewUploadIngress(cfg UploadIngressConfig) (*UploadIngress, error) {
 }
 
 // uploadAcceptedResponse is the JSON body ServeHTTP returns on success. Ref
-// is the exact uiw.Ref the client should submit as WorkflowInput.SourceRef.
+// is the exact proffer.Ref the client should submit as WorkflowInput.SourceRef.
 type uploadAcceptedResponse struct {
 	AcquisitionRef string `json:"acquisition_ref"`
 	SHA256         string `json:"sha256"`
@@ -114,7 +114,7 @@ func (u *UploadIngress) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response := uploadAcceptedResponse{
-		AcquisitionRef: string(uiw.Ref(uploadRefScheme + "://" + hex.EncodeToString(sealed.ContentSHA256))),
+		AcquisitionRef: string(proffer.Ref(uploadRefScheme + "://" + hex.EncodeToString(sealed.ContentSHA256))),
 		SHA256:         hex.EncodeToString(sealed.ContentSHA256),
 		ByteLength:     sealed.ByteLength,
 	}
@@ -146,7 +146,7 @@ func NewUploadIngressResolver(root string) (platformpostgres.ImmutableAcquisitio
 	if _, err := prepareSealRoot(root); err != nil {
 		return nil, err
 	}
-	return func(ctx context.Context, ref uiw.Ref) (platformpostgres.ImmutableAcquisition, error) {
+	return func(ctx context.Context, ref proffer.Ref) (platformpostgres.ImmutableAcquisition, error) {
 		if err := ctx.Err(); err != nil {
 			return platformpostgres.ImmutableAcquisition{}, err
 		}
@@ -178,7 +178,7 @@ func NewUploadIngressResolver(root string) (platformpostgres.ImmutableAcquisitio
 	}, nil
 }
 
-func parseUploadRef(ref uiw.Ref) (string, error) {
+func parseUploadRef(ref proffer.Ref) (string, error) {
 	value := strings.TrimSpace(string(ref))
 	const prefix = uploadRefScheme + "://"
 	if !strings.HasPrefix(value, prefix) {

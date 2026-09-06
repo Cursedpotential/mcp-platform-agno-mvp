@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/parser"
+	"github.com/Cursedpotential/probata/engine/parser"
 )
 
 type testAdapter struct {

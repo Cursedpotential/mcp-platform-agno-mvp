@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/parser"
+	"github.com/Cursedpotential/probata/engine/parser"
 	"github.com/lowcarbdev/sbv/pkg/parseonly"
 )
 

@@ -8,8 +8,8 @@ import (
 	"net/url"
 	"strings"
 
-	platformpostgres "github.com/Cursedpotential/mcp-platform-agno-mvp/engine/postgres"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	platformpostgres "github.com/Cursedpotential/probata/engine/postgres"
+	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -122,7 +122,7 @@ func newObjectStorageAcquisitionResolver(root, scheme string, client objectStora
 	if _, err := prepareSealRoot(root); err != nil {
 		return nil, err
 	}
-	return func(ctx context.Context, ref uiw.Ref) (platformpostgres.ImmutableAcquisition, error) {
+	return func(ctx context.Context, ref proffer.Ref) (platformpostgres.ImmutableAcquisition, error) {
 		if err := ctx.Err(); err != nil {
 			return platformpostgres.ImmutableAcquisition{}, err
 		}
@@ -155,7 +155,7 @@ func newObjectStorageAcquisitionResolver(root, scheme string, client objectStora
 // must match the resolver instance answering it — a filesystem resolver
 // combined into the same dispatch table (dispatch.go) must never see an
 // r2:// or b2:// ref, and this resolver must never see anything else.
-func parseObjectStorageRef(scheme string, ref uiw.Ref) (bucket, key string, err error) {
+func parseObjectStorageRef(scheme string, ref proffer.Ref) (bucket, key string, err error) {
 	value := strings.TrimSpace(string(ref))
 	if value == "" {
 		return "", "", fmt.Errorf("acquisition: %s acquisition reference is empty", scheme)
@@ -183,14 +183,14 @@ func parseObjectStorageRef(scheme string, ref uiw.Ref) (bucket, key string, err 
 // counterpart, ingest CLIs, or n8n's upstream fetch step) that need to mint
 // a Ref this package's resolvers can consume without hand-assembling the
 // URI format themselves.
-func objectStorageRef(scheme, bucket, key string) uiw.Ref {
-	return uiw.Ref(fmt.Sprintf("%s://%s/%s", scheme, bucket, strings.TrimPrefix(key, "/")))
+func objectStorageRef(scheme, bucket, key string) proffer.Ref {
+	return proffer.Ref(fmt.Sprintf("%s://%s/%s", scheme, bucket, strings.TrimPrefix(key, "/")))
 }
 
 // CloudflareR2Ref mints an opaque r2:// acquisition reference for the given
 // bucket and object key.
-func CloudflareR2Ref(bucket, key string) uiw.Ref { return objectStorageRef("r2", bucket, key) }
+func CloudflareR2Ref(bucket, key string) proffer.Ref { return objectStorageRef("r2", bucket, key) }
 
 // BackblazeB2Ref mints an opaque b2:// acquisition reference for the given
 // bucket and object key.
-func BackblazeB2Ref(bucket, key string) uiw.Ref { return objectStorageRef("b2", bucket, key) }
+func BackblazeB2Ref(bucket, key string) proffer.Ref { return objectStorageRef("b2", bucket, key) }

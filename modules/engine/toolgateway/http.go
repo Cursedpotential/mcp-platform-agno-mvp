@@ -16,7 +16,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/proffer"
 )
 
 // maxRequestBytes bounds a run request. Payloads are options, never content:
@@ -55,7 +55,7 @@ func (h *HTTPHandler) Routes() http.Handler {
 	return mux
 }
 
-// authorizedTailnetPeer mirrors the check used by the UIW starter: only
+// authorizedTailnetPeer mirrors the check used by the Proffer starter: only
 // Tailscale CGNAT space (100.64.0.0/10) is admitted.
 //
 // Both Tailscale address families are admitted: the IPv4 CGNAT range
@@ -154,7 +154,7 @@ func (h *HTTPHandler) handleRun(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, errors.New("tool gateway: source_ref locator is required"))
 		return
 	}
-	result, err := h.Gateway.Run(r.Context(), toolID, uiw.Ref(req.SourceRef), req.Args)
+	result, err := h.Gateway.Run(r.Context(), toolID, proffer.Ref(req.SourceRef), req.Args)
 	if err != nil {
 		slog.Warn("tool gateway run failed", "tool_id", toolID, "error", err.Error())
 		writeError(w, http.StatusUnprocessableEntity, err)

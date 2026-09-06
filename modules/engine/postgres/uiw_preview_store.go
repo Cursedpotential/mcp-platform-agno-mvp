@@ -1,4 +1,4 @@
-// Byline: Codex · GPT-5.6 · 2026-08-29 (durable UIW preview projection store)
+// Byline: Codex · GPT-5.6 · 2026-08-29 (durable Proffer preview projection store)
 package postgres
 
 import (
@@ -18,14 +18,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/runtimeapi/previewmodel"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/runtimeapi/previewmodel"
 )
 
-// UIWPreviewStore is the durable implementation of previewmodel.Store.
+// ProfferPreviewStore is the durable implementation of previewmodel.Store.
 // It stores reference-only projections in PostgreSQL; source and normalized
 // bytes remain in their governed context tables/object store.
-type UIWPreviewStore struct {
+type ProfferPreviewStore struct {
 	db      DB
 	entropy io.Reader
 	clock   func() time.Time
@@ -51,7 +51,7 @@ type previewAttachmentMetadata struct {
 // PublishWorkflowPreview resolves reference-only workflow coordinates into a
 // complete normalized projection, then delegates the atomic append to
 // PublishProjection. Raw/normalized bytes never enter the Activity payload.
-func (s *UIWPreviewStore) PublishWorkflowPreview(ctx context.Context, request uiw.PreviewPublicationRequest) (previewmodel.Binding, error) {
+func (s *ProfferPreviewStore) PublishWorkflowPreview(ctx context.Context, request proffer.PreviewPublicationRequest) (previewmodel.Binding, error) {
 	binding, err := s.bindingByRequest(ctx, request.RequestID)
 	if err != nil {
 		return previewmodel.Binding{}, err
@@ -82,7 +82,7 @@ func (s *UIWPreviewStore) PublishWorkflowPreview(ctx context.Context, request ui
 		return binding, err
 	}
 	configDigest := sha256.Sum256([]byte(request.ParserOptionsRef))
-	snapshot := previewmodel.Snapshot{PreviewHandle: binding.Handle, Phase: string(uiw.PhaseAwaitingDecision), PreviewDigest: strings.Repeat("0", 64)}
+	snapshot := previewmodel.Snapshot{PreviewHandle: binding.Handle, Phase: string(proffer.PhaseAwaitingDecision), PreviewDigest: strings.Repeat("0", 64)}
 	snapshot.Correlation.RequestID, snapshot.Correlation.SourceVersionID = request.RequestID, sourceID
 	snapshot.Correlation.RawGenerationID, snapshot.Correlation.NormalizedGenerationID = rawID, normalizedID
 	snapshot.Parser = &previewmodel.Parser{ParserID: parserID, ParserVersion: parserVersion, ConfigDigest: hex.EncodeToString(configDigest[:])}
@@ -194,14 +194,14 @@ func (s *UIWPreviewStore) PublishWorkflowPreview(ctx context.Context, request ui
 	count := len(messages)
 	// Event IDs are allocated while the binding row is locked inside
 	// PublishProjection. This keeps retries and concurrent publishers contiguous.
-	events := []previewmodel.Event{{EventType: "messages_available", OccurredAt: s.clock(), PreviewHandle: binding.Handle, Phase: string(uiw.PhaseAwaitingDecision), MessageCount: &count}, {EventType: "phase_changed", OccurredAt: s.clock(), PreviewHandle: binding.Handle, Phase: string(uiw.PhaseAwaitingDecision)}}
+	events := []previewmodel.Event{{EventType: "messages_available", OccurredAt: s.clock(), PreviewHandle: binding.Handle, Phase: string(proffer.PhaseAwaitingDecision), MessageCount: &count}, {EventType: "phase_changed", OccurredAt: s.clock(), PreviewHandle: binding.Handle, Phase: string(proffer.PhaseAwaitingDecision)}}
 	if err := s.PublishProjection(ctx, binding.Handle, snapshot, participants, messages, events); err != nil {
 		return binding, err
 	}
 	return s.Binding(ctx, binding.Handle)
 }
 
-func (s *UIWPreviewStore) bindingByRequest(ctx context.Context, requestID string) (previewmodel.Binding, error) {
+func (s *ProfferPreviewStore) bindingByRequest(ctx context.Context, requestID string) (previewmodel.Binding, error) {
 	var handle string
 	if err := s.db.QueryRow(ctx, `SELECT preview_handle FROM context.uiw_preview_binding WHERE request_id=$1`, requestID).Scan(&handle); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -212,19 +212,19 @@ func (s *UIWPreviewStore) bindingByRequest(ctx context.Context, requestID string
 	return s.Binding(ctx, handle)
 }
 
-func NewUIWPreviewStore(db DB, entropy io.Reader) (*UIWPreviewStore, error) {
+func NewProfferPreviewStore(db DB, entropy io.Reader) (*ProfferPreviewStore, error) {
 	if db == nil {
-		return nil, errors.New("postgres UIW preview store: database is required")
+		return nil, errors.New("postgres Proffer preview store: database is required")
 	}
 	if entropy == nil {
 		entropy = rand.Reader
 	}
-	return &UIWPreviewStore{db: db, entropy: entropy, clock: func() time.Time { return time.Now().UTC() }}, nil
+	return &ProfferPreviewStore{db: db, entropy: entropy, clock: func() time.Time { return time.Now().UTC() }}, nil
 }
 
-func (s *UIWPreviewStore) Create(ctx context.Context, binding previewmodel.Binding) (previewmodel.Binding, error) {
+func (s *ProfferPreviewStore) Create(ctx context.Context, binding previewmodel.Binding) (previewmodel.Binding, error) {
 	if strings.TrimSpace(binding.RequestID) == "" || strings.TrimSpace(string(binding.SourceRef)) == "" || strings.TrimSpace(binding.WorkflowID) == "" || strings.TrimSpace(binding.RunID) == "" || strings.TrimSpace(string(binding.ParserOptionsRef)) == "" {
-		return previewmodel.Binding{}, errors.New("postgres UIW preview binding is incomplete")
+		return previewmodel.Binding{}, errors.New("postgres Proffer preview binding is incomplete")
 	}
 	for attempt := 0; attempt < 4; attempt++ {
 		raw := make([]byte, 24)
@@ -272,7 +272,7 @@ func (s *UIWPreviewStore) Create(ctx context.Context, binding previewmodel.Bindi
 		rollback()
 		if err == nil {
 			if existing.SourceRef != binding.SourceRef || existing.WorkflowID != binding.WorkflowID || existing.RunID != binding.RunID || existing.ParserOptionsRef != binding.ParserOptionsRef {
-				return previewmodel.Binding{}, errors.New("request_id is already bound to different UIW coordinates")
+				return previewmodel.Binding{}, errors.New("request_id is already bound to different Proffer coordinates")
 			}
 			return existing, nil
 		}
@@ -283,7 +283,7 @@ func (s *UIWPreviewStore) Create(ctx context.Context, binding previewmodel.Bindi
 	return previewmodel.Binding{}, errors.New("generate unique durable preview handle")
 }
 
-func (s *UIWPreviewStore) Binding(ctx context.Context, handle string) (previewmodel.Binding, error) {
+func (s *ProfferPreviewStore) Binding(ctx context.Context, handle string) (previewmodel.Binding, error) {
 	var binding previewmodel.Binding
 	var sourceVersion, rawGeneration, normalizedGeneration *uuid.UUID
 	err := s.db.QueryRow(ctx, `
@@ -327,7 +327,7 @@ func (s *UIWPreviewStore) Binding(ctx context.Context, handle string) (previewmo
 	return binding, nil
 }
 
-func (s *UIWPreviewStore) Snapshot(ctx context.Context, handle string) (previewmodel.Snapshot, error) {
+func (s *ProfferPreviewStore) Snapshot(ctx context.Context, handle string) (previewmodel.Snapshot, error) {
 	var snapshot previewmodel.Snapshot
 	var seq int64
 	var parserID, parserVersion, parserDigest string
@@ -381,7 +381,7 @@ func (s *UIWPreviewStore) Snapshot(ctx context.Context, handle string) (previewm
 	return snapshot, nil
 }
 
-func (s *UIWPreviewStore) Page(ctx context.Context, handle string, offset, limit int) (previewmodel.Page, error) {
+func (s *ProfferPreviewStore) Page(ctx context.Context, handle string, offset, limit int) (previewmodel.Page, error) {
 	if offset < 0 || limit < 1 || limit > 250 {
 		return previewmodel.Page{}, errors.New("preview page bounds are invalid")
 	}
@@ -478,7 +478,7 @@ func (s *UIWPreviewStore) Page(ctx context.Context, handle string, offset, limit
 	return page, attachmentRows.Err()
 }
 
-func (s *UIWPreviewStore) EventsAfter(ctx context.Context, handle string, after int64) ([]previewmodel.Event, error) {
+func (s *ProfferPreviewStore) EventsAfter(ctx context.Context, handle string, after int64) ([]previewmodel.Event, error) {
 	var first, latest *int64
 	if err := s.db.QueryRow(ctx, `SELECT min(event_id), max(event_id) FROM context.uiw_preview_event WHERE preview_handle = $1`, handle).Scan(&first, &latest); err != nil {
 		return nil, err
@@ -514,7 +514,7 @@ func (s *UIWPreviewStore) EventsAfter(ctx context.Context, handle string, after 
 	return events, rows.Err()
 }
 
-func (s *UIWPreviewStore) RecordDecision(ctx context.Context, handle string, approved bool, reason, actor string, selection, options uiw.Ref) error {
+func (s *ProfferPreviewStore) RecordDecision(ctx context.Context, handle string, approved bool, reason, actor string, selection, options proffer.Ref) error {
 	if strings.TrimSpace(actor) == "" || strings.TrimSpace(string(selection)) == "" || strings.TrimSpace(string(options)) == "" {
 		return errors.New("durable preview decision requires actor, selection, and options refs")
 	}
@@ -635,7 +635,7 @@ func (s *UIWPreviewStore) RecordDecision(ctx context.Context, handle string, app
 // PublishProjection atomically appends a new validated projection generation.
 // It is the intended projection-activity entrypoint and is never browser-facing;
 // wiring that activity is a separately owned orchestration change.
-func (s *UIWPreviewStore) PublishProjection(ctx context.Context, handle string, snapshot previewmodel.Snapshot, participants []previewmodel.Participant, messages []previewmodel.Message, events []previewmodel.Event) error {
+func (s *ProfferPreviewStore) PublishProjection(ctx context.Context, handle string, snapshot previewmodel.Snapshot, participants []previewmodel.Participant, messages []previewmodel.Message, events []previewmodel.Event) error {
 	if err := previewmodel.Validate(handle, snapshot, participants, messages); err != nil {
 		return err
 	}
@@ -767,8 +767,8 @@ func (s *UIWPreviewStore) PublishProjection(ctx context.Context, handle string, 
 	return nil
 }
 
-func decisionKey(handle string, approved bool, reason, actor string, selection, options uiw.Ref) [sha256.Size]byte {
+func decisionKey(handle string, approved bool, reason, actor string, selection, options proffer.Ref) [sha256.Size]byte {
 	return sha256.Sum256([]byte(fmt.Sprintf("%s\x00%t\x00%s\x00%s\x00%s\x00%s", handle, approved, reason, actor, selection, options)))
 }
 
-var _ previewmodel.Store = (*UIWPreviewStore)(nil)
+var _ previewmodel.Store = (*ProfferPreviewStore)(nil)

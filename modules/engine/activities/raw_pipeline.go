@@ -13,9 +13,9 @@ import (
 	"io"
 	"strings"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/parser"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/parser"
+	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/stagegraph"
 )
 
 // RawGenerationSpec is the compact, already-resolved input to
@@ -25,11 +25,11 @@ import (
 type RawGenerationSpec struct {
 	RequestID        string
 	Attempt          int32
-	SourceVersionRef uiw.Ref
+	SourceVersionRef proffer.Ref
 	DeclaredFormat   string
 	ParserID         string
 	ParserVersion    string
-	BundleRef        uiw.Ref
+	BundleRef        proffer.Ref
 }
 
 // RawBundleReader streams one already-finalized parser bundle back for
@@ -51,7 +51,7 @@ type RawBundleReader interface {
 // the caller supplies the bundle's own accounting for cross-check.
 type RawGenerationWriter interface {
 	Append(context.Context, parser.RawRecordEnvelope) error
-	Commit(context.Context, parser.BundleAccounting) (resultRef uiw.Ref, receiptRef uiw.Ref, err error)
+	Commit(context.Context, parser.BundleAccounting) (resultRef proffer.Ref, receiptRef proffer.Ref, err error)
 	Abort(context.Context) error
 }
 
@@ -63,8 +63,8 @@ type RawGenerationWriter interface {
 type RawGenerationChainSpec struct {
 	RequestID             string
 	Attempt               int32
-	SourceVersionRef      uiw.Ref
-	RawGenerationChainRef uiw.Ref
+	SourceVersionRef      proffer.Ref
+	RawGenerationChainRef proffer.Ref
 }
 
 // RawSourceVerificationSpec is the compact input to
@@ -74,11 +74,11 @@ type RawGenerationChainSpec struct {
 type RawSourceVerificationSpec struct {
 	RequestID                   string
 	Attempt                     int32
-	SourceVersionRef            uiw.Ref
-	AccountingRef               uiw.Ref
-	CoverageRef                 uiw.Ref
-	ContextSourceFingerprintRef uiw.Ref
-	RawGenerationChainRef       uiw.Ref
+	SourceVersionRef            proffer.Ref
+	AccountingRef               proffer.Ref
+	CoverageRef                 proffer.Ref
+	ContextSourceFingerprintRef proffer.Ref
+	RawGenerationChainRef       proffer.Ref
 }
 
 // ReconciliationOutcome is the durable result of one reconciliation or
@@ -86,9 +86,9 @@ type RawSourceVerificationSpec struct {
 // success, failed, or not_applicable — and is never inferred from a Go error:
 // a discrepancy is a real, receipted finding, not an execution failure.
 type ReconciliationOutcome struct {
-	Ref        uiw.Ref
-	ReceiptRef uiw.Ref
-	Status     uiw.Status
+	Ref        proffer.Ref
+	ReceiptRef proffer.Ref
+	Status     proffer.Status
 	Reason     string
 }
 
@@ -97,11 +97,11 @@ func (o ReconciliationOutcome) validate(stage stagegraph.StageID) error {
 		return fmt.Errorf("%s outcome lacks an activity receipt reference", stage)
 	}
 	switch o.Status {
-	case uiw.StatusSuccess:
+	case proffer.StatusSuccess:
 		if o.Ref == "" {
 			return fmt.Errorf("%s success outcome lacks a result reference", stage)
 		}
-	case uiw.StatusFailed, uiw.StatusNotApplicable:
+	case proffer.StatusFailed, proffer.StatusNotApplicable:
 		if strings.TrimSpace(o.Reason) == "" {
 			return fmt.Errorf("%s %s outcome lacks a reason", stage, o.Status)
 		}
@@ -117,7 +117,7 @@ func (o ReconciliationOutcome) validate(stage stagegraph.StageID) error {
 // idempotency coordinate returns the existing durable outcome rather than
 // writing a second time.
 type RawPipelineRepository interface {
-	OpenRawBundle(context.Context, uiw.Ref) (RawBundleReader, error)
+	OpenRawBundle(context.Context, proffer.Ref) (RawBundleReader, error)
 	BeginRawGeneration(context.Context, RawGenerationSpec) (RawGenerationWriter, error)
 	ReconcileRecordAccounting(context.Context, RawGenerationChainSpec) (ReconciliationOutcome, error)
 	ReconcileByteCoverage(context.Context, RawGenerationChainSpec) (ReconciliationOutcome, error)
@@ -164,45 +164,45 @@ func (a RawPipelineActivities) heartbeat(ctx context.Context, progress Progress)
 // bundle's own accounting from the records it actually persisted before
 // trusting the bundle's trailer, so a corrupted or truncated bundle fails
 // closed rather than silently under-persisting.
-func (a RawPipelineActivities) PersistRawGeneration(ctx context.Context, req uiw.StageRequest) (uiw.StageResult, error) {
+func (a RawPipelineActivities) PersistRawGeneration(ctx context.Context, req proffer.StageRequest) (proffer.StageResult, error) {
 	if err := a.validate(); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	if err := ctx.Err(); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	if strings.TrimSpace(req.RequestID) == "" || req.SourceVersionRef == "" {
-		return uiw.StageResult{}, fmt.Errorf("%s requires request and source version references", stagegraph.PersistRawGeneration)
+		return proffer.StageResult{}, fmt.Errorf("%s requires request and source version references", stagegraph.PersistRawGeneration)
 	}
 	if strings.TrimSpace(req.DeclaredFormat) == "" {
-		return uiw.StageResult{}, fmt.Errorf("%s requires a declared format", stagegraph.PersistRawGeneration)
+		return proffer.StageResult{}, fmt.Errorf("%s requires a declared format", stagegraph.PersistRawGeneration)
 	}
 	bundleRef, err := requiredRawRef(req, stagegraph.PersistRawGeneration, "raw_bundle")
 	if err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 
 	reader, err := a.Repository.OpenRawBundle(ctx, bundleRef)
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("open raw bundle %q: %w", bundleRef, err)
+		return proffer.StageResult{}, fmt.Errorf("open raw bundle %q: %w", bundleRef, err)
 	}
 	defer reader.Close()
 
 	header, err := reader.Header(ctx)
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("read raw bundle header: %w", err)
+		return proffer.StageResult{}, fmt.Errorf("read raw bundle header: %w", err)
 	}
 	if header.ContractVersion != parser.ContractVersion {
-		return uiw.StageResult{}, fmt.Errorf("raw bundle contract version %q is unsupported", header.ContractVersion)
+		return proffer.StageResult{}, fmt.Errorf("raw bundle contract version %q is unsupported", header.ContractVersion)
 	}
 	if header.SourceVersionRef != string(req.SourceVersionRef) {
-		return uiw.StageResult{}, errors.New("raw bundle belongs to a different source version")
+		return proffer.StageResult{}, errors.New("raw bundle belongs to a different source version")
 	}
 	if string(header.FormatID) != req.DeclaredFormat {
-		return uiw.StageResult{}, errors.New("raw bundle format does not match the declared format")
+		return proffer.StageResult{}, errors.New("raw bundle format does not match the declared format")
 	}
 	if strings.TrimSpace(header.ParserID) == "" || strings.TrimSpace(header.ParserVersion) == "" {
-		return uiw.StageResult{}, errors.New("raw bundle lacks parser identity")
+		return proffer.StageResult{}, errors.New("raw bundle lacks parser identity")
 	}
 
 	writer, err := a.Repository.BeginRawGeneration(ctx, RawGenerationSpec{
@@ -211,7 +211,7 @@ func (a RawPipelineActivities) PersistRawGeneration(ctx context.Context, req uiw
 		BundleRef: bundleRef,
 	})
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("begin raw generation: %w", err)
+		return proffer.StageResult{}, fmt.Errorf("begin raw generation: %w", err)
 	}
 	committed := false
 	defer func() {
@@ -225,45 +225,45 @@ func (a RawPipelineActivities) PersistRawGeneration(ctx context.Context, req uiw
 	var tally parser.BundleAccounting
 	for {
 		if err := ctx.Err(); err != nil {
-			return uiw.StageResult{}, err
+			return proffer.StageResult{}, err
 		}
 		record, nextErr := reader.Next(ctx)
 		if errors.Is(nextErr, io.EOF) {
 			break
 		}
 		if nextErr != nil {
-			return uiw.StageResult{}, fmt.Errorf("read raw bundle record %d: %w", count, nextErr)
+			return proffer.StageResult{}, fmt.Errorf("read raw bundle record %d: %w", count, nextErr)
 		}
 		if record.RecordOrdinal != count {
-			return uiw.StageResult{}, fmt.Errorf("raw bundle record ordinal %d, want contiguous ordinal %d", record.RecordOrdinal, count)
+			return proffer.StageResult{}, fmt.Errorf("raw bundle record ordinal %d, want contiguous ordinal %d", record.RecordOrdinal, count)
 		}
 		if err := record.Validate(format); err != nil {
-			return uiw.StageResult{}, fmt.Errorf("raw bundle record %d: %w", count, err)
+			return proffer.StageResult{}, fmt.Errorf("raw bundle record %d: %w", count, err)
 		}
 		if err := writer.Append(ctx, record); err != nil {
-			return uiw.StageResult{}, fmt.Errorf("persist raw record %d: %w", count, err)
+			return proffer.StageResult{}, fmt.Errorf("persist raw record %d: %w", count, err)
 		}
 		count++
 		tallyRawAccounting(&tally, record)
 		a.heartbeat(ctx, Progress{Stage: stagegraph.PersistRawGeneration, MembersComplete: int64(count)})
 	}
 	if count == 0 {
-		return uiw.StageResult{}, errors.New("persist raw generation refuses to seal an empty raw bundle")
+		return proffer.StageResult{}, errors.New("persist raw generation refuses to seal an empty raw bundle")
 	}
 	trailer, err := reader.Trailer(ctx)
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("read raw bundle trailer: %w", err)
+		return proffer.StageResult{}, fmt.Errorf("read raw bundle trailer: %w", err)
 	}
 	if trailer != tally {
-		return uiw.StageResult{}, fmt.Errorf("raw bundle trailer accounting %+v does not match streamed counts %+v", trailer, tally)
+		return proffer.StageResult{}, fmt.Errorf("raw bundle trailer accounting %+v does not match streamed counts %+v", trailer, tally)
 	}
 	resultRef, receiptRef, err := writer.Commit(ctx, trailer)
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("commit raw generation: %w", err)
+		return proffer.StageResult{}, fmt.Errorf("commit raw generation: %w", err)
 	}
 	committed = true
 	if resultRef == "" || receiptRef == "" {
-		return uiw.StageResult{}, errors.New("persisted raw generation lacks result or activity receipt reference")
+		return proffer.StageResult{}, errors.New("persisted raw generation lacks result or activity receipt reference")
 	}
 	return rawPipelineSuccess(stagegraph.PersistRawGeneration, resultRef, receiptRef), nil
 }
@@ -292,42 +292,42 @@ func tallyRawAccounting(tally *parser.BundleAccounting, record parser.RawRecordE
 // ReconcileRecordAccounting verifies only that the raw generation's durable
 // record/attachment counts and ordering match what persist_raw_generation
 // declared. It never re-persists or re-derives raw data.
-func (a RawPipelineActivities) ReconcileRecordAccounting(ctx context.Context, req uiw.StageRequest) (uiw.StageResult, error) {
+func (a RawPipelineActivities) ReconcileRecordAccounting(ctx context.Context, req proffer.StageRequest) (proffer.StageResult, error) {
 	return a.reconcileChain(ctx, req, stagegraph.ReconcileRecordAccounting, a.Repository.ReconcileRecordAccounting)
 }
 
 // ReconcileByteCoverage verifies only byte/span coverage of the raw
 // generation against its original retained object, explaining every gap.
-func (a RawPipelineActivities) ReconcileByteCoverage(ctx context.Context, req uiw.StageRequest) (uiw.StageResult, error) {
+func (a RawPipelineActivities) ReconcileByteCoverage(ctx context.Context, req proffer.StageRequest) (proffer.StageResult, error) {
 	return a.reconcileChain(ctx, req, stagegraph.ReconcileByteCoverage, a.Repository.ReconcileByteCoverage)
 }
 
 func (a RawPipelineActivities) reconcileChain(
-	ctx context.Context, req uiw.StageRequest, stage stagegraph.StageID,
+	ctx context.Context, req proffer.StageRequest, stage stagegraph.StageID,
 	call func(context.Context, RawGenerationChainSpec) (ReconciliationOutcome, error),
-) (uiw.StageResult, error) {
+) (proffer.StageResult, error) {
 	if err := a.validate(); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	if err := ctx.Err(); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	if strings.TrimSpace(req.RequestID) == "" || req.SourceVersionRef == "" {
-		return uiw.StageResult{}, fmt.Errorf("%s requires request and source version references", stage)
+		return proffer.StageResult{}, fmt.Errorf("%s requires request and source version references", stage)
 	}
 	chainRef, err := requiredRawRef(req, stage, "raw_generation_chain")
 	if err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	outcome, err := call(ctx, RawGenerationChainSpec{
 		RequestID: req.RequestID, Attempt: a.attempt(ctx), SourceVersionRef: req.SourceVersionRef,
 		RawGenerationChainRef: chainRef,
 	})
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("%s: %w", stage, err)
+		return proffer.StageResult{}, fmt.Errorf("%s: %w", stage, err)
 	}
 	if err := outcome.validate(stage); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	return rawPipelineOutcome(stage, outcome), nil
 }
@@ -336,34 +336,34 @@ func (a RawPipelineActivities) reconcileChain(
 // proof against the context source fingerprint. It does not normalize and does
 // not trust the earlier generation fingerprint computation; the repository
 // must independently recompute it.
-func (a RawPipelineActivities) VerifyRawCoverageAgainstSource(ctx context.Context, req uiw.StageRequest) (uiw.StageResult, error) {
+func (a RawPipelineActivities) VerifyRawCoverageAgainstSource(ctx context.Context, req proffer.StageRequest) (proffer.StageResult, error) {
 	if err := a.validate(); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	if err := ctx.Err(); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	stage := stagegraph.VerifyRawCoverageAgainstSource
 	if strings.TrimSpace(req.RequestID) == "" || req.SourceVersionRef == "" {
-		return uiw.StageResult{}, fmt.Errorf("%s requires request and source version references", stage)
+		return proffer.StageResult{}, fmt.Errorf("%s requires request and source version references", stage)
 	}
 	accountingRef, err := requiredRawRef(req, stage, "accounting")
 	if err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	coverageRef, err := requiredRawRef(req, stage, "coverage")
 	if err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	contextSourceFingerprintRef, err := requiredRawRefWithLegacyAlias(
 		req, stage, "context_source_fingerprint", "h1",
 	)
 	if err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	chainRef, err := requiredRawRef(req, stage, "raw_generation_chain")
 	if err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	outcome, err := a.Repository.VerifyRawCoverageAgainstSource(ctx, RawSourceVerificationSpec{
 		RequestID: req.RequestID, Attempt: a.attempt(ctx), SourceVersionRef: req.SourceVersionRef,
@@ -371,10 +371,10 @@ func (a RawPipelineActivities) VerifyRawCoverageAgainstSource(ctx context.Contex
 		ContextSourceFingerprintRef: contextSourceFingerprintRef, RawGenerationChainRef: chainRef,
 	})
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("%s: %w", stage, err)
+		return proffer.StageResult{}, fmt.Errorf("%s: %w", stage, err)
 	}
 	if err := outcome.validate(stage); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	return rawPipelineOutcome(stage, outcome), nil
 }
@@ -383,7 +383,7 @@ func (a RawPipelineActivities) VerifyRawCoverageAgainstSource(ctx context.Contex
 // safe while making canonical new requests unambiguous. New workflows always
 // emit canonicalName; legacyName is read-only compatibility and is rejected if
 // both names are supplied with different values.
-func requiredRawRefWithLegacyAlias(req uiw.StageRequest, stage stagegraph.StageID, canonicalName, legacyName string) (uiw.Ref, error) {
+func requiredRawRefWithLegacyAlias(req proffer.StageRequest, stage stagegraph.StageID, canonicalName, legacyName string) (proffer.Ref, error) {
 	canonical, legacy := req.Refs[canonicalName], req.Refs[legacyName]
 	if canonical != "" && legacy != "" && canonical != legacy {
 		return "", fmt.Errorf("%s received conflicting %q and legacy %q references", stage, canonicalName, legacyName)
@@ -397,7 +397,7 @@ func requiredRawRefWithLegacyAlias(req uiw.StageRequest, stage stagegraph.StageI
 	return "", fmt.Errorf("%s requires non-empty %q reference", stage, canonicalName)
 }
 
-func requiredRawRef(req uiw.StageRequest, stage stagegraph.StageID, name string) (uiw.Ref, error) {
+func requiredRawRef(req proffer.StageRequest, stage stagegraph.StageID, name string) (proffer.Ref, error) {
 	ref := req.Refs[name]
 	if strings.TrimSpace(string(ref)) == "" {
 		return "", fmt.Errorf("%s requires non-empty %q reference", stage, name)
@@ -405,12 +405,12 @@ func requiredRawRef(req uiw.StageRequest, stage stagegraph.StageID, name string)
 	return ref, nil
 }
 
-func rawPipelineSuccess(stage stagegraph.StageID, resultRef, receiptRef uiw.Ref) uiw.StageResult {
-	return uiw.StageResult{Stage: stage, Status: uiw.StatusSuccess, Ref: resultRef, ReceiptRef: receiptRef}
+func rawPipelineSuccess(stage stagegraph.StageID, resultRef, receiptRef proffer.Ref) proffer.StageResult {
+	return proffer.StageResult{Stage: stage, Status: proffer.StatusSuccess, Ref: resultRef, ReceiptRef: receiptRef}
 }
 
-func rawPipelineOutcome(stage stagegraph.StageID, outcome ReconciliationOutcome) uiw.StageResult {
-	return uiw.StageResult{
+func rawPipelineOutcome(stage stagegraph.StageID, outcome ReconciliationOutcome) proffer.StageResult {
+	return proffer.StageResult{
 		Stage: stage, Status: outcome.Status, Ref: outcome.Ref, ReceiptRef: outcome.ReceiptRef, Reason: outcome.Reason,
 	}
 }

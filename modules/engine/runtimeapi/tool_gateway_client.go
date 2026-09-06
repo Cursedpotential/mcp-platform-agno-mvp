@@ -4,7 +4,7 @@
 // It speaks the gateway contract, not the raw platform-tools contract: a
 // LOCATOR plus tool-specific args. It never sends a host path, because handing
 // a path across a host boundary is the defect the gateway exists to remove —
-// the UIW worker runs on ovh-files, platform-tools on ovh-app, and a
+// the Proffer worker runs on ovh-files, platform-tools on ovh-app, and a
 // worker-local path simply does not exist over there.
 //
 // The gateway authenticates callers with a bearer service token in addition to
@@ -25,7 +25,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/proffer"
 )
 
 const maxToolGatewayResponseBytes int64 = 2 << 20
@@ -58,7 +58,7 @@ func NewToolGatewayClient(baseURL, serviceToken string) (*ToolGatewayClient, err
 // args carries tool options only. "path" is rejected here as well as by the
 // gateway: a caller that names a host path has already lost the property this
 // whole component chain protects.
-func (c *ToolGatewayClient) Run(ctx context.Context, toolID string, sourceRef uiw.Ref, args map[string]any) (json.RawMessage, error) {
+func (c *ToolGatewayClient) Run(ctx context.Context, toolID string, sourceRef proffer.Ref, args map[string]any) (json.RawMessage, error) {
 	if c == nil || c.client == nil {
 		return nil, errors.New("tool gateway client is not configured")
 	}

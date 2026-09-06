@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/parser"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/parser"
+	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/stagegraph"
 )
 
 type runtimeAdapter struct {
@@ -66,7 +66,7 @@ type runtimeStore struct {
 	persistExecCalls int
 }
 
-func (s *runtimeStore) PersistParserSelection(_ context.Context, spec ParserSelectionSpec) (uiw.Ref, uiw.Ref, error) {
+func (s *runtimeStore) PersistParserSelection(_ context.Context, spec ParserSelectionSpec) (proffer.Ref, proffer.Ref, error) {
 	s.selectionSpec = spec
 	if s.persistSelectErr != nil {
 		return "", "", s.persistSelectErr
@@ -80,28 +80,28 @@ func (s *runtimeStore) PersistParserSelection(_ context.Context, spec ParserSele
 	return "selection:1", "receipt:selection", nil
 }
 
-func (s *runtimeStore) LoadParserSelection(_ context.Context, _ uiw.Ref) (PersistedParserSelection, error) {
+func (s *runtimeStore) LoadParserSelection(_ context.Context, _ proffer.Ref) (PersistedParserSelection, error) {
 	if s.loadSelectionErr != nil {
 		return PersistedParserSelection{}, s.loadSelectionErr
 	}
 	return s.selection, nil
 }
 
-func (s *runtimeStore) ResolveParserInput(_ context.Context, _ uiw.StageRequest, _ PersistedParserSelection) (parser.ParserInput, error) {
+func (s *runtimeStore) ResolveParserInput(_ context.Context, _ proffer.StageRequest, _ PersistedParserSelection) (parser.ParserInput, error) {
 	if s.resolveInputErr != nil {
 		return parser.ParserInput{}, s.resolveInputErr
 	}
 	return s.input, nil
 }
 
-func (s *runtimeStore) OpenParserBundleWriter(_ context.Context, _ uiw.StageRequest, _ PersistedParserSelection, _ parser.ParserInput) (parser.BundleWriter, error) {
+func (s *runtimeStore) OpenParserBundleWriter(_ context.Context, _ proffer.StageRequest, _ PersistedParserSelection, _ parser.ParserInput) (parser.BundleWriter, error) {
 	if s.openWriterErr != nil {
 		return nil, s.openWriterErr
 	}
 	return s.writer, nil
 }
 
-func (s *runtimeStore) PersistParserExecution(_ context.Context, spec ParserExecutionSpec) (uiw.Ref, uiw.Ref, error) {
+func (s *runtimeStore) PersistParserExecution(_ context.Context, spec ParserExecutionSpec) (proffer.Ref, proffer.Ref, error) {
 	s.persistExecCalls++
 	s.executionSpec = spec
 	if s.persistExecErr != nil {
@@ -155,12 +155,12 @@ func runtimeRecord() parser.RawRecordEnvelope {
 	}
 }
 
-func parserStageRequest() uiw.StageRequest {
-	return uiw.StageRequest{
+func parserStageRequest() proffer.StageRequest {
+	return proffer.StageRequest{
 		RequestID:        "workflow:1",
 		SourceVersionRef: "source:version:1",
 		DeclaredFormat:   "sms_xml_backup",
-		Refs: map[string]uiw.Ref{
+		Refs: map[string]proffer.Ref{
 			"parser_selection": "selection:1",
 			"original":         "original:1",
 			"parser_options":   "options:1",
@@ -215,7 +215,7 @@ func TestParserActivitiesSelectionPinsExactParserAcrossRegistryDrift(t *testing.
 	if newCalls != 0 || oldCalls != 1 {
 		t.Fatalf("execution reselected after drift: old calls=%d new calls=%d", oldCalls, newCalls)
 	}
-	if execution.Stage != stagegraph.ExecuteParser || execution.Status != uiw.StatusSuccess || execution.Ref != "execution:1" || execution.ReceiptRef != "receipt:execution" {
+	if execution.Stage != stagegraph.ExecuteParser || execution.Status != proffer.StatusSuccess || execution.Ref != "execution:1" || execution.ReceiptRef != "receipt:execution" {
 		t.Fatalf("execution result = %+v", execution)
 	}
 	if store.executionSpec.Attempt != 7 || store.executionSpec.BundleRef != "bundle:staged" || store.executionSpec.ParserID != "old-parser" {
@@ -313,7 +313,7 @@ func TestParserActivitiesSelectionNeverRoutesOnInputSizeAndWireIsCompact(t *test
 		t.Fatalf("selection result=%+v spec=%+v parse calls primary/fallback=%d/%d", result, store.selectionSpec, primaryCalls, fallbackCalls)
 	}
 
-	for _, value := range []any{ParserSelectionSpec{}, PersistedParserSelection{}, ParserExecutionSpec{}, uiw.StageRequest{}, uiw.StageResult{}} {
+	for _, value := range []any{ParserSelectionSpec{}, PersistedParserSelection{}, ParserExecutionSpec{}, proffer.StageRequest{}, proffer.StageResult{}} {
 		typeOfValue := reflect.TypeOf(value)
 		for index := 0; index < typeOfValue.NumField(); index++ {
 			if typeOfValue.Field(index).Type.Kind() == reflect.Slice {

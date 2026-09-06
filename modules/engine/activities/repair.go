@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/stagegraph"
 )
 
 const (
@@ -27,12 +27,12 @@ var allowedDerivedRepairTools = map[string]bool{
 // worker-local path is exactly the defect the gateway was built to remove.
 // Results are persisted by RepairActivityStore and never returned to Temporal.
 type RepairToolClient interface {
-	Run(ctx context.Context, toolID string, sourceRef uiw.Ref, args map[string]any) (json.RawMessage, error)
+	Run(ctx context.Context, toolID string, sourceRef proffer.Ref, args map[string]any) (json.RawMessage, error)
 }
 
 type RepairDecisionRecord struct {
-	DecisionRef uiw.Ref
-	ActorRef    uiw.Ref
+	DecisionRef proffer.Ref
+	ActorRef    proffer.Ref
 	Approved    bool
 	ApplyRepair bool
 	ToolID      string
@@ -41,7 +41,7 @@ type RepairDecisionRecord struct {
 
 type RepairAssessmentSpec struct {
 	RequestID, DeclaredFormat     string
-	SourceVersionRef, OriginalRef uiw.Ref
+	SourceVersionRef, OriginalRef proffer.Ref
 	Attempt                       int32
 	IdempotencyKey                string
 	Detection, Preview            json.RawMessage
@@ -50,7 +50,7 @@ type RepairAssessmentSpec struct {
 
 type RepairResolutionSpec struct {
 	RequestID, DeclaredFormat                                           string
-	SourceVersionRef, OriginalRef, AssessmentRef, DecisionRef, ActorRef uiw.Ref
+	SourceVersionRef, OriginalRef, AssessmentRef, DecisionRef, ActorRef proffer.Ref
 	Attempt                                                             int32
 	IdempotencyKey, ToolID                                              string
 	Applied                                                             bool
@@ -58,7 +58,7 @@ type RepairResolutionSpec struct {
 }
 
 type RepairPersistenceResult struct {
-	ResultRef, ReceiptRef uiw.Ref
+	ResultRef, ReceiptRef proffer.Ref
 	ReviewRequired        bool
 }
 
@@ -67,7 +67,7 @@ type RepairPersistenceResult struct {
 type RepairActivityStore interface {
 	LoadPersistedRepairAssessment(context.Context, RepairAssessmentSpec) (RepairPersistenceResult, bool, error)
 	PersistRepairAssessment(context.Context, RepairAssessmentSpec) (RepairPersistenceResult, error)
-	LoadApprovedRepairDecision(context.Context, uiw.Ref, uiw.Ref, uiw.Ref) (RepairDecisionRecord, error)
+	LoadApprovedRepairDecision(context.Context, proffer.Ref, proffer.Ref, proffer.Ref) (RepairDecisionRecord, error)
 	PersistRepairResolution(context.Context, RepairResolutionSpec) (RepairPersistenceResult, error)
 	PersistAutomaticRepairResolution(context.Context, RepairResolutionSpec) (RepairPersistenceResult, error)
 }
@@ -99,13 +99,13 @@ func (a RepairActivities) validate() error {
 	return nil
 }
 
-func (a RepairActivities) AssessSourceRepair(ctx context.Context, req uiw.StageRequest) (uiw.StageResult, error) {
+func (a RepairActivities) AssessSourceRepair(ctx context.Context, req proffer.StageRequest) (proffer.StageResult, error) {
 	if err := a.validate(); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	original, err := repairRef(req, "original")
 	if err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	idempotencyKey := fmt.Sprintf("repair-assessment:%s:%s:%s", req.RequestID, req.SourceVersionRef, original)
 	prior, found, err := a.Store.LoadPersistedRepairAssessment(ctx, RepairAssessmentSpec{
@@ -113,7 +113,7 @@ func (a RepairActivities) AssessSourceRepair(ctx context.Context, req uiw.StageR
 		SourceVersionRef: req.SourceVersionRef, OriginalRef: original, IdempotencyKey: idempotencyKey,
 	})
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("load persisted repair assessment: %w", err)
+		return proffer.StageResult{}, fmt.Errorf("load persisted repair assessment: %w", err)
 	}
 	if found {
 		return repairAssessmentResult(prior)
@@ -127,11 +127,11 @@ func (a RepairActivities) AssessSourceRepair(ctx context.Context, req uiw.StageR
 	// distinction: the gateway rejected the UUID with "has no URI scheme".
 	locator, err := repairRef(req, "acquisition")
 	if err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	detection, err := a.Client.Run(ctx, RepairDetectTool, locator, nil)
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("run repair detection: %w", err)
+		return proffer.StageResult{}, fmt.Errorf("run repair detection: %w", err)
 	}
 	// The repair engines take the STRUCTURAL format the detector found ("xml",
 	// "json", …), not the platform format tag the boundary declared
@@ -144,7 +144,7 @@ func (a RepairActivities) AssessSourceRepair(ctx context.Context, req uiw.StageR
 	}
 	preview, err := a.Client.Run(ctx, RepairPreviewTool, locator, previewArgs)
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("run repair preview: %w", err)
+		return proffer.StageResult{}, fmt.Errorf("run repair preview: %w", err)
 	}
 	reviewRequired := RepairReviewRequired(detection, preview)
 	result, err := a.Store.PersistRepairAssessment(ctx, RepairAssessmentSpec{
@@ -154,49 +154,49 @@ func (a RepairActivities) AssessSourceRepair(ctx context.Context, req uiw.StageR
 		Detection: append(json.RawMessage(nil), detection...), Preview: append(json.RawMessage(nil), preview...), ReviewRequired: reviewRequired,
 	})
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("persist repair assessment: %w", err)
+		return proffer.StageResult{}, fmt.Errorf("persist repair assessment: %w", err)
 	}
 	return repairAssessmentResult(result)
 }
 
-func (a RepairActivities) ResolveSourceRepair(ctx context.Context, req uiw.StageRequest) (uiw.StageResult, error) {
+func (a RepairActivities) ResolveSourceRepair(ctx context.Context, req proffer.StageRequest) (proffer.StageResult, error) {
 	if err := a.validate(); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	original, err := repairRef(req, "original")
 	if err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	assessment, err := repairRef(req, "repair_assessment")
 	if err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	if req.Refs["auto_clean_assessment"] == assessment {
 		result, persistErr := a.Store.PersistAutomaticRepairResolution(ctx, RepairResolutionSpec{
 			RequestID: req.RequestID, DeclaredFormat: req.DeclaredFormat, SourceVersionRef: req.SourceVersionRef,
-			OriginalRef: original, AssessmentRef: assessment, ActorRef: "uiw:auto-clean",
+			OriginalRef: original, AssessmentRef: assessment, ActorRef: "proffer:auto-clean",
 			Attempt: a.attempt(ctx), IdempotencyKey: fmt.Sprintf("repair-resolution:auto-clean:%s:%s", req.RequestID, assessment),
 		})
 		if persistErr != nil {
-			return uiw.StageResult{}, fmt.Errorf("persist automatic repair resolution: %w", persistErr)
+			return proffer.StageResult{}, fmt.Errorf("persist automatic repair resolution: %w", persistErr)
 		}
 		return repairSuccess(stagegraph.ResolveSourceRepair, result)
 	}
 	decisionRef, err := repairRef(req, "repair_decision")
 	if err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	decision, err := a.Store.LoadApprovedRepairDecision(ctx, req.SourceVersionRef, assessment, decisionRef)
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("load repair decision: %w", err)
+		return proffer.StageResult{}, fmt.Errorf("load repair decision: %w", err)
 	}
 	if !decision.Approved || decision.DecisionRef != decisionRef || decision.ActorRef == "" {
-		return uiw.StageResult{}, errors.New("repair decision is not an exact approved actor-bound decision")
+		return proffer.StageResult{}, errors.New("repair decision is not an exact approved actor-bound decision")
 	}
 	var toolResult json.RawMessage
 	if decision.ApplyRepair {
 		if !allowedDerivedRepairTools[decision.ToolID] {
-			return uiw.StageResult{}, fmt.Errorf("repair tool %q is not an approved derived-write capability", decision.ToolID)
+			return proffer.StageResult{}, fmt.Errorf("repair tool %q is not an approved derived-write capability", decision.ToolID)
 		}
 		payload := make(map[string]any, len(decision.Payload)+2)
 		for key, value := range decision.Payload {
@@ -211,14 +211,14 @@ func (a RepairActivities) ResolveSourceRepair(ctx context.Context, req uiw.Stage
 		payload["approved"] = true
 		locator, locErr := repairRef(req, "acquisition")
 		if locErr != nil {
-			return uiw.StageResult{}, locErr
+			return proffer.StageResult{}, locErr
 		}
 		toolResult, err = a.Client.Run(ctx, decision.ToolID, locator, payload)
 		if err != nil {
-			return uiw.StageResult{}, fmt.Errorf("run approved derived repair: %w", err)
+			return proffer.StageResult{}, fmt.Errorf("run approved derived repair: %w", err)
 		}
 	} else if decision.ToolID != "" || len(decision.Payload) != 0 {
-		return uiw.StageResult{}, errors.New("use-original repair decision must not carry a tool or payload")
+		return proffer.StageResult{}, errors.New("use-original repair decision must not carry a tool or payload")
 	}
 	result, err := a.Store.PersistRepairResolution(ctx, RepairResolutionSpec{
 		RequestID: req.RequestID, DeclaredFormat: req.DeclaredFormat, SourceVersionRef: req.SourceVersionRef,
@@ -227,12 +227,12 @@ func (a RepairActivities) ResolveSourceRepair(ctx context.Context, req uiw.Stage
 		ToolID: decision.ToolID, Applied: decision.ApplyRepair, ToolResult: append(json.RawMessage(nil), toolResult...),
 	})
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("persist repair resolution: %w", err)
+		return proffer.StageResult{}, fmt.Errorf("persist repair resolution: %w", err)
 	}
 	return repairSuccess(stagegraph.ResolveSourceRepair, result)
 }
 
-func repairRef(req uiw.StageRequest, name string) (uiw.Ref, error) {
+func repairRef(req proffer.StageRequest, name string) (proffer.Ref, error) {
 	if strings.TrimSpace(req.RequestID) == "" || req.SourceVersionRef == "" {
 		return "", errors.New("repair activity requires request and source version references")
 	}
@@ -243,23 +243,23 @@ func repairRef(req uiw.StageRequest, name string) (uiw.Ref, error) {
 	return ref, nil
 }
 
-func repairSuccess(stage stagegraph.StageID, result RepairPersistenceResult) (uiw.StageResult, error) {
-	return repairResult(stage, result, uiw.StatusSuccess)
+func repairSuccess(stage stagegraph.StageID, result RepairPersistenceResult) (proffer.StageResult, error) {
+	return repairResult(stage, result, proffer.StatusSuccess)
 }
 
-func repairAssessmentResult(result RepairPersistenceResult) (uiw.StageResult, error) {
-	status := uiw.StatusSuccess
+func repairAssessmentResult(result RepairPersistenceResult) (proffer.StageResult, error) {
+	status := proffer.StatusSuccess
 	if !result.ReviewRequired {
-		status = uiw.StatusNotApplicable
+		status = proffer.StatusNotApplicable
 	}
 	return repairResult(stagegraph.AssessSourceRepair, result, status)
 }
 
-func repairResult(stage stagegraph.StageID, result RepairPersistenceResult, status uiw.Status) (uiw.StageResult, error) {
+func repairResult(stage stagegraph.StageID, result RepairPersistenceResult, status proffer.Status) (proffer.StageResult, error) {
 	if result.ResultRef == "" || result.ReceiptRef == "" {
-		return uiw.StageResult{}, errors.New("repair persistence returned incomplete compact references")
+		return proffer.StageResult{}, errors.New("repair persistence returned incomplete compact references")
 	}
-	return uiw.StageResult{Stage: stage, Status: status, Ref: result.ResultRef, ReceiptRef: result.ReceiptRef}, nil
+	return proffer.StageResult{Stage: stage, Status: status, Ref: result.ResultRef, ReceiptRef: result.ReceiptRef}, nil
 }
 
 // repairDetectionFormat extracts the structural format the detector reported

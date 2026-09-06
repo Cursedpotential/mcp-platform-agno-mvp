@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/activities"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/activities"
+	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/stagegraph"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -42,7 +42,7 @@ type ImmutableAcquisition struct {
 // is immutable and that ContentSHA256/ByteLength describe exactly that object.
 // The pointer and any bytes remain Activity-local; they are never sent through
 // Temporal history.
-type ImmutableAcquisitionResolver func(context.Context, uiw.Ref) (ImmutableAcquisition, error)
+type ImmutableAcquisitionResolver func(context.Context, proffer.Ref) (ImmutableAcquisition, error)
 
 // SourceLifecycleRepository implements activities.SourceLifecycleStore.
 type SourceLifecycleRepository struct {
@@ -61,7 +61,7 @@ func NewSourceLifecycleRepository(db DB, resolve ImmutableAcquisitionResolver) (
 	return &SourceLifecycleRepository{db: db, resolve: resolve, clock: func() time.Time { return time.Now().UTC() }}, nil
 }
 
-func (r *SourceLifecycleRepository) RegisterSource(ctx context.Context, spec activities.SourceRegistrationSpec) (uiw.Ref, uiw.Ref, error) {
+func (r *SourceLifecycleRepository) RegisterSource(ctx context.Context, spec activities.SourceRegistrationSpec) (proffer.Ref, proffer.Ref, error) {
 	if err := validateRegistrationSpec(spec); err != nil {
 		return "", "", err
 	}
@@ -166,10 +166,10 @@ func (r *SourceLifecycleRepository) RegisterSource(ctx context.Context, spec act
 		return "", "", fmt.Errorf("commit source registration: %w", err)
 	}
 	rollback = false
-	return uiw.Ref(sourceVersionID.String()), uiw.Ref(receiptID.String()), nil
+	return proffer.Ref(sourceVersionID.String()), proffer.Ref(receiptID.String()), nil
 }
 
-func (r *SourceLifecycleRepository) RetainOriginal(ctx context.Context, spec activities.OriginalRetentionSpec) (uiw.Ref, uiw.Ref, error) {
+func (r *SourceLifecycleRepository) RetainOriginal(ctx context.Context, spec activities.OriginalRetentionSpec) (proffer.Ref, proffer.Ref, error) {
 	if err := validateRetentionSpec(spec); err != nil {
 		return "", "", err
 	}
@@ -265,7 +265,7 @@ func (r *SourceLifecycleRepository) RetainOriginal(ctx context.Context, spec act
 		return "", "", fmt.Errorf("commit original retention: %w", err)
 	}
 	rollback = false
-	return uiw.Ref(objectID.String()), uiw.Ref(receiptID.String()), nil
+	return proffer.Ref(objectID.String()), proffer.Ref(receiptID.String()), nil
 }
 
 func (o ImmutableAcquisition) validate() error {
@@ -356,7 +356,7 @@ func lifecycleEnsureExecution(ctx context.Context, tx pgx.Tx, sourceVersionID uu
 	return id, nil
 }
 
-func successfulReceipt(ctx context.Context, tx pgx.Tx, executionID uuid.UUID, refKind, refID string) (uiw.Ref, uiw.Ref, bool, error) {
+func successfulReceipt(ctx context.Context, tx pgx.Tx, executionID uuid.UUID, refKind, refID string) (proffer.Ref, proffer.Ref, bool, error) {
 	var receiptID uuid.UUID
 	var resultJSON []byte
 	err := tx.QueryRow(ctx, `
@@ -377,7 +377,7 @@ func successfulReceipt(ctx context.Context, tx pgx.Tx, executionID uuid.UUID, re
 	if err := json.Unmarshal(resultJSON, &result); err != nil || result.RefKind != refKind || result.RefID != refID {
 		return "", "", false, errors.New("existing successful activity receipt has an unexpected result reference")
 	}
-	return uiw.Ref(result.RefID), uiw.Ref(receiptID.String()), true, nil
+	return proffer.Ref(result.RefID), proffer.Ref(receiptID.String()), true, nil
 }
 
 func insertSuccessReceipt(ctx context.Context, tx pgx.Tx, executionID uuid.UUID, attempt int32, kind, id string, now time.Time) (uuid.UUID, error) {

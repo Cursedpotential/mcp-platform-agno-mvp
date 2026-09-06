@@ -14,8 +14,8 @@ import (
 	"strings"
 	"testing"
 
-	platformpostgres "github.com/Cursedpotential/mcp-platform-agno-mvp/engine/postgres"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	platformpostgres "github.com/Cursedpotential/probata/engine/postgres"
+	"github.com/Cursedpotential/probata/engine/proffer"
 )
 
 type fakeRunner struct {
@@ -49,7 +49,7 @@ func sealObject(t *testing.T, content []byte) (platformpostgres.ImmutableAcquisi
 	if !strings.HasPrefix(filepath.ToSlash(path), "/") {
 		uri = "file:///" + filepath.ToSlash(path)
 	}
-	return func(_ context.Context, _ uiw.Ref) (platformpostgres.ImmutableAcquisition, error) {
+	return func(_ context.Context, _ proffer.Ref) (platformpostgres.ImmutableAcquisition, error) {
 		return platformpostgres.ImmutableAcquisition{
 			StorageClass:  "sealed",
 			ObjectURI:     uri,
@@ -82,7 +82,7 @@ func TestRunHandsToolAnExistingLocalPath(t *testing.T) {
 		return json.RawMessage(`{"ok":true}`), nil
 	})
 
-	out, err := g.Run(context.Background(), "repair.detect", uiw.Ref("upload://abc"), map[string]any{"sample_limit": 25})
+	out, err := g.Run(context.Background(), "repair.detect", proffer.Ref("upload://abc"), map[string]any{"sample_limit": 25})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -112,7 +112,7 @@ func TestRunPassesArgsThroughAndOwnsPath(t *testing.T) {
 	resolve, _ := sealObject(t, []byte("data"))
 	runner := &fakeRunner{}
 	g := newGateway(t, resolve, runner)
-	if _, err := g.Run(context.Background(), "repair.preview", uiw.Ref("upload://abc"),
+	if _, err := g.Run(context.Background(), "repair.preview", proffer.Ref("upload://abc"),
 		map[string]any{"format": "smsbackuprestore_xml", "sample_limit": 25}); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -131,8 +131,8 @@ func TestRunPassesArgsThroughAndOwnsPath(t *testing.T) {
 func TestRunRejectsCallerSuppliedPath(t *testing.T) {
 	resolve, _ := sealObject(t, []byte("data"))
 	g := newGateway(t, resolve, &fakeRunner{})
-	_, err := g.Run(context.Background(), "repair.detect", uiw.Ref("upload://abc"),
-		map[string]any{"path": "/data/uiw/source-objects/objects/sha256/aa/aa.source"})
+	_, err := g.Run(context.Background(), "repair.detect", proffer.Ref("upload://abc"),
+		map[string]any{"path": "/data/proffer/source-objects/objects/sha256/aa/aa.source"})
 	if err == nil || !strings.Contains(err.Error(), "must not supply a host path") {
 		t.Fatalf("expected caller-supplied path to be refused, got %v", err)
 	}
@@ -148,14 +148,14 @@ func TestMaterializeFailsClosedOnDigestMismatch(t *testing.T) {
 	}
 	wrong := sha256.Sum256([]byte("original"))
 	uri := "file:///" + strings.TrimPrefix(filepath.ToSlash(path), "/")
-	resolve := func(_ context.Context, _ uiw.Ref) (platformpostgres.ImmutableAcquisition, error) {
+	resolve := func(_ context.Context, _ proffer.Ref) (platformpostgres.ImmutableAcquisition, error) {
 		return platformpostgres.ImmutableAcquisition{
 			ObjectURI: uri, ContentSHA256: wrong[:], ByteLength: int64(len("tampered")),
 		}, nil
 	}
 	runner := &fakeRunner{}
 	g := newGateway(t, resolve, runner)
-	_, err := g.Run(context.Background(), "repair.detect", uiw.Ref("upload://abc"), nil)
+	_, err := g.Run(context.Background(), "repair.detect", proffer.Ref("upload://abc"), nil)
 	if err == nil || !strings.Contains(err.Error(), "digest does not match") {
 		t.Fatalf("expected digest mismatch to fail closed, got %v", err)
 	}
@@ -170,7 +170,7 @@ func TestRunIsSafelyRetryable(t *testing.T) {
 	runner := &fakeRunner{}
 	g := newGateway(t, resolve, runner)
 	for i := 0; i < 3; i++ {
-		if _, err := g.Run(context.Background(), "repair.detect", uiw.Ref("upload://abc"), nil); err != nil {
+		if _, err := g.Run(context.Background(), "repair.detect", proffer.Ref("upload://abc"), nil); err != nil {
 			t.Fatalf("attempt %d failed: %v", i+1, err)
 		}
 	}
@@ -195,7 +195,7 @@ func TestValidateToolIDRejectsUnsafeIDs(t *testing.T) {
 func TestRunSurfacesToolFailure(t *testing.T) {
 	resolve, _ := sealObject(t, []byte("data"))
 	g := newGateway(t, resolve, &fakeRunner{err: errors.New("platform-tools \"repair.detect\" returned 404")})
-	_, err := g.Run(context.Background(), "repair.detect", uiw.Ref("upload://abc"), nil)
+	_, err := g.Run(context.Background(), "repair.detect", proffer.Ref("upload://abc"), nil)
 	if err == nil || !strings.Contains(err.Error(), "returned 404") {
 		t.Fatalf("expected the tool error to surface, got %v", err)
 	}

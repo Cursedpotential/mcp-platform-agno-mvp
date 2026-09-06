@@ -6,7 +6,7 @@ package runtimeapi
 import "testing"
 
 func TestValidateAuthorizedSourceRefDevFixturePrefix(t *testing.T) {
-	fixture := "r2://nexus/uiw/test-fixtures/live-proof-20260827-sample_backup.xml"
+	fixture := "r2://nexus/proffer/test-fixtures/live-proof-20260827-sample_backup.xml"
 
 	t.Setenv("PLATFORM_DEV_AUTH_BYPASS", "")
 	if _, _, err := validateAuthorizedSourceRef(fixture); err == nil {
@@ -18,16 +18,16 @@ func TestValidateAuthorizedSourceRefDevFixturePrefix(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dev fixture prefix must be accepted under the dev flag: %v", err)
 	}
-	if scheme != "r2" || key != "uiw/test-fixtures/live-proof-20260827-sample_backup.xml" {
+	if scheme != "r2" || key != "proffer/test-fixtures/live-proof-20260827-sample_backup.xml" {
 		t.Fatalf("unexpected parse: scheme=%q key=%q", scheme, key)
 	}
 
 	// The flag never widens beyond the fixture prefix or the fixture bucket.
 	for _, bad := range []string{
 		"r2://nexus/other/file.xml",
-		"r2://nexus/uiw/test-fixtures/../escape.xml",
+		"r2://nexus/proffer/test-fixtures/../escape.xml",
 		"r2://casebible-raw/anything.xml",
-		"r2://photos/uiw/test-fixtures/x.xml",
+		"r2://photos/proffer/test-fixtures/x.xml",
 	} {
 		if _, _, err := validateAuthorizedSourceRef(bad); err == nil {
 			t.Fatalf("%s must be rejected even under the dev flag", bad)

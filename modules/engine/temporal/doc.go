@@ -1,20 +1,20 @@
 // Package temporal implements the n8n <-> Temporal transport for
-// engine/uiw.UniversalImportWorkflow's two n8n-backed Activities
+// engine/proffer.ProfferWorkflow's two n8n-backed Activities
 // (select_parser_activity, execute_parser_activity — see
 // docker/n8n/workflows/universal-import/README.md). It registers the real
-// UniversalImportWorkflow — not a workflow of its own — and provides the
+// ProfferWorkflow — not a workflow of its own — and provides the
 // small authenticated HTTP surface n8n's start/decision/preview workflows
 // call, since n8n has no native Temporal client.
 //
 //	n8n "start" webhook  -> this package's HTTP starter -> Temporal client
-//	  -> engine/uiw.UniversalImportWorkflow
+//	  -> engine/proffer.ProfferWorkflow
 //	       -> repair assessment -> durable repair decision Signal/Query/Timer
 //	       -> select_parser_activity  -> n8n "select" webhook  -> engine/runtimeapi
 //	       -> execute_parser_activity -> n8n "execute" webhook -> engine/runtimeapi
 //	       -> normalized preview projection -> durable approval Signal/Query/Timer
-//	       -> seal and publish (all 26 stages registered by engine/uiwworker)
+//	       -> seal and publish (all 26 stages registered by engine/profferworker)
 //
-// The preview hold deliberately lives inside UniversalImportWorkflow itself,
+// The preview hold deliberately lives inside ProfferWorkflow itself,
 // as a genuine Temporal Signal/Query/Timer, rather than as an Activity-level
 // trick in this package: only a workflow-level hold is durable across a
 // worker restart or a replica change, because Temporal replays the
@@ -30,6 +30,6 @@
 // source_version_ref, declared_format, refs on the way in; stage, status,
 // ref, receipt_ref on the way out. Nothing here re-implements parsing,
 // persistence, the runtime HTTP handler, or the workflow's own orchestration.
-// Those stay owned by engine/activities, engine/runtimeapi, and engine/uiw;
-// engine/uiwworker only composes their concrete production adapters.
+// Those stay owned by engine/activities, engine/runtimeapi, and engine/proffer;
+// engine/profferworker only composes their concrete production adapters.
 package temporal

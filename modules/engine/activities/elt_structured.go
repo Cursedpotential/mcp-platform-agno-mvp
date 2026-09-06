@@ -1,9 +1,9 @@
 // Package activities: this file implements ExecuteStructuredELT, the
 // pg_duckdb-backed set-based structured-ELT Activity for BUILD LANE E1
 // (Tweak 4 / H-07 / D-080 / D-123). It is deliberately NOT yet registered as
-// a stagegraph.StageID member — UniversalImportWorkflow wiring is a
+// a stagegraph.StageID member — ProfferWorkflow wiring is a
 // follow-up left to the workflow layer (see the BUILD LANE E1 handoff for
-// the exact diff uiwworker/worker.go still needs).
+// the exact diff profferworker/worker.go still needs).
 //
 // Byline: Claude Code · Sonnet 5 · 2026-09-02
 package activities

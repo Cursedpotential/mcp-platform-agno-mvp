@@ -14,7 +14,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/sourcecontext"
+	"github.com/Cursedpotential/probata/engine/sourcecontext"
 )
 
 const maxSourceContextRequestBytes int64 = 64 << 10
@@ -49,7 +49,7 @@ func (h *SourceContextHTTPHandler) auth(next http.HandlerFunc) http.HandlerFunc 
 		provided := strings.TrimSpace(strings.TrimPrefix(auth, "Bearer "))
 		trusted := tokenErr == nil && strings.HasPrefix(auth, "Bearer ") && hmac.Equal([]byte(provided), serviceToken)
 		if err != nil || ip == nil || ip[0] != 100 || ip[1] < 64 || ip[1] > 127 || !trusted {
-			previewError(w, http.StatusUnauthorized, errors.New("uiw source context tailnet authorization required"))
+			previewError(w, http.StatusUnauthorized, errors.New("proffer source context tailnet authorization required"))
 			return
 		}
 		w.Header().Set("Cache-Control", "no-store")

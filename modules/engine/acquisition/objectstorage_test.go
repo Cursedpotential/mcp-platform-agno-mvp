@@ -9,7 +9,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/stretchr/testify/require"
@@ -73,7 +73,7 @@ func TestObjectStorageResolverRejectsMalformedRef(t *testing.T) {
 	resolver, err := newObjectStorageAcquisitionResolver(root, "b2", client)
 	require.NoError(t, err)
 
-	for _, ref := range []uiw.Ref{"", "b2://bucket-only", "b2:///no-bucket", "file:///etc/passwd"} {
+	for _, ref := range []proffer.Ref{"", "b2://bucket-only", "b2:///no-bucket", "file:///etc/passwd"} {
 		_, err := resolver(context.Background(), ref)
 		require.Errorf(t, err, "ref %q should have been rejected", ref)
 	}

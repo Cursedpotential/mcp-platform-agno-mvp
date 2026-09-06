@@ -1,5 +1,5 @@
 // Package stagegraph locks the atomic stage graph of the future Temporal
-// UniversalImportWorkflow described in
+// ProfferWorkflow described in
 // docs/reviews/2026-08-25-schema-audit/SBV-GO-TEMPORAL-RUNTIME-BOUNDARY.html.
 //
 // It has no Temporal dependency. It exists so the exact stage set, their
@@ -7,7 +7,7 @@
 // reviewed and tested before any Temporal SDK code is written.
 package stagegraph
 
-// StageID names one atomic Activity in the UniversalImportWorkflow, matching
+// StageID names one atomic Activity in the ProfferWorkflow, matching
 // the canon activity names in the boundary document section 2.
 type StageID string
 
@@ -82,7 +82,7 @@ type Descriptor struct {
 // decision says chunk-not-parse rather than execute_parser_activity.
 //
 // ChunkDocument is deliberately NOT a member of Stages. Stages is the
-// exhaustive, fully-convergent DAG behind UniversalImportWorkflow's 26 canon
+// exhaustive, fully-convergent DAG behind ProfferWorkflow's 26 canon
 // stages: graph_test.go's requiredStages map fails closed on any stage not
 // in that exact set (TestEveryRequiredStageAppearsExactlyOnce), and
 // TestPublishRequiresAllGates/TestNoStageReachesPublishWithoutItsOwnGate
@@ -98,9 +98,9 @@ type Descriptor struct {
 // graph invariant that can express alternation).
 //
 // The Activity is fully real and Temporal-callable today: it is registered
-// on the UIW worker (uiwworker.RegisterAll) exactly like every Stages
-// member, using the same uiw.StageRequest/uiw.StageResult wire contract, so
-// a future gated branch in UniversalImportWorkflow can call it via the
+// on the Proffer worker (profferworker.RegisterAll) exactly like every Stages
+// member, using the same proffer.StageRequest/proffer.StageResult wire contract, so
+// a future gated branch in ProfferWorkflow can call it via the
 // existing r.exec helper with no signature change. It is simply not yet
 // invoked by the workflow.
 const ChunkDocument StageID = "chunk_document_activity"

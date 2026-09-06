@@ -15,9 +15,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/activities"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/activities"
+	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/stagegraph"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -153,7 +153,7 @@ func (s *RepairActivityStore) persistAssessment(ctx context.Context, spec activi
 		return activities.RepairPersistenceResult{}, err
 	}
 	rollback = false
-	return activities.RepairPersistenceResult{ResultRef: uiw.Ref(assessmentID.String()), ReceiptRef: uiw.Ref(receiptID.String()), ReviewRequired: spec.ReviewRequired}, nil
+	return activities.RepairPersistenceResult{ResultRef: proffer.Ref(assessmentID.String()), ReceiptRef: proffer.Ref(receiptID.String()), ReviewRequired: spec.ReviewRequired}, nil
 }
 
 func repairAssessmentPrior(ctx context.Context, tx pgx.Tx, executionID uuid.UUID, spec activities.RepairAssessmentSpec) (activities.RepairPersistenceResult, bool, error) {
@@ -183,7 +183,7 @@ func scanPriorRepairAssessment(row pgx.Row, spec activities.RepairAssessmentSpec
 	if err != nil {
 		return activities.RepairPersistenceResult{}, false, err
 	}
-	stored.ReceiptRef = uiw.Ref(receiptID.String())
+	stored.ReceiptRef = proffer.Ref(receiptID.String())
 	return stored, true, nil
 }
 
@@ -204,21 +204,21 @@ func validatePriorRepairAssessment(spec activities.RepairAssessmentSpec, assessm
 	// append-only assessment selected by the idempotency coordinate is the only
 	// authoritative content and review requirement.
 	return activities.RepairPersistenceResult{
-		ResultRef:      uiw.Ref(assessmentID.String()),
+		ResultRef:      proffer.Ref(assessmentID.String()),
 		ReviewRequired: activities.RepairReviewRequired(json.RawMessage(detection), json.RawMessage(preview)),
 	}, nil
 }
 
 func (s *RepairActivityStore) PersistAutomaticRepairResolution(ctx context.Context, spec activities.RepairResolutionSpec) (activities.RepairPersistenceResult, error) {
-	decisionRef, err := s.PersistRepairDecision(ctx, uiw.RepairDecisionSpec{
+	decisionRef, err := s.PersistRepairDecision(ctx, proffer.RepairDecisionSpec{
 		SourceVersionRef: spec.SourceVersionRef, AssessmentRef: spec.AssessmentRef,
-		ActorRef: "uiw:auto-clean", Approved: true,
-		IdempotencyKey: "uiw:auto-clean:" + string(spec.AssessmentRef),
+		ActorRef: "proffer:auto-clean", Approved: true,
+		IdempotencyKey: "proffer:auto-clean:" + string(spec.AssessmentRef),
 	})
 	if err != nil {
 		return activities.RepairPersistenceResult{}, err
 	}
-	spec.DecisionRef, spec.ActorRef, spec.Applied = decisionRef, "uiw:auto-clean", false
+	spec.DecisionRef, spec.ActorRef, spec.Applied = decisionRef, "proffer:auto-clean", false
 	return s.PersistRepairResolution(ctx, spec)
 }
 
@@ -238,10 +238,10 @@ func repairPrior(ctx context.Context, tx pgx.Tx, executionID uuid.UUID) (activit
 	if json.Unmarshal(raw, &ref) != nil || ref.RefID == "" {
 		return activities.RepairPersistenceResult{}, false, errors.New("stored repair receipt is invalid")
 	}
-	return activities.RepairPersistenceResult{ResultRef: uiw.Ref(ref.RefID), ReceiptRef: uiw.Ref(receiptID.String())}, true, nil
+	return activities.RepairPersistenceResult{ResultRef: proffer.Ref(ref.RefID), ReceiptRef: proffer.Ref(receiptID.String())}, true, nil
 }
 
-func (s *RepairActivityStore) LoadApprovedRepairDecision(ctx context.Context, sourceRef, assessmentRef, decisionRef uiw.Ref) (activities.RepairDecisionRecord, error) {
+func (s *RepairActivityStore) LoadApprovedRepairDecision(ctx context.Context, sourceRef, assessmentRef, decisionRef proffer.Ref) (activities.RepairDecisionRecord, error) {
 	var actor, tool string
 	var approved, apply bool
 	var payload []byte
@@ -256,12 +256,12 @@ func (s *RepairActivityStore) LoadApprovedRepairDecision(ctx context.Context, so
 	if !approved {
 		return activities.RepairDecisionRecord{}, errors.New("repair decision is not approved")
 	}
-	return activities.RepairDecisionRecord{DecisionRef: decisionRef, ActorRef: uiw.Ref(actor), Approved: approved, ApplyRepair: apply, ToolID: tool, Payload: object}, nil
+	return activities.RepairDecisionRecord{DecisionRef: decisionRef, ActorRef: proffer.Ref(actor), Approved: approved, ApplyRepair: apply, ToolID: tool, Payload: object}, nil
 }
 
-// PersistRepairDecision gives Workbench/UIW one transactionally idempotent
+// PersistRepairDecision gives Workbench/Proffer one transactionally idempotent
 // write seam. n8n and Temporal receive only its returned decision registry.
-func (s *RepairActivityStore) PersistRepairDecision(ctx context.Context, spec uiw.RepairDecisionSpec) (uiw.Ref, error) {
+func (s *RepairActivityStore) PersistRepairDecision(ctx context.Context, spec proffer.RepairDecisionSpec) (proffer.Ref, error) {
 	sourceID, err := uuid.Parse(string(spec.SourceVersionRef))
 	if err != nil {
 		return "", errors.New("repair decision source reference is invalid")
@@ -321,7 +321,7 @@ func (s *RepairActivityStore) PersistRepairDecision(ctx context.Context, spec ui
 		return "", err
 	}
 	rollback = false
-	return uiw.Ref(id.String()), nil
+	return proffer.Ref(id.String()), nil
 }
 
 func allowedRepairTool(tool string) bool {
@@ -395,7 +395,7 @@ func (s *RepairActivityStore) PersistRepairResolution(ctx context.Context, spec 
 		return activities.RepairPersistenceResult{}, err
 	}
 	rollback = false
-	return activities.RepairPersistenceResult{ResultRef: uiw.Ref(activeID.String()), ReceiptRef: uiw.Ref(receiptID.String())}, nil
+	return activities.RepairPersistenceResult{ResultRef: proffer.Ref(activeID.String()), ReceiptRef: proffer.Ref(receiptID.String())}, nil
 }
 
 type derivedRepairObject struct {

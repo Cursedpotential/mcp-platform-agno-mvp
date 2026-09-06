@@ -7,7 +7,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/parser"
+	"github.com/Cursedpotential/probata/engine/parser"
 )
 
 // Adapter is the atomic chunk-stage seam. It deliberately does not emit

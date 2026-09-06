@@ -1,9 +1,9 @@
-package uiw
+package proffer
 
 import (
 	"testing"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
+	"github.com/Cursedpotential/probata/engine/stagegraph"
 )
 
 func TestEveryStageHasExplicitBoundedOptions(t *testing.T) {

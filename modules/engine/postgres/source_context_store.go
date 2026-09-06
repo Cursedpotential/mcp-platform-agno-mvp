@@ -1,4 +1,4 @@
-// Byline: Codex · GPT-5.6-Sol · 2026-08-30 (append-only UIW source context)
+// Byline: Codex · GPT-5.6-Sol · 2026-08-30 (append-only Proffer source context)
 package postgres
 
 import (
@@ -12,7 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/sourcecontext"
+	"github.com/Cursedpotential/probata/engine/sourcecontext"
 )
 
 type SourceContextStore struct {
@@ -41,7 +41,7 @@ func (s *SourceContextStore) PersistSourceContext(ctx context.Context, spec sour
 		return sourcecontext.Receipt{}, err
 	}
 	recordedAt := s.clock()
-	receiptRef := "uiw-source-context://" + id.String()
+	receiptRef := "proffer-source-context://" + id.String()
 	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return sourcecontext.Receipt{}, err

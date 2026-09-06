@@ -13,23 +13,23 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/proffer"
 )
 
 // fakeStarter is a hand-rolled WorkflowStarter for HTTP-layer tests, so they
 // never need a real Temporal connection.
 type fakeStarter struct {
-	startIn       uiw.WorkflowInput
+	startIn       proffer.WorkflowInput
 	startErr      error
 	decideID      string
-	decideArg     uiw.PreviewDecision
+	decideArg     proffer.PreviewDecision
 	decideErr     error
 	previewID     string
-	previewResult uiw.PreviewState
+	previewResult proffer.PreviewState
 	previewErr    error
 }
 
-func (f *fakeStarter) Start(_ context.Context, in uiw.WorkflowInput) (string, string, error) {
+func (f *fakeStarter) Start(_ context.Context, in proffer.WorkflowInput) (string, string, error) {
 	f.startIn = in
 	if f.startErr != nil {
 		return "", "", f.startErr
@@ -37,17 +37,17 @@ func (f *fakeStarter) Start(_ context.Context, in uiw.WorkflowInput) (string, st
 	return "wf-" + in.RequestID, "run-1", nil
 }
 
-func (f *fakeStarter) Decide(_ context.Context, workflowID string, decision uiw.PreviewDecision) error {
+func (f *fakeStarter) Decide(_ context.Context, workflowID string, decision proffer.PreviewDecision) error {
 	f.decideID = workflowID
 	f.decideArg = decision
 	return f.decideErr
 }
-func (f *fakeStarter) DecideRepair(context.Context, string, uiw.RepairDecision) error { return nil }
+func (f *fakeStarter) DecideRepair(context.Context, string, proffer.RepairDecision) error { return nil }
 
-func (f *fakeStarter) Preview(_ context.Context, workflowID string) (uiw.PreviewState, error) {
+func (f *fakeStarter) Preview(_ context.Context, workflowID string) (proffer.PreviewState, error) {
 	f.previewID = workflowID
 	if f.previewErr != nil {
-		return uiw.PreviewState{}, f.previewErr
+		return proffer.PreviewState{}, f.previewErr
 	}
 	return f.previewResult, nil
 }
@@ -201,7 +201,7 @@ func TestDecisionHandlerRejectsRejectionWithoutReason(t *testing.T) {
 }
 
 func TestPreviewHandlerSuccess(t *testing.T) {
-	starter := &fakeStarter{previewResult: uiw.PreviewState{Phase: uiw.PhaseAwaitingDecision, SelectRef: "selection-ref"}}
+	starter := &fakeStarter{previewResult: proffer.PreviewState{Phase: proffer.PhaseAwaitingDecision, SelectRef: "selection-ref"}}
 	server := httptest.NewServer(newTestHandler(t, starter))
 	defer server.Close()
 
@@ -218,7 +218,7 @@ func TestPreviewHandlerSuccess(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&state); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if state.Phase != string(uiw.PhaseAwaitingDecision) || state.SelectRef != "selection-ref" {
+	if state.Phase != string(proffer.PhaseAwaitingDecision) || state.SelectRef != "selection-ref" {
 		t.Errorf("preview state = %+v, unexpected", state)
 	}
 	if starter.previewID != "wf-req-1" {

@@ -5,28 +5,28 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/runtimeapi/previewmodel"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/runtimeapi/previewmodel"
+	"github.com/Cursedpotential/probata/engine/stagegraph"
 )
 
 type previewPublisherStub struct {
 	binding previewmodel.Binding
 	err     error
-	got     uiw.PreviewPublicationRequest
+	got     proffer.PreviewPublicationRequest
 }
 
-func (s *previewPublisherStub) PublishWorkflowPreview(_ context.Context, request uiw.PreviewPublicationRequest) (previewmodel.Binding, error) {
+func (s *previewPublisherStub) PublishWorkflowPreview(_ context.Context, request proffer.PreviewPublicationRequest) (previewmodel.Binding, error) {
 	s.got = request
 	return s.binding, s.err
 }
 
-func validPreviewPublicationRequest() uiw.PreviewPublicationRequest {
-	receipts := make(map[string]uiw.Ref, len(previewmodel.ReceiptTypes))
+func validPreviewPublicationRequest() proffer.PreviewPublicationRequest {
+	receipts := make(map[string]proffer.Ref, len(previewmodel.ReceiptTypes))
 	for _, kind := range previewmodel.ReceiptTypes {
-		receipts[kind] = uiw.Ref(kind + "-receipt")
+		receipts[kind] = proffer.Ref(kind + "-receipt")
 	}
-	return uiw.PreviewPublicationRequest{
+	return proffer.PreviewPublicationRequest{
 		RequestID: "request-1", SourceVersionRef: "source-1", RawGenerationRef: "raw-1",
 		NormalizedGenerationRef: "normalized-1", ParserSelectionRef: "selection-1",
 		ParserOptionsRef: "options-1", ReceiptRefs: receipts,

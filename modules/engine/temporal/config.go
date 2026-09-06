@@ -20,7 +20,7 @@ type Config struct {
 	// TemporalNamespace is the Temporal namespace this worker and starter
 	// operate in.
 	TemporalNamespace string
-	// TemporalTaskQueue is the task queue engine/uiw.UniversalImportWorkflow
+	// TemporalTaskQueue is the task queue engine/proffer.ProfferWorkflow
 	// and this package's two Activities are registered and dispatched on.
 	TemporalTaskQueue string
 

@@ -1,4 +1,4 @@
-package uiwworker
+package profferworker
 
 import (
 	"os"
@@ -25,7 +25,7 @@ func setWorkerEnvironment(t *testing.T) {
 	values := map[string]string{
 		"TEMPORAL_HOST_PORT":                   "temporal:7233",
 		"TEMPORAL_NAMESPACE":                   "default",
-		"TEMPORAL_TASK_QUEUE":                  "universal-import-v1",
+		"TEMPORAL_TASK_QUEUE":                  "proffer-v1",
 		"PLATFORM_DATABASE_URL_FILE":           databaseURLFile,
 		"SOURCE_OBJECT_DIR":                    filepath.Join(root, "source"),
 		"PARSER_BUNDLE_DIR":                    filepath.Join(root, "parser"),
@@ -50,7 +50,7 @@ func TestLoadConfigBuildsDedicatedWorkerContract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadConfig() error = %v", err)
 	}
-	if cfg.TemporalTaskQueue != "universal-import-v1" {
+	if cfg.TemporalTaskQueue != "proffer-v1" {
 		t.Fatalf("task queue = %q", cfg.TemporalTaskQueue)
 	}
 	if strings.HasSuffix(cfg.N8NBaseURL, "/") {

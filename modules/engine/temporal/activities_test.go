@@ -8,8 +8,8 @@ import (
 
 	"go.temporal.io/sdk/testsuite"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/stagegraph"
 )
 
 // activityEnv builds a TestActivityEnvironment wired to N8NActivities talking
@@ -45,7 +45,7 @@ func TestSelectParserActivitySuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ExecuteActivity(SelectParser) error = %v", err)
 	}
-	var result uiw.StageResult
+	var result proffer.StageResult
 	if err := value.Get(&result); err != nil {
 		t.Fatalf("decode activity result: %v", err)
 	}
@@ -69,7 +69,7 @@ func TestExecuteParserActivitySendsHeartbeatsAndSucceeds(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ExecuteActivity(ExecuteParser) error = %v", err)
 	}
-	var result uiw.StageResult
+	var result proffer.StageResult
 	if err := value.Get(&result); err != nil {
 		t.Fatalf("decode activity result: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestActivityFailsClosedOnN8NError(t *testing.T) {
 
 // TestActivitiesRegisterUnderCanonStageNames proves N8NActivities.SelectParser
 // and .ExecuteParser are dispatchable by exactly the stagegraph names
-// engine/uiw.UniversalImportWorkflow invokes them by.
+// engine/proffer.ProfferWorkflow invokes them by.
 func TestActivitiesRegisterUnderCanonStageNames(t *testing.T) {
 	if string(stagegraph.SelectParser) != "select_parser_activity" {
 		t.Fatalf("stagegraph.SelectParser = %q, want select_parser_activity", stagegraph.SelectParser)

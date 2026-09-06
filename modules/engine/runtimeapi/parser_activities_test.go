@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/activities"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/parser"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/activities"
+	"github.com/Cursedpotential/probata/engine/parser"
+	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/stagegraph"
 )
 
 func TestParserActivityHandlerSelectsThroughAtomicActivity(t *testing.T) {
@@ -36,7 +36,7 @@ func TestParserActivityHandlerSelectsThroughAtomicActivity(t *testing.T) {
 	if err := json.Unmarshal(recorder.Body.Bytes(), &result); err != nil {
 		t.Fatal(err)
 	}
-	if result.Stage != stagegraph.SelectParser || result.Status != uiw.StatusSuccess || result.Ref != "selection:1" || result.ReceiptRef != "receipt:1" {
+	if result.Stage != stagegraph.SelectParser || result.Status != proffer.StatusSuccess || result.Ref != "selection:1" || result.ReceiptRef != "receipt:1" {
 		t.Fatalf("result = %+v", result)
 	}
 }
@@ -63,7 +63,7 @@ func TestParserActivityHandlerExecutesThroughPinnedSelection(t *testing.T) {
 	if err := json.Unmarshal(recorder.Body.Bytes(), &result); err != nil {
 		t.Fatal(err)
 	}
-	if result.Stage != stagegraph.ExecuteParser || result.Status != uiw.StatusSuccess || result.Ref != "bundle:1" || result.ReceiptRef != "receipt:2" {
+	if result.Stage != stagegraph.ExecuteParser || result.Status != proffer.StatusSuccess || result.Ref != "bundle:1" || result.ReceiptRef != "receipt:2" {
 		t.Fatalf("result = %+v", result)
 	}
 }
@@ -143,29 +143,29 @@ func (httpTestAdapter) Parse(ctx context.Context, input parser.ParserInput, sink
 
 type httpTestStore struct{}
 
-func (httpTestStore) PersistParserSelection(context.Context, activities.ParserSelectionSpec) (uiw.Ref, uiw.Ref, error) {
+func (httpTestStore) PersistParserSelection(context.Context, activities.ParserSelectionSpec) (proffer.Ref, proffer.Ref, error) {
 	return "selection:1", "receipt:1", nil
 }
 
-func (httpTestStore) LoadParserSelection(context.Context, uiw.Ref) (activities.PersistedParserSelection, error) {
+func (httpTestStore) LoadParserSelection(context.Context, proffer.Ref) (activities.PersistedParserSelection, error) {
 	return activities.PersistedParserSelection{
 		SourceVersionRef: "source-1", DeclaredFormat: "sms_xml_backup",
 		ParserID: "http-test-parser", ParserVersion: "1.0.0",
 	}, nil
 }
 
-func (httpTestStore) ResolveParserInput(context.Context, uiw.StageRequest, activities.PersistedParserSelection) (parser.ParserInput, error) {
+func (httpTestStore) ResolveParserInput(context.Context, proffer.StageRequest, activities.PersistedParserSelection) (parser.ParserInput, error) {
 	return parser.ParserInput{
 		ContractVersion: parser.ContractVersion, SourceVersionRef: "source-1", DeclaredFormat: "sms_xml_backup",
 		FileOrMember: parser.Locator{Type: parser.LocatorWholeObject, ObjectRef: parser.ObjectRef{StorageClass: "filesystem", URI: "file:///retained/source"}},
 	}, nil
 }
 
-func (httpTestStore) OpenParserBundleWriter(context.Context, uiw.StageRequest, activities.PersistedParserSelection, parser.ParserInput) (parser.BundleWriter, error) {
+func (httpTestStore) OpenParserBundleWriter(context.Context, proffer.StageRequest, activities.PersistedParserSelection, parser.ParserInput) (parser.BundleWriter, error) {
 	return httpTestBundleWriter{}, nil
 }
 
-func (httpTestStore) PersistParserExecution(context.Context, activities.ParserExecutionSpec) (uiw.Ref, uiw.Ref, error) {
+func (httpTestStore) PersistParserExecution(context.Context, activities.ParserExecutionSpec) (proffer.Ref, proffer.Ref, error) {
 	return "bundle:1", "receipt:2", nil
 }
 

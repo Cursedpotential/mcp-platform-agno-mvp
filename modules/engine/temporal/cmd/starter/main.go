@@ -1,6 +1,6 @@
-// Command universal-import-starter exposes the small authenticated HTTP
+// Command proffer-starter exposes the small authenticated HTTP
 // surface n8n's start/decision/preview workflows call, since n8n has no
-// native Temporal client: start a UniversalImportWorkflow run, signal a
+// native Temporal client: start a ProfferWorkflow run, signal a
 // human preview decision into a held run, and read back its preview state.
 //
 // It holds no parsing, persistence, or Activity logic of its own, and no
@@ -24,9 +24,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.temporal.io/sdk/client"
 
-	platformpostgres "github.com/Cursedpotential/mcp-platform-agno-mvp/engine/postgres"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/runtimeapi"
-	platformtemporal "github.com/Cursedpotential/mcp-platform-agno-mvp/engine/temporal"
+	platformpostgres "github.com/Cursedpotential/probata/engine/postgres"
+	"github.com/Cursedpotential/probata/engine/runtimeapi"
+	platformtemporal "github.com/Cursedpotential/probata/engine/temporal"
 )
 
 const (
@@ -89,7 +89,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	previewStore, err := platformpostgres.NewUIWPreviewStore(pool, nil)
+	previewStore, err := platformpostgres.NewProfferPreviewStore(pool, nil)
 	if err != nil {
 		return err
 	}

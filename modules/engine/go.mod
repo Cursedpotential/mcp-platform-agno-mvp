@@ -1,4 +1,4 @@
-module github.com/Cursedpotential/mcp-platform-agno-mvp/engine
+module github.com/Cursedpotential/probata/engine
 
 go 1.26.6
 

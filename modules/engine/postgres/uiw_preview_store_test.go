@@ -1,4 +1,4 @@
-// Byline: Codex · GPT-5.6 · 2026-08-29 (durable UIW preview store tests)
+// Byline: Codex · GPT-5.6 · 2026-08-29 (durable Proffer preview store tests)
 package postgres
 
 import (
@@ -13,8 +13,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/runtimeapi/previewmodel"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/runtimeapi/previewmodel"
 )
 
 type nestedPreviewTestDB struct{ tx pgx.Tx }
@@ -29,18 +29,18 @@ func (db nestedPreviewTestDB) QueryRow(ctx context.Context, sql string, args ...
 	return db.tx.QueryRow(ctx, sql, args...)
 }
 
-func TestNewUIWPreviewStoreRequiresDatabase(t *testing.T) {
-	if _, err := NewUIWPreviewStore(nil, nil); err == nil {
+func TestNewProfferPreviewStoreRequiresDatabase(t *testing.T) {
+	if _, err := NewProfferPreviewStore(nil, nil); err == nil {
 		t.Fatal("nil database accepted")
 	}
-	if _, err := NewUIWPreviewStore(testDB{}, strings.NewReader(strings.Repeat("x", 64))); err != nil {
+	if _, err := NewProfferPreviewStore(testDB{}, strings.NewReader(strings.Repeat("x", 64))); err != nil {
 		t.Fatalf("valid preview store rejected: %v", err)
 	}
 }
 
 func TestPreviewDecisionKeyIsDeterministicAndCoordinateBound(t *testing.T) {
-	base := decisionKey("handle", true, "reason", "actor", uiw.Ref("selection"), uiw.Ref("options"))
-	if base != decisionKey("handle", true, "reason", "actor", uiw.Ref("selection"), uiw.Ref("options")) {
+	base := decisionKey("handle", true, "reason", "actor", proffer.Ref("selection"), proffer.Ref("options"))
+	if base != decisionKey("handle", true, "reason", "actor", proffer.Ref("selection"), proffer.Ref("options")) {
 		t.Fatal("decision key is not deterministic")
 	}
 	variants := [][6]string{
@@ -53,7 +53,7 @@ func TestPreviewDecisionKeyIsDeterministicAndCoordinateBound(t *testing.T) {
 	}
 	for _, variant := range variants {
 		approved := variant[1] == "true"
-		if base == decisionKey(variant[0], approved, variant[2], variant[3], uiw.Ref(variant[4]), uiw.Ref(variant[5])) {
+		if base == decisionKey(variant[0], approved, variant[2], variant[3], proffer.Ref(variant[4]), proffer.Ref(variant[5])) {
 			t.Fatalf("decision key ignored coordinate %+v", variant)
 		}
 	}
@@ -83,7 +83,7 @@ func TestMigration0050RollbackOnlyOnPostgreSQL18(t *testing.T) {
 		t.Fatal(err)
 	}
 	sql := strings.TrimSpace(string(body))
-	sql = strings.TrimSpace(strings.TrimPrefix(sql, "-- Migration 0050: durable opaque UIW preview projection store.\n-- Reference-only operator projection; no source or normalized payload bytes enter workflow history.\n-- Byline: Codex · GPT-5.6 · 2026-08-29.\n\nBEGIN;"))
+	sql = strings.TrimSpace(strings.TrimPrefix(sql, "-- Migration 0050: durable opaque Proffer preview projection store.\n-- Reference-only operator projection; no source or normalized payload bytes enter workflow history.\n-- Byline: Codex · GPT-5.6 · 2026-08-29.\n\nBEGIN;"))
 	sql = strings.TrimSpace(strings.TrimSuffix(sql, "COMMIT;"))
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -104,7 +104,7 @@ func TestMigration0050RollbackOnlyOnPostgreSQL18(t *testing.T) {
 	if relation != "context.uiw_preview_binding" && relation != "uiw_preview_binding" {
 		t.Fatalf("migration relation = %q", relation)
 	}
-	store, err := NewUIWPreviewStore(nestedPreviewTestDB{tx: tx}, strings.NewReader(strings.Repeat("abcdefghijklmnopqrstuvwx", 8)))
+	store, err := NewProfferPreviewStore(nestedPreviewTestDB{tx: tx}, strings.NewReader(strings.Repeat("abcdefghijklmnopqrstuvwx", 8)))
 	if err != nil {
 		t.Fatal(err)
 	}

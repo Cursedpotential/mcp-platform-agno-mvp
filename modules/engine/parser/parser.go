@@ -1,5 +1,5 @@
 // Package parser defines the platform-owned, parse-only adapter boundary for
-// UniversalImportWorkflow. It deliberately has no Temporal, database, hash,
+// ProfferWorkflow. It deliberately has no Temporal, database, hash,
 // normalization, or custody dependency: adapters stream raw source-native
 // records to a caller-owned BundleWriter and return only compact results.
 package parser

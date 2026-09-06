@@ -20,11 +20,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/activities"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/normalize"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/parser"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/activities"
+	"github.com/Cursedpotential/probata/engine/normalize"
+	"github.com/Cursedpotential/probata/engine/parser"
+	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/stagegraph"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -33,7 +33,7 @@ import (
 // normalize_generation_activity writes to. This repository has no
 // bundle-bytes persistence authority of its own, mirroring ParserStore's
 // BundleWriterFactory in parser_activity_store.go.
-type NormalizedBundleWriterFactory func(context.Context, uiw.StageRequest, normalize.NormalizerInput) (normalize.BundleWriter, error)
+type NormalizedBundleWriterFactory func(context.Context, proffer.StageRequest, normalize.NormalizerInput) (normalize.BundleWriter, error)
 
 // NormalizedBundleReader streams the finalized bundle produced by
 // normalize_generation_activity, exactly as it was written. Header returns
@@ -47,7 +47,7 @@ type NormalizedBundleReader interface {
 
 // NormalizedBundleReaderFactory resolves a bundle reference minted by the
 // OpenNormalizedBundleWriter writer back to a streaming reader.
-type NormalizedBundleReaderFactory func(context.Context, uiw.Ref) (NormalizedBundleReader, error)
+type NormalizedBundleReaderFactory func(context.Context, proffer.Ref) (NormalizedBundleReader, error)
 
 // NormalizedPipelineRepository implements activities.NormalizedPipelineStore.
 type NormalizedPipelineRepository struct {
@@ -83,7 +83,7 @@ func (r *NormalizedPipelineRepository) now() time.Time {
 // ResolveNormalizerInput opens a streaming view over the already-sealed raw
 // generation and resolves the source-version-level facts (provenance class,
 // acquired_at) normalize.Adapter needs but must never guess.
-func (r *NormalizedPipelineRepository) ResolveNormalizerInput(ctx context.Context, req uiw.StageRequest) (normalize.NormalizerInput, error) {
+func (r *NormalizedPipelineRepository) ResolveNormalizerInput(ctx context.Context, req proffer.StageRequest) (normalize.NormalizerInput, error) {
 	sourceVersionID, err := uuid.Parse(string(req.SourceVersionRef))
 	if err != nil {
 		return normalize.NormalizerInput{}, fmt.Errorf("source version reference %q: %w", req.SourceVersionRef, err)
@@ -177,7 +177,7 @@ func (s *rawRecordRows) Close() error {
 
 // OpenNormalizedBundleWriter delegates to the injected factory; this
 // repository has no bundle-bytes storage engine of its own.
-func (r *NormalizedPipelineRepository) OpenNormalizedBundleWriter(ctx context.Context, req uiw.StageRequest, input normalize.NormalizerInput) (normalize.BundleWriter, error) {
+func (r *NormalizedPipelineRepository) OpenNormalizedBundleWriter(ctx context.Context, req proffer.StageRequest, input normalize.NormalizerInput) (normalize.BundleWriter, error) {
 	if input.SourceVersionRef != string(req.SourceVersionRef) {
 		return nil, errors.New("normalized bundle writer input does not match request")
 	}
@@ -194,7 +194,7 @@ func (r *NormalizedPipelineRepository) OpenNormalizedBundleWriter(ctx context.Co
 	return writer, nil
 }
 
-func (r *NormalizedPipelineRepository) PersistNormalizeExecution(ctx context.Context, spec activities.NormalizeExecutionSpec) (uiw.Ref, uiw.Ref, error) {
+func (r *NormalizedPipelineRepository) PersistNormalizeExecution(ctx context.Context, spec activities.NormalizeExecutionSpec) (proffer.Ref, proffer.Ref, error) {
 	if err := validateNormalizeExecutionSpec(spec); err != nil {
 		return "", "", err
 	}
@@ -258,12 +258,12 @@ func (r *NormalizedPipelineRepository) PersistNormalizeExecution(ctx context.Con
 		rollback()
 		return "", "", fmt.Errorf("commit normalize execution receipt: %w", err)
 	}
-	return spec.BundleRef, uiw.Ref(receiptID.String()), nil
+	return spec.BundleRef, proffer.Ref(receiptID.String()), nil
 }
 
 // PersistNormalizedGeneration is the only write for
 // context.normalized_generation and context.normalized_record_identity.
-func (r *NormalizedPipelineRepository) PersistNormalizedGeneration(ctx context.Context, spec activities.PersistNormalizedGenerationSpec) (uiw.Ref, uiw.Ref, error) {
+func (r *NormalizedPipelineRepository) PersistNormalizedGeneration(ctx context.Context, spec activities.PersistNormalizedGenerationSpec) (proffer.Ref, proffer.Ref, error) {
 	if err := validatePersistNormalizedGenerationSpec(spec); err != nil {
 		return "", "", err
 	}
@@ -360,7 +360,7 @@ func (r *NormalizedPipelineRepository) PersistNormalizedGeneration(ctx context.C
 		rollback()
 		return "", "", fmt.Errorf("commit persist normalized generation receipt: %w", err)
 	}
-	return uiw.Ref(generationID.String()), uiw.Ref(receiptID.String()), nil
+	return proffer.Ref(generationID.String()), proffer.Ref(receiptID.String()), nil
 }
 
 // ensureOpenNormalizedGeneration creates or recovers the one open
@@ -425,7 +425,7 @@ func (r *NormalizedPipelineRepository) recoverOpenNormalizedGeneration(ctx conte
 	return id, nil
 }
 
-func (r *NormalizedPipelineRepository) persistNormalizedRecord(ctx context.Context, generationID, sourceVersionID uuid.UUID, sourceVersionRef uiw.Ref, record normalize.RecordEnvelope) error {
+func (r *NormalizedPipelineRepository) persistNormalizedRecord(ctx context.Context, generationID, sourceVersionID uuid.UUID, sourceVersionRef proffer.Ref, record normalize.RecordEnvelope) error {
 	if err := record.Validate(); err != nil {
 		return err
 	}
@@ -462,7 +462,7 @@ func (r *NormalizedPipelineRepository) persistNormalizedRecord(ctx context.Conte
 	return nil
 }
 
-func buildNormalizedPayload(recordID uuid.UUID, sourceVersionRef uiw.Ref, record normalize.RecordEnvelope) ([]byte, error) {
+func buildNormalizedPayload(recordID uuid.UUID, sourceVersionRef proffer.Ref, record normalize.RecordEnvelope) ([]byte, error) {
 	participants := make([]map[string]any, 0, len(record.Participants))
 	for _, p := range record.Participants {
 		entry := map[string]any{"role": string(p.Role), "identifier": p.Identifier}
@@ -509,7 +509,7 @@ func buildNormalizedPayload(recordID uuid.UUID, sourceVersionRef uiw.Ref, record
 // against the ordered normalized-record sequence for this generation — see
 // normalize.GenericMessageNormalizer's doc comment for why that
 // correspondence is guaranteed 1:1 and order-preserving.
-func (r *NormalizedPipelineRepository) PersistLineage(ctx context.Context, spec activities.PersistLineageSpec) (uiw.Ref, uiw.Ref, error) {
+func (r *NormalizedPipelineRepository) PersistLineage(ctx context.Context, spec activities.PersistLineageSpec) (proffer.Ref, proffer.Ref, error) {
 	if err := validatePersistLineageSpec(spec); err != nil {
 		return "", "", err
 	}
@@ -609,7 +609,7 @@ func (r *NormalizedPipelineRepository) PersistLineage(ctx context.Context, spec 
 		rollback()
 		return "", "", fmt.Errorf("commit persist lineage receipt: %w", err)
 	}
-	return uiw.Ref(lineageSetPrefix + normalizedGenerationID.String()), uiw.Ref(receiptID.String()), nil
+	return proffer.Ref(lineageSetPrefix + normalizedGenerationID.String()), proffer.Ref(receiptID.String()), nil
 }
 
 func queryOrderedIDs(ctx context.Context, tx pgx.Tx, query string, arg uuid.UUID) ([]uuid.UUID, error) {
@@ -634,7 +634,7 @@ func queryOrderedIDs(ctx context.Context, tx pgx.Tx, query string, arg uuid.UUID
 
 const lineageSetPrefix = "lineage_set:"
 
-func parseLineageSetRef(ref uiw.Ref) (uuid.UUID, error) {
+func parseLineageSetRef(ref proffer.Ref) (uuid.UUID, error) {
 	s := string(ref)
 	if !strings.HasPrefix(s, lineageSetPrefix) {
 		return uuid.Nil, fmt.Errorf("lineage set reference %q must be prefixed %q", ref, lineageSetPrefix)
@@ -651,7 +651,7 @@ func parseLineageSetRef(ref uiw.Ref) (uuid.UUID, error) {
 // to this generation's own raw generation) rather than trusting the sql/0036
 // insert-time guard alone, and records a context.reconciliation_receipt of
 // kind raw_lineage_validation.
-func (r *NormalizedPipelineRepository) ValidateRawLineage(ctx context.Context, spec activities.ValidateRawLineageSpec) (uiw.Ref, uiw.Ref, error) {
+func (r *NormalizedPipelineRepository) ValidateRawLineage(ctx context.Context, spec activities.ValidateRawLineageSpec) (proffer.Ref, proffer.Ref, error) {
 	if err := validateValidateRawLineageSpec(spec); err != nil {
 		return "", "", err
 	}
@@ -759,7 +759,7 @@ func (r *NormalizedPipelineRepository) ValidateRawLineage(ctx context.Context, s
 	if status != "success" {
 		return "", "", fmt.Errorf("raw lineage validation failed: %d record(s) missing lineage, %d mismatched raw generation reference(s)", missingLineage, mismatchedRawGeneration)
 	}
-	return uiw.Ref(reconciliationID.String()), uiw.Ref(receiptID.String()), nil
+	return proffer.Ref(reconciliationID.String()), proffer.Ref(receiptID.String()), nil
 }
 
 func emptyIfNil(discrepancies []map[string]any) []map[string]any {
@@ -774,7 +774,7 @@ func emptyIfNil(discrepancies []map[string]any) []map[string]any {
 // manifest-digest hash-receipt registry. It never computes or returns a
 // digest itself — verify_normalized_generation_activity independently
 // rehashes each member.
-func (r *NormalizedPipelineRepository) OpenNormalizedGenerationRecords(ctx context.Context, manifestDigestRef uiw.Ref) (activities.ByteMemberStream, error) {
+func (r *NormalizedPipelineRepository) OpenNormalizedGenerationRecords(ctx context.Context, manifestDigestRef proffer.Ref) (activities.ByteMemberStream, error) {
 	hashReceiptID, err := uuid.Parse(string(manifestDigestRef))
 	if err != nil {
 		return nil, fmt.Errorf("normalized generation manifest digest reference %q: %w", manifestDigestRef, err)
@@ -820,7 +820,7 @@ func (s *normalizedGenerationRows) Next(ctx context.Context) (activities.ByteMem
 	if err := s.rows.Scan(&ref, &ordinal, &canon, &canonical); err != nil {
 		return activities.ByteMember{}, err
 	}
-	return activities.ByteMember{SubjectRef: uiw.Ref(ref), Ordinal: ordinal, Canon: canon, Reader: io.NopCloser(bytes.NewReader(canonical))}, nil
+	return activities.ByteMember{SubjectRef: proffer.Ref(ref), Ordinal: ordinal, Canon: canon, Reader: io.NopCloser(bytes.NewReader(canonical))}, nil
 }
 
 func (s *normalizedGenerationRows) Close() error {
@@ -835,7 +835,7 @@ func (s *normalizedGenerationRows) Close() error {
 // recomputed normalized-generation manifest digest against the stored
 // hash_receipt, and records a context.reconciliation_receipt of kind
 // normalized_generation_verification. It never recomputes a digest itself.
-func (r *NormalizedPipelineRepository) VerifyNormalizedGeneration(ctx context.Context, spec activities.VerifyNormalizedGenerationSpec) (uiw.Ref, uiw.Ref, error) {
+func (r *NormalizedPipelineRepository) VerifyNormalizedGeneration(ctx context.Context, spec activities.VerifyNormalizedGenerationSpec) (proffer.Ref, proffer.Ref, error) {
 	if err := validateVerifyNormalizedGenerationSpec(spec); err != nil {
 		return "", "", err
 	}
@@ -954,14 +954,14 @@ func (r *NormalizedPipelineRepository) VerifyNormalizedGeneration(ctx context.Co
 	if status != "success" {
 		return "", "", fmt.Errorf("normalized generation verification failed: recomputed digest %s does not match stored digest %s", spec.RecomputedDigest, storedDigest)
 	}
-	return uiw.Ref(reconciliationID.String()), uiw.Ref(receiptID.String()), nil
+	return proffer.Ref(reconciliationID.String()), proffer.Ref(receiptID.String()), nil
 }
 
 // SealGeneration advances context.normalized_generation open -> sealed. The
 // sql/0036 guard_normalized_generation_transition trigger is the sole
 // fail-closed authority for every precondition; this method never bypasses
 // it with a partial or forced seal.
-func (r *NormalizedPipelineRepository) SealGeneration(ctx context.Context, spec activities.SealGenerationSpec) (uiw.Ref, uiw.Ref, error) {
+func (r *NormalizedPipelineRepository) SealGeneration(ctx context.Context, spec activities.SealGenerationSpec) (proffer.Ref, proffer.Ref, error) {
 	if err := validateSealGenerationSpec(spec); err != nil {
 		return "", "", err
 	}
@@ -1042,7 +1042,7 @@ func (r *NormalizedPipelineRepository) SealGeneration(ctx context.Context, spec 
 		rollback()
 		return "", "", fmt.Errorf("commit seal normalized generation: %w", err)
 	}
-	return uiw.Ref(normalizedGenerationID.String()), uiw.Ref(receiptID.String()), nil
+	return proffer.Ref(normalizedGenerationID.String()), proffer.Ref(receiptID.String()), nil
 }
 
 // PublishGeneration is the sole successor of seal_generation_activity. It
@@ -1050,7 +1050,7 @@ func (r *NormalizedPipelineRepository) SealGeneration(ctx context.Context, spec 
 // row and its successful activity_receipt, matching the sql/0036
 // guard_normalized_publication and normalized_generation_seal_publish_gate
 // triggers exactly.
-func (r *NormalizedPipelineRepository) PublishGeneration(ctx context.Context, spec activities.PublishGenerationSpec) (uiw.Ref, uiw.Ref, error) {
+func (r *NormalizedPipelineRepository) PublishGeneration(ctx context.Context, spec activities.PublishGenerationSpec) (proffer.Ref, proffer.Ref, error) {
 	if err := validatePublishGenerationSpec(spec); err != nil {
 		return "", "", err
 	}
@@ -1133,7 +1133,7 @@ func (r *NormalizedPipelineRepository) PublishGeneration(ctx context.Context, sp
 		rollback()
 		return "", "", fmt.Errorf("commit publish normalized generation: %w", err)
 	}
-	return uiw.Ref(publicationID.String()), uiw.Ref(receiptID.String()), nil
+	return proffer.Ref(publicationID.String()), proffer.Ref(receiptID.String()), nil
 }
 
 // ensureExecutionAndCheckPrior creates or recovers one
@@ -1143,7 +1143,7 @@ func (r *NormalizedPipelineRepository) PublishGeneration(ctx context.Context, sp
 // retry-recovery path.
 func (r *NormalizedPipelineRepository) ensureExecutionAndCheckPrior(
 	ctx context.Context, sourceVersionID uuid.UUID, requestID, activityName, key, expectRefKind string,
-) (executionID uuid.UUID, priorRef uiw.Ref, priorReceipt uiw.Ref, found bool, err error) {
+) (executionID uuid.UUID, priorRef proffer.Ref, priorReceipt proffer.Ref, found bool, err error) {
 	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return uuid.Nil, "", "", false, fmt.Errorf("begin %s execution transaction: %w", activityName, err)
@@ -1183,7 +1183,7 @@ func (r *NormalizedPipelineRepository) ensureExecutionAndCheckPrior(
 		return uuid.Nil, "", "", false, fmt.Errorf("commit %s execution: %w", activityName, err)
 	}
 	committed = true
-	return executionID, uiw.Ref(id), uiw.Ref(receiptID.String()), true, nil
+	return executionID, proffer.Ref(id), proffer.Ref(receiptID.String()), true, nil
 }
 
 func normalizeLatestReceipt(ctx context.Context, tx pgx.Tx, executionID uuid.UUID) (uuid.UUID, []byte, bool, error) {

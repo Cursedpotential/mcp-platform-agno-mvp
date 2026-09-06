@@ -6,9 +6,9 @@ import (
 	"io"
 	"testing"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/parser"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/parser"
+	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/stagegraph"
 )
 
 func rawEnvelope(ordinal uint64, status parser.RecordStatus) parser.RawRecordEnvelope {
@@ -63,8 +63,8 @@ func (f *fakeBundleReader) Close() error {
 type fakeRawGenerationWriter struct {
 	appended  []parser.RawRecordEnvelope
 	appendErr error
-	commitRef uiw.Ref
-	commitRcp uiw.Ref
+	commitRef proffer.Ref
+	commitRcp proffer.Ref
 	commitErr error
 	committed bool
 	aborted   bool
@@ -78,7 +78,7 @@ func (w *fakeRawGenerationWriter) Append(_ context.Context, record parser.RawRec
 	return nil
 }
 
-func (w *fakeRawGenerationWriter) Commit(_ context.Context, _ parser.BundleAccounting) (uiw.Ref, uiw.Ref, error) {
+func (w *fakeRawGenerationWriter) Commit(_ context.Context, _ parser.BundleAccounting) (proffer.Ref, proffer.Ref, error) {
 	if w.commitErr != nil {
 		return "", "", w.commitErr
 	}
@@ -109,7 +109,7 @@ type fakeRawPipelineRepository struct {
 	lastVerifySpec     RawSourceVerificationSpec
 }
 
-func (r *fakeRawPipelineRepository) OpenRawBundle(context.Context, uiw.Ref) (RawBundleReader, error) {
+func (r *fakeRawPipelineRepository) OpenRawBundle(context.Context, proffer.Ref) (RawBundleReader, error) {
 	if r.openBundleErr != nil {
 		return nil, r.openBundleErr
 	}
@@ -139,10 +139,10 @@ func (r *fakeRawPipelineRepository) VerifyRawCoverageAgainstSource(_ context.Con
 	return r.verifyOutcome, r.verifyErr
 }
 
-func baseRawStageRequest() uiw.StageRequest {
-	return uiw.StageRequest{
+func baseRawStageRequest() proffer.StageRequest {
+	return proffer.StageRequest{
 		RequestID: "req-1", SourceVersionRef: "src-1", DeclaredFormat: "sms_xml_backup",
-		Refs: map[string]uiw.Ref{"raw_bundle": "bundle-1"},
+		Refs: map[string]proffer.Ref{"raw_bundle": "bundle-1"},
 	}
 }
 
@@ -168,7 +168,7 @@ func TestPersistRawGenerationHappyPath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Status != uiw.StatusSuccess || result.Ref != "raw-gen-1" || result.ReceiptRef != "receipt-1" {
+	if result.Status != proffer.StatusSuccess || result.Ref != "raw-gen-1" || result.ReceiptRef != "receipt-1" {
 		t.Fatalf("result = %+v", result)
 	}
 	if len(repo.writer.appended) != 3 {
@@ -275,18 +275,18 @@ func TestPersistRawGenerationRequiresRepository(t *testing.T) {
 	}
 }
 
-func reconcileRequest(refName string) uiw.StageRequest {
-	return uiw.StageRequest{
+func reconcileRequest(refName string) proffer.StageRequest {
+	return proffer.StageRequest{
 		RequestID: "req-1", SourceVersionRef: "src-1",
-		Refs: map[string]uiw.Ref{refName: "chain-1"},
+		Refs: map[string]proffer.Ref{refName: "chain-1"},
 	}
 }
 
 func TestReconcileRecordAccountingSuccessAndFailure(t *testing.T) {
 	for name, outcome := range map[string]ReconciliationOutcome{
-		"success":        {Status: uiw.StatusSuccess, Ref: "recon-1", ReceiptRef: "receipt-1"},
-		"failed":         {Status: uiw.StatusFailed, Reason: "mismatch", ReceiptRef: "receipt-1"},
-		"not_applicable": {Status: uiw.StatusNotApplicable, Reason: "n/a", ReceiptRef: "receipt-1"},
+		"success":        {Status: proffer.StatusSuccess, Ref: "recon-1", ReceiptRef: "receipt-1"},
+		"failed":         {Status: proffer.StatusFailed, Reason: "mismatch", ReceiptRef: "receipt-1"},
+		"not_applicable": {Status: proffer.StatusNotApplicable, Reason: "n/a", ReceiptRef: "receipt-1"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			repo := &fakeRawPipelineRepository{accountingOutcome: outcome}
@@ -307,14 +307,14 @@ func TestReconcileRecordAccountingSuccessAndFailure(t *testing.T) {
 
 func TestReconcileRecordAccountingRejectsMissingChainRef(t *testing.T) {
 	activities := RawPipelineActivities{Repository: &fakeRawPipelineRepository{}}
-	req := uiw.StageRequest{RequestID: "req-1", SourceVersionRef: "src-1"}
+	req := proffer.StageRequest{RequestID: "req-1", SourceVersionRef: "src-1"}
 	if _, err := activities.ReconcileRecordAccounting(context.Background(), req); err == nil {
 		t.Fatal("missing raw_generation_chain reference accepted")
 	}
 }
 
 func TestReconcileRecordAccountingRejectsMalformedOutcome(t *testing.T) {
-	repo := &fakeRawPipelineRepository{accountingOutcome: ReconciliationOutcome{Status: uiw.StatusSuccess, ReceiptRef: "receipt-1"}}
+	repo := &fakeRawPipelineRepository{accountingOutcome: ReconciliationOutcome{Status: proffer.StatusSuccess, ReceiptRef: "receipt-1"}}
 	activities := RawPipelineActivities{Repository: repo}
 	if _, err := activities.ReconcileRecordAccounting(context.Background(), reconcileRequest("raw_generation_chain")); err == nil {
 		t.Fatal("success outcome with empty result ref accepted")
@@ -322,7 +322,7 @@ func TestReconcileRecordAccountingRejectsMalformedOutcome(t *testing.T) {
 }
 
 func TestReconcileByteCoverageDelegatesToRepository(t *testing.T) {
-	repo := &fakeRawPipelineRepository{coverageOutcome: ReconciliationOutcome{Status: uiw.StatusSuccess, Ref: "cov-1", ReceiptRef: "receipt-1"}}
+	repo := &fakeRawPipelineRepository{coverageOutcome: ReconciliationOutcome{Status: proffer.StatusSuccess, Ref: "cov-1", ReceiptRef: "receipt-1"}}
 	activities := RawPipelineActivities{Repository: repo}
 	result, err := activities.ReconcileByteCoverage(context.Background(), reconcileRequest("raw_generation_chain"))
 	if err != nil {
@@ -333,23 +333,23 @@ func TestReconcileByteCoverageDelegatesToRepository(t *testing.T) {
 	}
 }
 
-func verifyRequest() uiw.StageRequest {
-	return uiw.StageRequest{
+func verifyRequest() proffer.StageRequest {
+	return proffer.StageRequest{
 		RequestID: "req-1", SourceVersionRef: "src-1",
-		Refs: map[string]uiw.Ref{
+		Refs: map[string]proffer.Ref{
 			"accounting": "acc-1", "coverage": "cov-1", "context_source_fingerprint": "fingerprint-1", "raw_generation_chain": "chain-1",
 		},
 	}
 }
 
 func TestVerifyRawCoverageAgainstSourceHappyPath(t *testing.T) {
-	repo := &fakeRawPipelineRepository{verifyOutcome: ReconciliationOutcome{Status: uiw.StatusSuccess, Ref: "verify-1", ReceiptRef: "receipt-1"}}
+	repo := &fakeRawPipelineRepository{verifyOutcome: ReconciliationOutcome{Status: proffer.StatusSuccess, Ref: "verify-1", ReceiptRef: "receipt-1"}}
 	activities := RawPipelineActivities{Repository: repo}
 	result, err := activities.VerifyRawCoverageAgainstSource(context.Background(), verifyRequest())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Status != uiw.StatusSuccess || result.Ref != "verify-1" {
+	if result.Status != proffer.StatusSuccess || result.Ref != "verify-1" {
 		t.Fatalf("result = %+v", result)
 	}
 	if repo.lastVerifySpec.AccountingRef != "acc-1" || repo.lastVerifySpec.CoverageRef != "cov-1" ||
@@ -375,7 +375,7 @@ func TestVerifyRawCoverageAgainstSourceAcceptsLegacyH1Alias(t *testing.T) {
 	req := verifyRequest()
 	delete(req.Refs, "context_source_fingerprint")
 	req.Refs["h1"] = "legacy-fingerprint-1"
-	repo := &fakeRawPipelineRepository{verifyOutcome: ReconciliationOutcome{Status: uiw.StatusSuccess, Ref: "verify-1", ReceiptRef: "receipt-1"}}
+	repo := &fakeRawPipelineRepository{verifyOutcome: ReconciliationOutcome{Status: proffer.StatusSuccess, Ref: "verify-1", ReceiptRef: "receipt-1"}}
 	if _, err := (RawPipelineActivities{Repository: repo}).VerifyRawCoverageAgainstSource(context.Background(), req); err != nil {
 		t.Fatal(err)
 	}
@@ -393,13 +393,13 @@ func TestVerifyRawCoverageAgainstSourceRejectsConflictingFingerprintAliases(t *t
 }
 
 func TestVerifyRawCoverageAgainstSourcePropagatesFailedOutcome(t *testing.T) {
-	repo := &fakeRawPipelineRepository{verifyOutcome: ReconciliationOutcome{Status: uiw.StatusFailed, Reason: "h3 mismatch", ReceiptRef: "receipt-1"}}
+	repo := &fakeRawPipelineRepository{verifyOutcome: ReconciliationOutcome{Status: proffer.StatusFailed, Reason: "h3 mismatch", ReceiptRef: "receipt-1"}}
 	activities := RawPipelineActivities{Repository: repo}
 	result, err := activities.VerifyRawCoverageAgainstSource(context.Background(), verifyRequest())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Status != uiw.StatusFailed || result.Reason != "h3 mismatch" {
+	if result.Status != proffer.StatusFailed || result.Reason != "h3 mismatch" {
 		t.Fatalf("result = %+v", result)
 	}
 }
@@ -432,16 +432,16 @@ func TestTallyRawAccounting(t *testing.T) {
 
 func TestReconciliationOutcomeValidate(t *testing.T) {
 	stage := stagegraph.ReconcileRecordAccounting
-	if err := (ReconciliationOutcome{Status: uiw.StatusSuccess, Ref: "r", ReceiptRef: "rcp"}).validate(stage); err != nil {
+	if err := (ReconciliationOutcome{Status: proffer.StatusSuccess, Ref: "r", ReceiptRef: "rcp"}).validate(stage); err != nil {
 		t.Fatal(err)
 	}
-	if err := (ReconciliationOutcome{Status: uiw.StatusSuccess, ReceiptRef: "rcp"}).validate(stage); err == nil {
+	if err := (ReconciliationOutcome{Status: proffer.StatusSuccess, ReceiptRef: "rcp"}).validate(stage); err == nil {
 		t.Fatal("success outcome without result ref accepted")
 	}
-	if err := (ReconciliationOutcome{Status: uiw.StatusFailed, ReceiptRef: "rcp"}).validate(stage); err == nil {
+	if err := (ReconciliationOutcome{Status: proffer.StatusFailed, ReceiptRef: "rcp"}).validate(stage); err == nil {
 		t.Fatal("failed outcome without reason accepted")
 	}
-	if err := (ReconciliationOutcome{Status: uiw.StatusFailed, Reason: "x"}).validate(stage); err == nil {
+	if err := (ReconciliationOutcome{Status: proffer.StatusFailed, Reason: "x"}).validate(stage); err == nil {
 		t.Fatal("outcome without receipt ref accepted")
 	}
 	if err := (ReconciliationOutcome{Status: "bogus", ReceiptRef: "rcp"}).validate(stage); err == nil {

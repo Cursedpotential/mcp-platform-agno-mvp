@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/activities"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/activities"
+	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/stagegraph"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -51,7 +51,7 @@ func NewRepository(db DB, open ObjectOpener) (*Repository, error) {
 	return &Repository{db: db, open: open, clock: func() time.Time { return time.Now().UTC() }}, nil
 }
 
-func (r *Repository) OpenOriginal(ctx context.Context, ref uiw.Ref) (io.ReadCloser, error) {
+func (r *Repository) OpenOriginal(ctx context.Context, ref proffer.Ref) (io.ReadCloser, error) {
 	if err := requireRef(ref, "original"); err != nil {
 		return nil, err
 	}
@@ -73,7 +73,7 @@ func (r *Repository) OpenOriginal(ctx context.Context, ref uiw.Ref) (io.ReadClos
 	return r.open(ctx, objectURI)
 }
 
-func (r *Repository) OpenRawRecords(ctx context.Context, ref uiw.Ref) (activities.ByteMemberStream, error) {
+func (r *Repository) OpenRawRecords(ctx context.Context, ref proffer.Ref) (activities.ByteMemberStream, error) {
 	if err := requireRef(ref, "raw generation"); err != nil {
 		return nil, err
 	}
@@ -104,7 +104,7 @@ func (r *Repository) OpenRawRecords(ctx context.Context, ref uiw.Ref) (activitie
 	return &byteRows{rows: rows, open: r.open, raw: true}, nil
 }
 
-func (r *Repository) OpenNormalizedRecords(ctx context.Context, ref uiw.Ref) (activities.ByteMemberStream, error) {
+func (r *Repository) OpenNormalizedRecords(ctx context.Context, ref proffer.Ref) (activities.ByteMemberStream, error) {
 	if err := requireRef(ref, "normalized generation"); err != nil {
 		return nil, err
 	}
@@ -119,7 +119,7 @@ func (r *Repository) OpenNormalizedRecords(ctx context.Context, ref uiw.Ref) (ac
 	return &normalizedRows{rows: rows}, nil
 }
 
-func (r *Repository) OpenHashMembers(ctx context.Context, ref uiw.Ref) (activities.DigestMemberStream, error) {
+func (r *Repository) OpenHashMembers(ctx context.Context, ref proffer.Ref) (activities.DigestMemberStream, error) {
 	if err := requireRef(ref, "hash member receipt"); err != nil {
 		return nil, err
 	}
@@ -214,7 +214,7 @@ func (r *Repository) BeginHashBatch(ctx context.Context, spec activities.BatchSp
 		return &idempotentWriter{
 			db: r.db, spec: spec, priorActivityReceiptID: receiptID,
 			priorRefKind: priorKind, priorRefID: priorRef,
-			resultRef: priorResultRef(priorKind, priorRef), receiptRef: uiw.Ref(receiptID.String()),
+			resultRef: priorResultRef(priorKind, priorRef), receiptRef: proffer.Ref(receiptID.String()),
 		}, nil
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
@@ -341,7 +341,7 @@ func (w *batchWriter) Append(ctx context.Context, member activities.HashMember) 
 	return nil
 }
 
-func (w *batchWriter) Commit(ctx context.Context, summary activities.HashSummary) (uiw.Ref, uiw.Ref, error) {
+func (w *batchWriter) Commit(ctx context.Context, summary activities.HashSummary) (proffer.Ref, proffer.Ref, error) {
 	if w.closed {
 		return "", "", errors.New("hash batch is closed")
 	}
@@ -419,20 +419,20 @@ func (w *batchWriter) Commit(ctx context.Context, summary activities.HashSummary
 		return "", "", err
 	}
 	w.closed = true
-	return resultRef, uiw.Ref(receiptID.String()), nil
+	return resultRef, proffer.Ref(receiptID.String()), nil
 }
 
-func (w *batchWriter) resultReference(hashReceiptID uuid.UUID) (uiw.Ref, string, string) {
+func (w *batchWriter) resultReference(hashReceiptID uuid.UUID) (proffer.Ref, string, string) {
 	switch w.spec.Kind {
 	case activities.HashKindContextSourceFingerprint, activities.HashKindContextRawGenerationFingerprint, activities.HashKindNormalizedGenerationDigest:
-		return uiw.Ref(hashReceiptID.String()), "hash_receipt", hashReceiptID.String()
+		return proffer.Ref(hashReceiptID.String()), "hash_receipt", hashReceiptID.String()
 	case activities.HashKindContextRawRecordFingerprint:
 		if w.spec.Stage == stagegraph.StageID("hash_raw_records_activity") {
-			return uiw.Ref("raw_hash_receipt_set:" + string(w.spec.SubjectRef)), "raw_hash_receipt_set", string(w.spec.SubjectRef)
+			return proffer.Ref("raw_hash_receipt_set:" + string(w.spec.SubjectRef)), "raw_hash_receipt_set", string(w.spec.SubjectRef)
 		}
-		return uiw.Ref("context_raw_fingerprint_receipt_set:" + string(w.spec.SubjectRef)), "context_raw_fingerprint_receipt_set", string(w.spec.SubjectRef)
+		return proffer.Ref("context_raw_fingerprint_receipt_set:" + string(w.spec.SubjectRef)), "context_raw_fingerprint_receipt_set", string(w.spec.SubjectRef)
 	default:
-		return uiw.Ref("normalized_hash_receipt_set:" + string(w.spec.SubjectRef)), "normalized_hash_receipt_set", string(w.spec.SubjectRef)
+		return proffer.Ref("normalized_hash_receipt_set:" + string(w.spec.SubjectRef)), "normalized_hash_receipt_set", string(w.spec.SubjectRef)
 	}
 }
 
@@ -507,7 +507,7 @@ type idempotentWriter struct {
 	spec                     activities.BatchSpec
 	priorActivityReceiptID   uuid.UUID
 	priorRefKind, priorRefID string
-	resultRef, receiptRef    uiw.Ref
+	resultRef, receiptRef    proffer.Ref
 	count                    int64
 	closed                   bool
 }
@@ -586,7 +586,7 @@ func (w *idempotentWriter) Append(ctx context.Context, member activities.HashMem
 	return nil
 }
 
-func (w *idempotentWriter) Commit(ctx context.Context, summary activities.HashSummary) (uiw.Ref, uiw.Ref, error) {
+func (w *idempotentWriter) Commit(ctx context.Context, summary activities.HashSummary) (proffer.Ref, proffer.Ref, error) {
 	if w.closed {
 		return "", "", errors.New("hash batch is closed")
 	}
@@ -652,11 +652,11 @@ func identityColumnFor(kind activities.HashKind) string {
 	return "raw_record_id"
 }
 
-func priorResultRef(kind, refID string) uiw.Ref {
+func priorResultRef(kind, refID string) proffer.Ref {
 	if kind == "context_raw_fingerprint_receipt_set" || kind == "raw_hash_receipt_set" || kind == "normalized_hash_receipt_set" {
-		return uiw.Ref(kind + ":" + refID)
+		return proffer.Ref(kind + ":" + refID)
 	}
-	return uiw.Ref(refID)
+	return proffer.Ref(refID)
 }
 
 func expectedResultKind(kind activities.HashKind) string {
@@ -701,7 +701,7 @@ func (s *byteRows) Next(ctx context.Context) (activities.ByteMember, error) {
 	if err != nil {
 		return activities.ByteMember{}, fmt.Errorf("open raw member %q: %w", ref, err)
 	}
-	return activities.ByteMember{SubjectRef: uiw.Ref(ref), Ordinal: ordinal, Canon: canon, Reader: reader}, nil
+	return activities.ByteMember{SubjectRef: proffer.Ref(ref), Ordinal: ordinal, Canon: canon, Reader: reader}, nil
 }
 func (s *byteRows) Close() error {
 	if !s.closed {
@@ -735,7 +735,7 @@ func (s *normalizedRows) Next(ctx context.Context) (activities.ByteMember, error
 	if err := s.rows.Scan(&ref, &ordinal, &canonical); err != nil {
 		return activities.ByteMember{}, err
 	}
-	return activities.ByteMember{SubjectRef: uiw.Ref(ref), Ordinal: ordinal, Reader: io.NopCloser(bytes.NewReader(canonical))}, nil
+	return activities.ByteMember{SubjectRef: proffer.Ref(ref), Ordinal: ordinal, Reader: io.NopCloser(bytes.NewReader(canonical))}, nil
 }
 func (s *normalizedRows) Close() error {
 	if !s.closed {
@@ -768,7 +768,7 @@ func (s *digestRows) Next(ctx context.Context) (activities.DigestMember, error) 
 	if err := s.rows.Scan(&ref, &ordinal, &digest, &canon); err != nil {
 		return activities.DigestMember{}, err
 	}
-	return activities.DigestMember{SubjectRef: uiw.Ref(ref), Ordinal: ordinal, Digest: digest, Canon: canon}, nil
+	return activities.DigestMember{SubjectRef: proffer.Ref(ref), Ordinal: ordinal, Digest: digest, Canon: canon}, nil
 }
 func (s *digestRows) Close() error {
 	if !s.closed {
@@ -834,7 +834,7 @@ func (r *rangeReadCloser) Read(p []byte) (int, error) {
 
 func (r *rangeReadCloser) Close() error { return r.closer.Close() }
 
-func parseSetRef(ref uiw.Ref) (kind, generationID string, err error) {
+func parseSetRef(ref proffer.Ref) (kind, generationID string, err error) {
 	parts := strings.SplitN(string(ref), ":", 2)
 	if len(parts) != 2 || (parts[0] != "context_raw_fingerprint_receipt_set" && parts[0] != "raw_hash_receipt_set" && parts[0] != "normalized_hash_receipt_set") {
 		return "", "", fmt.Errorf("hash member reference %q must be a prefixed receipt set", ref)
@@ -845,7 +845,7 @@ func parseSetRef(ref uiw.Ref) (kind, generationID string, err error) {
 	return parts[0], parts[1], nil
 }
 
-func sourceVersionFor(ctx context.Context, tx pgx.Tx, kind activities.HashKind, ref uiw.Ref) (uuid.UUID, error) {
+func sourceVersionFor(ctx context.Context, tx pgx.Tx, kind activities.HashKind, ref proffer.Ref) (uuid.UUID, error) {
 	var id uuid.UUID
 	query := `SELECT id FROM context.source_version WHERE id = $1::uuid`
 	if kind == activities.HashKindContextRawRecordFingerprint || kind == activities.HashKindContextRawGenerationFingerprint {
@@ -943,7 +943,7 @@ func validateDigest(value string) error {
 func idempotencyKey(spec activities.BatchSpec) string {
 	return fmt.Sprintf("hash:%s:%s:%s", spec.RequestID, spec.Stage, spec.SubjectRef)
 }
-func requireRef(ref uiw.Ref, name string) error {
+func requireRef(ref proffer.Ref, name string) error {
 	if strings.TrimSpace(string(ref)) == "" {
 		return fmt.Errorf("%s reference is required", name)
 	}

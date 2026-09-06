@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/normalize"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/normalize"
+	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -113,8 +113,8 @@ func (tx *normalizedPersistTx) Commit(context.Context) error {
 }
 func (*normalizedPersistTx) Rollback(context.Context) error { return nil }
 
-func normalizedTestRequest() uiw.StageRequest {
-	return uiw.StageRequest{RequestID: "workflow-1", SourceVersionRef: "source-1", DeclaredFormat: "sms_xml_backup"}
+func normalizedTestRequest() proffer.StageRequest {
+	return proffer.StageRequest{RequestID: "workflow-1", SourceVersionRef: "source-1", DeclaredFormat: "sms_xml_backup"}
 }
 
 func normalizedTestInput() normalize.NormalizerInput {
@@ -304,7 +304,7 @@ func finalizeNormalizedTestBundle(
 	t *testing.T, root string, db normalizedPersistDB, sourceID, rawID uuid.UUID,
 ) normalize.BundleResult {
 	t.Helper()
-	request := uiw.StageRequest{RequestID: "workflow-1", SourceVersionRef: uiw.Ref(sourceID.String()), DeclaredFormat: "sms_xml_backup"}
+	request := proffer.StageRequest{RequestID: "workflow-1", SourceVersionRef: proffer.Ref(sourceID.String()), DeclaredFormat: "sms_xml_backup"}
 	input := normalizedTestInput()
 	input.SourceVersionRef, input.RawGenerationRef = sourceID.String(), rawID.String()
 	header := normalizedTestHeader()

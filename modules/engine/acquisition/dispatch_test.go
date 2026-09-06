@@ -5,13 +5,13 @@ import (
 	"context"
 	"testing"
 
-	platformpostgres "github.com/Cursedpotential/mcp-platform-agno-mvp/engine/postgres"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	platformpostgres "github.com/Cursedpotential/probata/engine/postgres"
+	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/stretchr/testify/require"
 )
 
 func constResolver(result platformpostgres.ImmutableAcquisition, err error) platformpostgres.ImmutableAcquisitionResolver {
-	return func(context.Context, uiw.Ref) (platformpostgres.ImmutableAcquisition, error) {
+	return func(context.Context, proffer.Ref) (platformpostgres.ImmutableAcquisition, error) {
 		return result, err
 	}
 }
@@ -36,7 +36,7 @@ func TestSchemeRouterDispatchesByScheme(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, r2Result, got)
 
-	got, err = router(context.Background(), uiw.Ref("upload://"+"ab"))
+	got, err = router(context.Background(), proffer.Ref("upload://"+"ab"))
 	require.NoError(t, err)
 	require.Equal(t, uploadResult, got)
 }

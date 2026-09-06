@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/proffer"
 )
 
 func TestFlowBindingRejectsUnsafeDeclarations(t *testing.T) {
@@ -129,7 +129,7 @@ func TestRunFlowEnforcesTheDeclaredContractBeforeAnyHTTPCall(t *testing.T) {
 	base := FlowRequest{
 		Flow:      "chunk_preview",
 		RequestID: "req-1",
-		Refs:      map[string]uiw.Ref{"original": "upload://abc"},
+		Refs:      map[string]proffer.Ref{"original": "upload://abc"},
 		Inputs:    map[string]any{"chunk_profile": "chronology"},
 	}
 
@@ -147,7 +147,7 @@ func TestRunFlowEnforcesTheDeclaredContractBeforeAnyHTTPCall(t *testing.T) {
 	}
 
 	missingRef := base
-	missingRef.Refs = map[string]uiw.Ref{}
+	missingRef.Refs = map[string]proffer.Ref{}
 	if _, err := activities.RunFlow(context.Background(), missingRef); err == nil ||
 		!strings.Contains(err.Error(), `requires ref "original"`) {
 		t.Fatalf("expected the declared ref to be required, got %v", err)
@@ -194,7 +194,7 @@ func TestCallFlowRoundTripsTheWireContract(t *testing.T) {
 		RequestID:        "req-42",
 		SourceVersionRef: "sv-1",
 		DeclaredFormat:   "smsbackuprestore_xml",
-		Refs:             map[string]uiw.Ref{"original": "upload://abc"},
+		Refs:             map[string]proffer.Ref{"original": "upload://abc"},
 		Inputs:           map[string]any{"chunk_profile": "chronology"},
 	})
 	if err != nil {
@@ -210,7 +210,7 @@ func TestCallFlowRoundTripsTheWireContract(t *testing.T) {
 		gotBody.Inputs["chunk_profile"] != "chronology" {
 		t.Fatalf("outbound wire body lost data: %+v", gotBody)
 	}
-	if result.Status != uiw.StatusSuccess || result.Ref != "chunks://gen-1" {
+	if result.Status != proffer.StatusSuccess || result.Ref != "chunks://gen-1" {
 		t.Fatalf("result = %+v", result)
 	}
 	if count, _ := result.Outputs["chunk_count"].(float64); count != 42 {
@@ -229,7 +229,7 @@ func TestCallFlowRejectsAResultNamingADifferentFlow(t *testing.T) {
 	}
 	activities := FlowActivities{Client: client, Registry: newFlowTestRegistry(t)}
 	_, err = activities.RunFlow(context.Background(), FlowRequest{
-		Flow: "chunk_preview", RequestID: "r", Refs: map[string]uiw.Ref{"original": "upload://a"},
+		Flow: "chunk_preview", RequestID: "r", Refs: map[string]proffer.Ref{"original": "upload://a"},
 		Inputs: map[string]any{"chunk_profile": "c"},
 	})
 	if err == nil || !strings.Contains(err.Error(), "the result names") {
@@ -248,7 +248,7 @@ func TestCallFlowRejectsSuccessWithNothingUsable(t *testing.T) {
 	}
 	activities := FlowActivities{Client: client, Registry: newFlowTestRegistry(t)}
 	_, err = activities.RunFlow(context.Background(), FlowRequest{
-		Flow: "chunk_preview", RequestID: "r", Refs: map[string]uiw.Ref{"original": "upload://a"},
+		Flow: "chunk_preview", RequestID: "r", Refs: map[string]proffer.Ref{"original": "upload://a"},
 		Inputs: map[string]any{"chunk_profile": "c"},
 	})
 	if err == nil || !strings.Contains(err.Error(), "neither a ref nor outputs") {
@@ -268,7 +268,7 @@ func TestCallFlowSurfacesNon200(t *testing.T) {
 	}
 	activities := FlowActivities{Client: client, Registry: newFlowTestRegistry(t)}
 	_, err = activities.RunFlow(context.Background(), FlowRequest{
-		Flow: "chunk_preview", RequestID: "r", Refs: map[string]uiw.Ref{"original": "upload://a"},
+		Flow: "chunk_preview", RequestID: "r", Refs: map[string]proffer.Ref{"original": "upload://a"},
 		Inputs: map[string]any{"chunk_profile": "c"},
 	})
 	if err == nil || !strings.Contains(err.Error(), "flow is not active") {

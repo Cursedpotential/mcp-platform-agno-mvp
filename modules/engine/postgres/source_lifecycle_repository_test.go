@@ -5,15 +5,15 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/activities"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/activities"
+	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 func TestNewSourceLifecycleRepositoryRequiresDatabaseAndResolver(t *testing.T) {
-	resolver := func(context.Context, uiw.Ref) (ImmutableAcquisition, error) {
+	resolver := func(context.Context, proffer.Ref) (ImmutableAcquisition, error) {
 		return ImmutableAcquisition{}, nil
 	}
 	if _, err := NewSourceLifecycleRepository(nil, resolver); err == nil {

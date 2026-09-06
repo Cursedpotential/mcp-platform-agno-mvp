@@ -1,5 +1,5 @@
-// Command universal-import-worker runs the Temporal worker for
-// engine/uiw.UniversalImportWorkflow's two n8n-backed Activities: it
+// Command proffer-worker runs the Temporal worker for
+// engine/proffer.ProfferWorkflow's two n8n-backed Activities: it
 // registers select_parser_activity and execute_parser_activity on one task
 // queue and serves Activity tasks until interrupted.
 //
@@ -7,7 +7,7 @@
 // engine/temporal package doc comment for what this binary does and
 // deliberately does not do, and why it can run as a separate process from
 // cmd/starter (the human preview hold is a real Temporal Signal/Query/Timer
-// inside UniversalImportWorkflow, not in-process state either binary needs
+// inside ProfferWorkflow, not in-process state either binary needs
 // to share).
 package main
 
@@ -18,7 +18,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	platformtemporal "github.com/Cursedpotential/mcp-platform-agno-mvp/engine/temporal"
+	platformtemporal "github.com/Cursedpotential/probata/engine/temporal"
 )
 
 func main() {

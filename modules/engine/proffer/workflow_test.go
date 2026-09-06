@@ -1,4 +1,4 @@
-package uiw
+package proffer
 
 import (
 	"context"
@@ -16,7 +16,7 @@ import (
 	"go.temporal.io/sdk/testsuite"
 	"go.temporal.io/sdk/workflow"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
+	"github.com/Cursedpotential/probata/engine/stagegraph"
 )
 
 func TestPreviewDecisionDecodesCrossLanguageRepairReferences(t *testing.T) {
@@ -80,7 +80,7 @@ func stageStub(id stagegraph.StageID) StageResult {
 // not an Activity body — this package still implements none of the real
 // 26 Activities.
 func placeholderActivity(_ context.Context, _ StageRequest) (StageResult, error) {
-	return StageResult{}, errors.New("uiw: placeholder activity ran unmocked")
+	return StageResult{}, errors.New("proffer: placeholder activity ran unmocked")
 }
 
 // registerAllStages registers placeholderActivity under every canon stage
@@ -166,12 +166,12 @@ func (r *recorder) indexOf(name string) int {
 func TestGoldenPathRunsEveryStageExactlyOnce(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
-	env.RegisterWorkflow(UniversalImportWorkflow)
+	env.RegisterWorkflow(ProfferWorkflow)
 	mockAllStagesSucceed(env)
 	order := newOrderRecorder(env)
 	approveHold(env)
 
-	env.ExecuteWorkflow(UniversalImportWorkflow, testInput())
+	env.ExecuteWorkflow(ProfferWorkflow, testInput())
 
 	if !env.IsWorkflowCompleted() {
 		t.Fatal("workflow did not complete")
@@ -223,7 +223,7 @@ func TestGoldenPathRunsEveryStageExactlyOnce(t *testing.T) {
 func TestLegacyOpenWorkflowUsesVersionedActivityAliases(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
-	env.RegisterWorkflow(UniversalImportWorkflow)
+	env.RegisterWorkflow(ProfferWorkflow)
 	registerAllStages(env)
 	legacyIDs := []stagegraph.StageID{
 		stagegraph.StageID(legacyHashSourceActivity),
@@ -246,7 +246,7 @@ func TestLegacyOpenWorkflowUsesVersionedActivityAliases(t *testing.T) {
 	}
 	order := newOrderRecorder(env)
 	approveHold(env)
-	env.ExecuteWorkflow(UniversalImportWorkflow, testInput())
+	env.ExecuteWorkflow(ProfferWorkflow, testInput())
 	if err := env.GetWorkflowError(); err != nil {
 		t.Fatalf("legacy-version workflow failed: %v", err)
 	}
@@ -265,12 +265,12 @@ func TestLegacyOpenWorkflowUsesVersionedActivityAliases(t *testing.T) {
 func TestSafeParallelFanOutAfterRetainOriginal(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
-	env.RegisterWorkflow(UniversalImportWorkflow)
+	env.RegisterWorkflow(ProfferWorkflow)
 	mockAllStagesSucceed(env)
 	order := newOrderRecorder(env)
 	approveHold(env)
 
-	env.ExecuteWorkflow(UniversalImportWorkflow, testInput())
+	env.ExecuteWorkflow(ProfferWorkflow, testInput())
 	if err := env.GetWorkflowError(); err != nil {
 		t.Fatalf("workflow returned error on the golden path: %v", err)
 	}
@@ -350,7 +350,7 @@ func allStagesExcept(before ...stagegraph.StageID) []stagegraph.StageID {
 func TestPreviewRejectionPausesAndLaterApprovalResumes(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
-	env.RegisterWorkflow(UniversalImportWorkflow)
+	env.RegisterWorkflow(ProfferWorkflow)
 	mockAllStagesSucceed(env)
 	rejectHold(env, "wrong format selected")
 	var executeReq StageRequest
@@ -376,7 +376,7 @@ func TestPreviewRejectionPausesAndLaterApprovalResumes(t *testing.T) {
 		env.SignalWorkflow(PreviewDecisionSignalName, PreviewDecision{Approved: true, Decider: "review-operator"})
 	}, 2*time.Millisecond)
 
-	env.ExecuteWorkflow(UniversalImportWorkflow, testInput())
+	env.ExecuteWorkflow(ProfferWorkflow, testInput())
 
 	if !env.IsWorkflowCompleted() {
 		t.Fatal("workflow did not complete")
@@ -403,7 +403,7 @@ func TestPreviewRejectionPausesAndLaterApprovalResumes(t *testing.T) {
 func TestCleanRepairAssessmentAutoResolvesWithoutHumanRepairSignal(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
-	env.RegisterWorkflow(UniversalImportWorkflow)
+	env.RegisterWorkflow(ProfferWorkflow)
 	mockStages(env, map[stagegraph.StageID]StageResult{
 		stagegraph.AssessSourceRepair: {Status: StatusNotApplicable, Ref: "assessment-clean-ref", ReceiptRef: "assessment-clean-receipt", Reason: "no repair indicated"},
 	}, nil)
@@ -416,7 +416,7 @@ func TestCleanRepairAssessmentAutoResolvesWithoutHumanRepairSignal(t *testing.T)
 	env.RegisterDelayedCallback(func() {
 		env.SignalWorkflow(PreviewDecisionSignalName, PreviewDecision{Approved: true, Decider: "operator"})
 	}, time.Millisecond)
-	env.ExecuteWorkflow(UniversalImportWorkflow, testInput())
+	env.ExecuteWorkflow(ProfferWorkflow, testInput())
 	if err := env.GetWorkflowError(); err != nil {
 		t.Fatalf("clean auto-resolution failed: %v", err)
 	}
@@ -434,7 +434,7 @@ func TestCleanRepairAssessmentAutoResolvesWithoutHumanRepairSignal(t *testing.T)
 func TestLegacyPreviewHoldReplaysOriginalTimeout(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
-	env.RegisterWorkflow(UniversalImportWorkflow)
+	env.RegisterWorkflow(ProfferWorkflow)
 	env.OnGetVersion(durableReviewWaitChangeID, workflow.DefaultVersion, durableReviewWaitVersion).Return(workflow.DefaultVersion)
 	mockAllStagesSucceed(env)
 	order := newOrderRecorder(env)
@@ -442,7 +442,7 @@ func TestLegacyPreviewHoldReplaysOriginalTimeout(t *testing.T) {
 		env.SignalWorkflow(RepairDecisionSignalName, RepairDecision{DecisionRef: "repair-decision-ref"})
 	}, time.Millisecond)
 
-	env.ExecuteWorkflow(UniversalImportWorkflow, testInput())
+	env.ExecuteWorkflow(ProfferWorkflow, testInput())
 
 	if !env.IsWorkflowCompleted() {
 		t.Fatal("workflow did not complete")
@@ -469,7 +469,7 @@ func TestLegacyPreviewHoldReplaysOriginalTimeout(t *testing.T) {
 func TestDurableReviewSignalsResumeAfterMultipleDays(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
-	env.RegisterWorkflow(UniversalImportWorkflow)
+	env.RegisterWorkflow(ProfferWorkflow)
 	mockAllStagesSucceed(env)
 	order := newOrderRecorder(env)
 	env.RegisterDelayedCallback(func() {
@@ -479,7 +479,7 @@ func TestDurableReviewSignalsResumeAfterMultipleDays(t *testing.T) {
 		env.SignalWorkflow(PreviewDecisionSignalName, PreviewDecision{Approved: true, Decider: "late-review-operator"})
 	}, 96*time.Hour)
 
-	env.ExecuteWorkflow(UniversalImportWorkflow, testInput())
+	env.ExecuteWorkflow(ProfferWorkflow, testInput())
 
 	if err := env.GetWorkflowError(); err != nil {
 		t.Fatalf("late durable review signals did not resume the workflow: %v", err)
@@ -492,14 +492,14 @@ func TestDurableReviewSignalsResumeAfterMultipleDays(t *testing.T) {
 func TestFailedStatusHaltsDescendantsAndSealPublish(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
-	env.RegisterWorkflow(UniversalImportWorkflow)
+	env.RegisterWorkflow(ProfferWorkflow)
 	mockStages(env, map[stagegraph.StageID]StageResult{
 		stagegraph.NormalizeGeneration: {Status: StatusFailed, Reason: "malformed normalized bundle", ReceiptRef: "normalize-generation-failure-receipt"},
 	}, nil)
 	order := newOrderRecorder(env)
 	approveHold(env)
 
-	env.ExecuteWorkflow(UniversalImportWorkflow, testInput())
+	env.ExecuteWorkflow(ProfferWorkflow, testInput())
 
 	if !env.IsWorkflowCompleted() {
 		t.Fatal("workflow did not complete")
@@ -531,7 +531,7 @@ func TestFailedStatusHaltsDescendantsAndSealPublish(t *testing.T) {
 func TestActivityErrorHaltsDescendantsAndSealPublish(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
-	env.RegisterWorkflow(UniversalImportWorkflow)
+	env.RegisterWorkflow(ProfferWorkflow)
 	mockStages(env, nil, map[stagegraph.StageID]error{
 		stagegraph.FingerprintSource: errors.New("boom: object storage unreachable"),
 	})
@@ -540,7 +540,7 @@ func TestActivityErrorHaltsDescendantsAndSealPublish(t *testing.T) {
 		env.SignalWorkflow(RepairDecisionSignalName, RepairDecision{DecisionRef: "repair-decision-ref"})
 	}, time.Millisecond)
 
-	env.ExecuteWorkflow(UniversalImportWorkflow, testInput())
+	env.ExecuteWorkflow(ProfferWorkflow, testInput())
 
 	if !env.IsWorkflowCompleted() {
 		t.Fatal("workflow did not complete")
@@ -588,13 +588,13 @@ func TestActivityErrorHaltsDescendantsAndSealPublish(t *testing.T) {
 func TestNotApplicableProducesReceiptAndContinues(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
-	env.RegisterWorkflow(UniversalImportWorkflow)
+	env.RegisterWorkflow(ProfferWorkflow)
 	mockStages(env, map[stagegraph.StageID]StageResult{
 		stagegraph.ExtractEmbeddedMetadata: {Status: StatusNotApplicable, Reason: "source format carries no embedded metadata", ReceiptRef: "extract-embedded-metadata-na-receipt"},
 	}, nil)
 	approveHold(env)
 
-	env.ExecuteWorkflow(UniversalImportWorkflow, testInput())
+	env.ExecuteWorkflow(ProfferWorkflow, testInput())
 
 	if !env.IsWorkflowCompleted() {
 		t.Fatal("workflow did not complete")
@@ -644,7 +644,7 @@ func TestNotApplicableProducesReceiptAndContinues(t *testing.T) {
 func TestNonContainerNotApplicableReceiptsReachParserSelectionAndPreview(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
-	env.RegisterWorkflow(UniversalImportWorkflow)
+	env.RegisterWorkflow(ProfferWorkflow)
 	mockStages(env, map[stagegraph.StageID]StageResult{
 		stagegraph.CaptureFilesystemMetadata: {
 			Status: StatusSuccess, Ref: "filesystem-metadata-ref", ReceiptRef: "filesystem-metadata-receipt",
@@ -679,7 +679,7 @@ func TestNonContainerNotApplicableReceiptsReachParserSelectionAndPreview(t *test
 	})
 	approveHold(env)
 
-	env.ExecuteWorkflow(UniversalImportWorkflow, testInput())
+	env.ExecuteWorkflow(ProfferWorkflow, testInput())
 	if err := env.GetWorkflowError(); err != nil {
 		t.Fatalf("non-container workflow returned error: %v", err)
 	}
@@ -742,7 +742,7 @@ func TestNonContainerNotApplicableReceiptsReachParserSelectionAndPreview(t *test
 func TestNotApplicableByteCoverageRefReachesVerification(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
-	env.RegisterWorkflow(UniversalImportWorkflow)
+	env.RegisterWorkflow(ProfferWorkflow)
 	mockStages(env, map[stagegraph.StageID]StageResult{
 		stagegraph.ReconcileByteCoverage: {
 			Status: StatusNotApplicable, Ref: "byte-coverage-na-marker",
@@ -766,7 +766,7 @@ func TestNotApplicableByteCoverageRefReachesVerification(t *testing.T) {
 		mu.Unlock()
 	})
 
-	env.ExecuteWorkflow(UniversalImportWorkflow, testInput())
+	env.ExecuteWorkflow(ProfferWorkflow, testInput())
 	if err := env.GetWorkflowError(); err != nil {
 		t.Fatalf("workflow returned error on the golden path: %v", err)
 	}
@@ -831,7 +831,7 @@ func TestWireTypesCarryOnlyCompactReferences(t *testing.T) {
 func TestPersistRawGenerationReceivesDeclaredFormat(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
-	env.RegisterWorkflow(UniversalImportWorkflow)
+	env.RegisterWorkflow(ProfferWorkflow)
 	mockAllStagesSucceed(env)
 	approveHold(env)
 
@@ -852,7 +852,7 @@ func TestPersistRawGenerationReceivesDeclaredFormat(t *testing.T) {
 	})
 
 	in := testInput()
-	env.ExecuteWorkflow(UniversalImportWorkflow, in)
+	env.ExecuteWorkflow(ProfferWorkflow, in)
 	if err := env.GetWorkflowError(); err != nil {
 		t.Fatalf("workflow returned error on the golden path: %v", err)
 	}
@@ -874,7 +874,7 @@ func TestPersistRawGenerationReceivesDeclaredFormat(t *testing.T) {
 func TestRequestIDPropagatesToEveryActivity(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
-	env.RegisterWorkflow(UniversalImportWorkflow)
+	env.RegisterWorkflow(ProfferWorkflow)
 	mockAllStagesSucceed(env)
 
 	var mu sync.Mutex
@@ -901,7 +901,7 @@ func TestRequestIDPropagatesToEveryActivity(t *testing.T) {
 
 	in := testInput()
 	approveHold(env)
-	env.ExecuteWorkflow(UniversalImportWorkflow, in)
+	env.ExecuteWorkflow(ProfferWorkflow, in)
 	if err := env.GetWorkflowError(); err != nil {
 		t.Fatalf("workflow returned error on the golden path: %v", err)
 	}
@@ -927,7 +927,7 @@ func TestRequestIDPropagatesToEveryActivity(t *testing.T) {
 func TestSelectParserDoesNotReceiveContextSourceFingerprintRef(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
-	env.RegisterWorkflow(UniversalImportWorkflow)
+	env.RegisterWorkflow(ProfferWorkflow)
 	mockAllStagesSucceed(env)
 
 	var mu sync.Mutex
@@ -946,7 +946,7 @@ func TestSelectParserDoesNotReceiveContextSourceFingerprintRef(t *testing.T) {
 	})
 	approveHold(env)
 
-	env.ExecuteWorkflow(UniversalImportWorkflow, testInput())
+	env.ExecuteWorkflow(ProfferWorkflow, testInput())
 	if err := env.GetWorkflowError(); err != nil {
 		t.Fatalf("workflow returned error on the golden path: %v", err)
 	}
@@ -986,12 +986,12 @@ func TestSettleRejectsInvalidStageResults(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var suite testsuite.WorkflowTestSuite
 			env := suite.NewTestWorkflowEnvironment()
-			env.RegisterWorkflow(UniversalImportWorkflow)
+			env.RegisterWorkflow(ProfferWorkflow)
 			mockStages(env, map[stagegraph.StageID]StageResult{
 				stagegraph.RegisterSource: tc.res,
 			}, nil)
 
-			env.ExecuteWorkflow(UniversalImportWorkflow, testInput())
+			env.ExecuteWorkflow(ProfferWorkflow, testInput())
 
 			if !env.IsWorkflowCompleted() {
 				t.Fatal("workflow did not complete")
@@ -1012,12 +1012,12 @@ func TestSettleRejectsInvalidStageResults(t *testing.T) {
 func TestSettleAcceptsValidStatusFailedReceipt(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
-	env.RegisterWorkflow(UniversalImportWorkflow)
+	env.RegisterWorkflow(ProfferWorkflow)
 	mockStages(env, map[stagegraph.StageID]StageResult{
 		stagegraph.RegisterSource: {Status: StatusFailed, Reason: "duplicate request id", ReceiptRef: "register-source-failure-receipt"},
 	}, nil)
 
-	env.ExecuteWorkflow(UniversalImportWorkflow, testInput())
+	env.ExecuteWorkflow(ProfferWorkflow, testInput())
 
 	if !env.IsWorkflowCompleted() {
 		t.Fatal("workflow did not complete")

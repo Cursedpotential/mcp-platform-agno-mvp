@@ -11,8 +11,8 @@ import (
 	"sync"
 	"testing"
 
-	platformpostgres "github.com/Cursedpotential/mcp-platform-agno-mvp/engine/postgres"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	platformpostgres "github.com/Cursedpotential/probata/engine/postgres"
+	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/stretchr/testify/require"
 )
 
@@ -26,7 +26,7 @@ func TestFilesystemImmutableAcquisitionResolverCopiesAndMeasures(t *testing.T) {
 	resolver, err := NewFilesystemImmutableAcquisitionResolver(root)
 	require.NoError(t, err)
 	var typed platformpostgres.ImmutableAcquisitionResolver = resolver
-	result, err := typed(context.Background(), uiw.Ref(fileURI(sourcePath)))
+	result, err := typed(context.Background(), proffer.Ref(fileURI(sourcePath)))
 	require.NoError(t, err)
 
 	wantDigest := sha256.Sum256(content)
@@ -66,7 +66,7 @@ func TestFilesystemImmutableAcquisitionResolverIsConcurrentAndIdempotent(t *test
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
-			results[index], errorsFound[index] = resolver(context.Background(), uiw.Ref(fileURI(sourcePath)))
+			results[index], errorsFound[index] = resolver(context.Background(), proffer.Ref(fileURI(sourcePath)))
 		}()
 	}
 	wait.Wait()
@@ -89,7 +89,7 @@ func TestFilesystemImmutableAcquisitionResolverAllowsContractValidEmptyFile(t *t
 	require.NoError(t, os.WriteFile(sourcePath, nil, 0o600))
 	resolver, err := NewFilesystemImmutableAcquisitionResolver(t.TempDir())
 	require.NoError(t, err)
-	result, err := resolver(context.Background(), uiw.Ref(fileURI(sourcePath)))
+	result, err := resolver(context.Background(), proffer.Ref(fileURI(sourcePath)))
 	require.NoError(t, err)
 	require.Zero(t, result.ByteLength)
 	want := sha256.Sum256(nil)
@@ -102,12 +102,12 @@ func TestFilesystemImmutableAcquisitionResolverRejectsUnsafeReferences(t *testin
 	require.NoError(t, err)
 	directory := t.TempDir()
 
-	values := []uiw.Ref{
+	values := []proffer.Ref{
 		"https://example.test/file",
 		"file:relative.txt",
 		"file://server/share/file.txt",
-		uiw.Ref(fileURI(directory)),
-		uiw.Ref(fileURI(filepath.Join(directory, "missing"))),
+		proffer.Ref(fileURI(directory)),
+		proffer.Ref(fileURI(filepath.Join(directory, "missing"))),
 	}
 	for _, value := range values {
 		_, resolveErr := resolver(context.Background(), value)
@@ -124,7 +124,7 @@ func TestFilesystemImmutableAcquisitionResolverRejectsSymlinkAlias(t *testing.T)
 	}
 	resolver, err := NewFilesystemImmutableAcquisitionResolver(t.TempDir())
 	require.NoError(t, err)
-	_, err = resolver(context.Background(), uiw.Ref(fileURI(alias)))
+	_, err = resolver(context.Background(), proffer.Ref(fileURI(alias)))
 	require.ErrorContains(t, err, "symlink")
 }
 
@@ -151,7 +151,7 @@ func TestFilesystemImmutableAcquisitionResolverRejectsCorruptDigestTarget(t *tes
 
 	resolver, err := NewFilesystemImmutableAcquisitionResolver(root)
 	require.NoError(t, err)
-	_, err = resolver(context.Background(), uiw.Ref(fileURI(sourcePath)))
+	_, err = resolver(context.Background(), proffer.Ref(fileURI(sourcePath)))
 	require.ErrorContains(t, err, "content-addressed target conflict")
 	quarantined, globErr := filepath.Glob(filepath.Join(root, "quarantine", "publish-failed-*.source.partial"))
 	require.NoError(t, globErr)
@@ -166,7 +166,7 @@ func TestFilesystemImmutableAcquisitionResolverHonorsCancellation(t *testing.T) 
 	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err = resolver(ctx, uiw.Ref("file:///does/not/matter"))
+	_, err = resolver(ctx, proffer.Ref("file:///does/not/matter"))
 	require.ErrorIs(t, err, context.Canceled)
 }
 

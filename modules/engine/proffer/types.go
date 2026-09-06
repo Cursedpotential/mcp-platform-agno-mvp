@@ -1,4 +1,4 @@
-// Package uiw implements UniversalImportWorkflow, the single Temporal
+// Package proffer implements ProfferWorkflow, the single Temporal
 // workflow every source — every format, client, and entrypoint — runs
 // through, per
 // docs/reviews/2026-08-25-schema-audit/SBV-GO-TEMPORAL-RUNTIME-BOUNDARY.html
@@ -8,12 +8,14 @@
 // in a later lane, per the boundary document's lane table (Lane C depends on
 // Lane A contracts and Lane B PostgreSQL interfaces; it does not provide
 // them).
-package uiw
+//
+// Package proffer (formerly uiw / Universal Import Workflow; renamed D-140, 2026-09-05).
+package proffer
 
-import "github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
+import "github.com/Cursedpotential/probata/engine/stagegraph"
 
 // ActivityName is the Temporal-registered name for one Activity in
-// UniversalImportWorkflow. It is always identical to the canon StageID from
+// ProfferWorkflow. It is always identical to the canon StageID from
 // engine/stagegraph, so the orchestration graph in workflow.go and the
 // Temporal task-dispatch table can never drift apart.
 type ActivityName = stagegraph.StageID
@@ -53,7 +55,7 @@ const (
 	StatusFailed        Status = "failed"
 )
 
-// WorkflowInput starts UniversalImportWorkflow. It names the not-yet-
+// WorkflowInput starts ProfferWorkflow. It names the not-yet-
 // retained acquisition object and the client idempotency coordinate;
 // register_source_activity (stage 1) turns SourceRef into the durable
 // source/version reference every later stage keys off.

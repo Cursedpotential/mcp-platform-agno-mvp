@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/activities"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/activities"
+	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/stagegraph"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -25,7 +25,7 @@ func TestNewSourceObservationRepositoryRequiresDatabaseAndManifestWriter(t *test
 
 func TestValidateMetadataPersistenceSpecPinsActivityAndNativeClasses(t *testing.T) {
 	base := activities.MetadataPersistenceSpec{
-		RequestID: "workflow-1", SourceVersionRef: uiw.Ref(uuid.NewString()),
+		RequestID: "workflow-1", SourceVersionRef: proffer.Ref(uuid.NewString()),
 		Stage: stagegraph.CaptureFilesystemMetadata, IdempotencyKey: "key-1",
 		Attempt: 1, ProvenanceClass: "acquired_third_party",
 		Rows: []activities.MetadataRow{{
@@ -54,7 +54,7 @@ func TestValidateMetadataPersistenceSpecPinsActivityAndNativeClasses(t *testing.
 
 func TestValidateInventorySpecRequiresExactContainerActivity(t *testing.T) {
 	spec := activities.InventorySpec{
-		RequestID: "workflow-1", SourceVersionRef: uiw.Ref(uuid.NewString()),
+		RequestID: "workflow-1", SourceVersionRef: proffer.Ref(uuid.NewString()),
 		Stage: stagegraph.InventoryContainer, IdempotencyKey: "key-1", Attempt: 1,
 	}
 	if err := validateInventorySpec(spec); err != nil {

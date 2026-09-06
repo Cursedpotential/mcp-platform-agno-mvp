@@ -5,7 +5,7 @@
 //
 // The Python tools take a local filesystem path and do exactly one thing with
 // it. That contract is correct and stays (D-130 rule 1). The defect was that
-// callers were handing those tools a path from a DIFFERENT HOST: the UIW worker
+// callers were handing those tools a path from a DIFFERENT HOST: the Proffer worker
 // runs on ovh-files, platform-tools runs on ovh-app, and
 // `assess_source_repair_activity` passed a worker-local path straight through.
 // platform-tools answered 404 with the path as the body, because the file
@@ -42,8 +42,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	platformpostgres "github.com/Cursedpotential/mcp-platform-agno-mvp/engine/postgres"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	platformpostgres "github.com/Cursedpotential/probata/engine/postgres"
+	"github.com/Cursedpotential/probata/engine/proffer"
 )
 
 // ToolRunner is the minimal platform-tools surface this package depends on, so
@@ -130,7 +130,7 @@ func ValidateToolID(id string) error {
 // args may carry any tool-specific options (format, sample_limit, ...). It MUST
 // NOT carry "path": callers never name a host path, because naming one is the
 // bug this component exists to prevent.
-func (g *Gateway) Run(ctx context.Context, toolID string, sourceRef uiw.Ref, args map[string]any) (json.RawMessage, error) {
+func (g *Gateway) Run(ctx context.Context, toolID string, sourceRef proffer.Ref, args map[string]any) (json.RawMessage, error) {
 	if err := g.validate(); err != nil {
 		return nil, err
 	}

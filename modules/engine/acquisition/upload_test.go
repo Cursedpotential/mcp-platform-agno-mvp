@@ -12,7 +12,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/stretchr/testify/require"
 )
 
@@ -38,7 +38,7 @@ func TestUploadIngressAcceptsAuthorizedUpload(t *testing.T) {
 
 	resolver, err := NewUploadIngressResolver(root)
 	require.NoError(t, err)
-	result, err := resolver(context.Background(), uiw.Ref(response.AcquisitionRef))
+	result, err := resolver(context.Background(), proffer.Ref(response.AcquisitionRef))
 	require.NoError(t, err)
 	require.Equal(t, wantDigest[:], result.ContentSHA256)
 	require.Equal(t, int64(len(content)), result.ByteLength)
@@ -90,7 +90,7 @@ func TestUploadIngressResolverRejectsMalformedRef(t *testing.T) {
 	resolver, err := NewUploadIngressResolver(root)
 	require.NoError(t, err)
 
-	for _, ref := range []uiw.Ref{"", "upload://not-hex", "upload://" + "ab", "file:///etc/passwd"} {
+	for _, ref := range []proffer.Ref{"", "upload://not-hex", "upload://" + "ab", "file:///etc/passwd"} {
 		_, err := resolver(context.Background(), ref)
 		require.Errorf(t, err, "ref %q should have been rejected", ref)
 	}
@@ -118,7 +118,7 @@ func TestUploadIngressResolverFailsClosedOnTamperedObject(t *testing.T) {
 
 	resolver, err := NewUploadIngressResolver(root)
 	require.NoError(t, err)
-	_, err = resolver(context.Background(), uiw.Ref(response.AcquisitionRef))
+	_, err = resolver(context.Background(), proffer.Ref(response.AcquisitionRef))
 	require.Error(t, err)
 }
 
@@ -128,7 +128,7 @@ func TestUploadIngressResolverRejectsMissingObject(t *testing.T) {
 	require.NoError(t, err)
 
 	neverUploaded := "upload://" + hex.EncodeToString(bytes.Repeat([]byte{0xab}, sha256.Size))
-	_, err = resolver(context.Background(), uiw.Ref(neverUploaded))
+	_, err = resolver(context.Background(), proffer.Ref(neverUploaded))
 	require.Error(t, err)
 }
 

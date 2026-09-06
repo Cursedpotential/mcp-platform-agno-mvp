@@ -5,9 +5,9 @@ import (
 
 	"go.temporal.io/sdk/activity"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/normalize"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/parser"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
+	"github.com/Cursedpotential/probata/engine/normalize"
+	"github.com/Cursedpotential/probata/engine/parser"
+	"github.com/Cursedpotential/probata/engine/stagegraph"
 )
 
 // ActivityRegistrar is the narrow Temporal worker registration seam used by
@@ -76,7 +76,7 @@ func NewSourceObservationActivities(
 }
 
 // RegisterHashActivities registers each atomic body under the exact StageID
-// invoked by UniversalImportWorkflow. Registering methods individually avoids
+// invoked by ProfferWorkflow. Registering methods individually avoids
 // Go method names silently becoming a second naming scheme.
 // Context integrity fingerprints (R02) are registered under their new names.
 // Custody hashes (R04) are registered separately when R04 is implemented.
@@ -196,7 +196,7 @@ func NewNormalizedPipelineActivities(
 }
 
 // RegisterNormalizedPipelineActivities registers every normalized-side body
-// under the exact stage graph identity used by UniversalImportWorkflow.
+// under the exact stage graph identity used by ProfferWorkflow.
 func RegisterNormalizedPipelineActivities(registrar ActivityRegistrar, activities NormalizedPipelineActivities) {
 	registrar.RegisterActivityWithOptions(activities.NormalizeGeneration, activity.RegisterOptions{Name: string(stagegraph.NormalizeGeneration)})
 	registrar.RegisterActivityWithOptions(activities.PersistNormalizedGeneration, activity.RegisterOptions{Name: string(stagegraph.PersistNormalizedGeneration)})
@@ -221,7 +221,7 @@ func NewStructuredELTActivities(repository StructuredELTRepository) StructuredEL
 
 // RegisterStructuredELTActivities registers ExecuteStructuredELT under
 // ExecuteStructuredELTActivityName. It is not yet called from
-// uiwworker.Run/buildRegistrations — that workflow-layer wiring (constructing
+// profferworker.Run/buildRegistrations — that workflow-layer wiring (constructing
 // a postgres.StructuredELTRepository from the worker's pgxpool.Pool and
 // calling this function alongside the other RegisterXxxActivities calls) is
 // the exact remaining step the BUILD LANE E1 handoff reports as outstanding.

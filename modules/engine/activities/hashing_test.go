@@ -9,12 +9,12 @@ import (
 
 	"github.com/lowcarbdev/sbv/pkg/custodyhash"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/stagegraph"
 )
 
 type byteFixture struct {
-	ref     uiw.Ref
+	ref     proffer.Ref
 	ordinal int64
 	canon   string
 	data    []byte
@@ -79,7 +79,7 @@ func (w *fakeWriter) Append(ctx context.Context, member HashMember) error {
 	return nil
 }
 
-func (w *fakeWriter) Commit(ctx context.Context, summary HashSummary) (uiw.Ref, uiw.Ref, error) {
+func (w *fakeWriter) Commit(ctx context.Context, summary HashSummary) (proffer.Ref, proffer.Ref, error) {
 	if err := ctx.Err(); err != nil {
 		return "", "", err
 	}
@@ -94,14 +94,14 @@ func (w *fakeWriter) Abort(context.Context) error {
 }
 
 type fakeRepository struct {
-	originals  map[uiw.Ref][]byte
-	raw        map[uiw.Ref][]byteFixture
-	normalized map[uiw.Ref][]byteFixture
-	manifests  map[uiw.Ref][]DigestMember
+	originals  map[proffer.Ref][]byte
+	raw        map[proffer.Ref][]byteFixture
+	normalized map[proffer.Ref][]byteFixture
+	manifests  map[proffer.Ref][]DigestMember
 	lastWriter *fakeWriter
 }
 
-func (r *fakeRepository) OpenOriginal(_ context.Context, ref uiw.Ref) (io.ReadCloser, error) {
+func (r *fakeRepository) OpenOriginal(_ context.Context, ref proffer.Ref) (io.ReadCloser, error) {
 	data, ok := r.originals[ref]
 	if !ok {
 		return nil, errors.New("missing original")
@@ -109,15 +109,15 @@ func (r *fakeRepository) OpenOriginal(_ context.Context, ref uiw.Ref) (io.ReadCl
 	return io.NopCloser(bytes.NewReader(data)), nil
 }
 
-func (r *fakeRepository) OpenRawRecords(_ context.Context, ref uiw.Ref) (ByteMemberStream, error) {
+func (r *fakeRepository) OpenRawRecords(_ context.Context, ref proffer.Ref) (ByteMemberStream, error) {
 	return &fakeByteStream{members: r.raw[ref]}, nil
 }
 
-func (r *fakeRepository) OpenNormalizedRecords(_ context.Context, ref uiw.Ref) (ByteMemberStream, error) {
+func (r *fakeRepository) OpenNormalizedRecords(_ context.Context, ref proffer.Ref) (ByteMemberStream, error) {
 	return &fakeByteStream{members: r.normalized[ref]}, nil
 }
 
-func (r *fakeRepository) OpenHashMembers(_ context.Context, ref uiw.Ref) (DigestMemberStream, error) {
+func (r *fakeRepository) OpenHashMembers(_ context.Context, ref proffer.Ref) (DigestMemberStream, error) {
 	return &fakeDigestStream{members: r.manifests[ref]}, nil
 }
 
@@ -126,31 +126,31 @@ func (r *fakeRepository) BeginHashBatch(_ context.Context, spec BatchSpec) (Hash
 	return r.lastWriter, nil
 }
 
-func testRequest(refName string, ref uiw.Ref) uiw.StageRequest {
-	return uiw.StageRequest{
+func testRequest(refName string, ref proffer.Ref) proffer.StageRequest {
+	return proffer.StageRequest{
 		RequestID: "request-1", SourceVersionRef: "source-version-1",
-		Refs: map[string]uiw.Ref{refName: ref},
+		Refs: map[string]proffer.Ref{refName: ref},
 	}
 }
 
-func generationRequest(manifestName string, manifestRef, generationRef uiw.Ref) uiw.StageRequest {
+func generationRequest(manifestName string, manifestRef, generationRef proffer.Ref) proffer.StageRequest {
 	generationName := "raw_generation"
 	if manifestName == "normalized_record_digests" {
 		generationName = "normalized_generation"
 	}
-	return uiw.StageRequest{
+	return proffer.StageRequest{
 		RequestID: "request-1", SourceVersionRef: "source-version-1",
-		Refs: map[string]uiw.Ref{manifestName: manifestRef, generationName: generationRef},
+		Refs: map[string]proffer.Ref{manifestName: manifestRef, generationName: generationRef},
 	}
 }
 
 func TestFingerprintSourceComputesCanonicalContextSourceFingerprint(t *testing.T) {
-	repo := &fakeRepository{originals: map[uiw.Ref][]byte{"original-1": []byte("exact source bytes\n")}}
+	repo := &fakeRepository{originals: map[proffer.Ref][]byte{"original-1": []byte("exact source bytes\n")}}
 	result, err := (HashActivities{Repository: repo, Attempt: func(context.Context) int32 { return 3 }}).FingerprintSource(context.Background(), testRequest("original", "original-1"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Stage != stagegraph.FingerprintSource || result.Status != uiw.StatusSuccess {
+	if result.Stage != stagegraph.FingerprintSource || result.Status != proffer.StatusSuccess {
 		t.Fatalf("unexpected result: %#v", result)
 	}
 	want := custodyhash.HashBytes([]byte("exact source bytes\n"))
@@ -163,7 +163,7 @@ func TestFingerprintSourceComputesCanonicalContextSourceFingerprint(t *testing.T
 }
 
 func TestLegacyFingerprintRetryPreservesActivityExecutionIdentity(t *testing.T) {
-	repo := &fakeRepository{originals: map[uiw.Ref][]byte{"original-1": []byte("exact source bytes\n")}}
+	repo := &fakeRepository{originals: map[proffer.Ref][]byte{"original-1": []byte("exact source bytes\n")}}
 	result, err := (HashActivities{Repository: repo}).LegacyHashSource(context.Background(), testRequest("original", "original-1"))
 	if err != nil {
 		t.Fatal(err)
@@ -178,7 +178,7 @@ func TestLegacyFingerprintRetryPreservesActivityExecutionIdentity(t *testing.T) 
 }
 
 func TestFingerprintRawRecordsUsesExactBytesAndContextRawRecordNames(t *testing.T) {
-	repo := &fakeRepository{raw: map[uiw.Ref][]byteFixture{
+	repo := &fakeRepository{raw: map[proffer.Ref][]byteFixture{
 		"raw-generation": {
 			{ref: "raw-1", ordinal: 0, canon: CanonContextRawRecordFingerprint, data: []byte(`<sms body="a" />`)},
 			{ref: "raw-2", ordinal: 1, canon: CanonContextRawSpanFingerprint, data: []byte("same logical value, different bytes\n")},
@@ -206,7 +206,7 @@ func TestFingerprintRawGenerationMatchesAuthoritativeChainAndDetectsOrdering(t *
 		{SubjectRef: "raw-1", Ordinal: 0, Digest: h2a, Canon: CanonContextRawRecordFingerprint},
 		{SubjectRef: "raw-2", Ordinal: 1, Digest: h2b, Canon: CanonContextRawRecordFingerprint},
 	}
-	repo := &fakeRepository{manifests: map[uiw.Ref][]DigestMember{"raw-fingerprint-manifest": members}}
+	repo := &fakeRepository{manifests: map[proffer.Ref][]DigestMember{"raw-fingerprint-manifest": members}}
 	_, err := (HashActivities{Repository: repo}).FingerprintRawGeneration(context.Background(), generationRequest("raw_fingerprint_manifest", "raw-fingerprint-manifest", "raw-generation"))
 	if err != nil {
 		t.Fatal(err)
@@ -236,11 +236,11 @@ func TestFingerprintRawGenerationMatchesAuthoritativeChainAndDetectsOrdering(t *
 
 func TestNormalizedDigestsRemainDistinctFromCustodyH2H3(t *testing.T) {
 	repo := &fakeRepository{
-		normalized: map[uiw.Ref][]byteFixture{"normalized-generation": {
+		normalized: map[proffer.Ref][]byteFixture{"normalized-generation": {
 			{ref: "normalized-1", ordinal: 0, data: []byte(`{"body":"hello"}`)},
 			{ref: "normalized-2", ordinal: 1, data: []byte(`{"body":"world"}`)},
 		}},
-		manifests: make(map[uiw.Ref][]DigestMember),
+		manifests: make(map[proffer.Ref][]DigestMember),
 	}
 	_, err := (HashActivities{Repository: repo}).HashNormalizedRecords(context.Background(), testRequest("normalized_generation", "normalized-generation"))
 	if err != nil {
@@ -288,13 +288,13 @@ func TestNormalizedDigestsRemainDistinctFromCustodyH2H3(t *testing.T) {
 }
 
 func TestHashActivitiesFailClosedOnEmptyAndCancellation(t *testing.T) {
-	repo := &fakeRepository{raw: map[uiw.Ref][]byteFixture{"empty": nil}}
+	repo := &fakeRepository{raw: map[proffer.Ref][]byteFixture{"empty": nil}}
 	_, err := (HashActivities{Repository: repo}).FingerprintRawRecords(context.Background(), testRequest("raw_generation", "empty"))
 	if err == nil || !repo.lastWriter.aborted || repo.lastWriter.committed {
 		t.Fatalf("empty generation did not fail closed: err=%v writer=%#v", err, repo.lastWriter)
 	}
 
-	repo.manifests = map[uiw.Ref][]DigestMember{"empty-fingerprint": nil}
+	repo.manifests = map[proffer.Ref][]DigestMember{"empty-fingerprint": nil}
 	_, err = (HashActivities{Repository: repo}).FingerprintRawGeneration(
 		context.Background(), generationRequest("raw_fingerprint_manifest", "empty-fingerprint", "raw-generation"),
 	)
@@ -302,7 +302,7 @@ func TestHashActivitiesFailClosedOnEmptyAndCancellation(t *testing.T) {
 		t.Fatalf("empty context raw-generation fingerprint chain did not fail closed: err=%v writer=%#v", err, repo.lastWriter)
 	}
 
-	repo.originals = map[uiw.Ref][]byte{"original-1": []byte("bytes")}
+	repo.originals = map[proffer.Ref][]byte{"original-1": []byte("bytes")}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	_, err = (HashActivities{Repository: repo}).FingerprintSource(ctx, testRequest("original", "original-1"))
@@ -312,7 +312,7 @@ func TestHashActivitiesFailClosedOnEmptyAndCancellation(t *testing.T) {
 }
 
 func TestHashActivitiesRejectOrdinalAndCanonDrift(t *testing.T) {
-	repo := &fakeRepository{raw: map[uiw.Ref][]byteFixture{"raw-generation": {
+	repo := &fakeRepository{raw: map[proffer.Ref][]byteFixture{"raw-generation": {
 		{ref: "raw-1", ordinal: 1, canon: CanonNormalizedRecord, data: []byte("x")},
 	}}}
 	_, err := (HashActivities{Repository: repo}).FingerprintRawRecords(context.Background(), testRequest("raw_generation", "raw-generation"))

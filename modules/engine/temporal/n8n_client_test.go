@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/stagegraph"
 )
 
 func testConfig(t *testing.T, baseURL string) Config {
@@ -41,12 +41,12 @@ func testFileConfig(t *testing.T, baseURL, value string) (Config, string) {
 	return cfg, path
 }
 
-func selectRequest() uiw.StageRequest {
-	return uiw.StageRequest{
+func selectRequest() proffer.StageRequest {
+	return proffer.StageRequest{
 		RequestID:        "req-1",
 		SourceVersionRef: "srcv-1",
 		DeclaredFormat:   "whatsapp_export_json",
-		Refs: map[string]uiw.Ref{
+		Refs: map[string]proffer.Ref{
 			"filesystem_metadata": "fs-ref",
 			"container_manifest":  "container-ref",
 			"metadata_manifest":   "metadata-ref",
@@ -54,12 +54,12 @@ func selectRequest() uiw.StageRequest {
 	}
 }
 
-func executeRequest() uiw.StageRequest {
-	return uiw.StageRequest{
+func executeRequest() proffer.StageRequest {
+	return proffer.StageRequest{
 		RequestID:        "req-1",
 		SourceVersionRef: "srcv-1",
 		DeclaredFormat:   "whatsapp_export_json",
-		Refs: map[string]uiw.Ref{
+		Refs: map[string]proffer.Ref{
 			"parser_selection": "selection-ref",
 			"original":         "original-ref",
 			"parser_options":   "parser-options-ref",
@@ -93,7 +93,7 @@ func TestCallStageSelectParserSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CallStage() error = %v, want nil", err)
 	}
-	if result.Stage != stagegraph.SelectParser || result.Status != uiw.StatusSuccess ||
+	if result.Stage != stagegraph.SelectParser || result.Status != proffer.StatusSuccess ||
 		result.Ref != "selection-ref" || result.ReceiptRef != "selection-receipt" {
 		t.Errorf("CallStage() result = %+v, unexpected", result)
 	}

@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	platformtemporal "github.com/Cursedpotential/mcp-platform-agno-mvp/engine/temporal"
+	platformtemporal "github.com/Cursedpotential/probata/engine/temporal"
 )
 
 const (

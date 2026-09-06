@@ -14,10 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/activities"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/parser"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/activities"
+	"github.com/Cursedpotential/probata/engine/parser"
+	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/stagegraph"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/lowcarbdev/sbv/pkg/parseonly"
@@ -26,7 +26,7 @@ import (
 // BundleWriterFactory is the only parser-output persistence dependency.  The
 // factory must return a streaming, caller-owned writer; this store never
 // buffers a complete extraction bundle.
-type BundleWriterFactory func(context.Context, uiw.StageRequest, activities.PersistedParserSelection, parser.ParserInput) (parser.BundleWriter, error)
+type BundleWriterFactory func(context.Context, proffer.StageRequest, activities.PersistedParserSelection, parser.ParserInput) (parser.BundleWriter, error)
 
 // ParserStore persists parser selection and execution receipts using the
 // tables introduced by SQL 0036.  It intentionally has no parser-output
@@ -186,7 +186,7 @@ func (s *ParserStore) RegisterArtifact(ctx context.Context, registration parseon
 	return parseonly.ArtifactLocator{StorageClass: storageClass, URI: objectURI, ContentHash: contentHash}, nil
 }
 
-func (s *ParserStore) PersistParserSelection(ctx context.Context, spec activities.ParserSelectionSpec) (uiw.Ref, uiw.Ref, error) {
+func (s *ParserStore) PersistParserSelection(ctx context.Context, spec activities.ParserSelectionSpec) (proffer.Ref, proffer.Ref, error) {
 	if err := validateSelectionSpec(spec); err != nil {
 		return "", "", err
 	}
@@ -241,7 +241,7 @@ func (s *ParserStore) PersistParserSelection(ctx context.Context, spec activitie
 			return "", "", errors.New("existing parser selection receipt conflicts with requested selection")
 		}
 		rollback()
-		return uiw.Ref(priorID.String()), uiw.Ref(priorID.String()), nil
+		return proffer.Ref(priorID.String()), proffer.Ref(priorID.String()), nil
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		rollback()
@@ -261,10 +261,10 @@ func (s *ParserStore) PersistParserSelection(ctx context.Context, spec activitie
 		rollback()
 		return "", "", fmt.Errorf("commit parser selection receipt: %w", err)
 	}
-	return uiw.Ref(receiptID.String()), uiw.Ref(receiptID.String()), nil
+	return proffer.Ref(receiptID.String()), proffer.Ref(receiptID.String()), nil
 }
 
-func (s *ParserStore) LoadParserSelection(ctx context.Context, ref uiw.Ref) (activities.PersistedParserSelection, error) {
+func (s *ParserStore) LoadParserSelection(ctx context.Context, ref proffer.Ref) (activities.PersistedParserSelection, error) {
 	receiptID, err := parseUUIDRef(ref, "parser selection")
 	if err != nil {
 		return activities.PersistedParserSelection{}, err
@@ -287,7 +287,7 @@ func (s *ParserStore) LoadParserSelection(ctx context.Context, ref uiw.Ref) (act
 	return decodeSelectionReceipt(receiptID, result, sourceID)
 }
 
-func (s *ParserStore) ResolveParserInput(ctx context.Context, req uiw.StageRequest, selection activities.PersistedParserSelection) (parser.ParserInput, error) {
+func (s *ParserStore) ResolveParserInput(ctx context.Context, req proffer.StageRequest, selection activities.PersistedParserSelection) (parser.ParserInput, error) {
 	if strings.TrimSpace(req.RequestID) == "" || req.SourceVersionRef == "" {
 		return parser.ParserInput{}, errors.New("resolve parser input requires request and source references")
 	}
@@ -334,7 +334,7 @@ func (s *ParserStore) ResolveParserInput(ctx context.Context, req uiw.StageReque
 	return input, nil
 }
 
-func (s *ParserStore) OpenParserBundleWriter(ctx context.Context, req uiw.StageRequest, selection activities.PersistedParserSelection, input parser.ParserInput) (parser.BundleWriter, error) {
+func (s *ParserStore) OpenParserBundleWriter(ctx context.Context, req proffer.StageRequest, selection activities.PersistedParserSelection, input parser.ParserInput) (parser.BundleWriter, error) {
 	if selection.SourceVersionRef != req.SourceVersionRef {
 		return nil, errors.New("parser bundle writer selection/source mismatch")
 	}
@@ -354,7 +354,7 @@ func (s *ParserStore) OpenParserBundleWriter(ctx context.Context, req uiw.StageR
 	return writer, nil
 }
 
-func (s *ParserStore) PersistParserExecution(ctx context.Context, spec activities.ParserExecutionSpec) (uiw.Ref, uiw.Ref, error) {
+func (s *ParserStore) PersistParserExecution(ctx context.Context, spec activities.ParserExecutionSpec) (proffer.Ref, proffer.Ref, error) {
 	if err := validateExecutionSpec(spec); err != nil {
 		return "", "", err
 	}
@@ -406,7 +406,7 @@ func (s *ParserStore) PersistParserExecution(ctx context.Context, spec activitie
 			return "", "", errors.New("existing parser execution receipt conflicts with bundle reference")
 		}
 		rollback()
-		return bundleRef, uiw.Ref(priorID.String()), nil
+		return bundleRef, proffer.Ref(priorID.String()), nil
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		rollback()
@@ -426,7 +426,7 @@ func (s *ParserStore) PersistParserExecution(ctx context.Context, spec activitie
 		rollback()
 		return "", "", fmt.Errorf("commit parser execution receipt: %w", err)
 	}
-	return spec.BundleRef, uiw.Ref(receiptID.String()), nil
+	return spec.BundleRef, proffer.Ref(receiptID.String()), nil
 }
 
 func (s *ParserStore) now() time.Time {
@@ -504,7 +504,7 @@ func decodeSelectionReceipt(receiptID uuid.UUID, raw []byte, sourceID uuid.UUID)
 	if err := format.Validate(); err != nil {
 		return activities.PersistedParserSelection{}, fmt.Errorf("parser selection format: %w", err)
 	}
-	return activities.PersistedParserSelection{SourceVersionRef: uiw.Ref(sourceID.String()), DeclaredFormat: format, ParserID: result.ParserID, ParserVersion: result.ParserVersion}, nil
+	return activities.PersistedParserSelection{SourceVersionRef: proffer.Ref(sourceID.String()), DeclaredFormat: format, ParserID: result.ParserID, ParserVersion: result.ParserVersion}, nil
 }
 
 type bundleResult struct {
@@ -512,12 +512,12 @@ type bundleResult struct {
 	RefID   string `json:"ref_id"`
 }
 
-func bundleResultJSON(ref uiw.Ref) []byte {
+func bundleResultJSON(ref proffer.Ref) []byte {
 	result, _ := json.Marshal(bundleResult{RefKind: "parser_bundle", RefID: string(ref)})
 	return result
 }
 
-func decodeBundleResult(raw []byte) (uiw.Ref, error) {
+func decodeBundleResult(raw []byte) (proffer.Ref, error) {
 	var result bundleResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return "", fmt.Errorf("decode parser execution result: %w", err)
@@ -525,7 +525,7 @@ func decodeBundleResult(raw []byte) (uiw.Ref, error) {
 	if result.RefKind != "parser_bundle" || strings.TrimSpace(result.RefID) == "" {
 		return "", errors.New("parser execution result is incomplete")
 	}
-	return uiw.Ref(result.RefID), nil
+	return proffer.Ref(result.RefID), nil
 }
 
 func validateSelectionSpec(spec activities.ParserSelectionSpec) error {
@@ -548,7 +548,7 @@ func validateExecutionSpec(spec activities.ParserExecutionSpec) error {
 	return nil
 }
 
-func parseUUIDRef(ref uiw.Ref, name string) (uuid.UUID, error) {
+func parseUUIDRef(ref proffer.Ref, name string) (uuid.UUID, error) {
 	id, err := uuid.Parse(strings.TrimSpace(string(ref)))
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("%s reference %q must be a UUID: %w", name, ref, err)

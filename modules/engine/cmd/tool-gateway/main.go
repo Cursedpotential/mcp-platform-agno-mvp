@@ -4,7 +4,7 @@
 // It gets its OWN Tailscale identity via tsnet, so callers address the gateway
 // by a stable tailnet name and which physical host it — or platform-tools —
 // happens to run on stops mattering. That is the durable fix for the defect
-// found live on 2026-09-02: the UIW worker (ovh-files) handed platform-tools
+// found live on 2026-09-02: the Proffer worker (ovh-files) handed platform-tools
 // (ovh-app) a worker-local filesystem path, and platform-tools 404'd with the
 // path as the response body because the file was not there.
 //
@@ -33,10 +33,10 @@ import (
 
 	"tailscale.com/tsnet"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/acquisition"
-	platformpostgres "github.com/Cursedpotential/mcp-platform-agno-mvp/engine/postgres"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/runtimeapi"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/toolgateway"
+	"github.com/Cursedpotential/probata/engine/acquisition"
+	platformpostgres "github.com/Cursedpotential/probata/engine/postgres"
+	"github.com/Cursedpotential/probata/engine/runtimeapi"
+	"github.com/Cursedpotential/probata/engine/toolgateway"
 )
 
 func main() {

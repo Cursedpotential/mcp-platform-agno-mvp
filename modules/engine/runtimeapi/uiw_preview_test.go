@@ -1,4 +1,4 @@
-// Byline: Codex · GPT-5.6 · 2026-08-29 (opaque UIW preview HTTP contract tests)
+// Byline: Codex · GPT-5.6 · 2026-08-29 (opaque Proffer preview HTTP contract tests)
 package runtimeapi
 
 import (
@@ -18,33 +18,33 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/proffer"
 )
 
 type previewWorkflowStub struct {
-	started  uiw.WorkflowInput
-	decision uiw.PreviewDecision
-	repair   uiw.RepairDecision
-	state    uiw.PreviewState
+	started  proffer.WorkflowInput
+	decision proffer.PreviewDecision
+	repair   proffer.RepairDecision
+	state    proffer.PreviewState
 	order    *[]string
 }
 
-func (s *previewWorkflowStub) Start(_ context.Context, in uiw.WorkflowInput) (string, string, error) {
+func (s *previewWorkflowStub) Start(_ context.Context, in proffer.WorkflowInput) (string, string, error) {
 	s.started = in
 	return "workflow-1", "run-1", nil
 }
-func (s *previewWorkflowStub) Decide(_ context.Context, _ string, decision uiw.PreviewDecision) error {
+func (s *previewWorkflowStub) Decide(_ context.Context, _ string, decision proffer.PreviewDecision) error {
 	s.decision = decision
 	return nil
 }
-func (s *previewWorkflowStub) DecideRepair(_ context.Context, _ string, decision uiw.RepairDecision) error {
+func (s *previewWorkflowStub) DecideRepair(_ context.Context, _ string, decision proffer.RepairDecision) error {
 	s.repair = decision
 	if s.order != nil {
 		*s.order = append(*s.order, "signal")
 	}
 	return nil
 }
-func (s *previewWorkflowStub) Preview(context.Context, string) (uiw.PreviewState, error) {
+func (s *previewWorkflowStub) Preview(context.Context, string) (proffer.PreviewState, error) {
 	return s.state, nil
 }
 
@@ -64,7 +64,7 @@ func (s *failOncePreviewStore) Create(ctx context.Context, binding PreviewBindin
 }
 
 type repairWriterStub struct {
-	got   uiw.RepairDecisionSpec
+	got   proffer.RepairDecisionSpec
 	order *[]string
 }
 
@@ -74,7 +74,7 @@ func (s sourceContextValidatorStub) ValidateSourceContext(context.Context, strin
 	return s.err
 }
 
-func (s *repairWriterStub) PersistRepairDecision(_ context.Context, spec uiw.RepairDecisionSpec) (uiw.Ref, error) {
+func (s *repairWriterStub) PersistRepairDecision(_ context.Context, spec proffer.RepairDecisionSpec) (proffer.Ref, error) {
 	s.got = spec
 	if s.order != nil {
 		*s.order = append(*s.order, "persist")
@@ -93,8 +93,8 @@ func (r *countingEntropy) Read(dest []byte) (int, error) {
 func previewTestHandler(t *testing.T) (*PreviewHTTPHandler, *MemoryPreviewStore, *previewWorkflowStub) {
 	t.Helper()
 	store := NewMemoryPreviewStore(&countingEntropy{next: 1})
-	workflow := &previewWorkflowStub{state: uiw.PreviewState{
-		Phase: uiw.PhaseAwaitingDecision, SelectRef: "selection-1", ParserOptionsRef: "options-1",
+	workflow := &previewWorkflowStub{state: proffer.PreviewState{
+		Phase: proffer.PhaseAwaitingDecision, SelectRef: "selection-1", ParserOptionsRef: "options-1",
 	}}
 	handler, err := NewPreviewHTTPHandler(workflow, store, store, bytes.Repeat([]byte("k"), 32), serviceTokenPath(t), sourceContextValidatorStub{})
 	require.NoError(t, err)
@@ -103,7 +103,7 @@ func previewTestHandler(t *testing.T) (*PreviewHTTPHandler, *MemoryPreviewStore,
 
 func serviceTokenPath(t *testing.T) string {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "uiw-service-token")
+	path := filepath.Join(t.TempDir(), "proffer-service-token")
 	require.NoError(t, os.WriteFile(path, []byte(strings.Repeat("s", 32)), 0600))
 	return path
 }
@@ -203,8 +203,8 @@ func TestMemoryPreviewDecisionsAppendImmutableCompleteSuccessors(t *testing.T) {
 	require.Equal(t, initial.messages, page.Messages)
 	currentBinding, err := store.Binding(t.Context(), binding.Handle)
 	require.NoError(t, err)
-	require.Equal(t, uiw.Ref("selection-2"), currentBinding.SelectionRef)
-	require.Equal(t, uiw.Ref("options-2"), currentBinding.ParserOptionsRef)
+	require.Equal(t, proffer.Ref("selection-2"), currentBinding.SelectionRef)
+	require.Equal(t, proffer.Ref("options-2"), currentBinding.ParserOptionsRef)
 }
 
 func fmtDigest(value [sha256.Size]byte) string {
@@ -285,8 +285,8 @@ func TestPreviewSurfaceFailsClosedOnAuthUnknownHandleAndEventGap(t *testing.T) {
 func TestRepairDecisionIsPersistedByUIWBeforeTemporalSignal(t *testing.T) {
 	store := NewMemoryPreviewStore(&countingEntropy{next: 1})
 	order := []string{}
-	workflow := &previewWorkflowStub{order: &order, state: uiw.PreviewState{
-		Phase:               uiw.PhaseAwaitingRepairDecision,
+	workflow := &previewWorkflowStub{order: &order, state: proffer.PreviewState{
+		Phase:               proffer.PhaseAwaitingRepairDecision,
 		SourceVersionRef:    "33333333-3333-3333-3333-333333333333",
 		RepairAssessmentRef: "44444444-4444-4444-4444-444444444444",
 	}}
@@ -304,8 +304,8 @@ func TestRepairDecisionIsPersistedByUIWBeforeTemporalSignal(t *testing.T) {
 	handler.Routes().ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
 	require.Equal(t, []string{"persist", "signal"}, order)
-	require.Equal(t, uiw.Ref("authentik-subject-1"), writer.got.ActorRef)
-	require.Equal(t, uiw.Ref("66666666-6666-6666-6666-666666666666"), workflow.repair.DecisionRef)
+	require.Equal(t, proffer.Ref("authentik-subject-1"), writer.got.ActorRef)
+	require.Equal(t, proffer.Ref("66666666-6666-6666-6666-666666666666"), workflow.repair.DecisionRef)
 }
 
 func TestStartRetryReconcilesSameWorkflowAfterBindingFailure(t *testing.T) {
@@ -331,7 +331,7 @@ func TestStartPassesOnlyTheDurableSourceContextReferenceIntoTemporal(t *testing.
 	body := []byte(`{"request_id":"request-with-context","matter_id":"11111111-1111-1111-1111-111111111111","court_case_id":"22222222-2222-2222-2222-222222222222","source_ref":"upload://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","declared_format":"sms_xml","parser_options_ref":"options-1","source_context_ref":"33333333-3333-3333-3333-333333333333"}`)
 	recorder := servePreview(handler.Routes(), http.MethodPost, "/reference-import/start", body)
 	require.Equal(t, http.StatusCreated, recorder.Code, recorder.Body.String())
-	require.Equal(t, uiw.Ref("33333333-3333-3333-3333-333333333333"), workflow.started.SourceContextRef)
+	require.Equal(t, proffer.Ref("33333333-3333-3333-3333-333333333333"), workflow.started.SourceContextRef)
 }
 
 func TestStartRejectsSourceContextThatDoesNotOwnTheExactIntakeScope(t *testing.T) {
@@ -349,7 +349,7 @@ func TestIntegratedRejectedPreviewCanApproveWithoutLegacyRepairRefs(t *testing.T
 	handler, store, workflow := previewTestHandler(t)
 	handle := startPreview(t, handler)
 	putValidProjection(t, store, handle)
-	workflow.state = uiw.PreviewState{Phase: uiw.PhaseRejected, PreviewHandle: uiw.Ref(handle), SelectRef: "selection-1", ParserOptionsRef: "options-1"}
+	workflow.state = proffer.PreviewState{Phase: proffer.PhaseRejected, PreviewHandle: proffer.Ref(handle), SelectRef: "selection-1", ParserOptionsRef: "options-1"}
 	response := servePreview(handler.Routes(), http.MethodPost, "/reference-import/previews/"+handle+"/decision", []byte(`{"approved":true}`))
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 	require.Empty(t, workflow.decision.RepairedSelectionRef)

@@ -29,6 +29,14 @@ contains_secrets: false
   output. PostgreSQL receipts reconcile each boundary.
 - Safe fan-out is goal-based and bounded; deterministic fan-in occurs before governed transitions.
 
+## D-140 rename (2026-09-06)
+
+- Ingest lane renamed: `uiw` package -> `proffer`, `uiwworker` -> `profferworker`,
+  `UniversalImportWorkflow` -> `ProfferWorkflow`. Module path is now
+  `github.com/Cursedpotential/probata/engine` (D-137..D-141). n8n webhook path
+  segments and `N8N_UNIVERSAL_IMPORT_*` env var names were left unchanged pending
+  coordinated rename with the deploy/n8n lane.
+
 ## Verification caution
 
 Go unit/build success is necessary but does not prove Temporal, n8n, PostgreSQL, object storage,

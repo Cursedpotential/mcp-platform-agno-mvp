@@ -28,9 +28,9 @@ import (
 
 	"github.com/lowcarbdev/sbv/pkg/custodyhash"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/normalize"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/normalize"
+	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/stagegraph"
 )
 
 // NormalizeExecutionSpec is the compact execution receipt payload persisted
@@ -39,22 +39,22 @@ import (
 // canonical normalized-record persistence, not this Activity.
 type NormalizeExecutionSpec struct {
 	RequestID         string
-	SourceVersionRef  uiw.Ref
-	RawGenerationRef  uiw.Ref
+	SourceVersionRef  proffer.Ref
+	RawGenerationRef  proffer.Ref
 	NormalizerID      string
 	NormalizerVersion string
-	BundleRef         uiw.Ref
+	BundleRef         proffer.Ref
 	Attempt           int32
 }
 
 // PersistNormalizedGenerationSpec is resolved entirely from BundleRef: the
 // bundle header (written by normalize_generation_activity) names its own raw
 // generation and normalizer identity, so this stage receives no separate
-// "raw_generation" reference — see engine/uiw/workflow.go stage 15.
+// "raw_generation" reference — see engine/proffer/workflow.go stage 15.
 type PersistNormalizedGenerationSpec struct {
 	RequestID        string
-	SourceVersionRef uiw.Ref
-	BundleRef        uiw.Ref
+	SourceVersionRef proffer.Ref
+	BundleRef        proffer.Ref
 	Attempt          int32
 }
 
@@ -64,16 +64,16 @@ type PersistNormalizedGenerationSpec struct {
 // stage never receives the normalize bundle registry.
 type PersistLineageSpec struct {
 	RequestID               string
-	SourceVersionRef        uiw.Ref
-	NormalizedGenerationRef uiw.Ref
-	RawGenerationRef        uiw.Ref
+	SourceVersionRef        proffer.Ref
+	NormalizedGenerationRef proffer.Ref
+	RawGenerationRef        proffer.Ref
 	Attempt                 int32
 }
 
 type ValidateRawLineageSpec struct {
 	RequestID        string
-	SourceVersionRef uiw.Ref
-	LineageSetRef    uiw.Ref
+	SourceVersionRef proffer.Ref
+	LineageSetRef    proffer.Ref
 	Attempt          int32
 }
 
@@ -82,9 +82,9 @@ type ValidateRawLineageSpec struct {
 // a hash itself.
 type VerifyNormalizedGenerationSpec struct {
 	RequestID              string
-	SourceVersionRef       uiw.Ref
-	LineageValidationRef   uiw.Ref
-	ManifestDigestRef      uiw.Ref
+	SourceVersionRef       proffer.Ref
+	LineageValidationRef   proffer.Ref
+	ManifestDigestRef      proffer.Ref
 	RecomputedDigest       string
 	RecomputedConstruction string
 	RecomputedMemberCount  int64
@@ -93,15 +93,15 @@ type VerifyNormalizedGenerationSpec struct {
 
 type SealGenerationSpec struct {
 	RequestID        string
-	SourceVersionRef uiw.Ref
-	VerificationRef  uiw.Ref
+	SourceVersionRef proffer.Ref
+	VerificationRef  proffer.Ref
 	Attempt          int32
 }
 
 type PublishGenerationSpec struct {
 	RequestID           string
-	SourceVersionRef    uiw.Ref
-	SealedGenerationRef uiw.Ref
+	SourceVersionRef    proffer.Ref
+	SealedGenerationRef proffer.Ref
 	Attempt             int32
 }
 
@@ -114,31 +114,31 @@ type NormalizedPipelineStore interface {
 	// ResolveNormalizerInput resolves the source-version-level facts
 	// (provenance class, acquired_at) and opens a streaming view over the
 	// already-sealed raw generation named by req.Refs["raw_generation"].
-	ResolveNormalizerInput(context.Context, uiw.StageRequest) (normalize.NormalizerInput, error)
+	ResolveNormalizerInput(context.Context, proffer.StageRequest) (normalize.NormalizerInput, error)
 	// OpenNormalizedBundleWriter opens the caller-owned streaming sink that
 	// normalize.Execute writes normalized records to. This Store has no
 	// bundle-bytes persistence authority of its own, mirroring
 	// postgres.ParserStore's BundleWriterFactory.
-	OpenNormalizedBundleWriter(context.Context, uiw.StageRequest, normalize.NormalizerInput) (normalize.BundleWriter, error)
-	PersistNormalizeExecution(context.Context, NormalizeExecutionSpec) (resultRef uiw.Ref, receiptRef uiw.Ref, err error)
+	OpenNormalizedBundleWriter(context.Context, proffer.StageRequest, normalize.NormalizerInput) (normalize.BundleWriter, error)
+	PersistNormalizeExecution(context.Context, NormalizeExecutionSpec) (resultRef proffer.Ref, receiptRef proffer.Ref, err error)
 
-	PersistNormalizedGeneration(context.Context, PersistNormalizedGenerationSpec) (resultRef uiw.Ref, receiptRef uiw.Ref, err error)
+	PersistNormalizedGeneration(context.Context, PersistNormalizedGenerationSpec) (resultRef proffer.Ref, receiptRef proffer.Ref, err error)
 
-	PersistLineage(context.Context, PersistLineageSpec) (resultRef uiw.Ref, receiptRef uiw.Ref, err error)
+	PersistLineage(context.Context, PersistLineageSpec) (resultRef proffer.Ref, receiptRef proffer.Ref, err error)
 
-	ValidateRawLineage(context.Context, ValidateRawLineageSpec) (resultRef uiw.Ref, receiptRef uiw.Ref, err error)
+	ValidateRawLineage(context.Context, ValidateRawLineageSpec) (resultRef proffer.Ref, receiptRef proffer.Ref, err error)
 
 	// OpenNormalizedGenerationRecords streams every normalized_record_identity
 	// row's canonical_bytes, in ordinal order, for the generation named by the
 	// hash-receipt reference ref. verify_normalized_generation_activity
 	// independently rehashes each member itself; the Store must not compute
 	// or return a digest here.
-	OpenNormalizedGenerationRecords(ctx context.Context, manifestDigestRef uiw.Ref) (ByteMemberStream, error)
-	VerifyNormalizedGeneration(context.Context, VerifyNormalizedGenerationSpec) (resultRef uiw.Ref, receiptRef uiw.Ref, err error)
+	OpenNormalizedGenerationRecords(ctx context.Context, manifestDigestRef proffer.Ref) (ByteMemberStream, error)
+	VerifyNormalizedGeneration(context.Context, VerifyNormalizedGenerationSpec) (resultRef proffer.Ref, receiptRef proffer.Ref, err error)
 
-	SealGeneration(context.Context, SealGenerationSpec) (resultRef uiw.Ref, receiptRef uiw.Ref, err error)
+	SealGeneration(context.Context, SealGenerationSpec) (resultRef proffer.Ref, receiptRef proffer.Ref, err error)
 
-	PublishGeneration(context.Context, PublishGenerationSpec) (resultRef uiw.Ref, receiptRef uiw.Ref, err error)
+	PublishGeneration(context.Context, PublishGenerationSpec) (resultRef proffer.Ref, receiptRef proffer.Ref, err error)
 }
 
 // NormalizedPipelineActivities implements the seven normalized-side Activity
@@ -172,7 +172,7 @@ func (a NormalizedPipelineActivities) attempt(ctx context.Context) int32 {
 	return attempt
 }
 
-func (a NormalizedPipelineActivities) requireRequestAndSource(req uiw.StageRequest, stage stagegraph.StageID) error {
+func (a NormalizedPipelineActivities) requireRequestAndSource(req proffer.StageRequest, stage stagegraph.StageID) error {
 	if strings.TrimSpace(req.RequestID) == "" || req.SourceVersionRef == "" {
 		return fmt.Errorf("%s requires request and source version references", stage)
 	}
@@ -183,37 +183,37 @@ func (a NormalizedPipelineActivities) requireRequestAndSource(req uiw.StageReque
 // normalize.Adapter and finalizes exactly one immutable bundle. It never
 // touches context.normalized_record_identity or
 // context.normalization_lineage.
-func (a NormalizedPipelineActivities) NormalizeGeneration(ctx context.Context, req uiw.StageRequest) (uiw.StageResult, error) {
+func (a NormalizedPipelineActivities) NormalizeGeneration(ctx context.Context, req proffer.StageRequest) (proffer.StageResult, error) {
 	if err := a.validate(); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	if err := ctx.Err(); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	if err := a.requireRequestAndSource(req, stagegraph.NormalizeGeneration); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	rawGenerationRef, err := requiredRef(req, "raw_generation")
 	if err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	if _, err := requiredRef(req, "raw_source_verification"); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	input, err := a.Store.ResolveNormalizerInput(ctx, req)
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("resolve normalizer input: %w", err)
+		return proffer.StageResult{}, fmt.Errorf("resolve normalizer input: %w", err)
 	}
 	if input.SourceVersionRef != string(req.SourceVersionRef) || input.RawGenerationRef != string(rawGenerationRef) {
-		return uiw.StageResult{}, errors.New("resolved normalizer input does not match request")
+		return proffer.StageResult{}, errors.New("resolved normalizer input does not match request")
 	}
 	writer, err := a.Store.OpenNormalizedBundleWriter(ctx, req, input)
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("open normalized bundle writer: %w", err)
+		return proffer.StageResult{}, fmt.Errorf("open normalized bundle writer: %w", err)
 	}
 	bundleResult, err := normalize.Execute(ctx, input, a.Normalizer, writer)
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("execute normalizer: %w", err)
+		return proffer.StageResult{}, fmt.Errorf("execute normalizer: %w", err)
 	}
 	capability := a.Normalizer.Capability()
 	resultRef, receiptRef, err := a.Store.PersistNormalizeExecution(ctx, NormalizeExecutionSpec{
@@ -222,33 +222,33 @@ func (a NormalizedPipelineActivities) NormalizeGeneration(ctx context.Context, r
 		RawGenerationRef:  rawGenerationRef,
 		NormalizerID:      capability.NormalizerID,
 		NormalizerVersion: capability.NormalizerVersion,
-		BundleRef:         uiw.Ref(bundleResult.BundleRef),
+		BundleRef:         proffer.Ref(bundleResult.BundleRef),
 		Attempt:           a.attempt(ctx),
 	})
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("persist normalize execution: %w", err)
+		return proffer.StageResult{}, fmt.Errorf("persist normalize execution: %w", err)
 	}
 	if resultRef == "" || receiptRef == "" {
-		return uiw.StageResult{}, errors.New("persisted normalize execution lacks result or activity receipt reference")
+		return proffer.StageResult{}, errors.New("persisted normalize execution lacks result or activity receipt reference")
 	}
 	return success(stagegraph.NormalizeGeneration, resultRef, receiptRef), nil
 }
 
 // PersistNormalizedGeneration is the only write for
 // context.normalized_generation and context.normalized_record_identity.
-func (a NormalizedPipelineActivities) PersistNormalizedGeneration(ctx context.Context, req uiw.StageRequest) (uiw.StageResult, error) {
+func (a NormalizedPipelineActivities) PersistNormalizedGeneration(ctx context.Context, req proffer.StageRequest) (proffer.StageResult, error) {
 	if err := a.validate(); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	if err := ctx.Err(); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	if err := a.requireRequestAndSource(req, stagegraph.PersistNormalizedGeneration); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	bundleRef, err := requiredRef(req, "normalized_bundle")
 	if err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	resultRef, receiptRef, err := a.Store.PersistNormalizedGeneration(ctx, PersistNormalizedGenerationSpec{
 		RequestID:        req.RequestID,
@@ -257,32 +257,32 @@ func (a NormalizedPipelineActivities) PersistNormalizedGeneration(ctx context.Co
 		Attempt:          a.attempt(ctx),
 	})
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("persist normalized generation: %w", err)
+		return proffer.StageResult{}, fmt.Errorf("persist normalized generation: %w", err)
 	}
 	if resultRef == "" || receiptRef == "" {
-		return uiw.StageResult{}, errors.New("persisted normalized generation lacks result or activity receipt reference")
+		return proffer.StageResult{}, errors.New("persisted normalized generation lacks result or activity receipt reference")
 	}
 	return success(stagegraph.PersistNormalizedGeneration, resultRef, receiptRef), nil
 }
 
 // PersistLineage is the only write for context.normalization_lineage.
-func (a NormalizedPipelineActivities) PersistLineage(ctx context.Context, req uiw.StageRequest) (uiw.StageResult, error) {
+func (a NormalizedPipelineActivities) PersistLineage(ctx context.Context, req proffer.StageRequest) (proffer.StageResult, error) {
 	if err := a.validate(); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	if err := ctx.Err(); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	if err := a.requireRequestAndSource(req, stagegraph.PersistLineage); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	normalizedGenerationRef, err := requiredRef(req, "normalized_generation")
 	if err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	rawGenerationRef, err := requiredRef(req, "raw_generation")
 	if err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	resultRef, receiptRef, err := a.Store.PersistLineage(ctx, PersistLineageSpec{
 		RequestID:               req.RequestID,
@@ -292,10 +292,10 @@ func (a NormalizedPipelineActivities) PersistLineage(ctx context.Context, req ui
 		Attempt:                 a.attempt(ctx),
 	})
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("persist lineage: %w", err)
+		return proffer.StageResult{}, fmt.Errorf("persist lineage: %w", err)
 	}
 	if resultRef == "" || receiptRef == "" {
-		return uiw.StageResult{}, errors.New("persisted lineage lacks result or activity receipt reference")
+		return proffer.StageResult{}, errors.New("persisted lineage lacks result or activity receipt reference")
 	}
 	return success(stagegraph.PersistLineage, resultRef, receiptRef), nil
 }
@@ -304,19 +304,19 @@ func (a NormalizedPipelineActivities) PersistLineage(ctx context.Context, req ui
 // generation named by lineage_set has at least one lineage edge and that
 // every referenced raw record belongs to the same raw generation, and
 // records a context.reconciliation_receipt of kind raw_lineage_validation.
-func (a NormalizedPipelineActivities) ValidateRawLineage(ctx context.Context, req uiw.StageRequest) (uiw.StageResult, error) {
+func (a NormalizedPipelineActivities) ValidateRawLineage(ctx context.Context, req proffer.StageRequest) (proffer.StageResult, error) {
 	if err := a.validate(); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	if err := ctx.Err(); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	if err := a.requireRequestAndSource(req, stagegraph.ValidateRawLineage); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	lineageSetRef, err := requiredRef(req, "lineage_set")
 	if err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	resultRef, receiptRef, err := a.Store.ValidateRawLineage(ctx, ValidateRawLineageSpec{
 		RequestID:        req.RequestID,
@@ -325,10 +325,10 @@ func (a NormalizedPipelineActivities) ValidateRawLineage(ctx context.Context, re
 		Attempt:          a.attempt(ctx),
 	})
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("validate raw lineage: %w", err)
+		return proffer.StageResult{}, fmt.Errorf("validate raw lineage: %w", err)
 	}
 	if resultRef == "" || receiptRef == "" {
-		return uiw.StageResult{}, errors.New("raw lineage validation lacks result or activity receipt reference")
+		return proffer.StageResult{}, errors.New("raw lineage validation lacks result or activity receipt reference")
 	}
 	return success(stagegraph.ValidateRawLineage, resultRef, receiptRef), nil
 }
@@ -338,28 +338,28 @@ func (a NormalizedPipelineActivities) ValidateRawLineage(ctx context.Context, re
 // never from the already-stored hash_receipt — and records a
 // context.reconciliation_receipt of kind normalized_generation_verification
 // comparing that fresh recomputation against the stored receipt.
-func (a NormalizedPipelineActivities) VerifyNormalizedGeneration(ctx context.Context, req uiw.StageRequest) (uiw.StageResult, error) {
+func (a NormalizedPipelineActivities) VerifyNormalizedGeneration(ctx context.Context, req proffer.StageRequest) (proffer.StageResult, error) {
 	if err := a.validate(); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	if err := ctx.Err(); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	if err := a.requireRequestAndSource(req, stagegraph.VerifyNormalizedGeneration); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	lineageValidationRef, err := requiredRef(req, "lineage_validation")
 	if err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	manifestDigestRef, err := requiredRef(req, "normalized_generation_manifest_digest")
 	if err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 
 	stream, err := a.Store.OpenNormalizedGenerationRecords(ctx, manifestDigestRef)
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("open normalized generation records: %w", err)
+		return proffer.StageResult{}, fmt.Errorf("open normalized generation records: %w", err)
 	}
 	defer stream.Close()
 
@@ -367,37 +367,37 @@ func (a NormalizedPipelineActivities) VerifyNormalizedGeneration(ctx context.Con
 	var count int64
 	for {
 		if err := ctx.Err(); err != nil {
-			return uiw.StageResult{}, err
+			return proffer.StageResult{}, err
 		}
 		member, nextErr := stream.Next(ctx)
 		if errors.Is(nextErr, io.EOF) {
 			break
 		}
 		if nextErr != nil {
-			return uiw.StageResult{}, fmt.Errorf("read normalized record %d: %w", count, nextErr)
+			return proffer.StageResult{}, fmt.Errorf("read normalized record %d: %w", count, nextErr)
 		}
 		if member.Ordinal != count {
-			return uiw.StageResult{}, fmt.Errorf("normalized record ordinal %d, want %d", member.Ordinal, count)
+			return proffer.StageResult{}, fmt.Errorf("normalized record ordinal %d, want %d", member.Ordinal, count)
 		}
 		if member.Canon != CanonNormalizedRecord {
 			_ = member.Reader.Close()
-			return uiw.StageResult{}, fmt.Errorf("normalized record %q has unexpected canon %q", member.SubjectRef, member.Canon)
+			return proffer.StageResult{}, fmt.Errorf("normalized record %q has unexpected canon %q", member.SubjectRef, member.Canon)
 		}
 		digest, hashErr := custodyhash.HashReaderH1(member.Reader)
 		closeErr := member.Reader.Close()
 		if hashErr != nil {
-			return uiw.StageResult{}, fmt.Errorf("hash normalized record %q: %w", member.SubjectRef, hashErr)
+			return proffer.StageResult{}, fmt.Errorf("hash normalized record %q: %w", member.SubjectRef, hashErr)
 		}
 		if closeErr != nil {
-			return uiw.StageResult{}, fmt.Errorf("close normalized record %q: %w", member.SubjectRef, closeErr)
+			return proffer.StageResult{}, fmt.Errorf("close normalized record %q: %w", member.SubjectRef, closeErr)
 		}
 		if err := acc.Add(DigestMember{SubjectRef: member.SubjectRef, Ordinal: count, Digest: digest, Canon: member.Canon}); err != nil {
-			return uiw.StageResult{}, fmt.Errorf("fold normalized record %q: %w", member.SubjectRef, err)
+			return proffer.StageResult{}, fmt.Errorf("fold normalized record %q: %w", member.SubjectRef, err)
 		}
 		count++
 	}
 	if count == 0 {
-		return uiw.StageResult{}, errors.New("verify normalized generation refuses to recompute over zero records")
+		return proffer.StageResult{}, errors.New("verify normalized generation refuses to recompute over zero records")
 	}
 
 	resultRef, receiptRef, err := a.Store.VerifyNormalizedGeneration(ctx, VerifyNormalizedGenerationSpec{
@@ -411,10 +411,10 @@ func (a NormalizedPipelineActivities) VerifyNormalizedGeneration(ctx context.Con
 		Attempt:                a.attempt(ctx),
 	})
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("verify normalized generation: %w", err)
+		return proffer.StageResult{}, fmt.Errorf("verify normalized generation: %w", err)
 	}
 	if resultRef == "" || receiptRef == "" {
-		return uiw.StageResult{}, errors.New("normalized generation verification lacks result or activity receipt reference")
+		return proffer.StageResult{}, errors.New("normalized generation verification lacks result or activity receipt reference")
 	}
 	return success(stagegraph.VerifyNormalizedGeneration, resultRef, receiptRef), nil
 }
@@ -424,19 +424,19 @@ func (a NormalizedPipelineActivities) VerifyNormalizedGeneration(ctx context.Con
 // every precondition (raw generation sealed, contiguous ordinals, lineage
 // present, digest receipts present, reconciliation receipts present); this
 // Activity never bypasses it with a partial or forced seal.
-func (a NormalizedPipelineActivities) SealGeneration(ctx context.Context, req uiw.StageRequest) (uiw.StageResult, error) {
+func (a NormalizedPipelineActivities) SealGeneration(ctx context.Context, req proffer.StageRequest) (proffer.StageResult, error) {
 	if err := a.validate(); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	if err := ctx.Err(); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	if err := a.requireRequestAndSource(req, stagegraph.SealGeneration); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	verificationRef, err := requiredRef(req, "normalized_verification")
 	if err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	resultRef, receiptRef, err := a.Store.SealGeneration(ctx, SealGenerationSpec{
 		RequestID:        req.RequestID,
@@ -445,10 +445,10 @@ func (a NormalizedPipelineActivities) SealGeneration(ctx context.Context, req ui
 		Attempt:          a.attempt(ctx),
 	})
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("seal generation: %w", err)
+		return proffer.StageResult{}, fmt.Errorf("seal generation: %w", err)
 	}
 	if resultRef == "" || receiptRef == "" {
-		return uiw.StageResult{}, errors.New("sealed generation lacks result or activity receipt reference")
+		return proffer.StageResult{}, errors.New("sealed generation lacks result or activity receipt reference")
 	}
 	return success(stagegraph.SealGeneration, resultRef, receiptRef), nil
 }
@@ -457,19 +457,19 @@ func (a NormalizedPipelineActivities) SealGeneration(ctx context.Context, req ui
 // sink whose transitive dependency closure is every other stage. It never
 // publishes without a durable context.normalized_generation_publication row
 // and its successful activity_receipt.
-func (a NormalizedPipelineActivities) PublishGeneration(ctx context.Context, req uiw.StageRequest) (uiw.StageResult, error) {
+func (a NormalizedPipelineActivities) PublishGeneration(ctx context.Context, req proffer.StageRequest) (proffer.StageResult, error) {
 	if err := a.validate(); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	if err := ctx.Err(); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	if err := a.requireRequestAndSource(req, stagegraph.PublishGeneration); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	sealedGenerationRef, err := requiredRef(req, "sealed_generation")
 	if err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	resultRef, receiptRef, err := a.Store.PublishGeneration(ctx, PublishGenerationSpec{
 		RequestID:           req.RequestID,
@@ -478,10 +478,10 @@ func (a NormalizedPipelineActivities) PublishGeneration(ctx context.Context, req
 		Attempt:             a.attempt(ctx),
 	})
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("publish generation: %w", err)
+		return proffer.StageResult{}, fmt.Errorf("publish generation: %w", err)
 	}
 	if resultRef == "" || receiptRef == "" {
-		return uiw.StageResult{}, errors.New("published generation lacks result or activity receipt reference")
+		return proffer.StageResult{}, errors.New("published generation lacks result or activity receipt reference")
 	}
 	return success(stagegraph.PublishGeneration, resultRef, receiptRef), nil
 }

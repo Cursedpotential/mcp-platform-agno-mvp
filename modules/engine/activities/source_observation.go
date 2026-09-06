@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/stagegraph"
 )
 
 const observationCleanupTimeout = 5 * time.Second
@@ -44,8 +44,8 @@ const (
 // compact OriginalRef; they are never placed in Temporal history.
 type SourceObservationInput struct {
 	RequestID        string
-	SourceVersionRef uiw.Ref
-	OriginalRef      uiw.Ref
+	SourceVersionRef proffer.Ref
+	OriginalRef      proffer.Ref
 	DeclaredFormat   string
 }
 
@@ -133,7 +133,7 @@ type SourceMetadataExtractor interface {
 // immutable activity_receipt for Attempt, and return its exact compact refs.
 type MetadataPersistenceSpec struct {
 	RequestID           string
-	SourceVersionRef    uiw.Ref
+	SourceVersionRef    proffer.Ref
 	Stage               stagegraph.StageID
 	IdempotencyKey      string
 	Attempt             int32
@@ -143,8 +143,8 @@ type MetadataPersistenceSpec struct {
 }
 
 type MetadataPersistenceResult struct {
-	ResultRef  uiw.Ref
-	ReceiptRef uiw.Ref
+	ResultRef  proffer.Ref
+	ReceiptRef proffer.Ref
 }
 
 // InventoryMember is structural inventory only.  It names a source member
@@ -153,8 +153,8 @@ type MetadataPersistenceResult struct {
 // denotes a half-open range [offset, offset+length).
 type InventoryMember struct {
 	Ordinal    int64
-	MemberRef  uiw.Ref
-	ParentRef  uiw.Ref
+	MemberRef  proffer.Ref
+	ParentRef  proffer.Ref
 	ByteOffset *int64
 	ByteLength int64
 }
@@ -192,7 +192,7 @@ type MemberEnumerator interface {
 
 type InventorySpec struct {
 	RequestID        string
-	SourceVersionRef uiw.Ref
+	SourceVersionRef proffer.Ref
 	Stage            stagegraph.StageID
 	IdempotencyKey   string
 	Attempt          int32
@@ -211,14 +211,14 @@ type InventorySummary struct {
 // PostgreSQL transaction while MemberStream.Next is reading external data.
 type InventoryWriter interface {
 	Append(context.Context, InventoryMember) error
-	Commit(context.Context, InventorySummary) (resultRef uiw.Ref, receiptRef uiw.Ref, err error)
+	Commit(context.Context, InventorySummary) (resultRef proffer.Ref, receiptRef proffer.Ref, err error)
 	Abort(context.Context) error
 }
 
 type SourceObservationRepository interface {
 	PersistSourceMetadata(context.Context, MetadataPersistenceSpec) (MetadataPersistenceResult, error)
 	BeginInventory(context.Context, InventorySpec) (InventoryWriter, error)
-	RecordInventoryNotApplicable(context.Context, InventorySpec, string) (receiptRef uiw.Ref, err error)
+	RecordInventoryNotApplicable(context.Context, InventorySpec, string) (receiptRef proffer.Ref, err error)
 }
 
 // SourceObservationActivities implements the source metadata and member
@@ -256,7 +256,7 @@ func (a SourceObservationActivities) heartbeat(ctx context.Context, stage stageg
 	}
 }
 
-func sourceObservationInput(req uiw.StageRequest) (SourceObservationInput, error) {
+func sourceObservationInput(req proffer.StageRequest) (SourceObservationInput, error) {
 	input := SourceObservationInput{
 		RequestID:        req.RequestID,
 		SourceVersionRef: req.SourceVersionRef,
@@ -274,48 +274,48 @@ func sourceObservationInput(req uiw.StageRequest) (SourceObservationInput, error
 // to return only the filesystem class when this body is registered.  It never
 // receives raw records and never promotes metadata or tool output into
 // evidence.
-func (a SourceObservationActivities) CaptureFilesystemMetadata(ctx context.Context, req uiw.StageRequest) (uiw.StageResult, error) {
+func (a SourceObservationActivities) CaptureFilesystemMetadata(ctx context.Context, req proffer.StageRequest) (proffer.StageResult, error) {
 	return a.extractSourceMetadata(ctx, req, stagegraph.CaptureFilesystemMetadata)
 }
 
 // ExtractEmbeddedMetadata records native embedded/container/media-tool
 // metadata after retention. Filesystem acquisition metadata remains owned by
 // CaptureFilesystemMetadata so the two Activity receipts cannot overlap.
-func (a SourceObservationActivities) ExtractEmbeddedMetadata(ctx context.Context, req uiw.StageRequest) (uiw.StageResult, error) {
+func (a SourceObservationActivities) ExtractEmbeddedMetadata(ctx context.Context, req proffer.StageRequest) (proffer.StageResult, error) {
 	return a.extractSourceMetadata(ctx, req, stagegraph.ExtractEmbeddedMetadata)
 }
 
-func (a SourceObservationActivities) extractSourceMetadata(ctx context.Context, req uiw.StageRequest, stage stagegraph.StageID) (uiw.StageResult, error) {
+func (a SourceObservationActivities) extractSourceMetadata(ctx context.Context, req proffer.StageRequest, stage stagegraph.StageID) (proffer.StageResult, error) {
 	if err := a.validate(); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	if a.Extractor == nil {
-		return uiw.StageResult{}, errors.New("source observation activities: metadata extractor is required")
+		return proffer.StageResult{}, errors.New("source observation activities: metadata extractor is required")
 	}
 	input, err := sourceObservationInput(req)
 	if err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	if err := ctx.Err(); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	observation, err := a.Extractor.ExtractSourceMetadata(ctx, input)
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("extract source metadata: %w", err)
+		return proffer.StageResult{}, fmt.Errorf("extract source metadata: %w", err)
 	}
 	if err := observation.validate(); err != nil {
-		return uiw.StageResult{}, fmt.Errorf("validate source metadata: %w", err)
+		return proffer.StageResult{}, fmt.Errorf("validate source metadata: %w", err)
 	}
 	if stage == stagegraph.CaptureFilesystemMetadata {
 		for index, row := range observation.Rows {
 			if row.MetadataClass != metadataFilesystem {
-				return uiw.StageResult{}, fmt.Errorf("filesystem metadata row %d has non-filesystem class %q", index, row.MetadataClass)
+				return proffer.StageResult{}, fmt.Errorf("filesystem metadata row %d has non-filesystem class %q", index, row.MetadataClass)
 			}
 		}
 	} else if stage == stagegraph.ExtractEmbeddedMetadata {
 		for index, row := range observation.Rows {
 			if row.MetadataClass == metadataFilesystem {
-				return uiw.StageResult{}, fmt.Errorf("embedded metadata row %d has filesystem class", index)
+				return proffer.StageResult{}, fmt.Errorf("embedded metadata row %d has filesystem class", index)
 			}
 		}
 	}
@@ -330,54 +330,54 @@ func (a SourceObservationActivities) extractSourceMetadata(ctx context.Context, 
 	}
 	persisted, err := a.Repository.PersistSourceMetadata(ctx, spec)
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("persist source metadata: %w", err)
+		return proffer.StageResult{}, fmt.Errorf("persist source metadata: %w", err)
 	}
 	if persisted.ReceiptRef == "" {
-		return uiw.StageResult{}, errors.New("source metadata persistence returned no Activity receipt reference")
+		return proffer.StageResult{}, errors.New("source metadata persistence returned no Activity receipt reference")
 	}
 	if len(spec.Rows) == 0 {
 		if persisted.ResultRef != "" {
-			return uiw.StageResult{}, errors.New("not-applicable metadata persistence returned a usable result reference")
+			return proffer.StageResult{}, errors.New("not-applicable metadata persistence returned a usable result reference")
 		}
-		return uiw.StageResult{Stage: stage, Status: uiw.StatusNotApplicable, ReceiptRef: persisted.ReceiptRef, Reason: spec.NotApplicableReason}, nil
+		return proffer.StageResult{Stage: stage, Status: proffer.StatusNotApplicable, ReceiptRef: persisted.ReceiptRef, Reason: spec.NotApplicableReason}, nil
 	}
 	if persisted.ResultRef == "" {
-		return uiw.StageResult{}, errors.New("source metadata persistence returned no result reference")
+		return proffer.StageResult{}, errors.New("source metadata persistence returned no result reference")
 	}
-	return uiw.StageResult{Stage: stage, Status: uiw.StatusSuccess, Ref: persisted.ResultRef, ReceiptRef: persisted.ReceiptRef}, nil
+	return proffer.StageResult{Stage: stage, Status: proffer.StatusSuccess, Ref: persisted.ResultRef, ReceiptRef: persisted.ReceiptRef}, nil
 }
 
 // InventoryContainer enumerates only structural members and exact byte/range
 // accounting.  It streams through a durable writer, heartbeats compact
 // progress, and refuses to commit empty, gapped, negative, or inconsistent
 // membership.
-func (a SourceObservationActivities) InventoryContainer(ctx context.Context, req uiw.StageRequest) (uiw.StageResult, error) {
+func (a SourceObservationActivities) InventoryContainer(ctx context.Context, req proffer.StageRequest) (proffer.StageResult, error) {
 	return a.inventoryMembers(ctx, req, stagegraph.InventoryContainer)
 }
 
-func (a SourceObservationActivities) inventoryMembers(ctx context.Context, req uiw.StageRequest, stage stagegraph.StageID) (uiw.StageResult, error) {
+func (a SourceObservationActivities) inventoryMembers(ctx context.Context, req proffer.StageRequest, stage stagegraph.StageID) (proffer.StageResult, error) {
 	if err := a.validate(); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	if a.Enumerator == nil {
-		return uiw.StageResult{}, errors.New("source observation activities: member enumerator is required")
+		return proffer.StageResult{}, errors.New("source observation activities: member enumerator is required")
 	}
 	input, err := sourceObservationInput(req)
 	if err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	if err := ctx.Err(); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	stream, err := a.Enumerator.EnumerateMembers(ctx, input)
 	if err != nil {
 		if errors.Is(err, ErrNotApplicable) {
 			return a.recordInventoryNotApplicable(ctx, req, stage, err.Error())
 		}
-		return uiw.StageResult{}, fmt.Errorf("enumerate source members: %w", err)
+		return proffer.StageResult{}, fmt.Errorf("enumerate source members: %w", err)
 	}
 	if stream == nil {
-		return uiw.StageResult{}, errors.New("member enumerator returned a nil stream")
+		return proffer.StageResult{}, errors.New("member enumerator returned a nil stream")
 	}
 	streamClosed := false
 	defer func() {
@@ -393,10 +393,10 @@ func (a SourceObservationActivities) inventoryMembers(ctx context.Context, req u
 	}
 	writer, err := a.Repository.BeginInventory(ctx, spec)
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("begin member inventory: %w", err)
+		return proffer.StageResult{}, fmt.Errorf("begin member inventory: %w", err)
 	}
 	if writer == nil {
-		return uiw.StageResult{}, errors.New("member inventory repository returned a nil writer")
+		return proffer.StageResult{}, errors.New("member inventory repository returned a nil writer")
 	}
 	committed := false
 	defer func() {
@@ -410,33 +410,33 @@ func (a SourceObservationActivities) inventoryMembers(ctx context.Context, req u
 	var ordinal, totalBytes, rangeCount int64
 	for {
 		if err := ctx.Err(); err != nil {
-			return uiw.StageResult{}, err
+			return proffer.StageResult{}, err
 		}
 		member, nextErr := stream.Next(ctx)
 		if errors.Is(nextErr, io.EOF) {
 			break
 		}
 		if nextErr != nil {
-			return uiw.StageResult{}, fmt.Errorf("read inventory member %d: %w", ordinal, nextErr)
+			return proffer.StageResult{}, fmt.Errorf("read inventory member %d: %w", ordinal, nextErr)
 		}
 		if err := member.validate(ordinal); err != nil {
-			return uiw.StageResult{}, fmt.Errorf("validate inventory member %d: %w", ordinal, err)
+			return proffer.StageResult{}, fmt.Errorf("validate inventory member %d: %w", ordinal, err)
 		}
 		if member.ByteLength > (int64(^uint64(0)>>1) - totalBytes) {
-			return uiw.StageResult{}, errors.New("inventory byte accounting overflow")
+			return proffer.StageResult{}, errors.New("inventory byte accounting overflow")
 		}
 		if member.ByteOffset != nil {
 			rangeCount++
 		}
 		if err := writer.Append(ctx, member); err != nil {
-			return uiw.StageResult{}, fmt.Errorf("persist inventory member %d: %w", ordinal, err)
+			return proffer.StageResult{}, fmt.Errorf("persist inventory member %d: %w", ordinal, err)
 		}
 		totalBytes += member.ByteLength
 		ordinal++
 		a.heartbeat(ctx, stage, ordinal, totalBytes)
 	}
 	if err := stream.Close(); err != nil {
-		return uiw.StageResult{}, fmt.Errorf("close member inventory stream: %w", err)
+		return proffer.StageResult{}, fmt.Errorf("close member inventory stream: %w", err)
 	}
 	streamClosed = true
 	if ordinal == 0 {
@@ -447,18 +447,18 @@ func (a SourceObservationActivities) inventoryMembers(ctx context.Context, req u
 	}
 	resultRef, receiptRef, err := writer.Commit(ctx, InventorySummary{MemberCount: ordinal, TotalBytes: totalBytes, RangeCount: rangeCount})
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("commit member inventory: %w", err)
+		return proffer.StageResult{}, fmt.Errorf("commit member inventory: %w", err)
 	}
 	if resultRef == "" || receiptRef == "" {
-		return uiw.StageResult{}, errors.New("member inventory commit returned incomplete compact references")
+		return proffer.StageResult{}, errors.New("member inventory commit returned incomplete compact references")
 	}
 	committed = true
-	return uiw.StageResult{Stage: stage, Status: uiw.StatusSuccess, Ref: resultRef, ReceiptRef: receiptRef}, nil
+	return proffer.StageResult{Stage: stage, Status: proffer.StatusSuccess, Ref: resultRef, ReceiptRef: receiptRef}, nil
 }
 
 var ErrNotApplicable = errors.New("source observation not applicable")
 
-func (a SourceObservationActivities) recordInventoryNotApplicable(ctx context.Context, req uiw.StageRequest, stage stagegraph.StageID, reason string) (uiw.StageResult, error) {
+func (a SourceObservationActivities) recordInventoryNotApplicable(ctx context.Context, req proffer.StageRequest, stage stagegraph.StageID, reason string) (proffer.StageResult, error) {
 	reason = strings.TrimSpace(reason)
 	if reason == "" {
 		reason = "source has no container members"
@@ -469,15 +469,15 @@ func (a SourceObservationActivities) recordInventoryNotApplicable(ctx context.Co
 		Attempt: a.attempt(ctx),
 	}, reason)
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("record inventory not-applicable result: %w", err)
+		return proffer.StageResult{}, fmt.Errorf("record inventory not-applicable result: %w", err)
 	}
 	if receiptRef == "" {
-		return uiw.StageResult{}, errors.New("inventory not-applicable result returned no Activity receipt reference")
+		return proffer.StageResult{}, errors.New("inventory not-applicable result returned no Activity receipt reference")
 	}
-	return uiw.StageResult{Stage: stage, Status: uiw.StatusNotApplicable, ReceiptRef: receiptRef, Reason: reason}, nil
+	return proffer.StageResult{Stage: stage, Status: proffer.StatusNotApplicable, ReceiptRef: receiptRef, Reason: reason}, nil
 }
 
-func observationIdempotencyKey(req uiw.StageRequest, stage stagegraph.StageID, subject uiw.Ref) string {
+func observationIdempotencyKey(req proffer.StageRequest, stage stagegraph.StageID, subject proffer.Ref) string {
 	return fmt.Sprintf("source-observation:%s:%s:%s:%s", req.RequestID, req.SourceVersionRef, stage, subject)
 }
 

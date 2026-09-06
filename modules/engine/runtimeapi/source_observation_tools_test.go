@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/activities"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/activities"
+	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -95,8 +95,8 @@ func validObservationTestDB() observationTestDB {
 func validObservationInput() activities.SourceObservationInput {
 	return activities.SourceObservationInput{
 		RequestID:        "workflow-1",
-		SourceVersionRef: uiw.Ref(observationSourceVersionID.String()),
-		OriginalRef:      uiw.Ref(observationOriginalID.String()),
+		SourceVersionRef: proffer.Ref(observationSourceVersionID.String()),
+		OriginalRef:      proffer.Ref(observationOriginalID.String()),
 		DeclaredFormat:   "sms_xml_backup",
 	}
 }

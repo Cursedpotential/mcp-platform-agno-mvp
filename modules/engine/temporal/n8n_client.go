@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/stagegraph"
 )
 
 const (
@@ -123,19 +123,19 @@ type n8nErrorBody struct {
 // unroutable stage, a request missing required refs, a non-2xx HTTP
 // response, or a StageResult that doesn't match the invoked stage or carry a
 // success status all return a plain error and no StageResult — matching
-// engine/uiw's convention that an Activity execution error (not a business
+// engine/proffer's convention that an Activity execution error (not a business
 // StatusFailed) means "no receipt exists to report."
-func (c *N8NClient) CallStage(ctx context.Context, id stagegraph.StageID, req uiw.StageRequest) (uiw.StageResult, error) {
+func (c *N8NClient) CallStage(ctx context.Context, id stagegraph.StageID, req proffer.StageRequest) (proffer.StageResult, error) {
 	route, ok := c.routes[id]
 	if !ok {
-		return uiw.StageResult{}, fmt.Errorf("temporal: n8n client has no route for stage %q", id)
+		return proffer.StageResult{}, fmt.Errorf("temporal: n8n client has no route for stage %q", id)
 	}
 	if err := validateOutboundRequest(route, req); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	authValue, err := c.currentAuthValue()
 	if err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 
 	wire := stageRequestWire{
@@ -149,14 +149,14 @@ func (c *N8NClient) CallStage(ctx context.Context, id stagegraph.StageID, req ui
 	}
 	body, err := json.Marshal(wire)
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("temporal: encode StageRequest for %q: %w", id, err)
+		return proffer.StageResult{}, fmt.Errorf("temporal: encode StageRequest for %q: %w", id, err)
 	}
 
 	callCtx, cancel := context.WithTimeout(ctx, route.timeout)
 	defer cancel()
 	httpReq, err := http.NewRequestWithContext(callCtx, http.MethodPost, c.baseURL+"/"+route.path, bytes.NewReader(body))
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("temporal: build n8n request for %q: %w", id, err)
+		return proffer.StageResult{}, fmt.Errorf("temporal: build n8n request for %q: %w", id, err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("X-Request-ID", req.RequestID)
@@ -165,7 +165,7 @@ func (c *N8NClient) CallStage(ctx context.Context, id stagegraph.StageID, req ui
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
-		return uiw.StageResult{}, fmt.Errorf("temporal: call n8n %q: %w", id, err)
+		return proffer.StageResult{}, fmt.Errorf("temporal: call n8n %q: %w", id, err)
 	}
 	defer resp.Body.Close()
 	limited := io.LimitReader(resp.Body, maxN8NResponseBytes)
@@ -177,36 +177,36 @@ func (c *N8NClient) CallStage(ctx context.Context, id stagegraph.StageID, req ui
 		if message == "" {
 			message = resp.Status
 		}
-		return uiw.StageResult{}, fmt.Errorf("temporal: n8n %q returned %d: %s", id, resp.StatusCode, message)
+		return proffer.StageResult{}, fmt.Errorf("temporal: n8n %q returned %d: %s", id, resp.StatusCode, message)
 	}
 
 	decoder := json.NewDecoder(limited)
 	decoder.DisallowUnknownFields()
 	var wireResult stageResultWire
 	if err := decoder.Decode(&wireResult); err != nil {
-		return uiw.StageResult{}, fmt.Errorf("temporal: decode n8n %q StageResult: %w", id, err)
+		return proffer.StageResult{}, fmt.Errorf("temporal: decode n8n %q StageResult: %w", id, err)
 	}
 	var trailing any
 	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
 		if err == nil {
-			return uiw.StageResult{}, fmt.Errorf("temporal: n8n %q StageResult contained trailing data", id)
+			return proffer.StageResult{}, fmt.Errorf("temporal: n8n %q StageResult contained trailing data", id)
 		}
-		return uiw.StageResult{}, fmt.Errorf("temporal: n8n %q StageResult malformed: %w", id, err)
+		return proffer.StageResult{}, fmt.Errorf("temporal: n8n %q StageResult malformed: %w", id, err)
 	}
 
-	result := uiw.StageResult{
+	result := proffer.StageResult{
 		Stage:      stagegraph.StageID(wireResult.Stage),
-		Status:     uiw.Status(wireResult.Status),
-		Ref:        uiw.Ref(wireResult.Ref),
-		ReceiptRef: uiw.Ref(wireResult.ReceiptRef),
+		Status:     proffer.Status(wireResult.Status),
+		Ref:        proffer.Ref(wireResult.Ref),
+		ReceiptRef: proffer.Ref(wireResult.ReceiptRef),
 	}
 	if err := validateInboundResult(id, result); err != nil {
-		return uiw.StageResult{}, err
+		return proffer.StageResult{}, err
 	}
 	return result, nil
 }
 
-func validateOutboundRequest(route stageRoute, req uiw.StageRequest) error {
+func validateOutboundRequest(route stageRoute, req proffer.StageRequest) error {
 	if strings.TrimSpace(req.RequestID) == "" {
 		return errors.New("temporal: StageRequest.RequestID is required")
 	}
@@ -228,11 +228,11 @@ func validateOutboundRequest(route stageRoute, req uiw.StageRequest) error {
 	return nil
 }
 
-func validateInboundResult(id stagegraph.StageID, result uiw.StageResult) error {
+func validateInboundResult(id stagegraph.StageID, result proffer.StageResult) error {
 	if result.Stage != id {
 		return fmt.Errorf("temporal: n8n returned stage %q for invoked stage %q", result.Stage, id)
 	}
-	if result.Status != uiw.StatusSuccess {
+	if result.Status != proffer.StatusSuccess {
 		return fmt.Errorf("temporal: n8n %q returned non-success status %q", id, result.Status)
 	}
 	if strings.TrimSpace(string(result.Ref)) == "" {

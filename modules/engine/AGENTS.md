@@ -2,9 +2,16 @@
 
 > _Byline: Claude Code · Opus 5 · 2026-09-02 (created; this directory had no AGENTS.md,
 > only AGENT_MEMORY.md — the atomicity rule below is why that gap mattered)._
+> drift-fix 2026-09-06 Claude Code · Sonnet 5.1: D-137..D-141 rename applied in this
+> module — package `uiw` -> `proffer`, `uiwworker` -> `profferworker`,
+> `UniversalImportWorkflow` -> `ProfferWorkflow`, task queue `universal-import-v1` ->
+> `proffer-v1`, module path -> `github.com/Cursedpotential/probata/engine`. The n8n
+> webhook path segments and `N8N_UNIVERSAL_IMPORT_*` env var names are UNCHANGED
+> pending a coordinated rename with the deploy/n8n lane (see
+> docs/reviews/ for the day's rename report)._
 
 This module owns custody hashing, acquisition, format decoding, parsing, chunking,
-normalization, and the Universal Import Workflow (UIW) stage graph. It is its own Go
+normalization, and the Proffer (formerly UIW / Universal Import Workflow) stage graph. It is its own Go
 module (`go.mod` here, not at the repo root) — build and test from this directory:
 
 ```bash
@@ -22,9 +29,9 @@ go test ./...
 | `adapters/` | concrete parser adapters over the decoder library |
 | `chunk/` | deterministic document-markdown chunking (separate from parsing by ruling) |
 | `normalize/` | normalized-record production |
-| `stagegraph/` | the 26 UIW stages and their dependency edges |
-| `uiw/` | the Temporal workflow: sequencing, gates, signals, queries |
-| `uiwworker/` | worker wiring — where resolvers and repositories are constructed |
+| `stagegraph/` | the 26 Proffer stages and their dependency edges |
+| `proffer/` | the Temporal workflow: sequencing, gates, signals, queries |
+| `profferworker/` | worker wiring — where resolvers and repositories are constructed |
 | `activities/` | Activity bodies |
 | `postgres/` | repositories; the schema admission probe |
 | `runtimeapi/` | HTTP surfaces and filesystem boundaries |
@@ -40,7 +47,7 @@ go test ./...
 - **The API boundary admits only `upload://` and `r2://`.** `file://` exists for
   internal sealed refs. Wire every scheme through `acquisition.NewSchemeRouter` — a
   resolver registered directly is the defect that blocked all ingest until
-  2026-09-02 (`docs/reviews/2026-09-02-uiw-rehearsal-acquisition-seam.md`).
+  2026-09-02 (`docs/reviews/2026-09-02-uiw-rehearsal-acquisition-seam.md`; historical filename, predates the D-140 proffer rename).
 
 ## ATOMICITY — every unit must be assignable to a Temporal Activity
 
@@ -81,7 +88,7 @@ Rules, in force everywhere:
    (`upload://`, `r2://`, sealed `file://`), never through Temporal history, an n8n
    payload, or a PostgreSQL activity request.
 6. **No orchestration inside a unit.** Sequencing, fan-out, retries, and human gates
-   belong to the workflow (`modules/engine/uiw`) and to n8n's visual flow — never
+   belong to the workflow (`modules/engine/proffer`) and to n8n's visual flow — never
    buried inside a parser, decoder, chunker, or repository method.
 7. **New capability = new Activity, registered in the stage graph.** Do not widen an
    existing Activity to cover a second concern because it is convenient.

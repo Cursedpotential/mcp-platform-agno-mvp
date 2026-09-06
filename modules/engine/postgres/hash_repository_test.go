@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/activities"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/activities"
+	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/stagegraph"
 	"github.com/google/uuid"
 )
 
@@ -105,7 +105,7 @@ func TestValidateSpecPinsEachStageToItsHashKind(t *testing.T) {
 		{stagegraph.HashNormalizedGeneration, activities.HashKindNormalizedGenerationDigest},
 	}
 	for _, tc := range valid {
-		if err := validateSpec(activities.BatchSpec{RequestID: "req", Attempt: 1, Stage: tc.stage, Kind: tc.kind, SubjectRef: uiw.Ref("subject")}); err != nil {
+		if err := validateSpec(activities.BatchSpec{RequestID: "req", Attempt: 1, Stage: tc.stage, Kind: tc.kind, SubjectRef: proffer.Ref("subject")}); err != nil {
 			t.Errorf("%s/%s rejected: %v", tc.stage, tc.kind, err)
 		}
 	}
@@ -139,7 +139,7 @@ func TestParseSetRefRequiresExplicitKindPrefix(t *testing.T) {
 
 func TestParseSetRefAcceptsCanonicalContextFingerprintSet(t *testing.T) {
 	id := "00000000-0000-0000-0000-000000000001"
-	kind, gotID, err := parseSetRef(uiw.Ref("context_raw_fingerprint_receipt_set:" + id))
+	kind, gotID, err := parseSetRef(proffer.Ref("context_raw_fingerprint_receipt_set:" + id))
 	if err != nil || kind != "context_raw_fingerprint_receipt_set" || gotID != id {
 		t.Fatalf("parseSetRef canonical context set = %q, %q, %v", kind, gotID, err)
 	}
@@ -158,7 +158,7 @@ func TestResultReferenceUsesReceiptOrGenerationSetBinding(t *testing.T) {
 		{name: "normalized-set", kind: activities.HashKindNormalizedRecordDigest, wantKind: "normalized_hash_receipt_set", wantRef: "normalized-generation"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			w := batchWriter{spec: activities.BatchSpec{Kind: tc.kind, SubjectRef: uiw.Ref(tc.wantRef)}, batchID: uuid.MustParse("00000000-0000-0000-0000-000000000002")}
+			w := batchWriter{spec: activities.BatchSpec{Kind: tc.kind, SubjectRef: proffer.Ref(tc.wantRef)}, batchID: uuid.MustParse("00000000-0000-0000-0000-000000000002")}
 			result, refKind, refID := w.resultReference(uuid.MustParse(hashID))
 			if refKind != tc.wantKind || refID != tc.wantRef {
 				t.Fatalf("reference kind/id = %q/%q, want %q/%q", refKind, refID, tc.wantKind, tc.wantRef)

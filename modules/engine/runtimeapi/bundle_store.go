@@ -17,10 +17,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/activities"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/parser"
-	platformpostgres "github.com/Cursedpotential/mcp-platform-agno-mvp/engine/postgres"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/activities"
+	"github.com/Cursedpotential/probata/engine/parser"
+	platformpostgres "github.com/Cursedpotential/probata/engine/postgres"
+	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -48,7 +48,7 @@ func NewFilesystemBundleFactory(db platformpostgres.DB, root string) (platformpo
 			return nil, fmt.Errorf("create parser bundle %s directory: %w", directory, err)
 		}
 	}
-	return func(_ context.Context, req uiw.StageRequest, selection activities.PersistedParserSelection, input parser.ParserInput) (parser.BundleWriter, error) {
+	return func(_ context.Context, req proffer.StageRequest, selection activities.PersistedParserSelection, input parser.ParserInput) (parser.BundleWriter, error) {
 		if strings.TrimSpace(req.RequestID) == "" || req.SourceVersionRef == "" {
 			return nil, errors.New("parser bundle writer requires request and source references")
 		}
@@ -61,7 +61,7 @@ func NewFilesystemBundleFactory(db platformpostgres.DB, root string) (platformpo
 type filesystemBundleWriter struct {
 	db        platformpostgres.DB
 	root      string
-	request   uiw.StageRequest
+	request   proffer.StageRequest
 	selection activities.PersistedParserSelection
 	input     parser.ParserInput
 	file      *os.File

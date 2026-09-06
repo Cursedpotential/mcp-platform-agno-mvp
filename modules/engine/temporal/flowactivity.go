@@ -31,7 +31,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/proffer"
 )
 
 // RunFlowActivityName is the single Activity name under which every declared
@@ -57,11 +57,11 @@ type FlowRequest struct {
 	MatterID    string `json:"matter_id,omitempty"`
 	CourtCaseID string `json:"court_case_id,omitempty"`
 
-	SourceVersionRef uiw.Ref `json:"source_version_ref,omitempty"`
-	DeclaredFormat   string  `json:"declared_format,omitempty"`
+	SourceVersionRef proffer.Ref `json:"source_version_ref,omitempty"`
+	DeclaredFormat   string      `json:"declared_format,omitempty"`
 
 	// Refs are LOCATIONS: named locators the flow consumes.
-	Refs map[string]uiw.Ref `json:"refs,omitempty"`
+	Refs map[string]proffer.Ref `json:"refs,omitempty"`
 
 	// Inputs are VARIABLES: bounded scalars the flow declares it needs.
 	Inputs map[string]any `json:"inputs,omitempty"`
@@ -70,9 +70,9 @@ type FlowRequest struct {
 // FlowResult is what a flow reports back.
 type FlowResult struct {
 	Flow       string         `json:"flow"`
-	Status     uiw.Status     `json:"status"`
-	Ref        uiw.Ref        `json:"ref,omitempty"`
-	ReceiptRef uiw.Ref        `json:"receipt_ref,omitempty"`
+	Status     proffer.Status `json:"status"`
+	Ref        proffer.Ref    `json:"ref,omitempty"`
+	ReceiptRef proffer.Ref    `json:"receipt_ref,omitempty"`
 	Outputs    map[string]any `json:"outputs,omitempty"`
 }
 
@@ -88,7 +88,7 @@ type FlowActivities struct {
 //
 // It fails closed on every path — an undeclared flow, a missing required ref
 // or input, a non-2xx response, or a result that does not name the flow it was
-// asked for — returning an error and no result, matching engine/uiw's
+// asked for — returning an error and no result, matching engine/proffer's
 // convention that an Activity error means "no receipt exists to report."
 func (a FlowActivities) RunFlow(ctx context.Context, req FlowRequest) (FlowResult, error) {
 	if a.Client == nil {
@@ -220,9 +220,9 @@ func (c *N8NClient) CallFlow(ctx context.Context, binding FlowBinding, req FlowR
 
 	result := FlowResult{
 		Flow:       wireResult.Flow,
-		Status:     uiw.Status(wireResult.Status),
-		Ref:        uiw.Ref(wireResult.Ref),
-		ReceiptRef: uiw.Ref(wireResult.ReceiptRef),
+		Status:     proffer.Status(wireResult.Status),
+		Ref:        proffer.Ref(wireResult.Ref),
+		ReceiptRef: proffer.Ref(wireResult.ReceiptRef),
 		Outputs:    wireResult.Outputs,
 	}
 	if err := validateFlowResult(binding, result); err != nil {
@@ -238,11 +238,11 @@ func validateFlowResult(binding FlowBinding, result FlowResult) error {
 		return fmt.Errorf("temporal: asked n8n flow %q but the result names %q", binding.Name, result.Flow)
 	}
 	switch result.Status {
-	case uiw.StatusSuccess:
+	case proffer.StatusSuccess:
 		if strings.TrimSpace(string(result.Ref)) == "" && len(result.Outputs) == 0 {
 			return fmt.Errorf("temporal: n8n flow %q reported success with neither a ref nor outputs", binding.Name)
 		}
-	case uiw.StatusFailed, uiw.StatusNotApplicable:
+	case proffer.StatusFailed, proffer.StatusNotApplicable:
 	default:
 		return fmt.Errorf("temporal: n8n flow %q reported unknown status %q", binding.Name, result.Status)
 	}

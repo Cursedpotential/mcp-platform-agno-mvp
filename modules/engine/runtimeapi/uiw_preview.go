@@ -1,4 +1,4 @@
-// Byline: Codex · GPT-5.6 · 2026-08-29 (opaque UIW preview HTTP surface)
+// Byline: Codex · GPT-5.6 · 2026-08-29 (opaque Proffer preview HTTP surface)
 package runtimeapi
 
 import (
@@ -27,9 +27,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/runtimeapi/previewmodel"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/sourcecontext"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/runtimeapi/previewmodel"
+	"github.com/Cursedpotential/probata/engine/sourcecontext"
 )
 
 const (
@@ -47,14 +47,14 @@ var (
 // PreviewWorkflow is the compact Temporal boundary used by the preview HTTP
 // surface. It never transports source or normalized bytes.
 type PreviewWorkflow interface {
-	Start(context.Context, uiw.WorkflowInput) (workflowID, runID string, err error)
-	Decide(context.Context, string, uiw.PreviewDecision) error
-	DecideRepair(context.Context, string, uiw.RepairDecision) error
-	Preview(context.Context, string) (uiw.PreviewState, error)
+	Start(context.Context, proffer.WorkflowInput) (workflowID, runID string, err error)
+	Decide(context.Context, string, proffer.PreviewDecision) error
+	DecideRepair(context.Context, string, proffer.RepairDecision) error
+	Preview(context.Context, string) (proffer.PreviewState, error)
 }
 
 type RepairDecisionWriter interface {
-	PersistRepairDecision(context.Context, uiw.RepairDecisionSpec) (uiw.Ref, error)
+	PersistRepairDecision(context.Context, proffer.RepairDecisionSpec) (proffer.Ref, error)
 }
 
 type PreviewBinding = previewmodel.Binding
@@ -94,12 +94,12 @@ func NewMemoryPreviewStore(entropy io.Reader) *MemoryPreviewStore {
 	return &MemoryPreviewStore{entries: make(map[string]*memoryPreview), entropy: entropy}
 }
 
-func (s *MemoryPreviewStore) PersistRepairDecision(_ context.Context, spec uiw.RepairDecisionSpec) (uiw.Ref, error) {
+func (s *MemoryPreviewStore) PersistRepairDecision(_ context.Context, spec proffer.RepairDecisionSpec) (proffer.Ref, error) {
 	if spec.SourceVersionRef == "" || spec.AssessmentRef == "" || spec.ActorRef == "" || spec.IdempotencyKey == "" {
 		return "", errors.New("memory repair decision is incomplete")
 	}
 	id := uuid.NewSHA1(uuid.NameSpaceOID, []byte(spec.IdempotencyKey))
-	return uiw.Ref(id.String()), nil
+	return proffer.Ref(id.String()), nil
 }
 
 func (s *MemoryPreviewStore) Create(_ context.Context, binding PreviewBinding) (PreviewBinding, error) {
@@ -206,7 +206,7 @@ func (s *MemoryPreviewStore) EventsAfter(_ context.Context, handle string, after
 	return result, nil
 }
 
-func (s *MemoryPreviewStore) RecordDecision(_ context.Context, handle string, approved bool, reason, actor string, selection, options uiw.Ref) error {
+func (s *MemoryPreviewStore) RecordDecision(_ context.Context, handle string, approved bool, reason, actor string, selection, options proffer.Ref) error {
 	if strings.TrimSpace(actor) == "" || strings.TrimSpace(string(selection)) == "" || strings.TrimSpace(string(options)) == "" {
 		return errors.New("memory preview decision requires actor, selection, and options refs")
 	}
@@ -289,7 +289,7 @@ func (s *MemoryPreviewStore) PutProjection(handle string, snapshot PreviewSnapsh
 	return nil
 }
 
-func memoryDecisionKey(handle string, approved bool, reason, actor string, selection, options uiw.Ref) [sha256.Size]byte {
+func memoryDecisionKey(handle string, approved bool, reason, actor string, selection, options proffer.Ref) [sha256.Size]byte {
 	return sha256.Sum256([]byte(fmt.Sprintf("%s\x00%t\x00%s\x00%s\x00%s\x00%s", handle, approved, reason, actor, selection, options)))
 }
 
@@ -370,16 +370,16 @@ type PreviewHTTPHandler struct {
 
 func NewPreviewHTTPHandler(workflow PreviewWorkflow, store PreviewStore, repairs RepairDecisionWriter, cursorKey []byte, serviceTokenPath string, validators ...sourcecontext.Validator) (*PreviewHTTPHandler, error) {
 	if workflow == nil || store == nil || repairs == nil {
-		return nil, errors.New("uiw preview handler requires workflow, preview store, and repair decision writer")
+		return nil, errors.New("proffer preview handler requires workflow, preview store, and repair decision writer")
 	}
 	if len(cursorKey) < 32 {
-		return nil, errors.New("uiw preview cursor key must be at least 32 bytes")
+		return nil, errors.New("proffer preview cursor key must be at least 32 bytes")
 	}
 	if _, err := loadServiceToken(serviceTokenPath); err != nil {
 		return nil, err
 	}
 	if len(validators) > 1 {
-		return nil, errors.New("uiw preview handler accepts at most one source context validator")
+		return nil, errors.New("proffer preview handler accepts at most one source context validator")
 	}
 	var validator sourcecontext.Validator
 	if len(validators) == 1 {
@@ -408,7 +408,7 @@ func (h *PreviewHTTPHandler) auth(next http.HandlerFunc) http.HandlerFunc {
 		provided := strings.TrimSpace(strings.TrimPrefix(auth, "Bearer "))
 		trusted := tokenErr == nil && strings.HasPrefix(auth, "Bearer ") && hmac.Equal([]byte(provided), serviceToken)
 		if err != nil || ip == nil || ip[0] != 100 || ip[1] < 64 || ip[1] > 127 || !trusted {
-			previewError(w, http.StatusUnauthorized, errors.New("uiw preview tailnet authorization required"))
+			previewError(w, http.StatusUnauthorized, errors.New("proffer preview tailnet authorization required"))
 			return
 		}
 		w.Header().Set("Cache-Control", "no-store")
@@ -421,14 +421,14 @@ var serviceTokenPattern = regexp.MustCompile(`^[A-Za-z0-9._~+/\-]+={0,}$`)
 
 func loadServiceToken(path string) ([]byte, error) {
 	if path == "" || path != strings.TrimSpace(path) || !filepath.IsAbs(path) {
-		return nil, errors.New("uiw preview service token path must be absolute")
+		return nil, errors.New("proffer preview service token path must be absolute")
 	}
 	info, err := os.Lstat(path)
 	if err != nil {
-		return nil, fmt.Errorf("read uiw preview service token: %w", err)
+		return nil, fmt.Errorf("read proffer preview service token: %w", err)
 	}
 	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || info.Size() < 32 || info.Size() > 4098 {
-		return nil, errors.New("uiw preview service token must be a safe regular file of 32-4098 bytes")
+		return nil, errors.New("proffer preview service token must be a safe regular file of 32-4098 bytes")
 	}
 	file, err := os.Open(path)
 	if err != nil {
@@ -437,18 +437,18 @@ func loadServiceToken(path string) ([]byte, error) {
 	defer file.Close()
 	openedInfo, err := file.Stat()
 	if err != nil || !openedInfo.Mode().IsRegular() || !os.SameFile(info, openedInfo) {
-		return nil, errors.New("uiw preview service token changed or is not a regular file")
+		return nil, errors.New("proffer preview service token changed or is not a regular file")
 	}
 	raw, err := io.ReadAll(io.LimitReader(file, 4099))
 	if err != nil {
 		return nil, err
 	}
 	if len(raw) < 32 || len(raw) > 4098 {
-		return nil, errors.New("uiw preview service token raw length is invalid")
+		return nil, errors.New("proffer preview service token raw length is invalid")
 	}
 	raw = bytes.TrimRight(raw, "\r\n")
 	if len(raw) < 32 || len(raw) > 4096 || !utf8.Valid(raw) || bytes.IndexByte(raw, 0) >= 0 || !serviceTokenPattern.Match(raw) {
-		return nil, errors.New("uiw preview service token is invalid")
+		return nil, errors.New("proffer preview service token is invalid")
 	}
 	return raw, nil
 }
@@ -511,7 +511,7 @@ func (h *PreviewHTTPHandler) start(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	in := uiw.WorkflowInput{RequestID: req.RequestID, MatterID: req.MatterID, CourtCaseID: req.CourtCaseID, SourceRef: uiw.Ref(req.SourceRef), DeclaredFormat: req.DeclaredFormat, ParserOptionsRef: uiw.Ref(req.ParserOptionsRef), SourceContextRef: uiw.Ref(req.SourceContextRef)}
+	in := proffer.WorkflowInput{RequestID: req.RequestID, MatterID: req.MatterID, CourtCaseID: req.CourtCaseID, SourceRef: proffer.Ref(req.SourceRef), DeclaredFormat: req.DeclaredFormat, ParserOptionsRef: proffer.Ref(req.ParserOptionsRef), SourceContextRef: proffer.Ref(req.SourceContextRef)}
 	workflowID, runID, err := h.workflow.Start(r.Context(), in)
 	if err != nil {
 		previewError(w, 422, err)
@@ -541,9 +541,9 @@ func (h *PreviewHTTPHandler) snapshot(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			previewJSON(w, http.StatusOK, struct {
-				PreviewHandle    string                    `json:"preview_handle"`
-				Phase            uiw.PreviewPhase          `json:"phase"`
-				RepairAssessment *uiw.RepairAssessmentView `json:"repair_assessment,omitempty"`
+				PreviewHandle    string                        `json:"preview_handle"`
+				Phase            proffer.PreviewPhase          `json:"phase"`
+				RepairAssessment *proffer.RepairAssessmentView `json:"repair_assessment,omitempty"`
 			}{handle, state.Phase, state.RepairAssessment})
 			return
 		}
@@ -626,13 +626,13 @@ func (h *PreviewHTTPHandler) decide(w http.ResponseWriter, r *http.Request) {
 		previewError(w, 422, err)
 		return
 	}
-	if state.Phase != uiw.PhaseAwaitingDecision && state.Phase != uiw.PhaseRejected {
+	if state.Phase != proffer.PhaseAwaitingDecision && state.Phase != proffer.PhaseRejected {
 		previewError(w, 409, errors.New("workflow is not awaiting a preview decision"))
 		return
 	}
 	selection, options := state.SelectRef, state.ParserOptionsRef
-	decision := uiw.PreviewDecision{Approved: req.Approved, Reason: req.Reason, Decider: actor}
-	if state.Phase == uiw.PhaseRejected && req.Approved && state.PreviewHandle == "" {
+	decision := proffer.PreviewDecision{Approved: req.Approved, Reason: req.Reason, Decider: actor}
+	if state.Phase == proffer.PhaseRejected && req.Approved && state.PreviewHandle == "" {
 		if selection == binding.SelectionRef && options == binding.ParserOptionsRef {
 			previewError(w, http.StatusConflict, errors.New("approval after rejection requires changed repair selection or options refs"))
 			return
@@ -689,21 +689,21 @@ func (h *PreviewHTTPHandler) decideRepair(w http.ResponseWriter, r *http.Request
 		previewError(w, http.StatusUnprocessableEntity, err)
 		return
 	}
-	if state.Phase != uiw.PhaseAwaitingRepairDecision || state.SourceVersionRef == "" || state.RepairAssessmentRef == "" {
+	if state.Phase != proffer.PhaseAwaitingRepairDecision || state.SourceVersionRef == "" || state.RepairAssessmentRef == "" {
 		previewError(w, http.StatusConflict, errors.New("workflow is not awaiting an identified repair decision"))
 		return
 	}
-	decisionRef, err := h.repairs.PersistRepairDecision(r.Context(), uiw.RepairDecisionSpec{
+	decisionRef, err := h.repairs.PersistRepairDecision(r.Context(), proffer.RepairDecisionSpec{
 		SourceVersionRef: state.SourceVersionRef, AssessmentRef: state.RepairAssessmentRef,
-		ActorRef: uiw.Ref(actor), Approved: req.Approved, ApplyRepair: req.ApplyRepair,
+		ActorRef: proffer.Ref(actor), Approved: req.Approved, ApplyRepair: req.ApplyRepair,
 		ToolID: strings.TrimSpace(req.ToolID), ToolPayload: nonNilPayload(req.ToolPayload),
-		IdempotencyKey: "uiw:" + handle + ":" + idempotencyKey,
+		IdempotencyKey: "proffer:" + handle + ":" + idempotencyKey,
 	})
 	if err != nil {
 		previewError(w, http.StatusUnprocessableEntity, err)
 		return
 	}
-	if err := h.workflow.DecideRepair(r.Context(), binding.WorkflowID, uiw.RepairDecision{DecisionRef: decisionRef}); err != nil {
+	if err := h.workflow.DecideRepair(r.Context(), binding.WorkflowID, proffer.RepairDecision{DecisionRef: decisionRef}); err != nil {
 		previewError(w, http.StatusServiceUnavailable, err)
 		return
 	}
@@ -739,7 +739,7 @@ func (h *PreviewHTTPHandler) events(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	for _, event := range events {
 		payload, _ := json.Marshal(event)
-		_, _ = fmt.Fprintf(w, "id: %d\nevent: uiw.preview\ndata: %s\n\n", event.EventID, payload)
+		_, _ = fmt.Fprintf(w, "id: %d\nevent: proffer.preview\ndata: %s\n\n", event.EventID, payload)
 	}
 }
 

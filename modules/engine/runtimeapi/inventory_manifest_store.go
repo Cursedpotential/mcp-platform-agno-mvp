@@ -22,9 +22,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/activities"
-	platformpostgres "github.com/Cursedpotential/mcp-platform-agno-mvp/engine/postgres"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/activities"
+	platformpostgres "github.com/Cursedpotential/probata/engine/postgres"
+	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/google/uuid"
 )
 
@@ -158,7 +158,7 @@ func (w *filesystemInventoryManifestWriter) Append(ctx context.Context, member a
 // summary always converge on the identical published object and therefore the
 // identical returned Ref: that convergence, not any database row, is what
 // makes a Temporal retry or a concurrent duplicate attempt idempotent here.
-func (w *filesystemInventoryManifestWriter) Commit(ctx context.Context, summary activities.InventorySummary) (uiw.Ref, error) {
+func (w *filesystemInventoryManifestWriter) Commit(ctx context.Context, summary activities.InventorySummary) (proffer.Ref, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
@@ -200,7 +200,7 @@ func (w *filesystemInventoryManifestWriter) Commit(ctx context.Context, summary 
 	w.path = objectPath
 	w.published = true
 	w.finished = true
-	return uiw.Ref(fileURI(objectPath)), nil
+	return proffer.Ref(fileURI(objectPath)), nil
 }
 
 func (w *filesystemInventoryManifestWriter) Abort(_ context.Context) error {

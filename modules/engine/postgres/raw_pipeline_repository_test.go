@@ -7,10 +7,10 @@ import (
 	"io"
 	"testing"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/activities"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/parser"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/activities"
+	"github.com/Cursedpotential/probata/engine/parser"
+	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/stagegraph"
 )
 
 type retainedMemberStream struct {
@@ -37,7 +37,7 @@ func retainedStream(values ...string) *retainedMemberStream {
 	members := make([]activities.ByteMember, 0, len(values))
 	for ordinal, value := range values {
 		members = append(members, activities.ByteMember{
-			SubjectRef: uiw.Ref(string(rune('a' + ordinal))), Ordinal: int64(ordinal),
+			SubjectRef: proffer.Ref(string(rune('a' + ordinal))), Ordinal: int64(ordinal),
 			Canon:  activities.CanonContextRawRecordFingerprint,
 			Reader: io.NopCloser(bytes.NewBufferString(value)),
 		})

@@ -1,7 +1,9 @@
-// Package uiwworker composes the production Temporal worker for the single
-// UniversalImportWorkflow. It is the only Go process allowed to poll the
-// dedicated UIW task queue, and it registers every canonical stage body.
-package uiwworker
+// Package profferworker composes the production Temporal worker for the single
+// ProfferWorkflow. It is the only Go process allowed to poll the
+// dedicated Proffer task queue, and it registers every canonical stage body.
+//
+// Package profferworker (formerly uiwworker / Universal Import Workflow worker; renamed D-140, 2026-09-05).
+package profferworker
 
 import (
 	"errors"
@@ -11,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	platformtemporal "github.com/Cursedpotential/mcp-platform-agno-mvp/engine/temporal"
+	platformtemporal "github.com/Cursedpotential/probata/engine/temporal"
 )
 
 const legacyEvidenceTaskQueue = "evidence-pipeline"
@@ -122,7 +124,7 @@ func LoadConfig() (Config, error) {
 		cfg.ExecuteHTTPTimeout = timeout
 	}
 	if len(problems) > 0 {
-		return Config{}, fmt.Errorf("uiw worker: invalid configuration: %s", strings.Join(problems, "; "))
+		return Config{}, fmt.Errorf("proffer worker: invalid configuration: %s", strings.Join(problems, "; "))
 	}
 	return cfg, nil
 }
@@ -182,7 +184,7 @@ func validateSharedPaths(c Config) error {
 	clean := make(map[string]string, len(paths))
 	for name, path := range paths {
 		if !filepath.IsAbs(path) {
-			return fmt.Errorf("uiw worker: %s must be an absolute shared path", name)
+			return fmt.Errorf("proffer worker: %s must be an absolute shared path", name)
 		}
 		clean[name] = filepath.Clean(path)
 	}
@@ -192,7 +194,7 @@ func validateSharedPaths(c Config) error {
 				continue
 			}
 			if sameOrNestedPath(left, right) || sameOrNestedPath(right, left) {
-				return fmt.Errorf("uiw worker: shared paths %s and %s must be separate non-nested roots", leftName, rightName)
+				return fmt.Errorf("proffer worker: shared paths %s and %s must be separate non-nested roots", leftName, rightName)
 			}
 		}
 	}

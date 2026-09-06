@@ -1,4 +1,4 @@
-// Byline: Codex · GPT-5 · 2026-08-28 (authenticated UIW upload ingress mount)
+// Byline: Codex · GPT-5 · 2026-08-28 (authenticated Proffer upload ingress mount)
 package main
 
 import (
@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/acquisition"
+	"github.com/Cursedpotential/probata/engine/acquisition"
 )
 
 const (

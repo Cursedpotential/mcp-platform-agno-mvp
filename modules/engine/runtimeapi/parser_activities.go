@@ -13,9 +13,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/activities"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/activities"
+	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/stagegraph"
 )
 
 const defaultMaxParserRequestBytes int64 = 64 << 10
@@ -88,7 +88,7 @@ func (h *ParserActivityHandler) ServeHTTP(response http.ResponseWriter, request 
 		writeError(response, http.StatusBadRequest, err)
 		return
 	}
-	var result uiw.StageResult
+	var result proffer.StageResult
 	if stage == stagegraph.SelectParser {
 		result, err = h.parserActivities.SelectParser(request.Context(), input)
 	} else {
@@ -121,62 +121,62 @@ func validBearerToken(header string, expected []byte) bool {
 }
 
 type parserRequest struct {
-	RequestID        string             `json:"request_id"`
-	SourceVersionRef uiw.Ref            `json:"source_version_ref"`
-	DeclaredFormat   string             `json:"declared_format"`
-	Refs             map[string]uiw.Ref `json:"refs"`
+	RequestID        string                 `json:"request_id"`
+	SourceVersionRef proffer.Ref            `json:"source_version_ref"`
+	DeclaredFormat   string                 `json:"declared_format"`
+	Refs             map[string]proffer.Ref `json:"refs"`
 }
 
-func decodeParserRequest(response http.ResponseWriter, request *http.Request, maxBytes int64) (uiw.StageRequest, error) {
+func decodeParserRequest(response http.ResponseWriter, request *http.Request, maxBytes int64) (proffer.StageRequest, error) {
 	if maxBytes <= 0 {
 		maxBytes = defaultMaxParserRequestBytes
 	}
 	if request.ContentLength > maxBytes {
-		return uiw.StageRequest{}, fmt.Errorf("parser Activity request exceeds %d bytes", maxBytes)
+		return proffer.StageRequest{}, fmt.Errorf("parser Activity request exceeds %d bytes", maxBytes)
 	}
 	decoder := json.NewDecoder(http.MaxBytesReader(response, request.Body, maxBytes))
 	decoder.DisallowUnknownFields()
 	var wire parserRequest
 	if err := decoder.Decode(&wire); err != nil {
-		return uiw.StageRequest{}, fmt.Errorf("decode parser Activity request: %w", err)
+		return proffer.StageRequest{}, fmt.Errorf("decode parser Activity request: %w", err)
 	}
 	var trailing any
 	if err := decoder.Decode(&trailing); err != io.EOF {
 		if err == nil {
-			return uiw.StageRequest{}, errors.New("parser Activity request must contain one JSON object")
+			return proffer.StageRequest{}, errors.New("parser Activity request must contain one JSON object")
 		}
-		return uiw.StageRequest{}, fmt.Errorf("decode trailing parser Activity request data: %w", err)
+		return proffer.StageRequest{}, fmt.Errorf("decode trailing parser Activity request data: %w", err)
 	}
 	if strings.TrimSpace(wire.RequestID) == "" {
-		return uiw.StageRequest{}, errors.New("parser Activity request requires request_id")
+		return proffer.StageRequest{}, errors.New("parser Activity request requires request_id")
 	}
 	if strings.TrimSpace(string(wire.SourceVersionRef)) == "" {
-		return uiw.StageRequest{}, errors.New("parser Activity request requires source_version_ref")
+		return proffer.StageRequest{}, errors.New("parser Activity request requires source_version_ref")
 	}
 	if strings.TrimSpace(wire.DeclaredFormat) == "" {
-		return uiw.StageRequest{}, errors.New("parser Activity request requires declared_format")
+		return proffer.StageRequest{}, errors.New("parser Activity request requires declared_format")
 	}
-	refs := make(map[string]uiw.Ref, len(wire.Refs))
+	refs := make(map[string]proffer.Ref, len(wire.Refs))
 	for name, ref := range wire.Refs {
 		if strings.TrimSpace(name) == "" || strings.TrimSpace(string(ref)) == "" {
-			return uiw.StageRequest{}, errors.New("parser Activity request refs require non-empty names and compact references")
+			return proffer.StageRequest{}, errors.New("parser Activity request refs require non-empty names and compact references")
 		}
 		refs[name] = ref
 	}
-	return uiw.StageRequest{
+	return proffer.StageRequest{
 		RequestID: wire.RequestID, SourceVersionRef: wire.SourceVersionRef,
 		DeclaredFormat: wire.DeclaredFormat, Refs: refs,
 	}, nil
 }
 
-func validateHTTPResult(stage stagegraph.StageID, result uiw.StageResult) error {
+func validateHTTPResult(stage stagegraph.StageID, result proffer.StageResult) error {
 	if result.Stage != stage {
 		return fmt.Errorf("parser Activity returned stage %q for endpoint %q", result.Stage, stage)
 	}
 	if strings.TrimSpace(string(result.ReceiptRef)) == "" {
 		return errors.New("parser Activity returned no receipt reference")
 	}
-	if result.Status != uiw.StatusSuccess {
+	if result.Status != proffer.StatusSuccess {
 		return fmt.Errorf("parser Activity returned non-success status %q", result.Status)
 	}
 	if strings.TrimSpace(string(result.Ref)) == "" {
@@ -189,14 +189,14 @@ func validateHTTPResult(stage stagegraph.StageID, result uiw.StageResult) error 
 }
 
 type stageResultResponse struct {
-	Stage      uiw.ActivityName `json:"stage"`
-	Status     uiw.Status       `json:"status"`
-	Ref        uiw.Ref          `json:"ref"`
-	ReceiptRef uiw.Ref          `json:"receipt_ref"`
-	Reason     string           `json:"reason,omitempty"`
+	Stage      proffer.ActivityName `json:"stage"`
+	Status     proffer.Status       `json:"status"`
+	Ref        proffer.Ref          `json:"ref"`
+	ReceiptRef proffer.Ref          `json:"receipt_ref"`
+	Reason     string               `json:"reason,omitempty"`
 }
 
-func writeStageResult(response http.ResponseWriter, result uiw.StageResult) {
+func writeStageResult(response http.ResponseWriter, result proffer.StageResult) {
 	response.Header().Set("Content-Type", "application/json")
 	response.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(response).Encode(stageResultResponse{

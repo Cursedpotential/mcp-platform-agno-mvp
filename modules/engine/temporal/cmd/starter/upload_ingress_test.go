@@ -1,4 +1,4 @@
-// Byline: Codex · GPT-5 · 2026-08-28 (UIW upload ingress contract tests)
+// Byline: Codex · GPT-5 · 2026-08-28 (Proffer upload ingress contract tests)
 package main
 
 import (
@@ -9,21 +9,23 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/acquisition"
-	platformtemporal "github.com/Cursedpotential/mcp-platform-agno-mvp/engine/temporal"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/acquisition"
+	"github.com/Cursedpotential/probata/engine/proffer"
+	platformtemporal "github.com/Cursedpotential/probata/engine/temporal"
 	"github.com/stretchr/testify/require"
 )
 
 type uploadTestStarter struct{}
 
-func (uploadTestStarter) Start(context.Context, uiw.WorkflowInput) (string, string, error) {
+func (uploadTestStarter) Start(context.Context, proffer.WorkflowInput) (string, string, error) {
 	return "workflow", "run", nil
 }
-func (uploadTestStarter) Decide(context.Context, string, uiw.PreviewDecision) error      { return nil }
-func (uploadTestStarter) DecideRepair(context.Context, string, uiw.RepairDecision) error { return nil }
-func (uploadTestStarter) Preview(context.Context, string) (uiw.PreviewState, error) {
-	return uiw.PreviewState{Phase: uiw.PhaseAwaitingDecision}, nil
+func (uploadTestStarter) Decide(context.Context, string, proffer.PreviewDecision) error { return nil }
+func (uploadTestStarter) DecideRepair(context.Context, string, proffer.RepairDecision) error {
+	return nil
+}
+func (uploadTestStarter) Preview(context.Context, string) (proffer.PreviewState, error) {
+	return proffer.PreviewState{Phase: proffer.PhaseAwaitingDecision}, nil
 }
 
 func TestStarterRoutesMountsTailnetAuthorizedUploadOnSharedRoot(t *testing.T) {
@@ -50,7 +52,7 @@ func TestStarterRoutesMountsTailnetAuthorizedUploadOnSharedRoot(t *testing.T) {
 
 	resolver, err := acquisition.NewUploadIngressResolver(root)
 	require.NoError(t, err)
-	_, err = resolver(context.Background(), uiw.Ref(response.AcquisitionRef))
+	_, err = resolver(context.Background(), proffer.Ref(response.AcquisitionRef))
 	require.NoError(t, err)
 }
 

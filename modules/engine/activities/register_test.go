@@ -5,7 +5,7 @@ import (
 
 	"go.temporal.io/sdk/activity"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
+	"github.com/Cursedpotential/probata/engine/stagegraph"
 )
 
 type recordingRegistrar struct{ names []string }

@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/activities"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/activities"
+	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/stagegraph"
 )
 
 const (
@@ -59,7 +59,7 @@ func (h *RepairActivityHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	var result uiw.StageResult
+	var result proffer.StageResult
 	if stage == stagegraph.AssessSourceRepair {
 		result, err = h.activities.AssessSourceRepair(r.Context(), req)
 	} else {

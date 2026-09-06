@@ -1,8 +1,8 @@
-package uiw
+package proffer
 
 import "time"
 
-// PreviewDecisionSignalName is the Signal UniversalImportWorkflow listens on
+// PreviewDecisionSignalName is the Signal ProfferWorkflow listens on
 // between select_parser_activity and execute_parser_activity: a human
 // operator's approve/reject decision on the persisted parser selection.
 // This is a real Temporal Signal, not an Activity-level trick, precisely so
@@ -14,7 +14,7 @@ const PreviewDecisionSignalName = "preview_decision"
 const RepairDecisionSignalName = "repair_decision"
 
 // PreviewQueryName is the Query a caller uses to read the current hold state
-// (see PreviewState) while UniversalImportWorkflow is waiting on
+// (see PreviewState) while ProfferWorkflow is waiting on
 // PreviewDecisionSignalName. Queries, like Signals, are served from the
 // workflow's own history/state and work against any worker, and even after
 // the workflow has closed (within retention).
@@ -24,7 +24,7 @@ const PreviewQueryName = "preview"
 // PreviewDecisionSignalName before failing the run closed. This is a real
 // Temporal Timer (workflow.NewTimer), backed by the Temporal server itself —
 // not bounded by any Activity's StartToCloseTimeout — so it is independent
-// of engine/uiw/options.go's per-stage Activity timeouts.
+// of engine/proffer/options.go's per-stage Activity timeouts.
 const previewDecisionTimeout = 24 * time.Hour
 
 // PreviewPhase is the human-readable lifecycle position of the preview

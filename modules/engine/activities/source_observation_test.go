@@ -8,16 +8,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/stagegraph"
 )
 
-func observationRequest() uiw.StageRequest {
-	return uiw.StageRequest{
+func observationRequest() proffer.StageRequest {
+	return proffer.StageRequest{
 		RequestID:        "request-1",
 		SourceVersionRef: "source-version-1",
 		DeclaredFormat:   "zip",
-		Refs:             map[string]uiw.Ref{"original": "object-1"},
+		Refs:             map[string]proffer.Ref{"original": "object-1"},
 	}
 }
 
@@ -66,7 +66,7 @@ type fakeObservationRepository struct {
 	writer              *fakeInventoryWriter
 	notApplicableSpec   InventorySpec
 	notApplicableReason string
-	notApplicableRef    uiw.Ref
+	notApplicableRef    proffer.Ref
 }
 
 func (f *fakeObservationRepository) PersistSourceMetadata(_ context.Context, spec MetadataPersistenceSpec) (MetadataPersistenceResult, error) {
@@ -82,7 +82,7 @@ func (f *fakeObservationRepository) BeginInventory(_ context.Context, spec Inven
 	return f.writer, nil
 }
 
-func (f *fakeObservationRepository) RecordInventoryNotApplicable(_ context.Context, spec InventorySpec, reason string) (uiw.Ref, error) {
+func (f *fakeObservationRepository) RecordInventoryNotApplicable(_ context.Context, spec InventorySpec, reason string) (proffer.Ref, error) {
 	f.notApplicableSpec = spec
 	f.notApplicableReason = reason
 	return f.notApplicableRef, nil
@@ -99,7 +99,7 @@ func (f *fakeInventoryWriter) Append(_ context.Context, member InventoryMember) 
 	return nil
 }
 
-func (f *fakeInventoryWriter) Commit(_ context.Context, summary InventorySummary) (uiw.Ref, uiw.Ref, error) {
+func (f *fakeInventoryWriter) Commit(_ context.Context, summary InventorySummary) (proffer.Ref, proffer.Ref, error) {
 	f.committed = &summary
 	return "inventory-result-1", "inventory-receipt-1", nil
 }
@@ -123,7 +123,7 @@ func TestCaptureFilesystemMetadataPersistsSourceLevelRows(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := (uiw.StageResult{Stage: stagegraph.CaptureFilesystemMetadata, Status: uiw.StatusSuccess, Ref: "metadata-result-1", ReceiptRef: "metadata-receipt-1"}); !reflect.DeepEqual(result, want) {
+	if want := (proffer.StageResult{Stage: stagegraph.CaptureFilesystemMetadata, Status: proffer.StatusSuccess, Ref: "metadata-result-1", ReceiptRef: "metadata-receipt-1"}); !reflect.DeepEqual(result, want) {
 		t.Fatalf("result = %#v, want %#v", result, want)
 	}
 	if repository.metadata.Stage != stagegraph.CaptureFilesystemMetadata || repository.metadata.IdempotencyKey == "" || repository.metadata.Attempt != 1 {
@@ -201,7 +201,7 @@ func TestCaptureFilesystemMetadataNotApplicableRequiresReceipt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Status != uiw.StatusNotApplicable || result.ReceiptRef != "metadata-na-receipt" || result.Reason == "" || result.Ref != "" {
+	if result.Status != proffer.StatusNotApplicable || result.ReceiptRef != "metadata-na-receipt" || result.Reason == "" || result.Ref != "" {
 		t.Fatalf("unexpected not-applicable result: %#v", result)
 	}
 	if repository.metadata.NotApplicableReason == "" {
@@ -223,7 +223,7 @@ func TestInventoryContainerStreamsAndCommitsStructuralAccounting(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Status != uiw.StatusSuccess || result.Ref != "inventory-result-1" || result.ReceiptRef != "inventory-receipt-1" {
+	if result.Status != proffer.StatusSuccess || result.Ref != "inventory-result-1" || result.ReceiptRef != "inventory-receipt-1" {
 		t.Fatalf("unexpected result: %#v", result)
 	}
 	if repository.writer == nil || repository.writer.committed == nil {
@@ -258,7 +258,7 @@ func TestInventoryContainerNotApplicableRequiresReceipt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Status != uiw.StatusNotApplicable || result.ReceiptRef != "inventory-na-receipt" || result.Reason == "" {
+	if result.Status != proffer.StatusNotApplicable || result.ReceiptRef != "inventory-na-receipt" || result.Reason == "" {
 		t.Fatalf("unexpected result: %#v", result)
 	}
 }

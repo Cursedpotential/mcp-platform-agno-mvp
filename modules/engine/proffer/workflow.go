@@ -1,4 +1,4 @@
-package uiw
+package proffer
 
 import (
 	"errors"
@@ -6,17 +6,17 @@ import (
 
 	"go.temporal.io/sdk/workflow"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
+	"github.com/Cursedpotential/probata/engine/stagegraph"
 )
 
 const (
-	fingerprintVocabularyChangeID   = "uiw-context-fingerprint-vocabulary-v1"
+	fingerprintVocabularyChangeID   = "proffer-context-fingerprint-vocabulary-v1"
 	fingerprintVocabularyVersion    = workflow.Version(1)
-	previewRepairChangeID           = "uiw-preview-explicit-repair-refs-v1"
+	previewRepairChangeID           = "proffer-preview-explicit-repair-refs-v1"
 	previewRepairVersion            = workflow.Version(1)
-	integratedPreviewChangeID       = "uiw-integrated-repair-preview-v1"
+	integratedPreviewChangeID       = "proffer-integrated-repair-preview-v1"
 	integratedPreviewVersion        = workflow.Version(1)
-	durableReviewWaitChangeID       = "uiw-durable-extended-review-wait-v1"
+	durableReviewWaitChangeID       = "proffer-durable-extended-review-wait-v1"
 	durableReviewWaitVersion        = workflow.Version(1)
 	legacyHashSourceActivity        = "hash_source_activity"
 	legacyHashRawRecordsActivity    = "hash_raw_records_activity"
@@ -42,7 +42,7 @@ func fingerprintVocabularyFor(ctx workflow.Context) fingerprintVocabulary {
 	}
 }
 
-// UniversalImportWorkflow is the single Temporal workflow every source runs
+// ProfferWorkflow is the single Temporal workflow every source runs
 // through (boundary document acceptance gate 1). It executes the exact
 // engine/stagegraph.Stages graph — all 26 atomic Activities, the documented
 // safe parallel fan-outs, and deterministic ordering everywhere else — and
@@ -54,7 +54,7 @@ func fingerprintVocabularyFor(ctx workflow.Context) fingerprintVocabulary {
 // This function contains no Activity bodies. Every stage is invoked by its
 // canon name (ActivityName, identical to stagegraph.StageID) so a worker in
 // a later lane can register real Activities without this file changing.
-func UniversalImportWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, error) {
+func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, error) {
 	r := &run{requestID: in.RequestID, matterID: in.MatterID, courtCaseID: in.CourtCaseID}
 	fingerprint := fingerprintVocabularyFor(ctx)
 	integratedPreview := workflow.GetVersion(ctx, integratedPreviewChangeID, workflow.DefaultVersion, integratedPreviewVersion)
@@ -105,7 +105,7 @@ func UniversalImportWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowRe
 		if err := workflow.SetQueryHandler(ctx, PreviewQueryName, func() (PreviewState, error) {
 			return preview, nil
 		}); err != nil {
-			return r.result(""), fmt.Errorf("uiw: register preview query handler: %w", err)
+			return r.result(""), fmt.Errorf("proffer: register preview query handler: %w", err)
 		}
 		refs := map[string]Ref{"original": originalRef, "repair_assessment": repairAssessmentRef, "acquisition": in.SourceRef}
 		if assessmentResult.Status == StatusNotApplicable {
@@ -162,7 +162,7 @@ func UniversalImportWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowRe
 	if integratedPreview == workflow.DefaultVersion {
 		preview = PreviewState{Phase: PhaseAwaitingDecision, SelectRef: activeSelectionRef, ParserOptionsRef: activeParserOptionsRef}
 		if err := workflow.SetQueryHandler(ctx, PreviewQueryName, func() (PreviewState, error) { return preview, nil }); err != nil {
-			return r.result(""), fmt.Errorf("uiw: register legacy preview query handler: %w", err)
+			return r.result(""), fmt.Errorf("proffer: register legacy preview query handler: %w", err)
 		}
 		if err := awaitLegacyPreviewDecision(ctx, &preview, &activeSelectionRef, &activeParserOptionsRef, durableReviewWait); err != nil {
 			return r.result(""), err
@@ -367,15 +367,15 @@ func awaitRepairDecision(ctx workflow.Context, state *PreviewState, waitVersion 
 	var decision RepairDecision
 	decided, err := awaitReviewSignal(ctx, workflow.GetSignalChannel(ctx, RepairDecisionSignalName), &decision, waitVersion)
 	if err != nil {
-		return RepairDecision{}, fmt.Errorf("uiw: await repair decision: %w", err)
+		return RepairDecision{}, fmt.Errorf("proffer: await repair decision: %w", err)
 	}
 	if !decided {
 		state.Phase, state.Reason = PhaseTimedOut, "repair decision timed out"
-		return RepairDecision{}, errors.New("uiw: repair decision timed out")
+		return RepairDecision{}, errors.New("proffer: repair decision timed out")
 	}
 	if decision.DecisionRef == "" {
 		state.Phase, state.Reason = PhaseRejected, "repair decision reference is required"
-		return RepairDecision{}, errors.New("uiw: repair decision reference is required")
+		return RepairDecision{}, errors.New("proffer: repair decision reference is required")
 	}
 	return decision, nil
 }
@@ -386,11 +386,11 @@ func awaitPreviewDecision(ctx workflow.Context, state *PreviewState, waitVersion
 		var decision PreviewDecision
 		decided, err := awaitReviewSignal(ctx, signalChannel, &decision, waitVersion)
 		if err != nil {
-			return fmt.Errorf("uiw: await preview decision: %w", err)
+			return fmt.Errorf("proffer: await preview decision: %w", err)
 		}
 		if !decided {
 			state.Phase, state.Reason = PhaseTimedOut, "preview decision timed out"
-			return errors.New("uiw: preview decision timed out")
+			return errors.New("proffer: preview decision timed out")
 		}
 		if !decision.Approved {
 			state.Phase, state.Reason = PhaseRejected, decision.Reason
@@ -412,11 +412,11 @@ func awaitLegacyPreviewDecision(ctx workflow.Context, state *PreviewState, selec
 		var decision PreviewDecision
 		decided, err := awaitReviewSignal(ctx, signalChannel, &decision, waitVersion)
 		if err != nil {
-			return fmt.Errorf("uiw: await legacy preview decision: %w", err)
+			return fmt.Errorf("proffer: await legacy preview decision: %w", err)
 		}
 		if !decided {
 			state.Phase, state.Reason = PhaseTimedOut, "preview decision timed out"
-			return errors.New("uiw: preview decision timed out")
+			return errors.New("proffer: preview decision timed out")
 		}
 		if repairVersion != workflow.DefaultVersion {
 			if decision.RepairedSelectionRef != "" {
@@ -544,25 +544,25 @@ func (r *run) settle(id stagegraph.StageID, get func(workflow.Context, interface
 		// so this stays a Temporal execution error — there is no business
 		// result here to validate.
 		r.results = append(r.results, StageResult{Stage: id, Status: StatusFailed, Reason: err.Error()})
-		return "", fmt.Errorf("uiw: stage %q failed: %w", id, err)
+		return "", fmt.Errorf("proffer: stage %q failed: %w", id, err)
 	}
 
 	if res.Stage != "" && res.Stage != id {
-		mismatchErr := fmt.Errorf("uiw: stage %q returned a result identifying itself as %q", id, res.Stage)
+		mismatchErr := fmt.Errorf("proffer: stage %q returned a result identifying itself as %q", id, res.Stage)
 		r.results = append(r.results, StageResult{Stage: id, Status: StatusFailed, Reason: mismatchErr.Error()})
 		return "", mismatchErr
 	}
 	res.Stage = id
 
 	if err := validateStageResult(res); err != nil {
-		invalidErr := fmt.Errorf("uiw: stage %q returned an invalid result: %w", id, err)
+		invalidErr := fmt.Errorf("proffer: stage %q returned an invalid result: %w", id, err)
 		r.results = append(r.results, StageResult{Stage: id, Status: StatusFailed, Reason: invalidErr.Error()})
 		return "", invalidErr
 	}
 
 	r.results = append(r.results, res)
 	if res.Status == StatusFailed {
-		return "", fmt.Errorf("uiw: stage %q reported failed status: %s", id, res.Reason)
+		return "", fmt.Errorf("proffer: stage %q reported failed status: %s", id, res.Reason)
 	}
 
 	// A not-applicable stage still produced a durable, independently

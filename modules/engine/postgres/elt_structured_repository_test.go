@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/activities"
+	"github.com/Cursedpotential/probata/engine/activities"
 )
 
 func validStructuredELTSpec() activities.StructuredELTSpec {

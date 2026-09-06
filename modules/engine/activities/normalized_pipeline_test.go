@@ -11,9 +11,9 @@ import (
 
 	"github.com/lowcarbdev/sbv/pkg/custodyhash"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/normalize"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/normalize"
+	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/stagegraph"
 )
 
 // fakeNormalizedPipelineStore captures the last spec passed to each method
@@ -25,78 +25,78 @@ type fakeNormalizedPipelineStore struct {
 	openWriter         normalize.BundleWriter
 	openWriterErr      error
 	persistExecSpec    NormalizeExecutionSpec
-	persistExecRef     uiw.Ref
-	persistExecReceipt uiw.Ref
+	persistExecRef     proffer.Ref
+	persistExecReceipt proffer.Ref
 	persistExecErr     error
 
 	persistGenSpec    PersistNormalizedGenerationSpec
-	persistGenRef     uiw.Ref
-	persistGenReceipt uiw.Ref
+	persistGenRef     proffer.Ref
+	persistGenReceipt proffer.Ref
 	persistGenErr     error
 
 	persistLineageSpec    PersistLineageSpec
-	persistLineageRef     uiw.Ref
-	persistLineageReceipt uiw.Ref
+	persistLineageRef     proffer.Ref
+	persistLineageReceipt proffer.Ref
 	persistLineageErr     error
 
 	validateLineageSpec    ValidateRawLineageSpec
-	validateLineageRef     uiw.Ref
-	validateLineageReceipt uiw.Ref
+	validateLineageRef     proffer.Ref
+	validateLineageReceipt proffer.Ref
 	validateLineageErr     error
 
 	openRecordsStream ByteMemberStream
 	openRecordsErr    error
 
 	verifySpec    VerifyNormalizedGenerationSpec
-	verifyRef     uiw.Ref
-	verifyReceipt uiw.Ref
+	verifyRef     proffer.Ref
+	verifyReceipt proffer.Ref
 	verifyErr     error
 
 	sealSpec    SealGenerationSpec
-	sealRef     uiw.Ref
-	sealReceipt uiw.Ref
+	sealRef     proffer.Ref
+	sealReceipt proffer.Ref
 	sealErr     error
 
 	publishSpec    PublishGenerationSpec
-	publishRef     uiw.Ref
-	publishReceipt uiw.Ref
+	publishRef     proffer.Ref
+	publishReceipt proffer.Ref
 	publishErr     error
 }
 
-func (s *fakeNormalizedPipelineStore) ResolveNormalizerInput(context.Context, uiw.StageRequest) (normalize.NormalizerInput, error) {
+func (s *fakeNormalizedPipelineStore) ResolveNormalizerInput(context.Context, proffer.StageRequest) (normalize.NormalizerInput, error) {
 	return s.resolveInput, s.resolveInputErr
 }
-func (s *fakeNormalizedPipelineStore) OpenNormalizedBundleWriter(context.Context, uiw.StageRequest, normalize.NormalizerInput) (normalize.BundleWriter, error) {
+func (s *fakeNormalizedPipelineStore) OpenNormalizedBundleWriter(context.Context, proffer.StageRequest, normalize.NormalizerInput) (normalize.BundleWriter, error) {
 	return s.openWriter, s.openWriterErr
 }
-func (s *fakeNormalizedPipelineStore) PersistNormalizeExecution(_ context.Context, spec NormalizeExecutionSpec) (uiw.Ref, uiw.Ref, error) {
+func (s *fakeNormalizedPipelineStore) PersistNormalizeExecution(_ context.Context, spec NormalizeExecutionSpec) (proffer.Ref, proffer.Ref, error) {
 	s.persistExecSpec = spec
 	return s.persistExecRef, s.persistExecReceipt, s.persistExecErr
 }
-func (s *fakeNormalizedPipelineStore) PersistNormalizedGeneration(_ context.Context, spec PersistNormalizedGenerationSpec) (uiw.Ref, uiw.Ref, error) {
+func (s *fakeNormalizedPipelineStore) PersistNormalizedGeneration(_ context.Context, spec PersistNormalizedGenerationSpec) (proffer.Ref, proffer.Ref, error) {
 	s.persistGenSpec = spec
 	return s.persistGenRef, s.persistGenReceipt, s.persistGenErr
 }
-func (s *fakeNormalizedPipelineStore) PersistLineage(_ context.Context, spec PersistLineageSpec) (uiw.Ref, uiw.Ref, error) {
+func (s *fakeNormalizedPipelineStore) PersistLineage(_ context.Context, spec PersistLineageSpec) (proffer.Ref, proffer.Ref, error) {
 	s.persistLineageSpec = spec
 	return s.persistLineageRef, s.persistLineageReceipt, s.persistLineageErr
 }
-func (s *fakeNormalizedPipelineStore) ValidateRawLineage(_ context.Context, spec ValidateRawLineageSpec) (uiw.Ref, uiw.Ref, error) {
+func (s *fakeNormalizedPipelineStore) ValidateRawLineage(_ context.Context, spec ValidateRawLineageSpec) (proffer.Ref, proffer.Ref, error) {
 	s.validateLineageSpec = spec
 	return s.validateLineageRef, s.validateLineageReceipt, s.validateLineageErr
 }
-func (s *fakeNormalizedPipelineStore) OpenNormalizedGenerationRecords(context.Context, uiw.Ref) (ByteMemberStream, error) {
+func (s *fakeNormalizedPipelineStore) OpenNormalizedGenerationRecords(context.Context, proffer.Ref) (ByteMemberStream, error) {
 	return s.openRecordsStream, s.openRecordsErr
 }
-func (s *fakeNormalizedPipelineStore) VerifyNormalizedGeneration(_ context.Context, spec VerifyNormalizedGenerationSpec) (uiw.Ref, uiw.Ref, error) {
+func (s *fakeNormalizedPipelineStore) VerifyNormalizedGeneration(_ context.Context, spec VerifyNormalizedGenerationSpec) (proffer.Ref, proffer.Ref, error) {
 	s.verifySpec = spec
 	return s.verifyRef, s.verifyReceipt, s.verifyErr
 }
-func (s *fakeNormalizedPipelineStore) SealGeneration(_ context.Context, spec SealGenerationSpec) (uiw.Ref, uiw.Ref, error) {
+func (s *fakeNormalizedPipelineStore) SealGeneration(_ context.Context, spec SealGenerationSpec) (proffer.Ref, proffer.Ref, error) {
 	s.sealSpec = spec
 	return s.sealRef, s.sealReceipt, s.sealErr
 }
-func (s *fakeNormalizedPipelineStore) PublishGeneration(_ context.Context, spec PublishGenerationSpec) (uiw.Ref, uiw.Ref, error) {
+func (s *fakeNormalizedPipelineStore) PublishGeneration(_ context.Context, spec PublishGenerationSpec) (proffer.Ref, proffer.Ref, error) {
 	s.publishSpec = spec
 	return s.publishRef, s.publishReceipt, s.publishErr
 }
@@ -212,14 +212,14 @@ func TestNormalizeGenerationHappyPathPersistsExecutionAndReturnsRefs(t *testing.
 		persistExecReceipt: "receipt:normalize",
 	}
 	a := NormalizedPipelineActivities{Store: store, Normalizer: fakeNormalizer{emit: 1}, Attempt: func(context.Context) int32 { return 3 }}
-	result, err := a.NormalizeGeneration(context.Background(), uiw.StageRequest{
+	result, err := a.NormalizeGeneration(context.Background(), proffer.StageRequest{
 		RequestID: "workflow:1", SourceVersionRef: "source-version:1",
-		Refs: map[string]uiw.Ref{"raw_generation": "raw-generation:1", "raw_source_verification": "verify:1"},
+		Refs: map[string]proffer.Ref{"raw_generation": "raw-generation:1", "raw_source_verification": "verify:1"},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := uiw.StageResult{Stage: stagegraph.NormalizeGeneration, Status: uiw.StatusSuccess, Ref: "bundle:1", ReceiptRef: "receipt:normalize"}
+	want := proffer.StageResult{Stage: stagegraph.NormalizeGeneration, Status: proffer.StatusSuccess, Ref: "bundle:1", ReceiptRef: "receipt:normalize"}
 	if result != want {
 		t.Fatalf("result = %+v, want %+v", result, want)
 	}
@@ -236,13 +236,13 @@ func TestNormalizeGenerationRejectsMissingRefs(t *testing.T) {
 	a := NormalizedPipelineActivities{Store: store, Normalizer: fakeNormalizer{}}
 	tests := []struct {
 		name string
-		req  uiw.StageRequest
+		req  proffer.StageRequest
 		want string
 	}{
-		{"no request id", uiw.StageRequest{SourceVersionRef: "s"}, "request"},
-		{"no source", uiw.StageRequest{RequestID: "r"}, "request"},
-		{"no raw generation", uiw.StageRequest{RequestID: "r", SourceVersionRef: "s"}, "raw_generation"},
-		{"no verification", uiw.StageRequest{RequestID: "r", SourceVersionRef: "s", Refs: map[string]uiw.Ref{"raw_generation": "g"}}, "raw_source_verification"},
+		{"no request id", proffer.StageRequest{SourceVersionRef: "s"}, "request"},
+		{"no source", proffer.StageRequest{RequestID: "r"}, "request"},
+		{"no raw generation", proffer.StageRequest{RequestID: "r", SourceVersionRef: "s"}, "raw_generation"},
+		{"no verification", proffer.StageRequest{RequestID: "r", SourceVersionRef: "s", Refs: map[string]proffer.Ref{"raw_generation": "g"}}, "raw_source_verification"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -259,9 +259,9 @@ func TestNormalizeGenerationRejectsMismatchedResolvedInput(t *testing.T) {
 	input.RawGenerationRef = "raw-generation:other"
 	store := &fakeNormalizedPipelineStore{resolveInput: input, openWriter: &fakeBundleWriter{bundleRef: "b"}}
 	a := NormalizedPipelineActivities{Store: store, Normalizer: fakeNormalizer{emit: 1}}
-	_, err := a.NormalizeGeneration(context.Background(), uiw.StageRequest{
+	_, err := a.NormalizeGeneration(context.Background(), proffer.StageRequest{
 		RequestID: "workflow:1", SourceVersionRef: "source-version:1",
-		Refs: map[string]uiw.Ref{"raw_generation": "raw-generation:1", "raw_source_verification": "verify:1"},
+		Refs: map[string]proffer.Ref{"raw_generation": "raw-generation:1", "raw_source_verification": "verify:1"},
 	})
 	if err == nil || !strings.Contains(err.Error(), "does not match") {
 		t.Fatalf("error = %v", err)
@@ -271,20 +271,20 @@ func TestNormalizeGenerationRejectsMismatchedResolvedInput(t *testing.T) {
 func TestPersistNormalizedGenerationHappyPathAndMissingRef(t *testing.T) {
 	store := &fakeNormalizedPipelineStore{persistGenRef: "generation:1", persistGenReceipt: "receipt:persist"}
 	a := NormalizedPipelineActivities{Store: store, Normalizer: fakeNormalizer{}, Attempt: func(context.Context) int32 { return 1 }}
-	result, err := a.PersistNormalizedGeneration(context.Background(), uiw.StageRequest{
-		RequestID: "workflow:1", SourceVersionRef: "source-version:1", Refs: map[string]uiw.Ref{"normalized_bundle": "bundle:1"},
+	result, err := a.PersistNormalizedGeneration(context.Background(), proffer.StageRequest{
+		RequestID: "workflow:1", SourceVersionRef: "source-version:1", Refs: map[string]proffer.Ref{"normalized_bundle": "bundle:1"},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := uiw.StageResult{Stage: stagegraph.PersistNormalizedGeneration, Status: uiw.StatusSuccess, Ref: "generation:1", ReceiptRef: "receipt:persist"}
+	want := proffer.StageResult{Stage: stagegraph.PersistNormalizedGeneration, Status: proffer.StatusSuccess, Ref: "generation:1", ReceiptRef: "receipt:persist"}
 	if result != want {
 		t.Fatalf("result = %+v, want %+v", result, want)
 	}
 	if store.persistGenSpec.BundleRef != "bundle:1" {
 		t.Fatalf("persist generation spec = %+v", store.persistGenSpec)
 	}
-	if _, err := a.PersistNormalizedGeneration(context.Background(), uiw.StageRequest{RequestID: "workflow:1", SourceVersionRef: "source-version:1"}); err == nil || !strings.Contains(err.Error(), "normalized_bundle") {
+	if _, err := a.PersistNormalizedGeneration(context.Background(), proffer.StageRequest{RequestID: "workflow:1", SourceVersionRef: "source-version:1"}); err == nil || !strings.Contains(err.Error(), "normalized_bundle") {
 		t.Fatalf("error = %v", err)
 	}
 }
@@ -292,9 +292,9 @@ func TestPersistNormalizedGenerationHappyPathAndMissingRef(t *testing.T) {
 func TestPersistLineageHappyPathAndMissingRefs(t *testing.T) {
 	store := &fakeNormalizedPipelineStore{persistLineageRef: "lineage_set:1", persistLineageReceipt: "receipt:lineage"}
 	a := NormalizedPipelineActivities{Store: store, Normalizer: fakeNormalizer{}}
-	result, err := a.PersistLineage(context.Background(), uiw.StageRequest{
+	result, err := a.PersistLineage(context.Background(), proffer.StageRequest{
 		RequestID: "workflow:1", SourceVersionRef: "source-version:1",
-		Refs: map[string]uiw.Ref{"normalized_generation": "generation:1", "raw_generation": "raw-generation:1"},
+		Refs: map[string]proffer.Ref{"normalized_generation": "generation:1", "raw_generation": "raw-generation:1"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -305,7 +305,7 @@ func TestPersistLineageHappyPathAndMissingRefs(t *testing.T) {
 	if store.persistLineageSpec.NormalizedGenerationRef != "generation:1" || store.persistLineageSpec.RawGenerationRef != "raw-generation:1" {
 		t.Fatalf("persist lineage spec = %+v", store.persistLineageSpec)
 	}
-	if _, err := a.PersistLineage(context.Background(), uiw.StageRequest{RequestID: "workflow:1", SourceVersionRef: "source-version:1", Refs: map[string]uiw.Ref{"normalized_generation": "g"}}); err == nil || !strings.Contains(err.Error(), "raw_generation") {
+	if _, err := a.PersistLineage(context.Background(), proffer.StageRequest{RequestID: "workflow:1", SourceVersionRef: "source-version:1", Refs: map[string]proffer.Ref{"normalized_generation": "g"}}); err == nil || !strings.Contains(err.Error(), "raw_generation") {
 		t.Fatalf("error = %v", err)
 	}
 }
@@ -313,8 +313,8 @@ func TestPersistLineageHappyPathAndMissingRefs(t *testing.T) {
 func TestValidateRawLineageHappyPath(t *testing.T) {
 	store := &fakeNormalizedPipelineStore{validateLineageRef: "reconciliation:1", validateLineageReceipt: "receipt:validate"}
 	a := NormalizedPipelineActivities{Store: store, Normalizer: fakeNormalizer{}}
-	result, err := a.ValidateRawLineage(context.Background(), uiw.StageRequest{
-		RequestID: "workflow:1", SourceVersionRef: "source-version:1", Refs: map[string]uiw.Ref{"lineage_set": "lineage_set:1"},
+	result, err := a.ValidateRawLineage(context.Background(), proffer.StageRequest{
+		RequestID: "workflow:1", SourceVersionRef: "source-version:1", Refs: map[string]proffer.Ref{"lineage_set": "lineage_set:1"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -330,8 +330,8 @@ func TestValidateRawLineageHappyPath(t *testing.T) {
 func TestSealGenerationHappyPathAndMissingRef(t *testing.T) {
 	store := &fakeNormalizedPipelineStore{sealRef: "generation:1", sealReceipt: "receipt:seal"}
 	a := NormalizedPipelineActivities{Store: store, Normalizer: fakeNormalizer{}}
-	result, err := a.SealGeneration(context.Background(), uiw.StageRequest{
-		RequestID: "workflow:1", SourceVersionRef: "source-version:1", Refs: map[string]uiw.Ref{"normalized_verification": "verify:1"},
+	result, err := a.SealGeneration(context.Background(), proffer.StageRequest{
+		RequestID: "workflow:1", SourceVersionRef: "source-version:1", Refs: map[string]proffer.Ref{"normalized_verification": "verify:1"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -339,7 +339,7 @@ func TestSealGenerationHappyPathAndMissingRef(t *testing.T) {
 	if result.Ref != "generation:1" || result.Stage != stagegraph.SealGeneration {
 		t.Fatalf("result = %+v", result)
 	}
-	if _, err := a.SealGeneration(context.Background(), uiw.StageRequest{RequestID: "workflow:1", SourceVersionRef: "source-version:1"}); err == nil || !strings.Contains(err.Error(), "normalized_verification") {
+	if _, err := a.SealGeneration(context.Background(), proffer.StageRequest{RequestID: "workflow:1", SourceVersionRef: "source-version:1"}); err == nil || !strings.Contains(err.Error(), "normalized_verification") {
 		t.Fatalf("error = %v", err)
 	}
 }
@@ -347,8 +347,8 @@ func TestSealGenerationHappyPathAndMissingRef(t *testing.T) {
 func TestPublishGenerationHappyPathAndMissingRef(t *testing.T) {
 	store := &fakeNormalizedPipelineStore{publishRef: "publication:1", publishReceipt: "receipt:publish"}
 	a := NormalizedPipelineActivities{Store: store, Normalizer: fakeNormalizer{}}
-	result, err := a.PublishGeneration(context.Background(), uiw.StageRequest{
-		RequestID: "workflow:1", SourceVersionRef: "source-version:1", Refs: map[string]uiw.Ref{"sealed_generation": "generation:1"},
+	result, err := a.PublishGeneration(context.Background(), proffer.StageRequest{
+		RequestID: "workflow:1", SourceVersionRef: "source-version:1", Refs: map[string]proffer.Ref{"sealed_generation": "generation:1"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -356,7 +356,7 @@ func TestPublishGenerationHappyPathAndMissingRef(t *testing.T) {
 	if result.Ref != "publication:1" || result.Stage != stagegraph.PublishGeneration {
 		t.Fatalf("result = %+v", result)
 	}
-	if _, err := a.PublishGeneration(context.Background(), uiw.StageRequest{RequestID: "workflow:1", SourceVersionRef: "source-version:1"}); err == nil || !strings.Contains(err.Error(), "sealed_generation") {
+	if _, err := a.PublishGeneration(context.Background(), proffer.StageRequest{RequestID: "workflow:1", SourceVersionRef: "source-version:1"}); err == nil || !strings.Contains(err.Error(), "sealed_generation") {
 		t.Fatalf("error = %v", err)
 	}
 }
@@ -389,7 +389,7 @@ func TestVerifyNormalizedGenerationRecomputesDigestMatchingHashingConstruction(t
 			t.Fatal(err)
 		}
 		members = append(members, ByteMember{
-			SubjectRef: uiw.Ref("record:" + string(rune('a'+i))), Ordinal: int64(i),
+			SubjectRef: proffer.Ref("record:" + string(rune('a'+i))), Ordinal: int64(i),
 			Canon: CanonNormalizedRecord, Reader: io.NopCloser(bytes.NewReader(payload)),
 		})
 		if err := acc.Add(DigestMember{Ordinal: int64(i), Digest: digest, Canon: CanonNormalizedRecord}); err != nil {
@@ -403,9 +403,9 @@ func TestVerifyNormalizedGenerationRecomputesDigestMatchingHashingConstruction(t
 		verifyRef:         "reconciliation:1", verifyReceipt: "receipt:verify",
 	}
 	a := NormalizedPipelineActivities{Store: store, Normalizer: fakeNormalizer{}, Attempt: func(context.Context) int32 { return 2 }}
-	result, err := a.VerifyNormalizedGeneration(context.Background(), uiw.StageRequest{
+	result, err := a.VerifyNormalizedGeneration(context.Background(), proffer.StageRequest{
 		RequestID: "workflow:1", SourceVersionRef: "source-version:1",
-		Refs: map[string]uiw.Ref{"lineage_validation": "reconciliation:0", "normalized_generation_manifest_digest": "hash-receipt:1"},
+		Refs: map[string]proffer.Ref{"lineage_validation": "reconciliation:0", "normalized_generation_manifest_digest": "hash-receipt:1"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -429,9 +429,9 @@ func TestVerifyNormalizedGenerationRecomputesDigestMatchingHashingConstruction(t
 
 func TestVerifyNormalizedGenerationRejectsZeroRecordsAndBadOrdinalsAndWrongCanon(t *testing.T) {
 	a := NormalizedPipelineActivities{Store: &fakeNormalizedPipelineStore{}, Normalizer: fakeNormalizer{}}
-	req := uiw.StageRequest{
+	req := proffer.StageRequest{
 		RequestID: "workflow:1", SourceVersionRef: "source-version:1",
-		Refs: map[string]uiw.Ref{"lineage_validation": "reconciliation:0", "normalized_generation_manifest_digest": "hash-receipt:1"},
+		Refs: map[string]proffer.Ref{"lineage_validation": "reconciliation:0", "normalized_generation_manifest_digest": "hash-receipt:1"},
 	}
 
 	t.Run("zero records", func(t *testing.T) {
@@ -460,10 +460,10 @@ func TestVerifyNormalizedGenerationRejectsZeroRecordsAndBadOrdinalsAndWrongCanon
 
 func TestVerifyNormalizedGenerationRejectsMissingRefs(t *testing.T) {
 	a := NormalizedPipelineActivities{Store: &fakeNormalizedPipelineStore{}, Normalizer: fakeNormalizer{}}
-	if _, err := a.VerifyNormalizedGeneration(context.Background(), uiw.StageRequest{RequestID: "r", SourceVersionRef: "s"}); err == nil || !strings.Contains(err.Error(), "lineage_validation") {
+	if _, err := a.VerifyNormalizedGeneration(context.Background(), proffer.StageRequest{RequestID: "r", SourceVersionRef: "s"}); err == nil || !strings.Contains(err.Error(), "lineage_validation") {
 		t.Fatalf("error = %v", err)
 	}
-	if _, err := a.VerifyNormalizedGeneration(context.Background(), uiw.StageRequest{RequestID: "r", SourceVersionRef: "s", Refs: map[string]uiw.Ref{"lineage_validation": "x"}}); err == nil || !strings.Contains(err.Error(), "normalized_generation_manifest_digest") {
+	if _, err := a.VerifyNormalizedGeneration(context.Background(), proffer.StageRequest{RequestID: "r", SourceVersionRef: "s", Refs: map[string]proffer.Ref{"lineage_validation": "x"}}); err == nil || !strings.Contains(err.Error(), "normalized_generation_manifest_digest") {
 		t.Fatalf("error = %v", err)
 	}
 }
@@ -472,8 +472,8 @@ func TestNormalizedPipelineActivitiesPropagateStoreErrors(t *testing.T) {
 	sentinel := errors.New("store failure")
 	store := &fakeNormalizedPipelineStore{persistGenErr: sentinel}
 	a := NormalizedPipelineActivities{Store: store, Normalizer: fakeNormalizer{}}
-	if _, err := a.PersistNormalizedGeneration(context.Background(), uiw.StageRequest{
-		RequestID: "workflow:1", SourceVersionRef: "source-version:1", Refs: map[string]uiw.Ref{"normalized_bundle": "b"},
+	if _, err := a.PersistNormalizedGeneration(context.Background(), proffer.StageRequest{
+		RequestID: "workflow:1", SourceVersionRef: "source-version:1", Refs: map[string]proffer.Ref{"normalized_bundle": "b"},
 	}); err == nil || !errors.Is(err, sentinel) {
 		t.Fatalf("error = %v, want wrapped %v", err, sentinel)
 	}
@@ -482,8 +482,8 @@ func TestNormalizedPipelineActivitiesPropagateStoreErrors(t *testing.T) {
 func TestNormalizedPipelineActivitiesRejectEmptyResultOrReceiptRefs(t *testing.T) {
 	store := &fakeNormalizedPipelineStore{sealRef: "", sealReceipt: "receipt:seal"}
 	a := NormalizedPipelineActivities{Store: store, Normalizer: fakeNormalizer{}}
-	if _, err := a.SealGeneration(context.Background(), uiw.StageRequest{
-		RequestID: "workflow:1", SourceVersionRef: "source-version:1", Refs: map[string]uiw.Ref{"normalized_verification": "v"},
+	if _, err := a.SealGeneration(context.Background(), proffer.StageRequest{
+		RequestID: "workflow:1", SourceVersionRef: "source-version:1", Refs: map[string]proffer.Ref{"normalized_verification": "v"},
 	}); err == nil || !strings.Contains(err.Error(), "lacks result or activity receipt") {
 		t.Fatalf("error = %v", err)
 	}

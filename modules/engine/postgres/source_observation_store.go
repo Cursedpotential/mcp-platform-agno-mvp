@@ -15,9 +15,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/activities"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/stagegraph"
-	"github.com/Cursedpotential/mcp-platform-agno-mvp/engine/uiw"
+	"github.com/Cursedpotential/probata/engine/activities"
+	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/stagegraph"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -30,7 +30,7 @@ const sourceObservationCleanupTimeout = 5 * time.Second
 // It must not return the manifest payload through Temporal history.
 type InventoryManifestWriter interface {
 	Append(context.Context, activities.InventoryMember) error
-	Commit(context.Context, activities.InventorySummary) (uiw.Ref, error)
+	Commit(context.Context, activities.InventorySummary) (proffer.Ref, error)
 	Abort(context.Context) error
 }
 
@@ -102,14 +102,14 @@ func (r *SourceObservationRepository) PersistSourceMetadata(ctx context.Context,
 				return activities.MetadataPersistenceResult{}, fmt.Errorf("commit recovered metadata: %w", err)
 			}
 			rollback = false
-			return activities.MetadataPersistenceResult{ResultRef: resultRef, ReceiptRef: uiw.Ref(prior.id.String())}, nil
+			return activities.MetadataPersistenceResult{ResultRef: resultRef, ReceiptRef: proffer.Ref(prior.id.String())}, nil
 		}
 		if prior.status == "not_applicable" && len(spec.Rows) == 0 {
 			if err := tx.Commit(ctx); err != nil {
 				return activities.MetadataPersistenceResult{}, fmt.Errorf("commit recovered metadata not-applicable receipt: %w", err)
 			}
 			rollback = false
-			return activities.MetadataPersistenceResult{ReceiptRef: uiw.Ref(prior.id.String())}, nil
+			return activities.MetadataPersistenceResult{ReceiptRef: proffer.Ref(prior.id.String())}, nil
 		}
 		if prior.status == "not_applicable" {
 			return activities.MetadataPersistenceResult{}, errors.New("metadata idempotency coordinate already completed as not-applicable")
@@ -158,9 +158,9 @@ func (r *SourceObservationRepository) PersistSourceMetadata(ctx context.Context,
 	}
 	rollback = false
 	if len(spec.Rows) == 0 {
-		return activities.MetadataPersistenceResult{ReceiptRef: uiw.Ref(receiptID.String())}, nil
+		return activities.MetadataPersistenceResult{ReceiptRef: proffer.Ref(receiptID.String())}, nil
 	}
-	return activities.MetadataPersistenceResult{ResultRef: resultRef, ReceiptRef: uiw.Ref(receiptID.String())}, nil
+	return activities.MetadataPersistenceResult{ResultRef: resultRef, ReceiptRef: proffer.Ref(receiptID.String())}, nil
 }
 
 // BeginInventory checks retention and creates/reuses the Activity execution,
@@ -197,7 +197,7 @@ func (r *SourceObservationRepository) BeginInventory(ctx context.Context, spec a
 			return nil, fmt.Errorf("commit recovered inventory: %w", err)
 		}
 		rollback = false
-		return &completedInventoryWriter{resultRef: uiw.Ref(prior.refID), receiptRef: uiw.Ref(prior.id.String())}, nil
+		return &completedInventoryWriter{resultRef: proffer.Ref(prior.refID), receiptRef: proffer.Ref(prior.id.String())}, nil
 	}
 	if found && prior.status == "not_applicable" {
 		return nil, errors.New("inventory idempotency coordinate already completed as not-applicable")
@@ -219,7 +219,7 @@ func (r *SourceObservationRepository) BeginInventory(ctx context.Context, spec a
 	}, nil
 }
 
-func (r *SourceObservationRepository) RecordInventoryNotApplicable(ctx context.Context, spec activities.InventorySpec, reason string) (uiw.Ref, error) {
+func (r *SourceObservationRepository) RecordInventoryNotApplicable(ctx context.Context, spec activities.InventorySpec, reason string) (proffer.Ref, error) {
 	if err := validateInventorySpec(spec); err != nil {
 		return "", err
 	}
@@ -253,7 +253,7 @@ func (r *SourceObservationRepository) RecordInventoryNotApplicable(ctx context.C
 				return "", fmt.Errorf("commit recovered inventory not-applicable receipt: %w", err)
 			}
 			rollback = false
-			return uiw.Ref(prior.id.String()), nil
+			return proffer.Ref(prior.id.String()), nil
 		}
 		return "", errors.New("inventory already has a successful result")
 	}
@@ -270,7 +270,7 @@ func (r *SourceObservationRepository) RecordInventoryNotApplicable(ctx context.C
 		return "", fmt.Errorf("commit inventory not-applicable receipt: %w", err)
 	}
 	rollback = false
-	return uiw.Ref(receiptID.String()), nil
+	return proffer.Ref(receiptID.String()), nil
 }
 
 type inventoryWriter struct {
@@ -313,7 +313,7 @@ func (w *inventoryWriter) Append(ctx context.Context, member activities.Inventor
 	return nil
 }
 
-func (w *inventoryWriter) Commit(ctx context.Context, summary activities.InventorySummary) (uiw.Ref, uiw.Ref, error) {
+func (w *inventoryWriter) Commit(ctx context.Context, summary activities.InventorySummary) (proffer.Ref, proffer.Ref, error) {
 	if w.closed {
 		return "", "", errors.New("inventory writer is closed")
 	}
@@ -358,7 +358,7 @@ func (w *inventoryWriter) Commit(ctx context.Context, summary activities.Invento
 		}
 		rollback = false
 		w.closed = true
-		return uiw.Ref(prior.refID), uiw.Ref(prior.id.String()), nil
+		return proffer.Ref(prior.refID), proffer.Ref(prior.id.String()), nil
 	}
 	now := w.clock().UTC()
 	receiptID := uuid.New()
@@ -395,7 +395,7 @@ func (w *inventoryWriter) Commit(ctx context.Context, summary activities.Invento
 	}
 	rollback = false
 	w.closed = true
-	return manifestRef, uiw.Ref(receiptID.String()), nil
+	return manifestRef, proffer.Ref(receiptID.String()), nil
 }
 
 func (w *inventoryWriter) Abort(ctx context.Context) error {
@@ -409,15 +409,15 @@ func (w *inventoryWriter) Abort(ctx context.Context) error {
 }
 
 type completedInventoryWriter struct {
-	resultRef  uiw.Ref
-	receiptRef uiw.Ref
+	resultRef  proffer.Ref
+	receiptRef proffer.Ref
 }
 
 func (w *completedInventoryWriter) Append(context.Context, activities.InventoryMember) error {
 	return errors.New("inventory already completed for this idempotency coordinate")
 }
 
-func (w *completedInventoryWriter) Commit(context.Context, activities.InventorySummary) (uiw.Ref, uiw.Ref, error) {
+func (w *completedInventoryWriter) Commit(context.Context, activities.InventorySummary) (proffer.Ref, proffer.Ref, error) {
 	return w.resultRef, w.receiptRef, nil
 }
 
@@ -458,7 +458,7 @@ func latestObservationReceipt(ctx context.Context, tx pgx.Tx, executionID uuid.U
 	return receipt, true, nil
 }
 
-func (r *SourceObservationRepository) ensureRetainedExecution(ctx context.Context, tx pgx.Tx, sourceVersionRef uiw.Ref, requestID string, stage stagegraph.StageID, idempotencyKey string) (uuid.UUID, uuid.UUID, error) {
+func (r *SourceObservationRepository) ensureRetainedExecution(ctx context.Context, tx pgx.Tx, sourceVersionRef proffer.Ref, requestID string, stage stagegraph.StageID, idempotencyKey string) (uuid.UUID, uuid.UUID, error) {
 	versionID, err := uuid.Parse(string(sourceVersionRef))
 	if err != nil {
 		return uuid.Nil, uuid.Nil, fmt.Errorf("source version reference is not a UUID: %w", err)
@@ -561,8 +561,8 @@ func validateInventorySpec(spec activities.InventorySpec) error {
 	return nil
 }
 
-func metadataManifestRef(sourceVersionID uuid.UUID, stage stagegraph.StageID) uiw.Ref {
-	return uiw.Ref(fmt.Sprintf("source-metadata:%s:%s", sourceVersionID, stage))
+func metadataManifestRef(sourceVersionID uuid.UUID, stage stagegraph.StageID) proffer.Ref {
+	return proffer.Ref(fmt.Sprintf("source-metadata:%s:%s", sourceVersionID, stage))
 }
 
 func sourceObservationCleanup(ctx context.Context) (context.Context, context.CancelFunc) {

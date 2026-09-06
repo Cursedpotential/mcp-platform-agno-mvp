@@ -1,7 +1,7 @@
 package stagegraph
 
 // Stages is the ordered, exhaustive registry of every Activity in the
-// UniversalImportWorkflow. Order follows the canon document's numbering
+// ProfferWorkflow. Order follows the canon document's numbering
 // (section 2) purely for readability; the actual execution order is
 // determined by DependsOn, not slice position.
 //
