@@ -11,6 +11,7 @@
 | 05 | `05-identifier-rulings-needed.md` | any agent, in conversation with the owner | yes (18 rulings) |
 | 06 | `06-analysis-engine-split-indagatio.md` | planning agent | plan iterates until owner says done |
 | 07 | `07-memory-tooling-repairs.md` | any agent | only for dropping collections |
+| 08 | (no file yet) the **advocatio** repo (`modules/advocatio/`, its own commit root, `Cursedpotential/Legal-Workspace`) still calls itself Legal-Workspace and refers to `Agno-MCP-Platform` in its README, AGENTS.md, AGENT_MEMORY.md, pyproject, and docs; it needs its own naming sweep under D-138, with the same alias-vs-replace rule. Same for `modules/vestigia/` (traceIQ). | any agent, from inside that repo | product rename ruled; GitHub repo renames not ruled |
 
 ## Standing rules every file assumes (from AGENTS.md / CLAUDE.md)
 

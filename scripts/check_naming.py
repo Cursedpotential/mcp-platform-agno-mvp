@@ -55,7 +55,9 @@ ALLOW_DIRS = (
     "modules/apps/",
     "modules/custom/",
     "modules/Legal-Workspace/",
+    "modules/advocatio/",   # nested independent repo (its own sweep, own commit root)
     "modules/traceIQ/",
+    "modules/vestigia/",
     ".memsearch/",
     ".remember/",
     ".cnf/",
@@ -88,6 +90,7 @@ ALLOW_FILES = {
     "docs/DECISION_LOG.md",
     "docs/NAMING.md",
     "scripts/check_naming.py",
+    "scripts/rename_routers_2026_09_06.py",  # carries the old names as search strings by design
 }
 # Historical review/planning docs are annotated, not rewritten (D-142 alias rule for
 # history). A file is exempt if it carries the naming note.
