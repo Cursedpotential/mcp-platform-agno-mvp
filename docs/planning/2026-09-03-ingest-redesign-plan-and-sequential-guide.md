@@ -260,6 +260,27 @@ held; immutability guards switchable by design (D-110/D-127/D-128); naming (D-13
 > a "flag for promotion" action must exist on every surface that shows a record, group, or
 > bundle: context review, Surreal analysis, search results. Flagging never promotes by itself;
 > it queues for the owner's promote click (D-145/D-146).
+> **D-147/D-148 — Action = human action; contradiction = first-class edge. Evidence of a
+> contradiction comes from ANY source, not only messages** (owner 10:43): "she said she was
+> going to work — work is Huckleberry Junction — but her GPS shows she was in Flushing at a
+> house that isn't work"; "she said she'd pick up Anaya before work, but went to the party
+> store and sat there two hours." So the SAT lane must join: message assertions (who said
+> what to whom, when) × **known places** (`work` = a named location — entity registry) ×
+> **GPS/location lane** (D-121, parked, one-file restore) × third-party conversations. The
+> geo lane's parking is now on the critical path of the second lane's value, not before.
+> Contradiction kinds so far: promise→contrary act; stated plan→different act; commitment→
+> reversal; stated location→GPS elsewhere; stated errand→GPS shows a different stop+duration.
+> **Gold labels (owner 10:44–10:45):** a label schema + one-shot prompt/examples for Action/
+> Contradiction extraction is being written to `docs/reference/SAT-ACTION-CONTRADICTION-LABELS-
+> 2026-09-06.md` from the owner's five verbatim examples. It sits ALONGSIDE the existing
+> labeling substrate: `analysis.human_label` + `analysis.human_label_gold` (live, baseline
+> :921/:933) and the July pilot — the 1,918-message iMessage conversation exported to
+> `labeling-workbook-imessage-2989.xlsx` (164 categories + severity) that the owner never
+> finished labeling. Owner: that table "of labeled messages that aren't really labeled" has to
+> be properly addressed too. → Stage 3 item: load/complete the pilot labels via the NocoDB
+> front-end, then measure the detectors against them; Action/Contradiction gold rows go into
+> `analysis.human_label_gold` (or a sibling `reference.*` table the doc proposes) so they
+> survive teardown (D-142: owner labels are the only precious data).
 
 ### Stage 0 — Rulings that unlock everything (owner, via the Decision Desk)
 - ~~☐ **Q19 NUL bytes in raw records (new 2026-09-05):** PostgreSQL TEXT cannot hold 0x00; the
