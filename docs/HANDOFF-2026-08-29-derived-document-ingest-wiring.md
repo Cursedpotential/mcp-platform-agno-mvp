@@ -4,6 +4,7 @@
 > _Byline amendment: Claude Code · Opus 5 · 2026-08-29_
 > _Byline implementation-state amendment: Codex · GPT-5 · 2026-08-29_
 > _Byline ADR-0061/SBV-boundary correction: Codex · GPT-5 · 2026-08-29_
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
 STATUS: PARTIAL — audit decisions are reconciled; schema, auth, Workbench shell, and SBV-preview
 implementation lanes are local/in review; nothing in this document is yet production-complete.
 BUILD_STATUS: PARTIAL PASS — focused migration/contract/auth tests and Workbench lint/build pass locally;

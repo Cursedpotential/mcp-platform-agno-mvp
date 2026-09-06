@@ -1,6 +1,7 @@
 # UIW rehearsal — the acquisition seam (FIXED, verified live) and what it uncovered
 
 > _Byline: Claude Code · Opus 5 · 2026-09-02 (step 9 rehearsal, live evidence)._
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
 
 ## What the rehearsal proved
 

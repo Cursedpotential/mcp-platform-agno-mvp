@@ -1,6 +1,7 @@
 # Ingest simplification plan — custody only at promotion, one activity per file
 
 > _Byline: Claude Code · Opus 5 · 2026-09-03. Orchestrator plan per `/make-plan`._
+> _Byline amendment: Claude Code · Fable 5.1 · 2026-09-05 — naming canon sweep D-137..D-141. This repository is now **Indicia Probata** / `probata`; the import lane (`uiw` in the code paths referenced below, not yet renamed in `modules/engine/`) is named **proffer** going forward (D-140). Code path literals below (`modules/engine/uiw/...`) reflect the actual current tree and are left as-is until the owning lane executes the rename; see `docs/NAMING.md`._
 >
 > **STATUS: ITERATING — NOT DONE.** This plan is done only when the owner says it
 > is done (owner, 2026-09-03: "You don't decide when the plan is done… We iterate
@@ -320,6 +321,6 @@ ADR-0052 CDC fan-out into graph and vectors — never a mutation of working rows
 ## What this plan deliberately does NOT do
 
 - It does not touch AI-chat ingest (`transcripts.*`, D-082). Those never promote and never get custody.
-- It does not rename the repo or the Go module (parked; see D-131/naming thread).
+- ~~It does not rename the repo or the Go module (parked; see D-131/naming thread).~~ **Corrected 2026-09-05 (D-137..D-141):** naming is no longer parked — the product/component naming canon is ruled (this repo is **Indicia Probata** / `probata`; the import lane is **proffer**; see `docs/NAMING.md`). This plan still does not execute the mechanical GitHub repo rename, Go module path rewrite (97+ imports), parent gitlink update, or Coolify remote rename — that is its own plan, per D-138's execution note.
 - It does not build the screenshot→message OCR inference lane (separate; ADR-0053 rung 3 provider is still unselected).
 - It does not stand up Authentik (D-133; separate).

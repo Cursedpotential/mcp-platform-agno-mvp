@@ -1,6 +1,7 @@
 # BUILD LANE N1 — n8n universal-import bridge: bind, activate, probe
 
 > _Byline: Claude Code · Sonnet 5 · 2026-09-02._
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
 
 Scope: bind and activate the 7 n8n workflows that back the Go
 `UniversalImportWorkflow`'s `select_parser_activity` / `execute_parser_activity`

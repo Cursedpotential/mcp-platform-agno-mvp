@@ -1,6 +1,7 @@
 # PostgreSQL 18 Migration Rehearsal — 0045, 0046, 0047, 0048, 0049
 
 > _Byline: OpenCode Nemotron 3 Ultra + 2026-08-29_
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
 
 **STATUS: PASS** — 0045 (guarded no-op supersession), 0047 (content chunk + context thread foundation), 0048 (context fingerprint UIW repair), and 0049 (ai→platform consolidation proof foundation) all apply and roll back cleanly on PostgreSQL 18.1. Migration 0046 (agno_app role) is verified as a prerequisite but was not applied to the scratch database (role does not exist — safe prerequisite state). Every migration execution was stripped of its outer `BEGIN`/`COMMIT`, executed in a caller-owned transaction, and forcibly rolled back.
 

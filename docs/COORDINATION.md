@@ -1,7 +1,8 @@
-# COORDINATION — multi-chat war room for Agno-MCP-Platform
+# COORDINATION — multi-chat war room for ~~Agno-MCP-Platform~~ **Indicia Probata / `probata`** (renamed D-138, 2026-09-05; see `docs/NAMING.md`)
 
 > _Byline: Claude Code · Fable 5 · 2026-07-08 (TODO/Ledger update: Claude Opus 4.8 · 2026-07-10)_
 > _Byline amendment: Codex · GPT-5 · 2026-08-18 (combined-change hygiene)._
+> _Byline amendment: Claude Code · Fable 5.1 · 2026-09-05 (naming canon sweep D-137..D-141)._
 > **Purpose:** two (or more) Claude chats work this repo concurrently. This file is the
 > shared ledger: who owns what, what's in flight, what's frozen, and handoffs. **Append,
 > don't rewrite history** — add timestamped entries under your lane; strike (~~…~~) items

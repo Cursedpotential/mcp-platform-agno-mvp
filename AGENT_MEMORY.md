@@ -20,6 +20,7 @@ contains_secrets: false
 # Repository Agent Memory
 
 > _Byline: Codex · GPT-5 · 2026-08-27; navigation verification refreshed 2026-08-29._
+> _Byline: Claude Code · Fable 5.1 · 2026-09-05 — naming canon sweep D-137..D-141; no UIW/proffer rows existed in this router. See `docs/NAMING.md`._
 
 This file is a router, not an encyclopedia. Read only the branches relevant to the current task.
 
@@ -39,8 +40,10 @@ This file is a router, not an encyclopedia. Read only the branches relevant to t
 
 - SurrealDB remains the governed temporal-graph, walk, and analysis target. Only the retired legacy
   operational adapter/instance is parked. See `AGENTS.md` and ADR-0056.
-- LanceDB is not part of the current platform stack. Milvus remains deliberately inactive; current
-  search projection is Weaviate. See `AGENTS.md`.
+- LanceDB is not part of the current platform stack. **Milvus = memsearch only; Weaviate =
+  project vector store projection** (owner ruling 2026-09-03): the Milvus service
+  (`100.91.190.107:19530`) is UP and is memsearch's live backend — never say "Milvus is
+  down." See `AGENTS.md`.
 - PostgreSQL remains canonical. Timesketch, search, graph, RAG, and operator surfaces are governed
   views or projections, not replacement authority.
 

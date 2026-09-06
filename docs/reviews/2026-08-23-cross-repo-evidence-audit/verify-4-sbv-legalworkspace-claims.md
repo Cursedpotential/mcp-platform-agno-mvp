@@ -1,5 +1,7 @@
 # Claim Verification: SBV Custody + Legal-Workspace (14 claims)
 
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
+
 > Verifier: Claude Code (general-purpose agent) · Sonnet 5 · 2026-08-23
 > Base: `E:/AI_Workspace/Projects/the-platform-workspace`
 

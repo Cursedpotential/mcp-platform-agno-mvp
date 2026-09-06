@@ -1,6 +1,7 @@
 # Lane 1c — Agno docs, ADRs, and dead-weight audit
 
 > _Byline: Claude Code · Opus 5 · 2026-08-23_ · source: subagent ad17edcca5dc30dee
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
 
 Read-only. Docs treated as aspirational unless corroborated against other docs, ledger entries, or
 actual file contents.

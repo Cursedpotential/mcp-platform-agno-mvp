@@ -5,6 +5,7 @@
 > Owner-authorized live infra execution (2026-09-04 23:50). Constraint in force
 > for this session: **no git commits or pushes.** Every blocker below is a
 > one-to-few-line repo change, which is exactly why the session stopped here.
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
 
 ## Outcome, first
 

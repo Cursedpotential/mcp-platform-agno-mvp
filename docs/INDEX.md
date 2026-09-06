@@ -9,6 +9,8 @@
 > _2026-08-27 amendment: Codex · GPT-5 — added the open-source live observability shortlist._
 > _2026-08-27 amendment: Codex · GPT-5 — added the D-091 fresh `platform` database hold,
 > D-092 court-export-only redaction boundary, and the held migration-0036 runbook._
+> _2026-09-05 amendment: Claude Code · Fable 5.1 — indexed docs/NAMING.md, the naming canon
+register for D-137..D-141 (probata/proffer/indagatio/consignatio/advocatio/vestigia)._
 > _2026-08-26 amendment: Claude Code · Opus 5 — added the two current naming-migration artifacts
 > (owner HTML + census/handoff) to Start Here and the D-086 naming paragraph to Current truth._
 > _2026-08-23 amendment: Claude Code · Opus 5 — corrected the "Held activation" migration
@@ -24,6 +26,7 @@ deployed.
 | Need | Document | Authority |
 |---|---|---|
 | Product invariant and locked decisions | [PROJECT_CANON.md](PROJECT_CANON.md) | Durable canon |
+| Naming canon (product + component names) | [NAMING.md](NAMING.md) | Durable canon; D-137..D-141 |
 | Current forward order | [BUILD_PLAN.md](BUILD_PLAN.md) | Forward entry point |
 | Entire application TODO | [MASTER-TODO-2026-08-18.md](MASTER-TODO-2026-08-18.md) | Authoritative production resume ledger |
 | Independent verification of the above | [OWNER-REVIEW-2026-08-18-verified-todo-audit.md](OWNER-REVIEW-2026-08-18-verified-todo-audit.md) | Confirms/contradicts MASTER-TODO against live code+DB; lists gaps and owner-blocked items |

@@ -6,6 +6,7 @@
 > Method: direct `Grep`/`Read` sweep by the audit lead plus two parallel research passes
 > (Go engine; TS/deploy/CI) whose file:line citations were independently re-verified before
 > inclusion here. READ-ONLY on code; this is the one report doc the lane was authorized to write.
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
 
 ## Why this audit exists (read before the table)
 

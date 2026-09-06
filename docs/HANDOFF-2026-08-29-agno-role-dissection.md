@@ -2,6 +2,7 @@
 
 > _Byline: Claude · Opus 5 · 2026-08-29, from an owner directive._
 > _Ruling reconciliation: Codex · GPT-5.6-Sol · 2026-08-29._
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
 
 STATUS: IMPLEMENTING — production-host, direct-caller, runtime-auth, Workbench object-store, and
 stable private-surface slices are live. Temporal workflow and Agno Knowledge/provider replacement

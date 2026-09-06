@@ -61,6 +61,7 @@ Markdown totals 131,489 lines against 102,707 lines of first-party Python and 32
 More documentation than code is not automatically wrong for a governance-heavy forensic project, but the current structure has specific failure signatures:
 
 - **Byline stacking.** README, `docs/DEBT.md`, and `server/evidence/retrieval.py` all carry chains of dated amendment bylines from multiple models (Sonnet 5, Kimi K3, GPT-5, Opus 5, glm-5.2, Fable 5). These are useful provenance but they push the actual content below the fold and encourage agents to append rather than revise.
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
 - **Self-contradicting status.** `docs/DEBT.md` explicitly corrects a prior stale banner, noting migrations 0026–0029 were live despite "HELD/NOT APPLIED" markers in the SQL files. Status truth was distributed across two places and drifted.
 - **Parking lots.** `_stale/` (248 KB), `to_be_deleted/` (80 KB), `docs/awaiting-verification/` (1.6 MB), `docs/pending-review/` (44 KB), and `docs/wiki/_TO_BE_DELETED` are all still tracked. `docs/wiki/FUCKED.MD` is a raw dictation transcript about reorganizing the wiki, checked into the canonical docs tree.
 - **26 `AGENT_MEMORY.md` files and 13 `AGENTS.md` files.** Distributed agent context is a reasonable pattern, but at this count the probability that two of them disagree is high, and nothing enforces reconciliation.

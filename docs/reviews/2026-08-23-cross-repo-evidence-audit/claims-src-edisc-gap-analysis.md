@@ -1,5 +1,7 @@
 # MCP Platform vs. `edisc (1).md`: Implementation Gap Analysis
 
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
+
 **Repository:** [Cursedpotential/mcp-platform-agno-mvp](https://github.com/Cursedpotential/mcp-platform-agno-mvp)  
 **Reviewed revision:** [`1e38d3a61d86fe5bd4d94a549b7797380f8faa1c`](https://github.com/Cursedpotential/mcp-platform-agno-mvp/commit/1e38d3a61d86fe5bd4d94a549b7797380f8faa1c) (`main`, 2026-08-18)  
 **Comparison guidance:** `edisc (1).md`  

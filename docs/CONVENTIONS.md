@@ -8,6 +8,7 @@
 > _Byline: OWL · openrouter/owl-alpha · 2026-06-14 · updated 2026-07-29 (Claude Code · Fable 5);
 > updated 2026-08-09 (Claude Code · Sonnet 5);
 > drift-fix 2026-08-12 (Claude Code · Kimi K3: pin reference 2.8.0 → 2.8.7 per requirements.txt:3)_
+> _Byline amendment: Claude Code · Fable 5.1 · 2026-09-05 — naming canon sweep D-137..D-141; see `docs/NAMING.md`. The `Agno-MCP-Platform-alpha/chatminer` provenance path in the example below is a literal filesystem path and is unchanged._
 
 ## Artifact byline — provenance on EVERYTHING (required)
 

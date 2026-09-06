@@ -2,6 +2,7 @@
 
 > _Byline: Codex · GPT-5.6-Sol · 2026-08-30._
 > _Contract reconciliation: Codex · GPT-5.6-Sol · 2026-08-30._
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
 
 The versioned client source is `docs/schemas/platform-intake-job-contract-v1.openapi.yaml`. It is
 generated from the actual FastAPI routes and Pydantic models by

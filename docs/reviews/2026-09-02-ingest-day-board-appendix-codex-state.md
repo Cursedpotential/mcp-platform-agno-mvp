@@ -1,6 +1,7 @@
 # Ingest-day board appendix — post-spec build state (Codex/n8n/OpenCode recall)
 
 > _Byline: Claude Code · Sonnet (design-recall lane) · 2026-09-02_
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
 
 Purpose: recover what actually got BUILT after
 `docs/reviews/2026-08-25-schema-audit/TEMPORAL-N8N-WORKFLOW-AND-GAPS.md` ("Workflow A" /

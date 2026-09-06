@@ -1,6 +1,7 @@
 # Fresh `platform` baseline recovery — Matter/UIW prerequisite
 
 > _Byline: Codex · GPT-5 · 2026-08-29._
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
 
 STATUS: READ_ONLY_RECOVERY_COMPLETE  
 LIVE_MUTATION: NONE  

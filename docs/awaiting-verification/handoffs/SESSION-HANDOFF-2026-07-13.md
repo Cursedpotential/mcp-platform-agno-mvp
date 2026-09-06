@@ -1,5 +1,7 @@
 # SESSION HANDOFF — 2026-07-13 (chat: Opus 4.8)
 
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
+
 Conversation got long/expensive. Full state dump. Read, then continue.
 
 ## COMMITTED VS NOT

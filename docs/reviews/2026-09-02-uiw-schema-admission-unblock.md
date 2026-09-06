@@ -1,6 +1,7 @@
 # BUILD LANE S1 — UIW schema admission unblock
 
 > _Byline: Claude Code · Sonnet 5 · 2026-09-02._
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
 
 Scope: unblock the universal-import-worker's fail-closed `ProbeUIWSchema` gate
 (`modules/engine/postgres/uiw_schema_probe.go`), which crash-loops the worker

@@ -3,6 +3,7 @@
 > _Byline: Codex · GPT-5 · 2026-08-16_
 >
 > **Status:** AUTHORIZED FOR THE NAMED T0 SLICE ONLY; PREFLIGHT PASSED; DEPLOYMENT PENDING.
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
 
 ## Answer first
 

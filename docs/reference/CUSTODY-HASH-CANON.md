@@ -1,6 +1,7 @@
 # Custody-hash canon — durable backup of `public.canon_registry`
 
 > _Byline: Claude Code · Opus 5 · 2026-08-24_
+> _Byline: Claude Code · Fable 5.1 · 2026-09-05 — naming sweep D-137..D-141; see `docs/NAMING.md`._
 >
 > **Why this file exists (owner instruction, 2026-08-24):** until tonight these recipes lived in
 > exactly ONE place — a table in the live database, created by no migration, read by no code,
@@ -45,7 +46,7 @@
 - **Test vectors** (both from previous_hash `8173f2d3…c69f71`):
   - h2 `bcd2b404…b167cb` → `bc6538b346c192af04f5cdf2f0f42b766f2a95070307fc2aa0f495462ad34016`
   - h2 `b6b3b4a5…04ff46` → `676bd4e40eb3556d052ac03782854e5018819aecca855a9664e60eceb9351ca9`
-- **⚠ Naming caution:** the SBV/universal-import lane uses a DIFFERENT construction with
+- **⚠ Naming caution:** the SBV/~~universal-import~~ **proffer** (renamed D-140, 2026-09-05) lane uses a DIFFERENT construction with
   genesis `""` under the tag `h3-chain-sbv-genesisempty-v1` (`server/evidence/custody.py:374-384`).
   Two valid constructions once collided under the bare tag `h3-chain-v1`; rows are never
   relabelled — always name the exact construction.

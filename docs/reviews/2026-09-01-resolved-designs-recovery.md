@@ -6,6 +6,7 @@
 > forgotten because their ruling documents were never committed. This document
 > makes each resolution durable, with its source, so no future session re-derives
 > a wrong picture. **These are settled. Do not re-litigate any of them.**
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
 
 ## Why they were lost (the records failure)
 

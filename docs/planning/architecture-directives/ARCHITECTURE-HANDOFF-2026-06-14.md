@@ -1,6 +1,7 @@
 # Architecture Brainstorming Handoff — 2026-06-14
 > _Byline: Claude Code · Opus 4.8 · 2026-06-14_
 > Written to survive a context clear. Resume here + the memory resume-pointer [[platform-redeploy-plan]].
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
 
 ## 0. WHERE WE ARE (one line)
 Deploy of the Agno platform is **paused right before Coolify app-creation** because a new

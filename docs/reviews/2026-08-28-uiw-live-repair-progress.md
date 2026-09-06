@@ -1,6 +1,7 @@
 # Universal Import live repair progress — retention and custody slice
 
 > _Byline: Codex · GPT-5.6 · 2026-08-28; migration implementation assisted by OpenCode · GLM 5.3 Cloud._
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
 
 STATUS: PARTIAL — MIGRATIONS_APPLIED; WORKER_DEPLOYMENT_PENDING; N8N_INACTIVE
 LIVE_PROOF: RETENTION_PASS_AND_NEW_CUSTODY_BLOCKER_REPRODUCED

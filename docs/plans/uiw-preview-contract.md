@@ -1,6 +1,7 @@
 # UIW pipeline-preview contract
 
 > _Byline: Codex · GPT-5.6 · 2026-08-29._
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
 
 STATUS: IMPLEMENTED LOCALLY; UPSTREAM GO SURFACE, DEPLOYMENT, AND LIVE PROOF REMAIN
 

@@ -6,6 +6,7 @@
 > Method: `ccc` index (33,436 chunks, rebuilt by owner) + Grep tool + direct file reads.
 > Note: `rg` is NOT on PATH in this Git Bash — two early "empty" results were false negatives from
 > a failed command, not real absences. All negatives below use the Grep tool instead.
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
 
 ---
 

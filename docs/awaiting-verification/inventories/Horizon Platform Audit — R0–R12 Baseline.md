@@ -11,6 +11,7 @@
 > **Status note:** This is the accepted baseline at commit `229baff`, not a statement of current
 > implementation state. Later source, dated R-series handoffs, ADRs, and `docs/DEBT.md` govern
 > subsequent verification and resolution status.
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
 
 **Repository:** [Cursedpotential/mcp-platform-agno-mvp](https://github.com/Cursedpotential/mcp-platform-agno-mvp) · reviewed at commit `229baff` (main)
 **Baseline for comparison:** the current R0–R12 handoff set indexed in [docs/HANDOFFS.md](https://github.com/Cursedpotential/mcp-platform-agno-mvp/blob/main/docs/HANDOFFS.md)

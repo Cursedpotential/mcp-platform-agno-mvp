@@ -1,5 +1,7 @@
 ## Overview
 
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
+
 This analysis cross-references the project's existing eDiscovery/forensic research (`edisc.md`, `conversation_ingestion_system_design.md`, `archive-triage-parser-schema-lineage-2026-08-09.md`, `VLEX-RESEARCH-PROMPTS.md`) against three live GitHub repositories — `mcp-platform-agno-mvp` (the evidence spine), `Legal-Workspace` (the sibling legal-strategy app), and `sbv-forensic` (the SMS Backup Viewer) — to identify concrete gaps, redundancies, and near-term opportunities specific to document handling, searching, and evidence bundling for the Salem v. Kinzel matter.[^1][^2]
 
 The three repositories represent a deliberately split architecture: `mcp-platform-agno-mvp` owns evidence ingestion, custody, and the bitemporal analysis schema; `Legal-Workspace` owns legal strategy, drafting, and filing preparation and explicitly consumes evidence via API rather than a shared writable store; and `sbv-forensic` is a narrow, self-hosted SMS/MMS/call-log viewer that feeds the parser layer. This split is architecturally sound but currently produces integration seams that are the largest source of gaps identified below.

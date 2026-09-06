@@ -1,6 +1,7 @@
 # UIW opaque preview Go surface — implementation receipt
 
 > _Byline: Codex · GPT-5.6 · 2026-08-29._
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
 
 STATUS: LOCAL CONTRACT + DURABLE PG18 STORE + STARTER MOUNT IMPLEMENTED; DEPLOYMENT/LIVE PROOF REMAIN
 

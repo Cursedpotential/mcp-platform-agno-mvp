@@ -170,7 +170,24 @@ held; immutability guards switchable by design (D-110/D-127/D-128); naming (D-13
 > Status marks: ☐ open · ◐ in progress · ☑ done (only when the owner says) · ✖ struck.
 > Model routing per owner: reasoning → Opus, mechanical → Sonnet, never Fable inline.
 
+> **2026-09-05 09:3x — LIVE CHAIN RESULT** (full record: `docs/reviews/2026-09-05-ingest-day-live-chain.md`).
+> **Proven end to end through the tool gateway to the HITL repair gate**, on a real Temporal run
+> (`rehearsal-20260905-r2e-1788612588`): register → retain from `r2://` → assess via gateway
+> (repair.detect 200, repair.preview 200, 99 clean chunks) → `awaiting_repair_decision`. After the
+> decision (`rehearsal-20260905-r2f-1788614408`): resolve, capture metadata, fingerprint,
+> inventory, extract metadata, select_parser all COMPLETED; **execute_parser FAILED** on a NUL
+> byte (0x00) in the synthetic fixture reaching a PG TEXT column. Stage 2 (gateway live) = ☑.
+> Stage 1 items B2/B3/B4 = ☑ built + applied live (0071/0072). New Stage-0 ruling needed: NUL
+> handling (see Q19 on the desk). Permission rules restored to the 2026-09-04 ruling.
+> Commits: ad5f820 · 8ed3191 · fa51dde · cc182a9 · 5eda234 · 3952814 · 26a36da · d06e169 ·
+> c3d5475 · 77e6033 · 72a121e · 7feea1f.
+
 ### Stage 0 — Rulings that unlock everything (owner, via the Decision Desk)
+- ☐ **Q19 NUL bytes in raw records (new 2026-09-05):** PostgreSQL TEXT cannot hold 0x00; the
+  synthetic SMS XML has one in element 8 and the parse dies at the raw insert. D-136 says content
+  is immutable — the byte-exact record stays in the envelope bytes / H2; the question is the TEXT
+  rendering: (A) substitute U+FFFD + flag `had_nul` on the row; (B) store raw text as BYTEA and
+  render at read; (C) reject the record to `raw.raw_rejected` with reason. Owner rules.
 - ☑ **Q1 RULED 2026-09-04 23:4x = C** ("my lean is C… make it work the same way and
   everything checkable again"). Mechanism: DuckDB templates use `read_text` → self-split into
   records with a running byte offset → decode columns FROM the record text → activity builds the
@@ -189,6 +206,15 @@ held; immutability guards switchable by design (D-110/D-127/D-128); naming (D-13
 - ☐ Which January-era items, if any, are re-adopted (fingerprint matcher, tz field, decoder).
 
 ### Stage 1 — Foundation (no ingest yet)  [Sonnet unless marked]
+> **2026-09-05 05:5x — PUSHED to origin/main at `5eda234`** (owner: "commit… push… Clean. Done."):
+> `ad5f820` outbox 0071 · `8ed3191` gateway slice (Go 1.26 pins, tsnet embed assets, worker→gateway
+> contract + fail-closed token, platform-tools contexts + materialize mount) · `fa51dde` worker token
+> mount · `cc182a9`/`5eda234` H-04 bridge 0072 + Weaviate feed rewire + nemotron 2048. Live deploy run
+> in progress (migrations → platform-tools → gateway → worker → rehearsal); result lands in
+> `docs/reviews/2026-09-05-live-deploy-run.md`. Blocked by permission rules, NOT worked around:
+> root `AGENTS.md` compose-context drift line; `deploy/compose.yaml` platform-tools block
+> (`context: ..`, `dockerfile: deploy/docker/tools/Dockerfile`). Both owed.
+
 - ☐ Apply the docs-only permission rules — DONE 18:3x (`.claude/settings.local.json`).
 - ☐ Write ADR-0063 from the SAT guide + Stage-0 rulings [Opus]; supersession note on ADR-0041
   (Agno-native orchestration → D-107; LangGraph now in); D-138 in DECISION_LOG.

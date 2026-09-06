@@ -1,6 +1,7 @@
 # Universal Import worker live-verification receipt — 2026-08-27
 
 > _Byline: Codex · GPT-5 · 2026-08-27. Live evidence collected by Russell._
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
 
 - Status: **PASS**
 - Verified at: `2026-08-27T17:46:36Z`

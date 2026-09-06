@@ -13,6 +13,7 @@
 > update: Claude Opus 4.8 · 2026-07-10; 2026-08-09 update: Claude Code · Sonnet 5;
 > 2026-08-13 update: Codex · GPT-5; 2026-08-14 visualizer namespace: Codex · GPT-5;
 > 2026-08-15 current-entry-point repair: Codex · GPT-5)_
+> _Byline amendment: Claude Code · Fable 5.1 · 2026-09-05 — naming canon sweep D-137..D-141; this repository is **Indicia Probata** / `probata`; see `docs/NAMING.md`. `Agno-MCP-Platform-alpha/` path references below are literal filesystem paths (reference-only parts bin), not product-name assertions, and are unchanged._
 
 ## The one active build
 

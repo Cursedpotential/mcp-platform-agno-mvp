@@ -4,6 +4,7 @@
 > Source package: `C:\Users\matts\Downloads\handoffs-v2 (1).zip` (14 files, compiled 2026-08-31).
 > Every load-bearing claim below was verified against the live repo and the live
 > `platform` database at 100.91.190.107:5432 on 2026-09-01.
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
 
 ## Validation results (live-probed, not taken on faith)
 

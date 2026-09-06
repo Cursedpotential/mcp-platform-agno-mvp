@@ -1,6 +1,7 @@
 # Runbook: case-registry go-live cutover (D-126)
 
 > _Byline: Claude Code · Sonnet 5 · 2026-09-02 (BUILD LANE S3)._
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
 
 Governing ruling: `docs/DECISION_LOG.md` D-126 (rel: D-115, D-117, D-118, D-125,
 sql/0054, sql/0066, sql/0067). Read that entry before running any step here.

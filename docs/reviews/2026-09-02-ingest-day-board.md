@@ -5,6 +5,7 @@
 > to start ingesting chats and messages."** Built exactly to the decision record — no
 > assuming, no guessing; every claimed completion re-verified against this contract
 > first ("slow and steady wins the race").
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
 
 ## The delivery contract (owner, 2026-09-02, dictated)
 

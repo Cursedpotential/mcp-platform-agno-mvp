@@ -1,5 +1,7 @@
 # HANDOFF INDEX — mcp-platform-agno-mvp remediation
 
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
+
 Repo: `Cursedpotential/mcp-platform-agno-mvp`
 Compiled: 2026-08-31
 Source: full-tree audit (4,027 tracked files, 166 MB) + ADR/DEBT review

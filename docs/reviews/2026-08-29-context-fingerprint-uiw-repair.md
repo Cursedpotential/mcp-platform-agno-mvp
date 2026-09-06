@@ -1,6 +1,7 @@
 # Context fingerprint / UIW repair receipt — 2026-08-29
 
 > _Byline: Codex · GPT-5 · 2026-08-29_
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
 
 STATUS: IMPLEMENTED AND LOCALLY VERIFIED
 

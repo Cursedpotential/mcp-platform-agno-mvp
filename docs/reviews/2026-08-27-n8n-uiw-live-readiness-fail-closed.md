@@ -1,6 +1,7 @@
 # n8n / Universal Import live-readiness receipt — fail closed
 
 > _Byline: Codex · GPT-5 · 2026-08-27_
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
 
 STATUS: **BLOCKED / FAIL CLOSED**
 LIVE_PROOF: **PARTIAL** — the Coolify-managed services are running and the starter can create a

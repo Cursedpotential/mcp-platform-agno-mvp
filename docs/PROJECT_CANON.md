@@ -8,6 +8,12 @@
 > reality: migrations 0026–0030 confirmed/applied live (CH-15/CH-16); D-067 Temporal
 > persistence + role ruling; TODO-212 framework roles ruled; TODO-101/207 custody-mandatory
 > ruling; Graphiti retirement direction recorded._
+> _Byline amendment: Claude Code · Fable 5.1 · 2026-09-05 — naming canon sweep
+> D-137..D-141 (repo = **Indicia Probata** / `probata`; analysis engine splitting off as
+> **Indagatio Veri** / `indagatio`; vault = **consignatio**; legal workbench = **advocatio**;
+> geo = **vestigia**; import lane UIW → **proffer**). See `docs/NAMING.md`. No canon
+> assertion in this file named an old product brand as current truth, so no strike-through
+> was needed here beyond this note._
 > Last updated: 2026-08-23 (§4 ovh-files PG18 row gains `temporal`/`temporal_visibility`
 > databases + `agno_app`/`temporal` roles per D-067/CH-16; §4 `data-graphiti` row gains the
 > owner's retirement-direction note; §5 gains D-067, the TODO-212 framework-roles line, and the

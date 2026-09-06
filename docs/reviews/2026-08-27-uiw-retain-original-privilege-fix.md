@@ -2,6 +2,7 @@
 
 > **Status:** APPLIED AND INDEPENDENTLY VERIFIED LIVE
 > **Byline:** Codex · GPT-5 · 2026-08-27
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
 
 ## Result
 

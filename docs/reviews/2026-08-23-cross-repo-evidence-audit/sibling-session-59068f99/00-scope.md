@@ -1,6 +1,7 @@
 # Review Scope
 
 > _Byline: Claude Code · Opus 5 · 2026-08-23_
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
 
 ## Target
 

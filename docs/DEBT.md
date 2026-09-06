@@ -4,6 +4,7 @@
 > correction, agno pin correction, STUB-rule test scoping, parser-lane queue update, justified-custom
 > addition, dated audit stamp);
 > drift-fix 2026-08-12 (Claude Code · Kimi K3: Milvus "locked + LIVE" row corrected — ADR-0040/D-042 supersession)_
+> _Byline amendment: Claude Code · Fable 5.1 · 2026-09-05 — naming canon sweep D-137..D-141; see `docs/NAMING.md`. No UIW/old-product-name assertions found in this register._
 > _2026-08-13 amendment: Codex · GPT-5 (ADR-0053 implementation follow-ups)._
 > _2026-08-14 amendment: Claude Code · glm-5.2:cloud (independent-review report corrections — see
 > "Report re-verification corrections" below; Wave 0 live inventory + fresh-restore gate — see

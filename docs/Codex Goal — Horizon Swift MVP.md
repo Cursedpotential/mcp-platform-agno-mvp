@@ -1,6 +1,7 @@
 # GOAL — Horizon Swift MVP (usable ingest → Workbench → minimal Surreal)
 
 > _Byline: Owner-provided goal · captured by Codex · GPT-5 · 2026-08-16_
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
 
 You are Codex working in `Cursedpotential/mcp-platform-agno-mvp` (Horizon).
 

@@ -1,6 +1,7 @@
 # ADR-0048/0049 boundary correction against accepted ADR-0061 — 2026-08-29
 
 > _Byline: Codex · GPT-5 · 2026-08-29_
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
 
 STATUS: DOCUMENTATION RECONCILED — implementation and live verification remain separate.
 

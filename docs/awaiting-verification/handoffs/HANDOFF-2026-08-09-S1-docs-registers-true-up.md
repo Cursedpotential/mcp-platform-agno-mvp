@@ -1,4 +1,6 @@
 # HANDOFF S1 — Docs & registers true-up
+
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
 > _2026-08-09 · repo @ a68fabd · STATUS: READY once S4 task 4 allocates D-NNN ids · Depends: S4 task 4 · Blocks: none (do EARLY — everything downstream plans against these docs)_
 > Inventory items: N5, N8(doc), FA(doc half), P1–P5, D1f–D4f(row), TD-JC, TR-1, TR-2, TR-5(commit half), R-6, OQ-5 closure.
 > MANDATORY: read PLAN-2026-08-09-completion-master.md §Standing constraints before executing.

@@ -6,6 +6,7 @@
 > (~11,585 LOC across `internal/` + `pkg/custodyhash/`, excluding tests; 12 `_test.go` files).
 > Everything below is marked **VERIFIED** (read the actual code/route/schema) or **INFERRED**
 > (doc claim I did not independently re-derive, e.g. the 5 GiB streaming claim).
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
 
 ---
 

@@ -1,5 +1,7 @@
 <img src="https://r2cdn.perplexity.ai/pplx-full-logo-primary-dark%402x.png" style="height:64px;margin-right:32px"/>
 
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
+
 # Repo Re-Review — Consistency, Gap Closure, and Documentation Efficiency
 
 Substantial progress is real and verifiable: the schema reckoning landed, CI was restored and extended, and the identity-home problem was actually fixed. But three structural gaps remain open, and the `docs/` tree has become the single largest source of drift in the repository — roughly 46 MB and 700+ files, of which the majority is stale, duplicated, or vendored content that does not belong in a project docs directory.

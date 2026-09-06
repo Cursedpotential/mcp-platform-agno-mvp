@@ -1,5 +1,7 @@
 # Migration 0036 — Context Import Foundation
 
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
+
 > Owner: Platform data plane  
 > Target: fresh PostgreSQL 18 database `platform`  
 > Migration: `sql/0036_context_import_foundation.sql`  

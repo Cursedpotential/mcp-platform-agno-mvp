@@ -14,7 +14,14 @@
 > drift-fix 2026-08-27 Codex · GPT-5: corrected the stale whole-product
 > "SurrealDB RETIRED" statement against D-073/D-080. Only the legacy Agno
 > operational adapter/instance is retired and parked; SurrealDB is the governed
-> final temporal-graph, walk, and analysis engine.)_
+> final temporal-graph, walk, and analysis engine;
+> drift-fix 2026-09-03 Claude Code · glm-5.3:cloud: stack line rewritten per owner ruling —
+> **Milvus = memsearch only (service UP at `100.91.190.107:19530`, memsearch's backend);
+> Weaviate = project vector store projection**; "Milvus down" meant only the platform's
+> own data-vector role and that phrasing is retired — never conflate service with role;
+> drift-fix 2026-09-05 Claude Code · Fable 5.1: naming canon sweep D-137..D-141 — this
+> repository is **Indicia Probata** / `probata`; the import lane (UIW / Universal Import /
+> `uiw`) is renamed **proffer**; see `docs/NAMING.md`.)_
 
 > **This is the first file any agent (Claude Code, Codex, Gemini CLI, opencode) reads.**
 > Keep it short: universal context + navigation index. **Closest file wins** — nested
@@ -29,9 +36,12 @@ precedence: `docs/agent-memory/README.md`.
 
 ## Project
 
-Pro se family-law evidence + analysis + legal-strategy platform on Agno AgentOS.
-Evidence custody → parse → normalize → store → export. Analysis over a
-bitemporal graph. AI Legal Team (to build).
+**Indicia Probata** (`probata`) — the evidence-record product under the **propria**
+umbrella (D-137, D-138) — ~~pro se family-law evidence + analysis + legal-strategy
+platform on Agno AgentOS~~ **(renamed D-138, 2026-09-05)**. Naming canon:
+`docs/NAMING.md`. Evidence custody → parse → normalize → store → export.
+Analysis over a bitemporal graph (splitting off as **Indagatio Veri** / `indagatio`,
+D-139). AI Legal Team (to build; product name **advocatio**, D-138).
 
 ## Standing Subagent Authorization
 
@@ -167,7 +177,12 @@ retired for now (D-070). The **legacy Agno operational Surreal adapter and old
 they are not the current Surreal analytical role or target. Its export remains
 at `../_stale/surreal-export-20260804` — relative to this repository root; the `_stale/`
 archive is a sibling of this repo and only the owner deletes. Weaviate cutover
-was verified 2026-08-09 (D-042); Milvus `data-vector` stays deliberately down.
+was verified 2026-08-09 (D-042). **Milvus = memsearch only; Weaviate = project vector
+store projection** (owner ruling 2026-09-03): the Milvus service at
+`100.91.190.107:19530` is UP and is memsearch's live backend (`agent_session_memory_nemotron3`)
+— never say "Milvus is down"; only the platform's own use of Milvus as its vector
+store is unwired (ADR-0040, Weaviate locked). A memsearch failure is an incident, not
+an expected state.
 
 ## Repository Layout
 
@@ -187,7 +202,7 @@ was verified 2026-08-09 (D-042); Milvus `data-vector` stays deliberately down.
 | `server/api/`, `server/core/`, `server/analysis/`, `server/ingest/` | Entrypoint/config, DB session/model factory, behavioral analysis, ingest application service | see `server/AGENTS.md` |
 | `server/case_management/`, `server/observability/`, `server/temporal/` | Case views/workflows, audit/telemetry, and Temporal integration | see `server/AGENTS.md` |
 | `server/vendored/` | Third-party Python projects (chatminer, semantica) — not ours to lint | — |
-| `modules/engine/` | The Go engine (own `go.mod`; UIW custody writer, parsers, chunkers, stagegraph) — **moved from root `engine/` in the 2026-09-01 owner restructure** | — |
+| `modules/engine/` | The Go engine (own `go.mod`; ~~UIW~~ **proffer** (D-140) custody writer, parsers, chunkers, stagegraph) — **moved from root `engine/` in the 2026-09-01 owner restructure** | — |
 | `modules/vendored/` | **DISSOLVED 2026-09-01** — emptied when `sbv` moved to `modules/forks/sbv`. Third-party Python remains at `server/vendored/`. | — |
 | `modules/workbench/` | Operator Workbench — `api` (FastAPI) + `web`. Moved from root `workbench/` 2026-09-01. | — |
 | `modules/forks/` | **Nested independent repos, gitignored** — our forks of upstream projects, one repo each. Currently: `timesketch` (fork of google/timesketch) and `sbv` (**DONOR, not a fork** - D-131; MIT, Copyright (c) 2025 **lowcarbdev** - an earlier revision of this line credited "danzek", which was wrong. Being absorbed as a subtree into `modules/engine/decode/`; canonical remote `Cursedpotential/sbv-forensic`, whose CI builds the image the platform-tools Dockerfile consumes **by digest** — the platform build does NOT need this checkout). Add an `upstream` remote per fork for rebasing. Owner ruling 2026-09-01. | each fork's own README |

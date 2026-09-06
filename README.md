@@ -1,20 +1,33 @@
-# Temporal Evidence and Agent Experience Platform
+# Indicia Probata
 
 > _Byline: Claude Code · Sonnet 5 · 2026-08-09 (docs/registers true-up — plan-link fix;
 > drift-fix 2026-08-12 Claude Code · Kimi K3: stack line LiteLLM→Portkey/Weaviate per ADR-0040/0042; deploy section marked pre-4-box)_
 > _Current-entry-point repair: Codex · GPT-5 · 2026-08-15._
+> _Byline: Claude Code · Fable 5.1 · 2026-09-05 — renamed to **Indicia Probata** / `probata` under the **propria** umbrella (D-137, D-138); see `docs/NAMING.md`._
 
-A pro se family-law evidence, analysis, and legal-strategy platform. The current backend
-runs through an **Agno 2.8.7 / AgentOS adapter**; the accepted target is a
-**framework-neutral platform API and custom Workbench**. Agno remains available during
-the strangler migration and is not yet retired. AG2 is a bounded coordination candidate,
-not the approved replacement.
+**Indicia Probata** ("proven signs"; short form `probata`) is a pro se family-law
+evidence, analysis, and legal-strategy platform, part of the **propria** umbrella
+(D-137). ~~This repository was previously referred to as the Temporal Evidence and
+Agent Experience Platform / Agno-MCP-Platform~~ **(renamed D-138, 2026-09-05)**. The
+current backend runs through an **Agno 2.8.7 / AgentOS adapter**; the accepted target
+is a **framework-neutral platform API and custom Workbench**. Agno remains available
+during the strangler migration and is not yet retired. AG2 is a bounded coordination
+candidate, not the approved replacement.
 
 > **Start here:** [`docs/PROJECT_CANON.md`](docs/PROJECT_CANON.md) — the durable source of
 > truth (vision, decisions, roadmap, access, gotchas). Orientation for agents:
 > [`AGENTS.md`](AGENTS.md). Current document map: [`docs/INDEX.md`](docs/INDEX.md).
 > Decisions: [`docs/adr/`](docs/adr/). Active plan:
 > [`docs/BUILD_PLAN.md`](docs/BUILD_PLAN.md). Debt register: [`docs/DEBT.md`](docs/DEBT.md).
+
+## Name
+
+This repository is **Indicia Probata** (`probata`) under the **propria** umbrella.
+The evidence-record product, the splitting-off analysis engine (**Indagatio Veri** /
+`indagatio`), the vault (**consignatio**), the legal workbench (**advocatio**), the geo
+product (**vestigia**), and the component-tier functional names (`engine`, `workbench`,
+`proffer`, ...) are all defined in [`docs/NAMING.md`](docs/NAMING.md) — the canonical
+naming register (D-137 through D-141).
 
 ## Why this exists
 

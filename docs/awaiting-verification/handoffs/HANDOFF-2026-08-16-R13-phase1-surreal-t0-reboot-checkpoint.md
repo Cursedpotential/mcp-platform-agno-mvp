@@ -1,6 +1,7 @@
 # HANDOFF — R13 Phase-1 Surreal T0 Reboot Checkpoint (2026-08-16)
 
 > _Byline: Codex · GPT-5 · 2026-08-16_
+> _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
 
 STATUS: PAUSED FOR OWNER REBOOT; DISPOSABLE TARGET STOPPED AND SEALED
 BUILD_STATUS: LOCAL GATES PASS; LIVE ADAPTER FAILS CLOSED AT PROJECTION; LIVE SUCCESS NOT CLAIMED
