@@ -2,7 +2,8 @@
 
 > _Byline: Claude Code · Fable 5 · 2026-07-27_
 
-**Status**: ACCEPTED (owner "go" 2026-07-28): **Variant B (classic Memgraph projection) is the decision**; Variant A (MemGQL federation) demoted to parked experiment — see 2026-07-28 addendum. Orchestration settled Agno-native.
+**Status**: ACCEPTED (owner "go" 2026-07-28): **Variant B (classic Memgraph projection) is the decision**; Variant A (MemGQL federation) demoted to parked experiment — see 2026-07-28 addendum. ~~Orchestration settled Agno-native.~~
+> **SUPERSEDED IN PART — 2026-09-06 (D-143).** The Agno-native orchestration premise was retired by D-107. **LlamaIndex is IN as the retrieval/indexing library (a dependency, not a permission) and LangGraph is IN as the deterministic retrieval state machine** (Temporal Activities / n8n agent nodes). The sentence below, "LangGraph only reconsidered if a control-flow need arises," no longer applies. Everything else in this ADR (Memgraph additive layer, Variant B) stands. _Claude Code · Fable 5.1 · 2026-09-06._
 **Relates**: ADR-0036 (DozerDB memory/evidence isolation), ADR-0037/0038 (Graphiti), ADR-0032 (Surreal analysis sink)
 
 ## Context

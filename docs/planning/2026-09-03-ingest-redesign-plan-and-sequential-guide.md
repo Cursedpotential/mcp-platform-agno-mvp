@@ -182,6 +182,23 @@ held; immutability guards switchable by design (D-110/D-127/D-128); naming (D-13
 > Commits: ad5f820 · 8ed3191 · fa51dde · cc182a9 · 5eda234 · 3952814 · 26a36da · d06e169 ·
 > c3d5475 · 77e6033 · 72a121e · 7feea1f.
 
+> **2026-09-06 10:05 — DESK ANSWERS READ (shared store, 19 docs).** RULED: Q1=C · **Q3=B** (one
+> package per call; owner: "easily modifiable… folders have different file types… parsers must
+> work together… the orchestrator stitches before normalization") · **Q6=A** (ingest now on a
+> provisional window, re-chunk later) · **Q7=A** (chunker emits chunks+provenance; hashing
+> separate) · **Q9=A** (`content_chunk_message` as built) · **Q10=A** · **Q12=B** (edge-label
+> scheme to be re-proposed, owner: clarity was poor) · **Q13=A** · **Q16=C** (discuss) ·
+> **Q19=A** (U+FFFD + `had_nul`). NOTES-ONLY, discussion owed: Q2 (owner rejects the "two
+> lineages" premise), Q4 (**any parser disagreement → immediate HITL resolution**, not a
+> recorded finding; "promotion to what?"), Q5 (see Q3/Q4), Q8, Q11, Q14 ("flat out wrong"),
+> Q17 (**too far ahead — ingest first, one step at a time**), Q18 (**fingerprint matcher and
+> SMS/MMS status decoder are CRITICAL and were never dropped by the owner; redaction is
+> on-demand for exports; "what else got dropped?"**). Q15 = not my lane (naming).
+> **Standing correction:** the January-demotion I did on 2026-09-03 18:3x was wrong for #1
+> (fingerprint matcher) and #6 (status decoder) — both RE-ADOPTED; PII transformer = on-demand
+> export redaction, not ingest. Scope rule from Q17: promotion/evidence/analysis questions are
+> PARKED until ingest runs end to end.
+
 ### Stage 0 — Rulings that unlock everything (owner, via the Decision Desk)
 - ☐ **Q19 NUL bytes in raw records (new 2026-09-05):** PostgreSQL TEXT cannot hold 0x00; the
   synthetic SMS XML has one in element 8 and the parse dies at the raw insert. D-136 says content
